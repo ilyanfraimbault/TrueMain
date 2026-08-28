@@ -32,9 +32,9 @@ public sealed class ChampionBuildsQueryService(
         int championId,
         string? patch,
         string? position,
-        CancellationToken ct,
         ChampionBuildsScope? scope = null,
-        string? eloBracket = null)
+        string? eloBracket = null,
+        CancellationToken ct = default)
     {
         // A blank / ALL filter resolves to null (every tier); a bare tier to a
         // single bucket; a TIER_PLUS filter to that tier and the ones above it;

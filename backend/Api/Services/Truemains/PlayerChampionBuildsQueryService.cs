@@ -36,7 +36,7 @@ public sealed class PlayerChampionBuildsQueryService(
             championId,
             patch,
             position,
-            ct,
-            new ChampionBuildsScope(account.Id, account.PlatformId, MinPlayerGames));
+            new ChampionBuildsScope(account.Id, account.PlatformId, MinPlayerGames),
+            ct: ct);
     }
 }

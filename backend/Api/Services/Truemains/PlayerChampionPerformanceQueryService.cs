@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.Services.Champions;
 
 namespace TrueMain.Services.Truemains;
 
@@ -104,7 +105,7 @@ public sealed class PlayerChampionPerformanceQueryService(
         var queueId = (int)options.Value.QueueId;
         // The matches table stores the full Riot GameVersion, so an exact compare
         // would never hit; the LIKE prefix bridges normalised input to it.
-        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
 
         // The player's own rows on the champion, newest first, bounded to the
         // window. Only the match ids are needed here — every stat is re-read
@@ -270,13 +271,7 @@ public sealed class PlayerChampionPerformanceQueryService(
         string cacheKey,
         PlayerChampionPerformanceResponse response)
     {
-        cache.Set(cacheKey, response, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1,
-        });
-
-        return response;
+        return cache.Store(cacheKey, response, CacheTtl);
     }
 
     private static PlayerChampionPerformanceResponse Empty(int championId, string? position, string? patch)

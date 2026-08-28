@@ -43,7 +43,7 @@ public interface IChampionBuildsQueryService
         int championId,
         string? patch,
         string? position,
-        CancellationToken ct,
         ChampionBuildsScope? scope = null,
-        string? eloBracket = null);
+        string? eloBracket = null,
+        CancellationToken ct = default);
 }

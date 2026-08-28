@@ -73,13 +73,7 @@ internal static class ChampionCoreBuildPathResolver
         }
 
         var resolved = await LoadAsync(db, queueId, championId, position, patch, bands, ct);
-        cache.Set(cacheKey, resolved, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1
-        });
-
-        return resolved;
+        return cache.Store(cacheKey, resolved, CacheTtl);
     }
 
     private static async Task<IReadOnlyDictionary<(int, int), IReadOnlyList<int>>> LoadAsync(

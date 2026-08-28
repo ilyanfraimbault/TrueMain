@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Lol.Synergy;
 using Core.Options;
@@ -48,7 +47,7 @@ public sealed class ChampionSynergyQueryService(
         string? eloBracket,
         CancellationToken ct)
     {
-        var normalizedPatch = NormalizePatch(patch);
+        var normalizedPatch = PatchFilter.Normalize(patch);
         var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var settings = championsOptions.Value;
         var minBaselineGames = settings.MinSynergyBaselineGames;
@@ -182,7 +181,7 @@ public sealed class ChampionSynergyQueryService(
         string? eloBracket,
         CancellationToken ct)
     {
-        var normalizedPatch = NormalizePatch(patch);
+        var normalizedPatch = PatchFilter.Normalize(patch);
         var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var minGames = championsOptions.Value.MinSynergyTrioGames;
         var minBaselineGames = championsOptions.Value.MinSynergyBaselineGames;
@@ -193,7 +192,7 @@ public sealed class ChampionSynergyQueryService(
 
         // matches stores the full Riot GameVersion, so an exact compare would never
         // hit; the LIKE prefix bridges the normalised input to it.
-        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
 
         // The champion side: tracked rows for this champion at this lane, on the
         // configured queue and patch, optionally narrowed to a set of elo bands.
@@ -340,16 +339,6 @@ public sealed class ChampionSynergyQueryService(
                 .ToList(),
         };
     }
-
-    /// <summary>
-    /// Canonicalises a patch parameter to <c>major.minor</c> (e.g. "16.4.521.123" →
-    /// "16.4"). Null or unparseable input means "every patch", matching the rest of
-    /// the champion reads.
-    /// </summary>
-    private static string? NormalizePatch(string? patch)
-        => string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
 
     /// <summary>
     /// Loads every marginal win rate in the requested scope in one round trip.
