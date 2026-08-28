@@ -44,9 +44,12 @@ internal static class ChampionAggregateScopeQueries
 
         // A null bracket set means "every game" (the ALL read-time union across
         // every persisted tier). A non-null set narrows to those tiers — one
-        // tier for a "rank only" filter, several for a "rank and above" one —
-        // via a single IN over the bracket-aware index.
-        if (eloBrackets is { Count: > 0 })
+        // tier for a "rank only" filter, several for a "rank and above" one,
+        // or none at all for a rejected filter (EloBracket.ResolveFilterOrEmpty)
+        // — via a single IN over the bracket-aware index. An empty non-null set
+        // must still apply the clause: Contains() on it is always false, which
+        // is the point — it must not fall back to "every game".
+        if (eloBrackets is not null)
         {
             query = query.Where(scope => eloBrackets.Contains(scope.EloBracket));
         }

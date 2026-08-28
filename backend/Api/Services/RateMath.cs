@@ -8,11 +8,29 @@ namespace TrueMain.Services;
 internal static class RateMath
 {
     /// <summary>
-    /// Share of <paramref name="part"/> in <paramref name="total"/>;
-    /// <c>0</c> when the denominator is empty.
+    /// Share of <paramref name="part"/> in <paramref name="total"/>, collapsing an
+    /// empty denominator to <c>0</c>.
+    ///
+    /// <para>
+    /// Only for the callers where 0 <em>is</em> the answer — a share of a sample that
+    /// exists, of which this part happens to be none. Where an empty denominator means
+    /// "nothing was measured", 0 is a fabricated number (#924, #1024) and
+    /// <see cref="RateOrNull"/> is the one to call: it keeps "no games" apart from
+    /// "games, none of them wins", which is the difference the front renders as an em
+    /// dash rather than as 0%.
+    /// </para>
     /// </summary>
     public static double Rate(long part, long total)
         => total == 0 ? 0d : (double)part / total;
+
+    /// <summary>
+    /// Share of <paramref name="part"/> in <paramref name="total"/>, or
+    /// <see langword="null"/> when the denominator is empty — the same arithmetic
+    /// <see cref="Rate"/> does, with the unmeasured case left unmeasured instead of
+    /// rounded down to a zero nobody observed.
+    /// </summary>
+    public static double? RateOrNull(long part, long total)
+        => total == 0 ? null : (double)part / total;
 
     /// <summary>
     /// Win rate from nullable win / loss counters (rank snapshots can lack

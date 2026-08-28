@@ -77,7 +77,7 @@ public sealed class ChampionPowerspikesQueryService(
         // Resolve the elo filter to its bands (null = ALL, no clause); the cache
         // key carries the bracket so each band caches separately. The global
         // per-minute sigma stays unfiltered — it is just a normalising scale.
-        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var opponent = opponentChampionId is > 0 ? opponentChampionId.Value : (int?)null;

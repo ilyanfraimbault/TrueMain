@@ -105,7 +105,11 @@ public sealed class TruemainActivityQueryService(
             from participant in db.MatchParticipants.AsNoTracking()
             join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
             where participant.Puuid == puuid && match.QueueId == queueId
-            orderby match.GameStartTimeUtc descending
+            // The match id breaks ties on the start time: this is a Take over an
+            // otherwise non-total order, so games sharing a start second can enter and
+            // leave the scanned window between two identical requests — and a grid that
+            // reshuffles reads as a data change (ChampionDominantLaneFilter).
+            orderby match.GameStartTimeUtc descending, match.Id descending
             select new ActivityGameRow(
                 match.Id,
                 match.GameStartTimeUtc,

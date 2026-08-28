@@ -32,13 +32,18 @@ public sealed class ChampionsController(
 
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<IReadOnlyList<ChampionSummaryReadModel>>> ListChampionsAsync(
         [FromQuery] string? patch,
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
+
         var result = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, normalizedBracket, ct);
         return Ok(result.Summaries);
     }
@@ -68,7 +73,10 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
 
         var tierList = await tierListQueryService.GetTierListAsync(normalizedPatch, normalizedPosition, normalizedBracket, ct);
         return Ok(tierList);
@@ -114,7 +122,10 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
 
         // A matchup needs a position: "vs Darius" is only meaningful in a lane, and the
         // self-join matches both sides on it. Without one there is nothing to scope, so
@@ -233,7 +244,10 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
 
         var response = await matchupQueryService.GetAsync(
             championId,
@@ -281,7 +295,10 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
 
         var response = await synergyQueryService.GetSynergiesAsync(
             championId,
@@ -334,7 +351,10 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
 
         var response = await synergyQueryService.GetTrioSynergiesAsync(
             championId,
@@ -372,7 +392,10 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
 
         var response = await scalingQueryService.GetAsync(
             championId,
@@ -408,7 +431,10 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
 
         var response = await itemTimingsQueryService.GetAsync(
             championId,
@@ -443,7 +469,10 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
 
         var response = await roamQueryService.GetAsync(
             championId,
@@ -495,7 +524,10 @@ public sealed class ChampionsController(
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
-        var normalizedBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(eloBracket);
+        if (!TryNormalizeEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
 
         var response = await powerspikesQueryService.GetAsync(
             championId,
@@ -667,6 +699,12 @@ public sealed class ChampionsController(
             return false;
         }
 
+        if (!TryNormalizeEloBracket(request.EloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            problem = bracketProblem;
+            return false;
+        }
+
         if (allies.ContainsKey(normalizedPosition))
         {
             problem = ValidationProblem(
@@ -681,7 +719,7 @@ public sealed class ChampionsController(
             Allies = allies,
             Enemies = enemies,
             Patch = ChampionQueryParameterNormalizer.NormalizePatch(request.Patch),
-            EloBracket = ChampionQueryParameterNormalizer.NormalizeEloBracket(request.EloBracket),
+            EloBracket = normalizedBracket,
         };
         problem = null;
         return true;
@@ -782,6 +820,34 @@ public sealed class ChampionsController(
         if (normalizedPosition is null)
         {
             problem = ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            return false;
+        }
+
+        problem = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Canonicalises an optional <c>eloBracket</c> query parameter: a missing/blank
+    /// value means "every bracket" (<paramref name="normalizedBracket"/> comes back
+    /// null), while a non-blank value that is not a bracket is a 400
+    /// <paramref name="problem"/>.
+    /// </summary>
+    /// <remarks>
+    /// Rejected rather than ignored, because ignoring it is not the lenient option:
+    /// an unrecognised bracket used to resolve to "no restriction", so
+    /// <c>?eloBracket=GOLDD</c> answered with every rank's games under a Gold label
+    /// (#1224). The same treatment the sibling <c>position</c> filter already gets on
+    /// these routes.
+    /// </remarks>
+    private bool TryNormalizeEloBracket(
+        string? eloBracket,
+        out string? normalizedBracket,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        if (!ChampionQueryParameterNormalizer.TryNormalizeEloBracket(eloBracket, out normalizedBracket))
+        {
+            problem = ValidationProblem(ChampionQueryParameterNormalizer.InvalidEloBracketMessage);
             return false;
         }
 

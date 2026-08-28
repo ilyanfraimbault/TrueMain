@@ -199,8 +199,10 @@ internal static class TruemainActivityBuckets
                 StartUtc = slot,
                 Games = hit ? total.Games : 0,
                 Wins = hit ? total.Wins : 0,
-                // Null, not 0: an untouched slot has no win rate to report.
-                WinRate = hit ? (double)total.Wins / total.Games : null,
+                // Null, not 0: an untouched slot has no win rate to report. The
+                // OrNull half of the shared arithmetic says exactly that, so the two
+                // conventions for "ratio of an empty sample" stop sharing a name.
+                WinRate = RateMath.RateOrNull(total.Wins, total.Games),
             });
         }
 

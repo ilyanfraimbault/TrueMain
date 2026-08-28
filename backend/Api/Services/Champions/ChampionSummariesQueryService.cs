@@ -65,9 +65,18 @@ public sealed class ChampionSummariesQueryService(
 
         // Resolve the filter to its per-tier bands: cumulative "X+" expands, an
         // exact tier selects only itself. Null → ALL: no elo clause, full union.
+        //
+        // Resolved from the raw value, not from the normalised one: Normalize maps a
+        // blank filter and an unrecognised one both to null, so resolving after it
+        // would hand every typo the whole population under a rank label (#1224).
         var normalizedBracket = EloBracket.Normalize(eloBracket);
-        var bracketBands = EloBracket.ResolveFilter(normalizedBracket);
-        var bracketKey = bracketBands is null ? EloBracket.All : normalizedBracket!;
+        var bracketBands = EloBracket.ResolveFilterOrEmpty(eloBracket);
+        var bracketKey = bracketBands switch
+        {
+            null => EloBracket.All,
+            { Count: 0 } => EloBracket.InvalidToken,
+            _ => normalizedBracket!
+        };
 
         var resolveSw = Stopwatch.StartNew();
         var activePatch = await ResolveActivePatchAsync(patch, ct);
@@ -315,10 +324,11 @@ public sealed class ChampionSummariesQueryService(
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
             .Where(scope => scope.GameVersion == activePatch);
 
-        // Cumulative elo filter: a null / empty band set is ALL (no clause, the
-        // full union incl. Unranked); a non-empty set restricts to the bands at
-        // or above the requested threshold (`elo_bracket = ANY(@bands)`).
-        if (bracketBands is { Count: > 0 })
+        // Cumulative elo filter: null is ALL (no clause, the full union incl.
+        // Unranked); a non-null set restricts to those bands — empty included,
+        // which correctly matches nothing rather than widening back to ALL for
+        // a rejected filter (see EloBracket.ResolveFilterOrEmpty).
+        if (bracketBands is not null)
         {
             groupsQuery = groupsQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
         }
@@ -528,10 +538,11 @@ public sealed class ChampionSummariesQueryService(
         var queueId = (int)options.Value.QueueId;
 
         // Mirror the summaries elo filter so the row's shown build matches the
-        // slice its WR / PR are computed from (null / empty = ALL, no clause).
+        // slice its WR / PR are computed from (null = ALL, no clause; a
+        // non-null set — empty included — restricts, see ResolveFilterOrEmpty).
         var scopeQuery = db.ChampionAggregateScopes.AsNoTracking()
             .Where(scope => scope.QueueId == queueId && scope.GameVersion == activePatch);
-        if (bracketBands is { Count: > 0 })
+        if (bracketBands is not null)
         {
             scopeQuery = scopeQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
         }

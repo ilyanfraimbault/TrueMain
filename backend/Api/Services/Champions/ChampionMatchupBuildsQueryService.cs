@@ -57,7 +57,7 @@ public sealed class ChampionMatchupBuildsQueryService(
 
         var queueId = (int)mainAnalysisOptions.Value.QueueId;
         var requestedPatch = string.IsNullOrWhiteSpace(patch) ? null : PatchVersion.Normalize(patch);
-        var bracketFilter = EloBracket.ResolveFilter(eloBracket);
+        var bracketFilter = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var resolvedBracket = EloBracket.Normalize(eloBracket) ?? EloBracket.All;
 
         // With no patch asked for, resolve the newest one this matchup was played on and

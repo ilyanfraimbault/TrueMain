@@ -17,7 +17,7 @@ namespace Core.Lol.Ranking;
 ///   <item>a tier + <see cref="PlusSuffix"/> (e.g. <c>GOLD_PLUS</c>) — that tier
 ///   and every tier above it on the <see cref="Ladder"/>.</item>
 /// </list>
-/// <see cref="ResolveFilter"/> turns a filter into the concrete set of stored
+/// <see cref="TryResolveFilter"/> turns a filter into the concrete set of stored
 /// buckets to read, so a "rank and above" filter is a single <c>IN</c> query.
 /// </summary>
 public static class EloBracket
@@ -37,6 +37,12 @@ public static class EloBracket
 
     /// <summary>Suffix marking an "and above" filter, e.g. <c>GOLD_PLUS</c>.</summary>
     public const string PlusSuffix = "_PLUS";
+
+    /// <summary>
+    /// Cache-key token shared by every value that is not a bracket — see
+    /// <see cref="ResolveToken"/> for why they get one of their own.
+    /// </summary>
+    public const string InvalidToken = "invalid";
 
     /// <summary>
     /// The ranked tiers in ascending order. Position defines "and above": a
@@ -111,45 +117,87 @@ public static class EloBracket
     }
 
     /// <summary>
-    /// Resolves a filter to the set of stored buckets it covers, or
-    /// <see langword="null"/> for the <see cref="All"/> / blank / unrecognised
-    /// case (no filter — the caller then spans every bucket). A bare tier
-    /// yields a single-element set; a <c>TIER_PLUS</c> filter yields that tier
-    /// and everything above it on the <see cref="Ladder"/>.
+    /// Resolves a filter to the set of stored buckets it covers, telling apart the
+    /// two cases a plain resolve collapses: <see langword="true"/> with
+    /// <paramref name="bands"/> null is "every bucket" (blank / <see cref="All"/>),
+    /// while <see langword="false"/> is "this is not a bracket at all".
+    ///
+    /// <para>
+    /// They must not read alike. Answering an unrecognised value with "no
+    /// restriction" serves the whole population under a rank label — <c>?elo=GOLDD</c>
+    /// comes back as every bracket's games with Gold written above them — which is a
+    /// fabricated number, not a lenient filter. The caller decides what to do with the
+    /// rejection: reject the request, or return its documented empty state.
+    /// </para>
+    ///
+    /// <para>
+    /// A bare tier yields a single-element set; a <c>TIER_PLUS</c> filter yields that
+    /// tier and everything above it on the <see cref="Ladder"/>.
+    /// </para>
     /// </summary>
-    public static IReadOnlyList<string>? ResolveFilter(string? filter)
+    public static bool TryResolveFilter(string? filter, out IReadOnlyList<string>? bands)
     {
+        bands = null;
+
         if (string.IsNullOrWhiteSpace(filter))
         {
-            return null;
+            return true;
         }
 
         var value = filter.Trim().ToUpperInvariant();
         if (value == All)
         {
-            return null;
+            return true;
         }
 
         var (tier, andAbove) = SplitFilter(value);
         var index = IndexInLadder(tier);
         if (index < 0)
         {
-            return null;
+            return false;
         }
 
-        return andAbove ? Ladder.Skip(index).ToList() : [Ladder[index]];
+        bands = andAbove ? Ladder.Skip(index).ToList() : [Ladder[index]];
+        return true;
     }
 
     /// <summary>
-    /// Cache-key token for a filter: the canonical <see cref="Normalize"/> form
-    /// (e.g. <c>GOLD_PLUS</c>), or <c>"all"</c> for the every-bucket case
-    /// (blank / <see cref="All"/> / unrecognised — exactly the inputs for which
-    /// <see cref="ResolveFilter"/> yields no bands).
+    /// The buckets a filter covers, with an unrecognised value degrading to the
+    /// <em>empty</em> set rather than to every bucket: no band matches, so the read
+    /// comes back empty instead of answering a rank question with the whole
+    /// population. <see langword="null"/> still means "no restriction", which only a
+    /// blank or <see cref="All"/> filter earns.
     /// </summary>
+    /// <remarks>
+    /// The safety net under the HTTP boundary, which rejects the same values with a
+    /// 400 (<c>ChampionQueryParameterNormalizer</c>). Query services are reachable
+    /// without MVC, and they are the layer that must never widen a scope it was not
+    /// asked to widen.
+    /// </remarks>
+    public static IReadOnlyList<string>? ResolveFilterOrEmpty(string? filter)
+        => TryResolveFilter(filter, out var bands) ? bands : [];
+
+    /// <summary>
+    /// Cache-key token for a filter: the canonical <see cref="Normalize"/> form
+    /// (e.g. <c>GOLD_PLUS</c>), <c>"all"</c> for the every-bucket case (blank /
+    /// <see cref="All"/>), or <see cref="InvalidToken"/> for a value that is not a
+    /// bracket.
+    /// </summary>
+    /// <remarks>
+    /// The rejected case gets its own token, and one token for all of them: it answers
+    /// empty where <c>"all"</c> answers with the whole population, so sharing an entry
+    /// with <c>"all"</c> would let a typo evict — or be served — the real answer. One
+    /// shared token rather than the raw value, so a stream of garbage filters cannot
+    /// mint an unbounded number of cache entries.
+    /// </remarks>
     public static string ResolveToken(string? filter)
     {
-        var normalized = Normalize(filter);
-        return normalized is null or All ? "all" : normalized;
+        if (!TryResolveFilter(filter, out var bands))
+        {
+            return InvalidToken;
+        }
+
+        return bands is null ? "all" : Normalize(filter)!;
     }
 
     private static (string Tier, bool AndAbove) SplitFilter(string value)

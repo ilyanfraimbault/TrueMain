@@ -79,13 +79,73 @@ public sealed class ChampionAggregateScopeQueriesTests
         matched.Should().HaveCount(2);
     }
 
+    [Fact]
+    public void WhereChampionScope_NullBracketSet_MatchesEveryBracket()
+    {
+        var scopes = new[]
+        {
+            BuildScope(championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP", eloBracket: "GOLD"),
+            BuildScope(championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP", eloBracket: "DIAMOND")
+        };
+
+        var matched = scopes.AsQueryable()
+            .WhereChampionScope(
+                championId: 11, queueId: 420, riotAccountId: null, patch: null, platformId: null, position: null,
+                eloBrackets: null)
+            .ToList();
+
+        matched.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void WhereChampionScope_NonEmptyBracketSet_RestrictsToThoseBrackets()
+    {
+        var scopes = new[]
+        {
+            BuildScope(championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP", eloBracket: "GOLD"),
+            BuildScope(championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP", eloBracket: "DIAMOND")
+        };
+
+        var matched = scopes.AsQueryable()
+            .WhereChampionScope(
+                championId: 11, queueId: 420, riotAccountId: null, patch: null, platformId: null, position: null,
+                eloBrackets: ["GOLD"])
+            .ToList();
+
+        matched.Should().ContainSingle();
+        matched[0].EloBracket.Should().Be("GOLD");
+    }
+
+    [Fact]
+    public void WhereChampionScope_EmptyNonNullBracketSet_MatchesNothing()
+    {
+        // A rejected filter resolves to an empty, non-null set
+        // (EloBracket.ResolveFilterOrEmpty) — it must match nothing, not fall
+        // back to "every bracket" the way a null set does. Regression test for
+        // the `is { Count: > 0 }` guard that treated the two alike.
+        var scopes = new[]
+        {
+            BuildScope(championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP", eloBracket: "GOLD"),
+            BuildScope(championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP", eloBracket: "DIAMOND")
+        };
+
+        var matched = scopes.AsQueryable()
+            .WhereChampionScope(
+                championId: 11, queueId: 420, riotAccountId: null, patch: null, platformId: null, position: null,
+                eloBrackets: [])
+            .ToList();
+
+        matched.Should().BeEmpty();
+    }
+
     private static ChampionAggregateScope BuildScope(
         int championId,
         int queueId,
         Guid accountId,
         string version,
         string platform,
-        string position)
+        string position,
+        string eloBracket = "GOLD")
     {
         return new ChampionAggregateScope
         {
@@ -96,6 +156,7 @@ public sealed class ChampionAggregateScopeQueriesTests
             GameVersion = version,
             PlatformId = platform,
             Position = position,
+            EloBracket = eloBracket,
             Games = 1,
             Wins = 1
         };
