@@ -1,4 +1,18 @@
 /**
+ * Thousands-separated integer, pinned to `en-US`.
+ *
+ * The locale is not a per-call-site decision. A bare `toLocaleString()` reads
+ * the *environment's* locale, so a server configured differently from the
+ * browser renders `1,204` on one side and `1 204` on the other — a hydration
+ * mismatch on every server-rendered count. Routing every count through here
+ * makes that impossible; the app's copy is English-only (no i18n), so `en-US`
+ * is the answer rather than a default.
+ */
+export function formatCount(value: number): string {
+  return value.toLocaleString('en-US')
+}
+
+/**
  * A headline count, rounded down to a short form: `490365` → `490k`,
  * `1204886` → `1.2M`. For the figures whose job is to say *how much* rather than
  * *exactly how much* — the homepage hero chips. A precise 490,365 invites the

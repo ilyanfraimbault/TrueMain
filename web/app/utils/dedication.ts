@@ -1,4 +1,6 @@
 import type { TruemainDedication } from '~~/shared/types/dedication'
+import { formatCount } from '~~/shared/utils/counts'
+import { formatPercentage } from '~~/shared/utils/ddragon'
 
 // Presentation helpers for the dedication score. Formatting only — the score
 // and every component are computed by the backend
@@ -77,7 +79,7 @@ export function dedicationComponents(dedication: TruemainDedication): Dedication
       // unchanged; this is a display label only.
       label: 'Play rate',
       value: dedication.commitment,
-      detail: `${(dedication.playRate * 100).toFixed(0)}% of recent ranked games`,
+      detail: `${formatPercentage(dedication.playRate, 0)} of recent ranked games`,
     },
     {
       key: 'span',
@@ -91,7 +93,7 @@ export function dedicationComponents(dedication: TruemainDedication): Dedication
       key: 'volume',
       label: 'Volume',
       value: dedication.volume,
-      detail: `${dedication.careerGames.toLocaleString('en-US')} tracked games`,
+      detail: `${formatCount(dedication.careerGames)} tracked games`,
     },
     {
       key: 'recency',

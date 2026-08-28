@@ -2,6 +2,7 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionMatchupEntry } from '~~/shared/types/champions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatCount } from '~~/shared/utils/counts'
 import { formatGoldDiff } from '~/utils/lane-verdict'
 import { winRateTone } from '~/utils/rate-tone'
 
@@ -49,11 +50,11 @@ const laneTooltip = computed(() => {
   const gap = averageGoldDiffAt15 === null
     ? null
     : `avg ${formatGoldDiff(averageGoldDiffAt15)} gold at 15 min over `
-      + `${goldDiffLaneGames.toLocaleString()} lane(s)`
+      + `${formatCount(goldDiffLaneGames)} lane(s)`
   if (laneWinRate === null) {
     return gap ?? 'No lane decided past the gold threshold at 15 min in this slice'
   }
-  const rate = `Lane win rate over ${decidedLaneGames.toLocaleString()} decided lane(s)`
+  const rate = `Lane win rate over ${formatCount(decidedLaneGames)} decided lane(s)`
   return gap ? `${rate} · ${gap}` : rate
 })
 
@@ -74,7 +75,7 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
 // quantity the backend's leaderboard floor is expressed in, so this is also the
 // answer to "why is this opponent in the list and that one is not".
 const gamesTooltip = computed(() => {
-  const games = `${props.entry.games.toLocaleString()} game(s)`
+  const games = `${formatCount(props.entry.games)} game(s)`
   return props.entry.playRate > 0
     ? `${games} · ${formatPercentage(props.entry.playRate, 1)} of this champion's matchups`
     : games
@@ -104,7 +105,7 @@ const gamesTooltip = computed(() => {
     </span>
     <UTooltip :text="gamesTooltip">
       <span class="shrink-0 text-xs tabular-nums text-muted">
-        {{ entry.games.toLocaleString() }} games
+        {{ formatCount(entry.games) }} games
       </span>
     </UTooltip>
     <UTooltip :text="laneTooltip">

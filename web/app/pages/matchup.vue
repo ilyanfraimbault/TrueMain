@@ -51,14 +51,20 @@ watch(playedPosition, (position) => {
 
 // Deep-link the matchup (champion, role, opponent) so a matchup is shareable.
 // The eight remaining slots stay ephemeral — a full draft in the URL is noise.
+//
+// Built from the current query rather than from scratch, the same way
+// `useChampionFilters.setFilter` and `useRouteFilterSetter` do: this watcher
+// owns exactly three keys and must not evict anything else the URL carries
+// (`utm_source`, `ref`, a future `?elo=`) on the first pick.
 watch([playedChampionId, playedPosition, opponentChampionId], ([champion, position, opponent]) => {
-  void router.replace({
-    query: {
-      ...(champion ? { champion: String(champion) } : {}),
-      ...(position ? { position } : {}),
-      ...(opponent ? { opponent: String(opponent) } : {}),
-    },
-  })
+  const query = { ...route.query }
+  if (champion) query.champion = String(champion)
+  else delete query.champion
+  if (position) query.position = position
+  else delete query.position
+  if (opponent) query.opponent = String(opponent)
+  else delete query.opponent
+  void router.replace({ query })
 })
 
 // ─── Reference data ──────────────────────────────────────────────────────────
@@ -136,17 +142,13 @@ watch(
       return
     }
     const championId = playedChampionId.value
-    const position = playedPosition.value
-    const opponent = opponentChampionId.value
+    // Capture the body alongside the champion id: the drawer and the backend's
+    // 30 s cache both key on this exact object, so it is composed once and the
+    // fetch and the provenance list cannot drift apart.
+    const request = currentDraftRequest.value
+    if (request === null) return
     refetchTimer = setTimeout(() => {
-      void submit(championId, {
-        position,
-        allies: toSlots(allySlots.value),
-        enemies: toSlots(
-          enemySlots.value,
-          opponent === null ? null : { position, championId: opponent },
-        ),
-      })
+      void submit(championId, request)
     }, REFETCH_DEBOUNCE_MS)
   },
   { deep: true, immediate: true },

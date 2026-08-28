@@ -1,5 +1,19 @@
+/** A 0..1 ratio as a percentage string, at a fixed precision. */
 export function formatPercentage(value: number, digits = 1): string {
   return `${(value * 100).toFixed(digits)}%`
+}
+
+/**
+ * A 0..1 ratio as a percentage, with one extra decimal for the values the fixed
+ * precision would flatten: under 1%, a whole-number percentage rounds to `0%`,
+ * which reads as "never picked" rather than "rarely picked". Used where the long
+ * tail is meaningful — the item tooltip's slot popularity, where a 0.4% item is
+ * a real, if fringe, choice.
+ *
+ * `digits` is the precision above the threshold; below it, `digits + 1`.
+ */
+export function formatPercentageAdaptive(value: number, digits = 0): string {
+  return value * 100 >= 1 ? formatPercentage(value, digits) : formatPercentage(value, digits + 1)
 }
 
 /**

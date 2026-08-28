@@ -11,8 +11,8 @@ import type { Ref } from 'vue'
  * only calls while hydrating server markup — a subtree that is created
  * client-side (here: after the `localStorage` read in `onMounted`) mounts
  * immediately and its strategy is never consulted. So content that never
- * exists at SSR needs an explicit observer, which is what the homepage's
- * item-map gate already does inline (`home/TruemainsPanel.vue`).
+ * exists at SSR needs an explicit observer — the case this generalises from,
+ * the homepage's item-map gate (`home/TruemainsPanel.vue`), which now calls it.
  *
  * Must be called from a component `setup()`: the observer is attached in
  * `onMounted`, both because the template ref is only populated by then and
