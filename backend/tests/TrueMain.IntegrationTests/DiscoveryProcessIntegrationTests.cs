@@ -283,6 +283,84 @@ public sealed class DiscoveryProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_WithMultipleSaveSlices_PersistsTheInPlaceSnapshotUpdateOfEverySlice()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        // Two accounts, each with a same-day snapshot the ladder rank will change —
+        // the update-in-place branch of RankSnapshotWriter, not the insert branch.
+        // With SaveBatchSize = 1 these land in two different save slices, so the
+        // second slice's preload runs after the first slice's SaveChanges +
+        // ClearTracking. #1229 moved that preload inside the slice specifically so
+        // this update is not silently lost against a tracker drained for slice one;
+        // nothing before this test exercised more than a single slice.
+        var accountIds = new Dictionary<string, Guid>();
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            foreach (var puuid in new[] { "puuid-slice-1", "puuid-slice-2" })
+            {
+                var existing = new Data.Entities.RiotAccount
+                {
+                    Id = Guid.NewGuid(),
+                    Puuid = puuid,
+                    PlatformId = "KR",
+                    GameName = "existing-player",
+                    SummonerId = $"summoner-{puuid}",
+                    ProfileIconId = 1,
+                    SummonerLevel = 100,
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-2),
+                    UpdatedAtUtc = DateTime.UtcNow.AddDays(-2)
+                };
+                accountIds[puuid] = existing.Id;
+                seedDb.RiotAccounts.Add(existing);
+                seedDb.RankSnapshots.Add(new Data.Entities.RankSnapshot
+                {
+                    Id = Guid.NewGuid(),
+                    RiotAccountId = existing.Id,
+                    CapturedAtUtc = DateTime.UtcNow.AddHours(-1),
+                    Tier = "GOLD",
+                    Division = "IV",
+                    LeaguePoints = 10,
+                    Wins = 1,
+                    Losses = 1
+                });
+            }
+
+            await seedDb.SaveChangesAsync();
+        }
+
+        var process = new DiscoveryProcess(
+            NullLogger<DiscoveryProcess>.Instance,
+            new FakeRiotPlatformClient(),
+            _fixture.CreateSessionFactory(),
+            new TwoSummonerLadderDiscoveryService(),
+            new AccountUpsertService(),
+            new NoOpCandidateUpsertService(),
+            new RankSnapshotWriter(),
+            new FakeProcessRunStore(),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
+            {
+                Platforms = ["KR"],
+                SaveBatchSize = 1,
+                NewAccountsTarget = 0
+            }));
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        foreach (var (puuid, accountId) in accountIds)
+        {
+            var account = verifyDb.RiotAccounts.Single(a => a.Id == accountId);
+            account.LastRankSyncAtUtc.Should().NotBeNull($"the {puuid} slice's SaveChanges must persist, not just the first slice's");
+
+            var snapshot = await verifyDb.RankSnapshots.SingleAsync(s => s.RiotAccountId == accountId);
+            snapshot.Tier.Should().Be("PLATINUM", $"the {puuid} slice must overwrite the same-day row in place rather than leaving the stale seeded rank");
+            snapshot.LeaguePoints.Should().Be(75);
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_WhenOnePlatformFails_StillDiscoversRemainingPlatforms()
     {
         await _fixture.ResetDatabaseAsync();
@@ -393,6 +471,47 @@ public sealed class DiscoveryProcessIntegrationTests
                         SummonerLevel = 50
                     },
                     Rank: null)
+            };
+
+            return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset));
+        }
+    }
+
+    /// <summary>
+    /// Two summoners in one window, each with a rank reading — used to force two
+    /// save slices (with <c>SaveBatchSize = 1</c>) so a test can assert that the
+    /// second slice's preload/save survives the first slice's <c>ClearTracking()</c>.
+    /// </summary>
+    private sealed class TwoSummonerLadderDiscoveryService : ILadderDiscoveryService
+    {
+        public Task<LadderDiscoveryResult> DiscoverSummonersAsync(
+            PlatformRoute platform,
+            DiscoveryOptions options,
+            int offset,
+            CancellationToken ct)
+        {
+            var discovered = new List<DiscoveredSummoner>
+            {
+                new(
+                    new RiotSummonerDto
+                    {
+                        Id = "summoner-puuid-slice-1",
+                        Puuid = "puuid-slice-1",
+                        Name = "slice-one-player",
+                        ProfileIconId = 1,
+                        SummonerLevel = 100
+                    },
+                    new RankSnapshotInput("PLATINUM", "II", 75, Wins: 10, Losses: 5)),
+                new(
+                    new RiotSummonerDto
+                    {
+                        Id = "summoner-puuid-slice-2",
+                        Puuid = "puuid-slice-2",
+                        Name = "slice-two-player",
+                        ProfileIconId = 1,
+                        SummonerLevel = 100
+                    },
+                    new RankSnapshotInput("PLATINUM", "II", 75, Wins: 10, Losses: 5))
             };
 
             return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset));
