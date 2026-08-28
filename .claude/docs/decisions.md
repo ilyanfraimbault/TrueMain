@@ -1419,6 +1419,16 @@ the site should read as rose gold and should not carry a cyan it never wanted. R
 - **The activity heatmap returns to rose gold / neutral**, which is where #927 had it. The sign of a period is
   now carried by *accent vs grey* rather than by two opposed hues, which puts more weight on intensity: a
   one-game losing period is a faint grey cell. That is the intended read — it is barely a signal.
+- **The top of the axis has a second step — written down in #1237, months after it shipped.** `--color-gold`
+  sits above `--color-data-good` for a *standout* value: a Perfect KDA, a 75+ performance score
+  (`MatchRow.vue`). It arrived with the match history and was never documented, so `DESIGN_SYSTEM.md`,
+  `main.css` and this entry all described a two-tone axis the code had not had for months. The call was to
+  document the step rather than retire it — the grading is right, and a three-tone read is what an op.gg-style
+  row needs — and to leave it on `--color-gold` rather than mint a `--color-data-standout`: it is the same
+  token the MVP crown wears, and that identity *is* the point, since the number and the accolade are saying
+  the same thing. A second name for one hex is how those two drift apart. **"One-sided" is therefore a claim
+  about the bottom of the axis**: there is still no opposed hue for "bad". The standout step is the one member
+  of the axis that is text and small marks only — a gold fill would out-shout the accent it exists to cap.
 
 **The cost, stated so nobody re-derives it in surprise: the accent is no longer exclusive to interaction.**
 #1060's central mechanism was that rose gold meant "you can touch this" and nothing else, which is what let it
@@ -1440,8 +1450,8 @@ default — so the colour-mode `storageKey` was moved at the same time, retiring
 visitor might still carry from before the toggle was removed.
 
 Reviewable at `pages/dev/design-system.vue`, which is the compensating control for having no Storybook and no
-SFC-mounting test setup: every token, elevation step and material on one screen, stripped from production
-builds like the other `dev/*` playgrounds.
+SFC-mounting test setup: every colour family, elevation step and material on one screen, stripped from
+production builds like the other `dev/*` playgrounds.
 
 ## A patch is served only once it can fill a directory (2026-08-12)
 
