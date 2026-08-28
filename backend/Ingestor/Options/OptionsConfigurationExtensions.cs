@@ -91,6 +91,7 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.TopNPerPlatform > 0, "Scoring:TopNPerPlatform must be greater than 0.")
             .Validate(options => options.TopChampionsPerAccount > 0, "Scoring:TopChampionsPerAccount must be greater than 0.")
             .Validate(options => options.BatchSize > 0, "Scoring:BatchSize must be greater than 0.")
+            .Validate(options => options.MaxCandidatesPerRun >= 0, "Scoring:MaxCandidatesPerRun must be >= 0.")
             .Validate(options => options.RecencyWeight >= 0, "Scoring:RecencyWeight must be >= 0.")
             .Validate(options => options.RankWeight >= 0, "Scoring:RankWeight must be >= 0.")
             .Validate(options => options.PointsWeight >= 0, "Scoring:PointsWeight must be >= 0.")
