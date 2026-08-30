@@ -8,7 +8,7 @@
 // `summary` JSON + error is inspectable in a slide-over.
 import type { TableColumn } from '@nuxt/ui'
 import type { BadgeColor, ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
-import { PIPELINE_CHAIN } from '~~/shared/types/ops'
+import { PIPELINE_CHAIN, PROCESS_META } from '~~/shared/types/ops'
 import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 // Run-status colours and icons live in `utils/pipeline-health.ts` so this page and the
 // health cockpit paint the same run identically — they used to disagree on `Running`.
@@ -192,31 +192,31 @@ function outcomeLabel(outcome: ChainOutcome): string {
   return outcome === 'notRun' ? 'Not run' : outcome
 }
 
-// Short process labels keep the chain compact (e.g. "ChampionPatternAggregation"
-// → "Pattern Agg.") without losing meaning.
-const CHAIN_LABELS: Record<string, string> = {
-  LadderSync: 'Ladder Sync',
-  Discovery: 'Discovery',
-  ManualSeed: 'Manual Seed',
-  Harvest: 'Harvest',
-  Scoring: 'Scoring',
-  MainActivity: 'Main Activity',
-  MatchIngestion: 'Match Ingest',
-  MatchTeamPositionCorrection: 'Position Fix',
-  MainAnalysis: 'Main Analysis',
-  MatchParticipantEloBracketEnrichment: 'Elo Enrich',
-  RunePageDeduplication: 'Rune Dedup',
-  ChampionPatternAggregation: 'Pattern Agg.',
-  ChampionMatchupLeadAggregation: 'Matchup Agg.',
-  ChampionLaneOutcomeAggregation: 'Lane Agg.',
-  ChampionSynergyAggregation: 'Synergy Agg.',
-  ChampionBanAggregation: 'Ban Agg.',
-  ChampionPowerspikeAggregation: 'Spike Agg.',
-  AccountRefresh: 'Acct Refresh',
-  MatchDataRetention: 'Retention',
-}
+// Names and explanations both come from the shared PROCESS_META, next to the
+// chain order it describes. A process with no entry still renders — under its raw
+// class name, with no tooltip — rather than blanking the chip.
 function chainLabel(processName: string): string {
-  return CHAIN_LABELS[processName] ?? processName
+  return PROCESS_META[processName]?.label ?? processName
+}
+function chainDescription(processName: string): string | undefined {
+  return PROCESS_META[processName]?.description
+}
+// Hover text is always "what the step is", then the context of the chip it is on.
+// A process with no metadata falls back to the context alone rather than showing
+// an empty first paragraph.
+function processTooltip(processName: string, context: string): string {
+  const description = chainDescription(processName)
+  return description ? `${description}\n\n${context}` : context
+}
+// Current chain: the context is what clicking does, or — for a step that has not
+// run — the outcome, which is the only other thing there is to say about it.
+function chainTooltip(link: ChainLink): string {
+  return processTooltip(link.processName, link.run ? 'View run details' : outcomeLabel(link.outcome))
+}
+// Iteration chips are not individually clickable, so their context is the raw
+// process name (the identifier an operator greps for) and the outcome.
+function iterationChipTooltip(link: ChainLink): string {
+  return processTooltip(link.processName, `${link.processName} · ${outcomeLabel(link.outcome)}`)
 }
 
 // Failure-cell coloring. The window always holds thousands of failures, so the
@@ -474,7 +474,7 @@ const selectedIterationTally = computed(() => {
                 'cursor-default': !link.run,
               }"
               :disabled="!link.run"
-              :title="link.run ? 'View run details' : outcomeLabel(link.outcome)"
+              :title="chainTooltip(link)"
               @click="link.run && openDetail(link.run)"
             >
               <UIcon
@@ -556,7 +556,7 @@ const selectedIterationTally = computed(() => {
                     'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
                     'border-default bg-default opacity-50': link.outcome === 'notRun',
                   }"
-                  :title="`${link.processName} · ${outcomeLabel(link.outcome)}`"
+                  :title="iterationChipTooltip(link)"
                 >
                   <UIcon
                     :name="outcomeIcon(link.outcome)"
@@ -971,7 +971,10 @@ const selectedIterationTally = computed(() => {
                       'text-warning': entry.link.outcome === 'Abandoned',
                     }"
                   />
-                  <span class="text-sm font-medium text-highlighted truncate">
+                  <span
+                    class="text-sm font-medium text-highlighted truncate"
+                    :title="processTooltip(entry.link.processName, entry.link.processName)"
+                  >
                     {{ chainLabel(entry.link.processName) }}
                   </span>
                 </span>
