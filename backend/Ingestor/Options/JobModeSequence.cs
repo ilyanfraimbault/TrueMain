@@ -17,6 +17,12 @@ public static class JobModeSequence
     // the IReadOnlyList back and reorder the shared pipeline.
     private static readonly ReadOnlyCollection<JobMode> FullPipeline = Array.AsReadOnly<JobMode>(
     [
+        // Reads the ladders themselves to refresh the rank of accounts we already track
+        // (#1312), before Discovery. Cheap and broad where AccountRefresh is expensive and
+        // narrow: the apex tiers cost one call each, and everything below Master is swept
+        // incrementally under its own request budget. Running it first means the snapshots
+        // the later EloBracketEnrichment step reads are this cycle's, not the previous one's.
+        JobMode.LadderSyncOnly,
         JobMode.DiscoveryOnly,
         // ManualSeed runs right after Discovery and before Scoring: it queues its
         // candidates directly (skipping the competitive top-N ScoringProcess), so

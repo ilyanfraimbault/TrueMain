@@ -19,6 +19,7 @@ namespace Ingestor.Riot;
 [JsonSerializable(typeof(RiotSummonerDto))]
 [JsonSerializable(typeof(RiotLeagueListDto))]
 [JsonSerializable(typeof(List<RiotLeagueEntryByPuuidDto>))]
+[JsonSerializable(typeof(List<RiotLeagueDivisionEntryDto>))]
 [JsonSerializable(typeof(List<RiotChampionMasteryDto>))]
 [JsonSerializable(typeof(RiotMatchDto))]
 [JsonSerializable(typeof(RiotTimelineDto))]

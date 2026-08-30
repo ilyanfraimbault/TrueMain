@@ -15,6 +15,7 @@ public interface IDataSession : IAsyncDisposable
     IMatchBanRepository MatchBans { get; }
     IRankSnapshotRepository RankSnapshots { get; }
     IDiscoveryCursorRepository DiscoveryCursors { get; }
+    ILadderSyncCursorRepository LadderSyncCursors { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
     Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken ct);

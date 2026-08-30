@@ -68,6 +68,8 @@ public class TrueMainDbContext : DbContext
 
     public DbSet<DiscoveryCursor> DiscoveryCursors => Set<DiscoveryCursor>();
 
+    public DbSet<LadderSyncCursor> LadderSyncCursors => Set<LadderSyncCursor>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

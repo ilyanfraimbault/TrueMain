@@ -21,6 +21,7 @@ public sealed class DataSession : IDataSession
         MatchBans = new MatchBanRepository(_db);
         RankSnapshots = new RankSnapshotRepository(_db);
         DiscoveryCursors = new DiscoveryCursorRepository(_db);
+        LadderSyncCursors = new LadderSyncCursorRepository(_db);
     }
 
     public IMainCandidateRepository MainCandidates { get; }
@@ -34,6 +35,7 @@ public sealed class DataSession : IDataSession
     public IMatchBanRepository MatchBans { get; }
     public IRankSnapshotRepository RankSnapshots { get; }
     public IDiscoveryCursorRepository DiscoveryCursors { get; }
+    public ILadderSyncCursorRepository LadderSyncCursors { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken ct)
         => _db.SaveChangesAsync(ct);
