@@ -84,6 +84,12 @@ internal static class RiotEndpointClassifier
             return "league-v4.entriesByPuuid";
         }
 
+        // Must stay below the by-puuid arm: both share the /league/v4/entries/ prefix.
+        if (path.Contains("/league/v4/entries/", StringComparison.Ordinal))
+        {
+            return "league-v4.entriesByDivision";
+        }
+
         // summoner-v4 (platform)
         if (path.Contains("/summoners/by-puuid/", StringComparison.Ordinal))
         {

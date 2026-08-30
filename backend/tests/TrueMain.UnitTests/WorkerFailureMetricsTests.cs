@@ -23,6 +23,7 @@ public sealed class WorkerFailureMetricsTests
 {
     private static readonly (string Name, JobMode Mode)[] FullSequence =
     [
+        ("LadderSync", JobMode.LadderSyncOnly),
         ("Discovery", JobMode.DiscoveryOnly),
         ("ManualSeed", JobMode.ManualSeedOnly),
         ("Harvest", JobMode.HarvestOnly),

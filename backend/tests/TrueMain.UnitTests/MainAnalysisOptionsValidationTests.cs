@@ -19,6 +19,7 @@ public sealed class MainAnalysisOptionsValidationTests
     private const string ApiKeyOverride = "Riot:ApiKey";
     private const string TierScopeOverride = "Discovery:TierScope:0";
     private const string PlatformOverride = "Platforms:Active:0";
+    private const string LadderSyncTierScopeOverride = "LadderSync:TierScope:0";
 
     [Fact]
     public void PlayRateFloorOfExactlyOne_FailsStartupValidation()
@@ -45,6 +46,7 @@ public sealed class MainAnalysisOptionsValidationTests
                 [ApiKeyOverride] = "test-key",
                 [TierScopeOverride] = "Master",
                 [PlatformOverride] = "KR",
+                [LadderSyncTierScopeOverride] = "Master",
                 // PlayRateThreshold defaults to 0.2; a floor at 0.999 must not also
                 // trip the separate "floor <= threshold" cross-check.
                 ["MainAnalysis:PlayRateThreshold"] = "1",

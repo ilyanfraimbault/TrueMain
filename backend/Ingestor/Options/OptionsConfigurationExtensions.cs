@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Core.Options;
 using Microsoft.Extensions.Options;
 
@@ -29,6 +30,7 @@ public static class OptionsConfigurationExtensions
         var platformScopeValidator = new PlatformScopeValidator(platformScope, matchIngestionPlatforms);
         services.AddSingleton<IValidateOptions<PlatformScopeOptions>>(platformScopeValidator);
         services.AddSingleton<IValidateOptions<DiscoveryOptions>>(platformScopeValidator);
+        services.AddSingleton<IValidateOptions<LadderSyncOptions>>(platformScopeValidator);
         services.AddSingleton<IValidateOptions<MatchIngestionOptions>>(platformScopeValidator);
         services.AddSingleton<IValidateOptions<HarvestOptions>>(platformScopeValidator);
 
@@ -73,6 +75,15 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.TopChampionsPerAccount > 0, "Discovery:TopChampionsPerAccount must be greater than 0.")
             .Validate(options => options.MaxAccountsPerPlatformPerRun > 0, "Discovery:MaxAccountsPerPlatformPerRun must be greater than 0.")
             .Validate(options => options.SaveBatchSize > 0, "Discovery:SaveBatchSize must be greater than 0.")
+            .ValidateOnStart();
+
+        services.AddOptions<LadderSyncOptions>()
+            .Bind(configuration.GetSection(LadderSyncOptions.SectionName))
+            .PostConfigure(options => options.Platforms = platformScope.Resolve(options.Platforms))
+            .Validate(options => HasNonEmptyItems(options.TierScope), "LadderSync:TierScope must contain at least one value.")
+            .Validate(options => HasOnlyKnownLadderTiers(options.TierScope), KnownLadderTierScopeMessage)
+            .Validate(options => options.MaxRequestsPerRun >= 0, "LadderSync:MaxRequestsPerRun must be >= 0 (0 disables the paginated sweep).")
+            .Validate(options => options.SaveBatchSize > 0, "LadderSync:SaveBatchSize must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<ManualSeedOptions>()
@@ -238,6 +249,24 @@ public static class OptionsConfigurationExtensions
     private const string KnownTierScopeMessage =
         "Discovery:TierScope must contain only Master, GM (or Grandmaster) and/or Challenger — "
         + "the only tiers league-v4 exposes a dedicated ladder endpoint for.";
+
+    // Unlike Discovery, the ladder sync can page any ranked tier, so its scope is validated
+    // against the full ladder rather than the three apex tiers.
+    private const string KnownLadderTierScopeMessage =
+        "LadderSync:TierScope must contain only Riot ranked tiers (Iron..Challenger), with GM "
+        + "accepted as shorthand for Grandmaster.";
+
+    private static bool HasOnlyKnownLadderTiers(IEnumerable<string> values)
+    {
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .All(value =>
+            {
+                var tier = value.Trim();
+                return string.Equals(tier, "GM", StringComparison.OrdinalIgnoreCase)
+                    || EloBracket.Ladder.Contains(tier.ToUpperInvariant(), StringComparer.Ordinal);
+            });
+    }
 
     private static bool HasOnlyKnownTiers(IEnumerable<string> values)
     {
