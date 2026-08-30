@@ -198,9 +198,10 @@ function outcomeLabel(outcome: ChainOutcome): string {
 function chainLabel(processName: string): string {
   return PROCESS_META[processName]?.label ?? processName
 }
-function chainDescription(processName: string): string | undefined {
-  return PROCESS_META[processName]?.description
-}
+// Shared by every process chip's UTooltip so the three usages cannot drift
+// apart from each other (they did, silently, for #1314's PIPELINE_CHAIN/
+// PROCESS_META split — a literal repeated three times is the same risk).
+const PROCESS_TOOLTIP_UI = { content: 'h-auto max-w-64 items-start px-2.5 py-2' } as const
 // The UTooltip on every chip renders the description above a smaller, muted
 // context line — what clicking does, or the raw identifier an operator greps
 // logs for. A process with no PROCESS_META entry shows the context alone
@@ -459,7 +460,7 @@ const selectedIterationTally = computed(() => {
           class="flex flex-wrap items-center gap-y-2 rounded-lg border border-default bg-elevated/25 p-4"
         >
           <template v-for="(link, i) in currentChain" :key="link.processName">
-            <UTooltip :ui="{ content: 'h-auto max-w-64 items-start px-2.5 py-2' }">
+            <UTooltip :ui="PROCESS_TOOLTIP_UI">
               <button
                 type="button"
                 class="group inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors"
@@ -493,12 +494,7 @@ const selectedIterationTally = computed(() => {
                 </span>
               </button>
               <template #content>
-                <p v-if="chainDescription(link.processName)" class="text-xs text-highlighted max-w-56 text-pretty">
-                  {{ chainDescription(link.processName) }}
-                </p>
-                <p class="text-xs text-dimmed" :class="{ 'mt-1': chainDescription(link.processName) }">
-                  {{ chainTooltipContext(link) }}
-                </p>
+                <ProcessTooltipContent :process-name="link.processName" :context="chainTooltipContext(link)" />
               </template>
             </UTooltip>
             <UIcon
@@ -553,7 +549,7 @@ const selectedIterationTally = computed(() => {
                 v-for="(link, i) in iterationChains.get(iteration.iterationId)"
                 :key="link.processName"
               >
-                <UTooltip :ui="{ content: 'h-auto max-w-64 items-start px-2.5 py-2' }">
+                <UTooltip :ui="PROCESS_TOOLTIP_UI">
                   <span
                     class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
                     :class="{
@@ -583,12 +579,7 @@ const selectedIterationTally = computed(() => {
                     </span>
                   </span>
                   <template #content>
-                    <p v-if="chainDescription(link.processName)" class="text-xs text-highlighted max-w-56 text-pretty">
-                      {{ chainDescription(link.processName) }}
-                    </p>
-                    <p class="text-xs text-dimmed" :class="{ 'mt-1': chainDescription(link.processName) }">
-                      {{ iterationChipContext(link) }}
-                    </p>
+                    <ProcessTooltipContent :process-name="link.processName" :context="iterationChipContext(link)" />
                   </template>
                 </UTooltip>
                 <UIcon
@@ -986,17 +977,12 @@ const selectedIterationTally = computed(() => {
                       'text-warning': entry.link.outcome === 'Abandoned',
                     }"
                   />
-                  <UTooltip :ui="{ content: 'h-auto max-w-64 items-start px-2.5 py-2' }">
+                  <UTooltip :ui="PROCESS_TOOLTIP_UI">
                     <span class="text-sm font-medium text-highlighted truncate">
                       {{ chainLabel(entry.link.processName) }}
                     </span>
                     <template #content>
-                      <p v-if="chainDescription(entry.link.processName)" class="text-xs text-highlighted max-w-56 text-pretty">
-                        {{ chainDescription(entry.link.processName) }}
-                      </p>
-                      <p class="text-xs text-dimmed" :class="{ 'mt-1': chainDescription(entry.link.processName) }">
-                        {{ entry.link.processName }}
-                      </p>
+                      <ProcessTooltipContent :process-name="entry.link.processName" :context="entry.link.processName" />
                     </template>
                   </UTooltip>
                 </span>
