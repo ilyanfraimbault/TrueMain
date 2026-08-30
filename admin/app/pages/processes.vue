@@ -195,6 +195,7 @@ function outcomeLabel(outcome: ChainOutcome): string {
 // Short process labels keep the chain compact (e.g. "ChampionPatternAggregation"
 // → "Pattern Agg.") without losing meaning.
 const CHAIN_LABELS: Record<string, string> = {
+  LadderSync: 'Ladder Sync',
   Discovery: 'Discovery',
   ManualSeed: 'Manual Seed',
   Harvest: 'Harvest',
@@ -204,8 +205,12 @@ const CHAIN_LABELS: Record<string, string> = {
   MatchTeamPositionCorrection: 'Position Fix',
   MainAnalysis: 'Main Analysis',
   MatchParticipantEloBracketEnrichment: 'Elo Enrich',
+  RunePageDeduplication: 'Rune Dedup',
   ChampionPatternAggregation: 'Pattern Agg.',
   ChampionMatchupLeadAggregation: 'Matchup Agg.',
+  ChampionLaneOutcomeAggregation: 'Lane Agg.',
+  ChampionSynergyAggregation: 'Synergy Agg.',
+  ChampionBanAggregation: 'Ban Agg.',
   ChampionPowerspikeAggregation: 'Spike Agg.',
   AccountRefresh: 'Acct Refresh',
   MatchDataRetention: 'Retention',

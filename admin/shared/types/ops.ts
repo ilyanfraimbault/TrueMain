@@ -282,11 +282,19 @@ export interface ProcessRunsResponse {
 
 /**
  * The canonical ingestor pipeline chain, in execution order — one full pass runs
- * these processes in sequence (see `backend/Ingestor/Worker.cs`). Drives the
- * chain view: the ordered links and the per-iteration outcome lookup. Keep in
- * sync with the Worker's Full-mode sequence.
+ * these processes in sequence. Drives the chain view: the ordered links and the
+ * per-iteration outcome lookup.
+ *
+ * The source of truth is `backend/Ingestor/Options/JobModeSequence.cs`; this is a
+ * hand-maintained copy of it, so **a step added there must be added here too**.
+ * Drift is quiet rather than broken: `buildChain` appends any process it sees but
+ * does not know about, so a missing step still renders — at the end of the chain,
+ * under its raw name, instead of in its real position. That is exactly how
+ * `RunePageDeduplication` and `ChampionLaneOutcomeAggregation` came to be drawn
+ * after `StorageSnapshot`, several steps away from where they actually run.
  */
 export const PIPELINE_CHAIN: readonly string[] = [
+  'LadderSync',
   'Discovery',
   'ManualSeed',
   'Harvest',
@@ -296,8 +304,10 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'MatchTeamPositionCorrection',
   'MainAnalysis',
   'MatchParticipantEloBracketEnrichment',
+  'RunePageDeduplication',
   'ChampionPatternAggregation',
   'ChampionMatchupLeadAggregation',
+  'ChampionLaneOutcomeAggregation',
   'ChampionSynergyAggregation',
   'ChampionBanAggregation',
   'ChampionPowerspikeAggregation',
