@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
@@ -33,14 +32,12 @@ public sealed class ChampionItemTimingsQueryService(
         string? eloBracket,
         CancellationToken ct)
     {
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
+        var normalizedPatch = PatchFilter.Normalize(patch);
 
         // Resolve the elo filter to its bands (null = ALL, no clause). A null
         // array parameter short-circuits the WHERE via the `IS NULL OR` guard,
         // mirroring the patch-prefix pattern below. The cache key carries the band.
-        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var bandsArray = bands?.ToArray();
         var bracketToken = EloBracket.ResolveToken(eloBracket);
 
@@ -51,7 +48,7 @@ public sealed class ChampionItemTimingsQueryService(
         }
 
         var queueId = (int)options.Value.QueueId;
-        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
         var minGames = championsOptions.Value.MinMatchupGames;
 
         // Per game, the first purchase time of each item (MIN over its purchases),
@@ -101,13 +98,7 @@ public sealed class ChampionItemTimingsQueryService(
             Items = items
         };
 
-        cache.Set(cacheKey, response, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1
-        });
-
-        return response;
+        return cache.Store(cacheKey, response, CacheTtl);
     }
 
     private sealed record ItemTimingRow(int ItemId, int Games, double AvgSeconds);

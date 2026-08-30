@@ -62,10 +62,13 @@ Every issue goes on GitHub Project #2 ("TrueMain"). No milestones. Three fields,
 
 - Backend: CI builds **Release** with code-style analyzers as errors — run `dotnet build backend --configuration Release` before pushing backend changes, not just Debug.
 - Schema changes: regenerate the EF compiled model (`dotnet ef dbcontext optimize`, output in `Data/CompiledModels`). Two schema PRs merged concurrently always conflict there — the second one must re-merge develop and regenerate (a stale model silently drops columns).
+- Schema naming: **tables snake_case, columns PascalCase** (`"ChampionId"`, not `champion_id`). `elo_bracket` is the single historical exception — do not propagate it, and do not "fix" the schema towards snake_case columns. `SchemaNamingConventionTests` fails on drift; enum persistence rule in `decisions.md`.
 - Frontends: `nuxt typecheck` can pass on stale `.nuxt` types while CI's `nuxt build` fails — verify type-level changes with a fresh build.
-- `web/package-lock.json`: regenerate with `npx npm@11.13.0` (CI's npm version; older npm omits sharp optional deps).
+- `web/package-lock.json`: regenerate with `npx npm@11.13.0` — the version CI pins for the frontend jobs (`ci.yml`, "Pin npm"); older npm omits sharp optional deps. Bump both sides together.
 - Startup migrations must stay fast — a heavy `CREATE INDEX CONCURRENTLY` in a startup migration blows the command timeout and crash-loops the API.
 - API reads are **purpose-built query services** returning read-models, living in `Api/Services/<area>` next to the endpoints they serve, injecting `TrueMainDbContext` and projecting with `AsNoTracking`. **No generic `IRepository<T>` for reads** — every read path is shaped by the question it answers. `Data` owns the schema (entities, configurations, migrations, the compiled model), the Mongo-side query objects, and SQL that must not diverge between two consumers (e.g. `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, shared by the ingestor's repair and the admin detector).
+  - `AsNoTracking` goes on **every** `DbSet` a read touches, joined sides included, even when the final projection is anonymous and nothing would be tracked anyway — it is the explicit mark that this is a read. Query services that go through `Database.SqlQuery<T>` are tracking-free by nature and take no such call; that is the rule, not an oversight to "fix" file by file.
+  - Champion patch filters go through `Api/Services/Champions/PatchFilter.cs` (normalisation *and* the `LIKE` prefix), and every memory-cache write through `Api/Services/ApiCache.cs` — the shared cache runs with a `SizeLimit`, so an entry without a `Size` is silently dropped.
 
 ## Skills
 

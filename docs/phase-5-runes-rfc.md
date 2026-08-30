@@ -1,5 +1,20 @@
 # Phase 5 RFC — rune pages as a champion-aggregate dimension
 
+> **Status: implemented (historical) — superseded by Phase 6.** `champion_aggregate_rune_pages`
+> was created by `20260422193123` and dropped by `20260501195943_DropLegacyAggregateTables`;
+> the live successor is the globally-deduplicated `champion_dim_rune_pages`
+> (`20260501164536`, `Data/Entities/ChampionDimRunePage.cs`), joined through
+> `champion_aggregate_patterns` — see [Phase 6](./phase-6-pattern-junction-rfc.md).
+> Two things shipped differently from what is proposed below.
+> **The SQL backfill was never written** — the migration contains no
+> `migrationBuilder.Sql`, and the decision to let the aggregate refill from
+> re-ingestion instead is traced in `phase-6-pattern-junction-rfc.md`.
+> **The uniqueness rule changed**: instead of the 13-column unique described here,
+> the live design is a unique over the 11 perk ids plus permutation dedup in
+> `Ingestor/Processes/RunePageDeduplicationProcess.cs`.
+> The read models this RFC names (`ChampionRunePageOptionReadModel`,
+> `ChampionAdvancedDetailsReadModel.RunePageOptions`) no longer exist.
+
 ## Why
 
 The champion aggregate today exposes spells, skills, starter items and

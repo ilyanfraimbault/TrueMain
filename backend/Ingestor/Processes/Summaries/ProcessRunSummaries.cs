@@ -99,6 +99,26 @@ public sealed record HarvestSummary(
     int SelectedKnown,
     bool BudgetExhausted) : IProcessRunSummary;
 
+/// <summary>How many ladder entries one tier contributed to a sync run.</summary>
+public sealed record LadderSyncTierSummary(string Tier, int EntriesFetched);
+
+/// <summary>
+/// Ladder sync outcome (#1312). <see cref="ApexCalls"/> counts the whole-tier reads, which run
+/// every cycle, and <see cref="PagedCalls"/> the budgeted per-division pages. The ratio of
+/// <see cref="AccountsMatched"/> to <see cref="EntriesFetched"/> — broken down by
+/// <see cref="Tiers"/> — is what says whether a swept tier earns its page cost.
+/// </summary>
+public sealed record LadderSyncSummary(
+    int ApexCalls,
+    int PagedCalls,
+    int FailedCalls,
+    int EntriesFetched,
+    int AccountsMatched,
+    int RankInserted,
+    int RankUpdated,
+    int RankUnchanged,
+    IReadOnlyList<LadderSyncTierSummary> Tiers) : IProcessRunSummary;
+
 /// <summary>Account refresh outcome, split by profile and rank sub-step.</summary>
 public sealed record AccountRefreshSummary(
     int Selected,

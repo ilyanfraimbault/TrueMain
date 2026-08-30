@@ -125,7 +125,7 @@ public sealed class TruemainsLeaderboardQueryService(
             // Cache the empty response — a filter that yields nothing still
             // pays for the Count SQL on every visit, and those are the same
             // requests an attacker / overzealous client would replay.
-            cache.Set(cacheKey, empty, CacheEntry(ResponseCacheTtl));
+            cache.Set(cacheKey, empty, ApiCache.Entry(ResponseCacheTtl));
             // An empty result is exactly when countMs is worth seeing: an
             // over-restrictive filter or a misconfigured MinRankedGames is
             // diagnosed here, not on the populated path.
@@ -152,7 +152,7 @@ public sealed class TruemainsLeaderboardQueryService(
                 PageSize = clampedPageSize,
                 Total = total,
             };
-            cache.Set(cacheKey, pastEnd, CacheEntry(ResponseCacheTtl));
+            cache.Set(cacheKey, pastEnd, ApiCache.Entry(ResponseCacheTtl));
             totalSw.Stop();
             logger.LogInformation(
                 "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
@@ -301,7 +301,7 @@ public sealed class TruemainsLeaderboardQueryService(
             PageSize = clampedPageSize,
             Total = total,
         };
-        cache.Set(cacheKey, response, CacheEntry(ResponseCacheTtl));
+        cache.Set(cacheKey, response, ApiCache.Entry(ResponseCacheTtl));
 
         totalSw.Stop();
         logger.LogInformation(
@@ -438,11 +438,7 @@ public sealed class TruemainsLeaderboardQueryService(
         var size = Math.Max(1, candidates.Count / CandidatesPerCacheUnit);
         if (size <= MaxRankingCacheSize)
         {
-            cache.Set(rankingCacheKey, ranking, new MemoryCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = ResponseCacheTtl,
-                Size = size,
-            });
+            cache.Set(rankingCacheKey, ranking, ApiCache.Entry(ResponseCacheTtl, size));
         }
 
         return ranking;
@@ -521,16 +517,6 @@ public sealed class TruemainsLeaderboardQueryService(
         int minGames,
         bool otpOnly)
         => $"truemains:dedication-ranking:{BuildFilterKey(platforms, championFilter, position, minGames, otpOnly)}";
-
-    // Every cache entry must carry a Size because the shared MemoryCache runs
-    // with a SizeLimit (see Program.cs, 1024). Without a Size the Set is
-    // silently dropped and the value never caches — a cache-miss storm, not an
-    // error. Count-based: one entry counts as one unit.
-    private static MemoryCacheEntryOptions CacheEntry(TimeSpan ttl) => new()
-    {
-        AbsoluteExpirationRelativeToNow = ttl,
-        Size = 1,
-    };
 
     // A ranking entry is not one response — it holds the whole scored
     // population, so charging it 1 unit would let it evict the rest of the cache

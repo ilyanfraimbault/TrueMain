@@ -1,5 +1,10 @@
 # Refactor — Option C backlog
 
+> **Status: partially implemented — C-2, C-6 and C-13 are done, C-9 is half-done,
+> the other nine are still open. This is a living backlog, not a historical record:
+> the open items below are still the proposal to implement. Last verified
+> against the code on 2026-08-26.**
+
 This document captures the items the comprehensive .NET / Ingestor / API / Infra
 audit surfaced as **valuable but out of scope** for the Option-B PR
 ([refactor/dotnet-cleanup](../README.md)). They share one of three traits:
@@ -17,6 +22,8 @@ Each item is tagged with the audit zone (Core / Data / Api / Ingestor / Infra
 
 ## C-1. Replace the `RecordedProcess` decorator's manual exception rethrow with structured logging context
 
+- Status: **open** — `RecordedProcess` still ends its catch block on a bare
+  `throw;`, and no `IngestorProcessFailedException` exists.
 - Zone: Ingestor
 - Why: today `RecordedProcess` catches, logs, and rethrows. The rethrown
   exception loses the async stack and downstream handlers (Worker, the new
@@ -30,10 +37,12 @@ Each item is tagged with the audit zone (Core / Data / Api / Ingestor / Infra
 
 ## ~~C-2. Drop the legacy `ChampionPatternAggregate` table~~ — **DONE**
 
-Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-pattern-junction-rfc.md), PRs 6.1 → 6.4). The legacy `champion_pattern_aggregates` table is gone, along with the per-scope `champion_aggregate_*` dim tables and the dual-write code path. The aggregator now writes the new pattern junction (`champion_aggregate_patterns` + globally-deduplicated `champion_dim_*`) only, and the read side projects from there with optional cross-dimension correlation pivots (`?buildId=`).
+Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-pattern-junction-rfc.md), PRs 6.1 → 6.4). The legacy `champion_pattern_aggregates` table is gone, along with the per-scope `champion_aggregate_*` dim tables and the dual-write code path. The aggregator now writes the new pattern junction (`champion_aggregate_patterns` + globally-deduplicated `champion_dim_*`) only, and the read side projects from there. (The `?buildId=` correlation pivot this item originally shipped with has since been replaced by the tabbed builds endpoint, #81.)
 
 ## C-3. Backfill the SkillEvents truncation against existing data
 
+- Status: **open** — the ingestion-time truncation is in place, but no migration
+  ever rewrote the existing `match_participants.skill_events` rows.
 - Zone: Data + Ingestor
 - Why: this PR truncates new ingestions to 11 events
   (`TimelineIngestionService.MaxSkillEventsPerParticipant`). Rows already
@@ -46,6 +55,8 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 
 ## C-4. Externalise compose secrets
 
+- Status: **open** — none of the compose files declares a `secrets:` block; every
+  credential still travels through `.env` into container env.
 - Zone: Infra
 - Why: `compose.yaml`, `compose.dev.yaml`, `compose.preprod.yaml` and
   `compose.prod.yaml` interpolate `POSTGRES_PASSWORD`, `RIOT_API_KEY`,
@@ -60,6 +71,9 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 
 ## C-5. Move the API key for `/ops/*` to a token store
 
+- Status: **open** — no `IOpsKeyValidator`; `OpsOptions.ApiKey` is still a
+  `[MinLength(32)]` string and `ApiKeyAuthenticationHandler` still takes
+  `IOptionsMonitor<OpsOptions>`.
 - Zone: Api
 - Why: `OpsOptions.ApiKey` is a single static string with `[MinLength(32)]`
   validation. Rotating it requires a redeploy.
@@ -69,8 +83,13 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 - Risk: `ApiKeyAuthenticationHandler` constructor signature changes (it
   takes the validator instead of `IOptionsMonitor<OpsOptions>`).
 
-## C-6. Adopt `Microsoft.Extensions.Http.Resilience` (Polly v8) for the Riot HTTP clients
+## ~~C-6. Adopt `Microsoft.Extensions.Http.Resilience` (Polly v8) for the Riot HTTP clients~~ — **DONE**
 
+- Status: **done** — `Microsoft.Extensions.Http.Resilience` is pinned in
+  `Directory.Packages.props`, `Ingestor/Riot/RiotResilienceExtensions.cs` wires
+  `AddStandardResilienceHandler()` onto every typed Riot client from
+  `Ingestor/Program.cs`, and `RiotHttpExecutor` was deleted (zero occurrences).
+  The Community Dragon client uses the same handler.
 - Zone: Ingestor
 - Why: `RiotHttpExecutor` now handles 429, 5xx and network failures with a
   hand-rolled exponential backoff. Polly's `AddStandardResilienceHandler`
@@ -85,6 +104,9 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 
 ## C-7. Idempotent match ingestion via `ON CONFLICT`
 
+- Status: **open** — `MatchSnapshotWriter.PersistMatchAsync` still persists
+  through EF change tracking (`Add` / `AddRange` then one `SaveChangesAsync`).
+  Raw `ON CONFLICT` exists elsewhere (aggregation, dedup) but not on this path.
 - Zone: Data + Ingestor
 - Why: `MatchSnapshotWriter.PersistMatchAsync` adds participants and
   perks one-by-one; a transient failure mid-batch leaves partial rows
@@ -98,6 +120,9 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 
 ## C-8. Batch timeline fetches behind a `SemaphoreSlim` throttle
 
+- Status: **open** — `TimelineIngestionService.IngestTimelinesAsync` is still a
+  serial `foreach`; there is no `SemaphoreSlim` and no `Task.WhenAll` anywhere in
+  the Ingestor.
 - Zone: Ingestor
 - Why: `TimelineIngestionService.IngestTimelinesAsync` fetches timelines
   serially (`foreach`). With ~100 matches/account and Riot's per-second
@@ -108,8 +133,15 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 - Risk: needs careful coordination with the new resilience handler from
   C-6 — both must respect the same budget or we'll thrash the limiter.
 
-## C-9. Replace `IDataRepositoryFactory` + `IDataSessionFactory` with direct DI
+## C-9. Replace `IDataRepositoryFactory` + `IDataSessionFactory` with direct DI — **HALF DONE**
 
+- Status: **half done** — `IDataRepositoryFactory` / `DataRepositoryFactory` are
+  gone (zero occurrences), so step 1 and step 3's first half landed. Step 2 did
+  not: `IDataSession`, `DataSession`, `IDataSessionFactory` and `DataSessionFactory`
+  still live in `Data/Repositories/`, with 26 files under `Ingestor` still
+  consuming them (45 repo-wide, counting Api, Data and tests). Remaining work is
+  swapping those consumers onto the DbContext plus a transactional
+  `SaveChangesAsync` extension.
 - Zone: Data
 - Why: today the chain is
   `IDataSessionFactory` → `DataSessionFactory` → `IDataRepositoryFactory`
@@ -125,6 +157,8 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 
 ## C-10. OpenTelemetry for traces + metrics
 
+- Status: **open** — no OpenTelemetry package, no OTLP exporter, no collector in
+  any compose file.
 - Zone: Api + Ingestor + Infra
 - Why: today there is no distributed tracing, no metrics export. The
   Audit's "production will be blind" call-out for observability holds.
@@ -135,6 +169,9 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 
 ## C-11. Parallelise the CI matrix
 
+- Status: **open** — `ci.yml` still runs unit then integration tests sequentially
+  inside a single `backend` job. A NuGet cache exists, but within that one job,
+  so the cross-job caching part of the approach is moot rather than done.
 - Zone: Infra
 - Why: `ci.yml` runs unit tests then integration tests sequentially. With
   a 36-file integration suite using Testcontainers, this dominates wall
@@ -148,6 +185,9 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 
 ## C-12. Rate-limit the discovery + match-ingestion processes against Riot
 
+- Status: **open** — no `IRiotRateLimiter`. C-6's `AddStandardResilienceHandler`
+  brings a per-client concurrency limiter, but not the `(RegionalRoute, Method)`
+  token bucket shared across clients that this item asks for.
 - Zone: Ingestor
 - Why: today `DiscoveryProcess` and `MatchIngestionProcess` hit the
   Riot platform routes back-to-back. Combined with C-6's resilience, a
@@ -157,8 +197,16 @@ Closed by Phase 6 (RFC: [`docs/phase-6-pattern-junction-rfc.md`](./phase-6-patte
 - Risk: requires careful tuning to avoid starving low-priority calls
   (timeline fetches) when high-priority calls (match ingestion) flood.
 
-## C-13. Drop the `Initialized` flag in `PlatformId`
+## ~~C-13. Drop the `Initialized` flag in `PlatformId`~~ — **DONE (variant)**
 
+- Status: **done, but not by the approach below.** The `Initialized` boolean is
+  gone: `PlatformId` now stores a single `_routePlusOne` sentinel field, and
+  `PlatformRoute` was renumbered so `BR1 = 1`, leaving 0 unused and
+  `default(PlatformRoute)` invalid. No `Unknown = 0` member was added, so the
+  persisted-values migration this item feared was still needed — it happened as
+  part of the renumbering, not as a deprecation cycle. Known leftover: the XML
+  doc and inline comments in `Core/Lol/Identifiers/PlatformId.cs` still describe
+  `BR1` as the enum's zero value, which is no longer true.
 - Zone: Core
 - Why: `PlatformId` uses an `Initialized` boolean to detect
   `default(PlatformId)` because `BR1` is the zero value of

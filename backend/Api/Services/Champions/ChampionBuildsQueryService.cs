@@ -4,40 +4,37 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
 
 public sealed class ChampionBuildsQueryService(
     TrueMainDbContext db,
-    IOptions<MainAnalysisOptions> options)
+    IOptions<MainAnalysisOptions> options,
+    IOptions<ChampionsListOptions> championsListOptions)
     : IChampionBuildsQueryService
 {
-    private const int MaxBuilds = 4;
+    // Build tabs and per-dimension variations are shared with the live matchup
+    // fold — both feed the same panel, see ChampionBuildDisplayCaps.
+    private const int MaxBuilds = ChampionBuildDisplayCaps.MaxBuilds;
     private const double MinBuildPickRate = 0.05;
-    private const int VariationsTopN = 3;
+    private const int VariationsTopN = ChampionBuildDisplayCaps.MaxVariations;
     private const int RunePagesTopN = 3;
-
-    /// <summary>
-    /// Below this many games a bracket slice is flagged low-confidence
-    /// (<see cref="ChampionResponse.MinSampleMet"/> = false). High brackets
-    /// (Master+) routinely fall below this, so it guards the UI rather than
-    /// hiding the data.
-    /// </summary>
-    private const int MinSampleGames = 20;
 
     public async Task<ChampionResponse?> GetAsync(
         int championId,
         string? patch,
         string? position,
-        CancellationToken ct,
         ChampionBuildsScope? scope = null,
-        string? eloBracket = null)
+        string? eloBracket = null,
+        CancellationToken ct = default)
     {
-        // A blank / ALL / unrecognised filter resolves to null (every tier); a
-        // bare tier to a single bucket; a TIER_PLUS filter to that tier and the
-        // ones above it. The loader reads exactly this set.
-        var bracketFilter = EloBracket.ResolveFilter(eloBracket);
+        // A blank / ALL filter resolves to null (every tier); a bare tier to a
+        // single bucket; a TIER_PLUS filter to that tier and the ones above it;
+        // an unrecognised value to an empty, non-null set (matches nothing,
+        // never every tier). The loader reads exactly this set.
+        var bracketFilter = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var resolvedBracket = EloBracket.Normalize(eloBracket) ?? EloBracket.All;
         var isAllBracket = bracketFilter is null;
 
@@ -84,7 +81,7 @@ public sealed class ChampionBuildsQueryService(
             Position = resolvedPosition,
             EloBracket = resolvedBracket,
             EloCoverage = coverage,
-            MinSampleMet = totalGames >= MinSampleGames,
+            MinSampleMet = totalGames >= championsListOptions.Value.MinBuildSampleGames,
             TotalGames = totalGames,
             TotalWins = totalWins,
             Builds = builds

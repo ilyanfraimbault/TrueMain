@@ -9,9 +9,9 @@ namespace Ingestor.Processes.Components.PatternAggregation;
 /// load existing rows that match any of the requested contents, insert
 /// the missing ones, return content → ID dictionaries. The aggregator
 /// runs single-instance today (per Worker.cs's sequential per-process
-/// loop), so we don't need <c>INSERT ... ON CONFLICT DO NOTHING</c>
-/// race-safe semantics yet — when 6.2 graduates to multi-instance, swap
-/// the simple insert for an upsert + re-select cycle.
+/// loop), so the plain insert is safe: no second writer can race it. Two
+/// ingestor instances would need <c>INSERT ... ON CONFLICT DO NOTHING</c>
+/// plus a re-select here.
 /// </summary>
 public sealed class ChampionDimensionResolver(
     IDbContextFactory<TrueMainDbContext> dbContextFactory) : IChampionDimensionResolver

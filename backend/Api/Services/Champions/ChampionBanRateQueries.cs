@@ -42,9 +42,11 @@ internal static class ChampionBanRateQueries
             return new Dictionary<string, BanRateScope>(StringComparer.Ordinal);
         }
 
-        var bands = bracketBands is { Count: > 0 }
-            ? bracketBands
-            : [EloBracket.All];
+        // Null is "no filter" — read the stored ALL row. A non-null set — empty
+        // included — restricts to those bands: an empty set must not fall back
+        // to ALL, or a rejected filter (ResolveFilterOrEmpty) would serve the
+        // whole population under a rank label instead of coming back empty.
+        var bands = bracketBands ?? [EloBracket.All];
 
         var totals = await db.BanScopeTotals
             .AsNoTracking()

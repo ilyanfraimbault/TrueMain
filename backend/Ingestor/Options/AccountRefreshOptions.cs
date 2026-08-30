@@ -6,5 +6,18 @@ public class AccountRefreshOptions
 
     public int BatchSize { get; set; } = 200;
 
-    public TimeSpan RankSyncFreshness { get; set; } = TimeSpan.FromMinutes(15);
+    /// <summary>
+    /// How recently an account's rank must have been captured for this process to skip its
+    /// league-v4 by-puuid call.
+    /// <para>
+    /// Sized against <c>LadderSyncProcess</c> (#1312), which now refreshes every tracked
+    /// Master+ account on each cycle and sweeps the tiers below Master continuously. At the
+    /// former 15-minute value this gate expired long before the next sweep came round, so the
+    /// per-account call was re-issued anyway and none of the budget the ladder read saves was
+    /// actually reallocated. Half a day is short enough that an account the sweep stops seeing
+    /// — a demotion out of the swept range, or a decayed account — still falls back to the
+    /// per-account path within one cycle.
+    /// </para>
+    /// </summary>
+    public TimeSpan RankSyncFreshness { get; set; } = TimeSpan.FromHours(12);
 }

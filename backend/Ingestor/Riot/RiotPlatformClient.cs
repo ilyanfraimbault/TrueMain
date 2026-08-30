@@ -55,6 +55,18 @@ public sealed class RiotPlatformClient : IRiotPlatformClient
         return GetAsync<List<RiotLeagueEntryByPuuidDto>>(uri, ct);
     }
 
+    public Task<List<RiotLeagueDivisionEntryDto>> GetLeagueEntriesAsync(
+        PlatformRoute platform,
+        string queue,
+        string tier,
+        string division,
+        int page,
+        CancellationToken ct)
+    {
+        var uri = BuildPlatformUri(platform, $"/lol/league/v4/entries/{queue}/{tier}/{division}?page={page}");
+        return GetAsync<List<RiotLeagueDivisionEntryDto>>(uri, ct);
+    }
+
     private Task<T> GetAsync<T>(Uri uri, CancellationToken ct)
     {
         return _httpClient.GetFromJsonStreamingAsync<T>(uri, ct);

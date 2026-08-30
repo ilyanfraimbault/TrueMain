@@ -107,7 +107,7 @@ public sealed class ChampionPatchDiffQueryService(
             return null;
         }
 
-        var response = await buildsQueryService.GetAsync(championId, patch, position, ct);
+        var response = await buildsQueryService.GetAsync(championId, patch, position, ct: ct);
         if (response is null || response.TotalGames == 0)
         {
             return null;
@@ -125,9 +125,10 @@ public sealed class ChampionPatchDiffQueryService(
             Patch = response.Patch,
             Games = response.TotalGames,
             Wins = response.TotalWins,
-            WinRate = response.TotalGames == 0
-                ? 0
-                : (double)response.TotalWins / response.TotalGames,
+            // A gameless side is already gone above, so there is no empty denominator
+            // left to guard against here — and the shared arithmetic is what every
+            // other read-model projection divides with.
+            WinRate = RateMath.Rate(response.TotalWins, response.TotalGames),
             ItemPath = core?.ItemPath,
             RunePage = core?.RunePage,
             SkillOrder = core?.SkillOrder,

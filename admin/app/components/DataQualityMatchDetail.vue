@@ -11,7 +11,7 @@ import type {
   MatchDataQualityDetail,
   MatchTeam,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
 
 defineProps<{
   detail: MatchDataQualityDetail | null
@@ -100,7 +100,7 @@ function teamPlayersLabel(team: MatchTeam): string {
         >
           {{ detail.gameDurationSeconds <= 0
             ? '0 (no length recorded)'
-            : formatDuration(detail.gameDurationSeconds * 1000) }}
+            : formatElapsed(detail.gameDurationSeconds * 1000) }}
         </dd>
       </div>
       <div>

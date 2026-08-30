@@ -375,22 +375,18 @@ const topChampionsLoading = computed(
         >
           No matches in range.
         </div>
-        <ClientOnly v-else>
-          <ChartsBarChart
-            :data="matchesChartData"
-            :height="260"
-            :categories="matchesChartCategories"
-            :y-axis="['matches']"
-            :x-num-ticks="Math.min(matchesChartData.length, 8)"
-            :x-formatter="matchesXFormatter"
-            :y-formatter="formatCount"
-            :tooltip-title-formatter="labelTooltipTitle"
-            v-bind="timeBarProps()"
-          />
-          <template #fallback>
-            <USkeleton class="h-[260px] w-full" />
-          </template>
-        </ClientOnly>
+        <ChartsBarChart
+          v-else
+          :data="matchesChartData"
+          :height="260"
+          :categories="matchesChartCategories"
+          :y-axis="['matches']"
+          :x-num-ticks="Math.min(matchesChartData.length, 8)"
+          :x-formatter="matchesXFormatter"
+          :y-formatter="formatCount"
+          :tooltip-title-formatter="labelTooltipTitle"
+          v-bind="timeBarProps()"
+        />
       </UCard>
 
       <!-- Matches ingested (#1025) -->
@@ -441,22 +437,17 @@ const topChampionsLoading = computed(
           No ingestion runs on record in this window.
         </div>
         <template v-else>
-          <ClientOnly>
-            <ChartsBarChart
-              :data="ingestedChartData"
-              :height="260"
-              :categories="ingestedChartCategories"
-              :y-axis="['inserted']"
-              :x-num-ticks="Math.min(ingestedChartData.length, 8)"
-              :x-formatter="ingestedXFormatter"
-              :y-formatter="formatCount"
-              :tooltip-title-formatter="labelTooltipTitle"
-              v-bind="timeBarProps()"
-            />
-            <template #fallback>
-              <USkeleton class="h-[260px] w-full" />
-            </template>
-          </ClientOnly>
+          <ChartsBarChart
+            :data="ingestedChartData"
+            :height="260"
+            :categories="ingestedChartCategories"
+            :y-axis="['inserted']"
+            :x-num-ticks="Math.min(ingestedChartData.length, 8)"
+            :x-formatter="ingestedXFormatter"
+            :y-formatter="formatCount"
+            :tooltip-title-formatter="labelTooltipTitle"
+            v-bind="timeBarProps()"
+          />
           <p class="mt-3 text-xs text-dimmed tabular-nums">
             {{ formatNumber(ingestedTotals.runs) }} runs ·
             {{ formatNumber(ingestedTotals.skipped) }} skipped ·
@@ -536,25 +527,17 @@ const topChampionsLoading = computed(
                 {{ bucket.label }}: {{ formatNumber(bucket.count) }}
               </UBadge>
             </div>
-            <ClientOnly>
-              <ChartsBarChart
-                :data="candidateChartData"
-                :height="candidateChartHeight"
-                :categories="candidateChartCategories"
-                :y-axis="['count']"
-                :y-num-ticks="candidateChartData.length"
-                :x-formatter="formatCount"
-                :y-formatter="candidateLabelFormatter"
-                :tooltip-title-formatter="labelTooltipTitle"
-                v-bind="horizontalBarProps(96)"
-              />
-              <template #fallback>
-                <USkeleton
-                  class="w-full"
-                  :style="{ height: `${candidateChartHeight}px` }"
-                />
-              </template>
-            </ClientOnly>
+            <ChartsBarChart
+              :data="candidateChartData"
+              :height="candidateChartHeight"
+              :categories="candidateChartCategories"
+              :y-axis="['count']"
+              :y-num-ticks="candidateChartData.length"
+              :x-formatter="formatCount"
+              :y-formatter="candidateLabelFormatter"
+              :tooltip-title-formatter="labelTooltipTitle"
+              v-bind="horizontalBarProps(96)"
+            />
           </div>
         </UCard>
 
@@ -583,25 +566,18 @@ const topChampionsLoading = computed(
           >
             No champion games recorded yet.
           </div>
-          <ClientOnly v-else>
-            <ChartsBarChart
-              :data="topChampions"
-              :height="topChampionsChartHeight"
-              :categories="championChartCategories"
-              :y-axis="['games']"
-              :y-num-ticks="topChampions.length"
-              :x-formatter="formatCount"
-              :y-formatter="championLabelFormatter"
-              :tooltip-title-formatter="labelTooltipTitle"
-              v-bind="horizontalBarProps(120)"
-            />
-            <template #fallback>
-              <USkeleton
-                class="w-full"
-                :style="{ height: `${topChampionsChartHeight}px` }"
-              />
-            </template>
-          </ClientOnly>
+          <ChartsBarChart
+            v-else
+            :data="topChampions"
+            :height="topChampionsChartHeight"
+            :categories="championChartCategories"
+            :y-axis="['games']"
+            :y-num-ticks="topChampions.length"
+            :x-formatter="formatCount"
+            :y-formatter="championLabelFormatter"
+            :tooltip-title-formatter="labelTooltipTitle"
+            v-bind="horizontalBarProps(120)"
+          />
         </UCard>
       </div>
     </template>

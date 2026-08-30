@@ -23,7 +23,8 @@ import type {
   AccountPipelineState,
   BadgeColor,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
+import { formatDateTime, formatNumber, formatPercentOrDash, formatTimeAgo } from '~~/shared/utils/format'
+import { RIOT_ID_MAX_LENGTH, formatRiotId, isRiotIdOrSlug } from '~~/shared/utils/riot-id'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,6 +44,20 @@ const pending = ref(false)
 const error = ref<unknown>(null)
 
 const selectedRegion = computed(() => (regionInput.value === ALL ? undefined : regionInput.value))
+
+// `GET /ops/accounts/{nameTag}` validates against `NameTagParser.TryParseRiotId`
+// and 400s on anything else, so the same rules gate the input here (via
+// `shared/utils/riot-id`) rather than letting the operator spend a round trip to
+// be told the thing they pasted was never a Riot ID. Both typed `Name#TAG` and
+// the hyphen slug `Name-TAG` are accepted, exactly as the endpoint does.
+const searchable = computed(() => isRiotIdOrSlug(riotIdInput.value))
+
+// Only nag once there is something to judge — an empty box is not "malformed".
+const inputHint = computed(() => (
+  !riotIdInput.value.trim() || searchable.value
+    ? null
+    : `Enter a Riot ID as Name#TAG or Name-TAG, at most ${RIOT_ID_MAX_LENGTH} characters.`
+))
 
 async function load(riotId: string, region: string | undefined) {
   pending.value = true
@@ -64,7 +79,7 @@ async function load(riotId: string, region: string | undefined) {
 
 function submit() {
   const riotId = riotIdInput.value.trim()
-  if (!riotId) {
+  if (!riotId || !searchable.value) {
     return
   }
   router.replace({ query: { riotId, ...(selectedRegion.value ? { region: selectedRegion.value } : {}) } })
@@ -80,6 +95,11 @@ onMounted(() => {
   riotIdInput.value = riotId
   if (region) {
     regionInput.value = region
+  }
+  // A deep link carrying a malformed Riot ID gets the same treatment as a typed
+  // one: the hint below the box explains it, instead of a 400 alert.
+  if (!searchable.value) {
+    return
   }
   load(riotId, region || undefined)
 })
@@ -128,15 +148,8 @@ const rankSnapshots = computed<AccountExplorerRankSnapshot[]>(() => result.value
 
 const riotIdLabel = computed(() => {
   const query = result.value?.query
-  return query ? `${query.gameName}#${query.tagLine}` : '—'
+  return (query && formatRiotId(query.gameName, query.tagLine)) ?? '—'
 })
-
-function formatPercent(rate: number | null | undefined, digits = 1): string {
-  if (rate === null || rate === undefined || !Number.isFinite(rate)) {
-    return '—'
-  }
-  return `${(rate * 100).toFixed(digits)}%`
-}
 
 // Both stamps in one cell: the absolute time answers "when", the relative one
 // answers "is this recent", and an operator reading a stalled pipeline needs both.
@@ -202,7 +215,7 @@ function positionSummary(row: AccountExplorerMainRow): string {
     return row.primaryPosition || '—'
   }
   return row.positionBreakdown
-    .map(position => `${position.position} ${formatPercent(position.rate, 0)}`)
+    .map(position => `${position.position} ${formatPercentOrDash(position.rate, 0)}`)
     .join(' · ')
 }
 
@@ -273,11 +286,14 @@ const rankEmptyNote = computed(() => {
               color="neutral"
               variant="subtle"
               label="Trace"
-              :disabled="!riotIdInput.trim()"
+              :disabled="!searchable"
               :loading="pending"
               @click="submit"
             />
           </div>
+          <p v-if="inputHint" class="text-xs text-error">
+            {{ inputHint }}
+          </p>
           <p class="text-xs text-dimmed">
             A Riot ID is only unique within a routing region. Leave the region on
             "All regions" to see every account carrying it.
@@ -731,7 +747,7 @@ const rankEmptyNote = computed(() => {
               </span>
             </template>
             <template #playRate-cell="{ row }">
-              <span class="tabular-nums">{{ formatPercent(row.original.playRate) }}</span>
+              <span class="tabular-nums">{{ formatPercentOrDash(row.original.playRate) }}</span>
             </template>
             <template #flags-cell="{ row }">
               <div class="flex flex-wrap items-center gap-1">
@@ -779,10 +795,10 @@ const rankEmptyNote = computed(() => {
             <div class="space-y-2">
               <p v-if="thresholds" class="text-xs text-dimmed">
                 A champion is a main above a play rate somewhere between
-                <span class="tabular-nums">{{ formatPercent(thresholds.playRateFloor, 0) }}</span> and
-                <span class="tabular-nums">{{ formatPercent(thresholds.playRateThreshold, 0) }}</span>,
+                <span class="tabular-nums">{{ formatPercentOrDash(thresholds.playRateFloor, 0) }}</span> and
+                <span class="tabular-nums">{{ formatPercentOrDash(thresholds.playRateThreshold, 0) }}</span>,
                 and an OTP above
-                <span class="tabular-nums">{{ formatPercent(thresholds.otpPlayRateThreshold, 0) }}</span>.
+                <span class="tabular-nums">{{ formatPercentOrDash(thresholds.otpPlayRateThreshold, 0) }}</span>.
                 {{ thresholds.effectiveThresholdNote }}
               </p>
               <p

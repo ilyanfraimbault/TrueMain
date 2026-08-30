@@ -381,11 +381,21 @@ defineShortcuts(computed(() => ({
         <!-- ⌘K hint on the prominent hero bar only. The shortcut itself is owned
              by the always-mounted header instance; pressing ⌘K opens the
              (identical) unified search, and `usingInput` blocks it while a modal
-             input is focused, so it can't stack a second modal. -->
-        <span v-if="props.size === 'lg'" class="hidden items-center gap-0.5 sm:flex">
-          <UKbd value="meta" />
-          <UKbd value="K" />
-        </span>
+             input is focused, so it can't stack a second modal.
+
+             `<ClientOnly>` because `UKbd value="meta"` resolves the modifier
+             from the *platform* (`⌘` on macOS, `Ctrl` everywhere else), which
+             the server cannot know: it rendered an empty key and the client
+             rendered `Ctrl`, a hydration text mismatch on every non-Mac visit
+             to the homepage. No fallback on purpose — the hint advertises a
+             shortcut that does not work until the handler is mounted, so
+             showing it earlier would be a promise the page can't keep. -->
+        <ClientOnly>
+          <span v-if="props.size === 'lg'" class="hidden items-center gap-0.5 sm:flex">
+            <UKbd value="meta" />
+            <UKbd value="K" />
+          </span>
+        </ClientOnly>
       </button>
       <UButton
         v-if="activeChampion"
@@ -426,7 +436,13 @@ defineShortcuts(computed(() => ({
              render logic + Fuse) into the site-wide initial JS (#832). The Lazy
              variant is an async-import boundary; it sits inside UModal's #content
              (only rendered when `open`), so the chunk loads on the first search
-             open, not on page load. The ⌘K shortcut + trigger button stay eager. -->
+             open, not on page load. The ⌘K shortcut + trigger button stay eager.
+
+             `ui.item` overrides the palette's own `items-start`: that is right
+             for the single-line champion/browse rows, but it pins the leading
+             avatar and the trailing lane/rank glyphs to the first line of the
+             two-line truemain rows (name, then region flag underneath).
+             Centering costs the single-line rows nothing. -->
         <LazyUCommandPalette
           v-model:search-term="term"
           :groups="groups"
@@ -435,6 +451,7 @@ defineShortcuts(computed(() => ({
           icon="i-lucide-search"
           class="h-96"
           :close="{ onClick: () => { open = false } }"
+          :ui="{ item: 'items-center' }"
         >
           <!-- Champion + player row icons. Both replace the default UAvatar
                with SkeletonImage so a row that gets re-used for another entry
@@ -459,10 +476,16 @@ defineShortcuts(computed(() => ({
           <!-- Result row: name#tag with the region flag underneath on the
                left; lanes, truemained champions and the rank emblem (icon
                only — the tier name stays in the tooltip, never spelled out)
-               on the right. -->
+               on the right.
+
+               `text-highlighted` on the name is not decoration: the palette's
+               itemLabel wrapper is `text-dimmed` and its *default* label span
+               re-brightens the text. Overriding the label slot drops that span,
+               so without it every truemain row renders greyed-out next to the
+               full-contrast champion rows. -->
           <template #truemain-label="{ item }">
             <div class="flex min-w-0 flex-col items-start gap-0.5">
-              <span class="truncate">
+              <span class="truncate text-highlighted">
                 {{ item.truemain?.identity.gameName ?? item.label }}<span
                   v-if="item.truemain?.identity.tagLine"
                   class="text-dimmed"

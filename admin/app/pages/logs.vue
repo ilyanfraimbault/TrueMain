@@ -8,7 +8,8 @@
 // `total`/`page`/`pageSize`. Each row's full detail + exception stack is
 // inspectable in a slide-over; rows are checkbox-selectable and the selection
 // can be copied as JSON (#722).
-import { h, resolveComponent } from 'vue'
+import { h } from 'vue'
+import { UCheckbox } from '#components'
 import type { TableColumn } from '@nuxt/ui'
 import type { LogEntry, LogLevel } from '~~/shared/types/ops'
 import { formatDateTime } from '~~/shared/utils/format'
@@ -37,7 +38,7 @@ const process = ref<string>(ALL)
 const exceptionsOnly = ref(false)
 const category = ref('')
 // Relative window -> ISO `since`. "All" omits the param.
-const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
+const sinceWindow = ref<SinceWindow>(ALL)
 // Raw search input; debounced before it hits the query so typing doesn't fire a
 // request per keystroke.
 const searchInput = ref('')
@@ -134,8 +135,6 @@ const selectedEntries = computed(() =>
 // Full entries, pretty-printed — not the truncated table cells.
 const selectionJson = computed(() => JSON.stringify(selectedEntries.value, null, 2))
 
-const UCheckbox = resolveComponent('UCheckbox')
-
 // --- Table -------------------------------------------------------------------
 const columns: TableColumn<LogEntry>[] = [
   {
@@ -145,14 +144,14 @@ const columns: TableColumn<LogEntry>[] = [
         'modelValue': table.getIsSomePageRowsSelected()
           ? 'indeterminate'
           : table.getIsAllPageRowsSelected(),
-        'onUpdate:modelValue': (value: boolean | 'indeterminate') =>
+        'onUpdate:modelValue': (value: unknown) =>
           table.toggleAllPageRowsSelected(!!value),
         'aria-label': 'Select all rows',
       }),
     cell: ({ row }) =>
       h(UCheckbox, {
         'modelValue': row.getIsSelected(),
-        'onUpdate:modelValue': (value: boolean | 'indeterminate') =>
+        'onUpdate:modelValue': (value: unknown) =>
           row.toggleSelected(!!value),
         // The row itself opens the detail slide-over on click; the checkbox
         // must not bubble into that.
@@ -238,14 +237,14 @@ function openDetail(entry: LogEntry) {
               :variant="view === 'logs' ? 'solid' : 'ghost'"
               icon="i-lucide-scroll-text"
               label="Logs"
-              @click="view = 'logs'"
+              @click="void (view = 'logs')"
             />
             <UButton
               :color="view === 'crashes' ? 'primary' : 'neutral'"
               :variant="view === 'crashes' ? 'solid' : 'ghost'"
               icon="i-lucide-skull"
               label="Crashes"
-              @click="view = 'crashes'"
+              @click="void (view = 'crashes')"
             />
           </div>
         </template>

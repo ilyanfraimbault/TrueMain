@@ -22,7 +22,7 @@ Design goals:
 The `deploy-prod` job in `deploy-prod.yml` redeploys the `truemain` Docker
 Manager project right after the release images are published, using the
 official `hostinger/deploy-on-vps` action (a pure API call — no SSH material in
-CI). It is a no-op until three pieces of repository configuration exist:
+CI). It needs three pieces of repository configuration:
 
 | Kind     | Name                    | Value                                                        |
 | -------- | ----------------------- | ------------------------------------------------------------ |
@@ -38,11 +38,19 @@ The action points Docker Manager at `compose.prod.yaml` at the released commit,
 so the project on the VPS always matches the release. Keep `PROD_ENV_FILE` in
 sync when a new variable is added to the compose file.
 
-The job is gated on the `HOSTINGER_PROD_VM_ID` variable, and a guard step skips
-the deploy (green no-op) while `PROD_ENV_FILE` is empty — the action overwrites
+These are not checked by `deploy-prod` itself but by a `preflight` job that
+every other job in the workflow depends on, and which **fails the run** — no
+green skip — when any of them (plus the two SSH secrets below) is missing. The
+distinction matters because `migrate-prod` runs *before* `deploy-prod`:
+checking the deploy configuration at deploy time meant an empty `PROD_ENV_FILE`
+skipped the image roll while the migrations had already been applied, leaving
+prod on the old binary against the new schema — precisely the mismatch
+`docs/production-migrations.md` exists to prevent. Checking up front means an
+incomplete configuration stops the release before anything on the VPS moves.
+
+`PROD_ENV_FILE` must be non-empty in particular because the action overwrites
 the project `.env` on every run, so deploying with an empty secret would wipe
-the prod `.env`. Auto-deploy therefore only becomes active once all three are
-set.
+the prod `.env`.
 
 The prod stack already lives in Docker Manager as the `truemain` project
 (`/docker/truemain/docker-compose.yml`), so no adoption step is needed — the
@@ -65,9 +73,8 @@ doesn't set `APP_VERSION` simply hides the label instead of showing a stale one.
 
 The `migrate-prod` job runs between `publish` and `deploy-prod` and applies
 pending EF migrations as an idempotent SQL script — see
-`docs/production-migrations.md` for why this replaced startup migrations.
-Unlike the `deploy-prod` guard on `PROD_ENV_FILE`, this one fails the job
-(not a green skip) when its secrets are missing: since
+`docs/production-migrations.md` for why this replaced startup migrations. Its
+SSH secrets are part of the same `preflight` check: since
 `Database__ApplyMigrationsOnStartup` is permanently `false` in
 `compose.prod.yaml`, letting `deploy-prod` proceed without a migration
 attempt would silently roll a new image against a possibly-stale schema.

@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import type { StaticItemData } from '~~/shared/types/static-data'
 import { parseItemDescription } from '~~/shared/utils/tooltip-parser'
+import { formatCount } from '~~/shared/utils/counts'
+import { formatPercentageAdaptive } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
   item: StaticItemData
@@ -11,13 +13,12 @@ const props = defineProps<{
 
 const parsed = computed(() => props.item.description ? parseItemDescription(props.item.description) : [])
 const hasDescription = computed(() => parsed.value.length > 0)
-const goldLabel = computed(() => props.item.totalGold > 0 ? `${props.item.totalGold.toLocaleString('en-US')}g` : null)
-const pickRateLabel = computed(() => {
-  if (props.pickRate === undefined || props.pickRate === null) return null
-  const pct = props.pickRate * 100
-  // Sub-1% picks would otherwise round to "0%" and look broken; show one decimal there.
-  return pct >= 1 ? `${pct.toFixed(0)}%` : `${pct.toFixed(1)}%`
-})
+const goldLabel = computed(() => props.item.totalGold > 0 ? `${formatCount(props.item.totalGold)}g` : null)
+// Adaptive precision: sub-1% picks would otherwise round to "0%" and look broken.
+const pickRateLabel = computed(() =>
+  props.pickRate === undefined || props.pickRate === null
+    ? null
+    : formatPercentageAdaptive(props.pickRate))
 </script>
 
 <template>

@@ -5,14 +5,15 @@
 // inspectable in a slide-over (exception chain, environment + memory/GC
 // snapshot, and the log lines captured just before it); the whole report is
 // copyable as text, and a checkbox selection can be copied as JSON.
-import { h, resolveComponent } from 'vue'
+import { h } from 'vue'
+import { UCheckbox } from '#components'
 import type { TableColumn } from '@nuxt/ui'
 import type { BadgeColor, CrashReport, CrashSource } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration, humanizeBytes } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, humanizeBytes } from '~~/shared/utils/format'
 
 const processFilter = ref<string>(ALL)
 const sourceFilter = ref<string>(ALL)
-const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
+const sinceWindow = ref<SinceWindow>(ALL)
 const searchInput = ref('')
 const search = refDebounced(searchInput, 300)
 
@@ -131,8 +132,6 @@ const selectedEntries = computed(() =>
 // Full reports, pretty-printed — not the truncated table cells.
 const selectionJson = computed(() => JSON.stringify(selectedEntries.value, null, 2))
 
-const UCheckbox = resolveComponent('UCheckbox')
-
 // --- Table -------------------------------------------------------------------
 const columns: TableColumn<CrashReport>[] = [
   {
@@ -142,14 +141,14 @@ const columns: TableColumn<CrashReport>[] = [
         'modelValue': table.getIsSomePageRowsSelected()
           ? 'indeterminate'
           : table.getIsAllPageRowsSelected(),
-        'onUpdate:modelValue': (value: boolean | 'indeterminate') =>
+        'onUpdate:modelValue': (value: unknown) =>
           table.toggleAllPageRowsSelected(!!value),
         'aria-label': 'Select all rows',
       }),
     cell: ({ row }) =>
       h(UCheckbox, {
         'modelValue': row.getIsSelected(),
-        'onUpdate:modelValue': (value: boolean | 'indeterminate') =>
+        'onUpdate:modelValue': (value: unknown) =>
           row.toggleSelected(!!value),
         // The row itself opens the detail slide-over on click; the checkbox
         // must not bubble into that.
@@ -198,7 +197,7 @@ function crashToText(c: CrashReport): string {
   lines.push(`OS:        ${c.osDescription ?? '—'}`)
   lines.push(`Runtime:   ${c.runtimeVersion ?? '—'}`)
   lines.push(`App:       ${c.appVersion ?? '—'}`)
-  lines.push(`Uptime:    ${formatDuration(c.uptimeSeconds * 1000)}`)
+  lines.push(`Uptime:    ${formatElapsed(c.uptimeSeconds * 1000)}`)
   lines.push(`Memory:    working set ${humanizeBytes(c.workingSetBytes)}, managed heap ${humanizeBytes(c.totalManagedMemoryBytes)}`)
   lines.push(`GC:        gen0 ${c.gen0Collections} / gen1 ${c.gen1Collections} / gen2 ${c.gen2Collections}`)
   if (c.exitCode !== null) {
@@ -457,7 +456,7 @@ function crashToText(c: CrashReport): string {
                 Uptime
               </dt>
               <dd class="tabular-nums">
-                {{ formatDuration(selectedEntry.uptimeSeconds * 1000) }}
+                {{ formatElapsed(selectedEntry.uptimeSeconds * 1000) }}
               </dd>
             </div>
             <div>

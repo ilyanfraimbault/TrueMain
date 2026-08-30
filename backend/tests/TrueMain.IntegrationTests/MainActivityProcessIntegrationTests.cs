@@ -108,6 +108,32 @@ public sealed class MainActivityProcessIntegrationTests
         db.RiotAccounts.Single(a => a.Puuid == "puuid-flaky-1").LastActivityCheckAtUtc.Should().BeNull();
     }
 
+    [Fact]
+    public async Task RunAsync_ShouldStampTheCheck_WhenThePlatformCannotBeParsed()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMainAsync(
+            "puuid-corrupt-1", championId: 22, isActive: true, lastActivityCheckAtUtc: null, platformId: "XX9");
+
+        var process = BuildProcess(new FakeRiotPlatformClient(Mastery(22, daysAgo: 1)));
+
+        var summary = await process.RunCoreAsync(CancellationToken.None);
+
+        summary.Should().BeOfType<MainActivitySummary>()
+            .Which.AccountsSkipped.Should().Be(1);
+
+        await using var db = _fixture.CreateDbContext();
+
+        // The opposite of the transient failure above (#1223): no future run makes an
+        // unparseable platform_id parse, and the selection is ordered by this very
+        // column, so leaving it null parks the row at the head of every batch and burns
+        // the slot of an account that could actually be checked.
+        db.RiotAccounts.Single(a => a.Puuid == "puuid-corrupt-1").LastActivityCheckAtUtc.Should().NotBeNull();
+
+        // Nothing was learned about the player, so no verdict may be applied.
+        db.MainChampionStats.Single(s => s.Puuid == "puuid-corrupt-1").IsActive.Should().BeTrue();
+    }
+
     private MainActivityProcess BuildProcess(IRiotPlatformClient platformClient)
         => new(
             NullLogger<MainActivityProcess>.Instance,
@@ -121,7 +147,12 @@ public sealed class MainActivityProcessIntegrationTests
                 RecheckAfterHours = 24
             }));
 
-    private async Task SeedMainAsync(string puuid, int championId, bool isActive, DateTime? lastActivityCheckAtUtc)
+    private async Task SeedMainAsync(
+        string puuid,
+        int championId,
+        bool isActive,
+        DateTime? lastActivityCheckAtUtc,
+        string platformId = "KR")
     {
         await using var db = _fixture.CreateDbContext();
         var now = DateTime.UtcNow;
@@ -131,7 +162,7 @@ public sealed class MainActivityProcessIntegrationTests
             Puuid = puuid,
             GameName = puuid,
             TagLine = "KR1",
-            PlatformId = "KR",
+            PlatformId = platformId,
             SummonerId = $"summoner-{puuid}",
             ProfileIconId = 1,
             SummonerLevel = 200,
@@ -140,7 +171,7 @@ public sealed class MainActivityProcessIntegrationTests
             LastActivityCheckAtUtc = lastActivityCheckAtUtc
         });
 
-        db.MainChampionStats.Add(NewStat(puuid, championId, isActive));
+        db.MainChampionStats.Add(NewStat(puuid, championId, isActive, platformId));
         await db.SaveChangesAsync();
     }
 
@@ -151,10 +182,10 @@ public sealed class MainActivityProcessIntegrationTests
         await db.SaveChangesAsync();
     }
 
-    private static MainChampionStat NewStat(string puuid, int championId, bool isActive)
+    private static MainChampionStat NewStat(string puuid, int championId, bool isActive, string platformId = "KR")
         => new()
         {
-            PlatformId = "KR",
+            PlatformId = platformId,
             Puuid = puuid,
             ChampionId = championId,
             TotalMatches = 30,
@@ -199,6 +230,15 @@ public sealed class MainActivityProcessIntegrationTests
 
         public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
             => throw new NotSupportedException();
+
+        public Task<List<RiotLeagueDivisionEntryDto>> GetLeagueEntriesAsync(
+            PlatformRoute platform,
+            string queue,
+            string tier,
+            string division,
+            int page,
+            CancellationToken ct)
+            => throw new NotSupportedException();
     }
 
     private sealed class ThrowingRiotPlatformClient : IRiotPlatformClient
@@ -222,6 +262,15 @@ public sealed class MainActivityProcessIntegrationTests
             => throw new NotSupportedException();
 
         public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<List<RiotLeagueDivisionEntryDto>> GetLeagueEntriesAsync(
+            PlatformRoute platform,
+            string queue,
+            string tier,
+            string division,
+            int page,
+            CancellationToken ct)
             => throw new NotSupportedException();
     }
 }

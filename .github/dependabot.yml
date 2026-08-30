@@ -30,15 +30,20 @@ updates:
           - "Microsoft.NET.Test.Sdk"
           - "coverlet.*"
 
+  # Both Nuxt apps: `admin` is a separate deployable with its own lockfile and
+  # its own image, not a route of `web`, so it needs its own update stream.
   - package-ecosystem: npm
-    directory: "/web"
+    directories:
+      - "/web"
+      - "/admin"
     target-branch: develop
     schedule:
       interval: weekly
       day: monday
       time: "06:00"
       timezone: Europe/Paris
-    open-pull-requests-limit: 5
+    # Shared across both directories, hence higher than the nuget stream's 5.
+    open-pull-requests-limit: 8
     labels:
       - dependencies
       - frontend
@@ -64,11 +69,13 @@ updates:
       - dependencies
       - ci
 
+  # Base images of the four Dockerfiles we build ourselves.
   - package-ecosystem: docker
     directories:
       - /backend/Api
       - /backend/Ingestor
       - /web
+      - /admin
     target-branch: develop
     schedule:
       interval: weekly
@@ -78,3 +85,31 @@ updates:
     labels:
       - dependencies
       - docker
+
+  # Third-party images pinned in the compose stacks (postgres, pgbouncer,
+  # mongo, umami, caddy, pgadmin). Nothing else watches them: they are never
+  # built here, so the `docker` ecosystem above — which only reads Dockerfiles
+  # — cannot see them, and they would otherwise sit on their pinned tag until
+  # someone bumps them by hand.
+  - package-ecosystem: docker-compose
+    directory: "/"
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    labels:
+      - dependencies
+      - docker
+    ignore:
+      # Ours; their tag is chosen by the deploy pipeline (IMAGE_TAG), not by a
+      # registry lookup.
+      - dependency-name: "ghcr.io/ilyanfraimbault/truemain-*"
+    groups:
+      # The same image is pinned in up to four compose files; one PR per bump
+      # keeps them from drifting apart, which is the failure this entry is
+      # here to catch in the first place.
+      compose-images:
+        patterns:
+          - "*"

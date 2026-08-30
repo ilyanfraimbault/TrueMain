@@ -72,7 +72,26 @@ public sealed class MatchIngestionProcess(
 
             try
             {
-                var accountSummary = await IngestSingleAccountAsync(account, options, ct);
+                var platformId = account.PlatformId.ToUpperInvariant();
+                if (!PlatformId.TryParse(platformId, out var platform))
+                {
+                    // A state, not an exception: an account row carrying a platform_id
+                    // that no longer parses is an expected data condition, not a fault.
+                    // Throwing routed it through the catch below and RevertAsync, which
+                    // leaves LastMatchIngestAtUtc untouched — so the row came straight
+                    // back at the head of the next claim and consumed one of the batch's
+                    // slots on every single cycle (#1223). Still inside the try: a failure
+                    // of the release itself must not abort the rest of the batch.
+                    summary.TotalErrors++;
+                    logger.LogError(
+                        "Unknown platform {Platform} on claimed account {Puuid}; releasing the claim without ingesting.",
+                        account.PlatformId,
+                        account.Puuid);
+                    await accountValidationService.ReleaseUningestableAsync(account, ct);
+                    continue;
+                }
+
+                var accountSummary = await IngestSingleAccountAsync(account, platformId, platform, options, ct);
                 summary.TotalAccounts++;
                 if (accountSummary.Validated)
                 {
@@ -147,15 +166,11 @@ public sealed class MatchIngestionProcess(
 
     private async Task<AccountIngestionSummary> IngestSingleAccountAsync(
         AccountKey account,
+        string platformId,
+        PlatformId platform,
         MatchIngestionOptions options,
         CancellationToken ct)
     {
-        var platformId = account.PlatformId.ToUpperInvariant();
-        if (!PlatformId.TryParse(platformId, out var platform))
-        {
-            throw new InvalidOperationException($"Unknown platform {platformId}.");
-        }
-
         var region = platform.Route.ToRegional();
         await using var session = await sessionFactory.CreateAsync(ct);
 

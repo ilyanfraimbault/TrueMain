@@ -20,11 +20,28 @@ public static class StarterItemAnalyzer
         IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
         => Analyze(itemEvents, finalItems, itemMetadataById).Items;
 
+    /// <summary>
+    /// Same fold as <see cref="BuildStarterItems(IReadOnlyList{ItemEvent}, IReadOnlyDictionary{int, ItemMetadata})"/>
+    /// with no final inventory to disambiguate a support quest — the shape the unit
+    /// tests use when they assert on the budget rather than on the basket.
+    /// </summary>
     public static StarterItemsAnalysis Analyze(
         IReadOnlyList<ItemEvent> itemEvents,
         IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
         => Analyze(itemEvents, [], itemMetadataById);
 
+    /// <summary>
+    /// Resolves the starter basket <em>and</em> the reasoning around it: the reason code
+    /// for an empty or rejected basket, and the paid total the 500g budget is checked
+    /// against. This is the entry point every caller that also needs the basket for a
+    /// downstream resolver uses — <c>ParticipantBuildFactsLoader</c>,
+    /// <c>ChampionPatternAggregateBuilder</c> and <c>ChampionPowerspikeAggregationProcess</c>
+    /// all call it and feed <see cref="StarterItemsAnalysis.Items"/> straight into
+    /// <see cref="FinalBuildResolver"/> and <see cref="BootsResolver"/>, which must be
+    /// told which items were starters or they count them as build slots.
+    /// <see cref="BuildStarterItems(IReadOnlyList{ItemEvent}, IReadOnlyList{int}, IReadOnlyDictionary{int, ItemMetadata})"/>
+    /// is the shorthand for callers that only want the basket.
+    /// </summary>
     public static StarterItemsAnalysis Analyze(
         IReadOnlyList<ItemEvent> itemEvents,
         IReadOnlyList<int> finalItems,
@@ -46,15 +63,15 @@ public static class StarterItemAnalyzer
 
         foreach (var itemEvent in earlyEvents)
         {
-            switch (itemEvent.EventType.ToUpperInvariant())
+            switch (ItemEventTypes.Classify(itemEvent.EventType))
             {
-                case "ITEM_PURCHASED":
+                case ItemEventKind.Purchased:
                     TryAddStarterItem(starterItems, itemEvent.ItemId, itemMetadataById, ignoredOverflowPurchases);
                     break;
-                case "ITEM_SOLD":
+                case ItemEventKind.Sold:
                     RemoveStarterItem(starterItems, itemEvent.ItemId);
                     break;
-                case "ITEM_UNDO":
+                case ItemEventKind.Undo:
                     RemoveStarterItem(starterItems, itemEvent.BeforeId ?? itemEvent.ItemId);
                     TryAddStarterItem(starterItems, itemEvent.AfterId, itemMetadataById, ignoredOverflowPurchases);
                     break;
@@ -330,8 +347,9 @@ public static class StarterItemAnalyzer
     /// </summary>
     private static IEnumerable<(int ItemId, bool ProvesOwnership)> EnumerateRelevantItemIds(ItemEvent itemEvent)
     {
-        var isPurchase = itemEvent.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase);
-        var isUndo = itemEvent.EventType.Equals("ITEM_UNDO", StringComparison.OrdinalIgnoreCase);
+        var kind = ItemEventTypes.Classify(itemEvent.EventType);
+        var isPurchase = kind == ItemEventKind.Purchased;
+        var isUndo = kind == ItemEventKind.Undo;
 
         if (itemEvent.ItemId > 0)
         {
@@ -443,6 +461,28 @@ public static class StarterItemAnalyzer
     }
 }
 
+/// <summary>
+/// The outcome of <see cref="StarterItemAnalyzer.Analyze(IReadOnlyList{ItemEvent}, IReadOnlyList{int}, IReadOnlyDictionary{int, ItemMetadata})"/>.
+/// </summary>
+/// <param name="Items">
+/// The starter basket in canonical order, empty when none could be resolved. Read by
+/// every production caller and passed on to the build and boots resolvers.
+/// </param>
+/// <param name="Reason">
+/// Why the basket looks the way it does: <c>Detected</c>, <c>DetectedIgnoringOverflow:…</c>,
+/// <c>NoEarlyEvents</c>, <c>EmptyBasketAfterEarlyEvents</c> or <c>MissingOrInvalidMetadata:…</c>.
+/// Nothing branches on it — it exists so that "this game has no starters" can be told
+/// apart from "this game's metadata is broken" when a basket is investigated by hand,
+/// which is otherwise unanswerable from the stored aggregate alone.
+/// </param>
+/// <param name="TotalCost">
+/// Gold paid for the basket, counting only items that count toward the 500g budget
+/// (a gifted support-quest root does not). The invariant the unit tests assert on.
+/// </param>
+/// <param name="EarlyEvents">
+/// The purchase batch the basket was derived from, in timestamp order — the input half
+/// of the same by-hand investigation <paramref name="Reason"/> serves.
+/// </param>
 public sealed record StarterItemsAnalysis(
     List<int> Items,
     string Reason,

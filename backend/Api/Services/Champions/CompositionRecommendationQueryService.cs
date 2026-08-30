@@ -75,13 +75,7 @@ public sealed class CompositionRecommendationQueryService(
             Build = build,
         };
 
-        cache.Set(cacheKey, response, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1,
-        });
-
-        return response;
+        return cache.Store(cacheKey, response, CacheTtl);
     }
 
     public async Task<CompositionBuildGamesResponse> GetGamesAsync(
@@ -136,13 +130,7 @@ public sealed class CompositionRecommendationQueryService(
 
         var matches = await matchQueryService.FindTopMatchesAsync(criteria, ct);
 
-        cache.Set(cacheKey, matches, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1,
-        });
-
-        return matches;
+        return cache.Store(cacheKey, matches, CacheTtl);
     }
 
     /// <summary>

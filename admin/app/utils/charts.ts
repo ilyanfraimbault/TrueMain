@@ -2,9 +2,11 @@ import { CurveType, Orientation } from 'vue-chrts'
 
 // Chart palette + axis helpers for the admin dashboard.
 //
-// TrueMain is intentionally emerald-only on surfaces, so every single-series
-// chart picks up emerald-400. Callers needing a contrasting second series pass
-// `categories[key].color` explicitly (amber-400 below).
+// The admin portal is emerald-only on surfaces (see `app.config.ts` — the
+// public site moved to rosegold/ink in #1060 and the portal was deliberately
+// left behind), so every single-series chart picks up emerald-400. Callers
+// needing a contrasting second series pass `categories[key].color` explicitly
+// (amber-400 below).
 export const CHART_PRIMARY = '#34d399' // emerald-400
 export const CHART_ACCENT_AMBER = '#fbbf24' // amber-400
 export const CHART_ACCENT_SKY = '#38bdf8' // sky-400
@@ -18,7 +20,7 @@ export const CHART_ACCENT_SKY = '#38bdf8' // sky-400
 // collapses to ΔE 3.0 under tritanopia. Never cycle or reorder per chart; a
 // fourth series folds into an "other" bucket or gets its own chart.
 //
-// Both are below 3:1 against the LIGHT surface, so any chart using them ships the
+// All three are below 3:1 against the LIGHT surface, so any chart using them ships the
 // per-series totals as visible text underneath — identity and magnitude are then
 // readable without relying on the fill at all.
 export const CHART_SERIES = [CHART_PRIMARY, CHART_ACCENT_AMBER, CHART_ACCENT_SKY] as const

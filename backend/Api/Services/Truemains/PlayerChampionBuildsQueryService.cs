@@ -1,12 +1,10 @@
-using Data;
-using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions;
 
 namespace TrueMain.Services.Truemains;
 
 public sealed class PlayerChampionBuildsQueryService(
-    TrueMainDbContext db,
+    TruemainAccountResolver resolver,
     IChampionBuildsQueryService buildsQueryService) : IPlayerChampionBuildsQueryService
 {
     /// <summary>
@@ -28,21 +26,7 @@ public sealed class PlayerChampionBuildsQueryService(
         string? position,
         CancellationToken ct)
     {
-        if (!NameTagParser.TryParse(nameTag, out var parsed))
-        {
-            return null;
-        }
-
-        // Resolve the name tag the same way the profile + matches endpoints do
-        // (most-recently-active row on a cross-region collision) so all three
-        // routes can never disagree about which account a name tag means.
-        var account = await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new { a.Id, a.PlatformId })
-            .FirstOrDefaultAsync(ct);
-
+        var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;
@@ -52,7 +36,7 @@ public sealed class PlayerChampionBuildsQueryService(
             championId,
             patch,
             position,
-            ct,
-            new ChampionBuildsScope(account.Id, account.PlatformId, MinPlayerGames));
+            new ChampionBuildsScope(account.Id, account.PlatformId, MinPlayerGames),
+            ct: ct);
     }
 }

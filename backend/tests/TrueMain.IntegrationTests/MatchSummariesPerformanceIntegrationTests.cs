@@ -64,7 +64,7 @@ public sealed class MatchSummariesPerformanceIntegrationTests
         await using var db = _fixture.CreateDbContext();
         var self = await SelfRowAsync(db);
 
-        var detail = await new MatchDetailQueryService(db)
+        var detail = await new MatchDetailQueryService(db, new TruemainAccountResolver(db))
             .GetAsync(NameTag, MatchId, CancellationToken.None);
         detail.Should().NotBeNull();
         var detailSelf = detail!.Participants.Single(p => p.ParticipantId == SelfParticipantId);
@@ -95,7 +95,7 @@ public sealed class MatchSummariesPerformanceIntegrationTests
         self.IsMvp.Should().BeFalse();
         self.IsAce.Should().BeFalse("the accolade for a lost game never lands on a winner");
 
-        var detail = await new MatchDetailQueryService(db)
+        var detail = await new MatchDetailQueryService(db, new TruemainAccountResolver(db))
             .GetAsync(NameTag, MatchId, CancellationToken.None);
         var mvp = detail!.Participants.Single(p => p.IsMvp);
         mvp.ParticipantId.Should().Be(CarryParticipantId, "the carry outscores the padded KDA line");
@@ -130,6 +130,7 @@ public sealed class MatchSummariesPerformanceIntegrationTests
     {
         var response = await new MatchSummariesQueryService(
                 db,
+                new TruemainAccountResolver(db),
                 new MatchSummaryHydrator(db, NullLogger<MatchSummaryHydrator>.Instance),
                 NullLogger<MatchSummariesQueryService>.Instance)
             .GetAsync(NameTag, page: 1, pageSize: 20, position: null, championId: null, CancellationToken.None);

@@ -54,6 +54,18 @@ public sealed class RateMathTests
     }
 
     [Fact]
+    public void RateOrNull_keeps_an_unmeasured_sample_apart_from_a_measured_zero()
+    {
+        // The two conventions used to share one name (#1224): a private copy in the
+        // live build aggregator returned 0 for an empty denominator while the
+        // activity buckets returned null for the same case. Same arithmetic,
+        // opposite meaning — so they are two named intents now.
+        RateMath.RateOrNull(0, 0).Should().BeNull("no games is not a rate of zero");
+        RateMath.RateOrNull(0, 12).Should().Be(0d, "twelve games and no win is a measured zero");
+        RateMath.RateOrNull(3, 12).Should().Be(0.25d);
+    }
+
+    [Fact]
     public void WinRate_is_null_when_a_counter_is_unknown_or_no_games_were_played()
     {
         RateMath.WinRate(null, 4).Should().BeNull();

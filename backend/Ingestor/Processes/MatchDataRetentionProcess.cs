@@ -1,6 +1,7 @@
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
+using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,8 @@ namespace Ingestor.Processes;
 public sealed class MatchDataRetentionProcess(
     ILogger<MatchDataRetentionProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
+    IDataSessionFactory sessionFactory,
+    TimeProvider timeProvider,
     IOptions<MatchDataRetentionOptions> retentionOptions,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     IOptions<CandidatePruningOptions> candidatePruningOptions) : IIngestorProcess
@@ -427,10 +430,14 @@ public sealed class MatchDataRetentionProcess(
             return 0;
         }
 
-        var cutoffUtc = DateTime.UtcNow - TimeSpan.FromDays(options.PruneAfterDays);
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        var pruned = await new Data.Repositories.MainCandidateRepository(db)
-            .PruneStaleNeverPromotedAsync(cutoffUtc, ct);
+        // TimeProvider, like every other time-dependent decision in the ingestor (#270): a
+        // purge cutoff computed from DateTime.UtcNow cannot be frozen by a test.
+        var cutoffUtc = timeProvider.GetUtcNow().UtcDateTime - TimeSpan.FromDays(options.PruneAfterDays);
+
+        // The purge already lives on IDataSession.MainCandidates, so it is reached the way the
+        // rest of the ingestor reaches candidate writes, instead of new-ing the repository here.
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var pruned = await session.MainCandidates.PruneStaleNeverPromotedAsync(cutoffUtc, ct);
 
         if (pruned > 0)
         {
@@ -457,34 +464,70 @@ public sealed class MatchDataRetentionProcess(
         return new RetentionPlan(retainedPatchCount, queueId, retainedPatchesByPlatform, deletableMatchIds);
     }
 
-    private static Task<List<ObservedMatch>> LoadObservedPatchesAsync(
+    /// <summary>
+    /// The distinct (platform, game version) pairs of the retained queue, each with the
+    /// start time of its most recent match.
+    ///
+    /// <para>
+    /// Grouped server-side on purpose: the plan only needs the couple of newest patches per
+    /// platform, but the table holds hundreds of thousands of matches, and projecting one
+    /// row per match pulled the whole retained history into memory on every retention run.
+    /// The <c>PatchVersion</c> normalisation below is not translatable to SQL, but the
+    /// <c>GROUP BY (platform_id, game_version)</c> and its <c>max(game_start_time_utc)</c>
+    /// are, and they return a few hundred rows instead.
+    /// </para>
+    ///
+    /// <para>
+    /// Ordering by that maximum is equivalent to the previous per-match ordering: a patch's
+    /// first appearance in a descending match list is exactly its most recent match, and a
+    /// normalised patch's most recent match is the newest across the game versions that
+    /// normalise to it.
+    /// </para>
+    /// </summary>
+    private static Task<List<ObservedPatch>> LoadObservedPatchesAsync(
         TrueMainDbContext db,
         int queueId,
         CancellationToken ct)
     {
+        return ObservedPatchesQuery(db, queueId).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// The query behind <see cref="LoadObservedPatchesAsync"/>, exposed so a test can assert
+    /// on the SQL it translates to: the whole point of the shape is that Postgres does the
+    /// grouping, and a client-evaluated fallback would silently read the table again.
+    /// </summary>
+    internal static IQueryable<ObservedPatch> ObservedPatchesQuery(TrueMainDbContext db, int queueId)
+    {
         return db.Matches
             .AsNoTracking()
             .Where(match => match.QueueId == queueId)
-            .OrderByDescending(match => match.GameStartTimeUtc)
-            .Select(match => new ObservedMatch(match.PlatformId, match.GameVersion))
-            .ToListAsync(ct);
+            .GroupBy(match => new { match.PlatformId, match.GameVersion })
+            .Select(group => new ObservedPatch(
+                group.Key.PlatformId,
+                group.Key.GameVersion,
+                group.Max(match => match.GameStartTimeUtc)));
     }
 
-    private static Dictionary<string, HashSet<string>> ComputeRetainedPatchesByPlatform(
-        IReadOnlyCollection<ObservedMatch> observedMatches,
+    internal static Dictionary<string, HashSet<string>> ComputeRetainedPatchesByPlatform(
+        IReadOnlyCollection<ObservedPatch> observedPatches,
         int retainedPatchCount)
     {
-        return observedMatches
-            .GroupBy(match => match.PlatformId)
+        return observedPatches
+            .GroupBy(observed => observed.PlatformId, StringComparer.Ordinal)
             .ToDictionary(
                 group => group.Key,
                 group => group
-                    .Select(match => PatchVersion.TryParse(match.GameVersion, out var patch)
+                    // Newest patch first, with the game version as a tie-breaker so two
+                    // versions sharing a last-seen timestamp keep a stable order.
+                    .OrderByDescending(observed => observed.LastGameStartTimeUtc)
+                    .ThenByDescending(observed => observed.GameVersion, StringComparer.Ordinal)
+                    .Select(observed => PatchVersion.TryParse(observed.GameVersion, out var patch)
                         ? patch.ToMajorMinor()
                         : null)
                     .Where(patch => !string.IsNullOrWhiteSpace(patch))
                     .Select(patch => patch!)
-                    .Distinct()
+                    .Distinct(StringComparer.Ordinal)
                     .Take(retainedPatchCount)
                     .ToHashSet(StringComparer.Ordinal),
                 StringComparer.Ordinal);
@@ -562,7 +605,7 @@ public sealed class MatchDataRetentionProcess(
         var deletedParticipants = 0;
 
         // Delete in bounded batches, one transaction each: the cascading removal of
-        // timeline snapshots / kill positions / jungle clears / perk selections / bans makes
+        // timeline snapshots / kill positions / perk selections / bans makes
         // a single unbounded delete a lock and WAL hazard, especially right after a
         // disk-full incident. Each committed batch frees space and lets an interrupted
         // drain resume next run.
@@ -634,7 +677,8 @@ public sealed class MatchDataRetentionProcess(
                 .ToList());
     }
 
-    private sealed record ObservedMatch(string PlatformId, string GameVersion);
+    /// <summary>One observed (platform, game version) pair and the start time of its newest match.</summary>
+    internal sealed record ObservedPatch(string PlatformId, string GameVersion, DateTime LastGameStartTimeUtc);
 
     private sealed record SnapshotPruneResult(int PrunedMatches, int DeletedSnapshots)
     {

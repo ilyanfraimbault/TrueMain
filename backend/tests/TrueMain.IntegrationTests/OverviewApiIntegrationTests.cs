@@ -1,10 +1,10 @@
-using Core.Lol.Map;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Data.Entities;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
 
@@ -162,58 +162,22 @@ public sealed class OverviewApiIntegrationTests
         };
 
     private static Match BuildMatch(string id, string platformId, DateTime startUtc)
-        => new()
-        {
-            Id = id,
-            PlatformId = platformId,
-            QueueId = (int)LolQueueId.RankedSoloDuo,
-            MapId = (int)LolMapId.SummonersRift,
-            GameMode = "CLASSIC",
-            GameType = "MATCHED_GAME",
-            GameStartTimeUtc = startUtc,
-            GameDurationSeconds = 1800,
-            GameVersion = "16.4.1",
-            CreatedAtUtc = startUtc,
-            TimelineIngested = true
-        };
+        => new MatchBuilder()
+            .WithId(id)
+            .WithPlatformId(platformId)
+            .WithGameVersion("16.4.1")
+            .WithGameStartTimeUtc(startUtc)
+            .WithCreatedAtUtc(startUtc)
+            .WithTimelineIngested()
+            .Build();
 
     private static MatchParticipant BuildParticipant(string matchId, string puuid, int championId, Guid id)
-        => new()
-        {
-            Id = id,
-            MatchId = matchId,
-            ParticipantId = 1,
-            Puuid = puuid,
-            SummonerName = puuid,
-            SummonerLevel = 100,
-            ChampionId = championId,
-            TeamId = 100,
-            TeamPosition = "MIDDLE",
-            IndividualPosition = "MIDDLE",
-            Lane = "MIDDLE",
-            Role = "SOLO",
-            Win = true,
-            Kills = 1,
-            Deaths = 1,
-            Assists = 1,
-            GoldEarned = 10000,
-            TotalMinionsKilled = 100,
-            NeutralMinionsKilled = 0,
-            ChampLevel = 14,
-            Item0 = 6672,
-            Item1 = 3006,
-            Item6 = 3363,
-            TrinketItemId = 3363,
-            PerksDefense = 5002,
-            PerksFlex = 5008,
-            PerksOffense = 5005,
-            PrimaryStyleId = 8000,
-            SubStyleId = 8200,
-            Summoner1Id = 4,
-            Summoner2Id = 7,
-            ItemEvents = [],
-            SkillEvents = []
-        };
+        => new MatchParticipantBuilder()
+            .WithId(id)
+            .WithMatchId(matchId)
+            .WithPuuid(puuid)
+            .WithChampionId(championId)
+            .Build();
 
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
         : TrueMainWebApplicationFactory<Program>(fixture);

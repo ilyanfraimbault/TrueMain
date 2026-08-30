@@ -186,10 +186,10 @@ public sealed class ChampionPowerspikeAggregationProcess(
             return;
         }
 
-        // Bounded batches, one transaction each, like the retention deletes (#982,
-        // #988): the predicate is not index-aligned, so a single statement over the
-        // whole table is the shape that blew the command timeout there. Each batch
-        // commits its own progress, so an interrupted run resumes instead of redoing.
+        // Bounded batches, like the retention deletes (#982, #988): the predicate is
+        // not index-aligned, so a single statement over the whole table is the shape
+        // that blew the command timeout there. Each ExecuteDeleteAsync autocommits,
+        // so an interrupted run resumes instead of redoing.
         // Capped per run, like the match loop's MaxMatchesPerRun: these items are
         // bought in nearly every game, so the backlog on the first run after deploy
         // is a large share of the table, and an uncapped drain would spend that whole
@@ -551,7 +551,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
         // the event cannot be matched to the build it belongs to.
         var completions = p1.ItemEvents
             .Where(e => e.ItemId > 0
-                && e.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase)
+                && e.EventType.Equals(ItemEventTypes.Purchased, StringComparison.OrdinalIgnoreCase)
                 && itemMetadata.TryGetValue(e.ItemId, out var meta)
                 && FinalBuildResolver.IsEligibleFinalBuildItem(meta))
             .GroupBy(e => FinalBuildResolver.GetDisplayedBuildItemId(itemMetadata[e.ItemId]))

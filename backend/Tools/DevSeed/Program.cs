@@ -1,7 +1,7 @@
 // Dev-only tool: seeds a local Postgres with deterministic, realistic synthetic
 // data across the full champion-stat read path (raw matches/participants/
-// timeline snapshots/kill positions, the #606 matchup/lead pre-aggregation, and
-// the Phase 6 build aggregation) so ChampionRoamQueryService, ChampionScaling-
+// timeline snapshots/kill positions, the #606 matchup pre-aggregation, and the
+// build aggregation) so ChampionRoamQueryService, ChampionScaling-
 // QueryService, ChampionMatchupQueryService, ChampionBuildsQueryService etc. all
 // have something real to read locally, without waiting on the (rate-limited)
 // Riot ingestion pipeline. See issue #631.
@@ -12,9 +12,8 @@
 // --force-host bypasses the "does this look like a local dev host" check;
 // --force-wipe bypasses the "does this database already hold non-synthetic
 // match data" check (which guards the wholesale truncate of
-// champion_matchup_stats / champion_timeline_lead_stats below). The two are
-// independent, deliberately unmerged flags: bypassing one risk shouldn't
-// silently bypass the other.
+// champion_matchup_stats below). The two are independent, deliberately
+// unmerged flags: bypassing one risk shouldn't silently bypass the other.
 //
 // The connection string comes from (in order) an env var (ConnectionStrings__TrueMain),
 // this project's own user secrets (`dotnet user-secrets set ConnectionStrings:TrueMain
@@ -81,8 +80,8 @@ if (!forceWipe && await db.Matches.AnyAsync(m => !m.Id.StartsWith("DEVSEED_")))
 {
     Console.Error.WriteLine(
         "Refusing to run: this database already has non-synthetic match data. " +
-        "DevSeed truncates champion_matchup_stats / champion_timeline_lead_stats wholesale " +
-        "(they carry no owner column to scope a delete to), which would destroy real aggregated " +
+        "DevSeed truncates champion_matchup_stats wholesale " +
+        "(it carries no owner column to scope a delete to), which would destroy real aggregated " +
         "data. Pass --force-wipe if you're sure this database only ever holds DevSeed data.");
     return 1;
 }
@@ -169,7 +168,7 @@ static async Task CleanupAsync(TrueMainDbContext db)
         await db.ChampionAggregateScopes.Where(s => s.RiotAccountId == devSeedAccountId).ExecuteDeleteAsync();
     }
 
-    // No owner column exists on these two tables (see their doc comments) — the
+    // No owner column exists on this table (see its doc comment) — the
     // --force-wipe / non-synthetic-data guard above is what keeps this safe.
     await db.ChampionMatchupStats.ExecuteDeleteAsync();
 }

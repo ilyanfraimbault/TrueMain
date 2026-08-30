@@ -55,17 +55,17 @@ public static class FinalBuildResolver
 
         foreach (var itemEvent in itemEvents.OrderBy(itemEvent => itemEvent.TimestampMs))
         {
-            switch (itemEvent.EventType.ToUpperInvariant())
+            switch (ItemEventTypes.Classify(itemEvent.EventType))
             {
-                case "ITEM_PURCHASED":
+                case ItemEventKind.Purchased:
                     AddTrackedItem(itemEvent.ItemId, itemEvent.TimestampMs, trackedItemIds, completionTimes);
                     AddTransformSourceCompletionTime(itemEvent.ItemId, itemEvent.TimestampMs, finalInventory, transformSourceCompletionTimes);
                     break;
-                case "ITEM_SOLD":
-                case "ITEM_DESTROYED":
+                case ItemEventKind.Sold:
+                case ItemEventKind.Destroyed:
                     RemoveTrackedItem(itemEvent.ItemId, trackedItemIds, completionTimes);
                     break;
-                case "ITEM_UNDO":
+                case ItemEventKind.Undo:
                     RemoveTrackedItem(itemEvent.BeforeId ?? itemEvent.ItemId, trackedItemIds, completionTimes);
                     AddTrackedItem(itemEvent.AfterId, itemEvent.TimestampMs, trackedItemIds, completionTimes);
                     AddTransformSourceCompletionTime(itemEvent.AfterId, itemEvent.TimestampMs, finalInventory, transformSourceCompletionTimes);

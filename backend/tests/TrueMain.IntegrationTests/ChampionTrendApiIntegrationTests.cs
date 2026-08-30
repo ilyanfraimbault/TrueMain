@@ -5,7 +5,6 @@ using AwesomeAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions;
 using TrueMain.TestKit.EntityBuilders;
@@ -172,7 +171,7 @@ public sealed class ChampionTrendApiIntegrationTests
         // One query reads that same value three times — the default-lane
         // resolution, the five-patch window, then the final oldest → newest
         // sort — and must still produce a single warning.
-        var warnings = logs.Warnings
+        var warnings = logs.Messages
             .Where(message => message.Contains(CorruptPatch, StringComparison.Ordinal))
             .ToList();
         warnings.Should().ContainSingle(
@@ -301,66 +300,6 @@ public sealed class ChampionTrendApiIntegrationTests
             if (logProvider is not null)
             {
                 builder.ConfigureLogging(logging => logging.AddProvider(logProvider));
-            }
-        }
-    }
-
-    /// <summary>
-    /// Captures the Warning+ lines the running host emits for a single logger
-    /// category, so a test can assert on what the API actually logged while
-    /// serving a request. Every other category gets <see cref="NullLogger"/>,
-    /// keeping the capture free of EF Core / ASP.NET noise.
-    /// </summary>
-    private sealed class CapturingLoggerProvider(string category) : ILoggerProvider
-    {
-        private readonly List<string> _warnings = [];
-
-        public IReadOnlyList<string> Warnings
-        {
-            get
-            {
-                lock (_warnings)
-                {
-                    return [.. _warnings];
-                }
-            }
-        }
-
-        public ILogger CreateLogger(string categoryName)
-            => string.Equals(categoryName, category, StringComparison.Ordinal)
-                ? new CategoryLogger(this)
-                : NullLogger.Instance;
-
-        public void Dispose()
-        {
-        }
-
-        private void Record(string message)
-        {
-            lock (_warnings)
-            {
-                _warnings.Add(message);
-            }
-        }
-
-        private sealed class CategoryLogger(CapturingLoggerProvider owner) : ILogger
-        {
-            public IDisposable? BeginScope<TState>(TState state) where TState : notnull
-                => NullLogger.Instance.BeginScope(state);
-
-            public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
-
-            public void Log<TState>(
-                LogLevel logLevel,
-                EventId eventId,
-                TState state,
-                Exception? exception,
-                Func<TState, Exception?, string> formatter)
-            {
-                if (IsEnabled(logLevel))
-                {
-                    owner.Record(formatter(state, exception));
-                }
             }
         }
     }

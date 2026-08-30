@@ -25,7 +25,7 @@ A .NET worker that runs a set of scheduled, independently recorded processes:
 - **Discovery** walks ranked ladders across platforms to find candidate players.
 - **Match ingestion / harvest** pulls solo/duo (queue 420) match and timeline data for known accounts. Other queues are dropped at ingest — TrueMain is ranked-only by design.
 - **Scoring / main analysis** computes the games-vs-mastery signal that promotes a player to *true main* status for a champion.
-- **Aggregation** folds match participants into per-champion aggregates: builds, runes, skill orders, matchups, timeline leads (gold/XP deltas), kill positions, jungle clears. Aggregates are computed per patch and rank scope; past patches are frozen once their live matches are retired.
+- **Aggregation** folds match participants into per-champion aggregates: builds, runes, skill orders, matchups (with their 15-minute lane outcomes and gold/XP gaps), synergies, bans, power spikes, kill positions. Aggregates are computed per patch and rank scope; past patches are frozen once their live matches are retired.
 - **Retention** trims raw match data that has already been aggregated, keeping the database bounded.
 
 ### Api
@@ -38,7 +38,7 @@ An ASP.NET Core service exposing the read side: champion aggregates, true-main l
 
 ### web
 
-The public Nuxt frontend: champion pages (builds, runes, skill order, matchups, timeline leads), player pages, and search. It talks to the Api through a Nitro server proxy, so the browser never reaches the backend directly.
+The public Nuxt frontend: champion pages (builds, runes, skill order, matchups, synergies, power spikes), player pages, and search. It talks to the Api through a Nitro server proxy, so the browser never reaches the backend directly.
 
 ### admin
 
@@ -56,11 +56,11 @@ compose*.yaml  Docker stacks (dev with hot-reload, preprod and prod from publish
 
 ## Infrastructure
 
-Everything runs as Docker containers on a single host. In production, Caddy terminates TLS (Let's Encrypt) and is the only public entry point; the frontends and databases live on an internal network. CI builds the backend in Release with analyzers as errors, runs unit and integration tests (against real PostgreSQL), builds both frontends, and publishes images to GHCR. Pull requests get an automated Claude code review with a blocking verdict.
+Everything runs as Docker containers on a single host. In production, Caddy terminates TLS (Let's Encrypt) and is the only public entry point; the frontends and databases live on an internal network. CI builds the backend in Release with analyzers as errors, runs unit tests on every run and integration tests (against real PostgreSQL) on pull requests, builds both frontends, and publishes images to GHCR. Pull requests get an automated Claude code review with a blocking verdict.
 
 ## Further reading
 
 - [`docs/api.md`](docs/api.md) — HTTP endpoint reference (parameters and response shapes).
 - [`docs/preprod.md`](docs/preprod.md) — preprod environment: `:preprod` images tracking `develop`, fresh database with a dedicated Riot API key, data-diet knobs, deployment runbook.
 - [`docs/diagrams/architecture.drawio`](docs/diagrams/architecture.drawio) — architecture diagram.
-- `docs/phase-*.md` — RFCs behind the major evolutions of the data model and pipeline.
+- `docs/phase-*.md` — RFCs behind the major evolutions of the data model and pipeline. All three are implemented and kept as historical records; each carries a status banner saying what shipped differently from the proposal.

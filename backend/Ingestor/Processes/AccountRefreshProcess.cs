@@ -76,6 +76,12 @@ public sealed class AccountRefreshProcess(
         var latestByAccountId = await session.RankSnapshots.GetLatestForAccountsAsync(accountIds, ct);
         var rankFreshness = refreshOptions.Value.RankSyncFreshness;
 
+        // PUUIDs handed out by Riot-ID recovery during this run. Nothing below is
+        // persisted before the single SaveChangesAsync at the end, so the database
+        // check in TryRecoverByRiotIdAsync cannot see a sibling account of the same
+        // batch that already recovered to the same PUUID (#1223).
+        var claimedPuuids = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var account in accounts)
         {
             ct.ThrowIfCancellationRequested();
@@ -85,7 +91,8 @@ public sealed class AccountRefreshProcess(
                 continue;
             }
 
-            await RefreshSingleAccountAsync(session, accountEntity, latestByAccountId, rankFreshness, nowUtc, summary, ct);
+            await RefreshSingleAccountAsync(
+                session, accountEntity, latestByAccountId, rankFreshness, nowUtc, claimedPuuids, summary, ct);
         }
 
         await session.SaveChangesAsync(ct);
@@ -98,11 +105,18 @@ public sealed class AccountRefreshProcess(
         IReadOnlyDictionary<Guid, RankSnapshot> latestByAccountId,
         TimeSpan rankFreshness,
         DateTime nowUtc,
+        HashSet<string> claimedPuuids,
         RefreshSummary summary,
         CancellationToken ct)
     {
         if (!PlatformId.TryParse(account.PlatformId, out var platform))
         {
+            // Stamped, unlike the transient failures below. An unparseable platform_id is
+            // a permanent condition — no future run resolves it — and every bucket of
+            // GetAccountsForRefreshAsync drains oldest-UpdatedAtUtc-first, so leaving the
+            // stamp alone parks the row at the head of every batch and burns a slot that
+            // an account we can actually refresh should have had (#1223).
+            account.UpdatedAtUtc = nowUtc;
             logger.LogWarning(
                 "Skipping riot account {Puuid}: invalid platform {PlatformId}.",
                 account.Puuid,
@@ -131,7 +145,7 @@ public sealed class AccountRefreshProcess(
             // account-v1 by-puuid returned 404: the PUUID no longer resolves
             // (deleted/banned account, or a rotated PUUID). Try to recover the
             // account by its Riot ID before giving up.
-            var outcome = await TryRecoverByRiotIdAsync(session, account, region, nowUtc, ct);
+            var outcome = await TryRecoverByRiotIdAsync(session, account, region, nowUtc, claimedPuuids, ct);
             switch (outcome)
             {
                 case RecoveryOutcome.Recovered:
@@ -230,12 +244,19 @@ public sealed class AccountRefreshProcess(
     /// <summary>
     /// Recovers an account whose PUUID stopped resolving by looking it up via its
     /// Riot ID (account-v1 by-riot-id) and refreshing the stored PUUID/identity.
+    /// <para>
+    /// <paramref name="claimedPuuids"/> carries the PUUIDs already handed out earlier in
+    /// the same batch: the collision guard below has to consult it as well as the
+    /// database, because none of this run's writes are visible to a query until the
+    /// batch's single SaveChangesAsync (#1223).
+    /// </para>
     /// </summary>
     private async Task<RecoveryOutcome> TryRecoverByRiotIdAsync(
         IDataSession session,
         RiotAccount account,
         RegionalRoute region,
         DateTime nowUtc,
+        HashSet<string> claimedPuuids,
         CancellationToken ct)
     {
         // Without a GameName + TagLine there is nothing to look the account up by.
@@ -271,8 +292,13 @@ public sealed class AccountRefreshProcess(
         // If the recovered PUUID differs and already belongs to another row, this
         // account is a stale duplicate: invalidate it instead of colliding on the
         // unique PUUID index at SaveChanges (which would fail the whole batch).
+        // "Another row" means a row in the database *or* an account earlier in this
+        // batch that recovered to the same PUUID — the in-flight ones are invisible to
+        // ExistsByPuuidAsync until the batch is saved, and two of them slipping through
+        // is precisely the unique-index violation this guard exists to prevent (#1223).
         if (!string.Equals(resolved.Puuid, account.Puuid, StringComparison.Ordinal)
-            && await session.RiotAccounts.ExistsByPuuidAsync(resolved.Puuid, ct))
+            && (claimedPuuids.Contains(resolved.Puuid)
+                || await session.RiotAccounts.ExistsByPuuidAsync(resolved.Puuid, ct)))
         {
             logger.LogWarning(
                 "Riot account {Platform}/{Puuid} recovered to PUUID {NewPuuid} already held by another row; invalidating the stale duplicate.",
@@ -282,6 +308,7 @@ public sealed class AccountRefreshProcess(
             return RecoveryOutcome.Unrecoverable;
         }
 
+        claimedPuuids.Add(resolved.Puuid);
         account.Puuid = resolved.Puuid;
         if (!string.IsNullOrWhiteSpace(resolved.GameName))
         {

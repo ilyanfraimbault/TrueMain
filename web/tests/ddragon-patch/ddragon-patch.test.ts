@@ -22,7 +22,11 @@ async function loadResolver(fetchImpl: () => Promise<string[]>) {
     return fn
   })
   const mod = await import('~~/server/utils/ddragon-patch')
-  return { resolve: mod.resolveLatestDDragonPatch, registration: registrations[0] }
+  return {
+    resolve: mod.resolveLatestDDragonPatch,
+    normalizeRequested: mod.normalizeRequestedPatch,
+    registration: registrations[0],
+  }
 }
 
 afterEach(() => {
@@ -48,5 +52,31 @@ describe('resolveLatestDDragonPatch', () => {
     // Patches ship every ~2 weeks. Anything at or under the payload TTL would
     // leave the lookup on the critical path roughly as often as before.
     expect(registration?.options.maxAge).toBeGreaterThan(60 * 60)
+  })
+})
+
+describe('normalizeRequestedPatch', () => {
+  it('returns null when the caller supplies no patch', async () => {
+    const { normalizeRequested } = await loadResolver(async () => ['16.5.1'])
+    // The static endpoints fall back to the latest patch on null; an empty
+    // `?patch=` must land there too rather than being rejected.
+    expect(normalizeRequested(undefined)).toBeNull()
+    expect(normalizeRequested('')).toBeNull()
+  })
+
+  it('expands the short patch form the backend scopes expose', async () => {
+    const { normalizeRequested } = await loadResolver(async () => ['16.5.1'])
+    expect(normalizeRequested('16.5')).toBe('16.5.1')
+    expect(normalizeRequested('16.5.1')).toBe('16.5.1')
+  })
+
+  it('rejects anything that is not major.minor.patch with a 400', async () => {
+    const { normalizeRequested } = await loadResolver(async () => ['16.5.1'])
+    // The value is interpolated into a CDN URL and used as a cache key, so a
+    // traversal payload must never get through, and arbitrary strings must not
+    // be allowed to mint an unbounded number of cache entries.
+    for (const payload of ['../../etc/passwd', '16.5.1/../../x', 'latest', '16', '16.5.1.2', '16.a.1']) {
+      expect(() => normalizeRequested(payload)).toThrowError(expect.objectContaining({ statusCode: 400 }))
+    }
   })
 })

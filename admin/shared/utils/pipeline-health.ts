@@ -1,4 +1,5 @@
 import type { BadgeColor, ProcessHealthStatus } from '~~/shared/types/ops'
+import { formatElapsed } from '~~/shared/utils/format'
 
 /**
  * Presentation rules for the health cockpit (#1031) that need to be right rather than
@@ -9,8 +10,22 @@ import type { BadgeColor, ProcessHealthStatus } from '~~/shared/types/ops'
  * covers the two things unique to the cockpit: run statuses and the signed pipeline gaps.
  */
 
+/** One colour and one icon per run status — the status is dressed once. */
+export interface ProcessStatusMeta {
+  /** `UBadge`/`UIcon` colour for the status. */
+  color: BadgeColor
+  /** Lucide icon for the same status. */
+  icon: string
+}
+
 /**
- * Colour for a process's effective run status.
+ * Colour *and* icon for a process's effective run status, in one table.
+ *
+ * Split across two private tables in `/processes` and `/health`, this had already
+ * drifted: `Running` was the emerald `primary` on one page and `info` on the other, so
+ * the same in-flight run was a different colour depending on where you looked at it.
+ * `info` wins because emerald is the portal's "this succeeded" colour and a run that is
+ * still going has not succeeded yet.
  *
  * `Missing` is neutral, not a warning: a process that has never recorded a run is
  * unmeasured, and on a fresh environment every one of them is. `Abandoned` is a warning
@@ -18,28 +33,46 @@ import type { BadgeColor, ProcessHealthStatus } from '~~/shared/types/ops'
  * is a different claim from "it ran and failed". `Skipped` is neutral for a third reason:
  * the run is settled and healthy, its cadence guard simply decided it was too early, so
  * it is neither a success to celebrate nor a problem to flag.
+ *
+ * `Skipped` and `Missing` share the neutral colour but never the icon: one ran and
+ * declined, the other never started, and the badge has to carry the difference.
  */
+export const PROCESS_STATUS_META: Record<ProcessHealthStatus, ProcessStatusMeta> = {
+  Success: { color: 'success', icon: 'i-lucide-circle-check' },
+  Failed: { color: 'error', icon: 'i-lucide-circle-x' },
+  Running: { color: 'info', icon: 'i-lucide-loader-circle' },
+  Abandoned: { color: 'warning', icon: 'i-lucide-circle-slash' },
+  Skipped: { color: 'neutral', icon: 'i-lucide-skip-forward' },
+  Missing: { color: 'neutral', icon: 'i-lucide-circle-dashed' },
+}
+
+/**
+ * Meta for a run status, falling back to `Missing` for anything unrecognised — a status
+ * the backend adds later must read as "no verdict", never as a success or a failure.
+ */
+export function processStatusMeta(status: ProcessHealthStatus | string): ProcessStatusMeta {
+  return PROCESS_STATUS_META[status as ProcessHealthStatus] ?? PROCESS_STATUS_META.Missing
+}
+
+/** Colour for a process's effective run status. See {@link PROCESS_STATUS_META}. */
 export function processStatusColor(status: ProcessHealthStatus | string): BadgeColor {
-  switch (status) {
-    case 'Success':
-      return 'success'
-    case 'Failed':
-      return 'error'
-    case 'Abandoned':
-      return 'warning'
-    case 'Running':
-      return 'info'
-    case 'Skipped':
-      return 'neutral'
-    default:
-      return 'neutral'
-  }
+  return processStatusMeta(status).color
+}
+
+/** Icon for a process's effective run status. See {@link PROCESS_STATUS_META}. */
+export function processStatusIcon(status: ProcessHealthStatus | string): string {
+  return processStatusMeta(status).icon
 }
 
 /**
  * Formats a signed gap in minutes as a magnitude, e.g. `-90` and `90` both render
  * `"1h 30m"`. The sign carries meaning that differs per gap, so the caller words the
  * direction; this only sizes it.
+ *
+ * The tiers themselves are `formatElapsed`'s, not this function's: a private ladder here
+ * is how a three-day span came to read `3d` on `/health` and `72h` on `/processes`, two
+ * pages that cross-reference each other. Only the two things genuinely local to a gap
+ * stay: the null wording and the minutes-to-ms conversion.
  *
  * `null` renders as an explicit "not measurable" rather than `0`: the backend returns null
  * when one side of the subtraction has nothing to measure, and printing that as a zero-
@@ -51,19 +84,10 @@ export function formatGapMagnitude(minutes: number | null | undefined): string {
   }
 
   const total = Math.abs(Math.round(minutes))
-  if (total < 60) {
-    return `${total}m`
-  }
-
-  const hours = Math.floor(total / 60)
-  const remMinutes = total % 60
-  if (hours < 24) {
-    return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`
-  }
-
-  const days = Math.floor(hours / 24)
-  const remHours = hours % 24
-  return remHours ? `${days}d ${remHours}h` : `${days}d`
+  // A gap is measured in whole minutes, so one that rounds to zero is "under a minute",
+  // not "under a millisecond": `formatElapsed`'s ms/s tiers would print a precision this
+  // reading does not have.
+  return total === 0 ? '0m' : formatElapsed(total * 60_000)
 }
 
 /**

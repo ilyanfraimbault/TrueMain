@@ -126,10 +126,11 @@ internal static class ChampionTierCalculator
     /// plain <c>rank / count</c> over that same set. Mixing multiple lanes
     /// into one call would let a thin lane trivially top its own tiny peer
     /// group on every metric and out-rank a much larger, genuinely competitive
-    /// lane — both <see cref="Services.Champions.ChampionSummariesQueryService"/>
-    /// and <see cref="ChampionTierListQueryService"/> call this once per
-    /// position for exactly this reason, so a row's <c>TierScore</c> is
-    /// expected to match between <c>GET /champions</c> and
+    /// lane — <see cref="Services.Champions.ChampionSummariesQueryService"/>,
+    /// the sole caller, calls this once per position for exactly this reason.
+    /// <see cref="ChampionTierListQueryService"/> groups the rows that service
+    /// already stamped rather than tiering them again, so a row's
+    /// <c>TierScore</c> is the very same value on <c>GET /champions</c> and on
     /// <c>GET /champions/tierlist</c> for the same <c>(patch, eloBracket,
     /// position)</c> — see <see cref="ReadModels.Champions.ChampionSummaryReadModel.TierScore"/>.
     /// </para>

@@ -1,5 +1,4 @@
 using System.Linq.Expressions;
-using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Data.Entities;
@@ -31,6 +30,7 @@ namespace TrueMain.Services.Champions;
 /// </summary>
 public sealed class ChampionMainsComparisonQueryService(
     TrueMainDbContext db,
+    TruemainAccountResolver resolver,
     IOptions<MainAnalysisOptions> options,
     IOptions<ChampionsListOptions> championsOptions,
     IMemoryCache cache)
@@ -56,29 +56,27 @@ public sealed class ChampionMainsComparisonQueryService(
         // unparseable input means "every patch we still hold".
         //
         // The MVC controller already ran ChampionQueryParameterNormalizer over
-        // this, so on that path the second pass is a no-op (both go through
-        // PatchVersion.TryParse + ToMajorMinor, which is idempotent). It stays
-        // for the same reason ResolveAccountAsync parses defensively: the
+        // this, so on that path the second pass is a no-op (both call the same
+        // PatchFilter.Normalize, which is idempotent). It stays
+        // for the same reason TruemainAccountResolver parses defensively: the
         // interface is reachable without MVC, and a raw GameVersion arriving
         // here would otherwise be compared against the major.minor LIKE prefix
         // and silently match nothing. Every sibling champion read
         // (scaling / matchups / roam / item-timings / powerspikes / leads /
         // composition) normalises the same way for the same reason — dropping
         // it here alone would make this the one service that trusts its caller.
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
+        var normalizedPatch = PatchFilter.Normalize(patch);
 
         var minGames = Math.Max(0, championsOptions.Value.MinComparisonGames);
 
-        var playerAccount = await ResolveAccountAsync(account, ct);
+        var playerAccount = await resolver.ResolveAsync(account, ct);
         if (playerAccount is null)
         {
             return UnknownAccount(championId, normalizedPatch, position, minGames);
         }
 
         var targetRequested = !string.IsNullOrWhiteSpace(target);
-        var targetAccount = targetRequested ? await ResolveAccountAsync(target, ct) : null;
+        var targetAccount = targetRequested ? await resolver.ResolveAsync(target, ct) : null;
         var targetMissing = targetRequested && targetAccount is null;
 
         // Key the cache on the *resolved* account ids rather than the raw text,
@@ -96,7 +94,7 @@ public sealed class ChampionMainsComparisonQueryService(
         var queueId = (int)options.Value.QueueId;
         // The matches table stores the full Riot GameVersion, so an exact
         // compare would never hit; the LIKE prefix bridges normalised input to it.
-        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
 
         var playerTotals = await AggregateAsync(
             championId,
@@ -170,19 +168,10 @@ public sealed class ChampionMainsComparisonQueryService(
 
     /// <summary>
     /// Stores an assembled response under its request-shape key and hands it
-    /// back. Every entry must carry a Size — the shared MemoryCache runs with a
-    /// SizeLimit, and a Set without one is silently dropped.
+    /// back (see <see cref="ApiCache"/> for why sizing is not optional).
     /// </summary>
     private ChampionMainsComparisonResponse Cache(string cacheKey, ChampionMainsComparisonResponse response)
-    {
-        cache.Set(cacheKey, response, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1,
-        });
-
-        return response;
-    }
+        => cache.Store(cacheKey, response, CacheTtl);
 
     /// <summary>
     /// Sums one side's games in a single grouped round trip. Grouping by account
@@ -255,57 +244,6 @@ public sealed class ChampionMainsComparisonQueryService(
     }
 
     /// <summary>
-    /// Resolves a Riot ID against accounts we already hold. Case-insensitive on
-    /// the game name (users type their own casing) via a wildcard-free ILIKE —
-    /// the pattern is escaped and the escape character passed explicitly,
-    /// because EF's 2-argument overload emits <c>ESCAPE ''</c>, which would let
-    /// a literal <c>%</c> in the input widen the match. The tag is compared with
-    /// a lower() equality instead: it is raw user input too, and equality
-    /// sidesteps LIKE metacharacters entirely.
-    ///
-    /// The parse (including the length cap) is <see cref="NameTagParser"/>'s.
-    /// The controller rejects a malformed Riot ID with a 400 before we get
-    /// here, so in practice this only fails for callers reaching the service
-    /// directly — it stays defensive rather than assuming MVC ran first.
-    /// </summary>
-    private async Task<AccountRow?> ResolveAccountAsync(string? riotId, CancellationToken ct)
-    {
-        if (!NameTagParser.TryParseRiotId(riotId, out var parsed))
-        {
-            return null;
-        }
-
-        var namePattern = EscapeLike(parsed.GameName);
-        var tagLower = parsed.TagLine.ToLowerInvariant();
-
-        // Multi-platform disambiguation: a (gameName, tagLine) pair is unique
-        // within a routing region but can collide across regions, so pick the
-        // most-recently-active row — the same tiebreak the profile / matches /
-        // player-build routes use, so every route lands on the same account.
-        return await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => EF.Functions.ILike(a.GameName, namePattern, "\\")
-                        && a.TagLine != null
-                        && a.TagLine.ToLower() == tagLower)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new AccountRow(
-                a.Id,
-                a.GameName,
-                a.TagLine,
-                a.PlatformId,
-                a.ProfileIconId,
-                a.SummonerLevel))
-            .FirstOrDefaultAsync(ct);
-    }
-
-    // Escape the LIKE/ILIKE metacharacters so user input is matched literally;
-    // '\' first so the escapes we add aren't themselves escaped.
-    private static string EscapeLike(string input) => input
-        .Replace("\\", "\\\\")
-        .Replace("%", "\\%")
-        .Replace("_", "\\_");
-
-    /// <summary>
     /// The columnless response for an account we don't hold. Only reachable for
     /// <see cref="ChampionComparisonStatus.UnknownAccount"/> — an unresolved
     /// <c>main</c> still returns the player's column, so it does not come
@@ -326,7 +264,7 @@ public sealed class ChampionMainsComparisonQueryService(
             Status = ChampionComparisonStatus.UnknownAccount,
         };
 
-    private static ProfileIdentityReadModel Identity(AccountRow account) => new()
+    private static ProfileIdentityReadModel Identity(TruemainAccountRef account) => new()
     {
         GameName = account.GameName,
         TagLine = account.TagLine,
@@ -377,12 +315,4 @@ public sealed class ChampionMainsComparisonQueryService(
         long Gold,
         long Cs,
         long DurationSeconds);
-
-    private sealed record AccountRow(
-        Guid Id,
-        string GameName,
-        string? TagLine,
-        string PlatformId,
-        int ProfileIconId,
-        int SummonerLevel);
 }

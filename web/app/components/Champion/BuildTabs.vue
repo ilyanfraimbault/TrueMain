@@ -6,6 +6,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
+import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
   builds: ChampionBuild[]
@@ -119,7 +120,7 @@ const items = computed(() =>
           v-else
           class="text-xs tabular-nums text-muted"
         >
-          {{ (item.build.pickRate * 100).toFixed(0) }}%
+          {{ formatPercentage(item.build.pickRate, 0) }}
         </span>
       </template>
       <template

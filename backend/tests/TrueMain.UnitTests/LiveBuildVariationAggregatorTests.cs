@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions;
 
 namespace TrueMain.UnitTests;
@@ -96,6 +97,45 @@ public sealed class LiveBuildVariationAggregatorTests
     public void Aggregate_ReturnsNothing_ForAnEmptySlice()
     {
         LiveBuildVariationAggregator.Aggregate([]).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Aggregate_CapsBuildsAndVariations_LikeTheAggregatePath()
+    {
+        // Both paths feed the same Vue panel, so applying a ?vs= filter must not
+        // change how many tabs or variations it renders (#1240). Six distinct
+        // builds, each with its own skill order, must come back as
+        // ChampionBuildDisplayCaps.MaxBuilds tabs; the busiest build's skill
+        // orders capped at MaxVariations.
+        List<CompositionParticipantFacts> facts = Facts(
+            ([1001, 3006], true, 8010),
+            ([1002, 3006], true, 8010),
+            ([1003, 3006], true, 8010),
+            ([1004, 3006], true, 8010),
+            ([1005, 3006], true, 8010),
+            ([1006, 3006], true, 8010));
+
+        // Give the leading build five games with five distinct skill orders.
+        for (int i = 0; i < 4; i++)
+        {
+            facts.Add(new CompositionParticipantFacts
+            {
+                Win = true,
+                BuildItems = [1001, 3006],
+                BootsItemId = 3006,
+                StarterItems = [1055, 2003],
+                Spell1Id = 4,
+                Spell2Id = 14,
+                SkillOrderKey = $"Q-W-E-{i}",
+                RunePage = new CompositionRunePageFacts(
+                    8000, 8010, 8009, 9111, 9104, 8100, 8139, 8135, 5008, 5008, 5001),
+            });
+        }
+
+        IReadOnlyList<ChampionBuildReadModel> builds = LiveBuildVariationAggregator.Aggregate(facts);
+
+        builds.Should().HaveCount(ChampionBuildDisplayCaps.MaxBuilds);
+        builds[0].Variations.SkillOrder.Should().HaveCount(ChampionBuildDisplayCaps.MaxVariations);
     }
 
     [Fact]

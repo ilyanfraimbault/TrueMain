@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
@@ -34,13 +33,11 @@ public sealed class ChampionScalingQueryService(
         string? eloBracket,
         CancellationToken ct)
     {
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
+        var normalizedPatch = PatchFilter.Normalize(patch);
 
         // Resolve the elo filter to its bands (null = ALL, no clause). The cache
         // key carries the bracket so each band caches separately.
-        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var cacheKey = $"champions:scaling:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
@@ -50,7 +47,7 @@ public sealed class ChampionScalingQueryService(
         }
 
         var queueId = (int)options.Value.QueueId;
-        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
 
         // Shares the matchup sample floor: a scaling bucket needs enough games for
         // its win rate to mean anything, same threshold the sibling reads use.
@@ -113,12 +110,6 @@ public sealed class ChampionScalingQueryService(
             ScalingIndex = scalingIndex
         };
 
-        cache.Set(cacheKey, response, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1
-        });
-
-        return response;
+        return cache.Store(cacheKey, response, CacheTtl);
     }
 }

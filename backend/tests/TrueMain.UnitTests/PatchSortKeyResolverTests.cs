@@ -1,7 +1,6 @@
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging;
 using TrueMain.Services.Champions;
-using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 

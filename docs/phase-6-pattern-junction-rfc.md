@@ -1,11 +1,14 @@
 # Phase 6 — Pattern junction RFC: bringing back cross-dimension correlation
 
-> **Status: Implemented.** The 5-PR track (6.1 schema → 6.5 docs) shipped
+> **Status: implemented (historical).** The 5-PR track (6.1 schema → 6.5 docs) shipped
 > in #36, #37, #38, #39 and the doc-cleanup PR linking here. Aggregator
 > writes patterns only, read side projects from patterns, the legacy
 > `champion_pattern_aggregates` + Sprint 5 per-scope dim tables are gone.
-> The cross-dim correlation pivot is exposed at the API as
-> `GET /champions/{id}?buildId=<champion_dim_builds.Id>`.
+> The schema described below is still the live one; the API surface is not.
+> The `GET /champions/{id}?buildId=<champion_dim_builds.Id>` pivot no longer
+> exists — `GET /champions/{id}` accepts only `patch`, `position`, `eloBracket`
+> and `opponentChampionId`, and the build-centric reads moved to the tabbed
+> builds endpoint (#81).
 
 ## Why
 

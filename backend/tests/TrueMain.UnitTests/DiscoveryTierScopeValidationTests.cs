@@ -102,6 +102,10 @@ public sealed class DiscoveryTierScopeValidationTests
         // fails startup validation when unconfigured. TryAdd so the EmptyTierScope test
         // (which deliberately supplies no TierScope) still fails for the reason it targets.
         settings.TryAdd("Platforms:Active:0", "KR");
+        // Same story for LadderSync:TierScope (#1312): deliberately empty in code so the
+        // binder cannot union a hard-coded default into a narrower configured scope, which
+        // makes it another unrelated section that fails startup validation when unset.
+        settings.TryAdd("LadderSync:TierScope:0", "Master");
         return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
     }
 
