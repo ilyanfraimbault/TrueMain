@@ -1958,6 +1958,40 @@ enums:
 
 No retroactive migration: the existing three stay as they are. This settles which one a new column copies.
 
+## Ranks are read from the ladder, not from one account at a time (2026-08-30)
+
+**The ladder endpoints are the primary rank source; the per-account call is the fallback.** `AccountRefresh`
+spends one `league-v4/entries/by-puuid` call per account at `BatchSize: 200` a cycle, which caps the whole
+fleet at roughly 2 400–4 800 refreshes a day — and that budget is shared with the Riot-ID identity backlog
+(#788), whose P0/P0.5 buckets take the entire batch whenever it is large. The visible result was LP that was
+days stale. The ladder answers the inverted question far more cheaply: one call returns a whole apex tier, one
+paginated call returns ~205 consecutive players of a division, and matching those entries against accounts we
+already store is a pure SQL join. `LadderSyncProcess` reads the three apex ladders every cycle (nine calls for
+three platforms) and sweeps the tiers below Master incrementally — #1312.
+
+**Sweep depth is bounded by a request budget, not by a tier list.** A full Challenger→Emerald pass over three
+platforms is on the order of 3 900 calls (Emerald alone is ~1 100 pages per platform). `MaxRequestsPerRun`
+therefore buys sweep *rate*, not sweep *coverage*: the cursor resumes where the previous run stopped, so
+configuring a deeper scope costs latency to come round again, never a budget blowout. The rentability rule per
+division is `tracked_accounts > population / page_size` — roughly **0.5 % of the division**. Master+ clears it
+by a wide margin, Diamond very likely, Emerald is the uncertain step, which is why the run summary reports
+entries and matches per tier: the scope is a measurement, not a guess.
+
+**The sweep never inserts accounts.** Seeding every player of every swept division across three regions would
+add millions of `riot_accounts` rows and swamp every downstream step. Discovery stays the only intake from the
+ladder, and stays scoped to the apex tiers.
+
+**Platforms rotate one page at a time, and the cursor advances before the fetch.** Draining one platform
+before the next would mean the last platform never advances once the budget is the binding constraint — the
+same region-blind allocation as #1149/#1150. Advancing the cursor first is the #486 lesson: a page that fails
+deterministically must not pin the sweep on it forever.
+
+**An account that leaves the swept range needs no special case.** It is simply not seen, so
+`LastRankSyncAtUtc` does not advance and `AccountRefresh` picks it up in its normal rotation — which is also
+what re-detects a demotion. `AccountRefresh:RankSyncFreshness` moved from 15 minutes to 12 hours in the same
+change: at 15 minutes the gate expired long before the next sweep came round, the per-account call was
+re-issued anyway, and none of the saved budget was actually reallocated.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update
