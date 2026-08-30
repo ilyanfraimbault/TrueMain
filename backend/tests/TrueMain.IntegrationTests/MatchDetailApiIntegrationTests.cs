@@ -195,6 +195,7 @@ public sealed class MatchDetailApiIntegrationTests
             .BeGreaterThan(detail.Participants.Where(p => p.ParticipantId != 1).Max(p => p.PerformanceScore));
     }
 
+
     private async Task SeedFullMatchAsync()
     {
         var gameStart = new DateTime(2025, 6, 1, 18, 0, 0, DateTimeKind.Utc);

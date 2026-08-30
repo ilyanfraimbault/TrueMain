@@ -33,10 +33,13 @@ public sealed class MainAnalysisProcess(
         var coverage = await LoadCoverageAsync(ct);
         var summary = await AnalyzeAccountsInBatchesAsync(accounts, options, coverage, nowUtc, ct);
         logger.LogInformation(
-            "Main analysis summary: accountsProcessed={Accounts}, statsUpserted={Upserted}, statsRemoved={Removed}.",
+            "Main analysis summary: accountsProcessed={Accounts}, statsUpserted={Upserted}, statsRemoved={Removed}, "
+            + "sampleRetired={Retired}, sampleRestored={Restored}.",
             summary.Processed,
             summary.TotalStatsUpserted,
-            summary.TotalStatsRemoved);
+            summary.TotalStatsRemoved,
+            summary.SampleRetired,
+            summary.SampleRestored);
 
         return BuildSuccessPayload(summary);
     }
@@ -188,6 +191,30 @@ public sealed class MainAnalysisProcess(
         // behaviour (nothing to protect).
         if (hasEstablishedMain && newTotalMatches < options.MinMatchesToEvaluate)
         {
+            // Thin and gone are not the same thing (#1216). The guard above protects
+            // an established main from a *thin* recent sample; zero participants is
+            // not insufficient evidence but absent evidence — the matches these rows
+            // were folded from have aged out of MatchDataRetention (two patches in
+            // prod), and no later cycle can bring them back on its own. Left as-is,
+            // the condition stays true forever and the row keeps asserting a game
+            // count nothing can corroborate, which is how a profile came to advertise
+            // "10 games on Graves" over a champion page holding nothing at all.
+            //
+            // Flagged rather than deleted: deleting would drop the player off the
+            // leaderboard the moment their matches expire. Readers date the figures
+            // by CalculatedAtUtc instead.
+            //
+            // Only ever *set* here, never cleared. This branch deliberately leaves
+            // ChampionMatches / PlayRate / CalculatedAtUtc frozen, so an account that
+            // comes back to a thin-but-nonzero sample is still carrying figures drawn
+            // from games we no longer hold — un-flagging it there would put the very
+            // same stale count back on the profile as an undated, current-looking
+            // number. Clearing belongs to UpsertChampionStats, the one path that
+            // actually refreshes the figures.
+            if (newTotalMatches == 0)
+            {
+                MarkSampleRetired(existingStats, summary);
+            }
             TouchAccountLastMainCalc(account, accountEntitiesByKey, nowUtc);
             summary.Processed++;
             return summary;
@@ -219,7 +246,29 @@ public sealed class MainAnalysisProcess(
     {
         var newStatsByChampionIds = newStats.Select(stat => stat.ChampionId).ToHashSet();
         summary.TotalStatsRemoved += RemoveMissingChampionStats(session, existingStats, newStatsByChampionIds);
-        summary.TotalStatsUpserted += UpsertChampionStats(session, existingStats, newStats);
+        summary.TotalStatsUpserted += UpsertChampionStats(session, existingStats, newStats, summary);
+    }
+
+    /// <summary>
+    /// Marks every row of an account that just recomputed to zero participants:
+    /// the games these figures were drawn from are gone (#1216). One-way on
+    /// purpose — see the call site, and <see cref="UpsertChampionStats"/> for the
+    /// only place the flag comes back off.
+    /// </summary>
+    private static void MarkSampleRetired(
+        IReadOnlyCollection<MainChampionStat> existingStats,
+        AnalysisSummary summary)
+    {
+        foreach (var stat in existingStats)
+        {
+            if (stat.IsSampleRetired)
+            {
+                continue;
+            }
+
+            stat.IsSampleRetired = true;
+            summary.SampleRetired++;
+        }
     }
 
     private static void TouchAccountLastMainCalc(
@@ -279,7 +328,8 @@ public sealed class MainAnalysisProcess(
     private static int UpsertChampionStats(
         IDataSession session,
         IReadOnlyCollection<MainChampionStat> existingStats,
-        IReadOnlyCollection<MainChampionStat> newStats)
+        IReadOnlyCollection<MainChampionStat> newStats,
+        AnalysisSummary summary)
     {
         var existingByChampion = existingStats.ToDictionary(stat => stat.ChampionId);
 
@@ -293,6 +343,18 @@ public sealed class MainAnalysisProcess(
                 existing.IsMain = stat.IsMain;
                 existing.IsOtp = stat.IsOtp;
                 existing.IsExtendedSample = stat.IsExtendedSample;
+                // The ONLY place the retirement flag comes off (#1216). Reaching here
+                // means the figures on this row were just recomputed from a real
+                // sample — CalculatedAtUtc included — so they describe games we hold
+                // again. The early-return guard must not clear it: it leaves these
+                // very fields frozen, so an unflagged row there would be a stale count
+                // presented as current, which is the bug this all exists to stop.
+                if (existing.IsSampleRetired)
+                {
+                    existing.IsSampleRetired = false;
+                    summary.SampleRestored++;
+                }
+
                 existing.PrimaryPosition = stat.PrimaryPosition;
                 existing.PositionBreakdown = stat.PositionBreakdown;
                 existing.CalculatedAtUtc = stat.CalculatedAtUtc;
@@ -321,12 +383,20 @@ public sealed class MainAnalysisProcess(
         public int TotalStatsRemoved { get; set; }
         public int DemotedAccounts { get; set; }
 
+        /// <summary>Rows flagged this run because their matches are gone (#1216).</summary>
+        public int SampleRetired { get; set; }
+
+        /// <summary>Rows un-flagged this run because games came back.</summary>
+        public int SampleRestored { get; set; }
+
         public void Merge(AnalysisSummary other)
         {
             Processed += other.Processed;
             TotalStatsUpserted += other.TotalStatsUpserted;
             TotalStatsRemoved += other.TotalStatsRemoved;
             DemotedAccounts += other.DemotedAccounts;
+            SampleRetired += other.SampleRetired;
+            SampleRestored += other.SampleRestored;
         }
     }
 }

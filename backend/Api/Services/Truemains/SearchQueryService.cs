@@ -25,10 +25,12 @@ public sealed class SearchQueryService(
     // web/app/composables/useTruemainSearch.ts (no shared contract enforces it).
     private const int MinQueryLength = 2;
 
-    // Upper bound on the query length. A real Riot id slug ("Name#TAG") is well
-    // under this — the DB caps GameName at 32 and TagLine at 8 — so anything
+    // Upper bound on the query length: the same cap NameTagParser applies to a
+    // typed Riot ID, because the longest meaningful query here IS a full
+    // "Name#TAG" — the DB caps GameName at 32 and TagLine at 8 — so anything
     // longer is junk or abuse; reject it before it reaches EscapeLike / ILIKE.
-    private const int MaxQueryLength = 64;
+    // Referenced rather than re-declared so the two can never drift apart.
+    private const int MaxQueryLength = NameTagParser.MaxRiotIdLength;
 
     // The exposed-region platform list is static, so materialise it once rather
     // than rebuilding the array on every search.
@@ -167,6 +169,15 @@ public sealed class SearchQueryService(
     /// deliberately not a separator here because game names contain hyphens, so
     /// splitting on it would mangle the search term. Returns null when there's
     /// nothing searchable (empty, or a name below the minimum length).
+    /// <para>
+    /// Deliberately not <see cref="NameTagParser.TryParseRiotId"/>: that one
+    /// parses a *complete* Riot ID, so it requires both halves and falls back to
+    /// splitting on the last '-' when there is no '#'. Here the input is a
+    /// prefix an operator is still typing — a bare name is the common case, and
+    /// the '-' fallback would turn "Sneaky-Bo" into the name "Sneaky" with the
+    /// tag "Bo". Only the length bound is shared (<see cref="MaxQueryLength"/>);
+    /// the grammar is different because the question is.
+    /// </para>
     /// </summary>
     private static (string Name, string? Tag)? ParseQuery(string? raw)
     {

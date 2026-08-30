@@ -2,6 +2,7 @@ using Core.Lol.Map;
 using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Data;
+using Data.BuildFacts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
@@ -328,7 +329,7 @@ public sealed class ChampionPatternSourceRowReader(
     {
         var purchaseCount = row.ItemEvents.Count(itemEvent =>
             itemEvent.ItemId > 0
-            && itemEvent.EventType.Equals("ITEM_PURCHASED", StringComparison.OrdinalIgnoreCase));
+            && itemEvent.EventType.Equals(ItemEventTypes.Purchased, StringComparison.OrdinalIgnoreCase));
         var normalSkillLevelUps = row.SkillEvents.Count(skillEvent =>
             skillEvent.LevelUpType.Equals("NORMAL", StringComparison.OrdinalIgnoreCase));
 

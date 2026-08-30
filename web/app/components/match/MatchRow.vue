@@ -230,6 +230,8 @@ const perfColor = computed(() => {
   return 'text-muted'
 })
 
+// Only consumed by the article's aria-label: the visible row states the
+// result through its tint alone (see the header comment in the template).
 const resultLabel = computed(() => (self.value.win ? 'Victory' : 'Defeat'))
 
 const lpDeltaText = computed(() => {
@@ -271,8 +273,8 @@ const rowTint = computed(() =>
          the compositions win. -->
 
     <!-- Row header: tinted clickable summary. The win/loss signal is carried
-         by the row tint plus the coloured result label alone — no edge strip,
-         it read as heavy against the row surface. -->
+         by the row tint alone — no edge strip, it read as heavy against the
+         row surface, and no result label, which only repeated the tint. -->
     <div class="flex transition-colors" :class="rowTint">
       <!-- Expand affordance: a role=button div (not a native <button>) so the
            hover-only GameTooltip triggers inside — themselves UTooltip buttons
@@ -290,27 +292,12 @@ const rowTint = computed(() =>
         @keydown.enter.prevent="toggle"
         @keydown.space.prevent="toggle"
       >
-        <!-- Meta column: result + duration only. Queue label and timestamp
-             were dropped as low-signal noise — the surrounding page already
-             frames the history as ranked solo/duo, and relative time crowds
-             the row without helping scan performance. LP delta stays behind a
-             guard for when the backend starts deriving it (always null today,
-             so it renders nothing in prod). -->
-        <div class="flex w-12 shrink-0 flex-col text-[11px] leading-tight @2xl:w-[3.5rem] @2xl:text-xs">
-          <div class="font-semibold" :class="self.win ? 'text-sky-400' : 'text-red-400'">
-            {{ resultLabel }}
-          </div>
-          <div class="text-muted tabular-nums">
-            {{ durationLabel }}
-          </div>
-          <div
-            v-if="lpDeltaText"
-            class="font-semibold tabular-nums"
-            :class="(self.lpDelta ?? 0) >= 0 ? 'text-sky-400' : 'text-red-400'"
-          >
-            {{ lpDeltaText }}
-          </div>
-        </div>
+        <!-- The meta column (result label + duration) is gone: the row tint
+             already says win or loss, so spelling it out again cost 3.5rem of
+             every row to repeat what the colour states. Screen readers still
+             get the result from the article's aria-label above, which is the
+             only consumer the colour alone doesn't serve. Duration and LP
+             delta moved into the stats cluster below. -->
 
         <!-- Champion portrait, badged with the player's role (or the champion
              level when Riot assigned no position). Summoner spells and runes
@@ -351,7 +338,7 @@ const rowTint = computed(() =>
              exact same box, or everything to its right (the centred
              loadout, the right-edge group) drifts left/right row to row and
              the columns stop lining up down the list. -->
-        <div class="flex w-28 shrink-0 items-start gap-2 @3xl:w-52 @3xl:gap-3">
+        <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-52 @3xl:gap-3">
           <div class="flex w-28 flex-col items-center">
             <div class="whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
               {{ self.kills }}
@@ -363,12 +350,31 @@ const rowTint = computed(() =>
             <div class="text-[11px] font-semibold tabular-nums" :class="kdaColor">
               {{ kdaRatio }}
             </div>
+            <!-- LP delta stays behind a guard for when the backend starts
+                 deriving it (always null today, so it renders nothing in
+                 prod). -->
+            <div
+              v-if="lpDeltaText"
+              class="text-[11px] font-semibold tabular-nums"
+              :class="(self.lpDelta ?? 0) >= 0 ? 'text-sky-400' : 'text-red-400'"
+            >
+              {{ lpDeltaText }}
+            </div>
+            <!-- Duration lives under KP in the stats stack, which only exists
+                 from @3xl — below that it falls back here so a drawer or a
+                 phone doesn't lose it entirely. -->
+            <div class="text-[11px] text-muted tabular-nums @3xl:hidden">
+              {{ durationLabel }}
+            </div>
           </div>
           <!-- Secondary stats only once the row clears @3xl — the last thing
                to come back, because the 4rem they cost is exactly what the
                team compositions (added at @xl) need. Below that the KDA
-               cluster, the build and the compositions are the scan targets. -->
-          <div class="hidden flex-col gap-0.5 text-[11px] text-muted tabular-nums @3xl:flex">
+               cluster, the build and the compositions are the scan targets.
+               Centred (not left-aligned) inside the track it shares with the
+               KDA cluster: the four lines are one stacked measurement block,
+               and ragged-left they read as a column that lost its column. -->
+          <div class="hidden flex-1 flex-col items-center gap-0.5 text-[11px] text-muted tabular-nums @3xl:flex">
             <UTooltip :text="perfTooltip">
               <span class="font-semibold" :class="perfColor">
                 {{ perfScore }} PERF
@@ -376,25 +382,24 @@ const rowTint = computed(() =>
             </UTooltip>
             <span>{{ csPerMin }} CS/m</span>
             <span>{{ kpPercent }} KP</span>
+            <span>{{ durationLabel }}</span>
           </div>
         </div>
 
         <!-- Loadout strip: summoner spells + runes + item block, tightly
              grouped (small internal gaps) so spells → runes → items read
-             left-to-right as one continuous build. Left-aligned inside a
-             flex-1 track: the build hugs the KDA cluster and every bit of
-             the row's slack collects on the right, where the team
-             compositions live. Centring it instead (as it used to) split
-             that slack into two half-empty gutters and left no single run
-             of space wide enough for the ten composition icons. Summoners
-             and runes each stack 2-high to match the two rows of the item
-             grid. -->
+             left-to-right as one continuous build. Centred inside its flex-1
+             track (between the KDA cluster and the right-edge group, which
+             already reserves its own space via the row's flex layout) —
+             flush-left here left a wide dead gap in front of the team
+             compositions on anything wider than the drawer. Summoners and
+             runes each stack 2-high to match the two rows of the item grid. -->
         <!-- Below @md the loadout wraps onto its own line (`order-last` keeps
              it under the row rather than between the KDA and the accolade).
              A phone can't hold meta + portrait + KDA + a 9rem build strip on
              one line, and the alternative — dropping half the build — throws
              away the thing the row exists to show. -->
-        <div class="order-last flex w-full grow items-center justify-center @md:order-none @md:w-auto @md:flex-1 @md:justify-start">
+        <div class="order-last flex w-full grow items-center justify-center @md:order-none @md:w-auto @md:flex-1">
           <div class="flex shrink-0 items-center gap-1">
             <div class="flex flex-col gap-0.5">
               <GameTooltipSummonerSpellIcon

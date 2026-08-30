@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CompositionBuildRequest, CompositionBuildResponse } from '~~/shared/types/composition'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import { isLoadingStatus } from '~/utils/async-data'
 
 /**
  * Full composition recommendation (#563): the same core panels the champion page
@@ -48,7 +49,7 @@ const confidence = computed(() => props.recommendation.confidence)
 
 const assetsPatch = computed(() => props.recommendation.patch ?? null)
 const { runeTree, itemsMap } = useBuildAssets(assetsPatch)
-const { data: summonersMap } = useStaticSummonerSpells(assetsPatch)
+const { data: summonersMap, status: summonersStatus } = useStaticSummonerSpells(assetsPatch)
 const { data: championStatic } = useChampionStatic(
   () => props.recommendation.championId,
   () => assetsPatch.value,
@@ -147,6 +148,7 @@ const gamesDrawerOpen = computed({
         :champion-static="championStatic ?? null"
         :items-map="itemsMap"
         :summoners-map="summonersMap ?? {}"
+        :summoners-pending="isLoadingStatus(summonersStatus)"
         :rune-tree="runeTree"
         no-runes-message="No rune data in the sampled games."
       />

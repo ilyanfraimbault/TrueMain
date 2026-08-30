@@ -45,8 +45,8 @@ public sealed class ChampionPatternAggregatePersister(
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         // Delete existing scopes for the cleanup keys; the FK cascade from
-        // PR 6.1 drops the scope's pattern rows in the same statement. New
-        // scopes + patterns then take their place.
+        // champion_aggregate_patterns drops the scope's pattern rows in the same
+        // statement. New scopes + patterns then take their place.
         await DeleteExistingScopesAsync(db, cleanupScopes, ct);
 
         db.ChampionAggregateScopes.AddRange(dedupedScopes);

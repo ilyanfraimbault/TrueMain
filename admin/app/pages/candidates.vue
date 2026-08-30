@@ -18,7 +18,7 @@ import type {
   SeedRequestReadModel,
   SeedRequestStatus,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 
 const { nameFor, iconFor } = useChampionStatic()
 
@@ -60,6 +60,13 @@ const {
 
 const funnelBuckets = computed(() => funnel.value?.buckets ?? [])
 
+// All three throughput charts below draw BARS or a CUMULATIVE line, never a line
+// through per-period counts (#1218). Intake and progression are flows — how much
+// moved during the bucket — and bars are the mark for a flow. The outcome chart is
+// the running total, because "how many accounts have we validated" is a roster
+// size: a stock, which is what a line is for. Drawn as lines, the flat-looking
+// `validated` series read as a dead counter when it was moving ~350 a day.
+
 // Intake is stacked: the three sources add up to "candidates that entered", and
 // the split matters because they fail independently — the ladder drying up and
 // the harvest drying up are different incidents with the same total.
@@ -77,23 +84,49 @@ const intakeChartCategories = {
   manual: { name: 'Manual seed', color: CHART_SERIES[2] },
 }
 
-// Progression is lines, not stacked areas: these are three narrowing stages of the
-// same population, so stacking them would draw a total that means nothing. Drawn
-// without fills so the gap in `validated` below stays visible.
+// Progression carries the competitive cut and nothing else: scored vs promoted,
+// GROUPED bars rather than stacked, because promoted is a subset of scored and
+// stacking them would draw a total that counts the same candidate twice.
+// `validated` used to be a third series here; it lost that seat to the outcome
+// chart below. On a shared linear axis 10.5k validated against 147k scored is
+// squashed onto the baseline whatever the mark — the series was unreadable, not
+// the chart type. That split also keeps the palette rule in `charts.ts`: three
+// colours, and a fourth series gets its own chart.
 const progressChartData = computed(() =>
   funnelBuckets.value.map(bucket => ({
     label: formatBucketLabel(bucket.bucket, funnelGranularity.value),
     scored: bucket.scored,
     promoted: bucket.promoted,
-    // null = the counter did not exist yet. Mapped to undefined so the line breaks
-    // there instead of drawing a zero the pipeline never reported (#924).
-    validated: bucket.validated ?? undefined,
   })),
 )
 const progressChartCategories = {
   scored: { name: 'Scored', color: CHART_SERIES[0] },
   promoted: { name: 'Promoted', color: CHART_SERIES[1] },
-  validated: { name: 'Validated', color: CHART_SERIES[2] },
+}
+
+// Outcome: the two ends of the funnel as RUNNING TOTALS over the window — accounts
+// that cleared ingestion, and accounts demoted back out. A total is a stock, so
+// this one is genuinely a line, and the pair is readable together because both
+// live in the same order of magnitude once scored/promoted are off the axis.
+//
+// The accumulation restarts at the left edge of the selected window, so switching
+// 7/30/90 days rescales the curve; the caption under the chart says so rather than
+// letting a reader take the endpoint for an all-time roster count.
+const outcomeChartData = computed(() => {
+  const buckets = funnelBuckets.value
+  // null (counter did not exist yet) must not accumulate as zero — the curve has
+  // to start where measurement started (#924). `undefined` breaks the line there.
+  const validated = runningTotal(buckets.map(bucket => bucket.validated))
+  const demoted = runningTotal(buckets.map(bucket => bucket.demoted))
+  return buckets.map((bucket, index) => ({
+    label: formatBucketLabel(bucket.bucket, funnelGranularity.value),
+    validated: validated[index] ?? undefined,
+    demoted: demoted[index] ?? undefined,
+  }))
+})
+const outcomeChartCategories = {
+  validated: { name: 'Validated (cumulative)', color: CHART_SERIES[0] },
+  demoted: { name: 'Demoted (cumulative)', color: CHART_SERIES[1] },
 }
 
 const intakeXFormatter = computed(() =>
@@ -101,6 +134,9 @@ const intakeXFormatter = computed(() =>
 )
 const progressXFormatter = computed(() =>
   indexLabelFormatter(progressChartData.value, row => row.label),
+)
+const outcomeXFormatter = computed(() =>
+  indexLabelFormatter(outcomeChartData.value, row => row.label),
 )
 
 // Window totals, rendered as text under each chart. Not decoration: the series
@@ -162,7 +198,7 @@ const validatedNote = computed(() => {
 
 /** Seconds → the shared duration label; null (no sample) reads as an em dash. */
 function latencyLabel(seconds: number | null | undefined): string {
-  return seconds === null || seconds === undefined ? '—' : formatDuration(seconds * 1000)
+  return seconds === null || seconds === undefined ? '—' : formatElapsed(seconds * 1000)
 }
 
 // =============================================================================
@@ -339,9 +375,17 @@ const PIPELINE_ORDER: MainCandidateStatus[] = [
   'Processing',
   'Validated',
 ]
-function isRejected(status: MainCandidateStatus | undefined): boolean {
-  return status === 'Rejected'
-}
+
+// Index of the open candidate's stage in `PIPELINE_ORDER`, and the derived
+// reached/not-reached flag per stage. Computed once per detail instead of
+// re-scanning the array four times per rendered step.
+const currentStageIndex = computed(() => {
+  const status = detail.value?.status
+  return status ? PIPELINE_ORDER.indexOf(status) : -1
+})
+const pipelineStages = computed(() =>
+  PIPELINE_ORDER.map((stage, index) => ({ stage, reached: index <= currentStageIndex.value })),
+)
 </script>
 
 <template>
@@ -374,9 +418,9 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
                 Throughput
               </p>
               <p class="text-xs text-dimmed mt-0.5">
-                How much moved per period, by <em>run</em> date. The list below shows
-                the funnel's current state, which looks the same whether it is
-                flowing or stalled.
+                How much moved, by <em>run</em> date — bars are per period, the outcome
+                curve is the running total. The list below shows the funnel's current
+                state, which looks the same whether it is flowing or stalled.
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -412,23 +456,20 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
           <div class="grid gap-6 lg:grid-cols-2">
             <div>
               <p class="text-xs text-muted uppercase mb-1.5">
-                Intake by source
+                Intake by source, per period
               </p>
-              <ClientOnly>
-                <NcAreaChart
-                  :data="intakeChartData"
-                  :height="240"
-                  :categories="intakeChartCategories"
-                  :stacked="true"
-                  :x-num-ticks="Math.min(intakeChartData.length, 6)"
-                  :x-formatter="intakeXFormatter"
-                  :y-formatter="formatCount"
-                  v-bind="multiAreaChartProps()"
-                />
-                <template #fallback>
-                  <USkeleton class="h-[240px] w-full" />
-                </template>
-              </ClientOnly>
+              <ChartsBarChart
+                :data="intakeChartData"
+                :height="240"
+                :categories="intakeChartCategories"
+                :y-axis="['ladder', 'harvest', 'manual']"
+                :stacked="true"
+                :x-num-ticks="Math.min(intakeChartData.length, 6)"
+                :x-formatter="intakeXFormatter"
+                :y-formatter="formatCount"
+                :tooltip-title-formatter="labelTooltipTitle"
+                v-bind="multiTimeBarProps()"
+              />
               <p class="mt-3 text-xs text-dimmed tabular-nums">
                 {{ formatNumber(funnelTotals.ladder) }} ladder ·
                 {{ formatNumber(funnelTotals.harvest) }} harvest ·
@@ -438,37 +479,58 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
 
             <div>
               <p class="text-xs text-muted uppercase mb-1.5">
-                Progression
+                Progression, per period
               </p>
-              <ClientOnly>
-                <NcAreaChart
-                  :data="progressChartData"
-                  :height="240"
-                  :categories="progressChartCategories"
-                  :hide-area="true"
-                  :x-num-ticks="Math.min(progressChartData.length, 6)"
-                  :x-formatter="progressXFormatter"
-                  :y-formatter="formatCount"
-                  v-bind="multiAreaChartProps()"
-                />
-                <template #fallback>
-                  <USkeleton class="h-[240px] w-full" />
-                </template>
-              </ClientOnly>
+              <ChartsBarChart
+                :data="progressChartData"
+                :height="240"
+                :categories="progressChartCategories"
+                :y-axis="['scored', 'promoted']"
+                :x-num-ticks="Math.min(progressChartData.length, 6)"
+                :x-formatter="progressXFormatter"
+                :y-formatter="formatCount"
+                :tooltip-title-formatter="labelTooltipTitle"
+                v-bind="multiTimeBarProps()"
+              />
               <p class="mt-3 text-xs text-dimmed tabular-nums">
                 {{ formatNumber(funnelTotals.scored) }} scored ·
-                {{ formatNumber(funnelTotals.promoted) }} promoted ·
+                {{ formatNumber(funnelTotals.promoted) }} promoted
+              </p>
+              <p class="mt-1 text-xs text-dimmed">
+                Grouped, not stacked — promoted is the top-N cut taken out of scored.
+              </p>
+            </div>
+
+            <div class="lg:col-span-2">
+              <p class="text-xs text-muted uppercase mb-1.5">
+                Outcome, cumulative over the window
+              </p>
+              <NcAreaChart
+                :data="outcomeChartData"
+                :height="240"
+                :categories="outcomeChartCategories"
+                :hide-area="true"
+                :x-num-ticks="Math.min(outcomeChartData.length, 8)"
+                :x-formatter="outcomeXFormatter"
+                :y-formatter="formatCount"
+                v-bind="multiAreaChartProps()"
+              />
+              <p class="mt-3 text-xs text-dimmed tabular-nums">
                 {{ formatNumber(funnelTotals.validated) }} validated ·
                 {{ formatNumber(funnelTotals.demoted) }} demoted
+              </p>
+              <p class="mt-1 text-xs text-dimmed">
+                Running totals — the curve restarts at the left edge of the selected
+                window, so its endpoint is the window's total, not an all-time count.
+              </p>
+              <p v-if="validatedNote" class="mt-1 text-xs text-dimmed">
+                {{ validatedNote }}
               </p>
             </div>
           </div>
 
           <p class="mt-4 text-xs text-dimmed tabular-nums">
             {{ formatNumber(funnelTotals.runs) }} pipeline runs in this window
-          </p>
-          <p v-if="validatedNote" class="mt-1 text-xs text-dimmed">
-            {{ validatedNote }}
           </p>
           <p v-if="funnelBoundNote" class="mt-1 text-xs text-dimmed">
             {{ funnelBoundNote }}
@@ -869,7 +931,7 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
             <div>
               <p class="text-muted text-xs uppercase mb-2">Pipeline stage</p>
               <UAlert
-                v-if="isRejected(detail.status)"
+                v-if="detail.status === 'Rejected'"
                 color="error"
                 variant="subtle"
                 icon="i-lucide-circle-x"
@@ -878,17 +940,13 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
               />
               <ol v-else class="flex flex-wrap items-center gap-1.5">
                 <li
-                  v-for="stage in PIPELINE_ORDER"
+                  v-for="{ stage, reached } in pipelineStages"
                   :key="stage"
                   class="flex items-center gap-1.5"
                 >
                   <UBadge
-                    :color="PIPELINE_ORDER.indexOf(stage) <= PIPELINE_ORDER.indexOf(detail.status)
-                      ? candidateStatusColor(detail.status)
-                      : 'neutral'"
-                    :variant="PIPELINE_ORDER.indexOf(stage) <= PIPELINE_ORDER.indexOf(detail.status)
-                      ? 'subtle'
-                      : 'soft'"
+                    :color="reached ? candidateStatusColor(detail.status) : 'neutral'"
+                    :variant="reached ? 'subtle' : 'soft'"
                     size="sm"
                     :label="stage"
                   />

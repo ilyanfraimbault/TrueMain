@@ -71,7 +71,7 @@ public sealed class ParticipantBuildFactsLoader(
                 && p.ChampionId == championId
                 && p.TeamPosition == position)
             .Join(
-                db.Matches,
+                db.Matches.AsNoTracking(),
                 p => p.MatchId,
                 m => m.Id,
                 (p, m) => new ParticipantBuildRow(
@@ -95,14 +95,20 @@ public sealed class ParticipantBuildFactsLoader(
         rows.Sort((left, right) => rankByKey[new ParticipantKey(left.MatchId, left.ParticipantId)]
             .CompareTo(rankByKey[new ParticipantKey(right.MatchId, right.ParticipantId)]));
 
-        var runePages = await LoadRunePagesAsync(matchIds, rankByKey.Keys.ToHashSet(), ct);
+        var selectedKeys = rankByKey.Keys.ToHashSet();
+        var runePages = await LoadRunePagesAsync(matchIds, selectedKeys, ct);
+
+        // Resolved once per distinct patch instead of once per row: a slice spans a
+        // handful of game versions but up to MaxMatchupGames participants, and the
+        // provider's cache still costs an async state machine on every await.
+        var itemMetadataByGameVersion = await LoadItemMetadataAsync(rows, ct);
 
         var facts = new List<CompositionParticipantFacts>(rows.Count);
         foreach (var row in rows)
         {
             var key = new ParticipantKey(row.MatchId, row.ParticipantId);
             var weight = weightFor?.Invoke(key) ?? 1d;
-            var itemMetadata = await GetItemMetadataAsync(row.GameVersion, ct);
+            var itemMetadata = itemMetadataByGameVersion[row.GameVersion];
             runePages.TryGetValue(key, out var selections);
 
             var spellPair = new SummonerSpellPair(row.Summoner1Id, row.Summoner2Id).Canonical();
@@ -148,6 +154,29 @@ public sealed class ParticipantBuildFactsLoader(
     }
 
     /// <summary>
+    /// Item metadata for every patch present in <paramref name="rows"/>, keyed by game
+    /// version. Null values are kept: a patch CommunityDragon has nothing for must stay a
+    /// known "no metadata" answer rather than a missing key.
+    /// </summary>
+    private async Task<Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>?>> LoadItemMetadataAsync(
+        List<ParticipantBuildRow> rows,
+        CancellationToken ct)
+    {
+        var metadataByGameVersion = new Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>?>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            if (metadataByGameVersion.ContainsKey(row.GameVersion))
+            {
+                continue;
+            }
+
+            metadataByGameVersion[row.GameVersion] = await GetItemMetadataAsync(row.GameVersion, ct);
+        }
+
+        return metadataByGameVersion;
+    }
+
+    /// <summary>
     /// Loads the ordered perk selections of the selected participants, keyed by
     /// (match, participant) — the same primary/sub style split the pattern aggregation
     /// pipeline hydrates from <c>participant_perk_selections</c> ×
@@ -158,9 +187,36 @@ public sealed class ParticipantBuildFactsLoader(
         HashSet<ParticipantKey> selectedKeys,
         CancellationToken ct)
     {
-        var selections = await db.ParticipantPerkSelections
+        // (match ids) x (participant slots) is still a rectangle — a participant slot is
+        // only meaningful within its own match, so a slot selected in one match also
+        // matches the same slot in every other match of the set. It is not an exact
+        // filter and the in-memory pass below is still what makes the result exact; it
+        // just narrows the read by the ratio of selected slots to the ten in a game.
+        // Same trade-off MatchSummaryHydrator documents for its own bulk load.
+        var selectedParticipantIds = selectedKeys.Select(key => key.ParticipantId).Distinct().ToList();
+
+        var selections = await PerkSelectionsQuery(db, matchIds, selectedParticipantIds).ToListAsync(ct);
+
+        return selections
+            .Where(selection => selectedKeys.Contains(new ParticipantKey(selection.MatchId, selection.ParticipantId)))
+            .GroupBy(selection => new ParticipantKey(selection.MatchId, selection.ParticipantId))
+            .ToDictionary(group => group.Key, group => group.OrderBy(row => row.SelectionIndex).ToList());
+    }
+
+    /// <summary>
+    /// The query behind <see cref="LoadRunePagesAsync"/>, exposed so a test can assert the
+    /// participant-slot filter really reaches SQL — dropping it silently multiplies the
+    /// rows read by the ten participants of every match in the slice.
+    /// </summary>
+    internal static IQueryable<PerkSelectionRow> PerkSelectionsQuery(
+        TrueMainDbContext db,
+        IReadOnlyList<string> matchIds,
+        IReadOnlyList<int> participantIds)
+    {
+        return db.ParticipantPerkSelections
             .AsNoTracking()
-            .Where(selection => matchIds.Contains(selection.MatchId))
+            .Where(selection => matchIds.Contains(selection.MatchId)
+                && participantIds.Contains(selection.ParticipantId))
             .Join(
                 db.PerkSelectionCatalogs,
                 selection => selection.PerkSelectionCatalogId,
@@ -170,13 +226,7 @@ public sealed class ParticipantBuildFactsLoader(
                     selection.ParticipantId,
                     catalog.StyleDescription,
                     catalog.SelectionIndex,
-                    catalog.PerkId))
-            .ToListAsync(ct);
-
-        return selections
-            .Where(selection => selectedKeys.Contains(new ParticipantKey(selection.MatchId, selection.ParticipantId)))
-            .GroupBy(selection => new ParticipantKey(selection.MatchId, selection.ParticipantId))
-            .ToDictionary(group => group.Key, group => group.OrderBy(row => row.SelectionIndex).ToList());
+                    catalog.PerkId));
     }
 
     /// <summary>
@@ -262,7 +312,7 @@ public sealed class ParticipantBuildFactsLoader(
         int PerksFlex,
         int PerksDefense);
 
-    private sealed record PerkSelectionRow(
+    internal sealed record PerkSelectionRow(
         string MatchId,
         int ParticipantId,
         string StyleDescription,

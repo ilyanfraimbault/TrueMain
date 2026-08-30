@@ -1,3 +1,4 @@
+using Core.Lol.Lane;
 using Core.Lol.Map;
 using Data.Entities;
 using EloBracket = Core.Lol.Ranking.EloBracket;
@@ -11,12 +12,14 @@ namespace DevSeed;
 /// - Raw <c>matches</c> / <c>match_participants</c> / timeline snapshots / kill
 ///   positions, for the live-computed reads (Roam, Scaling, the live matchup /
 ///   powerspikes fallback).
-/// - <c>champion_matchup_stats</c> / <c>champion_timeline_lead_stats</c> (#606
-///   pre-aggregation), accumulated from the very same synthetic games so the
-///   live and pre-aggregated numbers agree.
+/// - <c>champion_matchup_stats</c> (#606 pre-aggregation), accumulated from the
+///   very same synthetic games so the live and pre-aggregated numbers agree, and
+///   split per (patch, elo bracket) like the real fold — the matchups panel is
+///   patch-scoped (#1087) and rank-scoped, so a single collapsed row would make
+///   it read empty on every patch but the current one.
 /// - <c>champion_aggregate_scopes</c> / <c>champion_aggregate_patterns</c> +
-///   dimension rows (Phase 6 build aggregation), for the build tab / trend
-///   chart / tier list.
+///   dimension rows (build aggregation), for the build tab / trend chart /
+///   tier list.
 ///
 /// One instance is not reused across champions — call <see cref="Generate"/>
 /// once per <see cref="ChampionSeed"/> and persist its <see cref="GenerationResult"/>.
@@ -33,6 +36,11 @@ public sealed class SeedGenerator(
     private const int BlueTeamId = 100;
     private const int RedTeamId = 200;
     private static readonly int[] IntervalMinutes = [5, 10, 15, 20, 30];
+
+    // The minute the lane outcome is judged at, matching
+    // ChampionLaneOutcomeAggregationProcess. Must stay one of IntervalMinutes, or
+    // no snapshot pair exists to judge from and every lane counter stays 0.
+    private const int LaneOutcomeMinute = 15;
 
     // A ChampionAggregateScope row is persisted per elo bracket (see
     // ChampionAggregateScopeConfiguration's unique index), and the build tab's
@@ -73,7 +81,7 @@ public sealed class SeedGenerator(
         var scopes = new List<ChampionAggregateScope>();
         var patterns = new List<ChampionAggregatePattern>();
 
-        var matchupTotals = new Dictionary<int, (int Games, int Wins)>();
+        var matchupTotals = new Dictionary<MatchupKey, MatchupTotals>();
 
         // One set of dimension rows per champion, reused across every patch's
         // scope — a champion's archetype build doesn't reinvent itself patch to
@@ -84,7 +92,7 @@ public sealed class SeedGenerator(
         var patches = TrendPatches(currentPatch, patchCount);
         foreach (var patch in patches)
         {
-            // Pass A: the Phase 6 build aggregate for this patch — share-based,
+            // Pass A: the build aggregate for this patch — share-based,
             // mirroring the web mock's makeBuild(variant, totalGames) rather than
             // per-match accumulation (there are only two known variants here).
             var (patchScopes, patternRows) = BuildAggregateForPatch(self, dims, patch, nowUtc);
@@ -101,15 +109,27 @@ public sealed class SeedGenerator(
             }
         }
 
+        // One row per (patch, elo bracket, opponent), the same grain the real fold
+        // writes and the unique index enforces. Collapsing them onto the current
+        // patch would leave the patch-scoped matchups panel (#1087) empty on every
+        // trend patch, and the rank filter empty everywhere.
         var matchupStats = matchupTotals.Select(kv => new ChampionMatchupStat
         {
             Id = Guid.NewGuid(),
             ChampionId = self.Id,
             TeamPosition = self.Position,
-            OpponentChampionId = kv.Key,
-            Patch = currentPatch, // folded across the run; per-patch split isn't needed for the matchup leaderboard read
+            OpponentChampionId = kv.Key.OpponentChampionId,
+            Patch = kv.Key.Patch,
+            EloBracket = kv.Key.EloBracket,
             Games = kv.Value.Games,
             Wins = kv.Value.Wins,
+            LaneGames = kv.Value.LaneGames,
+            LaneWins = kv.Value.LaneWins,
+            LaneLosses = kv.Value.LaneLosses,
+            LaneGoldDiffSum = kv.Value.LaneGoldDiffSum,
+            LaneGoldDiffGames = kv.Value.LaneGoldDiffGames,
+            LaneXpDiffSum = kv.Value.LaneXpDiffSum,
+            LaneXpDiffGames = kv.Value.LaneXpDiffGames,
             AggregatedAtUtc = nowUtc,
         }).ToList();
 
@@ -178,6 +198,34 @@ public sealed class SeedGenerator(
         return (scopes, patterns);
     }
 
+    /// <summary>Grain of a <c>champion_matchup_stats</c> row, minus the champion side.</summary>
+    private readonly record struct MatchupKey(string Patch, string EloBracket, int OpponentChampionId);
+
+    /// <summary>
+    /// Additive counters for one <see cref="MatchupKey"/>, mirroring what the matchup
+    /// fold (#606/#811) and the lane-outcome fold (#919/#976/#1111) accumulate.
+    /// </summary>
+    private sealed class MatchupTotals
+    {
+        public int Games { get; set; }
+
+        public int Wins { get; set; }
+
+        public int LaneGames { get; set; }
+
+        public int LaneWins { get; set; }
+
+        public int LaneLosses { get; set; }
+
+        public long LaneGoldDiffSum { get; set; }
+
+        public int LaneGoldDiffGames { get; set; }
+
+        public long LaneXpDiffSum { get; set; }
+
+        public int LaneXpDiffGames { get; set; }
+    }
+
     private sealed record Dims(
         Guid DominantBuildId,
         Guid AltBuildId,
@@ -223,9 +271,10 @@ public sealed class SeedGenerator(
         List<MatchParticipant> participants,
         List<MatchParticipantTimelineSnapshot> snapshots,
         List<MatchParticipantKillPosition> killPositions,
-        Dictionary<int, (int Games, int Wins)> matchupTotals)
+        Dictionary<MatchupKey, MatchupTotals> matchupTotals)
     {
         var matchId = $"DEVSEED_{_matchCounter++:D8}";
+        var eloBracket = WeightedEloBracket(rng);
 
         // Bucket the game length the same way ChampionScalingQueryService does,
         // weighted toward the middle buckets, and adjust the win probability by
@@ -289,6 +338,9 @@ public sealed class SeedGenerator(
             IndividualPosition = self.Position,
             Lane = self.Position == "UTILITY" ? "BOTTOM" : self.Position,
             Role = self.Position == "UTILITY" ? "SUPPORT" : "SOLO",
+            // Stamped here rather than left empty: EloBracketEnrichment does it in
+            // production, and the rank-filtered live reads seek this column.
+            EloBracket = eloBracket,
             Win = win,
             Kills = selfKills,
             Deaths = selfDeaths,
@@ -351,6 +403,8 @@ public sealed class SeedGenerator(
         // grow roughly linearly with a per-archetype late-game tilt; the diff
         // (self - opponent) is what "lead vs lane opponent" reads.
         var bias = (self.WinRate - 0.5) * 20;
+        int? laneGoldDiff = null;
+        int? laneXpDiff = null;
         foreach (var minute in IntervalMinutes)
         {
             if (minute * 60 > durationSeconds)
@@ -373,6 +427,12 @@ public sealed class SeedGenerator(
             var levelDiff = drift * 0.02;
             var xpDiff = (int)Math.Round(drift * 38);
             var damageDiff = (int)Math.Round(drift * 140);
+
+            if (minute == LaneOutcomeMinute)
+            {
+                laneGoldDiff = goldDiff;
+                laneXpDiff = xpDiff;
+            }
 
             snapshots.Add(new MatchParticipantTimelineSnapshot
             {
@@ -430,8 +490,61 @@ public sealed class SeedGenerator(
             });
         }
 
-        matchupTotals.TryGetValue(opponent.Id, out var matchupAcc);
-        matchupTotals[opponent.Id] = (matchupAcc.Games + 1, matchupAcc.Wins + (win ? 1 : 0));
+        var matchupKey = new MatchupKey(patch, eloBracket, opponent.Id);
+        if (!matchupTotals.TryGetValue(matchupKey, out var totals))
+        {
+            totals = new MatchupTotals();
+            matchupTotals[matchupKey] = totals;
+        }
+
+        totals.Games++;
+        totals.Wins += win ? 1 : 0;
+
+        // Lane counters only when both sides have a 15-minute snapshot — the same
+        // condition the real fold applies (#919), which is why LaneGames is a
+        // separate denominator from Games. A game shorter than 15 minutes has no
+        // snapshot pair here either, so the two stay honestly apart.
+        if (laneGoldDiff is { } goldDiffAt15)
+        {
+            totals.LaneGames++;
+            switch (LaneOutcomeRules.Judge(goldDiffAt15, LaneOutcomeRules.DefaultGoldLeadThreshold))
+            {
+                case LaneStanding.Won:
+                    totals.LaneWins++;
+                    break;
+                case LaneStanding.Lost:
+                    totals.LaneLosses++;
+                    break;
+                case LaneStanding.Even:
+                default:
+                    break;
+            }
+
+            totals.LaneGoldDiffSum += goldDiffAt15;
+            totals.LaneGoldDiffGames++;
+            totals.LaneXpDiffSum += laneXpDiff ?? 0;
+            totals.LaneXpDiffGames++;
+        }
+    }
+
+    /// <summary>
+    /// Draws the match's elo band from the same share table the build scopes use, so
+    /// a rank-filtered read finds seeded games in every band the build tab offers.
+    /// </summary>
+    private static string WeightedEloBracket(Rng rng)
+    {
+        var roll = rng.NextDouble();
+        double cumulative = 0;
+        foreach (var (bracket, share) in EloBrackets)
+        {
+            cumulative += share;
+            if (roll < cumulative)
+            {
+                return bracket;
+            }
+        }
+
+        return EloBrackets[^1].Bracket;
     }
 
     private static int WeightedBucket(Rng rng)

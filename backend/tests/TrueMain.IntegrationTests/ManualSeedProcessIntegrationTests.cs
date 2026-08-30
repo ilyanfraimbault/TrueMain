@@ -169,6 +169,7 @@ public sealed class ManualSeedProcessIntegrationTests : IDisposable
             new AccountUpsertService(),
             new CandidateUpsertService(),
             new NoOpAuditLog(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new ManualSeedOptions
             {
                 BatchSize = 25,

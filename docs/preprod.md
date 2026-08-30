@@ -71,13 +71,20 @@ ingestor then populates the database over its cycles.
 
 Exposed ports (HTTP, no TLS — restrict by firewall to trusted IPs):
 
-| Service  | Port |
-| -------- | ---- |
-| web      | 3001 |
-| admin    | 3002 |
-| api      | 8081 |
-| pgadmin  | 5051 |
-| postgres | 5432 (loopback only) |
+| Service     | Port |
+| ----------- | ---- |
+| web         | 3001 |
+| admin       | 3002 |
+| api         | 8081 |
+| umami-proxy | 3100 |
+| pgadmin     | 5051 |
+| postgres    | 5432 (loopback only) |
+
+`umami-proxy` is the one entry in that table that cannot be narrowed to
+loopback: it is what the visitor's browser posts analytics events to
+(`UMAMI_PUBLIC_URL`, injected into the frontends as `NUXT_PUBLIC_UMAMI_HOST`),
+so binding it to `127.0.0.1` would silently drop every hit. Firewall it to the
+tester IPs like the rest, not to the host itself.
 
 ## Updating preprod to the latest develop
 
@@ -108,6 +115,46 @@ locally and pulls + recreates the containers — a bare `:preprod` would leave
 the previous image running, since redeploying an unchanged mutable tag never
 recreates anything (#765). `IMAGE_TAG` is unset outside CI, so the manual
 fallback below (and a first bring-up) resolves to `:preprod` as before.
+
+### Which build is running (`<base>-rc.<N>`)
+
+Every preprod deploy carries a version, printed small in the site footer
+(`preprod · 1.20.0-rc.4`) so "is my change on preprod yet?" and "did this reach
+prod?" are answerable from the page instead of by comparing SHAs on GitHub.
+
+The `version` job resolves it before anything is built, by running
+`.github/scripts/resolve-preprod-version.sh` (kept out of the workflow so CI can
+test the real thing — `resolve-preprod-version.test.sh`, run by the
+`Deploy Scripts` job):
+
+- **base** — the next *minor* after the latest **release** tag (`1.19.0` →
+  `1.20.0`), i.e. what a plain "release" cuts. It is a working label, not a
+  promise: the real bump is still decided by your word at release time (see the
+  `release` skill), so a preprod line labelled `1.20.0-rc.*` can perfectly well
+  ship as `1.19.1`. When you already know the next one is a major, set the
+  `PREPROD_VERSION_BASE` repository variable to the exact `MAJOR.MINOR.PATCH`
+  and clear it once that release is cut.
+- **N** — the highest existing `<base>-rc.*` counter, +1. It resets on its own
+  when a release moves the base, and a deleted tag can never make it reuse a
+  number.
+
+`tag-preprod` pushes the git tag **after** the VPS has taken the deploy, so a
+`-rc.N` tag always means "this ran on preprod" rather than "this was built".
+The same string also tags the four images on GHCR (`…/truemain-web:1.20.0-rc.4`),
+which is why the version is a semver *prerelease* and not build metadata — a `+`
+is illegal in a Docker reference, a `-` is not.
+
+Two consequences worth knowing:
+
+- The workflow takes a **workflow-level** concurrency group. The counter is read
+  from the tags on the remote, so two runs resolving a version at once would
+  pick the same number. Serialising the pipeline is what keeps the sequence
+  gapless; a burst of merges collapses to the newest pending run, and only the
+  commit that actually deployed gets a tag.
+- Anything reading "the latest version" must filter to bare
+  `MAJOR.MINOR.PATCH`. Git's version sort ranks `1.20.0-rc.4` **above**
+  `1.20.0`, so an unfiltered `git tag --sort=-v:refname | head -1` would read a
+  preprod build as the last release.
 
 ### Applying migrations before the deploy
 

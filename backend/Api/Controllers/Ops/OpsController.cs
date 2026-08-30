@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Core.Lol.Identifiers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -50,7 +51,7 @@ public sealed class OpsController(
     [HttpGet("stats/overview")]
     [ProducesResponseType(typeof(OverviewReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<OverviewReadModel>> GetOverviewAsync(CancellationToken ct)
+    public async Task<ActionResult<OverviewReadModel>> GetOverviewAsync(CancellationToken ct = default)
     {
         var readModel = await overviewQueryService.GetAsync(ct);
         return Ok(readModel);
@@ -64,7 +65,7 @@ public sealed class OpsController(
         [FromQuery] string? patch,
         [FromQuery] string? position,
         [FromQuery] int? queue,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var rows = await championStatsQueryService.GetAsync(region, patch, position, queue, ct);
         return Ok(rows);
@@ -87,18 +88,14 @@ public sealed class OpsController(
     public async Task<ActionResult<IReadOnlyList<MatchTimeBucket>>> GetMatchesOverTimeAsync(
         [FromQuery] string? granularity,
         [FromQuery] string? region,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         // granularity is required and closed: parse case-insensitively against the
         // allowed values and 400 (ProblemDetails) on anything else, so the unit
         // that the query service inlines into date_trunc can only ever be one we own.
-        if (!Enum.TryParse<MatchTimeGranularity>(granularity, ignoreCase: true, out var parsed)
-            || !Enum.IsDefined(parsed))
+        if (!TryParseGranularity<MatchTimeGranularity>(granularity, out var parsed, out var problem))
         {
-            ModelState.AddModelError(
-                nameof(granularity),
-                "granularity is required and must be one of: day, week, month, year, patch.");
-            return ValidationProblem(ModelState);
+            return problem;
         }
 
         var rows = await matchesOverTimeQueryService.GetAsync(parsed, region, ct);
@@ -123,18 +120,14 @@ public sealed class OpsController(
     public async Task<ActionResult<MatchesIngestedReadModel>> GetMatchesIngestedAsync(
         [FromQuery] string? granularity,
         [FromQuery] int? windowDays,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         // Closed set, parsed case-insensitively, same shape as matches-over-time.
         // Narrower on purpose: patch is a property of the games rather than of when we
         // ingested them, and year cannot fill two buckets under the run retention.
-        if (!Enum.TryParse<IngestionTimeGranularity>(granularity, ignoreCase: true, out var parsed)
-            || !Enum.IsDefined(parsed))
+        if (!TryParseGranularity<IngestionTimeGranularity>(granularity, out var parsed, out var problem))
         {
-            ModelState.AddModelError(
-                nameof(granularity),
-                "granularity is required and must be one of: day, week, month.");
-            return ValidationProblem(ModelState);
+            return problem;
         }
 
         var readModel = await matchesIngestedQueryService.GetAsync(parsed, windowDays, ct);
@@ -143,7 +136,7 @@ public sealed class OpsController(
 
     /// <summary>
     /// Aggregation pipelines snapshot for the admin Aggregation panel: per family
-    /// (builds patterns, matchups, timeline leads, powerspikes, mains) the exact
+    /// (builds patterns, matchups, synergies, powerspikes, mains) the exact
     /// row counts of its tables, champion/patch coverage, data freshness and the
     /// latest recorded run, plus the ingestion backlogs that should read zero when
     /// aggregations are caught up.
@@ -151,7 +144,7 @@ public sealed class OpsController(
     [HttpGet("stats/aggregations")]
     [ProducesResponseType(typeof(AggregationsReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<AggregationsReadModel>> GetAggregationsAsync(CancellationToken ct)
+    public async Task<ActionResult<AggregationsReadModel>> GetAggregationsAsync(CancellationToken ct = default)
     {
         var readModel = await aggregationStatsQueryService.GetAsync(ct);
         return Ok(readModel);
@@ -173,7 +166,7 @@ public sealed class OpsController(
     [HttpGet("patch-coverage")]
     [ProducesResponseType(typeof(PatchCoverageReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<PatchCoverageReadModel>> GetPatchCoverageAsync(CancellationToken ct)
+    public async Task<ActionResult<PatchCoverageReadModel>> GetPatchCoverageAsync(CancellationToken ct = default)
     {
         var readModel = await patchCoverageQueryService.GetAsync(ct);
         return Ok(readModel);
@@ -182,7 +175,7 @@ public sealed class OpsController(
     [HttpGet("db/tables")]
     [ProducesResponseType(typeof(IReadOnlyList<TableStatRow>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<IReadOnlyList<TableStatRow>>> GetTableStatsAsync(CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<TableStatRow>>> GetTableStatsAsync(CancellationToken ct = default)
     {
         var rows = await tableStatsQueryService.GetAsync(ct);
         return Ok(rows);
@@ -199,7 +192,7 @@ public sealed class OpsController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<DbStorageHistoryReadModel>> GetDbStorageHistoryAsync(
         [FromQuery] int? windowDays,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await dbStorageHistoryQueryService.GetAsync(windowDays, ct);
         return Ok(readModel);
@@ -234,7 +227,7 @@ public sealed class OpsController(
         [FromQuery] int? limit,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await processRunsQueryService.GetAsync(
             processName, status, since, limit, page, pageSize, ct);
@@ -262,7 +255,7 @@ public sealed class OpsController(
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
         [FromQuery] bool? finishedOnly,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await processIterationsQueryService.GetAsync(page, pageSize, finishedOnly ?? false, ct);
         return Ok(readModel);
@@ -290,7 +283,7 @@ public sealed class OpsController(
         [FromQuery] bool? hasException,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await logsQueryService.GetAsync(
             level, category, since, search, eventType, process, hasException, page, pageSize, ct);
@@ -316,7 +309,7 @@ public sealed class OpsController(
         [FromQuery] string? search,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await crashesQueryService.GetAsync(since, process, source, search, page, pageSize, ct);
         return Ok(readModel);
@@ -336,7 +329,7 @@ public sealed class OpsController(
     public async Task<ActionResult<RiotApiUsageReadModel>> GetRiotApiUsageAsync(
         [FromQuery] string? window,
         [FromQuery] string? endpoint,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await riotApiUsageQueryService.GetAsync(window, endpoint, ct);
         return Ok(readModel);
@@ -352,7 +345,7 @@ public sealed class OpsController(
     [ProducesResponseType(typeof(DataQualityDetectorsReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<DataQualityDetectorsReadModel>> GetDataQualityDetectorsAsync(
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await dataQualityDetectorsQueryService.GetDetectorsAsync(ct);
         return Ok(readModel);
@@ -368,7 +361,7 @@ public sealed class OpsController(
     [ProducesResponseType(typeof(AggregateFreshnessReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<AggregateFreshnessReadModel>> GetAggregateFreshnessAsync(
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await dataQualityDetectorsQueryService.GetAggregateFreshnessAsync(ct);
         return Ok(readModel);
@@ -398,7 +391,7 @@ public sealed class OpsController(
         [FromQuery] int? minAgeHours,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await dataQualityQueryService.GetIncompleteMatchesAsync(
             issue, queue, minAgeHours, page, pageSize, ct);
@@ -415,7 +408,7 @@ public sealed class OpsController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<MatchDataQualityDetailReadModel>> GetMatchDataQualityAsync(
         string id,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await dataQualityQueryService.GetMatchDetailAsync(id, ct);
         return readModel is null ? NotFound() : Ok(readModel);
@@ -431,7 +424,7 @@ public sealed class OpsController(
     [ProducesResponseType(typeof(EffectiveConfigurationOverviewReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<EffectiveConfigurationOverviewReadModel>> GetConfigurationAsync(
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await effectiveConfigurationQueryService.GetAsync(ct);
         return Ok(readModel);
@@ -457,7 +450,7 @@ public sealed class OpsController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<AccountFreshnessResponse>> GetAccountFreshnessAsync(
         [FromBody] AccountFreshnessRequest request,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var entries = request.Accounts ?? [];
         if (entries.Count == 0)
@@ -482,8 +475,7 @@ public sealed class OpsController(
 
             if (!PlatformId.TryParse(entry.PlatformId.Trim(), out var platform))
             {
-                return ValidationProblem(
-                    $"platformId '{entry.PlatformId}' is not a known platform route (e.g. EUW1, KR, NA1).");
+                return ValidationProblem(UnknownPlatformMessage("platformId", entry.PlatformId));
             }
 
             queries.Add(new AccountFreshnessQuery(
@@ -510,7 +502,7 @@ public sealed class OpsController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<SeedRequestAcceptedResponse>> SeedAccountAsync(
         [FromBody] SeedAccountRequest request,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var result = await seedRequestService.CreateAsync(
             new SeedRequestInput(request.GameName, request.TagLine, request.PlatformId),
@@ -536,7 +528,7 @@ public sealed class OpsController(
     [ProducesResponseType(typeof(SeedRequestReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<SeedRequestReadModel>> GetSeedRequestAsync(Guid id, CancellationToken ct)
+    public async Task<ActionResult<SeedRequestReadModel>> GetSeedRequestAsync(Guid id, CancellationToken ct = default)
     {
         var readModel = await seedRequestQueryService.GetByIdAsync(id, ct);
         return readModel is null ? NotFound() : Ok(readModel);
@@ -573,22 +565,15 @@ public sealed class OpsController(
         [FromQuery] string? region,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         // Unlike `status`, a bad region is rejected rather than ignored: the store matches
         // it exactly, so a typo would return an empty page, which reads as "no requests in
         // this region" instead of "that is not a region". Same check the seed and freshness
         // endpoints above already apply to a platform.
-        string? platformId = null;
-        if (!string.IsNullOrWhiteSpace(region))
+        if (!TryParseOptionalPlatform(region, nameof(region), out var platformId, out var regionProblem))
         {
-            if (!PlatformId.TryParse(region.Trim(), out var platform))
-            {
-                return ValidationProblem(
-                    $"region '{region}' is not a known platform route (e.g. EUW1, KR, NA1).");
-            }
-
-            platformId = platform.Value;
+            return regionProblem;
         }
 
         var readModel = await seedRequestQueryService.GetPageAsync(
@@ -627,7 +612,7 @@ public sealed class OpsController(
     public async Task<ActionResult<AccountExplorerReadModel>> GetAccountExplorerAsync(
         string nameTag,
         [FromQuery] string? region,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         if (!NameTagParser.TryParseRiotId(nameTag, out var parsed))
         {
@@ -636,16 +621,9 @@ public sealed class OpsController(
                 + $"(at most {NameTagParser.MaxRiotIdLength} characters).");
         }
 
-        string? platformId = null;
-        if (!string.IsNullOrWhiteSpace(region))
+        if (!TryParseOptionalPlatform(region, nameof(region), out var platformId, out var regionProblem))
         {
-            if (!PlatformId.TryParse(region.Trim(), out var platform))
-            {
-                return ValidationProblem(
-                    $"region '{region}' is not a known platform route (e.g. EUW1, KR, NA1).");
-            }
-
-            platformId = platform.Value;
+            return regionProblem;
         }
 
         // No 404: an unknown Riot ID is a state this endpoint exists to report,
@@ -681,7 +659,7 @@ public sealed class OpsController(
         [FromQuery] string? search,
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
         var readModel = await candidateQueryService.GetCandidatesAsync(
             status, region, search, page, pageSize, ct);
@@ -706,15 +684,11 @@ public sealed class OpsController(
     public async Task<ActionResult<CandidateFunnelReadModel>> GetCandidateFunnelAsync(
         [FromQuery] string? granularity,
         [FromQuery] int? windowDays,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
-        if (!Enum.TryParse<IngestionTimeGranularity>(granularity, ignoreCase: true, out var parsed)
-            || !Enum.IsDefined(parsed))
+        if (!TryParseGranularity<IngestionTimeGranularity>(granularity, out var parsed, out var problem))
         {
-            ModelState.AddModelError(
-                nameof(granularity),
-                "granularity is required and must be one of: day, week, month.");
-            return ValidationProblem(ModelState);
+            return problem;
         }
 
         var readModel = await candidateFunnelQueryService.GetAsync(parsed, windowDays, ct);
@@ -733,7 +707,7 @@ public sealed class OpsController(
     [HttpGet("candidates/queue-latency")]
     [ProducesResponseType(typeof(CandidateQueueLatencyReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<CandidateQueueLatencyReadModel>> GetCandidateQueueLatencyAsync(CancellationToken ct)
+    public async Task<ActionResult<CandidateQueueLatencyReadModel>> GetCandidateQueueLatencyAsync(CancellationToken ct = default)
     {
         var readModel = await candidateQueueLatencyQueryService.GetAsync(ct);
         return Ok(readModel);
@@ -749,11 +723,71 @@ public sealed class OpsController(
     [ProducesResponseType(typeof(CandidateDetailReadModel), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<CandidateDetailReadModel>> GetCandidateAsync(Guid id, CancellationToken ct)
+    public async Task<ActionResult<CandidateDetailReadModel>> GetCandidateAsync(Guid id, CancellationToken ct = default)
     {
         var readModel = await candidateQueryService.GetByIdAsync(id, ct);
         return readModel is null ? NotFound() : Ok(readModel);
     }
+
+    /// <summary>
+    /// Parses a required, closed <c>granularity</c> query parameter
+    /// case-insensitively; anything else is a 400 whose detail lists the
+    /// allowed values, derived from the enum itself so the message cannot
+    /// drift from the set it describes.
+    /// </summary>
+    private bool TryParseGranularity<TGranularity>(
+        string? granularity,
+        out TGranularity parsed,
+        [NotNullWhen(false)] out ActionResult? problem)
+        where TGranularity : struct, Enum
+    {
+        if (Enum.TryParse(granularity, ignoreCase: true, out parsed) && Enum.IsDefined(parsed))
+        {
+            problem = null;
+            return true;
+        }
+
+        var allowed = string.Join(", ", Enum.GetNames<TGranularity>().Select(name => name.ToLowerInvariant()));
+        ModelState.AddModelError(
+            nameof(granularity),
+            $"granularity is required and must be one of: {allowed}.");
+        problem = ValidationProblem(ModelState);
+        return false;
+    }
+
+    /// <summary>
+    /// Parses an optional platform-route filter. Blank means "every region"
+    /// (<paramref name="platformId"/> comes back null); an unknown route is a
+    /// 400 rather than an empty page, which would read as "nothing here"
+    /// instead of "that is not a region".
+    /// </summary>
+    private bool TryParseOptionalPlatform(
+        string? region,
+        string parameterName,
+        out string? platformId,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        if (string.IsNullOrWhiteSpace(region))
+        {
+            platformId = null;
+            problem = null;
+            return true;
+        }
+
+        if (!PlatformId.TryParse(region.Trim(), out var platform))
+        {
+            platformId = null;
+            problem = ValidationProblem(UnknownPlatformMessage(parameterName, region));
+            return false;
+        }
+
+        platformId = platform.Value;
+        problem = null;
+        return true;
+    }
+
+    private static string UnknownPlatformMessage(string parameterName, string value)
+        => $"{parameterName} '{value}' is not a known platform route (e.g. EUW1, KR, NA1).";
 }
 
 /// <summary>Request body for <c>POST /ops/accounts/freshness</c>.</summary>

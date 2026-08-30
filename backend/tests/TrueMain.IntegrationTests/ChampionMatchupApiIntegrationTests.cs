@@ -503,6 +503,86 @@ public sealed class ChampionMatchupApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetPlayerChampionMatchupsAsync_ReportsTheShareOfThePlayersOwnField()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // The account owns 8 Yone-vs-Zed lane games and 2 Yone-vs-Talon: ten games
+        // in its field on this champion and lane, and the denominator of both shares.
+        var nameTag = await SeedPlayerFieldSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // The search used to force the total to zero and report a play rate of 0 —
+        // "a matchup this player never plays", out of a head-to-head they asked for
+        // by name. #1098 fixed exactly this on the aggregate path; the live path kept
+        // the hole, and the comment beside it claimed the two agreed.
+        var searched = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+        var talon = searched!.Matchups.Should().ContainSingle().Subject;
+        talon.Games.Should().Be(2);
+        talon.PlayRate.Should().BeApproximately(2d / 10d, 1e-9);
+
+        // And the leaderboard's share is over that same field, not over what survived
+        // the per-player floor: Talon's two games are below it, and dropping them from
+        // the denominator would round Zed's share up to a flat 100%.
+        var listed = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
+        var zed = listed!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
+        zed.Games.Should().Be(8);
+        zed.PlayRate.Should().BeApproximately(8d / 10d, 1e-9);
+        zed.PlayRate.Should().NotBe(1d, "the dropped tail stays in the denominator");
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_OrdersTiedWinRatesByOpponent()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // Two matchups on exactly the same win rate — the common case at these
+        // sample sizes, and the one a bare OrderByDescending leaves to whatever
+        // order the rows happened to arrive in.
+        await SeedShareFloorRowsAsync(zedGames: 20, talonGames: 20, zedWins: 10, talonWins: 10);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var first = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}");
+        var second = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}");
+
+        // Talon (91) before Zed (238): the opponent id is the tie-breaker, so two
+        // identical requests can never hand back the same rows in a different
+        // sequence — which a reader can only read as the data having changed.
+        first!.Matchups.Select(m => m.OpponentChampionId).Should().Equal(OtherOpponent, Opponent);
+        second!.Matchups.Select(m => m.OpponentChampionId)
+            .Should().Equal(first.Matchups.Select(m => m.OpponentChampionId));
+    }
+
+    [Fact]
+    public async Task GetChampionMatchupsAsync_ReturnsBadRequestForAnUnrecognisedEloBracket()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedBracketedMatchupSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        // A typo used to resolve to "no restriction", so this answered with both
+        // cohorts' 24 games under a Gold label — a rank-scoped number drawn from a
+        // population that is not the rank asked for.
+        var response = await client.GetAsync(
+            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLDD");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // The recognised filter still reads its own slice, so the rejection is about
+        // the value and not about the parameter.
+        var gold = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLD");
+        gold!.Matchups.Single(m => m.OpponentChampionId == Opponent).Games.Should().Be(12);
+    }
+
+    [Fact]
     public async Task GetPlayerChampionMatchupsAsync_ReturnsNotFoundForUnknownNameTag()
     {
         await _fixture.ResetDatabaseAsync();
@@ -673,6 +753,42 @@ public sealed class ChampionMatchupApiIntegrationTests
         for (var i = 0; i < 5; i++)
         {
             AddLaneMatchup(db, $"mf-zed-{i}", "16.4.521.123", QueueId, yoneWins: i < 3, Opponent,
+                yoneAccountId: account.Id, yonePuuid: account.Puuid);
+        }
+
+        await db.SaveChangesAsync();
+        await RunAggregationAsync();
+        return $"{account.GameName}-{account.TagLine}";
+    }
+
+    /// <summary>
+    /// Seeds one tracked account with a two-opponent field on the same champion and
+    /// lane: 8 Yone-vs-Zed lane games (5 won) and 2 Yone-vs-Talon (1 won). Ten games
+    /// in total, of which only the Zed line clears the per-player floor — so the
+    /// denominator of a play rate and the rows that survive the floor are two
+    /// different sets, which is the whole point of the fixture. Returns the tag.
+    /// </summary>
+    private async Task<string> SeedPlayerFieldSampleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("MatchupField")
+            .WithTagLine("KR1")
+            .WithPuuid("matchup-field-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+        db.MainChampionStats.Add(MainStat(account, Champion, games: 10));
+
+        for (var i = 0; i < 8; i++)
+        {
+            AddLaneMatchup(db, $"mfd-zed-{i}", "16.4.521.123", QueueId, yoneWins: i < 5, Opponent,
+                yoneAccountId: account.Id, yonePuuid: account.Puuid);
+        }
+
+        for (var i = 0; i < 2; i++)
+        {
+            AddLaneMatchup(db, $"mfd-talon-{i}", "16.4.521.123", QueueId, yoneWins: i < 1, OtherOpponent,
                 yoneAccountId: account.Id, yonePuuid: account.Puuid);
         }
 

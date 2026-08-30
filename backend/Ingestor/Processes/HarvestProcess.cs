@@ -21,6 +21,7 @@ public sealed class HarvestProcess(
     IDataSessionFactory sessionFactory,
     IParticipantHarvestService harvestService,
     IChampionCoverageProvider coverageProvider,
+    TimeProvider timeProvider,
     IOptions<HarvestOptions> harvestOptions) : IIngestorProcess
 {
     public string Name => "Harvest";
@@ -39,7 +40,7 @@ public sealed class HarvestProcess(
         }
 
         await using var session = await sessionFactory.CreateAsync(ct);
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
         // The same frozen coverage signal the claim and scoring read, so the harvest's
         // per-platform budget split agrees with theirs within a cycle (#1150).

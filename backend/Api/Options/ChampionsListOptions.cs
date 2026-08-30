@@ -22,6 +22,29 @@ public sealed class ChampionsListOptions
     public int MinSampleGames { get; set; } = 10;
 
     /// <summary>
+    /// Minimum games a build slice needs before the build panel treats it as a usable
+    /// sample (<c>ChampionResponse.MinSampleMet</c>). Below it the panel still renders
+    /// every build it has, flagged low-confidence, and the build summary carries its
+    /// caveat (#1123) — high elo brackets routinely sit under this bar, so it guards the
+    /// wording rather than hiding the data. It also gates the reference side of the
+    /// player-vs-mains build divergence: under this many games, "what mains build" is a
+    /// handful of games wearing a percentage sign.
+    ///
+    /// <para>
+    /// Deliberately higher than <see cref="MinSampleGames"/> and a separate key, not a
+    /// second reading of it: the directory floor decides whether a <em>(champion, lane)</em>
+    /// line is ranked at all, while this one decides whether an item/rune distribution
+    /// <em>within</em> a line is worth stating with confidence — a distribution splits its
+    /// games across several builds, so it needs more of them. The two were previously a
+    /// 10 in configuration and a pair of 20s hard-coded in two services that called each
+    /// other mirrors, which let an operator reading <c>ChampionsList:MinSampleGames</c>
+    /// on /configuration or /patch-coverage infer the wrong bar for the build panel.
+    /// Set to 0 to always report the sample as met.
+    /// </para>
+    /// </summary>
+    public int MinBuildSampleGames { get; set; } = 20;
+
+    /// <summary>
     /// How many <c>(champion, lane)</c> lines past <see cref="MinSampleGames"/> a
     /// patch must hold before the patch-less public reads default to it. Under this
     /// bar the reads serve the previous patch instead, walking back until one clears

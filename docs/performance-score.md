@@ -20,6 +20,11 @@ game — and it is what decides the **MVP / ACE** accolade on a match row.
 score = 100 × Σ(weight × value) / Σ(weight)      over the *available* components
 ```
 
+The result is **rounded to the nearest integer, `AwayFromZero`** — not the .NET
+default banker's rounding — so the published score is the one you reproduce by
+hand from the weights. The score is an `int`; there is no decimal part to compare
+against.
+
 Nine components, each normalised to `0..1`. The weights are per-role and sum to
 100, so a game with every component available spans the full `0..100` range.
 

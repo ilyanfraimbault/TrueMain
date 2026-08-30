@@ -6,7 +6,7 @@
 // humanized sizes plus a bar chart of the largest objects by total size.
 import type { TableColumn } from '@nuxt/ui'
 import type { DbTableRow, StorageEngine } from '~~/shared/types/ops'
-import { formatNumber, humanizeBytes } from '~~/shared/utils/format'
+import { formatDate, formatDayLabel, formatNumber, formatPercentOrDash, humanizeBytes } from '~~/shared/utils/format'
 
 const { data, pending, error, refresh } = useDbTables()
 
@@ -118,11 +118,13 @@ const hasGrowthTrend = computed(() => dailyPoints.value.length > 1)
 
 const growthRows = computed(() =>
   dailyPoints.value.map(point => ({
-    label: new Date(point.dateUtc).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    label: formatDayLabel(point.dateUtc),
     databaseBytes: point.databaseBytes,
   })),
 )
 // One series, the summed on-disk size — the same number the forecast projects.
+// Stays an AREA: this is a stock, a level the volume actually sits at, which is
+// exactly what a filled line is for (#1218).
 // The per-engine split is stated in the forecast card rather than drawn as two
 // stacked series: the operator's question here is "is the volume filling up",
 // and that is one line.
@@ -134,9 +136,12 @@ const growthLabelFormatter = computed(() =>
 
 // Rows created per day, derived from consecutive snapshots. The first day has no
 // predecessor, so the series is one point shorter than the size series.
+// BARS, unlike the disk-size chart above (#1218): this series is the day's delta,
+// a flow, while disk size is the level itself — the one place on this page where
+// the two forms sit next to each other and the difference is visible.
 const rowsPerDayRows = computed(() =>
   dailyPoints.value.slice(1).map((point, index) => ({
-    label: new Date(point.dateUtc).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    label: formatDayLabel(point.dateUtc),
     rows: Math.max(0, point.rowEstimate - dailyPoints.value[index]!.rowEstimate),
   })),
 )
@@ -199,7 +204,7 @@ function crossingLabel(projectedAtUtc: string | null): string {
     return 'No date at this rate'
   }
   const date = new Date(projectedAtUtc)
-  const label = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  const label = formatDate(projectedAtUtc)
   return date.getTime() < Date.now() ? `Already exceeded (${label})` : label
 }
 
@@ -339,20 +344,16 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
         >
           Not enough snapshots yet to draw a trend — one point is recorded per day.
         </div>
-        <ClientOnly v-else>
-          <NcAreaChart
-            :data="growthRows"
-            :height="260"
-            :categories="growthCategories"
-            :x-num-ticks="Math.min(growthRows.length, 8)"
-            :x-formatter="growthLabelFormatter"
-            :y-formatter="growthValueFormatter"
-            v-bind="areaChartProps()"
-          />
-          <template #fallback>
-            <USkeleton class="h-[260px] w-full" />
-          </template>
-        </ClientOnly>
+        <NcAreaChart
+          v-else
+          :data="growthRows"
+          :height="260"
+          :categories="growthCategories"
+          :x-num-ticks="Math.min(growthRows.length, 8)"
+          :x-formatter="growthLabelFormatter"
+          :y-formatter="growthValueFormatter"
+          v-bind="areaChartProps()"
+        />
       </UCard>
 
       <!-- Rows added per day -->
@@ -369,20 +370,18 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
         >
           Needs at least three days of snapshots — each point is the difference between two days.
         </div>
-        <ClientOnly v-else>
-          <NcAreaChart
-            :data="rowsPerDayRows"
-            :height="220"
-            :categories="rowsPerDayCategories"
-            :x-num-ticks="Math.min(rowsPerDayRows.length, 8)"
-            :x-formatter="rowsPerDayLabelFormatter"
-            :y-formatter="rowsPerDayValueFormatter"
-            v-bind="areaChartProps()"
-          />
-          <template #fallback>
-            <USkeleton class="h-[220px] w-full" />
-          </template>
-        </ClientOnly>
+        <ChartsBarChart
+          v-else
+          :data="rowsPerDayRows"
+          :height="220"
+          :categories="rowsPerDayCategories"
+          :y-axis="['rows']"
+          :x-num-ticks="Math.min(rowsPerDayRows.length, 8)"
+          :x-formatter="rowsPerDayLabelFormatter"
+          :y-formatter="rowsPerDayValueFormatter"
+          :tooltip-title-formatter="labelTooltipTitle"
+          v-bind="timeBarProps()"
+        />
       </UCard>
 
       <!-- Fastest-growing tables -->
@@ -417,7 +416,7 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
                 {{ series.rowsPerDay >= 0 ? '+' : '' }}{{ formatCount(series.rowsPerDay) }} rows/d
               </span>
               <span class="w-16 text-right text-muted">
-                {{ series.growthRate === null ? '—' : `${(series.growthRate * 100).toFixed(0)}%` }}
+                {{ formatPercentOrDash(series.growthRate, 0) }}
               </span>
             </div>
           </div>
@@ -443,25 +442,18 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
         >
           No tables reported.
         </div>
-        <ClientOnly v-else>
-          <NcBarChart
-            :data="topTables"
-            :height="topTablesChartHeight"
-            :categories="sizeCategories"
-            :y-axis="['bytes']"
-            :x-formatter="sizeValueFormatter"
-            :y-formatter="sizeLabelFormatter"
-            :y-num-ticks="topTables.length"
-            :tooltip-title-formatter="labelTooltipTitle"
-            v-bind="horizontalBarProps(180)"
-          />
-          <template #fallback>
-            <USkeleton
-              class="w-full"
-              :style="{ height: `${topTablesChartHeight}px` }"
-            />
-          </template>
-        </ClientOnly>
+        <ChartsBarChart
+          v-else
+          :data="topTables"
+          :height="topTablesChartHeight"
+          :categories="sizeCategories"
+          :y-axis="['bytes']"
+          :x-formatter="sizeValueFormatter"
+          :y-formatter="sizeLabelFormatter"
+          :y-num-ticks="topTables.length"
+          :tooltip-title-formatter="labelTooltipTitle"
+          v-bind="horizontalBarProps(180)"
+        />
       </UCard>
 
       <!-- Table list -->

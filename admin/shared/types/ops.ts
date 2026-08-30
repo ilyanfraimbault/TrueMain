@@ -1002,10 +1002,10 @@ export interface RiotApiUsage {
 /**
  * One aggregation family from `GET /api/ops/stats/aggregations` — a group of
  * aggregate tables produced by a single ingestor process (builds patterns,
- * matchups, timeline leads, powerspikes, mains).
+ * matchups, synergies, powerspikes, mains).
  */
 export interface AggregationFamily {
-  /** Stable identifier: "builds" | "matchups" | "powerspikes" | "mains". */
+  /** Stable identifier: "builds" | "matchups" | "synergies" | "powerspikes" | "mains". */
   key: string
   /** The recorded ingestor process producing this family. */
   processName: string

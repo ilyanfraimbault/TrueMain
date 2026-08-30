@@ -2,6 +2,7 @@
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { formatPercentage, getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { formatCount } from '~~/shared/utils/counts'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 import { isApexTier } from '~/utils/tiers'
 import { winRateTone } from '~/utils/rate-tone'
@@ -425,7 +426,7 @@ const positionIcons = computed(() => {
     <div class="hidden shrink-0 items-center gap-4 @xl:flex">
       <div class="flex w-12 justify-end">
         <StatBlock
-          :value="row.stats.games.toLocaleString()"
+          :value="formatCount(row.stats.games)"
           label="games"
           size="sm"
           align="end"

@@ -91,10 +91,44 @@ database:
 psql "$PRODUCTION_CONNECTION_STRING" --single-transaction -f truemain.sql
 ```
 
-`--single-transaction` rolls the whole script back if any statement fails. Note
-that a small number of migration operations cannot run inside a transaction
-(for example operations that alter the database itself); EF isolates those into
-their own migrations, but keep it in mind when reviewing.
+`--single-transaction` rolls the whole script back if any statement fails.
+
+### No non-transactional statements in migrations
+
+This path imposes a hard rule, verified by CI: **no migration may contain a
+statement that Postgres refuses inside a transaction** — in practice
+`CREATE INDEX CONCURRENTLY` / `DROP INDEX CONCURRENTLY`, `VACUUM`, or
+`ALTER TYPE ... ADD VALUE` on older servers.
+
+EF's `migrationBuilder.Sql(..., suppressTransaction: true)` does **not** make
+this work here. The flag only has an effect for `Database.MigrateAsync()` at
+runtime, and `ApplyMigrationsOnStartup` is permanently `false` in preprod and
+prod. On the script path, two things defeat it independently:
+
+1. `--idempotent` wraps **every** statement in a `DO $EF$ BEGIN ... END $EF$;`
+   PL/pgSQL block, and Postgres rejects `CONCURRENTLY` inside a function
+   (`CREATE INDEX CONCURRENTLY cannot be executed from a function`), whatever
+   the surrounding transaction state.
+2. `psql --single-transaction` opens an explicit transaction around the whole
+   file, so the `COMMIT;` / `START TRANSACTION;` markers EF does emit around
+   suppressed statements are not the boundary they look like.
+
+This was silent for a long time (#1227): preprod and prod already carried the
+offending migrations in `__EFMigrationsHistory`, so the idempotent guard skipped
+their blocks. It would have failed on the first database built from scratch — a
+new preprod, a disaster-recovery restore, or onboarding.
+
+Migrations therefore use plain, transactional DDL. Where an index build on a
+large hot table is a genuine concern, the trade-off is documented in the
+migration itself (see `20260716220811_AddMatchParticipantFullPoolIndex.cs`):
+a transactional build is atomic, leaves no `INVALID` index behind on failure,
+and — decisively — is fully reproducible from the migrations alone.
+
+The `migrate-fresh` job in `ci.yml` enforces this on every PR: it generates the
+idempotent script and applies it with `psql --single-transaction` to a blank
+Postgres service container, then re-applies it to assert the script is a no-op
+the second time. Any statement incompatible with the deploy path fails the
+build instead of surfacing during a disaster recovery.
 
 Neither VPS exposes a connection string reachable from CI (see "CI wiring"
 below), so the actual `migrate-preprod`/`migrate-prod` jobs pipe the script
@@ -111,13 +145,22 @@ shipping a schema mismatch. Preprod runs this on every merge to `develop`,
 so it is the first place a bad migration script shows up — before it ever
 reaches prod.
 
+`deploy-prod.yml` puts a `preflight` job in front of all three: it fails the
+run when any piece of the deployment configuration (SSH secrets,
+`PROD_ENV_FILE`, `HOSTINGER_PROD_API_KEY`, `HOSTINGER_PROD_VM_ID`) is missing.
+Deliberately not a green skip: the migration runs first, so a deploy-side
+configuration checked at deploy time could only ever skip the image roll
+*after* the schema had already moved — the mismatch in the other direction,
+old binary against new schema, and just as broken. Now that
+`ApplyMigrationsOnStartup` is permanently `false`, both halves have to happen
+or neither does.
+
 The migrate job, in each workflow:
 
-1. Fails immediately if its SSH secrets are missing — deliberately not a
-   green skip. Now that `ApplyMigrationsOnStartup` is permanently `false`,
-   letting the deploy job proceed without attempting the migration would
-   silently roll a new image against a possibly-stale schema, which is
-   exactly the failure mode this whole change exists to prevent.
+1. Fails immediately if its SSH secrets are missing — deliberately not a green
+   skip, for the same reason. On prod this check lives in `preflight` instead,
+   so it fires before the images are even published; `migrate-preprod` still
+   carries its own.
 2. Restores `Data.csproj` (a plain checkout has no `obj/project.assets.json`
    yet, and `dotnet ef` does not restore on its own), then generates the
    idempotent script from the deployed commit/tag's checkout.

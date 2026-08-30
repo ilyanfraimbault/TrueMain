@@ -18,6 +18,8 @@ const props = defineProps<{
   position?: ChampionPosition | null
   itemsMap: Record<number, StaticItemData>
   championStatic: ChampionStaticData | null
+  /** True while `championStatic` is still loading — see `ChampionDivergenceChoice`. */
+  championStaticPending?: boolean
 }>()
 
 const { data, status, error } = usePlayerBuildDivergence(
@@ -206,6 +208,7 @@ const emptyReason = computed(() => {
               :share-suffix="`of ${playerPossessive} games`"
               :items-map="itemsMap"
               :champion-static="championStatic"
+              :champion-static-pending="championStaticPending"
               :ordered="copyFor(row.dimension).ordered"
             />
             <ChampionDivergenceChoice
@@ -214,6 +217,7 @@ const emptyReason = computed(() => {
               share-suffix="of mains games"
               :items-map="itemsMap"
               :champion-static="championStatic"
+              :champion-static-pending="championStaticPending"
               :ordered="copyFor(row.dimension).ordered"
               :highlight="row.diverges"
             />

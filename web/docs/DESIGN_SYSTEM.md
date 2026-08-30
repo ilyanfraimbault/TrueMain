@@ -3,24 +3,35 @@
 Conventions that are enforced by nothing but habit — write them here before they drift.
 
 The tokens themselves live in [`main.css`](../app/assets/css/main.css), with the reasoning behind each
-choice in its comment. `.claude/docs/decisions.md` records why the system looks the way it does. Every
-token, elevation step and material is rendered on one screen at **`/dev/design-system`** — check a change
-there before touring the real pages.
+choice in its comment. `.claude/docs/decisions.md` records why the system looks the way it does. Every colour
+family, elevation step and material is rendered on one screen at **`/dev/design-system`** — check a change
+there before touring the real pages, and add the section yourself when you add a family.
 
 The app is **dark-only**. There is no colour-mode toggle and no `dark:` variant anywhere; the surface tokens
 sit on `:root`. Don't add a light variant to a component — it will never be reviewed.
 
-## Colour has three jobs, and they don't overlap
+## Colour has four jobs, and the boundaries are the point
 
 | Family | Owns | Allowed on |
 | --- | --- | --- |
 | `primary` (rosegold) | Brand, interaction **and the good end of a measurement** | Logo, active nav, focus rings, primary buttons, links, selected states — and `--color-data-good` |
 | `--color-data-*` | Measurements | Anything — `text-*`, `bg-*`, `ring-*`, `border-*` |
-| `--color-stat-*` | Riot's in-game vocabulary | **Tooltip prose only** — never `bg-*` / `ring-*` / `border-*` |
+| `--color-gold` | The accent-of-the-accent: metal, and the **standout** top of the data axis | Hairlines, the logo sheen, the MVP crown — and `text-*` on a standout measurement. Never a fill |
+| `--color-stat-*`, `--color-rune-*` | Riot's in-game vocabulary (stats & damage types, the five rune trees) | **Prose only** — never `bg-*` / `ring-*` / `border-*`, never on a measurement |
 
-**The data axis is one-sided**: `--color-data-good` is `rosegold-400`, and everything below average steps down
-the neutral ramp to `--color-data-bad` (`ink-500`). A losing value is not flagged in a warning colour, it is
-simply not highlighted. `-dim` stops are for large fills, where a full stop would shout.
+**The data axis is one-sided**: `--color-data-good` is `rosegold-400`, `--color-data-mid` is `ink-400`
+("measured, and it is average"), and everything below steps down the neutral ramp to `--color-data-bad`
+(`ink-500`). A losing value is not flagged in a warning colour, it is simply not highlighted. `-dim` stops are
+for large fills, where a full stop would shout.
+
+**One-sided is a claim about the bottom of the axis.** The top has a second, rarer step: `--color-gold` above
+`--color-data-good`, for a *standout* value — a Perfect KDA, a 75+ performance score
+([`MatchRow.vue`](../app/components/match/MatchRow.vue)). It stays `--color-gold` rather than becoming a
+`--color-data-standout` deliberately: it is the same token the MVP crown wears, so the number and the accolade
+say the same thing, and a second name for one hex is how those two drift apart. It is the one member of the
+axis that is **text and small marks only** — a gold fill would out-shout the accent it exists to cap. Use it
+for a genuine outlier, not as a third band on every metric; a scale with a gold on every row has no standout
+left.
 
 The `--color-tier-*` ladder is the **medal** scale — rose gold, gold, silver, bronze, iron. Five ranks read as
 five ranks without a legend.
@@ -35,9 +46,16 @@ number, not a clickable one. Affordance must come from shape and position — a 
 own chrome — and never from hue alone. Rose gold is still not a generic surface tint: an accent applied to
 every panel is how the pre-#1060 system ended up reading as one flat warm mass.
 
-`--color-stat-*` no longer overlaps the data axis at all now that the axis is rose gold and grey, but those
-tokens stay confined to tooltip prose regardless — they are a *vocabulary*, not a scale, and a reader must
-never have to work out whether cyan means "magic resist" or "good".
+`--color-stat-*` no longer collides with the data axis the way #1060's teal→amber made it — nothing in
+`--color-data-*` is cyan, and no stat colour means "bad" any more — but those tokens stay confined to tooltip
+prose regardless. They are a *vocabulary*, not a scale, and a reader must never have to work out whether cyan
+means "magic resist" or "good". The rule outlives the collision that first motivated it.
+
+`--color-rune-*` (the five keystone trees, added in #1143 for the champion page's build paragraph) is the same
+kind of family and carries the same rule: text emphasis inside prose, never a fill, never on a measurement. A
+player reads "Domination" off the red before the word, which is why the trees earn Riot's colours at all.
+Sorcery is a plain blue rather than the client's blue-violet — the one deliberate departure, because
+violet/indigo is a hue this app uses nowhere else.
 
 The one deliberate exception is `TIER_COLORS` / `TIER_HEX` in [`utils/tiers.ts`](../app/utils/tiers.ts):
 those are **Riot's** rank colours, reproduced because a player reads Iron/Bronze/Gold from the colour before
@@ -53,6 +71,11 @@ Reach for the material utilities rather than composing a surface by hand:
   your own radius and padding. Every `UCard` gets it globally from `app.config.ts`.
 - **`surface-hover`** — the interactive counterpart. It moves the element up one step on the ladder rather
   than washing it with a tint, so hover reads as "raised" like every other level.
+- **`deselected`** — `scale-90 opacity-30 grayscale`, the shared "not the picked option" treatment for
+  rune/perk artwork.
+- **`selected-perk`** — its counterpart, a faint `ring-primary/40` on the option that *was* picked. The
+  artwork alone is not a reliable signal (a selected grey rune reads exactly like its unpicked neighbours), so
+  the ring carries the state independently of the icon. Low-contrast on purpose: a highlight, not a border.
 
 There is no translucent material. The former `glass` was removed once the last call site went opaque —
 including the home hero's search field, which reads better solid against the eclipse.
@@ -79,6 +102,25 @@ which hand-rolls the same look to avoid a component instance per icon — **keep
 
 Nuxt UI's own default is `bg-elevated`, which since the ink rebuild is the exact fill of every card. Left alone,
 every skeleton inside a card is invisible.
+
+## Named values and global component defaults
+
+Not every token is a colour. `main.css` also owns:
+
+- **`--width-build-path` (336 px) / `--width-starter-items` (116 px)** — the fixed row widths of the
+  build-path and starter-item strips, used as `sm:w-build-path` / `sm:w-starter-items`. Named so the
+  item-count math lives in one place instead of an arbitrary `w-[…]` at each call site.
+
+`app.config.ts` sets three app-wide component defaults, each of which is a design decision, not a
+preference:
+
+- **`card`** — every `UCard` is `surface rounded-xl` with trimmed padding, and the `soft` variant's stock
+  `bg-elevated/50` is restated as the opaque `bg-elevated` (see the cascade trap below).
+- **`skeleton.base`** — `bg-ink-700`, per the section above.
+- **`badge.variant`** — `subtle` rather than Nuxt UI's `solid`. `subtle` is a translucent `bg-{color}/10`
+  plus a matching `ring-inset ring-{color}/25`: it tints without becoming a surface of its own, and keeps the
+  per-colour (pick vs. win) distinction those badges carry. This is the one place translucency survived the
+  removal of `glass` — a badge is a tint on a known fill, not a pane with something behind it.
 
 ## A stat is a pair, and the pair has a house style
 

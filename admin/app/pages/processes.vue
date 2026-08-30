@@ -7,16 +7,19 @@
 // page). Failed runs are visually distinct (error tint) and each run's
 // `summary` JSON + error is inspectable in a slide-over.
 import type { TableColumn } from '@nuxt/ui'
-import type { ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { BadgeColor, ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import { PIPELINE_CHAIN } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
+// Run-status colours and icons live in `utils/pipeline-health.ts` so this page and the
+// health cockpit paint the same run identically — they used to disagree on `Running`.
+import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
 import { hasSummary } from '~~/shared/utils/process-summary'
 
 // --- Filters -----------------------------------------------------------------
 const processName = ref('')
 const status = ref<'all' | ProcessRunStatus>(ALL)
 // Relative window -> ISO `since`. "All" omits the param.
-const sinceWindow = ref<'all' | '1h' | '24h' | '7d' | '30d'>(ALL)
+const sinceWindow = ref<SinceWindow>(ALL)
 
 const statusItems = [
   { label: 'All statuses', value: ALL },
@@ -74,38 +77,6 @@ watch([processName, status, sinceWindow], () => {
   page.value = 1
 })
 
-// Running uses the emerald `primary` accent (in-flight, not yet an outcome);
-// Success is `success`, Abandoned is `warning` (orphaned, not a clean fail),
-// Skipped is `neutral` (a cadence guard declined to run — settled and healthy,
-// but nothing happened, so it must not read as a success), Failed is `error`.
-function statusColor(s: ProcessRunStatus): 'primary' | 'success' | 'error' | 'warning' | 'neutral' {
-  switch (s) {
-    case 'Running':
-      return 'primary'
-    case 'Success':
-      return 'success'
-    case 'Abandoned':
-      return 'warning'
-    case 'Skipped':
-      return 'neutral'
-    default:
-      return 'error'
-  }
-}
-function statusIcon(s: ProcessRunStatus): string {
-  switch (s) {
-    case 'Running':
-      return 'i-lucide-loader-circle'
-    case 'Success':
-      return 'i-lucide-circle-check'
-    case 'Abandoned':
-      return 'i-lucide-circle-slash'
-    case 'Skipped':
-      return 'i-lucide-skip-forward'
-    default:
-      return 'i-lucide-circle-x'
-  }
-}
 // The badge passes its icon through the `leadingIcon` slot; spin it only while
 // `Running` so the loader-circle actually animates (other statuses stay static).
 function statusBadgeUi(s: ProcessRunStatus): { leadingIcon: string } | undefined {
@@ -204,37 +175,18 @@ const iterationChains = computed<Map<string, ChainLink[]>>(
   () => new Map(finishedIterations.value.map(it => [it.iterationId, buildChain(it.runs)])),
 )
 
-function outcomeColor(outcome: ChainOutcome): 'primary' | 'success' | 'error' | 'warning' | 'neutral' {
-  switch (outcome) {
-    case 'Running':
-      return 'primary'
-    case 'Success':
-      return 'success'
-    case 'Failed':
-      return 'error'
-    case 'Abandoned':
-      return 'warning'
-    default:
-      return 'neutral'
-  }
+// A chain outcome is a run status plus one case the run table has no word for. `notRun`
+// and the cockpit's `Missing` are the same claim — there is no run to report — so the
+// adapter maps one onto the other rather than restating the whole table. That keeps
+// `Skipped` and `notRun` visually distinct for free: both neutral, different icons.
+function toHealthStatus(outcome: ChainOutcome): string {
+  return outcome === 'notRun' ? 'Missing' : outcome
 }
-// `Skipped` and `notRun` are both neutral, but they are not the same claim — one ran
-// and declined, the other never started — so they must not share an icon.
+function outcomeColor(outcome: ChainOutcome): BadgeColor {
+  return processStatusColor(toHealthStatus(outcome))
+}
 function outcomeIcon(outcome: ChainOutcome): string {
-  switch (outcome) {
-    case 'Running':
-      return 'i-lucide-loader-circle'
-    case 'Success':
-      return 'i-lucide-circle-check'
-    case 'Failed':
-      return 'i-lucide-circle-x'
-    case 'Abandoned':
-      return 'i-lucide-circle-slash'
-    case 'Skipped':
-      return 'i-lucide-skip-forward'
-    default:
-      return 'i-lucide-circle-dashed'
-  }
+  return processStatusIcon(toHealthStatus(outcome))
 }
 function outcomeLabel(outcome: ChainOutcome): string {
   return outcome === 'notRun' ? 'Not run' : outcome
@@ -687,8 +639,8 @@ const selectedIterationTally = computed(() => {
                 {{ proc.processName }}
               </p>
               <UBadge
-                :color="statusColor(proc.lastStatus)"
-                :icon="statusIcon(proc.lastStatus)"
+                :color="processStatusColor(proc.lastStatus)"
+                :icon="processStatusIcon(proc.lastStatus)"
                 :ui="statusBadgeUi(proc.lastStatus)"
                 variant="subtle"
                 size="sm"
@@ -772,8 +724,8 @@ const selectedIterationTally = computed(() => {
           </template>
           <template #status-cell="{ row }">
             <UBadge
-              :color="statusColor(row.original.status)"
-              :icon="statusIcon(row.original.status)"
+              :color="processStatusColor(row.original.status)"
+              :icon="processStatusIcon(row.original.status)"
               :ui="statusBadgeUi(row.original.status)"
               variant="subtle"
               size="sm"
@@ -791,7 +743,7 @@ const selectedIterationTally = computed(() => {
                 —
               </span>
               <template v-else>
-                {{ formatDuration(row.original.durationMs) }}
+                {{ formatElapsed(row.original.durationMs) }}
               </template>
             </div>
           </template>
@@ -866,8 +818,8 @@ const selectedIterationTally = computed(() => {
                 </dt>
                 <dd>
                   <UBadge
-                    :color="statusColor(selectedRun.status)"
-                    :icon="statusIcon(selectedRun.status)"
+                    :color="processStatusColor(selectedRun.status)"
+                    :icon="processStatusIcon(selectedRun.status)"
                     :ui="statusBadgeUi(selectedRun.status)"
                     variant="subtle"
                     size="sm"
@@ -884,7 +836,7 @@ const selectedIterationTally = computed(() => {
                     In progress…
                   </span>
                   <template v-else>
-                    {{ formatDuration(selectedRun.durationMs) }}
+                    {{ formatElapsed(selectedRun.durationMs) }}
                   </template>
                 </dd>
               </div>
@@ -1020,11 +972,11 @@ const selectedIterationTally = computed(() => {
                 </span>
                 <span class="flex items-center gap-2 shrink-0">
                   <span class="text-xs text-dimmed tabular-nums">
-                    {{ entry.link.run && entry.link.outcome !== 'Running' ? formatDuration(entry.link.run.durationMs) : '—' }}
+                    {{ entry.link.run && entry.link.outcome !== 'Running' ? formatElapsed(entry.link.run.durationMs) : '—' }}
                   </span>
                   <UBadge
                     v-if="entry.link.run"
-                    :color="statusColor(entry.link.run.status)"
+                    :color="processStatusColor(entry.link.run.status)"
                     variant="subtle"
                     size="sm"
                     :label="entry.link.run.status"

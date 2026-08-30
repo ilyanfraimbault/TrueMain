@@ -223,8 +223,9 @@ preprod, `/champions/{id}` shipped **~1.5 kB of visible HTML and zero build cont
 name, no item name, not the word "Runes" — under a `<title>` promising "Ahri Build". A title that promises
 a build over a page that delivers a shell is thin content, and it is why the champion pages could not rank
 for their own subject. That is a permanent, sitewide ceiling; a share card is one unfurl.
-Three things make the cost small enough to accept. The fan-out sits behind a 1 h `defineCachedFunction`
-keyed on (champion, lane, patch, rank), so it is **one backend call per slice per hour, not one per view**.
+Three things make the cost small enough to accept. The fan-out sits behind a `defineCachedFunction`
+keyed on (champion, lane, patch, rank), so it is **one backend call per slice per window, not one per
+view** (5 min since #1273, an hour before it — see the entry below).
 The endpoint resolves the ids to *names* server-side and returns ~1 kB, so the client never receives the
 ~373 KiB item map that made "just SSR the existing fetches" impossible in the first place. And it is keyed
 on the **URL** filters rather than the reconciled `selectedPatch`/`selectedPosition`, which would flip the
@@ -233,10 +234,38 @@ Not a #149 regression, and the distinction is the load-bearing one: #149 was a *
 SSR and winning, so the server rendered content the client's first render didn't have. This fetch is
 SSR-enabled and travels in the Nuxt payload, so hydration reads the same object the server rendered from —
 the two agree by construction. Every interactive panel stays `server: false` exactly as before.
-Accepted consequences: the summary is at most an hour behind the panels above it (same TTL as the share
-card, same reasoning), and it describes `builds[0]` — the tab the page opens on — never "the best build",
+Accepted consequences: the summary trails the panels above it by up to one cache window — priced as an
+hour here, cut to 5 min in #1273 when that hour turned out to be readable as a contradiction — and it
+describes `builds[0]` — the tab the page opens on — never "the best build",
 which would describe something the reader isn't looking at. It is **visible**, never `sr-only`: text
 written for a crawler and hidden from the reader is cloaking — #1123.
+
+**The build paragraph's cache window is 5 minutes, because it sits next to live numbers.**
+#1123 priced the summary's staleness against the share card's: both were 1 h, and an unfurl an hour behind
+the page it points at is nobody's contradiction. The paragraph's neighbours are not an unfurl. Every panel
+on `/champions/{slug}` fetches client-side and live, so the two ages sit **side by side in one viewport**:
+the patch picker (bound to the live `champion.patch`) read 16.17 over prose reading "on patch 16.16", and a
+header reading "24 games · 66.7% WR" sat beside "Across 7 ranked games ... win 28.6%" — the same field of
+the same endpoint, an hour apart. Early in a patch a sample can triple inside that window, which also
+flickered the low-sample caveat on and off.
+Keying on the *resolved* slice would fix the patch roll specifically — an unfiltered request keys on an
+empty patch while its answer depends on the patch the backend picks, so the entry cannot notice the backend
+moving on — but learning the resolved patch means making the very call the cache exists to avoid. So the
+window shrinks instead: 5 min still collapses the page-view burst the cache was added for (#926 objected to
+a backend hit *per view*, not per five minutes), and no visitor or crawler reads a dead patch number for
+long — this paragraph is the only build content in the server-rendered HTML, so its staleness is indexed.
+The share card keeps its hour: nothing renders beside it — #1273.
+
+**`hydrate-on-visible` does not make a panel free — it defers hydration, not server rendering.**
+The champion page's Truemains card is `<LazyChampionTruemains hydrate-on-visible>`, below the fold, and it
+still fired `GET /api/truemains?championId=…` on **every** SSR of every champion page, because
+`useTruemainsLeaderboard` defaults to `server: true` and the lazy wrapper has no say in that. So the budget
+#1123 argued for — one SSR round-trip, cached an hour, spent on the build summary — was quietly double what
+the entry above claims, and this second call had no Nitro cache at all. #1231 opts that one call site out
+(`server: false`); the leaderboard skeleton becomes the server-rendered state, which is what a below-the-fold
+panel should show anyway. The default stays `true`, because on `/truemains` and the homepage teaser the
+leaderboard *is* the content. The general rule this leaves: a `Lazy*` + `hydrate-on-visible` wrapper is a
+hydration-cost decision, and any fetch inside it is a separate, explicit SSR decision — #1231.
 
 **The build paragraph is typeset, and rune trees get Riot's colours to do it.**
 #1123 shipped the summary as flat grey prose under the build tabs, where it read as a wall of text naming
@@ -261,6 +290,39 @@ also means the share survives a build carrying no item data. Accepted consequenc
 compress away — still nothing next to the ~373 KiB item map it replaces),
 and the block now sits after the main column in DOM order — deliberate, so a crawler and a keyboard both
 meet the page's own build panels first — #1143.
+
+**The champion link graph was server-rendered, then removed — the pages are back to zero internal champion links.**
+#1123 gave the champion pages content a crawler could read. It did not give them links a crawler could
+*follow*: counted in the HTML prod actually served, `/` held 0 `/champions/{slug}` anchors, `/champions` 0,
+`/champions/tierlist` 0 and a champion page 0 — the only `/champions/*` anchor anywhere on the site was
+`/champions/tierlist`. So the 174 build pages were reachable only from `sitemap.xml`, which on a site with no
+backlinks is the textbook "Discovered – currently not indexed" profile, and it showed: `truemain katarina`
+returned nothing, and `/` outranked `/champions` for `truemain champions`. #1209 fixed it with three blocks
+of plain text links fed by `/api/champion-index` — deliberately *not* by SSR-ing the grids, which each need
+the ~20 kB static champion list (names *and* CDN icon URLs) plus, on the directory, the ~373 KiB item map,
+and whose rows are a `role="button"`, not an anchor, on purpose (#147).
+**Reverted in #1275, on presentation grounds.** The link graph worked — 174 anchors on `/champions`, 173 on
+the tier list, 12 on the homepage, no hydration message — but the blocks were a bare `flex-wrap` of 174
+muted names pinned to the bottom of four pages, including every champion page, and no work had gone into
+how they read. The product owner rejected them on sight. The endpoint, the composable, the pure assembly
+helpers and their tests went with the components: an endpoint with no caller is worse than no endpoint.
+What this costs, recorded so it does not quietly come back as a surprise: the SEO problem #1209 measured is
+**open again**, and the champion pages are once more indexable-but-unlinked. #1209's technique is sound and
+is the thing to reach for when it is retried — what needs solving first is the *presentation*, not the
+plumbing: an A→Z index grouped under letter headings reads as a directory, a 174-item wrap reads as
+boilerplate. Anything cheaper is worse, not better — `sr-only` links are cloaking (#1123), and the
+contextual cross-links the matchups and synergies panels would give were already declined in #1209 because
+they are backend reads and the champion page's SSR round-trip budget is spent on the build summary.
+One piece of #1255 survives the revert because it was never part of the link graph: the homepage's ⌘K hint
+stays `<ClientOnly>` — see the entry below — #1209, #1275.
+
+**A platform-dependent `UKbd` cannot be server-rendered.**
+The homepage's ⌘K hint (`<UKbd value="meta">`) resolves its modifier from the platform — `⌘` on macOS, `Ctrl`
+everywhere else — which the server cannot know, so it rendered an empty key against the client's `Ctrl`:
+"Hydration completed but contains mismatches" on every non-Mac visit to `/`, predating #1209 and found while
+verifying its acceptance. It is `<ClientOnly>` now, with **no fallback** on purpose: the hint advertises a
+shortcut that does not work until the handler is mounted, so showing it earlier is a promise the page cannot
+keep — #1209.
 
 **The paragraph's hover cards are resolved client-side, not carried in its payload.**
 #1147 gave every mark in the build paragraph the tooltip its counterpart in the icon grid has. The obvious
@@ -294,6 +356,27 @@ the SSR `<title>` is the raw `Name-TAG` slug rather than `Name#TAG` — both are
 no-cross-viewer-SSR rule, not oversights, and "fixing" either by SSR-ing the profile reintroduces the hang.
 Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
 the route is a primary, indexable one — #862.
+
+The rule covers anything else an immediate watcher can trigger, not just fetches: `useErrorToast` registers
+its watcher under `import.meta.client`. Its `if (!value) return` guard made the SSR run a no-op only because
+every error ref wired to it happens to come from a `server: false` fetch — true, unwritten, and untrue the
+day one is pointed at the server-rendered build summary or the leaderboard, where a toast pushed during SSR
+serialises into the payload and pops up unprompted for every visitor served that render — #1234.
+
+**A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own
+`pending`.** `createChampionPatchSlice`, `useChampionTrend` and `useChampionPatchDiff` hold their request
+until the champion's lane lands, and while held they resolve the empty read-model — which reaches
+`status: "success"` with nothing loaded. A consumer driving a skeleton off `status` therefore renders its
+"no data" state for the whole (client-only) champion fetch and only then fills in. Each composable now
+returns `pending = gate closed || isLoadingStatus(status)`, deliberately superseding Nuxt's own `pending`
+(which only knows about the request), so the trap is composed away once instead of re-documented at every
+call site — #1234.
+
+**Every hand-rolled fetch composable carries a monotonic request token.** `useCompositionBuild`,
+`useCompositionBuildGames`, `useTruemainSearch` and now `useTruemainFetch` (profile / rank history /
+activity / matches) all drop a response whose token is no longer the newest. Without it `useTruemainMatches`
+— which refires on page, position and championId — can let a slow page-3 response land after page 4's and
+write its rows under a pager reading 4 — #1234.
 
 **The activity grid's four modes read two different tables, and the response says so rather than reconciling them.**
 `match_participants` carries a game's date but is hard-deleted past `RetainedPatchCount` (~2 patches);
@@ -849,6 +932,19 @@ rebuilt as a *plain transactional* migration — the timeout risk no longer held
 `CONCURRENTLY` plus a manual pre-create step meant prod's schema was not reproducible from migrations alone.
 Accepted: a `SHARE` lock stalls the ingestor for the tens of seconds of the build — PR #750.
 👉 The rule is about **heavy** index builds, not about partial single-column indexes on a table of this size.
+**Generalised (#1227): no migration may contain a statement Postgres refuses inside a transaction — at all.**
+`migrationBuilder.Sql(..., suppressTransaction: true)` does not buy an escape hatch on the real deploy path.
+That flag only has an effect for `Database.MigrateAsync()`, and `ApplyMigrationsOnStartup` is permanently
+`false` in preprod and prod. Deploys run `dotnet ef migrations script --idempotent` piped into
+`psql --single-transaction`, which defeats it twice over: `--idempotent` wraps *every* statement in a
+`DO $EF$ ... END $EF$` PL/pgSQL block (Postgres: `CREATE INDEX CONCURRENTLY cannot be executed from a
+function`), and `psql` opens an explicit transaction around the whole file (so a procedural `COMMIT;` inside a
+`DO` block is an `invalid transaction termination`). Six migrations carried one or the other. It was silent
+because preprod and prod already had them in `__EFMigrationsHistory` and the idempotent guards skipped their
+blocks — it would only have surfaced on the first database built from scratch: a new preprod, a DR restore,
+onboarding. All six were rewritten as plain transactional DDL, which is free: their bodies now only ever
+re-execute on an empty database. The `migrate-fresh` CI job applies the generated script to a blank Postgres
+on every PR so this cannot come back.
 
 **Npgsql pools are capped per service (api 50, ingestor 20) against Postgres `max_connections=100`.**
 Two unbounded pools defaulting to 100 each could request 200 connections; once truemain.lol went live this
@@ -929,6 +1025,27 @@ every merge to `develop`, so it catches a bad migration before it ever reaches p
 the app's own `POSTGRES_USER`, not a dedicated migration-only role — splitting one off is open follow-up
 work, not this decision — #208, #246, #1058, `docs/production-migrations.md`.
 
+**An incomplete prod deployment configuration fails the release run; it is never a green skip.**
+Because migrations apply *before* the images roll, checking the deploy-side configuration at deploy time
+could only ever produce the mismatch in the other direction: an empty `PROD_ENV_FILE` or an unset
+`HOSTINGER_PROD_VM_ID` skipped the image roll — green — after `migrate-prod` had already moved the schema,
+leaving prod on the old binary against the new one. All of it (SSH secrets, `PROD_ENV_FILE`,
+`HOSTINGER_PROD_API_KEY`, `HOSTINGER_PROD_VM_ID`) is now checked by a `preflight` job that every other job
+depends on, `publish` included — publishing would otherwise move `:latest` ahead of what prod runs. Both
+halves of a release happen or neither does — #1228.
+
+**Both deploy pipelines serialise at workflow level, not per job.**
+Preprod needs it because the `-rc.N` counter is read from the remote tags; prod needs it because two
+releases published back to back would interleave their `publish` jobs and race for the moving `:latest`
+tag. `cancel-in-progress: false` in both: a running deploy finishes, and GitHub collapses the pending
+queue to the newest run — a visibly cancelled run, never a half-deploy — #1228.
+
+**Integration tests run on pushes to `develop`/`master`, not only on pull requests.**
+The push to `develop` is the commit that deploys to preprod and the develop→master merge is the one a
+release is cut from — the two trees whose behaviour is about to hit a real environment were the only ones
+skipping the Testcontainers suite, and a squash merge produces a tree no PR run ever tested. The cost is a
+few Testcontainers minutes per merge — #1228.
+
 **Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database.**
 PUUIDs are encrypted per API app, so key and database are an inseparable pair: old data is unusable with a new
 key. Preprod runs every pipeline stage at reduced volume with 1-patch retention — `docs/preprod.md`, #705.
@@ -1005,7 +1122,9 @@ possible. Approval is the single external unlock for all of it — #780.
   Stop after ~3 non-converging iterations and report blockers instead of looping.
 - **CI traps**: backend CI builds **Release** with analyzers as errors (Debug is not enough); `nuxt typecheck`
   can pass on stale `.nuxt` types while CI's `nuxt build` fails; `web/package-lock.json` must be regenerated
-  with `npx npm@11.13.0` (older npm omits sharp optional deps).
+  with `npx npm@11.13.0` (older npm omits sharp optional deps), the version CI pins for the frontend jobs
+  since #1236 — before that, CI ran whatever npm the resolved Node 24 build shipped, so the lock file's
+  generator and the installer could silently diverge.
 - **API wire conventions**: camelCase JSON, RFC 7807 problem details on all 4xx/5xx, no global `/api` prefix,
   `patch` normalised to `major.minor` (invalid values treated as unfiltered), canonical Riot position values,
   `pageSize`/`limit` ≤ 0 means "default" — `docs/api.md`.
@@ -1078,6 +1197,29 @@ possible. Approval is the single external unlock for all of it — #780.
   as unknown rather than green precisely so a fresh environment doesn't report ten processes as healthy;
   `Abandoned` (the run's host died mid-flight, outcome unknown) is a different claim from "it ran and failed"
   and is coloured accordingly.
+
+- **A skeleton is the real component in `pending` mode, not a drawing of it.** The champion page's build
+  section has two loading phases it cannot merge: the aggregate and the patch-pinned static bundles are
+  separate fetches, and the ~95 DDragon icons only start downloading once the ids they resolve are mounted.
+  So the reader sees *a* placeholder while the API answers, then the real panels with every icon still pulsing
+  while the images land. `ChampionBuildTabsSkeleton` used to be a hand-drawn stack of grey blocks sized to the
+  measured real heights: it reserved the space, but it was a second, unrelated picture, so a cold load visibly
+  rebuilt itself the moment the API answered. It now renders `ChampionBuildTabs` itself over a placeholder
+  aggregate (`app/utils/build-placeholder.ts`) with `pending` set — unresolvable ids, so every icon falls back
+  to the same pulsing box `SkeletonImage` already draws mid-load, and every number is masked (`RateBadge`,
+  the tab pickrate) rather than printing the placeholder's filler figures. The two phases become one
+  continuous state whose only transition is the content filling in, the skeleton cannot drift when a section
+  moves, and CLS is exact instead of estimated. `pages/dev/build-skeleton.vue` renders both skeletons with
+  nothing to fetch, the same way `dev/match-row.vue` makes a row reviewable in isolation. The escape hatch
+  is per-section: the skeleton takes `powerspikes` because the player-scoped page's tabs carry no population
+  scope and its real card has no such section to reserve.
+
+- **Icon slots are rendered from the ids, never gated on a resolved static lookup.** Same rule as the
+  tooltip-trigger one above, from the other side. The build tabs' leading item/keystone icons were gated on
+  `itemsMap[id]` / `runeTree.perks[id]`, so the whole tab bar reflowed when those deferred (~370 KiB, patch-
+  pinned) payloads landed — and swapping the trigger element that late is exactly the case that leaves a Reka
+  tooltip unable to close. The id is what answers "is there something here"; `SkeletonImage` already draws the
+  loading box for a null icon. `itemSlots()` in `shared/utils/build.ts` exists for the same reason.
 
 ---
 
@@ -1288,6 +1430,16 @@ the site should read as rose gold and should not carry a cyan it never wanted. R
 - **The activity heatmap returns to rose gold / neutral**, which is where #927 had it. The sign of a period is
   now carried by *accent vs grey* rather than by two opposed hues, which puts more weight on intensity: a
   one-game losing period is a faint grey cell. That is the intended read — it is barely a signal.
+- **The top of the axis has a second step — written down in #1237, months after it shipped.** `--color-gold`
+  sits above `--color-data-good` for a *standout* value: a Perfect KDA, a 75+ performance score
+  (`MatchRow.vue`). It arrived with the match history and was never documented, so `DESIGN_SYSTEM.md`,
+  `main.css` and this entry all described a two-tone axis the code had not had for months. The call was to
+  document the step rather than retire it — the grading is right, and a three-tone read is what an op.gg-style
+  row needs — and to leave it on `--color-gold` rather than mint a `--color-data-standout`: it is the same
+  token the MVP crown wears, and that identity *is* the point, since the number and the accolade are saying
+  the same thing. A second name for one hex is how those two drift apart. **"One-sided" is therefore a claim
+  about the bottom of the axis**: there is still no opposed hue for "bad". The standout step is the one member
+  of the axis that is text and small marks only — a gold fill would out-shout the accent it exists to cap.
 
 **The cost, stated so nobody re-derives it in surprise: the accent is no longer exclusive to interaction.**
 #1060's central mechanism was that rose gold meant "you can touch this" and nothing else, which is what let it
@@ -1309,8 +1461,8 @@ default — so the colour-mode `storageKey` was moved at the same time, retiring
 visitor might still carry from before the toggle was removed.
 
 Reviewable at `pages/dev/design-system.vue`, which is the compensating control for having no Storybook and no
-SFC-mounting test setup: every token, elevation step and material on one screen, stripped from production
-builds like the other `dev/*` playgrounds.
+SFC-mounting test setup: every colour family, elevation step and material on one screen, stripped from
+production builds like the other `dev/*` playgrounds.
 
 ## A patch is served only once it can fill a directory (2026-08-12)
 
@@ -1439,22 +1591,372 @@ reach it. Two tier areas then overlapped across the transition and painted a ful
 Grandmaster dips of one or two snapshots produced three "triangles" under an otherwise correct line.
 
 What ships instead: **one continuous series** (the rank score), so there is exactly one area path and no
-phantom zeros. The tier colour moves onto the line as an **x-axis `linearGradient`** with one hard-edged stop
-pair per contiguous tier run — a run keeps its colour end to end, and the two colours blend across the single
-segment that crosses the promotion. The gradient lives in a zero-sized `<svg>` of our own because the chart's
-`<defs>` belong to `vue-chrts`; `url(#…)` resolves document-wide, so it still paints inside the chart's SVG.
-It is applied by a scoped CSS rule on `[class*="-linePath"]` — Unovis writes the stroke as a *presentation
-attribute*, which a plain CSS declaration outranks without `!important` (same Emotion-label targeting trick as
-the tooltip override in `main.css`).
+phantom zeros. The tier colour moves onto an **x-axis `linearGradient`** with one stop pair per contiguous
+tier run — painted onto *both* the line's stroke and the area's fill, so the whole chart colour-shifts
+together rather than the fill staying pinned to whatever tier the player is in right now. The gradient lives
+in a zero-sized `<svg>` of our own because the chart's `<defs>` belong to `vue-chrts`; `url(#…)` resolves
+document-wide, so it still paints inside the chart's SVG.
 
-The constraint behind the shape: `vue-chrts` gives you correct multi-colour *fills* (stacked mode) or correct
-multi-colour *lines* (non-stacked, which breaks properly on gaps) — never both, since stacked mode's lines are
-cumulative sums that dive to zero outside their run. So the fill is single-coloured on purpose; the tier
-crests down the y-axis and the tooltip carry the tier, and the line carries the transition.
+**Each run's boundary stop sits on the midpoint with its neighbour, not on its own last/first point** — the
+first cut of this shipped with the boundary on the run's own point index, which left a one-index gap between a
+run's end stop and the next run's start stop for the gradient to interpolate across, blurring the transition
+into a soft blend instead of a sharp cut. Worse, a **single-snapshot run**'s own start and end stops then
+coincided (zero width), so it got no flat colour of its own — only the neighbours' blend fading through where
+it sat, invisible on a short tier dip. Moving each boundary to `(index ± 0.5) / lastIndex` makes two
+consecutive runs share their boundary stop at the *exact same offset* — an SVG hard stop, an instant colour
+change with zero interpolated width — and gives a single-snapshot run a real band, extending from the midpoint
+with its previous snapshot to the midpoint with its next one. The first and last run instead clamp to 0%/100%
+(no neighbour to split a boundary with).
 
-One guard: an `objectBoundingBox` gradient needs a non-degenerate box, and a single-tier or dead-flat history
-gives the line path zero height — the browser would drop the element entirely. Those fall back to a flat tier
-colour.
+The fill can't reuse `vue-chrts`' own `gradient-stops` prop for its vertical opacity fade — that prop feeds a
+gradient hard-coded to one flat colour per category, which is exactly the "pick one colour for the whole area"
+limitation this fix removes. The fade is a separate `<mask>` (a vertical white→transparent `linearGradient`,
+same 45%→5% opacity numbers the old prop used) layered on top of the tier gradient instead, so hue and
+vertical fade vary independently.
+
+Both overrides land via scoped CSS, but on different footing: the line's stroke is a *presentation attribute*
+(`.attr('stroke', …)` in `@unovis/ts` `components/line/index.js`), which a plain declaration outranks with no
+`!important` needed (same Emotion-label targeting trick as the tooltip override in `main.css`) — while the
+area's fill is set via `.style('fill', …)` (`components/area/index.js`), an *inline* style, which only
+`!important` beats. The fill selector is tag-qualified to the `<path>` (`path[class*="-area"]`) rather than the
+bare class substring — `-area-component` (the wrapping `<g>`) matches too, and letting the rule land there
+would apply the mask a second time through inheritance and double-darken the fade.
+
+One guard, line-only: an `objectBoundingBox` gradient needs a non-degenerate box, and a single-tier or
+dead-flat history gives the line path zero height — the browser would drop the element entirely. That case
+falls back to a flat tier colour. The area's own box never degenerates this way — it spans from the data down
+to the scale's zero point, which is never zero-height — so its fill always uses the gradient.
+
+## Jungle first-clear tracking was built, then removed entirely (2026-08-24)
+
+Shipped over #1186–#1195, then deleted: the camp sequence, the storage, the ingestion, the match-detail tab
+and the Core camp geometry. The product call is that a first clear which cannot be tracked *completely* is not
+worth its surface, and complete tracking is not achievable from Riot's data.
+
+Why it cannot be: `participantFrames` are sampled **once per minute** while a clear runs from the 1:30 spawn to
+about 3:15, so the whole clear is covered by two usable samples, and Riot emits **no camp-kill event** (the old
+sub-elite buff kills were removed deliberately). Six camps cannot be ordered from two positions. The original
+#535 builder credited one camp per frame, which put a hard 6:00 floor under a clear that really ends near 3:15 —
+of 148 237 production rows only 84 (0.06 %) ever reached six camps.
+
+The full account, including the measurements, the three bugs found on the way and the two contradictions that
+were never resolved, is in **issue #1206**. Read it before proposing this again.
+
+Two general rules the episode paid for, and they outlive the feature:
+
+- **Check a rate a spec asserts before building on it.** "~1 camp/min" was never true; everything downstream
+  inherited it. The sampling interval bounds what is knowable, and no inference recovers detail the sampler
+  never captured.
+- **Do not store what you can derive.** The full-clear time was stored *and* derivable; when the rule behind it
+  changed, the derived side healed and 35 % of the stored side silently did not.
+
+## Preprod builds carry a prerelease version, tagged only after they deploy (2026-08-24)
+
+Every push to develop reaches preprod a few minutes later, but nothing on the page said *which* build was
+serving it — "is my change on preprod yet?" and "did this reach prod?" were answerable only by comparing SHAs
+on GitHub. `deploy-preprod.yml` now resolves `<base>-rc.<N>` and the footer prints it (`preprod · 1.20.0-rc.4`);
+prod prints the bare release tag it is serving.
+
+Three calls worth keeping:
+
+- **A prerelease, not build metadata.** `1.19.0+7` (commits since the last release, derivable with a single
+  `git describe` and no tags at all) was the cheaper design and was rejected: the same string tags the four
+  images on GHCR, and `+` is **illegal in a Docker reference**. `-rc.N` is legal, so the version can be one
+  string everywhere — footer, git tag, image tag.
+- **The tag is pushed after the deploy succeeds, not at build time.** The tag's whole job is to mean "this ran
+  on preprod". Tagging in the publish job would mint tags for commits that never got there, recreating the
+  ambiguity it replaces. Cost: a build that fails after publishing leaves a gap in the sequence, which is the
+  honest reading.
+- **The base is a label, not a promise.** It defaults to the next *minor* after the latest release, because
+  that is what a plain "release" cuts — but the real bump is still decided by the user's word at release time
+  (see the `release` skill), so a `1.20.0-rc.*` line can perfectly well ship as `1.19.1`. Set the
+  `PREPROD_VERSION_BASE` repo variable when the next one is known to be a major.
+
+The trap this introduces, and it bit during implementation: **git's version sort ranks `1.20.0-rc.4` above
+`1.20.0`**. Anything reading "the latest version" must filter to bare `MAJOR.MINOR.PATCH` or it will read a
+preprod build as the last release and skip a version on the next bump. The `release` skill was updated for
+exactly this.
+
+## A main whose matches expired is dated, not deleted and not hidden (2026-08-24)
+
+A profile advertised "Graves — 10 games — 33%" while the champion page behind it answered "No personal
+build breakdown yet". The instinct — "a min-sample floor is hiding thin data, make it render with a
+warning instead" — was wrong twice, and both corrections are worth keeping:
+
+- **There is no min-sample gate on that path, and there never was.** `ChampionScopeLoader` documents its
+  floor as "a *preference*, not a gate", and `ChampionBuildsQueryService` renders an aggregate of any size,
+  flagging thin ones with `MinSampleMet=false`. A 404 there means *zero scope rows*, never "too few games".
+  Before proposing to soften a floor, check whether the floor is what answered.
+- **The "10 games" was not an aggregate.** It came from `main_champion_stats`, a snapshot dated three weeks
+  earlier. Two different stores with two different retention rules were being read as if they agreed.
+
+The actual defect: `MainAnalysisProcess`'s #825 thin-sample guard (`hasEstablishedMain && newTotalMatches <
+MinMatchesToEvaluate` → return early) also catches `newTotalMatches == 0`. Raw matches age out of
+`MatchDataRetention` on their own — two patches in prod — so an account nobody re-ingested drops to zero
+participants, the condition becomes permanently true, and the row is immortal. **Thin is insufficient
+evidence; zero is absent evidence**, and the guard conflated them.
+
+Fix: `IsSampleRetired`, set on the zero branch, cleared by any later cycle that upserts from a real sample.
+
+- **Not deleted.** Deleting would drop a player off the leaderboard the moment their matches expire, which
+  in prod is two patches of inactivity — it would empty the leaderboard of exactly the specialists it exists
+  to track.
+- **Not hidden.** The figures are a real past measurement, so the profile keeps them and dates them
+  (`20 games · as of 2 Jul`). What was wrong was never the number, only the claim that it was current.
+- **Not `IsActive`.** That flag comes from Riot mastery `lastPlayTime` and answers "does the player still
+  play this champion?". A row is routinely active *and* retired: they still main it, we no longer hold the
+  games.
+
+Not in scope, and deliberately so: the empty champion page is **preprod behaving as configured**.
+`compose.preprod.yaml` sets `MatchDataRetention__AggregateRetainedPatchCount: "2"` while prod leaves it at
+the default `0` (disabled — old-patch aggregates are the site's patch history, #466), so that build renders
+in prod. Preprod stays on its diet by choice; remember it when auditing preprod for missing data.
+
+## A chart's mark is chosen by what the series measures: flows are bars, stocks are lines (2026-08-25)
+
+The candidate funnel's `validated` series read as a dead flat line near the axis and was taken for a broken
+counter. It was moving ~350 accounts a day. Two independent causes, and fixing only one would have left the
+chart just as misleading.
+
+**The mark contradicted the metric.** `scored` / `promoted` / `validated` are per-bucket *flows* — how many
+candidates moved during that run period — but they were drawn as lines. A line asserts a level that rose and
+fell and invites reading its height as a state; a steady flow therefore renders as a flat line saying
+"nothing is happening", which is the opposite of what a steady flow means. The rule now written into
+`admin/app/utils/charts.ts` and applied across the portal: **a flow (counted per period) gets vertical bars;
+a stock (a level at an instant, or a running total) gets a line or area; a categorical top-N gets horizontal
+bars.** `/database` carries the contrast in one page — disk size stays an area because it is the level the
+volume sits at, while rows-added-per-day became bars because it is that day's delta.
+
+**And the scale hid it regardless of the mark.** 10,593 validated against 147,290 scored on one linear axis is
+squashed onto the baseline whatever shape you draw. So Progression was split: `scored` + `promoted` stay
+together as *grouped* bars (they are the competitive top-N cut, comparable magnitudes, and stacking them would
+count the same candidate twice since promoted ⊂ scored), and `validated` + `demoted` moved to their own chart
+as **cumulative** curves. That is not an exception to the rule — a running total is a stock, and "how many
+accounts have we validated" is a roster size, so a line is the correct mark for it. It also happens to be the
+view that was asked for. The accumulation restarts at the left edge of the selected window, which the caption
+states so the endpoint is not read as an all-time count; periods before `validatedFirstMeasuredAtUtc` stay
+absent from the curve rather than accumulating as zeros (#924).
+
+The split doubles as palette hygiene. `CHART_SERIES` holds three colours in a fixed order chosen for
+colourblind separation, and the file already said a fourth series "gets its own chart" — Progression was at
+three and the outcome series had nowhere to go.
+
+Grouped, not stacked, is a recurring call and it turns on nesting: stack only when the series sum to a real
+whole. The funnel's three intake sources do (they add up to "candidates that entered"). `promoted ⊂ scored` and
+`retries ⊂ calls` do not, so `/riot-api`'s call-volume chart is grouped bars — that one was safe to convert
+because its window fixes the bucket size server-side to land 12–28 buckets, wide enough to read as bars at
+every window.
+
+## Admin bar charts go through a wrapper, because vue-chrts' bar tooltip is broken twice (2026-08-25)
+
+Hovering a bar on `/candidates` opened an empty white box. Reproduced in a headless browser against
+`vue-chrts` 2.1.4 — and the same code is still in 2.2.1, so the upgrade was checked and is not the fix. Two
+independent upstream defects, which is why fixing one still left an empty tooltip.
+
+**A stacked bar chart never shows values.** `@unovis/ts` binds each stacked bar to a wrapper —
+`{ datum, index, stacked, stackIndex, isEnding }` — while `vue-chrts` looks the category keys up on that
+wrapper's *root* and excludes only the wrapper's *old* key names (`_index` / `_stacked` / `_ending`). Nothing
+matches, so it renders neither title nor rows. Grouped and horizontal bars bind the row itself; all three
+shapes were tested side by side before concluding, which is what localised the bug to stacking.
+
+**And the first hover on any bar chart shows an empty box.** The tooltip trigger mutates a Vue ref and then
+reads a hidden `<div>`'s `innerHTML` in the *same tick*, one frame before Vue flushes. A second mousemove over
+the same bar fixes it, which is what made the bug look intermittent rather than systematic. This one predates
+the bar conversion (#1218) — it already affected the horizontal bar charts on `/champions`, `/database`,
+`/riot-api` and `/`.
+
+Both are repaired in `admin/app/components/charts/BarChart.vue` (`<ChartsBarChart>`), which every admin bar
+chart now goes through: it renders the tooltip via the `#tooltip` slot — body in the sibling
+`BarChartTooltip.vue`, so the hovered row and its series resolve once per render as computeds instead of being
+recomputed by every expression that needs them — and replays one mousemove on the next frame. The replay listens in the **capture** phase — the upstream handler calls
+`stopPropagation()` as soon as a trigger matches, so a bubbling listener never runs at all. The markup mirrors
+upstream's own inline styles and CSS variables, because this is a repair and not a restyle: a bar tooltip and
+an area tooltip must stay identical to look at.
+
+The trap to remember when touching it: `@unovis/ts` maps the **value** to the bottom axis for horizontal bars,
+so a horizontal chart's `yFormatter` is its index → label lookup, not its value formatter. The wrapper makes
+the same swap upstream does. Get it wrong and the tooltip prints a bucket label where a count belongs — which
+typechecks, renders, and is wrong. That case is pinned by a test.
+
+## A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
+
+Ten services turned a Riot ID into an account row, and they did not agree. Nine compared it with `==` under
+Postgres' default case-sensitive collation; the tenth, the champion mains comparison, lowered both halves. So
+`Name#tag` answered on `/champions/{id}/mains-comparison` and **404'd** on `/truemains/Name-tag/profile` —
+each of the nine carrying a comment claiming "all routes agree on which account a name tag means".
+
+**Case-insensitive is the settled semantics.** A Riot ID reaches us as text a human typed, pasted or
+re-typed from a shared link — it is not an identity we issued, the PUUID is. The stored casing still wins on
+the way out: the identity a page renders comes from the row, so a profile shows the Riot ID as Riot spells it
+whatever the URL said. `/truemains/phantasm-euw1` and `/truemains/Phantasm-EUW1` are now the same page.
+
+All ten callers go through `Api/Services/Truemains/TruemainAccountResolver.cs`, which also owns the tiebreak
+that was copied ten times with it: a `(gameName, tagLine)` pair is unique within a routing region but collides
+across regions and across renames — which is why that index is deliberately not unique, see the entry above —
+so the **most recently active row wins**, `Id` breaking an exact timestamp tie. Locked by
+`TruemainAccountResolutionApiIntegrationTests`, which walks several routes per casing.
+
+The lookup is `lower("GameName") = $1 AND lower("TagLine") = $2` rather than `ILIKE`: equality sidesteps LIKE
+metacharacters in raw user input entirely, and it is the exact expression a functional index on
+`(lower("GameName"), lower("TagLine"))` would serve — which an `ILIKE` could not use. **No such index exists
+yet**, so this trades the index seek the nine `==` copies got for a sequential scan of `riot_accounts`. That
+was accepted knowingly for this PR: adding one is a schema change (compiled-model regeneration, migration) and
+belongs in its own, measured PR.
+
+## The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28)
+
+`KR / EUW1 / NA1` was written four times: the Ingestor's `Platforms:Active`, the API's `TrackedPlatforms`
+guard in `SeedRequestService`, the admin's `REGION_ITEMS` filter options, and a second admin copy in
+`seed.vue` whose bulk parser rejected anything outside it with `Unknown region "…"`. Adding a shard therefore
+meant editing the pipeline config *and* both admin copies, or the add form would refuse a region the pipeline
+was already crawling.
+
+The two admin copies collapse into `admin/shared/utils/regions.ts` (#1249). Deriving them at runtime from
+`GET /ops/configuration` — which does expose the effective `Platforms` section, and which the admin
+`/configuration` page already renders — was considered and **rejected**:
+
+- these values populate `<USelect>` options that must exist before any ops call resolves; one slow or failed
+  request would leave the seed form's region select empty, i.e. unusable, to save a constant;
+- the list is also a **type**. `TrackedRegion` constrains the bulk parser's `defaultRegion` and every parsed
+  row at compile time; an array fetched at runtime cannot, so the parser would lose a guarantee to gain a
+  dependency;
+- the config array's order (`KR, EUW1, NA1`) is a deployment detail, not a UI ordering, and binding the
+  selects to it makes an unrelated config edit reshuffle the admin.
+
+The Ingestor config remains the source of truth for what the pipeline crawls; the admin holds one declared
+copy of it, with `/configuration` displaying the effective values next to it so a drift is visible rather than
+silent. The API-side `TrackedPlatforms` set (a log-warning guard only — an untracked platform is still
+accepted) is deliberately left alone: sharing it would mean wiring Ingestor configuration into the API, which
+the two projects otherwise never do.
+
+The same change does **not** fold `web/shared/utils/region.ts` into any of this, despite the audit grouping
+them. That file maps ten platform ids onto the three public `europe/americas/korea` slugs and mirrors the
+backend `RegionFilterParser` — the *exposed* set, which is wider than and independent of the *tracked* set.
+Treating the two as one list would be the real bug.
+
+## `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26)
+
+The two apps are deliberately separate — different auth, different rendering mode (`ssr: false` in the admin),
+different deploy — and there is no shared package to hold common code. That is not changing: a package would
+couple two release cadences to save a few dozen lines. But two files *were* copied between them and then
+drifted **in both directions**, which is the failure mode worth guarding against, not the duplication itself.
+
+By the time it was caught (#1226), `server/api/static/champions.get.ts` existed twice with each copy carrying a
+fix the other was missing. The admin had re-inlined an **uncached** `resolveLatestPatch()`, undoing #947 — and
+worse there than on the web, because the admin renders client-side, so that DDragon round trip ran once per
+page load rather than once per SSR. Meanwhile the admin had added a `?patch=` format guard that the web — the
+only *public* app — never received. `shared/utils/ddragon.ts` had drifted too: same code, comments edited
+independently on each side, and the #966 alternate-mode floor pinned by a test on the web side only.
+
+The rule that came out of it: a file duplicated across the two apps **says so in a header naming its twin**, and
+the behaviour it encodes is pinned by a test in *both* suites. Labelled copies are `shared/utils/ddragon.ts`,
+`server/utils/ddragon-patch.ts` and `server/api/static/champions.get.ts`; the champion handlers differ only by
+the admin's `requireUserSession` gate, so any other difference in a diff is a regression, not a variant.
+
+`PATCH_PATTERN` (`^\d+\.\d+\.\d+$`) sits next to `normalizeDataDragonPatch`, which produces the value it
+validates — that function expands the short `16.5` form the backend scopes expose and passes everything else
+through untouched, so it is a shape fixer and never a guard. Every static endpoint interpolates the result into
+a CDN URL *and* uses it as a cache key, so an unvalidated `?patch=` is both a path-injection vector and an
+unbounded-cache-key vector: one entry per distinct string, held for the payload TTL. The guard lives in
+`normalizeRequestedPatch` and covers all four web static endpoints, not just the champion list.
+
+## The admin portal has one status vocabulary and one duration ladder (2026-08-28)
+
+Six presentation rules were coded twice or more across the portal, and two had already drifted into
+readings that contradicted each other. The failure mode is always the same, so the rule is now that
+`shared/utils/` — or `app/utils/` for the client-only ones — owns each of these outright.
+
+**A run status is `info` while it is running, never the emerald `primary`.** `/processes` painted from its
+own private table and `/health` from `pipeline-health.ts`, so the same in-flight run was emerald on one page
+and blue on the other. `info` wins: emerald is this portal's "this succeeded" colour, and a run still going
+has not succeeded yet. Colour *and* icon now live together in `PROCESS_STATUS_META`, the way
+`DETECTOR_STATUS_META` already did — and the chain view's `notRun` is an adapter onto the cockpit's
+`Missing`, because "there is no run to report" is one claim, not two.
+
+**A duration is humanised in exactly one place, and it counts days.** `formatDuration` stopped at hours
+while `formatGapMagnitude` had a private ladder that reached days, so a three-day span read `72h` on
+`/processes` and `3d` on `/health` — two pages that link to each other. There is now a single
+`formatElapsed(ms)` carrying the days tier, which `formatGapMagnitude` delegates to, keeping only the two
+things genuinely local to a gap: its "not measurable" wording and its minutes-to-ms conversion.
+
+It is also renamed. `formatDuration` meant humanised milliseconds in the admin and a `mm:ss` game clock in
+`web/app/utils/relativeTime.ts` — one name, two contracts, one repo. A copy-paste between the two apps
+produced a wrong display that no type error caught.
+
+**A percentage is `formatPercent` / `formatPercentOrDash`, and an absent share is a dash.** Five call sites
+each formatted their own, and `/riot-api` printed `0%` for a status-code share when the window had counted
+no calls at all — a fabricated number, since `0%` claims "this status never happened" and no reading
+supported it. The share is now `null` when there is no denominator and renders as the em dash, the same rule
+the API side has followed since #924/#1024. Only the *bar* beside it still resolves to a zero width: it is a
+drawing of the share, not a reading of it.
+
+The one duplicate deliberately left standing is `DataQualityDetectorItem.formatLevel`. It looks like the
+others and is not: it also accepts an already-scaled `percent` unit, and it trims trailing zeros so a
+configured threshold reads `40%` rather than `40.0%`. Routing it through `formatPercent` would regress the
+display to buy a shared call.
+
+## Configuration defaults live in the class, and the two champion games floors are two keys
+
+**`appsettings.json` only carries what differs from the class default.** The ingestor's file used to restate
+~30 keys that were already the default of their `*Options` class, which made `/configuration` (#1034) useless:
+every one of them was tagged *override* though nothing was overridden, and that noise hid the single key that
+genuinely diverged — `Discovery:MaxAccountsPerPlatformPerRun`, 500 in JSON against a class default of 350, so
+for months nobody could say which value was in force. It was 500. That value moved onto `DiscoveryOptions`
+(both deployed stacks override it anyway: 750 prod, 100 preprod) and the JSON key is gone.
+`IngestorAppSettingsNoDefaultsTests` now fails the build if any key comes back equal to its class default; the
+documentation-only empty sections (`Riot`, `CommunityDragon`, `Job`) and the list-valued keys stay, because a
+list default deliberately lives in JSON — the binder *appends* to a non-empty list instead of replacing it
+(#860).
+
+**`ChampionsList:MinSampleGames` (10) and `ChampionsList:MinBuildSampleGames` (20) are different questions.**
+The first decides whether a `(champion, lane)` line is listed and ranked at all; the second decides whether an
+item/rune distribution *inside* a line is a usable sample — it splits its games across several builds, so it
+needs more of them. The build floor used to be two hard-coded `20`s, in `ChampionBuildsQueryService` and
+`PlayerBuildDivergenceQueryService`, each documented as a mirror of the other with no code link between them,
+while an operator reading `MinSampleGames = 10` on `/configuration` or `/patch-coverage` would infer the wrong
+bar for the build panel. Both now read the new key, and the whole `ChampionsList` section is on the
+configuration page. The existing key was **not** renamed: a config-facing section rename breaks deployment
+(#889).
+
+**When a process needs candidate writes, it goes through `IDataSession`.** `MatchDataRetentionProcess` used to
+`new` a `MainCandidateRepository` over its own `DbContext` — the only hand-built repository in the ingestor —
+although the purge it wanted is already on `IDataSession.MainCandidates`. `IDbContextFactory` stays the right
+tool for the set-based deletion passes in the same file, which are raw `ExecuteDelete` work over a scoped
+context; a repository operation is reached through the session.
+
+## Tables are snake_case, columns are PascalCase — and enums split by who reads them (2026-08-28)
+
+**Written down because a review read the table names and inferred the wrong rule** (#1251). "Postgres schema,
+therefore snake_case everywhere" is a reasonable guess and it is wrong here: every table is snake_case
+(`champion_matchup_stats`, `riot_accounts`), and every column is quoted **PascalCase** (`"ChampionId"`,
+`"IsMain"`, `"PowerspikeAggregated"` — see the raw SQL filters in `MatchConfiguration` and
+`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`). There is exactly one exception, `elo_bracket`, mapped by
+hand with `HasColumnName` in seven configurations. Applied literally, the "snake_case columns" reading would
+have produced new snake_case columns in the middle of a PascalCase schema — making the mix worse in the name
+of fixing it.
+
+**Nothing is renamed.** Aligning either side is a heavy migration over the largest frozen tables in the
+database and buys nothing a reader cannot get from one sentence. What is guarded is the drift:
+`SchemaNamingConventionTests` fails when a new table is not snake_case, or a new column is neither PascalCase
+nor the allow-listed `elo_bracket`. Do not extend that allow-list — an entry there is the inconsistency
+spreading, which is the only outcome this decision exists to prevent.
+
+**Enum persistence follows who reads the column, and that was previously unwritten.** Three shapes coexisted,
+each justified locally and none globally: `SeedRequestConfiguration` stores text (`HasConversion<string>`,
+"readable in ad-hoc SQL"), `MainCandidateConfiguration` and `RiotAccountConfiguration` store ints — which is
+why the partial index on `riot_accounts` has to spell `"MatchIngestStatus" <> 0` in raw SQL, with a comment
+apologising for it — and `ProcessRunDocument` uses `BsonType.String` on the Mongo side. The rule, for **new**
+enums:
+
+- **A lifecycle state an operator reads or writes by hand goes to text.** Seed request status, anything an
+  admin panel exposes, anything that turns up in an incident's psql session. The width is irrelevant next to
+  a query that says what it means.
+- **An internal flow flag stays an int.** Claim/lease states, fold progress markers — columns only code
+  touches, sitting in hot partial indexes, whose set of values changes with the code that reads them.
+- **Mongo documents always store enums as strings** (`BsonType.String`). Those collections are read ad hoc by
+  definition, and a Mongo document has no migration to rescue a renumbering.
+
+No retroactive migration: the existing three stay as they are. This settles which one a new column copies.
 
 ## Keeping these files current
 

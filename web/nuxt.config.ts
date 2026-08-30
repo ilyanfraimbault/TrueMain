@@ -188,6 +188,16 @@ export default defineNuxtConfig({
     apiBaseUrl: process.env.NUXT_API_BASE_URL
       ?? 'http://localhost:5008',
     public: {
+      // Which deployed environment this container is (`preprod` / `production`),
+      // and the build running in it — the preprod pipeline stamps a prerelease
+      // version (`1.20.0-rc.4`), the prod deploy the release tag (`1.19.0`).
+      // Both are read at *runtime* from NUXT_PUBLIC_APP_ENV / NUXT_PUBLIC_APP_VERSION
+      // rather than baked in at image build time, so one image can be promoted
+      // and no Docker layer is invalidated by a version that changes every
+      // merge. Empty locally, which is what makes the footer label disappear
+      // in dev (see app/utils/app-version.ts).
+      appEnv: '',
+      appVersion: '',
       // Self-hosted Umami analytics (app/plugins/umami.client.ts). Both must
       // be set (NUXT_PUBLIC_UMAMI_HOST / NUXT_PUBLIC_UMAMI_WEBSITE_ID) for the
       // tracker to load — dev and preview environments leave them empty, so

@@ -49,12 +49,12 @@ public static class BootsResolver
 
         foreach (var itemEvent in itemEvents.OrderBy(itemEvent => itemEvent.TimestampMs))
         {
-            switch (itemEvent.EventType.ToUpperInvariant())
+            switch (ItemEventTypes.Classify(itemEvent.EventType))
             {
-                case "ITEM_PURCHASED":
+                case ItemEventKind.Purchased:
                     TryAddBootPurchaseCandidate(purchasedBoots, itemEvent.ItemId, itemEvent.TimestampMs, starterItemIds, itemMetadataById);
                     break;
-                case "ITEM_UNDO":
+                case ItemEventKind.Undo:
                     RemoveBootPurchaseCandidate(purchasedBoots, itemEvent.BeforeId ?? itemEvent.ItemId);
                     TryAddBootPurchaseCandidate(purchasedBoots, itemEvent.AfterId, itemEvent.TimestampMs, starterItemIds, itemMetadataById);
                     break;

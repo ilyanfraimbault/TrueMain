@@ -54,9 +54,111 @@ jobs:
       - name: Unit tests
         run: dotnet test tests/TrueMain.UnitTests/TrueMain.UnitTests.csproj --configuration Release --no-build --verbosity normal
 
+      # Runs on pushes too, not just pull requests: the push to `develop` is
+      # the commit that triggers the preprod deploy, and the develop→master
+      # merge commit is the one a release is cut from — the two commits whose
+      # schema/endpoint behaviour is about to hit a real environment were
+      # precisely the ones skipping the Testcontainers suite. A squash merge
+      # also produces a tree no PR run ever tested.
       - name: Integration tests
-        if: github.event_name == 'pull_request'
         run: dotnet test tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
+
+  migrate-fresh:
+    name: Migrations on a Fresh Database
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+
+    # Reproduces the real deploy path (docs/production-migrations.md) against an
+    # empty database: `dotnet ef migrations script --idempotent` piped into
+    # `psql --single-transaction`. Preprod and prod never exercise this — they
+    # already carry every migration in __EFMigrationsHistory, so the idempotent
+    # guards skip the blocks. A statement Postgres refuses inside a transaction
+    # (CREATE/DROP INDEX CONCURRENTLY, VACUUM…) is therefore invisible until a
+    # database is built from scratch: a new preprod, a DR restore, onboarding
+    # (#1227). This job turns that into a CI signal.
+    services:
+      postgres:
+        # Same version preprod and prod run (compose.preprod.yaml /
+        # compose.prod.yaml), so a server-version-dependent statement fails here
+        # rather than on the VPS.
+        image: postgres:17.2
+        env:
+          POSTGRES_USER: truemain
+          POSTGRES_PASSWORD: truemain
+          POSTGRES_DB: truemain
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U truemain -d truemain"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/global.json', 'backend/NuGet.config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # Same version the migrate-preprod / migrate-prod jobs install, so the
+      # script validated here is the one that actually gets deployed.
+      - name: Install EF Core CLI
+        run: dotnet tool install --global dotnet-ef --version 10.0.10
+
+      - name: Restore Data project
+        working-directory: backend
+        run: dotnet restore Data/Data.csproj
+
+      - name: Generate idempotent migration script
+        working-directory: backend
+        env:
+          ConnectionStrings__TrueMain: Host=localhost;Port=5432;Database=truemain;Username=truemain;Password=truemain
+        run: |
+          dotnet ef migrations script --idempotent \
+            --project Data/Data.csproj --startup-project Data/Data.csproj \
+            --output "$RUNNER_TEMP/migration.sql"
+
+      - name: Apply script to a blank database
+        env:
+          PGPASSWORD: truemain
+        run: |
+          psql -v ON_ERROR_STOP=1 -h localhost -p 5432 -U truemain -d truemain \
+            --single-transaction -f "$RUNNER_TEMP/migration.sql"
+
+      # The script's whole contract is that it can be replayed against a database
+      # at any migration state. Running it twice proves the guards hold and that
+      # nothing in it is write-once.
+      - name: Re-apply the script (must be a no-op)
+        env:
+          PGPASSWORD: truemain
+        run: |
+          psql -v ON_ERROR_STOP=1 -h localhost -p 5432 -U truemain -d truemain \
+            --single-transaction -f "$RUNNER_TEMP/migration.sql"
+
+      - name: Assert every migration is recorded
+        env:
+          PGPASSWORD: truemain
+        run: |
+          expected=$(find backend/Data/Migrations -name '*.cs' \
+            -not -name '*.Designer.cs' -not -name '*ModelSnapshot.cs' | wc -l)
+          actual=$(psql -t -A -h localhost -p 5432 -U truemain -d truemain \
+            -c 'SELECT count(*) FROM "__EFMigrationsHistory";')
+          echo "migrations on disk: $expected — rows in __EFMigrationsHistory: $actual"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::__EFMigrationsHistory has $actual rows but $expected migrations exist on disk."
+            exit 1
+          fi
 
   frontend:
     name: Frontend Build and Test (${{ matrix.app }})
@@ -83,6 +185,14 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
 
+      # The npm bundled with Node 24 drifts with every patch release, and older
+      # npm resolves sharp's platform-specific optional deps differently — a lock
+      # file regenerated with the wrong one installs fine locally and breaks the
+      # web build here. Pin the version the lock files were generated with so
+      # "the npm CI uses" is a fact instead of a guess (CLAUDE.md, #1236).
+      - name: Pin npm
+        run: npm install -g npm@11.13.0
+
       - name: Install dependencies
         run: npm ci
 
@@ -95,8 +205,8 @@ jobs:
       - name: Build Nuxt app
         run: npm run build
 
-  compose-config:
-    name: Compose Config Validation
+  deploy-scripts:
+    name: Deploy Scripts
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
 
@@ -104,75 +214,70 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Validate development compose file
-        env:
-          POSTGRES_USER: truemain
-          POSTGRES_PASSWORD: truemain
-          POSTGRES_DB: truemain
-          RIOT_API_KEY: RGAPI-REPLACE_ME
-          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
-          PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
-          PGADMIN_DEFAULT_PASSWORD: admin
-          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
-          ADMIN_USERNAME: truemain
-          ADMIN_PASSWORD: truemain
-          MONGO_USER: truemain
-          MONGO_PASSWORD: truemain
-          UMAMI_DB_PASSWORD: truemain
-          UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
-        run: docker compose -f compose.yaml config
+      # Builds throwaway repos and asserts on the resolved version. Guards the
+      # rules that are easy to break and invisible when broken: git ranks
+      # `1.20.0-rc.4` above `1.20.0`, counters must sort numerically past 9, and
+      # a deleted tag must not let a number be reused.
+      - name: Preprod version resolver
+        run: .github/scripts/resolve-preprod-version.test.sh
 
-      - name: Validate dev watch compose file
-        env:
-          POSTGRES_USER: truemain
-          POSTGRES_PASSWORD: truemain
-          POSTGRES_DB: truemain
-          RIOT_API_KEY: RGAPI-REPLACE_ME
-          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
-          PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
-          PGADMIN_DEFAULT_PASSWORD: admin
-          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
-          ADMIN_USERNAME: truemain
-          ADMIN_PASSWORD: truemain
-          MONGO_USER: truemain
-          MONGO_PASSWORD: truemain
-        run: docker compose -f compose.dev.yaml config
+  compose-config:
+    name: Compose Config Validation (${{ matrix.file }})
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
 
-      - name: Validate production compose file
-        env:
-          POSTGRES_USER: truemain
-          POSTGRES_PASSWORD: truemain
-          POSTGRES_DB: truemain
-          RIOT_API_KEY: RGAPI-REPLACE_ME
-          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
-          PGADMIN_DEFAULT_EMAIL: admin@truemain.dev
-          PGADMIN_DEFAULT_PASSWORD: admin
-          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
-          ADMIN_USERNAME: truemain
-          ADMIN_PASSWORD: truemain
-          MONGO_USER: truemain
-          MONGO_PASSWORD: truemain
-          UMAMI_DB_PASSWORD: truemain
-          UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
-        run: docker compose -f compose.prod.yaml config
+    strategy:
+      # One malformed file should not hide whether the other three are valid.
+      fail-fast: false
+      matrix:
+        include:
+          - file: compose.yaml
+            stack: truemain
+            riot_key: RGAPI-REPLACE_ME
+            pgadmin_email: admin@truemain.dev
+          - file: compose.dev.yaml
+            stack: truemain
+            riot_key: RGAPI-REPLACE_ME
+            pgadmin_email: admin@truemain.dev
+          - file: compose.prod.yaml
+            stack: truemain
+            riot_key: RGAPI-REPLACE_ME
+            pgadmin_email: admin@truemain.dev
+          - file: compose.preprod.yaml
+            stack: truemain_preprod
+            riot_key: RGAPI-REPLACE_ME_PREPROD
+            pgadmin_email: admin@truemain-preprod.dev
 
-      - name: Validate preprod compose file
-        env:
-          POSTGRES_USER: truemain_preprod
-          POSTGRES_PASSWORD: truemain_preprod
-          POSTGRES_DB: truemain_preprod
-          RIOT_API_KEY: RGAPI-REPLACE_ME_PREPROD
-          OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
-          PGADMIN_DEFAULT_EMAIL: admin@truemain-preprod.dev
-          PGADMIN_DEFAULT_PASSWORD: admin
-          ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
-          ADMIN_USERNAME: truemain
-          ADMIN_PASSWORD: truemain
-          MONGO_USER: truemain_preprod
-          MONGO_PASSWORD: truemain_preprod
-          UMAMI_DB_PASSWORD: truemain_preprod
-          UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
-        run: docker compose -f compose.preprod.yaml config
+    # Placeholder values, not secrets: `docker compose config` only substitutes
+    # them into the rendered output, which is thrown away — the exit code is
+    # what is being checked, and the compose files use `${VAR:?...}` for the
+    # ones that must be present. A single `stack` value drives every
+    # per-environment name (Postgres, Mongo and the Umami database all derive
+    # from it), so one matrix entry describes a whole environment. The two
+    # UMAMI_* values are simply unused by compose.dev.yaml, which references no
+    # Umami variable — setting them there renders exactly the same output.
+    env:
+      POSTGRES_USER: ${{ matrix.stack }}
+      POSTGRES_PASSWORD: ${{ matrix.stack }}
+      POSTGRES_DB: ${{ matrix.stack }}
+      MONGO_USER: ${{ matrix.stack }}
+      MONGO_PASSWORD: ${{ matrix.stack }}
+      UMAMI_DB_PASSWORD: ${{ matrix.stack }}
+      RIOT_API_KEY: ${{ matrix.riot_key }}
+      PGADMIN_DEFAULT_EMAIL: ${{ matrix.pgadmin_email }}
+      PGADMIN_DEFAULT_PASSWORD: admin
+      OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
+      ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
+      ADMIN_USERNAME: truemain
+      ADMIN_PASSWORD: truemain
+      UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate ${{ matrix.file }}
+        run: docker compose -f "${{ matrix.file }}" config
 
   docker-build:
     name: Docker Build Sanity (${{ matrix.name }})

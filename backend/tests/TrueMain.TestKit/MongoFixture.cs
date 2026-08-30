@@ -19,6 +19,8 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string ProcessRunsCollection = "process_runs";
     public const string SeedRequestsCollection = "seed_requests";
     public const string DbTableSizeSnapshotsCollection = "db_table_size_snapshots";
+    public const string CrashesCollection = "crashes";
+    public const string EffectiveConfigurationCollection = "effective_configuration";
 
     private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0")
         // Match PostgresFixture's reasoning: keep Testcontainers' Ryuk reaper
@@ -72,5 +74,11 @@ public sealed class MongoFixture : IAsyncLifetime
         // unique index the storage-snapshot tests reconcile, so a leaked index would
         // make them pass or fail depending on run order.
         await db.DropCollectionAsync(DbTableSizeSnapshotsCollection);
+        // The crash reports the Crashes panel reads, and the per-process configuration
+        // snapshots the configuration page reads. Both are upserted by the host itself
+        // (CrashSentinel at boot, EffectiveConfigurationStore at boot), so a document
+        // left behind by one test's factory would show up in the next test's payload.
+        await db.DropCollectionAsync(CrashesCollection);
+        await db.DropCollectionAsync(EffectiveConfigurationCollection);
     }
 }

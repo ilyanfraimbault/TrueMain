@@ -58,6 +58,16 @@ const DATA_AXIS = [
   { name: 'data-bad', class: 'bg-data-bad', hex: '#6a6a74', use: 'Below average, loss — ink-500' },
 ]
 
+// The top of the data axis, kept out of `DATA_AXIS` because it is the one step
+// that is never a fill: `--color-gold` is text and small marks only, so a
+// swatch here would invite the first `bg-gold` on a measurement.
+const DATA_STANDOUT = {
+  name: 'gold',
+  class: 'text-gold',
+  hex: '#d9b676',
+  use: 'Standout — a Perfect KDA, a 75+ performance score. The same token the MVP crown wears.',
+}
+
 // Text emphasis only, like `--color-stat-*` — so they are shown as *words*,
 // which is the only way they are ever allowed to appear. A swatch here would
 // invite the first `bg-rune-domination` in the app.
@@ -67,6 +77,76 @@ const RUNE_TONES = [
   { name: 'rune-sorcery', class: 'text-rune-sorcery', hex: '#7a9df0', tree: 'Sorcery' },
   { name: 'rune-resolve', class: 'text-rune-resolve', hex: '#61b96b', tree: 'Resolve' },
   { name: 'rune-inspiration', class: 'text-rune-inspiration', hex: '#49aab9', tree: 'Inspiration' },
+]
+
+// Riot's in-client vocabulary for stats, damage types and keywords, rendered by
+// the tooltip parser's tag-class map. Words, never swatches: these are the
+// tokens most likely to be mistaken for a scale, and the page should not be the
+// first place someone sees one as a fill. Grouped the way `main.css` groups
+// them so the two read side by side.
+const STAT_FAMILIES = [
+  {
+    family: 'Defensive / sustain',
+    tones: [
+      { name: 'stat-health', class: 'text-stat-health', hex: '#24a564', use: 'Flat HP / HP regen' },
+      { name: 'stat-armor', class: 'text-stat-armor', hex: '#f3c057', use: 'Armor' },
+      { name: 'stat-mr', class: 'text-stat-mr', hex: '#54e6ff', use: 'Magic resist' },
+      { name: 'stat-tenacity', class: 'text-stat-tenacity', hex: '#8c72ff', use: 'Tenacity / slow resist' },
+      { name: 'stat-hsp', class: 'text-stat-hsp', hex: '#6be695', use: 'Heal & shield power' },
+      { name: 'stat-heal-reduction', class: 'text-stat-heal-reduction', hex: '#8d5874', use: 'Grievous wounds' },
+    ],
+  },
+  {
+    family: 'Resources / utility',
+    tones: [
+      { name: 'stat-mana', class: 'text-stat-mana', hex: '#00a6ed', use: 'Mana / mana regen' },
+      { name: 'stat-haste', class: 'text-stat-haste', hex: '#ede2cf', use: 'Ability haste' },
+      { name: 'stat-speed', class: 'text-stat-speed', hex: '#ffffff', use: 'Move speed / on-hit' },
+    ],
+  },
+  {
+    family: 'Offensive — physical',
+    tones: [
+      { name: 'stat-ad', class: 'text-stat-ad', hex: '#f19425', use: 'Attack damage' },
+      { name: 'stat-lethality', class: 'text-stat-lethality', hex: '#f65e57', use: 'Lethality / armor pen' },
+      { name: 'stat-crit', class: 'text-stat-crit', hex: '#ee2a00', use: 'Crit chance / crit damage' },
+      { name: 'stat-as', class: 'text-stat-as', hex: '#ffe991', use: 'Attack speed' },
+      { name: 'stat-vamp', class: 'text-stat-vamp', hex: '#d70045', use: 'Lifesteal / omnivamp' },
+    ],
+  },
+  {
+    family: 'Offensive — magical',
+    tones: [
+      { name: 'stat-ap', class: 'text-stat-ap', hex: '#7e78ff', use: 'Ability power' },
+      { name: 'stat-magicpen', class: 'text-stat-magicpen', hex: '#cc6efc', use: 'Magic penetration' },
+    ],
+  },
+  {
+    family: 'Damage types',
+    tones: [
+      { name: 'stat-true', class: 'text-stat-true', hex: '#f5f5f5', use: 'True damage' },
+      { name: 'stat-adaptive', class: 'text-stat-adaptive', hex: '#48c4b7', use: 'Adaptive damage (verified)' },
+    ],
+  },
+  {
+    family: 'Misc / structural',
+    tones: [
+      { name: 'stat-status', class: 'text-stat-status', hex: '#9366a9', use: 'CC keywords — Stun, Airborne' },
+      { name: 'stat-stealth', class: 'text-stat-stealth', hex: '#b472a6', use: 'Stealth keywords' },
+      { name: 'stat-shield', class: 'text-stat-shield', hex: '#e0c56e', use: 'Shield value' },
+      { name: 'stat-gold', class: 'text-stat-gold', hex: '#c8aa6e', use: 'Gold per X seconds' },
+      { name: 'stat-passive', class: 'text-stat-passive', hex: '#ffffff', use: 'Item passive label' },
+      { name: 'stat-active', class: 'text-stat-active', hex: '#f3c057', use: 'Item active label' },
+    ],
+  },
+]
+
+// The brand mark stands in for perk artwork: this page fetches nothing, and the
+// treatment needs a *coloured* subject or `grayscale` has nothing to show.
+const PERK_STATES = [
+  { label: 'selected-perk', class: 'selected-perk' },
+  { label: 'deselected', class: 'deselected' },
+  { label: 'deselected', class: 'deselected' },
 ]
 
 const ELEVATION = [
@@ -151,20 +231,77 @@ const TEXT_TOKENS = [
     <SectionCard
       :level="2"
       title="Data axis"
-      subtitle="One-sided: rose gold marks what is above average, everything below simply steps down the neutral ramp. A losing value is not flagged in a warning colour, it is just not highlighted — so the bad end is deliberately quieter than the average one."
+      subtitle="One-sided at the bottom: rose gold marks what is above average, everything below simply steps down the neutral ramp. A losing value is not flagged in a warning colour, it is just not highlighted — so the bad end is deliberately quieter than the average one. The top carries one rarer step above it."
     >
-      <div class="flex flex-wrap gap-4">
-        <div
-          v-for="stop in DATA_AXIS"
-          :key="stop.name"
-          class="flex flex-col gap-1"
-        >
+      <div class="flex flex-col gap-6">
+        <div class="flex flex-wrap gap-4">
           <div
-            class="h-16 w-40 rounded-md border border-default"
-            :class="stop.class"
-          />
-          <span class="stat-label">{{ stop.name }}</span>
-          <span class="text-xs text-muted">{{ stop.use }}</span>
+            v-for="stop in DATA_AXIS"
+            :key="stop.name"
+            class="flex flex-col gap-1"
+          >
+            <div
+              class="h-16 w-40 rounded-md border border-default"
+              :class="stop.class"
+            />
+            <span class="stat-label">{{ stop.name }}</span>
+            <span class="text-xs text-muted">{{ stop.use }}</span>
+          </div>
+        </div>
+
+        <!--
+          Shown as a number rather than a swatch: `--color-gold` is the one step
+          of the axis that is text and small marks only.
+        -->
+        <div class="flex flex-col gap-1 border-t border-default pt-4">
+          <div class="flex items-baseline gap-3">
+            <span
+              class="stat-value text-3xl"
+              :class="DATA_STANDOUT.class"
+            >Perfect</span>
+            <span
+              class="stat-value text-3xl"
+              :class="DATA_STANDOUT.class"
+            >82</span>
+            <UIcon
+              name="i-lucide-crown"
+              class="size-5 text-gold"
+            />
+          </div>
+          <span class="stat-label">{{ DATA_STANDOUT.name }}</span>
+          <span class="text-xs text-muted">{{ DATA_STANDOUT.use }}</span>
+          <span class="font-mono text-[10px] text-dimmed">{{ DATA_STANDOUT.hex }}</span>
+        </div>
+      </div>
+    </SectionCard>
+
+    <!-- ─── Stat vocabulary ──────────────────────────────────────────────── -->
+    <SectionCard
+      :level="2"
+      title="Stat and damage-type vocabulary"
+      subtitle="Riot's in-client colours for stats, damage types and keywords, emitted by the tooltip parser's tag-class map. A vocabulary, not a scale — text emphasis inside tooltip prose only, never a fill, never on a measurement. Shown as words for that reason."
+    >
+      <div class="flex flex-col gap-5">
+        <div
+          v-for="family in STAT_FAMILIES"
+          :key="family.family"
+          class="flex flex-col gap-2"
+        >
+          <span class="stat-label">{{ family.family }}</span>
+          <div class="flex flex-wrap gap-x-6 gap-y-3">
+            <div
+              v-for="tone in family.tones"
+              :key="tone.name"
+              class="flex flex-col gap-0.5"
+            >
+              <span
+                class="text-sm font-semibold"
+                :class="tone.class"
+              >{{ tone.use }}</span>
+              <span class="stat-label">{{ tone.name }}</span>
+              <span class="font-mono text-[10px] text-dimmed">{{ tone.hex }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </SectionCard>
@@ -253,11 +390,36 @@ const TEXT_TOKENS = [
       </div>
     </SectionCard>
 
+    <!-- ─── Selection state ──────────────────────────────────────────────── -->
+    <SectionCard
+      :level="2"
+      title="Picked vs. not picked"
+      subtitle="`deselected` and `selected-perk`, the pair behind every rune panel. The artwork alone is not a reliable signal — a selected grey rune reads exactly like its unpicked neighbours — so the faint primary ring carries the state and the siblings fade out of the way. Shown on the brand mark because this page fetches nothing; the treatment is the same."
+    >
+      <div class="flex flex-wrap items-start gap-6">
+        <div
+          v-for="(state, index) in PERK_STATES"
+          :key="`${state.label}-${index}`"
+          class="flex flex-col items-center gap-1"
+        >
+          <img
+            src="/brand/truemain-mark.svg"
+            alt=""
+            width="40"
+            height="40"
+            class="size-10 rounded-full transition"
+            :class="state.class"
+          >
+          <span class="stat-label">{{ state.label }}</span>
+        </div>
+      </div>
+    </SectionCard>
+
     <!-- ─── Typography ───────────────────────────────────────────────────── -->
     <SectionCard
       :level="2"
       title="Typography"
-      subtitle="Inter carries prose and headings; Geist Mono carries measurements. A stat is always a pair, and the gap between the two registers is the point."
+      subtitle="Inter carries everything the reader reads, measurements included (#1111). Geist Mono is kept only where monospace is the meaning rather than a flourish. A stat is always a pair, and the gap between the two registers is the point — size, weight, casing and tracking, not family."
     >
       <div class="flex flex-col gap-6">
         <div class="flex flex-col gap-2">
@@ -275,7 +437,7 @@ const TEXT_TOKENS = [
         </div>
 
         <div class="flex flex-col gap-2">
-          <span class="stat-label">Measurements — Geist Mono</span>
+          <span class="stat-label">Measurements — Inter, tabular-nums</span>
           <div class="flex flex-wrap items-end gap-8">
             <div class="flex flex-col items-start gap-1">
               <span class="stat-value text-3xl">54.2%</span>
@@ -296,6 +458,29 @@ const TEXT_TOKENS = [
             <div class="flex flex-col items-start gap-1">
               <span class="stat-value text-base text-data-bad">−1.8</span>
               <span class="stat-label">Delta</span>
+            </div>
+          </div>
+        </div>
+
+        <!--
+          What is left of Geist Mono after #1111: glyphs where the monospace
+          *is* the meaning. Listed so the next reader can tell "still used" from
+          "forgotten".
+        -->
+        <div class="flex flex-col gap-2">
+          <span class="stat-label">Where Geist Mono survives</span>
+          <div class="flex flex-wrap items-center gap-8">
+            <div class="flex flex-col items-start gap-1">
+              <span class="font-mono text-xl font-bold text-highlighted">S A B C D</span>
+              <span class="stat-label">Tier letters</span>
+            </div>
+            <div class="flex flex-col items-start gap-1">
+              <span class="font-mono text-xl font-semibold text-dimmed">?</span>
+              <span class="stat-label">Empty-slot glyph (builder)</span>
+            </div>
+            <div class="flex flex-col items-start gap-1">
+              <span class="font-mono text-xl text-muted">#e58f83</span>
+              <span class="stat-label">Hex codes on this page</span>
             </div>
           </div>
         </div>

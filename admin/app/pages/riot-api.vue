@@ -10,7 +10,7 @@ import type {
   RiotStatusCount,
   RiotUsageWindow,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, formatNumber, formatPercent, formatPercentOrDash } from '~~/shared/utils/format'
 
 const WINDOW_ITEMS: { label: string, value: RiotUsageWindow }[] = [
   { label: 'Last hour', value: '1h' },
@@ -43,7 +43,7 @@ const callerBreakdown = computed<RiotCallerUsage[]>(() => data.value?.callerBrea
 const headroom = computed(() => data.value?.headroom ?? null)
 
 // --- Summary -----------------------------------------------------------------
-const errorRatePct = computed(() => `${(errorRate.value * 100).toFixed(1)}%`)
+const errorRatePct = computed(() => formatPercent(errorRate.value, 1))
 
 // --- Status-code breakdown ---------------------------------------------------
 // Coloured chips rather than a chart: the 200/429/5xx split reads best as a
@@ -83,9 +83,22 @@ function statusLabel(code: number): string {
 const statusTotal = computed(() =>
   statusCodes.value.reduce((sum, s) => sum + s.count, 0),
 )
-function statusPct(count: number): string {
+/**
+ * A status code's share of the window, or `null` when the window counted no calls at
+ * all. A share needs a denominator: with nothing to divide by there is no share, and
+ * the `0%` this used to print was a measured claim — "this status never happened" —
+ * that no reading supports. `formatPercentOrDash` turns the null into the portal's
+ * "not measured" dash.
+ */
+function statusShare(count: number): number | null {
   const total = statusTotal.value
-  return total > 0 ? `${((count / total) * 100).toFixed(1)}%` : '0%'
+  return total > 0 ? count / total : null
+}
+
+// The bar is a drawing of the share, not a reading of it, so an absent share is simply
+// no width — the number next to it is what carries "not measured".
+function statusBarWidth(count: number): string {
+  return formatPercent(statusShare(count) ?? 0, 1)
 }
 
 // --- Rate limit ---------------------------------------------------------------
@@ -157,10 +170,13 @@ function methodRateBucket(row: RiotEndpointUsage): RateBucket | null {
 }
 
 // --- Time-series chart -------------------------------------------------------
-// Call volume per bucket as an AREA chart (mirrors the "Matches over time"
-// pattern). Bucket size is fixed by the window (5m / 1h / 6h) server-side.
+// Call volume per bucket as GROUPED BARS (#1218): calls-per-bucket is a flow, and
+// the window fixes the bucket size server-side (5m / 1h / 6h) to land 12-28
+// buckets, so bars stay wide enough to read at every window.
 // Retries (429s) are a second series (#1035): budget spent for no data, worth
-// seeing distinctly from the total volume rather than buried in "errors".
+// seeing distinctly from the total volume rather than buried in "errors". Grouped
+// and never stacked — `Retries` is documented as a SUBSET of `Calls`, so a stack
+// would draw a total that counts every 429 twice.
 const timeSeriesData = computed(() =>
   (data.value?.timeSeries ?? []).map(bucket => ({
     label: formatCallBucketLabel(bucket.bucketUtc),
@@ -321,7 +337,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
             Avg latency
           </p>
           <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
-            {{ formatDuration(avgLatencyMs) }}
+            {{ formatElapsed(avgLatencyMs) }}
           </p>
         </UCard>
         <UCard>
@@ -395,14 +411,14 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
                 <div
                   class="h-full rounded-full"
                   :class="statusBarClass(status.statusCode)"
-                  :style="{ width: statusPct(status.count) }"
+                  :style="{ width: statusBarWidth(status.count) }"
                 />
               </div>
               <span class="tabular-nums text-highlighted w-16 text-right">
                 {{ formatNumber(status.count) }}
               </span>
               <span class="tabular-nums text-muted w-14 text-right">
-                {{ statusPct(status.count) }}
+                {{ formatPercentOrDash(statusShare(status.count), 1) }}
               </span>
             </div>
           </div>
@@ -426,20 +442,18 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
         >
           No calls recorded in this window.
         </div>
-        <ClientOnly v-else>
-          <NcAreaChart
-            :data="timeSeriesData"
-            :height="260"
-            :categories="timeSeriesCategories"
-            :x-num-ticks="Math.min(timeSeriesData.length, 8)"
-            :x-formatter="timeSeriesXFormatter"
-            :y-formatter="formatCount"
-            v-bind="multiAreaChartProps()"
-          />
-          <template #fallback>
-            <USkeleton class="h-[260px] w-full" />
-          </template>
-        </ClientOnly>
+        <ChartsBarChart
+          v-else
+          :data="timeSeriesData"
+          :height="260"
+          :categories="timeSeriesCategories"
+          :y-axis="['calls', 'retries']"
+          :x-num-ticks="Math.min(timeSeriesData.length, 8)"
+          :x-formatter="timeSeriesXFormatter"
+          :y-formatter="formatCount"
+          :tooltip-title-formatter="labelTooltipTitle"
+          v-bind="multiTimeBarProps()"
+        />
       </UCard>
 
       <!-- Consumption by caller + budget headroom -->
@@ -458,22 +472,18 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
           >
             No calls recorded in this window.
           </div>
-          <ClientOnly v-else>
-            <NcBarChart
-              :data="callerChartData"
-              :height="callerChartHeight"
-              :categories="callerCategories"
-              :y-axis="['calls']"
-              :y-num-ticks="callerChartData.length"
-              :x-formatter="formatCount"
-              :y-formatter="callerLabelFormatter"
-              :tooltip-title-formatter="labelTooltipTitle"
-              v-bind="horizontalBarProps(120)"
-            />
-            <template #fallback>
-              <USkeleton :style="{ height: `${callerChartHeight}px` }" class="w-full" />
-            </template>
-          </ClientOnly>
+          <ChartsBarChart
+            v-else
+            :data="callerChartData"
+            :height="callerChartHeight"
+            :categories="callerCategories"
+            :y-axis="['calls']"
+            :y-num-ticks="callerChartData.length"
+            :x-formatter="formatCount"
+            :y-formatter="callerLabelFormatter"
+            :tooltip-title-formatter="labelTooltipTitle"
+            v-bind="horizontalBarProps(120)"
+          />
         </UCard>
 
         <UCard>
@@ -591,7 +601,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
           </template>
           <template #avgLatencyMs-cell="{ row }">
             <div class="text-right tabular-nums text-muted">
-              {{ formatDuration(row.original.avgLatencyMs) }}
+              {{ formatElapsed(row.original.avgLatencyMs) }}
             </div>
           </template>
           <template #methodLimit-cell="{ row }">

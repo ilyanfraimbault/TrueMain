@@ -3,9 +3,10 @@ import type { ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import { parseRouteParam } from '~/utils/route-params'
+import { groupMatchesByDay } from '~/utils/match-history'
 import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 
-// Player-scoped mirror of pages/champions/[id].vue. The static-data fetches,
+// Player-scoped mirror of pages/champions/[slug].vue. The static-data fetches,
 // loading bar and build tabs are intentionally identical so the page looks
 // exactly like the global champion page; the ONLY difference is that
 // useChampion is given the route's nameTag, which swaps the data source to
@@ -79,19 +80,15 @@ const {
   patchOptions,
   selectedPatch,
   selectedPosition,
-} = useChampionDetailStatics(championId, champion, filters, { preferFilterPatch: true })
+} = useChampionDetailStatics(championId, champion, filters, {
+  preferFilterPatch: true,
+  championSettled: () => !isLoadingStatus(championStatus.value),
+})
 
-// Meta-only fetch: see the identical comment on pages/champions/[id].vue —
-// `displayName` is sourced from client-only statics, so it's always null
-// during SSR. Hits the same 1h-cached endpoint, so it's a cache hit. Only
-// awaited server-side, same reasoning as the global champion page.
-const seoStaticFetch = useFetch(
-  () => `/api/static/${championId.value}`,
-  { key: () => `champion-seo-name-${championId.value}-${selectedPatch.value || 'none'}`, query: { patch: selectedPatch.value || undefined } },
-)
-if (import.meta.server) await seoStaticFetch
-const { data: seoStatic } = seoStaticFetch
-const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
+// SSR-safe champion name for `<head>` — same composable, same cache key as the
+// global champion page, so the two pages share the entry. See
+// useChampionSeoName for why `displayName` can't serve `<head>`.
+const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 
 // Truemains > {player} > {champion}, mirroring the schema.org breadcrumb below.
 // The champion crumb uses the SSR-safe `seoDisplayName` (client-only
@@ -171,12 +168,15 @@ function setMatchPosition(next: ChampionPosition | null) {
   matchesPage.value = 1
 }
 
+// Same dated day-runs as the profile history.
+const matchDays = computed(() => groupMatchesByDay(matches.value))
+
 const staticBundleReady = computed(() =>
   Boolean(staticList.value && itemsMap.value && summonersMap.value && runeTree.value),
 )
 
 // Frozen prop bundle for the lazy (hydrate-on-visible) matchups sidebar — see
-// useLazyHydrationSnapshot / the identical pattern on pages/champions/[id].vue
+// useLazyHydrationSnapshot / the identical pattern on pages/champions/[slug].vue
 // for why: `staticList` is client-only (`server: false`), so freezing it
 // until the child actually mounts avoids a hydration mismatch (#834/#837).
 const matchupsSnapshot = useLazyHydrationSnapshot(
@@ -196,11 +196,13 @@ const divergenceSnapshot = useLazyHydrationSnapshot(
     playerName: nameTag.value,
     itemsMap: {} as Record<number, StaticItemData>,
     championStatic: null as ChampionStaticData | null,
+    championStaticPending: true,
   },
   () => ({
     playerName: playerName.value,
     itemsMap: itemsMap.value ?? {},
     championStatic: staticData.value ?? null,
+    championStaticPending: isLoadingStatus(staticStatus.value),
   }),
 )
 
@@ -261,89 +263,100 @@ const performanceSnapshot = useLazyHydrationSnapshot(
       source that has the raw matches even when the build aggregate doesn't).
     -->
     <template v-else>
-      <div
-        v-if="notEnoughData && !isRefetching"
-        class="flex flex-col items-center gap-3 surface rounded-lg px-6 py-8 text-center"
+      <!-- Hidden in the degraded (no-build) state: with no aggregate there is
+           no slice for the pickers to switch between, and the notice below
+           carries the champion's icon and name itself. -->
+      <header
+        v-if="!notEnoughData"
+        class="flex flex-wrap items-center gap-4"
       >
-        <SkeletonImage
-          v-if="displayIconUrl"
-          :src="displayIconUrl"
-          :alt="displayName ?? ''"
-          width="64"
-          height="64"
-          class="size-16 rounded opacity-80"
+        <!-- `seoDisplayName` (SSR-resolved) rather than the client-only
+             `displayName`, and skeletons instead of zeroes until the
+             player's aggregate lands — same as the global champion page. -->
+        <ChampionHeader
+          :champion-name="seoDisplayName"
+          :champion-icon-url="displayIconUrl"
+          :champion-id="championId"
+          :position="champion?.position || selectedPosition || ''"
+          :total-games="champion?.totalGames ?? 0"
+          :total-wins="champion?.totalWins ?? 0"
+          :low-sample-message="lowSampleMessage"
+          :loading="!champion"
         />
-        <div class="space-y-1">
-          <p class="text-sm font-medium text-default">
-            No personal build breakdown yet
-          </p>
-          <p class="text-sm text-muted">
-            We don't have an aggregated build for {{ playerLabel }} on
-            {{ displayName ?? 'this champion' }} yet. Their recent games are below.
-          </p>
-        </div>
-        <NuxtLink
-          :to="pathFor(championId)"
-          class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          See the global build for {{ displayName ?? `champion ${championId}` }}
-        </NuxtLink>
-      </div>
+        <ChampionFilters
+          :selected-patch="selectedPatch"
+          :selected-position="selectedPosition"
+          :patch-options="patchOptions"
+          @update:patch="value => setFilter({ patch: value })"
+          @update:position="value => setFilter({ position: value })"
+        />
+      </header>
 
       <!--
-        Build region renders whenever we're not settled into the no-build state,
-        independently of the client-only `champion`/`staticData` resolving — the
-        same pattern (and rationale) as the global champion page. The header and
-        the two-column grid reserve their space from SSR: the header falls back
-        to the URL filters, and the build tabs show a dedicated skeleton until
-        real champion + static data land. This keeps the recent-games section
-        below from being shoved down when the client fetch completes (#834 — the
-        section used to jump ~1700px, wrecking CLS, because the whole grid was
-        gated on `champion && staticData` and so was absent from the SSR HTML).
-      -->
-      <template v-if="!notEnoughData">
-        <header class="flex flex-wrap items-center gap-4">
-          <!-- `seoDisplayName` (SSR-resolved) rather than the client-only
-               `displayName`, and skeletons instead of zeroes until the
-               player's aggregate lands — same as the global champion page. -->
-          <ChampionHeader
-            :champion-name="seoDisplayName"
-            :champion-icon-url="displayIconUrl"
-            :champion-id="championId"
-            :position="champion?.position || selectedPosition || ''"
-            :total-games="champion?.totalGames ?? 0"
-            :total-wins="champion?.totalWins ?? 0"
-            :low-sample-message="lowSampleMessage"
-            :loading="!champion"
-          />
-          <ChampionFilters
-            :selected-patch="selectedPatch"
-            :selected-position="selectedPosition"
-            :patch-options="patchOptions"
-            @update:patch="value => setFilter({ patch: value })"
-            @update:position="value => setFilter({ position: value })"
-          />
-        </header>
+        Same two-column layout as the global champion page (#703): the build
+        breakdown in the main column, matchups and the performance card in a
+        right sidebar from the xl breakpoint. No truemains panel here — the page
+        is already scoped to one player. Below xl the sidebar stacks under the
+        main column.
 
-        <!--
-          Same two-column layout as the global champion page (#703): the build
-          breakdown in the main column, matchups in a right sidebar from the xl
-          breakpoint. No truemains panel here — the page is already scoped to one
-          player. Below xl the sidebar stacks under the main column. The recent
-          games list sits below, full-width, so it renders in the degraded
-          (no-build) state too.
-        -->
-        <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-          <div class="min-w-0 space-y-6">
+        The grid is unconditional, and the recent-games list lives *inside* the
+        main column rather than full-width below the grid: match rows are the
+        same kind of content as the build breakdown and read badly stretched to
+        the full 96rem, and keeping one column width means the degraded
+        (no-build) state below doesn't reflow the page. It also reserves its
+        space from SSR — the header falls back to the URL filters and the build
+        tabs show a dedicated skeleton until real champion + static data land —
+        so the recent-games section is never shoved down when the client fetch
+        completes (#834: it used to jump ~1700px, wrecking CLS, because the
+        whole grid was gated on `champion && staticData`).
+      -->
+      <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+        <div class="min-w-0 space-y-6">
+          <div
+            v-if="notEnoughData"
+            class="flex flex-col items-center gap-3 surface rounded-lg px-6 py-8 text-center"
+          >
+            <SkeletonImage
+              v-if="displayIconUrl"
+              :src="displayIconUrl"
+              :alt="displayName ?? ''"
+              width="64"
+              height="64"
+              class="size-16 rounded opacity-80"
+            />
+            <div class="space-y-1">
+              <p class="text-sm font-medium text-default">
+                No personal build breakdown yet
+              </p>
+              <p class="text-sm text-muted">
+                We don't have an aggregated build for {{ playerLabel }} on
+                {{ displayName ?? 'this champion' }} yet. Their recent games are below.
+              </p>
+            </div>
+            <NuxtLink
+              :to="pathFor(championId)"
+              class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              See the global build for {{ displayName ?? `champion ${championId}` }}
+            </NuxtLink>
+          </div>
+
+          <template v-else>
             <ChampionBuildTabs
               v-if="champion && staticData"
               :builds="champion.builds"
               :champion-static="staticData"
               :items-map="itemsMap ?? {}"
               :summoners-map="summonersMap ?? {}"
+              :summoners-pending="isLoadingStatus(summonersStatus)"
               :rune-tree="runeTree ?? null"
             />
-            <ChampionBuildTabsSkeleton v-else />
+            <!-- These tabs carry no population scope, so the real card has no
+                 power-spikes section for the skeleton to reserve. -->
+            <ChampionBuildTabsSkeleton
+              v-else
+              :powerspikes="false"
+            />
 
             <!-- "<player> vs mains" (#529): the same aggregates the tabs above are
                  built from, read a second time across every *other* main on
@@ -360,110 +373,115 @@ const performanceSnapshot = useLazyHydrationSnapshot(
               v-bind="divergenceSnapshot.value"
               @vue:mounted="divergenceSnapshot.reveal"
             />
-          </div>
+          </template>
 
-          <aside class="min-w-0 space-y-6">
-            <!-- Performance score (#918): the aggregate of the per-match score
-                 over this player's recent games on the champion. Lives in the
-                 sidebar next to matchups. Lazy + hydrate-on-visible with the
-                 client-only display names frozen until it mounts (#834/#837). -->
-            <LazyChampionPlayerPerformance
-              hydrate-on-visible
-              :name-tag="nameTag"
-              :champion-id="championId"
-              :patch="selectedPatch"
-              :position="selectedPosition"
-              v-bind="performanceSnapshot.value"
-              @vue:mounted="performanceSnapshot.reveal"
-            />
+          <!-- This player's recent games on this champion — rendered even when the
+               build breakdown above is absent (the degraded state), so clicking a
+               main always surfaces their actual games. The champion is fixed; the
+               lane filter is its own RolePicker, independent of the build's position
+               filter. -->
+          <section class="flex min-w-0 flex-col gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
+                Recent {{ displayName ?? '' }} games
+              </h2>
+              <RolePicker
+                :position="matchPosition"
+                @update:position="setMatchPosition"
+              />
+            </div>
 
-            <!-- Below-the-fold sidebar: lazy-load so its JS lands in its own
-                 chunk and only hydrates once scrolled into view (#820).
-                 `:champions` comes from `matchupsSnapshot` (frozen at its
-                 SSR-matching empty value until `@vue:mounted` reveals the
-                 live, already-loaded `staticList`) so the deferred hydration
-                 doesn't mismatch (#834/#837) — same pattern as the global
-                 champion page. -->
             <!--
-              Deliberately cross-patch, unlike the global panel and unlike the
-              build sections above it: this slice is one player's own games, where
-              a patch filter would leave nearly every opponent under the 3-game
-              per-player floor and empty the panel. The global panel needs the
-              patch for the opposite reason — its aggregate outlives the matches
-              it was folded from, so unscoped it spans *more* history than the page.
+              Same ordering as the profile page: the empty / not-found state needs no
+              static data, so it must not sit behind staticBundleReady — a failing
+              static fetch would pin the skeletons forever.
             -->
-            <LazyChampionMatchups
-              hydrate-on-visible
-              :champion-id="championId"
-              :position="selectedPosition"
-              :name-tag="nameTag"
-              v-bind="matchupsSnapshot.value"
-              @vue:mounted="matchupsSnapshot.reveal"
-            />
-          </aside>
+            <template v-if="matchesInitialLoading">
+              <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
+            </template>
+            <template v-else-if="matchesNotFound || matches.length === 0">
+              <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="matchPosition !== null" />
+            </template>
+            <template v-else-if="!staticBundleReady">
+              <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
+            </template>
+            <template v-else>
+              <!-- Same day grouping as the profile history, so the two lists read
+                   identically. -->
+              <template v-for="day in matchDays" :key="day.key">
+                <MatchDayHeading v-if="day.label" :label="day.label" />
+                <LazyMatchRow
+                  v-for="match in day.matches"
+                  :key="match.matchId"
+                  hydrate-on-visible
+                  :match="match"
+                  :champions="staticList ?? []"
+                  :items="itemsMap ?? {}"
+                  :summoner-spells="summonersMap ?? {}"
+                  :rune-tree="runeTree!"
+                  :name-tag="nameTag"
+                />
+              </template>
+              <div
+                v-if="matchesTotal > matchesPageSize"
+                class="flex justify-center pt-2"
+              >
+                <UPagination
+                  :page="matchesPage"
+                  :total="matchesTotal"
+                  :items-per-page="matchesPageSize"
+                  :sibling-count="1"
+                  color="neutral"
+                  variant="ghost"
+                  active-color="primary"
+                  active-variant="soft"
+                  @update:page="setMatchesPage"
+                />
+              </div>
+            </template>
+          </section>
         </div>
-      </template>
 
-      <!-- This player's recent games on this champion — rendered even when the
-           build breakdown above is absent (the degraded state), so clicking a
-           main always surfaces their actual games. The champion is fixed; the
-           lane filter is its own RolePicker, independent of the build's position
-           filter. -->
-      <section class="flex min-w-0 flex-col gap-3">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-            Recent {{ displayName ?? '' }} games
-          </h2>
-          <RolePicker
-            :position="matchPosition"
-            @update:position="setMatchPosition"
-          />
-        </div>
-
-        <!--
-          Same ordering as the profile page: the empty / not-found state needs no
-          static data, so it must not sit behind staticBundleReady — a failing
-          static fetch would pin the skeletons forever.
-        -->
-        <template v-if="matchesInitialLoading">
-          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
-        </template>
-        <template v-else-if="matchesNotFound || matches.length === 0">
-          <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="matchPosition !== null" />
-        </template>
-        <template v-else-if="!staticBundleReady">
-          <MatchRowSkeleton v-for="i in 5" :key="`match-skel-${i}`" />
-        </template>
-        <template v-else>
-          <LazyMatchRow
-            v-for="match in matches"
-            :key="match.matchId"
+        <aside class="min-w-0 space-y-6">
+          <!-- Performance score (#918): the aggregate of the per-match score
+               over this player's recent games on the champion. Lives in the
+               sidebar next to matchups. Lazy + hydrate-on-visible with the
+               client-only display names frozen until it mounts (#834/#837). -->
+          <LazyChampionPlayerPerformance
             hydrate-on-visible
-            :match="match"
-            :champions="staticList ?? []"
-            :items="itemsMap ?? {}"
-            :summoner-spells="summonersMap ?? {}"
-            :rune-tree="runeTree!"
             :name-tag="nameTag"
+            :champion-id="championId"
+            :patch="selectedPatch"
+            :position="selectedPosition"
+            v-bind="performanceSnapshot.value"
+            @vue:mounted="performanceSnapshot.reveal"
           />
-          <div
-            v-if="matchesTotal > matchesPageSize"
-            class="flex justify-center pt-2"
-          >
-            <UPagination
-              :page="matchesPage"
-              :total="matchesTotal"
-              :items-per-page="matchesPageSize"
-              :sibling-count="1"
-              color="neutral"
-              variant="ghost"
-              active-color="primary"
-              active-variant="soft"
-              @update:page="setMatchesPage"
-            />
-          </div>
-        </template>
-      </section>
+
+          <!-- Below-the-fold sidebar: lazy-load so its JS lands in its own
+               chunk and only hydrates once scrolled into view (#820).
+               `:champions` comes from `matchupsSnapshot` (frozen at its
+               SSR-matching empty value until `@vue:mounted` reveals the
+               live, already-loaded `staticList`) so the deferred hydration
+               doesn't mismatch (#834/#837) — same pattern as the global
+               champion page. -->
+          <!--
+            Deliberately cross-patch, unlike the global panel and unlike the
+            build sections above it: this slice is one player's own games, where
+            a patch filter would leave nearly every opponent under the 3-game
+            per-player floor and empty the panel. The global panel needs the
+            patch for the opposite reason — its aggregate outlives the matches
+            it was folded from, so unscoped it spans *more* history than the page.
+          -->
+          <LazyChampionMatchups
+            hydrate-on-visible
+            :champion-id="championId"
+            :position="selectedPosition"
+            :name-tag="nameTag"
+            v-bind="matchupsSnapshot.value"
+            @vue:mounted="matchupsSnapshot.reveal"
+          />
+        </aside>
+      </div>
     </template>
   </main>
 </template>

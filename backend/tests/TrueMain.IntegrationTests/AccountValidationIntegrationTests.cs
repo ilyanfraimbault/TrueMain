@@ -92,6 +92,39 @@ public sealed class AccountValidationIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task ReleaseUningestableAsync_ShouldStampTheIngestTimestamp_UnlikeARevert()
+    {
+        // #1223: a claim released because the account cannot be ingested at all must not
+        // behave like a revert. Claims are ordered never-ingested-first then
+        // oldest-ingested-first, so leaving LastMatchIngestAtUtc null — which is exactly
+        // what a revert does, on purpose, to retry a transient failure at once — hands
+        // this permanently unusable row the head of every subsequent batch.
+        await _fixture.ResetDatabaseAsync();
+        var accountKey = new Data.Repositories.AccountKey("XX9", "puuid-uningestable");
+
+        await SeedProcessingStateAsync(accountKey);
+
+        var service = new AccountValidationService(
+            _fixture.CreateSessionFactory(),
+            TimeProvider.System,
+            NullLogger<AccountValidationService>.Instance);
+
+        await service.ReleaseUningestableAsync(accountKey, CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var account = verifyDb.RiotAccounts.Single(a => a.PlatformId == accountKey.PlatformId && a.Puuid == accountKey.Puuid);
+        var candidate = verifyDb.MainCandidates.Single(c => c.PlatformId == accountKey.PlatformId && c.Puuid == accountKey.Puuid);
+
+        account.LastMatchIngestAtUtc.Should().NotBeNull("the row has to move to the back of the claim ordering");
+        account.MatchIngestStatus.Should().Be(MatchIngestStatus.Idle);
+        account.MatchIngestClaimedAtUtc.Should().BeNull();
+
+        // The candidate itself is not settled by this — the account was never addressed.
+        candidate.Status.Should().Be(MainCandidateStatus.Queued);
+        candidate.ValidatedAtUtc.Should().BeNull();
+    }
+
     private async Task SeedProcessingStateAsync(Data.Repositories.AccountKey accountKey)
     {
         await using var db = _fixture.CreateDbContext();

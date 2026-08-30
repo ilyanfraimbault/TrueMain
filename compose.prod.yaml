@@ -52,7 +52,7 @@ services:
       - truemain_internal
 
   mongo:
-    image: mongo:8.0.24
+    image: mongo:8.2.12
     container_name: truemain-mongo
     restart: unless-stopped
     environment:
@@ -71,6 +71,11 @@ services:
 
   api:
     image: ghcr.io/ilyanfraimbault/truemain-api:${IMAGE_TAG:-latest}
+    # The CI deploy passes an immutable IMAGE_TAG, so a pull is implied there;
+    # this is for the manual fallback in docs/prod.md, which has no IMAGE_TAG
+    # and falls back to the moving `:latest` — already present locally, hence
+    # silently reused unless we force the pull (#765).
+    pull_policy: always
     container_name: truemain-api
     restart: unless-stopped
     environment:
@@ -105,12 +110,18 @@ services:
 
   web:
     image: ghcr.io/ilyanfraimbault/truemain-web:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: truemain-web
     restart: unless-stopped
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
+      # Build stamp shown small in the footer. APP_VERSION is appended to the
+      # env by the deploy job (the published release tag); empty on a manual
+      # redeploy, which just hides the label.
+      NUXT_PUBLIC_APP_ENV: production
+      NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
       NUXT_PUBLIC_UMAMI_HOST: https://analytics.truemain.lol
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
@@ -121,6 +132,7 @@ services:
 
   admin:
     image: ghcr.io/ilyanfraimbault/truemain-admin:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: truemain-admin
     restart: unless-stopped
     environment:
@@ -181,7 +193,7 @@ services:
       - truemain_internal
 
   umami:
-    image: umamisoftware/umami:3.2.0
+    image: umamisoftware/umami:3.3.1
     container_name: truemain-umami
     restart: unless-stopped
     environment:
@@ -218,6 +230,7 @@ services:
 
   ingestor:
     image: ghcr.io/ilyanfraimbault/truemain-ingestor:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: truemain-ingestor
     restart: unless-stopped
     environment:

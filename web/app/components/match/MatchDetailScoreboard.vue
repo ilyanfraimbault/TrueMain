@@ -7,6 +7,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatCount } from '~~/shared/utils/counts'
 import { formatTier } from '~/utils/tiers'
 
 const props = defineProps<{
@@ -205,7 +206,7 @@ function ordinal(placement: number) {
 
         <!-- Damage bar -->
         <div class="hidden w-[5rem] shrink-0 flex-col gap-0.5 sm:flex">
-          <span class="text-[10px] tabular-nums text-muted">{{ p.totalDamageDealtToChampions.toLocaleString() }}</span>
+          <span class="text-[10px] tabular-nums text-muted">{{ formatCount(p.totalDamageDealtToChampions) }}</span>
           <div class="h-1.5 w-full overflow-hidden rounded-full bg-default/40">
             <div
               class="h-full rounded-full"

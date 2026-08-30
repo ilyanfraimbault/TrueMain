@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import type { ChampionResponse } from '../../shared/types/champions'
+import type { ChampionResponse } from '~~/shared/types/champions'
 import type {
   ChampionStaticData,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '../../shared/types/static-data'
-import type { BuildSummaryEntityToken, BuildSummarySentence } from '../../shared/types/champion-build-summary'
+} from '~~/shared/types/static-data'
+import type { BuildSummaryEntityToken, BuildSummarySentence } from '~~/shared/types/champion-build-summary'
 import {
   buildSummarySentenceText,
   championBuildSentences,
   championBuildSentenceTokens,
   lanePhrase,
   resolveChampionBuildSummary,
-} from '../../shared/utils/champion-build-summary'
+} from '~~/shared/utils/champion-build-summary'
 
 /**
  * The server-rendered build summary (#1123) is the only build content in the

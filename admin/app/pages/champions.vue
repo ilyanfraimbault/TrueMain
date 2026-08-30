@@ -234,25 +234,18 @@ const mainsLabelFormatter = computed(() =>
           >
             No champion games for these filters.
           </div>
-          <ClientOnly v-else>
-            <NcBarChart
-              :data="topByGames"
-              :height="topByGamesChartHeight"
-              :categories="gamesCategories"
-              :y-axis="['games']"
-              :y-num-ticks="topByGames.length"
-              :x-formatter="formatCount"
-              :y-formatter="gamesLabelFormatter"
-              :tooltip-title-formatter="labelTooltipTitle"
-              v-bind="horizontalBarProps(120)"
-            />
-            <template #fallback>
-              <USkeleton
-                class="w-full"
-                :style="{ height: `${topByGamesChartHeight}px` }"
-              />
-            </template>
-          </ClientOnly>
+          <ChartsBarChart
+            v-else
+            :data="topByGames"
+            :height="topByGamesChartHeight"
+            :categories="gamesCategories"
+            :y-axis="['games']"
+            :y-num-ticks="topByGames.length"
+            :x-formatter="formatCount"
+            :y-formatter="gamesLabelFormatter"
+            :tooltip-title-formatter="labelTooltipTitle"
+            v-bind="horizontalBarProps(120)"
+          />
         </UCard>
 
         <UCard :ui="{ root: 'overflow-visible' }">
@@ -276,25 +269,18 @@ const mainsLabelFormatter = computed(() =>
           >
             No mains for these filters.
           </div>
-          <ClientOnly v-else>
-            <NcBarChart
-              :data="topByMains"
-              :height="topByMainsChartHeight"
-              :categories="mainsCategories"
-              :y-axis="['mains']"
-              :y-num-ticks="topByMains.length"
-              :x-formatter="formatCount"
-              :y-formatter="mainsLabelFormatter"
-              :tooltip-title-formatter="labelTooltipTitle"
-              v-bind="horizontalBarProps(120)"
-            />
-            <template #fallback>
-              <USkeleton
-                class="w-full"
-                :style="{ height: `${topByMainsChartHeight}px` }"
-              />
-            </template>
-          </ClientOnly>
+          <ChartsBarChart
+            v-else
+            :data="topByMains"
+            :height="topByMainsChartHeight"
+            :categories="mainsCategories"
+            :y-axis="['mains']"
+            :y-num-ticks="topByMains.length"
+            :x-formatter="formatCount"
+            :y-formatter="mainsLabelFormatter"
+            :tooltip-title-formatter="labelTooltipTitle"
+            v-bind="horizontalBarProps(120)"
+          />
         </UCard>
       </div>
 
@@ -327,7 +313,7 @@ const mainsLabelFormatter = computed(() =>
                     variant="link"
                     size="sm"
                     aria-label="Clear search"
-                    @click="search = ''"
+                    @click="void (search = '')"
                   />
                 </template>
               </UInput>

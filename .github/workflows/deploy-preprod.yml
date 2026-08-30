@@ -1,5 +1,6 @@
-# Triggered on every push to develop: builds and publishes the :preprod
-# images, then redeploys the preprod VPS (deploy-preprod job).
+# Triggered on every push to develop: resolves this build's prerelease version,
+# builds and publishes the :preprod images, then redeploys the preprod VPS
+# (deploy-preprod job) and finally tags the commit (tag-preprod job).
 name: Deploy Preprod
 
 on:
@@ -12,81 +13,61 @@ permissions:
   contents: read
   packages: write
 
-env:
-  IMAGE_API: ghcr.io/${{ github.repository_owner }}/truemain-api
-  IMAGE_INGESTOR: ghcr.io/${{ github.repository_owner }}/truemain-ingestor
-  IMAGE_WEB: ghcr.io/${{ github.repository_owner }}/truemain-web
-  IMAGE_ADMIN: ghcr.io/${{ github.repository_owner }}/truemain-admin
+# Workflow-level, not just on the deploy job: the rc counter is derived from the
+# tags already on the remote, so two runs resolving a version at the same time
+# would both land on the same number. Serialising the whole pipeline is what
+# makes the sequence gapless. `cancel-in-progress: false` keeps the running
+# deploy alive; GitHub still collapses the queue to the newest pending run, so a
+# burst of merges deploys the last commit — and only deployed commits get a tag,
+# which is the property we want.
+concurrency:
+  group: preprod-pipeline
+  cancel-in-progress: false
 
 jobs:
-  publish-preprod:
-    name: Build & Publish Preprod Images
+  version:
+    name: Resolve Preprod Version
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # Full history + tags: the version is derived from the tags already
+          # published, so a shallow clone would restart the counter every run.
+          fetch-depth: 0
 
-      - name: Build and push API image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./backend
-          file: backend/Api/Dockerfile
-          push: true
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
-          # Immutable per-commit tag alongside the moving :preprod pointer, so
-          # the deploy references an image name that actually changes each merge
-          # (mutable-tag redeploys never recreate the containers — see #765).
-          tags: |
-            ${{ env.IMAGE_API }}:preprod
-            ${{ env.IMAGE_API }}:${{ github.sha }}
+      # The rules live in .github/scripts/resolve-preprod-version.sh, which CI
+      # tests directly (.github/scripts/resolve-preprod-version.test.sh) — an
+      # inline block here could only be checked by re-implementing it, and a
+      # test that re-implements the thing it tests drifts silently.
+      - name: Resolve the prerelease version
+        id: resolve
+        env:
+          PREPROD_VERSION_BASE: ${{ vars.PREPROD_VERSION_BASE }}
+        run: |
+          set -euo pipefail
+          version="$(.github/scripts/resolve-preprod-version.sh)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Preprod version: ${version}" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Build and push Ingestor image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./backend
-          file: backend/Ingestor/Dockerfile
-          push: true
-          cache-from: type=gha,scope=ingestor
-          cache-to: type=gha,mode=max,scope=ingestor
-          tags: |
-            ${{ env.IMAGE_INGESTOR }}:preprod
-            ${{ env.IMAGE_INGESTOR }}:${{ github.sha }}
-
-      - name: Build and push Web image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./web
-          file: web/Dockerfile
-          push: true
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
-          tags: |
-            ${{ env.IMAGE_WEB }}:preprod
-            ${{ env.IMAGE_WEB }}:${{ github.sha }}
-
-      - name: Build and push Admin image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./admin
-          file: admin/Dockerfile
-          push: true
-          cache-from: type=gha,scope=admin
-          cache-to: type=gha,mode=max,scope=admin
-          tags: |
-            ${{ env.IMAGE_ADMIN }}:preprod
-            ${{ env.IMAGE_ADMIN }}:${{ github.sha }}
+  publish-preprod:
+    name: Build & Publish Preprod Images
+    needs: version
+    uses: ./.github/workflows/build-images.yml
+    with:
+      # Immutable per-commit tag alongside the moving :preprod pointer, so the
+      # deploy references an image name that actually changes each merge
+      # (mutable-tag redeploys never recreate the containers — see #765).
+      # The prerelease tag is the human-readable alias for that same image:
+      # `-rc.` and `.` are both legal in a Docker reference, `+` would not be,
+      # which is why the version is a prerelease and not build metadata.
+      tags: |
+        preprod
+        ${{ github.sha }}
+        ${{ needs.version.outputs.version }}
 
   migrate-preprod:
     name: Apply Preprod Migrations
@@ -161,7 +142,7 @@ jobs:
   deploy-preprod:
     name: Deploy Preprod VPS
     runs-on: ubuntu-24.04
-    needs: [publish-preprod, migrate-preprod]
+    needs: [version, publish-preprod, migrate-preprod]
     # No-op until the Hostinger credentials are configured: set the
     # HOSTINGER_PREPROD_VM_ID repository variable plus the HOSTINGER_API_KEY
     # and PREPROD_ENV_FILE secrets (see docs/preprod.md). success() must be
@@ -189,6 +170,46 @@ jobs:
           # each service image to an absent :<sha>, so Docker Manager pulls it
           # and recreates the containers instead of reusing the cached :preprod
           # image (#765). It defaults to :preprod in the file for manual runs.
+          #
+          # APP_VERSION rides the same channel into NUXT_PUBLIC_APP_VERSION, so
+          # the footer states which build is serving the page. It stays a
+          # deploy-time value rather than a build arg: the image is then
+          # promotable as-is, and a version that changes every merge never
+          # invalidates a Docker layer.
           environment-variables: |
             ${{ secrets.PREPROD_ENV_FILE }}
             IMAGE_TAG=${{ github.sha }}
+            APP_VERSION=${{ needs.version.outputs.version }}
+
+  tag-preprod:
+    name: Tag Preprod Release
+    runs-on: ubuntu-24.04
+    needs: [version, deploy-preprod]
+    # Scoped here rather than workflow-wide: this is the only job that writes to
+    # the repo, so the token every other job runs with stays read-only.
+    permissions:
+      contents: write
+    # Only after the VPS actually took the deploy. The whole point of the tag is
+    # that `1.20.0-rc.4` means "this ran on preprod" — tagging at build time
+    # would leave tags for commits that never got there, which is exactly the
+    # ambiguity this replaces.
+    if: success()
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Push the prerelease tag
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "::notice::${VERSION} already exists — re-run of an already-tagged deploy, nothing to do."
+            exit 0
+          fi
+          git tag "${VERSION}" "${GITHUB_SHA}"
+          git push origin "${VERSION}"
+          echo "Tagged ${GITHUB_SHA} as ${VERSION}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,10 +1,12 @@
 /**
  * Tailwind text colours for the three champion rates, on the `--color-data-*`
  * axis (rose gold above average → neutral below it) the palette reserves for
- * measurements
- * — never the rose-gold accent, which means "interactive" (see the #1060
- * decision). Class strings are written out in full so Tailwind's static scan
- * generates them; a computed `text-data-${tone}` would be invisible to it.
+ * measurements — always through those tokens, never a raw `text-rosegold-*`.
+ * The two share a hex today (#1096 made `--color-data-good` `rosegold-400`),
+ * and the token is what keeps a future re-tint of the brand ramp from silently
+ * re-tinting every measurement with it. Class strings are written out in full
+ * so Tailwind's static scan generates them; a computed `text-data-${tone}`
+ * would be invisible to it.
  *
  * Only the win rate rides the good↔bad axis. Pick and ban rate are *presence*,
  * not performance: a niche champion is not "bad" at being picked, so those two

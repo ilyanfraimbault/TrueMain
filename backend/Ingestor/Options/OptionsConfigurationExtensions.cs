@@ -67,10 +67,6 @@ public static class OptionsConfigurationExtensions
                 "CommunityDragon:TotalRequestTimeoutSeconds must be >= CommunityDragon:MaxRetryAttempts + 1, so every attempt gets at least one second.")
             .ValidateOnStart();
 
-        services.AddOptions<SeedOptions>()
-            .Bind(configuration.GetSection(SeedOptions.SectionName))
-            .ValidateOnStart();
-
         services.AddOptions<DiscoveryOptions>()
             .Bind(configuration.GetSection(DiscoveryOptions.SectionName))
             .PostConfigure(options => options.Platforms = platformScope.Resolve(options.Platforms))
@@ -102,6 +98,7 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.TopNPerPlatform > 0, "Scoring:TopNPerPlatform must be greater than 0.")
             .Validate(options => options.TopChampionsPerAccount > 0, "Scoring:TopChampionsPerAccount must be greater than 0.")
             .Validate(options => options.BatchSize > 0, "Scoring:BatchSize must be greater than 0.")
+            .Validate(options => options.MaxCandidatesPerRun >= 0, "Scoring:MaxCandidatesPerRun must be >= 0.")
             .Validate(options => options.RecencyWeight >= 0, "Scoring:RecencyWeight must be >= 0.")
             .Validate(options => options.RankWeight >= 0, "Scoring:RankWeight must be >= 0.")
             .Validate(options => options.PointsWeight >= 0, "Scoring:PointsWeight must be >= 0.")
@@ -114,6 +111,8 @@ public static class OptionsConfigurationExtensions
                 "Scoring:ScarcityWeight must not exceed recency + rank + points, so scarcity cannot outweigh the combined merit signal.")
             .Validate(options => options.HarvestObservedGamesLogNormalizer > 0,
                 "Scoring:HarvestObservedGamesLogNormalizer must be greater than 0.")
+            .Validate(options => options.ChampionPointsLogNormalizer > 0,
+                "Scoring:ChampionPointsLogNormalizer must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<HarvestOptions>()

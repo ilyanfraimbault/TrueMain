@@ -18,7 +18,11 @@ import type {
   PatchFoldCoverage,
   PatchVerdict,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
+// The green/amber/red/unknown dressing is `detector-status.ts`'s, extracted in #1031 —
+// including the literal neutral for `unknown`, whose reason is documented there. Only
+// the words differ on this page, so only the words are local.
+import { detectorStatusMeta } from '~~/shared/utils/detector-status'
+import { formatDateTime, formatNumber, formatPercent, formatTimeAgo } from '~~/shared/utils/format'
 
 const { data, pending, error, refresh } = usePatchCoverage()
 const { nameFor, iconFor } = useChampionStatic()
@@ -28,18 +32,19 @@ const current = computed<PatchCoverageRow | null>(
   () => patches.value.find(patch => patch.isCurrent) ?? null,
 )
 
-// Same visual language as the data-quality detectors: one dot, one colour, one
-// word. `unknown` stays neutral — it says "not measured", and dressing it as
-// either a pass or an alarm would be the dashboard lying.
-const STATUS_META: Record<DetectorStatus, { dot: string, text: string, label: string }> = {
-  green: { dot: 'bg-success', text: 'text-success', label: 'Servable' },
-  amber: { dot: 'bg-warning', text: 'text-warning', label: 'Needs attention' },
-  red: { dot: 'bg-error', text: 'text-error', label: 'Not servable' },
-  unknown: { dot: 'bg-neutral-400 dark:bg-neutral-500', text: 'text-dimmed', label: 'Not measured' },
+// The dot, the text colour and the badge colour are the shared detector vocabulary:
+// `detectorStatusMeta`. Only the *word* is this page's own — a patch is "Servable" or
+// "Not servable" where a detector is "Passing" or "Failing", and that is the whole of
+// the legitimate difference.
+const PATCH_STATUS_LABEL: Record<DetectorStatus, string> = {
+  green: 'Servable',
+  amber: 'Needs attention',
+  red: 'Not servable',
+  unknown: 'Not measured',
 }
 
-function statusMeta(status: DetectorStatus) {
-  return STATUS_META[status] ?? STATUS_META.unknown
+function statusLabel(status: DetectorStatus): string {
+  return PATCH_STATUS_LABEL[status] ?? PATCH_STATUS_LABEL.unknown
 }
 
 // The verdict word an operator reads on the badge. Kept apart from the colour on
@@ -52,22 +57,11 @@ const VERDICT_LABEL: Record<PatchVerdict, string> = {
   unknown: 'No reading',
 }
 
-const BADGE_COLOR: Record<DetectorStatus, 'success' | 'error' | 'warning' | 'neutral'> = {
-  green: 'success',
-  red: 'error',
-  amber: 'warning',
-  unknown: 'neutral',
-}
-
-function badgeColor(status: DetectorStatus) {
-  return BADGE_COLOR[status] ?? 'neutral'
-}
-
 // Coverage as a share of the lines that exist at all. Empty rather than "0%" when
 // there are no lines: "0% of nothing" reads as a measured failure, and there was
 // nothing to measure.
 function coverageShare(patch: PatchCoverageRow): string {
-  return patch.lines > 0 ? `(${Math.round((patch.linesPastFloor / patch.lines) * 100)}%)` : ''
+  return patch.lines > 0 ? `(${formatPercent(patch.linesPastFloor / patch.lines, 0)})` : ''
 }
 
 /**
@@ -132,7 +126,7 @@ function dayScale(patch: PatchCoverageRow): number {
           <div class="flex items-start gap-3">
             <span
               class="mt-1.5 size-2.5 shrink-0 rounded-full"
-              :class="statusMeta(data.status).dot"
+              :class="detectorStatusMeta(data.status).dot"
             />
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -142,7 +136,7 @@ function dayScale(patch: PatchCoverageRow): number {
                 <UBadge
                   size="sm"
                   variant="subtle"
-                  :color="badgeColor(data.status)"
+                  :color="detectorStatusMeta(data.status).color"
                   :label="VERDICT_LABEL[data.verdict]"
                 />
               </div>
@@ -170,7 +164,7 @@ function dayScale(patch: PatchCoverageRow): number {
             </p>
             <p
               class="mt-1 text-2xl font-semibold tabular-nums"
-              :class="statusMeta(current.status).text"
+              :class="detectorStatusMeta(current.status).text"
             >
               {{ formatNumber(current.linesPastFloor) }}
             </p>
@@ -221,7 +215,7 @@ function dayScale(patch: PatchCoverageRow): number {
                 <div class="flex items-start gap-3 min-w-0">
                   <span
                     class="mt-1.5 size-2 shrink-0 rounded-full"
-                    :class="statusMeta(patch.status).dot"
+                    :class="detectorStatusMeta(patch.status).dot"
                   />
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-baseline gap-2">
@@ -235,7 +229,7 @@ function dayScale(patch: PatchCoverageRow): number {
                         variant="subtle"
                         label="served"
                       />
-                      <span class="sr-only">— {{ statusMeta(patch.status).label }}</span>
+                      <span class="sr-only">— {{ statusLabel(patch.status) }}</span>
                     </div>
                     <p class="mt-0.5 text-xs text-muted">
                       {{ patch.headline }}
@@ -244,7 +238,7 @@ function dayScale(patch: PatchCoverageRow): number {
                 </div>
                 <UBadge
                   variant="subtle"
-                  :color="badgeColor(patch.status)"
+                  :color="detectorStatusMeta(patch.status).color"
                   :label="VERDICT_LABEL[patch.verdict]"
                 />
               </div>
@@ -332,7 +326,7 @@ function dayScale(patch: PatchCoverageRow): number {
                   <span class="flex items-center gap-2">
                     <span
                       class="size-1.5 shrink-0 rounded-full"
-                      :class="statusMeta(fold.status).dot"
+                      :class="detectorStatusMeta(fold.status).dot"
                     />
                     <span class="text-xs font-medium text-highlighted">{{ fold.label }}</span>
                   </span>

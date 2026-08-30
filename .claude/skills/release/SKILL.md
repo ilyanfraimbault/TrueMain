@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut a release to production — open the develop→master PR, resolve the recurring false conflicts, merge as a merge commit (never squash, never delete develop), tag, and list the prod deploy steps. Use whenever the user says "release", "déploie en prod", "passe en prod", "PR vers master", or asks to ship develop to production.
+description: Cut a release to production — open the develop→master PR, resolve the recurring false conflicts, merge as a merge commit (never squash, never delete develop), tag, then publish the GitHub Release that deploys prod and follow the run. Use whenever the user says "release", "déploie en prod", "passe en prod", "PR vers master", or asks to ship develop to production.
 ---
 
 # Release (develop → master)
@@ -10,7 +10,16 @@ This is the **only** PR allowed to target master, and the **only** merge where t
 ## Version
 
 Versions are bare tags like `1.6.3` (no `v` prefix). Read the latest with
-`git tag --sort=-v:refname | head -1`.
+
+```
+git tag --list --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1
+```
+
+**The filter is not optional.** Preprod stamps every deploy with a prerelease tag
+(`1.20.0-rc.4`, see `deploy-preprod.yml`), and git's version sort ranks those **above** the
+release they precede — `1.20.0-rc.4` sorts higher than `1.20.0`. An unfiltered `head -1`
+therefore reads a preprod build as the last release and bumps from it, skipping a version
+every time.
 
 **The user's word decides the bump, and their vocabulary is not semver's.** Take it literally —
 do not re-derive the bump from what the diff contains when they have named one:
@@ -51,6 +60,11 @@ Past squash-merges make develop→master PRs report conflicts on files that are 
 
 ## After the merge
 
-1. Tag the master merge commit: `git fetch origin master && git tag <version> origin/master && git push origin <version>`. If GitHub releases are in use (`gh release list`), also `gh release create <version> --generate-notes`.
-2. If master gained anything develop doesn't have (the merge commit), resync: merge master back into develop.
-3. **Deploy checklist** — prod runs an unversioned compose copy on the VPS; merging changes nothing by itself. Call out which services need redeploy (api / web / admin / ingestor — the ingestor only picks up pipeline changes on restart), and any one-off ops (migrations that need watching, collections to drop, config drift from the repo compose files).
+1. Tag the master merge commit: `git fetch origin master && git tag <version> origin/master && git push origin <version>`.
+2. **Publish the GitHub Release — this, and nothing else, deploys production**: `gh release create <version> --generate-notes`. `deploy-prod.yml` is `on: release: types: [published]`; the pushed tag alone builds and deploys nothing, and the merge to master changes nothing on the VPS either. This step is not optional.
+3. **Follow the run** (`gh run list --workflow "Deploy Prod"`, then `gh run watch <id>`). Three jobs, in order:
+   - `publish` builds and pushes the `:<version>` and `:latest` images for api / ingestor / web / admin from the released commit.
+   - `migrate-prod` generates an idempotent EF script and pipes it into the prod Postgres over SSH. It fails closed: no `PROD_SSH_HOST`/`PROD_SSH_KEY`, or a failing script, and the deploy never runs.
+   - `deploy-prod` redeploys the `truemain` Docker Manager project against `compose.prod.yaml` at the released commit, with `IMAGE_TAG`/`APP_VERSION=<version>`. All four services roll together — there is no service-by-service redeploy to do by hand. The job is skipped when `HOSTINGER_PROD_VM_ID` is unset and warns-and-skips when `PROD_ENV_FILE` is empty (it would wipe the VPS `.env`), so check it actually redeployed instead of trusting a green run.
+4. If master gained anything develop doesn't have (the merge commit), resync: merge master back into develop.
+5. Report what the automation does **not** cover: one-off ops (collections to drop, config drift), and a new compose variable needing `PROD_ENV_FILE` updated first — the action overwrites the VPS `.env` on every run. Confirm the version shipped by checking the prod footer, which is stamped from `APP_VERSION`.

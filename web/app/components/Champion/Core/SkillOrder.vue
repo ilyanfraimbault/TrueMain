@@ -5,6 +5,13 @@ import type { ChampionStaticData } from '~~/shared/types/static-data'
 const props = defineProps<{
   skillOrder: BuildSkillOrder | null
   championStatic: ChampionStaticData
+  /**
+   * True while the champion's spell icons cannot be resolved yet — forwarded to
+   * `SkeletonImage`'s own `pending` so each slot keeps its loading box instead
+   * of dropping to the Q/W/E letter fallback, which is the *settled* "no icon"
+   * state and reads as a broken image mid-load.
+   */
+  pending?: boolean
 }>()
 
 function spellByKey(key: string) {
@@ -35,6 +42,7 @@ function spellByKey(key: string) {
             <GameTooltipChampionSpellIcon
               :spell="spellByKey(key)"
               :fallback-label="key"
+              :pending="pending"
               :width="36"
               :height="36"
               class="size-9 rounded"

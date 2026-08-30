@@ -25,16 +25,44 @@ import { resolveChampionBuildSummary } from '~~/shared/utils/champion-build-summ
  * same reason: a purpose-built, cached read model that resolves its own slice
  * rather than being handed one by a page that doesn't have it.
  *
- * **Cost.** The whole fan-out sits behind a 1 h `defineCachedFunction` keyed on
- * the slice, so a champion page view costs a backend round-trip once per hour
- * per (champion, position, patch, rank) — not once per view. That is what makes
- * the trade-off in `decisions.md` affordable; without the cache this would be a
- * backend hit on every page view, which is precisely what #926 declined to pay.
+ * **Cost.** The whole fan-out sits behind a `defineCachedFunction` keyed on the
+ * slice, so a champion page view costs a backend round-trip once per
+ * `SUMMARY_CACHE_SECONDS` per (champion, position, patch, rank) — not once per
+ * view. That is what makes the trade-off in `decisions.md` affordable; without
+ * the cache this would be a backend hit on every page view, which is precisely
+ * what #926 declined to pay.
  *
  * Every upstream degrades on its own: no backend means no numbers, no DDragon
  * means no names, and the block simply renders less. None substitutes for
  * another, and nothing is invented — see `resolveChampionBuildSummary`.
  */
+
+/**
+ * How long a resolved summary may be served for (#1273).
+ *
+ * Was an hour, which put this paragraph in open contradiction with the page
+ * around it: every panel on `/champions/{slug}` fetches client-side and live,
+ * so the prose printed the slice as it stood up to an hour ago under a header
+ * and a patch picker showing the current one — "Across 7 ranked games on patch
+ * 16.17" under a header reading 24 games, or "on patch 16.16" under a picker
+ * reading 16.17. Same endpoint, same field, two different ages.
+ *
+ * A patch roll is the case the key cannot rescue on its own: an unfiltered
+ * request keys on an *empty* patch while its answer depends on the patch the
+ * backend resolves, so the entry has no way to notice that the backend has
+ * moved on. Learning the resolved patch before the call would cost the very
+ * round-trip the cache exists to avoid, so the honest fix is to make the window
+ * short enough that no one reads a dead patch number for long — this paragraph
+ * is the only build content in the server-rendered HTML (#1123), so a stale
+ * patch is also what a crawler indexes.
+ *
+ * Five minutes still collapses the page-view burst the cache was added for
+ * (#926's objection was a backend hit *per view*, not per five minutes), and it
+ * tracks the ingestor closely enough that the "below the sample TrueMain
+ * requires" caveat stops flickering on and off early in a patch, when a sample
+ * can triple inside the old window.
+ */
+const SUMMARY_CACHE_SECONDS = 5 * 60
 
 // Shape guards, not semantic validation: an unknown lane or a nonsense bracket
 // fails to match a slice and degrades the block. Their real job is bounding the
@@ -125,7 +153,7 @@ const loadChampionBuildSummary = defineCachedFunction(
     })
   },
   {
-    maxAge: 60 * 60,
+    maxAge: SUMMARY_CACHE_SECONDS,
     name: 'champion-build-summary',
     getKey: (championId: number, query: SummaryQuery) => [
       championId,

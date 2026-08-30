@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { formatElapsed } from '~~/shared/utils/format'
 import {
   championDataLagLabel,
   formatGapMagnitude,
   ingestionToAnalysisLabel,
   processStatusColor,
+  processStatusIcon,
 } from '~~/shared/utils/pipeline-health'
 
 // The cockpit's job (#1031) is to never make an unmeasured or a healthy signal look like
@@ -19,8 +21,25 @@ describe('formatGapMagnitude', () => {
     [90, '1h 30m'],
     [1440, '1d'],
     [1500, '1d 1h'],
+    [4320, '3d'],
   ])('sizes %i minutes as %s', (minutes, expected) => {
     expect(formatGapMagnitude(minutes)).toBe(expected)
+  })
+
+  it.each([1, 59, 60, 90, 1440, 1500, 4320])(
+    'sizes %i minutes exactly as the shared duration ladder does',
+    (minutes) => {
+      // The tiers are `formatElapsed`'s, not this function's. A private ladder here is
+      // how a three-day span came to read `3d` on /health and `72h` on /processes.
+      expect(formatGapMagnitude(minutes)).toBe(formatElapsed(minutes * 60_000))
+    },
+  )
+
+  it('sizes a gap that rounds to nothing in minutes, the unit it was measured in', () => {
+    // Not `0ms`: the backend hands this page whole minutes, so the shared ladder's
+    // sub-second tiers would claim a precision the reading does not have.
+    expect(formatGapMagnitude(0)).toBe('0m')
+    expect(formatGapMagnitude(0.4)).toBe('0m')
   })
 
   it('reports the magnitude regardless of sign, because the caller words the direction', () => {
@@ -86,5 +105,34 @@ describe('processStatusColor', () => {
 
   it('falls back to neutral for a status the backend adds later', () => {
     expect(processStatusColor('SomethingNew')).toBe('neutral')
+  })
+
+  it('paints Running as info, never as the emerald primary', () => {
+    // /processes used to paint it `primary` from its own private table, so the same
+    // in-flight run was emerald there and blue on /health. Emerald is this portal's
+    // "this succeeded" colour, and a run still going has not succeeded yet.
+    expect(processStatusColor('Running')).toBe('info')
+    expect(processStatusColor('Running')).not.toBe('primary')
+  })
+})
+
+describe('processStatusIcon', () => {
+  it('gives Skipped and Missing different icons despite the shared neutral colour', () => {
+    // One ran and declined, the other never started. The colour cannot carry that
+    // difference, so the icon has to.
+    expect(processStatusIcon('Skipped')).not.toBe(processStatusIcon('Missing'))
+  })
+
+  it.each([
+    ['Success', 'i-lucide-circle-check'],
+    ['Failed', 'i-lucide-circle-x'],
+    ['Running', 'i-lucide-loader-circle'],
+    ['Abandoned', 'i-lucide-circle-slash'],
+  ])('marks %s with %s', (status, expected) => {
+    expect(processStatusIcon(status)).toBe(expected)
+  })
+
+  it('falls back to the Missing icon for a status the backend adds later', () => {
+    expect(processStatusIcon('SomethingNew')).toBe(processStatusIcon('Missing'))
   })
 })

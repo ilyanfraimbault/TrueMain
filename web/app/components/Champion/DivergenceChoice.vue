@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { BuildChoice } from '~~/shared/types/divergence'
 import type { ChampionStaticData, StaticItemData } from '~~/shared/types/static-data'
+import { itemSlots } from '~~/shared/utils/build'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = defineProps<{
@@ -11,17 +12,23 @@ const props = defineProps<{
   shareSuffix: string
   itemsMap: Record<number, StaticItemData>
   championStatic: ChampionStaticData | null
+  /**
+   * True while `championStatic` is still loading. This card renders as soon as
+   * the divergence fetch resolves, which is independent of the champion-static
+   * one, so the skill columns would otherwise spend that window showing their
+   * 'Q'/'W' letter box — see `SkeletonImage`'s `pending`.
+   */
+  championStaticPending?: boolean
   /** Chevrons between the icons — for ordered choices (item path, skill order). */
   ordered?: boolean
   /** Emphasise this column (the mains' pick, when the player diverges from it). */
   highlight?: boolean
 }>()
 
-const items = computed<StaticItemData[]>(() =>
-  props.choice.itemIds
-    .map(id => props.itemsMap[id])
-    .filter((item): item is StaticItemData => Boolean(item)),
-)
+// Slots, not resolved items — see `itemSlots`. Filtering here let the column's
+// own "No data" state fire while the item map was still loading, on a choice
+// that carried ids all along.
+const items = computed(() => itemSlots(props.choice.itemIds, props.itemsMap))
 
 const skills = computed(() => props.choice.skills)
 
@@ -44,11 +51,11 @@ function spellByKey(key: string) {
          of the two is ever populated (see the BuildChoice contract). -->
     <div class="flex h-9 flex-wrap items-center gap-1">
       <template
-        v-for="(item, index) in items"
-        :key="`item-${item.id}-${index}`"
+        v-for="(slot, index) in items"
+        :key="`item-${slot.id}-${index}`"
       >
         <GameTooltipItemIcon
-          :item="item"
+          :item="slot.item"
           :width="36"
           :height="36"
           class="size-9 shrink-0 rounded"
@@ -68,6 +75,7 @@ function spellByKey(key: string) {
           <GameTooltipChampionSpellIcon
             :spell="spellByKey(key)"
             :fallback-label="key"
+            :pending="championStaticPending"
             :width="36"
             :height="36"
             class="size-9 rounded"

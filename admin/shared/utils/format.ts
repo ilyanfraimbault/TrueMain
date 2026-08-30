@@ -63,21 +63,68 @@ export function formatDateTime(iso: string | null | undefined): string {
 }
 
 /**
- * Humanize a duration in milliseconds (e.g. 1500 -> "1.5s", 90000 -> "1m 30s").
- * Sub-second durations render in ms; longer ones in s / m / h.
+ * Format an ISO date as a short day label (e.g. "Jun 9"), for chart axes where
+ * the year is implied by the surrounding window. Locale is pinned to `en-US`:
+ * the admin copy is English, and an implicit browser locale would reshape the
+ * axis per operator. `null`/invalid renders as an em dash.
  */
-export function formatDuration(ms: number | null | undefined): string {
+export function formatDayLabel(iso: string | null | undefined): string {
+  if (!iso) {
+    return '—'
+  }
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return '—'
+  }
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/**
+ * Format an ISO date as a full, year-qualified date (e.g. "Jun 9, 2026"), for
+ * standalone dates that are not read against a chart's own window. Same pinned
+ * `en-US` locale as {@link formatDayLabel}.
+ */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) {
+    return '—'
+  }
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return '—'
+  }
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+/**
+ * Humanize a duration in milliseconds (e.g. 1500 -> "1.5s", 90000 -> "1m 30s",
+ * 259_200_000 -> "3d"). Sub-second durations render in ms; longer ones climb the
+ * s / m / h / d ladder.
+ *
+ * Named `formatElapsed` rather than `formatDuration` because the web app exports a
+ * `formatDuration` of its own meaning something else entirely — a `mm:ss` game clock.
+ * One name with two contracts across two apps in one repo is a copy-paste away from a
+ * wrong display that no type error catches.
+ *
+ * This is the portal's single duration ladder: `formatGapMagnitude` in
+ * `pipeline-health.ts` delegates here, so a three-day span cannot read `72h` on one
+ * page and `3d` on another.
+ */
+export function formatElapsed(ms: number | null | undefined): string {
   if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) {
     return '—'
   }
   if (ms < 1000) {
     return `${Math.round(ms)}ms`
   }
-  const totalSeconds = Math.floor(ms / 1000)
-  if (totalSeconds < 60) {
+  // Round to the precision each tier actually prints *before* choosing the tier.
+  // Picking the branch on the raw value while printing a rounded one is how
+  // 59_999 ms used to render "60.0s" — a duration the next tier calls "1m".
+  const tenthsOfSecond = Math.round(ms / 100)
+  if (tenthsOfSecond < 600) {
     // One decimal of sub-second precision for short runs.
-    return `${(ms / 1000).toFixed(1)}s`
+    return `${(tenthsOfSecond / 10).toFixed(1)}s`
   }
+  const totalSeconds = Math.round(ms / 1000)
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   if (minutes < 60) {
@@ -85,7 +132,37 @@ export function formatDuration(ms: number | null | undefined): string {
   }
   const hours = Math.floor(minutes / 60)
   const remMinutes = minutes % 60
-  return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`
+  if (hours < 24) {
+    return remMinutes ? `${hours}h ${remMinutes}m` : `${hours}h`
+  }
+  // Days matter: an operator reading "72h" has to do the division before knowing
+  // whether something has been stuck for an afternoon or for three days.
+  const days = Math.floor(hours / 24)
+  const remHours = hours % 24
+  return remHours ? `${days}d ${remHours}h` : `${days}d`
+}
+
+/**
+ * Format a 0-1 ratio as a percentage (0.1234 -> "12.3%").
+ *
+ * Takes the ratio rather than the already-scaled number because that is the shape
+ * every rate on the wire has. Use it only for a value that really was measured —
+ * `formatPercentOrDash` is the one that knows what to do when it wasn't.
+ */
+export function formatPercent(value: number, digits = 1): string {
+  return `${(value * 100).toFixed(digits)}%`
+}
+
+/**
+ * Percentage of a ratio the backend may not know, rendered as an em dash when it is
+ * absent. "Not observed" and "observed at 0%" are different answers, and a fabricated
+ * `0%` reads as the second one — the dashboard claiming a measurement it never made.
+ * Non-finite input takes the same path: `NaN%` is not a reading either.
+ */
+export function formatPercentOrDash(value: number | null | undefined, digits = 1): string {
+  return value === null || value === undefined || !Number.isFinite(value)
+    ? '—'
+    : formatPercent(value, digits)
 }
 
 /**

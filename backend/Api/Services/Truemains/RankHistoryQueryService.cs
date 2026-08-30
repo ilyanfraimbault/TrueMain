@@ -4,7 +4,9 @@ using TrueMain.ReadModels.Truemains;
 
 namespace TrueMain.Services.Truemains;
 
-public sealed class RankHistoryQueryService(TrueMainDbContext db) : IRankHistoryQueryService
+public sealed class RankHistoryQueryService(
+    TrueMainDbContext db,
+    TruemainAccountResolver resolver) : IRankHistoryQueryService
 {
     // Hard ceiling on the requested window. A snapshot is a single row
     // (~30 bytes), so even two years of dense ranked play comfortably
@@ -15,18 +17,7 @@ public sealed class RankHistoryQueryService(TrueMainDbContext db) : IRankHistory
 
     public async Task<RankHistoryReadModel?> GetAsync(string nameTag, int days, CancellationToken ct)
     {
-        if (!NameTagParser.TryParse(nameTag, out var parsed))
-        {
-            return null;
-        }
-
-        var account = await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new { a.Id })
-            .FirstOrDefaultAsync(ct);
-
+        var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;

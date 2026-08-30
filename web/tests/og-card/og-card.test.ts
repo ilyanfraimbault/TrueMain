@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { ChampionSummaryResponse } from '../../shared/types/champions'
-import type { ProfileMainChampion } from '../../shared/types/profile'
+import type { ChampionSummaryResponse } from '~~/shared/types/champions'
+import type { ProfileMainChampion } from '~~/shared/types/profile'
 import {
   parseOgChampionId,
   selectChampionSummaryRow,
   selectSignatureMain,
-} from '../../shared/utils/og-card'
+} from '~~/shared/utils/og-card'
 
 /**
  * The share cards (#926) are rendered server-side, away from the page, and read

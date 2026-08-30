@@ -100,6 +100,17 @@ public sealed class MainActivityProcess(
 
             if (!PlatformId.TryParse(account.PlatformId, out var platformId))
             {
+                // Stamped, unlike the mastery failure below. That one is transient and is
+                // deliberately left at the head of the selection to be retried; this one
+                // is permanent — no future run makes an unparseable platform_id parse —
+                // and the selection is ordered by this very column, so not stamping it
+                // parks the row at the head of every batch forever, consuming the slot of
+                // an account that could actually be checked (#1223).
+                if (accountEntitiesByKey.TryGetValue(account, out var unusableAccount))
+                {
+                    unusableAccount.LastActivityCheckAtUtc = nowUtc;
+                }
+
                 logger.LogWarning(
                     "Skipping activity check for {Puuid}: invalid platform {PlatformId}.",
                     account.Puuid,

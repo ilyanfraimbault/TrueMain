@@ -110,11 +110,13 @@ const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
         <!-- Search is SSR'd as a plain field, but its command-palette JS
              (UModal + UCommandPalette + the truemains search composable) is
              heavy and never needed for the first paint. Delay its hydration to
-             browser-idle so that chunk stays off the critical path. Safe from a
-             mismatch: on the homepage the trigger renders no client-only data
-             (no champion filter here), so the SSR markup and the eventual
-             client render are identical. ⌘K is owned by the always-mounted
-             header instance, so deferring this one doesn't affect the shortcut. -->
+             browser-idle so that chunk stays off the critical path. The
+             trigger renders no client-only data here (no champion filter on the
+             homepage), so the SSR markup and the eventual client render are
+             identical — the one part that could not be, the platform-dependent
+             ⌘/Ctrl hint, is `<ClientOnly>` inside the component. ⌘K is owned by
+             the always-mounted header instance, so deferring this one doesn't
+             affect the shortcut. -->
         <LazyAppSearch
           variant="field"
           size="lg"

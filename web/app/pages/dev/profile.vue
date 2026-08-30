@@ -11,6 +11,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
+import { groupMatchesByDay } from '~/utils/match-history'
 
 definePageMeta({ layout: 'default' })
 
@@ -69,10 +70,13 @@ const mockProfile: ProfileResponse = {
     winRate: 0.6,
   },
   mains: [
-    { championId: 157, games: 80, playRate: 0.4, primaryPosition: 'MIDDLE', isOtp: false },
-    { championId: 103, games: 60, playRate: 0.3, primaryPosition: 'MIDDLE', isOtp: false },
-    { championId: 99, games: 30, playRate: 0.15, primaryPosition: 'MIDDLE', isOtp: false },
-    { championId: 222, games: 20, playRate: 0.1, primaryPosition: 'BOTTOM', isOtp: false },
+    { championId: 157, games: 80, playRate: 0.4, primaryPosition: 'MIDDLE', isOtp: false, isSampleRetired: false, measuredAtUtc: '2026-08-24T10:00:00Z' },
+    { championId: 103, games: 60, playRate: 0.3, primaryPosition: 'MIDDLE', isOtp: false, isSampleRetired: false, measuredAtUtc: '2026-08-24T10:00:00Z' },
+    { championId: 99, games: 30, playRate: 0.15, primaryPosition: 'MIDDLE', isOtp: false, isSampleRetired: false, measuredAtUtc: '2026-08-24T10:00:00Z' },
+    // Deliberately retired (#1216) so the playground exercises the dated
+    // qualifier and its warning tooltip, which are otherwise only reachable on a
+    // player whose matches have aged out of retention.
+    { championId: 222, games: 20, playRate: 0.1, primaryPosition: 'BOTTOM', isOtp: false, isSampleRetired: true, measuredAtUtc: '2026-07-02T10:00:00Z' },
   ],
   // Dedication on the top main (Yasuo). Values mirror what
   // backend/Core/Truemains/DedicationScore.cs would produce for these inputs.
@@ -338,6 +342,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
     participants: makeMockParticipants(),
   },
 ])
+const mockMatchDays = computed(() => groupMatchesByDay(mockMatches.value))
 </script>
 
 <template>
@@ -371,15 +376,21 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
         Recent matches
       </h2>
       <template v-if="staticBundleReady">
-        <MatchRow
-          v-for="match in mockMatches"
-          :key="match.matchId"
-          :match="match"
-          :champions="champions"
-          :items="items"
-          :summoner-spells="summonerSpells"
-          :rune-tree="runeTree"
-        />
+        <!-- Grouped by day exactly like the real history, so the harness shows
+             the day headings too (the two fixtures are 8h and 30h old, which
+             straddles a day boundary most of the time). -->
+        <template v-for="day in mockMatchDays" :key="day.key">
+          <MatchDayHeading v-if="day.label" :label="day.label" />
+          <MatchRow
+            v-for="match in day.matches"
+            :key="match.matchId"
+            :match="match"
+            :champions="champions"
+            :items="items"
+            :summoner-spells="summonerSpells"
+            :rune-tree="runeTree"
+          />
+        </template>
       </template>
       <template v-else>
         <MatchRowSkeleton v-for="i in 2" :key="i" />

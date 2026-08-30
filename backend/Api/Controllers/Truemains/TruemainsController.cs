@@ -118,16 +118,10 @@ public sealed class TruemainsController(
         CancellationToken ct = default)
     {
         // A blank/absent position means "all positions"; only a non-blank
-        // value that fails to canonicalise is a client error (mirrors
-        // ChampionsController.TryNormalizeOptionalPosition).
-        string? normalizedPosition = null;
-        if (!string.IsNullOrWhiteSpace(position))
+        // value that fails to canonicalise is a client error.
+        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
         {
-            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-            if (normalizedPosition is null)
-            {
-                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
-            }
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -166,14 +160,9 @@ public sealed class TruemainsController(
         // A blank/absent position means "the player's dominant lane"; only a
         // non-blank value that fails to canonicalise is a client error — same
         // rule as the player-scoped build endpoint above.
-        string? normalizedPosition = null;
-        if (!string.IsNullOrWhiteSpace(position))
+        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
         {
-            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-            if (normalizedPosition is null)
-            {
-                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
-            }
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -191,8 +180,9 @@ public sealed class TruemainsController(
     /// <summary>
     /// Player-scoped lane matchups: the same <see cref="ChampionMatchupsResponse"/>
     /// contract as <c>GET /champions/{championId}/matchups</c>, but every line is
-    /// computed only from this player's games on the champion. 400 for an
-    /// unrecognised position; 404 when the account is unknown. A known player
+    /// computed only from this player's games on the champion. <paramref name="position"/>
+    /// is required — a lane matchup is only meaningful within a lane — so a missing
+    /// or unrecognised one is a 400; 404 when the account is unknown. A known player
     /// with no opponent above the per-player floor (see
     /// <c>ChampionsListOptions.MinPlayerMatchupGames</c>) gets a 200 with an empty
     /// list; <paramref name="opponent"/> narrows to a single head-to-head at a
@@ -210,10 +200,11 @@ public sealed class TruemainsController(
         [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
-        var normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-        if (normalizedPosition is null)
+        // Position is required here, unlike the sibling player-scoped endpoints:
+        // a lane matchup is only meaningful within a lane.
+        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
         {
-            return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -256,14 +247,9 @@ public sealed class TruemainsController(
         // A blank/absent position means "all lanes"; only a non-blank value that
         // fails to canonicalise is a client error — same rule as the sibling
         // player-scoped endpoints above.
-        string? normalizedPosition = null;
-        if (!string.IsNullOrWhiteSpace(position))
+        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
         {
-            normalizedPosition = ChampionQueryParameterNormalizer.NormalizePosition(position);
-            if (normalizedPosition is null)
-            {
-                return ValidationProblem(ChampionQueryParameterNormalizer.InvalidPositionMessage);
-            }
+            return problem;
         }
 
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);

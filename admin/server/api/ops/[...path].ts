@@ -9,6 +9,8 @@ import { createError, defineEventHandler, proxyRequest } from 'h3'
  * Path handling mirrors `web/server/api/[...path].ts`: the configured base URL
  * is validated up front and the incoming path is rejected if it could escape
  * the backend (`..` traversal, protocol-relative `//host`, or an absolute URL).
+ * Both apps share the same guard implementation, copied file-for-file — see
+ * `server/utils/proxy-path.ts`.
  */
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
@@ -26,16 +28,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'opsApiBaseUrl must be http(s)' })
   }
 
-  // Reject paths that could escape the configured backend:
-  //   `..` segments  → could walk above `base.pathname`
-  //   `//host/…`     → protocol-relative, points at a different host
-  //   `scheme://…`   → absolute URL, same problem
+  // Reject paths that could escape the configured backend. `isUnsafeProxyPath`
+  // (server/utils/proxy-path.ts) spells out what "escape" covers and why the raw
+  // path alone is not enough to judge it.
   const path = event.path.replace(/^\/api\/ops/, '')
-  const isUnsafe
-    = /(^|\/)\.\.(\/|$)/.test(path)
-      || /^\/\//.test(path)
-      || /^\/?[a-z][a-z0-9+.-]*:\/\//i.test(path)
-  if (isUnsafe) {
+  if (isUnsafeProxyPath(path)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid request path' })
   }
 

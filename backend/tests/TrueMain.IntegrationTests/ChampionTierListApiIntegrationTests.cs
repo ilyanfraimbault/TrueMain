@@ -101,13 +101,12 @@ public sealed class ChampionTierListApiIntegrationTests
     [Fact]
     public async Task GetTierList_TierMatchesTheDirectoryForEveryRow()
     {
-        // #971: both endpoints now tier one lane at a time with the same
-        // ChampionTierOptions, so a row's Tier should be identical whether
-        // read from GET /champions or GET /champions/tierlist — the internal
-        // score the two compute is documented as matching too
-        // (ChampionSummaryReadModel.TierScore), but ChampionTierEntryReadModel
-        // doesn't serialize that score, so only Tier is checkable through the
-        // public contract here.
+        // #971 / #1240: the tier is computed once, by ChampionSummariesQueryService,
+        // and GET /champions/tierlist only regroups the rows it already stamped.
+        // A row's Tier must therefore be identical on both endpoints. The blended
+        // score is not serialized on ChampionTierEntryReadModel, so it is checked
+        // indirectly below: the tier list's within-group order has to be the
+        // directory rows sorted by TierScore desc, then ChampionId.
         await _fixture.ResetDatabaseAsync();
         await SeedManyChampionsAsync();
 
@@ -139,6 +138,65 @@ public sealed class ChampionTierListApiIntegrationTests
             tierByEntry[(row.ChampionId, row.Position)].Should().Be(row.Tier,
                 $"champion {row.ChampionId}/{row.Position} must tier the same on both endpoints");
         }
+
+        // Ordering inside a group is the directory's TierScore, strongest first,
+        // ChampionId breaking exact ties. Reproducing it from the directory rows
+        // is what pins the score itself, which the entry model doesn't expose.
+        var scoreByRow = directory.ToDictionary(row => (row.ChampionId, row.Position));
+        foreach (var group in tierList.Tiers)
+        {
+            var expected = group.Entries
+                .Select(entry => scoreByRow[(entry.ChampionId, entry.Position)])
+                .OrderByDescending(row => row.TierScore)
+                .ThenBy(row => row.ChampionId)
+                .Select(row => (row.ChampionId, row.Position))
+                .ToList();
+
+            group.Entries.Select(entry => (entry.ChampionId, entry.Position)).Should().Equal(expected,
+                $"tier {group.Tier} is ordered by the directory's own TierScore");
+        }
+    }
+
+    [Fact]
+    public async Task GetTierList_KeepsTheSameTierWhenScopedToOnePosition()
+    {
+        // The position filter drops whole lanes, never rows inside a kept lane,
+        // and the tier is lane-relative — so scoping to MIDDLE cannot move a
+        // MIDDLE row to another tier. This is the invariant that let #1240
+        // delete the tier list's own re-tiering pass.
+        await _fixture.ResetDatabaseAsync();
+        await SeedManyChampionsAsync();
+
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var allResponse = await client.GetAsync("/champions/tierlist");
+        allResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var all = await allResponse.Content.ReadFromJsonAsync<ChampionTierListReadModel>();
+        all.Should().NotBeNull();
+
+        var middleResponse = await client.GetAsync("/champions/tierlist?position=MIDDLE");
+        middleResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var middle = await middleResponse.Content.ReadFromJsonAsync<ChampionTierListReadModel>();
+        middle.Should().NotBeNull();
+
+        var unscopedMiddleTiers = all!.Tiers
+            .SelectMany(group => group.Entries
+                .Where(entry => entry.Position == "MIDDLE")
+                .Select(entry => (entry.ChampionId, group.Tier)))
+            .OrderBy(pair => pair.ChampionId)
+            .ToList();
+
+        var scopedMiddleTiers = middle!.Tiers
+            .SelectMany(group => group.Entries.Select(entry => (entry.ChampionId, group.Tier)))
+            .OrderBy(pair => pair.ChampionId)
+            .ToList();
+
+        scopedMiddleTiers.Should().Equal(unscopedMiddleTiers,
+            "a lane's tiers are the same whether or not the list is scoped to it");
     }
 
     [Fact]

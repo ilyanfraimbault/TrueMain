@@ -28,6 +28,26 @@ public class MainChampionStat
     /// </summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// True when the last analysis cycle found <b>no</b> match participants for
+    /// this account at all, so the numbers on this row describe a sample that no
+    /// longer exists (#1216). That happens on its own: raw matches age out of
+    /// <c>MatchDataRetention</c> — two patches in prod — and an account nobody
+    /// re-ingested drops to zero participants.
+    ///
+    /// Distinct from <see cref="IsActive"/>, which asks whether the *player*
+    /// still plays the champion (Riot mastery <c>lastPlayTime</c>). A row can
+    /// easily be active and retired at once: they still main it, we just no
+    /// longer hold the games.
+    ///
+    /// The row is deliberately kept rather than deleted — dropping it would take
+    /// the player off the leaderboard the moment their matches expire — but
+    /// readers must present its figures as historical, dated by
+    /// <see cref="CalculatedAtUtc"/>, not as current. Self-clearing: the next
+    /// cycle that sees real games writes false.
+    /// </summary>
+    public bool IsSampleRetired { get; set; }
+
     public bool IsOtp { get; set; }
 
     /// <summary>

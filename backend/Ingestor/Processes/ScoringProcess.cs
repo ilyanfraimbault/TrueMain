@@ -14,13 +14,6 @@ public sealed class ScoringProcess(
     TimeProvider timeProvider,
     IOptions<ScoringOptions> scoringOptions) : IIngestorProcess
 {
-    /// <summary>
-    /// Normalization factor for champion points logarithmic score.
-    /// Based on Log10 of champion points, normalized so that approximately 1 million points equals a score of 1.0.
-    /// Since Log10(1,000,000) ≈ 6, we divide by 6 to normalize the score to the [0, 1] range.
-    /// </summary>
-    private const double ChampionPointsLogNormalizer = 6.0;
-
     // Weights used by the defensive fallback in ComputeScore when the configured ones sum to
     // <= 0. They mirror the ScoringOptions defaults, except scarcity which stays 0 so the
     // fallback ranks on merit alone. Startup validation makes that fallback unreachable in
@@ -57,11 +50,20 @@ public sealed class ScoringProcess(
         CancellationToken ct)
     {
         var batchSize = Math.Max(1, scoring.BatchSize);
+        var maxPerRun = Math.Max(0, scoring.MaxCandidatesPerRun);
         var result = new ScoringResult();
 
-        while (true)
+        // Capped per run like the aggregation folds (0 = drain everything, the shipped
+        // default): harvest inserts thousands of candidates per run and resets refreshed
+        // Scored candidates back to New, so an uncapped drain can spend a whole ingestor
+        // tick scoring a backlog that is refilled on the next cycle anyway. What is left
+        // is picked up by the next run.
+        while (maxPerRun == 0 || result.TotalScored < maxPerRun)
         {
-            var scoredCandidates = await ScoreCandidatesBatchAsync(session, scoring, coverage, nowUtc, batchSize, ct);
+            ct.ThrowIfCancellationRequested();
+
+            var take = maxPerRun == 0 ? batchSize : Math.Min(batchSize, maxPerRun - result.TotalScored);
+            var scoredCandidates = await ScoreCandidatesBatchAsync(session, scoring, coverage, nowUtc, take, ct);
             if (scoredCandidates.Count == 0)
             {
                 return result;
@@ -76,6 +78,8 @@ public sealed class ScoringProcess(
                     : 1;
             }
         }
+
+        return result;
     }
 
     private static async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
@@ -233,7 +237,11 @@ public sealed class ScoringProcess(
         var rankScore = (topN + 1 - candidate.ChampionRankInMasteryTop) / (double)topN;
         rankScore = Clamp(rankScore, 0, 1);
 
-        var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / ChampionPointsLogNormalizer, 0, 1);
+        // Defensive only, exactly like the harvest normalizer above: startup validation
+        // guarantees Scoring:ChampionPointsLogNormalizer > 0, so the 6.0 fallback is
+        // unreachable in production and only guards a test that bypasses the validator.
+        var pointsNormalizer = scoring.ChampionPointsLogNormalizer <= 0 ? 6.0 : scoring.ChampionPointsLogNormalizer;
+        var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / pointsNormalizer, 0, 1);
 
         return ComputeWeightedScore(
             recencyWeight, recencyScore,

@@ -34,6 +34,7 @@ public sealed class ManualSeedProcess(
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
     IAuditLog auditLog,
+    TimeProvider timeProvider,
     IOptions<ManualSeedOptions> manualSeedOptions) : IIngestorProcess
 {
     private const int MaxErrorLength = 2048;
@@ -127,7 +128,7 @@ public sealed class ManualSeedProcess(
             logger.LogWarning(OpsEvents.SeedRequestFailed, ex, "Seed request {SeedRequestId} failed.", request.Id);
             summary.Failed++;
             await seedRequestStore.MarkFailedAsync(
-                request.Id, Truncate(ex.Message, MaxErrorLength), DateTime.UtcNow, ct);
+                request.Id, Truncate(ex.Message, MaxErrorLength), timeProvider.GetUtcNow().UtcDateTime, ct);
         }
     }
 
@@ -143,7 +144,7 @@ public sealed class ManualSeedProcess(
         var account = await riotAccountClient.GetByRiotIdAsync(request.GameName, request.TagLine, regional, ct);
         if (account is null || string.IsNullOrWhiteSpace(account.Puuid))
         {
-            await seedRequestStore.MarkFailedAsync(request.Id, "Riot ID not found", DateTime.UtcNow, ct);
+            await seedRequestStore.MarkFailedAsync(request.Id, "Riot ID not found", timeProvider.GetUtcNow().UtcDateTime, ct);
             summary.NotFound++;
 
             // Named ops event (#444): an unresolvable Riot ID is the other
@@ -157,7 +158,7 @@ public sealed class ManualSeedProcess(
             return;
         }
 
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
         // A session per request: the account/candidate writes stay in SQL, and a
         // DB failure on one request must not poison the change tracker for the
@@ -211,7 +212,7 @@ public sealed class ManualSeedProcess(
         summary.CandidatesQueued += queued;
 
         await seedRequestStore.MarkIngestedAsync(
-            request.Id, account.Puuid, upsert.Account.Id, DateTime.UtcNow, ct);
+            request.Id, account.Puuid, upsert.Account.Id, timeProvider.GetUtcNow().UtcDateTime, ct);
         summary.Ingested++;
 
         // Named ops event (#444): the seed request reached its successful terminal

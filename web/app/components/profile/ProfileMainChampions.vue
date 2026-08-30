@@ -2,6 +2,7 @@
 import type { ProfileMainChampion } from '~~/shared/types/profile'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
+import { retiredSampleTooltip } from '~/utils/retired-sample'
 
 const props = defineProps<{
   mains: ProfileMainChampion[]
@@ -21,6 +22,20 @@ function lookupChampionName(championId: number): string {
 function formatPlayRate(rate: number): string {
   return formatPercentage(rate, 0)
 }
+
+// Mains whose games have aged out of retention (#1216). The numbers stay — they
+// are a real past measurement, and hiding them would drop the player off their
+// own profile — but they get a marker, because an unqualified count here is what
+// let this card promise "10 games on Graves" over a champion page holding
+// nothing. The qualifier is the warning glyph and its tooltip only: the inline
+// `as of 1 Aug` that used to sit beside the count was dropped in #1275.
+// Keyed by champion id so the template stays declarative.
+const retiredByChampion = computed(() => new Map(
+  props.mains
+    .filter(main => main.isSampleRetired)
+    .map(main => [main.championId, retiredSampleTooltip(main.measuredAtUtc)] as const)
+    .filter(([, note]) => note !== null),
+))
 
 // Drill into how THIS player builds the champion (player-scoped page), not the
 // global meta. The whole row is the link target — so we render a plain icon
@@ -77,6 +92,18 @@ const canonicalIcon = useCanonicalIcon()
               >
                 OTP
               </span>
+              <!-- Same idiom as the champion header's thin-sample qualifier: the
+                   explanation lives in the tooltip so it never crowds the row. -->
+              <UTooltip
+                v-if="retiredByChampion.get(main.championId)"
+                :text="retiredByChampion.get(main.championId)!"
+                :delay-duration="150"
+              >
+                <UIcon
+                  name="i-lucide-triangle-alert"
+                  class="size-3.5 shrink-0 text-warning"
+                />
+              </UTooltip>
             </div>
             <div class="flex items-center gap-1 text-[11px] text-muted tabular-nums">
               <img

@@ -120,8 +120,107 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
         response.AverageScore.Should().BeNull();
     }
 
+    [Fact]
+    public async Task GetAsync_canonicalises_the_patch_before_it_queries_or_caches_on_it()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAccountAsync();
+        await SeedGamesAsync(count: 6);
+
+        await using var db = _fixture.CreateDbContext();
+        var service = CreateService(db);
+
+        // The seeded games carry the full Riot GameVersion "16.4.521.123". This was
+        // the one champion service that trusted its caller: an unnormalised patch was
+        // LIKE-matched verbatim ("16.4.521.123.%" matches nothing, so the panel came
+        // back empty for the very patch its games are on) and keyed verbatim, so the
+        // canonical ask landed on a second cache entry and could never repair it.
+        var raw = await service.GetAsync(
+            NameTag, ChampionId, "16.4.521.123", position: null, CancellationToken.None);
+        var canonical = await service.GetAsync(
+            NameTag, ChampionId, "16.4", position: null, CancellationToken.None);
+
+        raw.Should().NotBeNull();
+        raw!.Patch.Should().Be("16.4", "the response names the scope it actually read");
+        raw.Games.Should().Be(6);
+        canonical.Should().BeSameAs(raw, "both forms name one patch, so they share one cache entry");
+    }
+
+    [Fact]
+    public async Task GetAsync_canonicalises_the_lane_before_it_queries_or_caches_on_it()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAccountAsync();
+        await SeedGamesAsync(count: 6);
+
+        await using var db = _fixture.CreateDbContext();
+        var service = CreateService(db);
+
+        // Every sibling champion read canonicalises "middle" to Riot's "MIDDLE"; this
+        // one compared the raw string against the stored value and found nothing.
+        var lower = await service.GetAsync(
+            NameTag, ChampionId, patch: null, position: "middle", CancellationToken.None);
+        var upper = await service.GetAsync(
+            NameTag, ChampionId, patch: null, position: "MIDDLE", CancellationToken.None);
+
+        lower.Should().NotBeNull();
+        lower!.Position.Should().Be("MIDDLE");
+        lower.Games.Should().Be(6);
+        upper.Should().BeSameAs(lower, "one lane, one cache entry");
+    }
+
+    [Fact]
+    public async Task GetAsync_does_not_widen_a_lane_it_cannot_canonicalise()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAccountAsync();
+        await SeedGamesAsync(count: 6);
+
+        await using var db = _fixture.CreateDbContext();
+        var response = await CreateService(db).GetAsync(
+            NameTag, ChampionId, patch: null, position: "adc", CancellationToken.None);
+
+        // A lane filter that cannot be honoured degrades to the empty state, never to
+        // "every lane": grading the player's MIDDLE games under an ADC label would be
+        // a number drawn from a population nobody asked about.
+        response.Should().NotBeNull();
+        response!.Games.Should().Be(0);
+        response.AverageScore.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetAsync_breaks_window_ties_on_the_match_id()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedAccountAsync();
+        // Twenty-one games sharing one start instant, so the window boundary falls
+        // inside a tie: without a total order the twenty graded games are whichever
+        // twenty Postgres happened to return, and the average moves between two
+        // identical requests. Only the first game — the lowest match id, and so the
+        // one the tie-break drops — carries a timeline.
+        await SeedGamesAsync(
+            count: PlayerChampionPerformanceQueryService.Window + 1,
+            timelineOnFirstGamesOnly: 1,
+            fixedStartUtc: new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc));
+
+        await using var db = _fixture.CreateDbContext();
+        var response = await CreateService(db).GetAsync(
+            NameTag, ChampionId, patch: null, position: null, CancellationToken.None);
+
+        response.Should().NotBeNull();
+        response!.Games.Should().Be(PlayerChampionPerformanceQueryService.Window);
+
+        var laning = response.Components.Single(c => c.Kind == "Laning");
+        laning.Games.Should().Be(0, "PERF_MATCH_0 sorts last on the id tie-break and stays out of the window");
+        laning.Value.Should().BeNull();
+    }
+
     private PlayerChampionPerformanceQueryService CreateService(Data.TrueMainDbContext db)
-        => new(db, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions()), _cache);
+        => new(
+            db,
+            new TruemainAccountResolver(db),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions()),
+            _cache);
 
     private async Task SeedAccountAsync()
     {
@@ -144,7 +243,14 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     /// <param name="timelineOnFirstGamesOnly">
     /// How many of the games get @15 timeline snapshots. Null means all of them.
     /// </param>
-    private async Task SeedGamesAsync(int count, int? timelineOnFirstGamesOnly = null)
+    /// <param name="fixedStartUtc">
+    /// When set, every game starts at this instant instead of an hour apart — the
+    /// shape that puts the window boundary inside a tie on the start time.
+    /// </param>
+    private async Task SeedGamesAsync(
+        int count,
+        int? timelineOnFirstGamesOnly = null,
+        DateTime? fixedStartUtc = null)
     {
         var positions = new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
         var withTimeline = timelineOnFirstGamesOnly ?? count;
@@ -156,7 +262,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
             var matchId = $"PERF_MATCH_{game}";
             db.Matches.Add(new MatchBuilder()
                 .WithId(matchId)
-                .WithGameStartTimeUtc(DateTime.UtcNow.AddHours(-game - 1))
+                .WithGameStartTimeUtc(fixedStartUtc ?? DateTime.UtcNow.AddHours(-game - 1))
                 .WithTimelineIngested()
                 .Build());
 

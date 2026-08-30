@@ -14,8 +14,7 @@ public sealed class TimelineIngestionService(
     /// <summary>
     /// Skill events past level 11 add no information for our pattern aggregation
     /// (SkillOrderBuilder only needs to see each basic skill reach rank 2). Cap
-    /// what we persist to keep MatchParticipant rows small — see DB optimisation
-    /// backlog: SkillEvents tronquer à 11.
+    /// what we persist to keep the MatchParticipant jsonb rows small.
     /// </summary>
     internal const int MaxSkillEventsPerParticipant = 11;
 
@@ -145,11 +144,6 @@ public sealed class TimelineIngestionService(
         // replaced idempotently the same way.
         await session.MatchParticipantKillPositions.DeleteByMatchIdAsync(matchId, ct);
         session.MatchParticipantKillPositions.AddRange(KillPositionBuilder.Build(matchId, timeline));
-
-        // Reconstructed jungler first clear (#535) — camp order + per-camp/full-clear
-        // timing inferred from the in-memory per-minute frames, replaced idempotently.
-        await session.JungleFirstClears.DeleteByMatchIdAsync(matchId, ct);
-        session.JungleFirstClears.AddRange(JungleClearBuilder.Build(matchId, timeline));
 
         return true;
     }

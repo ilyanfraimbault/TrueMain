@@ -17,14 +17,24 @@ const props = defineProps<{
    */
   loading?: 'lazy' | 'eager'
   /**
-   * Short label drawn in a bordered box instead of the loading skeleton when
-   * there is no `src` at all (e.g. the slot key 'Q' before the champion's
-   * static data has landed). Callers that own a tooltip pass this rather than
-   * branching to their own element, so the tooltip trigger stays the *same*
-   * DOM node across the no-icon -> icon transition — see the comment in the
-   * template.
+   * Short label drawn in a bordered box instead of the skeleton when there is
+   * no `src` at all and the source is not `pending` (e.g. the slot key 'Q' for
+   * a spell the champion's static data doesn't carry). Callers that own a
+   * tooltip pass this rather than branching to their own element, so the
+   * tooltip trigger stays the *same* DOM node across the no-icon -> icon
+   * transition — see the comment in the template.
    */
   fallback?: string
+  /**
+   * True while the caller is still fetching whatever supplies `src`. Keeps the
+   * loading skeleton up instead of the `fallback` label: an icon whose static
+   * map hasn't landed yet is *loading*, and must look like every other loading
+   * icon around it — a text label there reads as a broken image showing its
+   * alt, and it made one loading page show two different placeholders side by
+   * side (skeletons for items, labels for summoner spells). The label is the
+   * terminal state: the source settled and there is still no icon.
+   */
+  pending?: boolean
 }>()
 
 const loaded = ref(false)
@@ -109,7 +119,7 @@ onMounted(() => {
            the detached node and the tooltip can then never close on pointer
            exit — hovering a row of icons piles their tooltips up on screen. -->
       <span
-        v-if="!src && fallback"
+        v-if="!src && fallback && !pending"
         class="absolute inset-0 flex items-center justify-center rounded border border-default text-xs"
       >
         {{ fallback }}
