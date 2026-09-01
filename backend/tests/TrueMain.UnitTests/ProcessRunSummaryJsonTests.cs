@@ -162,7 +162,7 @@ public sealed class ProcessRunSummaryJsonTests
             });
 
         yield return (
-            new MatchIngestionSummary(9, 30, 4, 12, 1, 7,
+            new MatchIngestionSummary(9, 30, 4, 12, 1, 7, 6, 2,
             [
                 new MatchIngestionPlatformSummary("EUW1", 5, 20, 3, 8),
                 new MatchIngestionPlatformSummary("KR", 4, 10, 1, 4)
@@ -179,6 +179,11 @@ public sealed class ProcessRunSummaryJsonTests
                 // same — it simply has no accountsValidated, which is exactly how
                 // the funnel tells "not measured yet" from "measured zero".
                 accountsValidated = 7,
+                // Appended by #1344 for the same reason: a run recorded before the
+                // deploy simply has no reap counters, which reads as "not measured"
+                // rather than as a run that reaped nothing.
+                expiredCandidatesReleased = 6,
+                expiredClaimsReleased = 2,
                 byPlatform = new[]
                 {
                     new

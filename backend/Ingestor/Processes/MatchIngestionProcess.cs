@@ -32,18 +32,24 @@ public sealed class MatchIngestionProcess(
             return new NoWorkSummary("No platforms configured.", 0);
         }
 
-        var claimedAccounts = await ClaimAccountsAsync(platforms, options, ct);
+        var lease = TimeSpan.FromMinutes(Math.Max(1, options.ClaimLeaseMinutes));
+
+        // Before claiming, not after: what a dead run left behind becomes claimable in this
+        // same pass instead of waiting a full cycle (#1344).
+        var released = await matchClaimService.ReleaseExpiredClaimsAsync(lease, ct);
+
+        var claimedAccounts = await ClaimAccountsAsync(platforms, options, lease, ct);
         var summary = await IngestClaimedAccountsAsync(claimedAccounts, platforms, options, ct);
         LogPlatformSummaries(summary.ByPlatform);
-        return BuildSuccessPayload(summary);
+        return BuildSuccessPayload(summary, released);
     }
 
     private async Task<IReadOnlyList<AccountKey>> ClaimAccountsAsync(
         IReadOnlyCollection<string> platforms,
         MatchIngestionOptions options,
+        TimeSpan lease,
         CancellationToken ct)
     {
-        var lease = TimeSpan.FromMinutes(Math.Max(1, options.ClaimLeaseMinutes));
         var claimedAccounts = await matchClaimService.ClaimAsync(
             platforms,
             options.BatchSize,
@@ -257,7 +263,7 @@ public sealed class MatchIngestionProcess(
         }
     }
 
-    private static MatchIngestionSummary BuildSuccessPayload(IngestionSummary summary)
+    private static MatchIngestionSummary BuildSuccessPayload(IngestionSummary summary, ExpiredClaimRelease released)
     {
         return new MatchIngestionSummary(
             summary.TotalAccounts,
@@ -266,6 +272,8 @@ public sealed class MatchIngestionProcess(
             summary.TotalTimelines,
             summary.TotalErrors,
             summary.TotalValidated,
+            released.Candidates,
+            released.Accounts,
             summary.ByPlatform
                 .Where(entry => entry.Value.AccountsProcessed > 0)
                 .Select(entry => new MatchIngestionPlatformSummary(

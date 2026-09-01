@@ -67,6 +67,11 @@ public sealed record MatchIngestionPlatformSummary(
 /// and it is the only record of a validation — the transition itself leaves no trace in
 /// <c>main_candidates</c> once retention prunes the row. Appended after <see cref="Errors"/>
 /// so the pre-existing keys keep their wire order.
+/// <para>
+/// <see cref="ExpiredCandidatesReleased"/> / <see cref="ExpiredClaimsReleased"/> (#1344) are
+/// what the run reaped before claiming: rows a previous run died holding. Non-zero means a
+/// run died, not that this one misbehaved — a healthy steady state reports zeroes.
+/// </para>
 /// </summary>
 public sealed record MatchIngestionSummary(
     int AccountsProcessed,
@@ -75,6 +80,8 @@ public sealed record MatchIngestionSummary(
     int TimelinesUpdated,
     int Errors,
     int AccountsValidated,
+    int ExpiredCandidatesReleased,
+    int ExpiredClaimsReleased,
     IReadOnlyList<MatchIngestionPlatformSummary> ByPlatform) : IProcessRunSummary;
 
 /// <summary>Manual seed outcome for the claimed batch.</summary>

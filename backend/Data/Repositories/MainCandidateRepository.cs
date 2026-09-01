@@ -163,6 +163,20 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
                         && c.LastPlayTimeUtc < lastPlayCutoffUtc)
             .ExecuteDeleteAsync(ct);
 
+    public Task<int> ReleaseExpiredClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct)
+        => db.MainCandidates
+            .Where(c => c.Status == MainCandidateStatus.Processing
+                        // Negated on purpose: "no live claim behind this row", not "an expired
+                        // one in front of it". A candidate whose account row is gone has no
+                        // claim either, and an EXISTS on the expired shape would leave it
+                        // Processing for good.
+                        && !db.RiotAccounts.Any(a => a.PlatformId == c.PlatformId
+                                                     && a.Puuid == c.Puuid
+                                                     && a.MatchIngestStatus == MatchIngestStatus.Processing
+                                                     && a.MatchIngestClaimedAtUtc != null
+                                                     && a.MatchIngestClaimedAtUtc >= leaseCutoffUtc))
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, MainCandidateStatus.Queued), ct);
+
     public void Add(MainCandidate candidate)
         => db.MainCandidates.Add(candidate);
 }

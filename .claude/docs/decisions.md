@@ -2061,6 +2061,31 @@ sitemap source encodes it twice, and `Álec Lightwood-Jace` gets advertised as `
 which the route hands to the backend as literal text — a 404. Riot IDs are full Unicode, so this hit 2,334 of
 the first 5,000 profiles before the family was dropped. Encoding is per-consumer, and a `loc` is not an href.
 
+## A lease is only kept if something reaps it (2026-09-01)
+
+**`Processing` is a lease state, and the pipeline now enforces the lease.** `MatchClaimService` moves an
+account's candidates `Queued -> Processing` and stamps the account's claim; every ordinary exit path settles
+them again. A hard stop — an OOM kill, a container restart, a revert that itself failed — has no exit path,
+and `MatchIngestionProcess` already documented the intended safety net ("candidates remain Processing until
+the claim lease expires") without anything ever applying it to the rows. `MatchIngestion` now reaps expired
+claims before it claims, so what a dead run left behind is claimable in the same pass.
+
+**Recovery must not be gated on the membership the failure destroys.** The lease cutoff did exist, but only
+inside `SelectClaimableAsync`, which reaches an account through one of two predicates: it holds an active
+main, or it holds a `Queued` candidate. An account whose candidates were *all* stuck at `Processing` matched
+neither, so it was invisible to the only mechanism that would have settled its rows — the leak sealed itself
+and grew monotonically. Production had 1 185 rows across 498 accounts, 386 of them permanently unreachable,
+accumulated from 2026-06-13 onward. Whenever a recovery path is filtered by state, check that the state it
+filters on survives the failure it recovers from.
+
+**The reaper releases what no live claim stands behind, not what carries an expired one.** The predicate is
+negated on purpose: a candidate whose account row is gone has no claim at all, and an `EXISTS` on the expired
+shape would leave it `Processing` forever. Both sides take the cutoff from the same
+`MatchIngestion:ClaimLeaseMinutes` the claim uses, passed in by the caller, so the reaper cannot decide a
+lease is spent while the claim still considers it held. Measured on production: 68 ms per pass at ~864 k
+candidate rows, served by the existing `(PlatformId, Status, Score)` and partial claim indexes — no new index
+(#1344).
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update
