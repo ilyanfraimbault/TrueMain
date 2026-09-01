@@ -2,6 +2,7 @@ using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
 using TrueMain.Services.Champions;
 
@@ -16,17 +17,10 @@ namespace TrueMain.Services.Truemains;
 /// </summary>
 public sealed class PlayerBuildDivergenceQueryService(
     TrueMainDbContext db,
-    IOptions<MainAnalysisOptions> mainAnalysisOptions) : IPlayerBuildDivergenceQueryService
+    TruemainAccountResolver resolver,
+    IOptions<MainAnalysisOptions> mainAnalysisOptions,
+    IOptions<ChampionsListOptions> championsListOptions) : IPlayerBuildDivergenceQueryService
 {
-    /// <summary>
-    /// Games the reference pool needs in the slice before the comparison is
-    /// drawn at all. Mirrors the trustworthy-build floor
-    /// <c>ChampionBuildsQueryService</c> applies to a champion slice: below it,
-    /// "what mains do" is a handful of games wearing a percentage sign, and
-    /// coaching someone against it would be worse than saying nothing.
-    /// </summary>
-    public const int MinMainsGames = 20;
-
     public async Task<PlayerBuildDivergenceResponse?> GetAsync(
         string nameTag,
         int championId,
@@ -34,21 +28,7 @@ public sealed class PlayerBuildDivergenceQueryService(
         string? position,
         CancellationToken ct)
     {
-        if (!NameTagParser.TryParse(nameTag, out var parsed))
-        {
-            return null;
-        }
-
-        // Same name-tag resolution as the profile / matches / builds endpoints
-        // (most-recently-active row on a cross-region collision) so every route
-        // agrees on which account a name tag means.
-        var account = await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new { a.Id, a.PlatformId })
-            .FirstOrDefaultAsync(ct);
-
+        var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;
@@ -104,8 +84,13 @@ public sealed class PlayerBuildDivergenceQueryService(
         var mainsPlayers = mainsScopes.Select(scope => scope.RiotAccountId).Distinct().Count();
 
         var minPlayerGames = PlayerChampionBuildsQueryService.MinPlayerGames;
+
+        // The reference pool is judged against the same configured floor as any other
+        // champion build slice (ChampionsList:MinBuildSampleGames) — the two used to be
+        // two hard-coded 20s calling each other mirrors, with nothing keeping them equal.
+        var minMainsGames = championsListOptions.Value.MinBuildSampleGames;
         var minSampleMet = playerGames >= minPlayerGames;
-        var referenceSampleMet = mainsGames >= MinMainsGames;
+        var referenceSampleMet = mainsGames >= minMainsGames;
 
         PlayerBuildDivergenceResponse BuildResponse(IReadOnlyList<BuildDivergenceReadModel> dimensions) => new()
         {
@@ -116,7 +101,7 @@ public sealed class PlayerBuildDivergenceQueryService(
             MainsGames = mainsGames,
             MainsPlayers = mainsPlayers,
             MinPlayerGames = minPlayerGames,
-            MinMainsGames = MinMainsGames,
+            MinMainsGames = minMainsGames,
             MinSampleMet = minSampleMet,
             ReferenceSampleMet = referenceSampleMet,
             Dimensions = dimensions

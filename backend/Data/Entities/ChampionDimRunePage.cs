@@ -4,10 +4,9 @@ namespace Data.Entities;
 /// Globally-deduplicated reference row for one unique rune page (primary
 /// tree + keystone + 3 minor perks, secondary tree + 2 minor perks, 3 stat
 /// shards). Phase 6 dimension table — referenced by
-/// <see cref="ChampionAggregatePattern"/>. The legacy
-/// <see cref="ChampionAggregateRunePage.FirstItemId"/> half-correlation is
-/// gone here: the build correlation is preserved through the pattern row's
-/// <c>BuildId</c> + <c>RunePageId</c> tuple.
+/// <see cref="ChampionAggregatePattern"/>. The legacy pre-phase-6
+/// <c>FirstItemId</c> half-correlation is gone here: the build correlation is
+/// preserved through the pattern row's <c>BuildId</c> + <c>RunePageId</c> tuple.
 /// </summary>
 public sealed class ChampionDimRunePage
 {

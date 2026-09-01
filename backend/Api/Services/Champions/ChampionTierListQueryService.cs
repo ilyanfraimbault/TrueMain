@@ -1,22 +1,32 @@
-using Microsoft.Extensions.Options;
-using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
 
 /// <summary>
-/// Shapes the champion meta / tier-list. It owns no SQL of its own: the
-/// underlying winRate / pickRate / games per <c>(champion, position)</c> all
-/// come from <see cref="IChampionSummariesQueryService"/>, which reads the
-/// real <c>champion_aggregate_scopes</c> rows (and already applies the sample
-/// floor + active-patch resolution + caching). This service only re-tiers
-/// those rows <b>per position</b> and groups them into S/A/B/C/D buckets, so
-/// the tier reads as "best for this role" rather than the directory's
-/// patch-wide tier.
+/// Shapes the champion meta / tier-list. It owns no SQL of its own, and no
+/// tiering of its own either: the winRate / pickRate / games per
+/// <c>(champion, position)</c> <b>and</b> the row's <c>Tier</c> / <c>TierScore</c>
+/// all come from <see cref="IChampionSummariesQueryService"/>, which reads the
+/// real <c>champion_aggregate_scopes</c> rows and already applies the sample
+/// floor, the dominant-lane filter, the active-patch resolution, the caching
+/// and — since the tier became lane-relative — the per-position call to
+/// <see cref="ChampionTierCalculator"/>.
+///
+/// <para>
+/// This service therefore only <b>reshapes</b>: it filters to the requested
+/// position and groups the rows into S/A/B/C/D buckets. It deliberately does
+/// not re-run the calculator. Re-tiering the same rows with the same options,
+/// grouped the same way per position, is a no-op by construction — the
+/// position filter only ever drops whole lanes, never rows inside a lane it
+/// keeps, so every kept lane's peer set is identical either way. Recomputing
+/// was a second implementation of an invariant the calculator's own doc
+/// already states (a row's <c>TierScore</c> matches between
+/// <c>GET /champions</c> and <c>GET /champions/tierlist</c>), and the only way
+/// the two endpoints could ever disagree.
+/// </para>
 /// </summary>
 public sealed class ChampionTierListQueryService(
-    IChampionSummariesQueryService summariesQueryService,
-    IOptions<ChampionTierOptions> tierOptions) : IChampionTierListQueryService
+    IChampionSummariesQueryService summariesQueryService) : IChampionTierListQueryService
 {
     public async Task<ChampionTierListReadModel> GetTierListAsync(
         string? patch,
@@ -24,8 +34,8 @@ public sealed class ChampionTierListQueryService(
         string? eloBracket,
         CancellationToken ct)
     {
-        var result = await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, ct);
-        var summaries = result.Summaries;
+        ChampionSummariesResult result = await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, ct);
+        IReadOnlyList<ChampionSummaryReadModel> summaries = result.Summaries;
         if (summaries.Count == 0)
         {
             // result.PatchVersion is the resolved patch whenever ResolveActivePatchAsync
@@ -38,21 +48,14 @@ public sealed class ChampionTierListQueryService(
         // Every summary row is pinned to the same resolved patch — result.PatchVersion
         // gives the patch the tiers were actually computed for (which may differ from
         // the requested string when patch was null).
-        var resolvedPatch = result.PatchVersion;
+        string? resolvedPatch = result.PatchVersion;
 
-        var rows = position is null
+        IEnumerable<ChampionSummaryReadModel> rows = position is null
             ? summaries
-            : summaries.Where(summary => summary.Position == position).ToList();
+            : summaries.Where(summary => summary.Position == position);
 
-        // Re-tier within each position independently so the bucket reflects how
-        // a champion ranks among its role peers, not against the whole patch.
-        var scored = rows
-            .GroupBy(summary => summary.Position)
-            .SelectMany(group => TierPosition(group, tierOptions.Value))
-            .ToList();
-
-        var tiers = scored
-            .GroupBy(entry => entry.Tier)
+        List<ChampionTierGroupReadModel> tiers = rows
+            .GroupBy(summary => summary.Tier, StringComparer.Ordinal)
             .OrderBy(group => Array.IndexOf(ChampionTierCalculator.TierOrder, group.Key))
             .Select(group => new ChampionTierGroupReadModel
             {
@@ -61,9 +64,17 @@ public sealed class ChampionTierListQueryService(
                 // bucketing used; ChampionId breaks exact-score ties for a
                 // stable, deterministic order.
                 Entries = group
-                    .OrderByDescending(entry => entry.Score)
-                    .ThenBy(entry => entry.Entry.ChampionId)
-                    .Select(entry => entry.Entry)
+                    .OrderByDescending(summary => summary.TierScore)
+                    .ThenBy(summary => summary.ChampionId)
+                    .Select(summary => new ChampionTierEntryReadModel
+                    {
+                        ChampionId = summary.ChampionId,
+                        Position = summary.Position,
+                        Games = summary.Games,
+                        WinRate = summary.WinRate,
+                        PickRate = summary.PickRate,
+                        BanRate = summary.BanRate,
+                    })
                     .ToList(),
             })
             .ToList();
@@ -75,41 +86,4 @@ public sealed class ChampionTierListQueryService(
             Tiers = tiers,
         };
     }
-
-    // Tier one position's rows in isolation, carrying the blended score so the
-    // caller can order entries within a tier the same way they were bucketed.
-    private static IEnumerable<ScoredEntry> TierPosition(
-        IEnumerable<ChampionSummaryReadModel> positionRows, ChampionTierOptions options)
-    {
-        var ordered = positionRows.ToList();
-        if (ordered.Count == 0)
-        {
-            yield break;
-        }
-
-        var inputs = ordered
-            .Select(summary => new ChampionTierCalculator.TierInput(
-                summary.Position, summary.Games, summary.Wins, summary.PickRate, summary.BanRate))
-            .ToList();
-        var results = ChampionTierCalculator.Evaluate(inputs, options);
-
-        for (var i = 0; i < ordered.Count; i++)
-        {
-            var summary = ordered[i];
-            yield return new ScoredEntry(
-                results[i].Tier,
-                results[i].Score,
-                new ChampionTierEntryReadModel
-                {
-                    ChampionId = summary.ChampionId,
-                    Position = summary.Position,
-                    Games = summary.Games,
-                    WinRate = summary.WinRate,
-                    PickRate = summary.PickRate,
-                    BanRate = summary.BanRate,
-                });
-        }
-    }
-
-    private readonly record struct ScoredEntry(string Tier, double Score, ChampionTierEntryReadModel Entry);
 }

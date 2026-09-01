@@ -2,10 +2,12 @@ export default defineAppConfig({
   ui: {
     colors: {
       // Custom palettes defined in assets/css/main.css @theme. `rosegold` is
-      // the brand accent, reserved for brand and interaction only; `ink` is the
-      // near-neutral, faintly cool charcoal every surface is built from. The
-      // two are deliberately unrelated in hue — that separation is what lets a
-      // scarce warm accent register at all.
+      // the brand accent — brand, interaction *and* the good end of a
+      // measurement since #1096 (`--color-data-good` is `rosegold-400`), but
+      // never a generic surface tint; `ink` is the near-neutral, faintly cool
+      // charcoal every surface is built from. The two are deliberately
+      // unrelated in hue — that separation is what lets a scarce warm accent
+      // register at all.
       primary: 'rosegold',
       neutral: 'ink',
     },

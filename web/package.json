@@ -27,16 +27,16 @@
     "@resvg/resvg-js": "^2.6.2",
     "nuxt": "^4.4.8",
     "nuxt-charts": "^2.2.1",
-    "satori": "^0.29.0",
-    "vue": "^3.5.41"
+    "satori": "^0.33.4",
+    "vue": "^3.5.42"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
-    "happy-dom": "^20.11.2",
+    "@types/node": "^26.4.0",
+    "happy-dom": "^20.11.12",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.11",
     "vue-chrts": "2.2.1",
-    "vue-tsc": "^3.3.7"
+    "vue-tsc": "^3.3.11"
   }
 }

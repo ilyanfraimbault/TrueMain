@@ -1,5 +1,19 @@
 # Phase 5 — Data-split RFC: normalising `ChampionPatternAggregate`
 
+> **Status: implemented (historical) — superseded by Phase 6.** Delivered by
+> `20260421193620_AddChampionAggregateNormalisedTables`. Read this as a record of
+> how the wide table was broken up, not as a description of today's schema.
+> Still live: `champion_aggregate_scopes` (`Data/Entities/ChampionAggregateScope.cs`,
+> `TrueMainDbContext.ChampionAggregateScopes`). Gone: the per-scope dimension tables
+> `champion_aggregate_builds` / `_skill_orders` / `_spell_pairs` / `_starter_items`,
+> created here and dropped by `20260501195943_DropLegacyAggregateTables` when
+> [Phase 6](./phase-6-pattern-junction-rfc.md) replaced them with globally-deduplicated
+> `champion_dim_*` tables behind a `champion_aggregate_patterns` junction.
+> The read services this RFC names never survived either: `ChampionFoundationQueryService`
+> and `ChampionBuildTreeQueryService` do not exist, the current read side is
+> `Api/Services/Champions/ChampionBuildsQueryService.cs`, and `ChampionAggregateBuild`
+> is now only a DTO, no longer an entity.
+
 ## Why
 
 The existing `champion_pattern_aggregates` table packs 23 dimension columns

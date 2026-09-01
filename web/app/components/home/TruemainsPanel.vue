@@ -29,14 +29,15 @@ const emit = defineEmits<{
 // item map. The rune tree is tiny, but the item map is ~373 KiB — dead weight
 // on the homepage's initial payload for a panel that sits below the fold. Gate
 // the *item-map* fetch behind visibility: the fetch key stays `null` (so the
-// `immediate: false` source never fires) until an IntersectionObserver flips
+// `immediate: false` source never fires) until `useVisibleOnce` flips
 // `buildAssetsVisible`, at which point the resolved patch drives the fetch.
 //
 // Mismatch-safe: at SSR and at the initial client hydration the map is still
 // empty (identical to today, where it resolved post-hydration), so the build
 // icons render null on both sides and only fill in later as a reactive update —
 // never a hydration reconciliation.
-const buildAssetsVisible = ref(false)
+const rootEl = ref<HTMLElement | null>(null)
+const buildAssetsVisible = useVisibleOnce(rootEl)
 const { data: runeTreeData } = useStaticRuneTree(() => props.patch)
 const { data: itemsData } = useStaticItems(
   () => (buildAssetsVisible.value ? props.patch : null),
@@ -44,23 +45,6 @@ const { data: itemsData } = useStaticItems(
 )
 const runeTree = computed(() => runeTreeData.value ?? null)
 const itemsMap = computed(() => itemsData.value ?? {})
-
-const rootEl = ref<HTMLElement | null>(null)
-onMounted(() => {
-  const el = rootEl.value
-  if (!el || typeof IntersectionObserver === 'undefined') {
-    buildAssetsVisible.value = true
-    return
-  }
-  const observer = new IntersectionObserver((entries) => {
-    if (entries.some(entry => entry.isIntersecting)) {
-      buildAssetsVisible.value = true
-      observer.disconnect()
-    }
-  }, { rootMargin: '200px' })
-  observer.observe(el)
-  onBeforeUnmount(() => observer.disconnect())
-})
 
 const ROW_COUNT = 5
 

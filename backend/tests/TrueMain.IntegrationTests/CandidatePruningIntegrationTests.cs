@@ -73,6 +73,8 @@ public sealed class CandidatePruningIntegrationTests
     private MatchDataRetentionProcess BuildProcess(int pruneAfterDays, bool enabled = true) => new(
         NullLogger<MatchDataRetentionProcess>.Instance,
         new TrueMain.TestKit.TestDbContextFactory(_fixture),
+        _fixture.CreateSessionFactory(),
+        TimeProvider.System,
         Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions { RetainedPatchCount = 2 }),
         Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
         Microsoft.Extensions.Options.Options.Create(new CandidatePruningOptions

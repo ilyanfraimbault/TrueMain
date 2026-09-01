@@ -18,7 +18,7 @@ import type {
   SeedRequestReadModel,
   SeedRequestStatus,
 } from '~~/shared/types/ops'
-import { formatDateTime, formatDuration, formatNumber } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 
 const { nameFor, iconFor } = useChampionStatic()
 
@@ -198,7 +198,7 @@ const validatedNote = computed(() => {
 
 /** Seconds → the shared duration label; null (no sample) reads as an em dash. */
 function latencyLabel(seconds: number | null | undefined): string {
-  return seconds === null || seconds === undefined ? '—' : formatDuration(seconds * 1000)
+  return seconds === null || seconds === undefined ? '—' : formatElapsed(seconds * 1000)
 }
 
 // =============================================================================
@@ -375,9 +375,17 @@ const PIPELINE_ORDER: MainCandidateStatus[] = [
   'Processing',
   'Validated',
 ]
-function isRejected(status: MainCandidateStatus | undefined): boolean {
-  return status === 'Rejected'
-}
+
+// Index of the open candidate's stage in `PIPELINE_ORDER`, and the derived
+// reached/not-reached flag per stage. Computed once per detail instead of
+// re-scanning the array four times per rendered step.
+const currentStageIndex = computed(() => {
+  const status = detail.value?.status
+  return status ? PIPELINE_ORDER.indexOf(status) : -1
+})
+const pipelineStages = computed(() =>
+  PIPELINE_ORDER.map((stage, index) => ({ stage, reached: index <= currentStageIndex.value })),
+)
 </script>
 
 <template>
@@ -450,23 +458,18 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
               <p class="text-xs text-muted uppercase mb-1.5">
                 Intake by source, per period
               </p>
-              <ClientOnly>
-                <ChartsBarChart
-                  :data="intakeChartData"
-                  :height="240"
-                  :categories="intakeChartCategories"
-                  :y-axis="['ladder', 'harvest', 'manual']"
-                  :stacked="true"
-                  :x-num-ticks="Math.min(intakeChartData.length, 6)"
-                  :x-formatter="intakeXFormatter"
-                  :y-formatter="formatCount"
-                  :tooltip-title-formatter="labelTooltipTitle"
-                  v-bind="multiTimeBarProps()"
-                />
-                <template #fallback>
-                  <USkeleton class="h-[240px] w-full" />
-                </template>
-              </ClientOnly>
+              <ChartsBarChart
+                :data="intakeChartData"
+                :height="240"
+                :categories="intakeChartCategories"
+                :y-axis="['ladder', 'harvest', 'manual']"
+                :stacked="true"
+                :x-num-ticks="Math.min(intakeChartData.length, 6)"
+                :x-formatter="intakeXFormatter"
+                :y-formatter="formatCount"
+                :tooltip-title-formatter="labelTooltipTitle"
+                v-bind="multiTimeBarProps()"
+              />
               <p class="mt-3 text-xs text-dimmed tabular-nums">
                 {{ formatNumber(funnelTotals.ladder) }} ladder ·
                 {{ formatNumber(funnelTotals.harvest) }} harvest ·
@@ -478,22 +481,17 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
               <p class="text-xs text-muted uppercase mb-1.5">
                 Progression, per period
               </p>
-              <ClientOnly>
-                <ChartsBarChart
-                  :data="progressChartData"
-                  :height="240"
-                  :categories="progressChartCategories"
-                  :y-axis="['scored', 'promoted']"
-                  :x-num-ticks="Math.min(progressChartData.length, 6)"
-                  :x-formatter="progressXFormatter"
-                  :y-formatter="formatCount"
-                  :tooltip-title-formatter="labelTooltipTitle"
-                  v-bind="multiTimeBarProps()"
-                />
-                <template #fallback>
-                  <USkeleton class="h-[240px] w-full" />
-                </template>
-              </ClientOnly>
+              <ChartsBarChart
+                :data="progressChartData"
+                :height="240"
+                :categories="progressChartCategories"
+                :y-axis="['scored', 'promoted']"
+                :x-num-ticks="Math.min(progressChartData.length, 6)"
+                :x-formatter="progressXFormatter"
+                :y-formatter="formatCount"
+                :tooltip-title-formatter="labelTooltipTitle"
+                v-bind="multiTimeBarProps()"
+              />
               <p class="mt-3 text-xs text-dimmed tabular-nums">
                 {{ formatNumber(funnelTotals.scored) }} scored ·
                 {{ formatNumber(funnelTotals.promoted) }} promoted
@@ -507,21 +505,16 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
               <p class="text-xs text-muted uppercase mb-1.5">
                 Outcome, cumulative over the window
               </p>
-              <ClientOnly>
-                <NcAreaChart
-                  :data="outcomeChartData"
-                  :height="240"
-                  :categories="outcomeChartCategories"
-                  :hide-area="true"
-                  :x-num-ticks="Math.min(outcomeChartData.length, 8)"
-                  :x-formatter="outcomeXFormatter"
-                  :y-formatter="formatCount"
-                  v-bind="multiAreaChartProps()"
-                />
-                <template #fallback>
-                  <USkeleton class="h-[240px] w-full" />
-                </template>
-              </ClientOnly>
+              <NcAreaChart
+                :data="outcomeChartData"
+                :height="240"
+                :categories="outcomeChartCategories"
+                :hide-area="true"
+                :x-num-ticks="Math.min(outcomeChartData.length, 8)"
+                :x-formatter="outcomeXFormatter"
+                :y-formatter="formatCount"
+                v-bind="multiAreaChartProps()"
+              />
               <p class="mt-3 text-xs text-dimmed tabular-nums">
                 {{ formatNumber(funnelTotals.validated) }} validated ·
                 {{ formatNumber(funnelTotals.demoted) }} demoted
@@ -938,7 +931,7 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
             <div>
               <p class="text-muted text-xs uppercase mb-2">Pipeline stage</p>
               <UAlert
-                v-if="isRejected(detail.status)"
+                v-if="detail.status === 'Rejected'"
                 color="error"
                 variant="subtle"
                 icon="i-lucide-circle-x"
@@ -947,17 +940,13 @@ function isRejected(status: MainCandidateStatus | undefined): boolean {
               />
               <ol v-else class="flex flex-wrap items-center gap-1.5">
                 <li
-                  v-for="stage in PIPELINE_ORDER"
+                  v-for="{ stage, reached } in pipelineStages"
                   :key="stage"
                   class="flex items-center gap-1.5"
                 >
                   <UBadge
-                    :color="PIPELINE_ORDER.indexOf(stage) <= PIPELINE_ORDER.indexOf(detail.status)
-                      ? candidateStatusColor(detail.status)
-                      : 'neutral'"
-                    :variant="PIPELINE_ORDER.indexOf(stage) <= PIPELINE_ORDER.indexOf(detail.status)
-                      ? 'subtle'
-                      : 'soft'"
+                    :color="reached ? candidateStatusColor(detail.status) : 'neutral'"
+                    :variant="reached ? 'subtle' : 'soft'"
                     size="sm"
                     :label="stage"
                   />

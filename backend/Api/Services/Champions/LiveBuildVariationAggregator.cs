@@ -31,14 +31,14 @@ namespace TrueMain.Services.Champions;
 /// </summary>
 internal static class LiveBuildVariationAggregator
 {
-    /// <summary>Variations listed per dimension, matching the aggregate path's cap.</summary>
-    private const int MaxVariations = 5;
+    /// <summary>Variations listed per dimension — <see cref="ChampionBuildDisplayCaps.MaxVariations"/>.</summary>
+    private const int MaxVariations = ChampionBuildDisplayCaps.MaxVariations;
 
     /// <summary>Core path depth: the first completed legendaries that define a build.</summary>
     private const int CorePathLength = 3;
 
-    /// <summary>Builds listed for a slice, most played first.</summary>
-    private const int MaxBuilds = 3;
+    /// <summary>Builds listed for a slice, most played first — <see cref="ChampionBuildDisplayCaps.MaxBuilds"/>.</summary>
+    private const int MaxBuilds = ChampionBuildDisplayCaps.MaxBuilds;
 
     public static IReadOnlyList<ChampionBuildReadModel> Aggregate(IReadOnlyList<CompositionParticipantFacts> facts)
     {
@@ -101,8 +101,8 @@ internal static class LiveBuildVariationAggregator
                 Spell1Id = pair.Spell1Id,
                 Spell2Id = pair.Spell2Id,
                 Games = groupGames,
-                PickRate = Rate(groupGames, denominator),
-                WinRate = Rate(groupWins, groupGames),
+                PickRate = RateMath.Rate(groupGames, denominator),
+                WinRate = RateMath.Rate(groupWins, groupGames),
             });
 
         var skillOrders = TopVariations(
@@ -115,8 +115,8 @@ internal static class LiveBuildVariationAggregator
                 // ChampionBuildsQueryService splits it.
                 Sequence = key.Split('-', StringSplitOptions.RemoveEmptyEntries),
                 Games = groupGames,
-                PickRate = Rate(groupGames, denominator),
-                WinRate = Rate(groupWins, groupGames),
+                PickRate = RateMath.Rate(groupGames, denominator),
+                WinRate = RateMath.Rate(groupWins, groupGames),
             });
 
         var itemPaths = TopVariations(
@@ -127,8 +127,8 @@ internal static class LiveBuildVariationAggregator
             {
                 ItemIds = items.Items,
                 Games = groupGames,
-                PickRate = Rate(groupGames, denominator),
-                WinRate = Rate(groupWins, groupGames),
+                PickRate = RateMath.Rate(groupGames, denominator),
+                WinRate = RateMath.Rate(groupWins, groupGames),
             });
 
         return new ChampionBuildReadModel
@@ -138,8 +138,8 @@ internal static class LiveBuildVariationAggregator
             Games = games,
             // Against the whole slice, so the builds of a matchup add up to how much of
             // that matchup they cover.
-            PickRate = Rate(games, sliceGames),
-            WinRate = Rate(wins, games),
+            PickRate = RateMath.Rate(games, sliceGames),
+            WinRate = RateMath.Rate(wins, games),
             Core = new BuildCoreReadModel
             {
                 // The most played of each dimension in this build — recomputed here, so
@@ -240,8 +240,8 @@ internal static class LiveBuildVariationAggregator
             StatFlex = page.StatFlex,
             StatDefense = page.StatDefense,
             Games = games,
-            PickRate = Rate(games, denominator),
-            WinRate = Rate(wins, games),
+            PickRate = RateMath.Rate(games, denominator),
+            WinRate = RateMath.Rate(wins, games),
         };
 
     private static BuildItemSetReadModel ToItemSet(
@@ -252,11 +252,9 @@ internal static class LiveBuildVariationAggregator
         {
             ItemIds = itemIds,
             Games = games,
-            PickRate = Rate(games, denominator),
-            WinRate = Rate(wins, games),
+            PickRate = RateMath.Rate(games, denominator),
+            WinRate = RateMath.Rate(wins, games),
         };
-
-    private static double Rate(int part, int total) => total <= 0 ? 0d : (double)part / total;
 
     /// <summary>
     /// Value-equality wrapper over an item list, so grouping keys on the sequence rather

@@ -15,7 +15,7 @@ The backlog lives in GitHub Issues, never in local files (no BACKLOG.md, no TODO
 
 2. `gh issue create --title "..." --body "..."`
 
-3. **Board + priority**: `.claude/scripts/project-set.sh <n> Priority <P0|P1|P2|P3>` — the script adds the issue to Project #2 automatically (it lands as Todo).
+3. **Board + priority**: `.claude/scripts/project-set.sh <n> Priority <P0|P1|P2|P3>` — the script adds the issue to Project #2 automatically, then edits only the field you asked for. It never touches `Status`, so set it explicitly when the board needs it: `.claude/scripts/project-set.sh <n> Status Todo`.
    Priority is urgency only, not a schedule: default to P2 unless the user indicates urgency.
 
 4. **Sprint** — only when the user says the work is planned ("mets ça sur mon sprint", "c'est pour ce sprint"): `.claude/scripts/project-set.sh <n> Sprint current` (or `next`, or `"Sprint 4"`).

@@ -5,6 +5,7 @@ using Data.BuildFacts;
 using Data.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.Services.Champions;
+using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
 
@@ -216,7 +217,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             matchId, 2, opponentChampionId, opponentTeamId, opponentPosition, !win, eloBracket, new int[7], []));
 
         await db.SaveChangesAsync();
-        await SeedRunePageAsync(db, matchId);
+        await PerkSelectionSeed.SeedRunePageAsync(db, matchId);
     }
 
     private static MatchParticipant Participant(
@@ -271,47 +272,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
                 Skill(240_000, 2), Skill(300_000, 3), Skill(360_000, 3),
             ],
         };
-
-    private static async Task SeedRunePageAsync(Data.TrueMainDbContext db, string matchId)
-    {
-        (string Style, int Index, int PerkId)[] selections =
-        [
-            ("primaryStyle", 0, 8010), ("primaryStyle", 1, 8009),
-            ("primaryStyle", 2, 9111), ("primaryStyle", 3, 9104),
-            ("subStyle", 0, 8139), ("subStyle", 1, 8135),
-        ];
-
-        foreach (var (style, index, perkId) in selections)
-        {
-            var catalog = db.PerkSelectionCatalogs.Local
-                    .FirstOrDefault(c => c.StyleDescription == style && c.SelectionIndex == index && c.PerkId == perkId)
-                ?? db.PerkSelectionCatalogs
-                    .FirstOrDefault(c => c.StyleDescription == style && c.SelectionIndex == index && c.PerkId == perkId);
-
-            if (catalog is null)
-            {
-                catalog = new PerkSelectionCatalog
-                {
-                    StyleDescription = style,
-                    SelectionIndex = index,
-                    PerkId = perkId,
-                };
-                db.PerkSelectionCatalogs.Add(catalog);
-                // Saved before the selection references it: the catalog id is an
-                // identity column, so it is still 0 until this round-trip.
-                await db.SaveChangesAsync();
-            }
-
-            db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
-            {
-                MatchId = matchId,
-                ParticipantId = 1,
-                PerkSelectionCatalogId = catalog.Id,
-            });
-        }
-
-        await db.SaveChangesAsync();
-    }
 
     private static ItemEvent Purchase(int timestampMs, int itemId)
         => new() { TimestampMs = timestampMs, EventType = "ITEM_PURCHASED", ItemId = itemId };

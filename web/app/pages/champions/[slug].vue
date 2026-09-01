@@ -94,46 +94,16 @@ const latestVersion = computed(() => versions.value?.[0] ?? null)
 // a null lane, then a refetch the moment the champion's position lands).
 const trendReady = computed(() => champion.value !== null)
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
-const { data: championTrend, status: trendStatus } = useChampionTrend(championId, trendPosition, trendReady)
+// `pending` rather than `status`: while the gate is shut the composable
+// resolves an empty series to `success`, so `status` alone would flash the
+// chart's no-data state for the whole champion fetch.
+const { data: championTrend, pending: trendPending } = useChampionTrend(championId, trendPosition, trendReady)
 
-// Meta-only fetch: `displayName` above is sourced from client-only
-// (`server: false`) statics chosen to avoid hydration mismatches on the
-// visual build content, which means it's always null during SSR — the exact
-// HTML Google indexes would permanently show "Champion {id}" instead of the
-// champion name. `<head>` tags aren't part of Vue's DOM diff, so a dedicated
-// SSR-enabled fetch here carries no hydration risk. Hits the same
-// `defineCachedEventHandler` (1h TTL) as useChampionStatic, so it's a cache
-// hit, not an extra DDragon round-trip. Only awaited server-side: the app has
-// no NuxtLoadingIndicator/Suspense fallback on <NuxtPage>, so awaiting this on
-// the client would freeze the outgoing page with no feedback on every
-// client-side champion navigation, purely for a `<head>`-only value.
-const seoStaticFetch = useFetch(
-  () => `/api/static/${championId.value}`,
-  { key: () => `champion-seo-name-${championId.value}-${selectedPatch.value || 'none'}`, query: { patch: selectedPatch.value || undefined } },
-)
-if (import.meta.server) await seoStaticFetch
-const { data: seoStatic } = seoStaticFetch
-const seoDisplayName = computed(() => seoStatic.value?.championName ?? displayName.value)
+// SSR-safe champion name for `<head>` — see useChampionSeoName for why this
+// page can't use `displayName` there, and why the fetch is awaited on the
+// server only. Shared verbatim with the player-scoped champion page.
+const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
-
-// The A→Z champion index, server-rendered (#1209). #1123 gave this page content
-// a crawler could read; this gives it links a crawler can *follow* — before it,
-// a champion page held 34 anchors and not one pointed at another champion, so
-// the 174 build pages were reachable only from `sitemap.xml`.
-//
-// Deliberately not the contextual cross-links the matchups and synergies panels
-// would give (a champion's actual counters are the better link, editorially):
-// those are backend reads, and this page's SSR round-trip budget is already
-// spent on the build summary — #926 and #1123 both turn on paying exactly one.
-// This index costs none: the `all` view reads DDragon through an endpoint
-// already cached for an hour, and `/champions` warms the very same cache entry.
-//
-// Awaited server-side only — the app has no Suspense fallback on `<NuxtPage>`,
-// so awaiting on the client would freeze the outgoing page on every
-// champion-to-champion navigation.
-const championIndexFetch = useChampionIndexAll()
-if (import.meta.server) await championIndexFetch
-const { data: championIndex } = championIndexFetch
 
 // The build in words, server-rendered (#1123) — the one piece of build content
 // that reaches the HTML before JS runs. Everything else on this page is
@@ -311,8 +281,9 @@ const bracketNoticeText = computed(() => {
 
 // Win rate by game duration (issue #537). Follows the resolved lane like the
 // trend chart, but is patch-scoped: the active patch filter narrows the slice.
-// Gated on the champion fetch so it fires once with the resolved lane.
-const { data: championScaling, status: scalingStatus } = useChampionScaling(
+// Gated on the champion fetch so it fires once with the resolved lane — hence
+// `pending` rather than `status`, same reason as the trend chart above.
+const { data: championScaling, pending: scalingPending } = useChampionScaling(
   championId,
   trendPosition,
   selectedPatch,
@@ -349,7 +320,7 @@ watch([championId, trendPosition], () => {
   patchDiffFrom.value = null
   patchDiffTo.value = null
 })
-const { data: championPatchDiff, status: patchDiffStatus } = useChampionPatchDiff(
+const { data: championPatchDiff, pending: patchDiffPending } = useChampionPatchDiff(
   championId,
   trendPosition,
   patchDiffFrom,
@@ -368,20 +339,12 @@ const patchDiffOptions = computed(() => {
   }
   return [...seen.values()].sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
 })
-// The patch-diff fetch is gated on `trendReady` (the champion fetch, which is
-// server:false so null on mount). While the gate is closed the composable
-// resolves an empty stub straight to `success`, so we must treat "gate closed"
-// as loading too — otherwise the section would flash hidden (a `success` status
-// with availablePatchCount 0) for the whole champion fetch before reappearing.
-const patchDiffLoading = computed(() =>
-  !trendReady.value || isLoadingStatus(patchDiffStatus.value),
-)
 // Hide the whole section when the champion/lane has fewer than two patches of
 // data: a single-patch diff can only compare a patch against itself (flat,
 // meaningless). Kept visible while loading so the skeleton stays mounted and
 // the layout below never shifts.
 const showPatchDiff = computed(() =>
-  patchDiffLoading.value
+  patchDiffPending.value
   || (championPatchDiff.value?.availablePatchCount ?? 0) >= 2,
 )
 
@@ -424,7 +387,7 @@ watch(champion, (data) => {
 // in the live, reactive value as a normal post-hydration update.
 const trendSnapshot = useLazyHydrationSnapshot(
   { points: [] as ChampionTrendPoint[], loading: true },
-  () => ({ points: championTrend.value?.points ?? [], loading: isLoadingStatus(trendStatus.value) }),
+  () => ({ points: championTrend.value?.points ?? [], loading: trendPending.value }),
 )
 const patchDiffSnapshot = useLazyHydrationSnapshot(
   {
@@ -439,7 +402,7 @@ const patchDiffSnapshot = useLazyHydrationSnapshot(
     itemsMap: itemsMap.value ?? {},
     championStatic: staticData.value ?? null,
     patchOptions: patchDiffOptions.value,
-    loading: patchDiffLoading.value,
+    loading: patchDiffPending.value,
   }),
 )
 const scalingSnapshot = useLazyHydrationSnapshot(
@@ -447,7 +410,7 @@ const scalingSnapshot = useLazyHydrationSnapshot(
   () => ({
     buckets: championScaling.value?.buckets ?? [],
     scalingIndex: championScaling.value?.scalingIndex ?? null,
-    loading: isLoadingStatus(scalingStatus.value),
+    loading: scalingPending.value,
   }),
 )
 const truemainsSnapshot = useLazyHydrationSnapshot(
@@ -749,17 +712,5 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         </aside>
       </div>
     </template>
-
-    <!-- Champion → champion edges (#1209). Outside the `v-if`/`<template>` that
-         gates the page body, so it survives the 404 and no-data states — those
-         are exactly the pages a crawler must be able to leave by a link rather
-         than by the back button. Fed by the same SSR-enabled, hour-cached
-         payload `/champions` renders, so a champion page pays no backend
-         round-trip for it. -->
-    <ChampionIndexLinks
-      :champions="championIndex.champions"
-      title="Other champions"
-      subtitle="Every champion with a build page."
-    />
   </main>
 </template>

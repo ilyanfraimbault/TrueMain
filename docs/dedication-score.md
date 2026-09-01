@@ -123,14 +123,25 @@ as stale.
 
 | Constant | Value | Meaning |
 |---|---|---|
-| `CommitmentFloor` | 0.12 | play rate at which `commitment` reads 0 |
+| `CommitmentFloor` | 0.12 (default; the live value is `MainAnalysis:PlayRateFloor`) | play rate at which `commitment` reads 0 |
 | `SpanTargetPatches` | 6 | patch count at which `span` saturates |
 | `VolumeTargetGames` | 200 | career games at which `volume` saturates |
 | `RecencyHalfLifeDays` | 21 | days of inactivity that halve `recency` |
 
-They live as `public const` on `DedicationScore` — a single source of truth, and
-the calibration surface. Changing one changes every score, including the
-leaderboard order, so treat a change as a product decision and not a tweak.
+All four live as `public const` on `DedicationScore`, and they are the calibration
+surface: changing one changes every score, including the leaderboard order, so
+treat a change as a product decision and not a tweak.
+
+Three of them — `SpanTargetPatches`, `VolumeTargetGames`, `RecencyHalfLifeDays` —
+are closed constants, and the const *is* the single source of truth. The
+commitment floor is not. `DedicationScore.Compute` and `DedicationScore.Commitment`
+take it as an optional parameter, and every real caller passes the live
+`MainAnalysis:PlayRateFloor` instead of the default — the leaderboard query
+service and `MainDedication.Project` both read it from configuration. The const is
+only the fallback, and it is also that option's own default. Editing
+`CommitmentFloor` alone therefore changes no score in production: the floor
+follows the mains-classification configuration, deliberately, so that retuning
+what counts as a main moves the dedication scale with it (#869).
 
 ## Known limits
 

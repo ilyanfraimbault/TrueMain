@@ -45,6 +45,7 @@ public sealed class HarvestProcessIntegrationTests
             new ParticipantHarvestService(),
             new ChampionCoverageProvider(
                 Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new HarvestOptions
             {
                 Platforms = ["KR"],

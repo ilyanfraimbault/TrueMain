@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
+import { describeFetchError } from '~/utils/errors'
 
 // Top truemains on this champion — the same rows as /truemains filtered by
 // championId, capped at the first page with a link through to the full
@@ -17,20 +18,23 @@ const props = defineProps<{
 
 const TOP_N = 10
 
+// `server: false` (#1231): the champion page renders this card behind
+// `hydrate-on-visible`, which defers *hydration*, not server rendering — so the
+// composable's SSR default was firing `/api/truemains?championId=…` on every
+// SSR of every champion page, uncached by Nitro, for a card below the fold.
+// That page's SSR round-trip budget is deliberately spent on the build summary
+// alone (#1123, #926); the skeleton below is the server-rendered state here.
 const { rows, isInitialLoading, error } = useTruemainsLeaderboard(1, {
   pageSize: TOP_N,
   championId: () => props.championId,
+  server: false,
 })
 
 // Deepest ordinal shown, so every row sizes its rank slot identically.
 const deepestRank = computed(() => rows.value.reduce((max, row) => Math.max(max, row.rank), 0))
 
 // Map keyed lookup for the row's top-3 — avoids a linear scan per icon.
-const championsById = computed(() => {
-  const map = new Map<number, ChampionStaticListItem>()
-  for (const c of props.champions) map.set(c.championId, c)
-  return map
-})
+const championsById = useChampionsById(() => props.champions)
 
 const viewAllHref = computed(() => `/truemains?championId=${props.championId}`)
 </script>
@@ -58,7 +62,7 @@ const viewAllHref = computed(() => `/truemains?championId=${props.championId}`)
         v-else-if="error"
         class="py-6 text-center text-sm text-muted"
       >
-        Couldn't load truemains. Please try again.
+        {{ describeFetchError(error) }}
       </p>
 
       <p

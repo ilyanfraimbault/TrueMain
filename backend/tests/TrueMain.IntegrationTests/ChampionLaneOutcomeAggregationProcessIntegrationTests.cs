@@ -142,6 +142,51 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_LeavesAMatchWhoseTimelineHasNotArrivedForALaterRun()
+    {
+        await _fixture.ResetDatabaseAsync();
+        // Timeline still pending — the ordinary case, not a corruption:
+        // TimelineIngestionService leaves TimelineIngested false on a truncated payload
+        // and re-fetches the match on a later run, so its 15-minute snapshots are simply
+        // not there yet. Folding it now would flag it as done for a zero contribution and
+        // nothing would ever look at it again (#1223).
+        await SeedGamesAsync(
+            games: 3, selfGold: 6000, opponentGold: 5000,
+            withSnapshots: false, timelineIngested: false);
+
+        var process = CreateProcess();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using (var afterFirstRun = _fixture.CreateDbContext())
+        {
+            (await afterFirstRun.ChampionMatchupStats.AsNoTracking().CountAsync())
+                .Should().Be(0, "there is nothing to judge without the 15-minute readings");
+            (await afterFirstRun.Matches.CountAsync(m => m.LaneOutcomeAggregated))
+                .Should().Be(0, "a match still waiting for its timeline must stay pending");
+        }
+
+        // The timeline lands, exactly as a later MatchIngestion run writes it.
+        await using (var timelineArrival = _fixture.CreateDbContext())
+        {
+            foreach (var match in await timelineArrival.Matches.ToListAsync())
+            {
+                match.TimelineIngested = true;
+                timelineArrival.MatchParticipantTimelineSnapshots.Add(Snapshot(match.Id, 1, totalGold: 6000));
+                timelineArrival.MatchParticipantTimelineSnapshots.Add(Snapshot(match.Id, 2, totalGold: 5000));
+            }
+
+            await timelineArrival.SaveChangesAsync();
+        }
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        var stat = await SingleStatAsync();
+        stat.LaneGames.Should().Be(3, "the fold picks the match up on the run after its timeline arrives");
+        stat.LaneWins.Should().Be(3);
+        stat.LaneGoldDiffSum.Should().Be(3000, "the gap is folded too, not just the verdict");
+    }
+
+    [Fact]
     public async Task RunAsync_AddsOntoAnExistingMatchupRowRatherThanDuplicatingIt()
     {
         await _fixture.ResetDatabaseAsync();
@@ -216,7 +261,8 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
         int opponentGold,
         bool withSnapshots = true,
         int selfXp = DefaultXp,
-        int opponentXp = DefaultXp)
+        int opponentXp = DefaultXp,
+        bool timelineIngested = true)
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -252,7 +298,7 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
                 .WithId(matchId)
                 .WithQueueId(QueueId)
                 .WithGameVersion(RawVersion)
-                .WithTimelineIngested()
+                .WithTimelineIngested(timelineIngested)
                 .Build());
 
             db.MatchParticipants.Add(Participant(matchId, 1, Champion, teamId: 100, account.Id, account.Puuid));

@@ -20,6 +20,7 @@
 
 export { formatTier as formatRank, TIER_HEX as RANK_COLOR } from '~/utils/tiers'
 export { eloBracketLabel as formatEloBracket } from '~/utils/elo-brackets'
+export { formatCount } from '~~/shared/utils/counts'
 
 import { POSITION_BY_VALUE } from '~/utils/positions'
 
@@ -79,13 +80,4 @@ export const BACKDROP = [
 /** Riot position value → the label the app's role pickers show. */
 export function formatPosition(position: string): string {
   return POSITION_BY_VALUE.get(position.toUpperCase())?.label ?? position
-}
-
-/**
- * Thousands-separated integer. Pinned to `en-US` for the same reason the rest
- * of the app is: the card is rendered on the server, and a locale-dependent
- * separator would make the output depend on the container's environment.
- */
-export function formatCount(value: number): string {
-  return value.toLocaleString('en-US')
 }

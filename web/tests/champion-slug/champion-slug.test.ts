@@ -6,8 +6,8 @@ import {
   championSegment,
   resolveChampionParam,
   truemainChampionPath,
-} from '../../shared/utils/champion-slug'
-import { toChampionSlug } from '../../shared/utils/ddragon'
+} from '~~/shared/utils/champion-slug'
+import { toChampionSlug } from '~~/shared/utils/ddragon'
 
 /**
  * Champion URL slugs (#1124). Three places have to agree on a champion's URL —

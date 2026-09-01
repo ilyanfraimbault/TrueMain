@@ -5,6 +5,7 @@ using AwesomeAssertions;
 using Data.Entities;
 using Data.Ops.Mongo;
 using Microsoft.AspNetCore.Mvc.Testing;
+using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
 
@@ -313,20 +314,14 @@ public sealed class CandidatesApiIntegrationTests
     }
 
     private static Match BuildMatch(string id, DateTime gameStart)
-        => new()
-        {
-            Id = id,
-            PlatformId = "EUW1",
-            QueueId = 420,
-            MapId = 11,
-            GameMode = "CLASSIC",
-            GameType = "MATCHED_GAME",
-            GameStartTimeUtc = gameStart,
-            GameDurationSeconds = 1800,
-            GameVersion = "16.4.1",
-            CreatedAtUtc = gameStart,
-            TimelineIngested = true
-        };
+        => new MatchBuilder()
+            .WithId(id)
+            .WithPlatformId("EUW1")
+            .WithGameVersion("16.4.1")
+            .WithGameStartTimeUtc(gameStart)
+            .WithCreatedAtUtc(gameStart)
+            .WithTimelineIngested()
+            .Build();
 
     private static RiotAccount BuildAccount(string puuid, string gameName, string tagLine, string platformId, DateTime now)
         => new()
@@ -343,22 +338,14 @@ public sealed class CandidatesApiIntegrationTests
         };
 
     private static MatchParticipant BuildParticipant(string puuid, string matchId, int participantId)
-        => new()
-        {
-            Id = Guid.NewGuid(),
-            MatchId = matchId,
-            ParticipantId = participantId,
-            Puuid = puuid,
-            SummonerName = "Phantasm",
-            SummonerLevel = 100,
-            ChampionId = 7,
-            TeamId = 100,
-            TeamPosition = "TOP",
-            IndividualPosition = "TOP",
-            Lane = "TOP",
-            Role = "SOLO",
-            Win = true
-        };
+        => new MatchParticipantBuilder()
+            .WithMatchId(matchId)
+            .WithParticipantId(participantId)
+            .WithPuuid(puuid)
+            .WithSummonerName("Phantasm")
+            .WithChampionId(7)
+            .WithPosition("TOP")
+            .Build();
 
     private static HttpClient CreateAuthedClient(ApiWebApplicationFactory factory)
     {

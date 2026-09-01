@@ -44,6 +44,11 @@ interface UseTruemainFetchOptions<TResponse> {
  * triggering a 404 round trip on the first tick. `enabled` holds the request
  * back entirely — that is how the favorites page bounds its fan-out (#872).
  *
+ * Responses are gated on a monotonic request token, the same guard
+ * `useCompositionBuild` / `useCompositionBuildGames` / `useTruemainSearch`
+ * carry: only the newest request may write the refs, so a slow older response
+ * can never land under newer inputs.
+ *
  * Must be called from a component `setup()`: the initial run hangs off
  * `onMounted`, which is what makes "client-only" true rather than merely
  * intended (see the comment on that call).
@@ -60,10 +65,21 @@ export function useTruemainFetch<TResponse>(
   const notFound = ref(false)
   const error = ref<unknown>(null)
 
+  // Monotonic request token — the pattern `useCompositionBuild` and
+  // `useTruemainSearch` already carry. Every consumer here refires on its own
+  // inputs (`useTruemainMatches` on page, position and championId), and
+  // `$fetch` resolutions are not ordered: on a slow link, stepping from page 3
+  // to page 4 can let page 3's response land last and write its rows under a
+  // pager reading 4. Bumped before *any* work — including the cleared path —
+  // so clearing also invalidates whatever is still in flight.
+  let requestSeq = 0
+
   async function execute() {
     // Gated: leave every ref untouched, so the consumer still reads
     // "initial loading" rather than a cleared — i.e. empty-looking — bundle.
     if (!enabledRef.value) return
+
+    const seq = ++requestSeq
 
     if (!nameTagRef.value) {
       options.onClear()
@@ -77,6 +93,10 @@ export function useTruemainFetch<TResponse>(
     try {
       const response = await options.request(nameTagRef.value)
 
+      // Superseded while in flight: a newer request owns the refs now, and
+      // it also owns the loading flags (see `finally`).
+      if (seq !== requestSeq) return
+
       if (!options.validate(response)) {
         notFound.value = true
         options.onClear()
@@ -87,11 +107,17 @@ export function useTruemainFetch<TResponse>(
       options.onResponse(response)
     }
     catch (err) {
+      if (seq !== requestSeq) return
       error.value = err
     }
     finally {
-      isLoading.value = false
-      isInitialLoading.value = false
+      // Only the newest request may close the loading state — otherwise a
+      // stale rejection would clear the skeleton while the current fetch is
+      // still running.
+      if (seq === requestSeq) {
+        isLoading.value = false
+        isInitialLoading.value = false
+      }
     }
   }
 

@@ -56,8 +56,8 @@ public sealed class ChampionMatchupBuildsQueryService(
         }
 
         var queueId = (int)mainAnalysisOptions.Value.QueueId;
-        var requestedPatch = string.IsNullOrWhiteSpace(patch) ? null : PatchVersion.Normalize(patch);
-        var bracketFilter = EloBracket.ResolveFilter(eloBracket);
+        var requestedPatch = PatchFilter.Normalize(patch);
+        var bracketFilter = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var resolvedBracket = EloBracket.Normalize(eloBracket) ?? EloBracket.All;
 
         // With no patch asked for, resolve the newest one this matchup was played on and
@@ -182,8 +182,11 @@ public sealed class ChampionMatchupBuildsQueryService(
         int opponentChampionId,
         string position,
         int queueId,
-        string? patch) =>
-        participants
+        string? patch)
+    {
+        var patchPrefix = PatchFilter.Prefix(patch);
+
+        return participants
             .Join(
                 db.MatchParticipants.AsNoTracking().Where(o =>
                     o.ChampionId == opponentChampionId && o.TeamPosition == position),
@@ -193,7 +196,7 @@ public sealed class ChampionMatchupBuildsQueryService(
             .Where(pair => pair.Opponent.TeamId != pair.Participant.TeamId)
             .Join(
                 db.Matches.AsNoTracking().Where(m => m.QueueId == queueId
-                    && (patch == null || m.GameVersion.StartsWith(patch + "."))),
+                    && (patchPrefix == null || EF.Functions.Like(m.GameVersion, patchPrefix))),
                 pair => pair.Participant.MatchId,
                 m => m.Id,
                 (pair, m) => new MatchupMatchRow
@@ -203,6 +206,7 @@ public sealed class ChampionMatchupBuildsQueryService(
                     GameStartTimeUtc = m.GameStartTimeUtc,
                     GameVersion = m.GameVersion,
                 });
+    }
 
     // Object-initializer syntax, not a positional record: Npgsql's EF provider fails to
     // translate a later OrderBy/Select over a positional constructor call re-embedded from

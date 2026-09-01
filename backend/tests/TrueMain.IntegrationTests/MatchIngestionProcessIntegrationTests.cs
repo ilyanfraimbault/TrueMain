@@ -76,6 +76,7 @@ public sealed class MatchIngestionProcessIntegrationTests
     {
         public List<Data.Repositories.AccountKey> Validated { get; } = [];
         public List<Data.Repositories.AccountKey> Reverted { get; } = [];
+        public List<Data.Repositories.AccountKey> Released { get; } = [];
 
         public Task<bool> ValidateAsync(Data.Repositories.AccountKey account, CancellationToken ct)
         {
@@ -86,6 +87,12 @@ public sealed class MatchIngestionProcessIntegrationTests
         public Task RevertAsync(Data.Repositories.AccountKey account, CancellationToken ct)
         {
             Reverted.Add(account);
+            return Task.CompletedTask;
+        }
+
+        public Task ReleaseUningestableAsync(Data.Repositories.AccountKey account, CancellationToken ct)
+        {
+            Released.Add(account);
             return Task.CompletedTask;
         }
     }

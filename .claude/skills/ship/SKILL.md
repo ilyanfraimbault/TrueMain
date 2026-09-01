@@ -11,10 +11,10 @@ Goal: take the branch from "works locally" to "merged, branch deleted, board upd
 
 Look at `git diff --name-only origin/develop...HEAD` and run only the relevant checks:
 
-- `backend/**` → `dotnet build backend --configuration Release` (CI treats code-style analyzers as errors; Debug hides them) and `dotnet test backend`.
+- `backend/**` → `dotnet build backend --configuration Release` (CI treats code-style analyzers as errors; Debug hides them) and `dotnet test backend/tests/TrueMain.UnitTests`. Run `dotnet test backend/tests/TrueMain.IntegrationTests` **only if a Docker daemon is available** — it boots Postgres through `Testcontainers.PostgreSql`, so without Docker the failure says nothing about the diff. CI keeps the two apart the same way: unit tests always, integration tests on pull requests only (`ci.yml`).
 - EF schema changed (migrations, entity configs) → regenerate the compiled model: `dotnet ef dbcontext optimize` (output in `backend/Data/CompiledModels`). If develop gained another schema PR meanwhile, merge develop first, then regenerate — a stale compiled model silently drops columns.
-- `web/**` or `admin/**` beyond trivial template tweaks → fresh `npm run build` in that app; `nuxt typecheck` can pass on stale `.nuxt` types while CI's build fails.
-- `web/package-lock.json` touched → it must have been generated with `npx npm@11.13.0` (CI's npm); older npm omits sharp optional deps and breaks CI only.
+- `web/**` or `admin/**` beyond trivial template tweaks → run the three commands CI runs in that app (`ci.yml`): `npm run typecheck`, `npm run test` (vitest — both apps have a suite, and `build` never runs it), then a fresh `npm run build`. `nuxt typecheck` can pass on stale `.nuxt` types while CI's build fails.
+- `web/package-lock.json` touched → it must have been generated with `npx npm@11.13.0`, the npm version CI pins for the frontend jobs (`ci.yml`); older npm omits sharp optional deps and breaks CI only.
 
 Fix failures before pushing — never push a commit you haven't built.
 
@@ -60,5 +60,7 @@ gh pr merge <n> --squash --delete-branch
 ## 6. Post-merge
 
 - `Closes #N` closes the issue on merge; check the board moved to Done, otherwise `.claude/scripts/project-set.sh <issue> Status Done`.
-- If the change only takes effect after a deploy (ingestor pipeline, infra, compose), say so explicitly — prod runs an unversioned compose copy, merging alone changes nothing there.
+- Deploys are automatic and asymmetric — say which environment now has the change:
+  - **Preprod**: every push to develop (so every squash-merge) triggers `deploy-preprod.yml` — images rebuilt, migrations applied, VPS redeployed a few minutes later. Nothing to do by hand.
+  - **Prod**: unmoved. `deploy-prod.yml` runs on `release: published` only, so the change reaches prod when someone cuts a release (the `release` skill) and not before.
 - Final report: PR link, what was verified, merge done, branch deleted, board updated.

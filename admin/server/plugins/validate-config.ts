@@ -9,6 +9,10 @@
 const INSECURE_DEFAULT = 'truemain'
 const MIN_SESSION_PASSWORD_LENGTH = 32
 const MIN_OPS_KEY_LENGTH = 32
+// Shorter than the two machine secrets above because an operator types this one
+// by hand, but a floor all the same: the check used to reject `truemain` and
+// accept `a`, which the login throttle alone does not save (#1225).
+const MIN_ADMIN_PASSWORD_LENGTH = 12
 
 export default defineNitroPlugin(() => {
   if (import.meta.dev) {
@@ -23,6 +27,9 @@ export default defineNitroPlugin(() => {
   }
   if (!config.adminPassword || config.adminPassword === INSECURE_DEFAULT) {
     problems.push('NUXT_ADMIN_PASSWORD is unset or still the insecure `truemain` default')
+  }
+  else if (config.adminPassword.length < MIN_ADMIN_PASSWORD_LENGTH) {
+    problems.push(`NUXT_ADMIN_PASSWORD must be at least ${MIN_ADMIN_PASSWORD_LENGTH} characters; the login throttle (5 attempts/minute per IP) slows an attacker down, it does not put a short password out of reach`)
   }
   if (!config.session?.password || config.session.password.length < MIN_SESSION_PASSWORD_LENGTH) {
     problems.push(`NUXT_SESSION_PASSWORD must be set to a random secret of at least ${MIN_SESSION_PASSWORD_LENGTH} characters`)

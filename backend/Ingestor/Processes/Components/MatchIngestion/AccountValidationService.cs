@@ -38,6 +38,37 @@ public sealed class AccountValidationService(
         return updated > 0;
     }
 
+    public async Task ReleaseUningestableAsync(AccountKey account, CancellationToken ct)
+    {
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+
+        // The candidates themselves are not settled by this — the account was never
+        // addressed — so they go back to Queued exactly as a revert would leave them.
+        var updated = await session.MainCandidates
+            .SetStatusForAccountAsync(
+                account.PlatformId,
+                account.Puuid,
+                MainCandidateStatus.Processing,
+                MainCandidateStatus.Queued,
+                ct);
+
+        if (updated > 0)
+        {
+            logger.LogDebug(
+                "Released {Count} candidates back to Queued for uningestable {Platform}/{Puuid}.",
+                updated,
+                account.PlatformId,
+                account.Puuid);
+        }
+
+        // The one thing RevertAsync must not do and this must: move the row off the head
+        // of the claim ordering, since nothing about its condition will change (#1223).
+        await session.RiotAccounts.UpdateLastMatchIngestAtAsync(account.PlatformId, account.Puuid, nowUtc, ct);
+        await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
+        await session.SaveChangesAsync(ct);
+    }
+
     public async Task RevertAsync(AccountKey account, CancellationToken ct)
     {
         await using var session = await sessionFactory.CreateAsync(ct);

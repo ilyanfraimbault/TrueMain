@@ -1,5 +1,4 @@
 using Core.Lol.Map;
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
@@ -47,13 +46,11 @@ public sealed class ChampionRoamQueryService(
         string? eloBracket,
         CancellationToken ct)
     {
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsed) ? parsed.ToMajorMinor() : null;
+        var normalizedPatch = PatchFilter.Normalize(patch);
 
         // Resolve the elo filter to its bands (null = ALL, no clause); the cache
         // key carries the bracket so each band caches separately.
-        var bands = EloBracket.ResolveFilter(eloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var cacheKey = $"champions:roam:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
@@ -71,7 +68,7 @@ public sealed class ChampionRoamQueryService(
         }
 
         var queueId = (int)options.Value.QueueId;
-        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
         var minGames = championsOptions.Value.MinMatchupGames;
 
         // Denominator: games the champion played in this lane that also have
@@ -105,7 +102,7 @@ public sealed class ChampionRoamQueryService(
 
         var killRows =
             from killPosition in db.MatchParticipantKillPositions.AsNoTracking()
-            join participant in db.MatchParticipants
+            join participant in db.MatchParticipants.AsNoTracking()
                 on new { killPosition.MatchId, killPosition.ParticipantId }
                 equals new { participant.MatchId, participant.ParticipantId }
             where participant.ChampionId == championId
@@ -167,13 +164,7 @@ public sealed class ChampionRoamQueryService(
 
     private ChampionRoamResponse Cache(string cacheKey, ChampionRoamResponse response)
     {
-        cache.Set(cacheKey, response, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1
-        });
-
-        return response;
+        return cache.Store(cacheKey, response, CacheTtl);
     }
 
     private static ChampionRoamResponse Empty(int championId, string position, string? patch, int games = 0)

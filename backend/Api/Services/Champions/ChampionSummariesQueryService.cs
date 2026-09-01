@@ -49,15 +49,6 @@ public sealed class ChampionSummariesQueryService(
     // rank, the site has an ingestion problem that serving a fifth would only hide.
     private const int MaxServableWalkBack = 4;
 
-    // Every cache entry must carry a Size because the shared MemoryCache runs
-    // with a SizeLimit (see Program.cs). Without a Size the Set is silently
-    // dropped and the value never caches. Count-based: one entry = one unit.
-    private static MemoryCacheEntryOptions CacheEntry(TimeSpan ttl) => new()
-    {
-        AbsoluteExpirationRelativeToNow = ttl,
-        Size = 1,
-    };
-
     public async Task<ChampionSummariesResult> GetAllSummariesAsync(
         string? patch, string? eloBracket, CancellationToken ct)
     {
@@ -65,9 +56,18 @@ public sealed class ChampionSummariesQueryService(
 
         // Resolve the filter to its per-tier bands: cumulative "X+" expands, an
         // exact tier selects only itself. Null → ALL: no elo clause, full union.
+        //
+        // Resolved from the raw value, not from the normalised one: Normalize maps a
+        // blank filter and an unrecognised one both to null, so resolving after it
+        // would hand every typo the whole population under a rank label (#1224).
         var normalizedBracket = EloBracket.Normalize(eloBracket);
-        var bracketBands = EloBracket.ResolveFilter(normalizedBracket);
-        var bracketKey = bracketBands is null ? EloBracket.All : normalizedBracket!;
+        var bracketBands = EloBracket.ResolveFilterOrEmpty(eloBracket);
+        var bracketKey = bracketBands switch
+        {
+            null => EloBracket.All,
+            { Count: 0 } => EloBracket.InvalidToken,
+            _ => normalizedBracket!
+        };
 
         var resolveSw = Stopwatch.StartNew();
         var activePatch = await ResolveActivePatchAsync(patch, ct);
@@ -108,7 +108,7 @@ public sealed class ChampionSummariesQueryService(
         var computeSw = Stopwatch.StartNew();
         var result = await ComputeAllSummariesAsync(activePatch, bracketBands, ct);
         computeSw.Stop();
-        cache.Set(cacheKey, result, CacheEntry(SummariesCacheTtl));
+        cache.Set(cacheKey, result, ApiCache.Entry(SummariesCacheTtl));
         totalSw.Stop();
         logger.LogInformation(
             "{Surface} compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count} totalGames={TotalGames}",
@@ -136,7 +136,7 @@ public sealed class ChampionSummariesQueryService(
             "{Surface} sql=total_games total={Total} elapsed={ElapsedMs}ms",
             Surface, total, sw.ElapsedMilliseconds);
 
-        cache.Set(TotalGamesCacheKey, total, CacheEntry(TotalGamesCacheTtl));
+        cache.Set(TotalGamesCacheKey, total, ApiCache.Entry(TotalGamesCacheTtl));
         return total;
     }
 
@@ -156,7 +156,7 @@ public sealed class ChampionSummariesQueryService(
         var resolved = await ResolveServablePatchAsync(ordered, ct);
         if (!string.IsNullOrEmpty(resolved))
         {
-            cache.Set(ActivePatchCacheKey, resolved, CacheEntry(ActivePatchCacheTtl));
+            cache.Set(ActivePatchCacheKey, resolved, ApiCache.Entry(ActivePatchCacheTtl));
         }
         return resolved;
     }
@@ -227,7 +227,7 @@ public sealed class ChampionSummariesQueryService(
             Surface, distinctPatches.Count, sw.ElapsedMilliseconds);
 
         var ordered = ChampionAggregateScopeResolver.OrderNewestFirst(distinctPatches);
-        cache.Set(PatchListCacheKey, ordered, CacheEntry(ActivePatchCacheTtl));
+        cache.Set(PatchListCacheKey, ordered, ApiCache.Entry(ActivePatchCacheTtl));
         return ordered;
     }
 
@@ -291,7 +291,7 @@ public sealed class ChampionSummariesQueryService(
             .GroupBy(line => line.Patch, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
 
-        cache.Set(cacheKey, linesByPatch, CacheEntry(SummariesCacheTtl));
+        cache.Set(cacheKey, linesByPatch, ApiCache.Entry(SummariesCacheTtl));
         return linesByPatch;
     }
 
@@ -315,10 +315,11 @@ public sealed class ChampionSummariesQueryService(
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
             .Where(scope => scope.GameVersion == activePatch);
 
-        // Cumulative elo filter: a null / empty band set is ALL (no clause, the
-        // full union incl. Unranked); a non-empty set restricts to the bands at
-        // or above the requested threshold (`elo_bracket = ANY(@bands)`).
-        if (bracketBands is { Count: > 0 })
+        // Cumulative elo filter: null is ALL (no clause, the full union incl.
+        // Unranked); a non-null set restricts to those bands — empty included,
+        // which correctly matches nothing rather than widening back to ALL for
+        // a rejected filter (see EloBracket.ResolveFilterOrEmpty).
+        if (bracketBands is not null)
         {
             groupsQuery = groupsQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
         }
@@ -450,10 +451,10 @@ public sealed class ChampionSummariesQueryService(
     // less-played position can leave only a handful of rows clearing
     // MinSampleGames) trivially top its own tiny peer group on every metric —
     // reintroducing, via lane population size, the exact "flukes into
-    // S-tier" failure this whole rework exists to fix for game count. Tiering
-    // per lane here also matches ChampionTierListQueryService.TierPosition,
-    // so a row's Tier/TierScore on GET /champions now agrees with the same
-    // row's entry on GET /champions/tierlist for the same (patch, eloBracket).
+    // S-tier" failure this whole rework exists to fix for game count. This is
+    // the only place a tier is computed: GET /champions/tierlist reshapes these
+    // same stamped rows instead of re-tiering them, so a row's Tier/TierScore
+    // cannot differ between the two endpoints for the same (patch, eloBracket).
     private IReadOnlyList<ChampionSummaryReadModel> AssignTiers(
         List<ChampionSummaryReadModel> summaries, ChampionTierOptions options)
     {
@@ -528,10 +529,11 @@ public sealed class ChampionSummariesQueryService(
         var queueId = (int)options.Value.QueueId;
 
         // Mirror the summaries elo filter so the row's shown build matches the
-        // slice its WR / PR are computed from (null / empty = ALL, no clause).
+        // slice its WR / PR are computed from (null = ALL, no clause; a
+        // non-null set — empty included — restricts, see ResolveFilterOrEmpty).
         var scopeQuery = db.ChampionAggregateScopes.AsNoTracking()
             .Where(scope => scope.QueueId == queueId && scope.GameVersion == activePatch);
-        if (bracketBands is { Count: > 0 })
+        if (bracketBands is not null)
         {
             scopeQuery = scopeQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
         }

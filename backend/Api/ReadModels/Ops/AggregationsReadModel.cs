@@ -19,7 +19,7 @@ public sealed record AggregationsReadModel
 }
 
 /// <summary>
-/// One aggregation family (builds patterns, matchups, timeline leads,
+/// One aggregation family (builds patterns, matchups, synergies,
 /// powerspikes, mains): the tables it owns with exact row counts, its
 /// champion/patch coverage, and the latest run of the process producing it.
 /// </summary>

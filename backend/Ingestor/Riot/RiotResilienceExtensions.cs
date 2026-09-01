@@ -28,7 +28,10 @@ public static class RiotResilienceExtensions
     {
         builder.AddStandardResilienceHandler().Configure((options, serviceProvider) =>
         {
-            var riotOptions = serviceProvider.GetRequiredService<IOptionsMonitor<RiotOptions>>().CurrentValue;
+            // IOptions, not IOptionsMonitor: this Configure delegate runs once, when the handler's
+            // options are built, so a monitor would promise a hot reload that never reaches the
+            // pipeline. Changing Riot:* takes a restart.
+            var riotOptions = serviceProvider.GetRequiredService<IOptions<RiotOptions>>().Value;
 
             options.Retry.MaxRetryAttempts = riotOptions.MaxRetryAttempts;
             options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(riotOptions.AttemptTimeoutSeconds);

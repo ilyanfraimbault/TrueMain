@@ -1,4 +1,5 @@
 import type { ChampionTrendResponse } from '~~/shared/types/champions'
+import { isLoadingStatus } from '~/utils/async-data'
 
 /**
  * Per-patch winrate / pickrate series for the champion detail trend chart.
@@ -15,6 +16,12 @@ import type { ChampionTrendResponse } from '~~/shared/types/champions'
  * resolved champion, so it holds the fetch until that lands. Without the gate
  * the first render fires with an unresolved (null) position and a second
  * request fires the instant the champion's lane arrives — two calls per load.
+ *
+ * Bind skeletons to the returned `pending`, not to `status`: a closed gate
+ * resolves an empty series straight to `success`, so `status` alone would read
+ * "loaded, no points" for the whole champion fetch and the chart would flash
+ * its no-data state before filling in. `pending` folds the gate in (and
+ * supersedes Nuxt's own `pending`, which only knows about the request).
  */
 export function useChampionTrend(
   championId: MaybeRefOrGetter<number>,
@@ -25,7 +32,7 @@ export function useChampionTrend(
   const positionRef = computed(() => toValue(position) || undefined)
   const enabledRef = computed(() => toValue(enabled))
 
-  return useLazyAsyncData<ChampionTrendResponse>(
+  const result = useLazyAsyncData<ChampionTrendResponse>(
     () => ['champion-trend', championIdRef.value, positionRef.value ?? ''].join('-'),
     () => {
       // Hold an empty series until the gate opens so we never fire a throwaway
@@ -39,4 +46,8 @@ export function useChampionTrend(
     },
     { watch: [championIdRef, positionRef, enabledRef], server: false },
   )
+
+  const pending = computed(() => !enabledRef.value || isLoadingStatus(result.status.value))
+
+  return { ...result, pending }
 }

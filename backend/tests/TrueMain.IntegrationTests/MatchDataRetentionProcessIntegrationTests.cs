@@ -314,6 +314,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         var process = new MatchDataRetentionProcess(
             NullLogger<MatchDataRetentionProcess>.Instance,
             new TestDbContextFactory(_fixture),
+            _fixture.CreateSessionFactory(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
             {
                 RetainedPatchCount = retainedPatchCount,

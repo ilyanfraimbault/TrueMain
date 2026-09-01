@@ -31,9 +31,20 @@ namespace Data.Migrations
         //      ID in any of BuildItem0..6.
         //   2. DELETE the now-orphan champion_dim_builds rows (FK is RESTRICT
         //      so pattern cleanup has to land first).
-        // suppressTransaction lets the DO block COMMIT between batches so
-        // pattern-table locks are released regularly. The procedure is
-        // idempotent — running twice is a safe no-op on a clean state.
+        // Runs inside the migration transaction. It used to COMMIT between batches
+        // under suppressTransaction: true, to release pattern-table locks — but a
+        // procedural COMMIT is illegal once the block runs in an explicit transaction,
+        // which is exactly what the deploy path does (`--idempotent` script piped into
+        // `psql --single-transaction`, every statement nested in a `DO $EF$ ... END $EF$`
+        // block). suppressTransaction only ever had an effect for Database.MigrateAsync(),
+        // permanently disabled in preprod and prod (#1227), so this migration could never
+        // have applied to a database built from scratch.
+        //
+        // Dropping the batching COMMIT costs nothing: the body only re-executes where
+        // __EFMigrationsHistory lacks this migration — a brand-new database, where the
+        // pattern tables are empty and the loop does no work. Batching by 500 is kept so
+        // the DELETE statement stays bounded. The procedure is idempotent — running
+        // twice is a safe no-op on a clean state.
         //
         // The worker re-aggregates each affected scope on its next tick via
         // ChampionPatternAggregatePersister.ReplaceAggregatesAsync (delete-by-
@@ -43,7 +54,7 @@ namespace Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql(PurgeSql, suppressTransaction: true);
+            migrationBuilder.Sql(PurgeSql);
         }
 
         /// <inheritdoc />
@@ -58,7 +69,6 @@ namespace Data.Migrations
             DECLARE
                 affected_pattern_ids UUID[];
                 batch UUID[];
-                deleted INT;
                 batch_size CONSTANT INT := 500;
             BEGIN
                 -- Snapshot of starter-class IDs at the time of this migration,
@@ -110,8 +120,6 @@ namespace Data.Migrations
                         batch := affected_pattern_ids[i : LEAST(i + batch_size - 1, array_length(affected_pattern_ids, 1))];
                         DELETE FROM champion_aggregate_patterns
                         WHERE "Id" = ANY(batch);
-                        GET DIAGNOSTICS deleted = ROW_COUNT;
-                        COMMIT;
                     END LOOP;
                 END IF;
 

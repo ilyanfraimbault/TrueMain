@@ -14,6 +14,7 @@ namespace TrueMain.Services.Truemains;
 /// </summary>
 public sealed class MatchSummariesQueryService(
     TrueMainDbContext db,
+    TruemainAccountResolver resolver,
     MatchSummaryHydrator hydrator,
     ILogger<MatchSummariesQueryService> logger) : IMatchSummariesQueryService
 {
@@ -29,11 +30,6 @@ public sealed class MatchSummariesQueryService(
         int? championId,
         CancellationToken ct)
     {
-        if (!NameTagParser.TryParse(nameTag, out var parsed))
-        {
-            return null;
-        }
-
         // Normalize the position filter once. The DB stores team positions
         // as upper-case Riot strings (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY);
         // any other value clamps to null so a bogus query param doesn't
@@ -53,19 +49,7 @@ public sealed class MatchSummariesQueryService(
 
         var championFilter = championId is > 0 ? championId : null;
 
-        // Multi-platform name-tag disambiguation: a (gameName, tagLine) pair
-        // is unique within a Riot routing region but can collide across
-        // regions. Picking the most-recently-active row keeps this endpoint
-        // and `/truemains/{nameTag}/profile` (ProfileQueryService) aligned —
-        // both routes always resolve to the same account for a given name
-        // tag, so the user never lands on inconsistent profile vs. matches.
-        var account = await db.RiotAccounts
-            .AsNoTracking()
-            .Where(a => a.GameName == parsed.GameName && a.TagLine == parsed.TagLine)
-            .OrderByDescending(a => a.LastMatchIngestAtUtc ?? a.UpdatedAtUtc)
-            .Select(a => new { a.Id, a.Puuid })
-            .FirstOrDefaultAsync(ct);
-
+        var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;

@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
@@ -40,12 +39,10 @@ public sealed class CompositionMatchQueryService(
         // prefix bridge from normalised patch input to the full GameVersion
         // stored on matches.
         var queueId = (int)analysisOptions.Value.QueueId;
-        var normalizedPatch = string.IsNullOrWhiteSpace(criteria.Patch)
-            ? null
-            : PatchVersion.TryParse(criteria.Patch, out var parsed) ? parsed.ToMajorMinor() : null;
-        var patchPrefix = normalizedPatch is null ? null : $"{normalizedPatch}.%";
+        var normalizedPatch = PatchFilter.Normalize(criteria.Patch);
+        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
 
-        var bands = EloBracket.ResolveFilter(criteria.EloBracket);
+        var bands = EloBracket.ResolveFilterOrEmpty(criteria.EloBracket);
 
         // Candidate rows: this champion at this position over the full pool,
         // most recent first, bounded by the pool cap. Recency is the right

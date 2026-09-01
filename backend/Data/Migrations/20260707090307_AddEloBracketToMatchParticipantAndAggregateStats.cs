@@ -59,31 +59,36 @@ namespace Data.Migrations
                 columns: new[] { "ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "elo_bracket" },
                 unique: true);
 
-            // match_participants is ~35 GB. Swapping its index in-transaction would take
-            // an ACCESS EXCLUSIVE lock and rebuild the whole index, blowing the startup
-            // migration command timeout and stalling the live ingestor. Do it
-            // CONCURRENTLY, outside the transaction — same approach as the sibling
-            // AddMatchParticipantChampionPositionIndex migration. The index name is
-            // reused, so the old one must be dropped before the new one is built.
+            // The index name is reused, so the old one must be dropped before the new
+            // one is built. Both statements are plain and transactional: they used
+            // CONCURRENTLY + suppressTransaction back when match_participants was ~35 GB
+            // and migrations applied at API startup, but that flag only ever had an
+            // effect for Database.MigrateAsync(). The deploy path is an `--idempotent`
+            // script piped into `psql --single-transaction`, where each statement sits
+            // in a `DO $EF$ ... END $EF$` block and Postgres rejects CONCURRENTLY both
+            // inside a function and inside a transaction block (#1227) — so this
+            // migration could never have applied to a database created from scratch.
+            //
+            // Keeping it transactional is also what makes this migration coherent: the
+            // AddColumn above it is transactional, and the index depends on the column.
+            // The body only re-executes where __EFMigrationsHistory lacks this
+            // migration, i.e. a brand-new database with an empty table.
             migrationBuilder.Sql(
-                "DROP INDEX CONCURRENTLY IF EXISTS \"IX_match_participants_champion_position_tracked\";",
-                suppressTransaction: true);
+                "DROP INDEX IF EXISTS \"IX_match_participants_champion_position_tracked\";");
 
             migrationBuilder.Sql(
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS \"IX_match_participants_champion_position_tracked\" " +
+                "CREATE INDEX IF NOT EXISTS \"IX_match_participants_champion_position_tracked\" " +
                 "ON match_participants (\"ChampionId\", \"TeamPosition\", \"elo_bracket\") " +
-                "WHERE \"RiotAccountId\" IS NOT NULL;",
-                suppressTransaction: true);
+                "WHERE \"RiotAccountId\" IS NOT NULL;");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Drop the elo-bracket index on the 35 GB table CONCURRENTLY first, so the
-            // column it references can then be dropped inside the transaction.
+            // Drop the elo-bracket index first, so the column it references can then be
+            // dropped. Transactional like the rest of the migration (#1227).
             migrationBuilder.Sql(
-                "DROP INDEX CONCURRENTLY IF EXISTS \"IX_match_participants_champion_position_tracked\";",
-                suppressTransaction: true);
+                "DROP INDEX IF EXISTS \"IX_match_participants_champion_position_tracked\";");
 
             migrationBuilder.DropIndex(
                 name: "IX_champion_timeline_lead_stats_ChampionId_TeamPosition_Patch_~",
@@ -117,12 +122,11 @@ namespace Data.Migrations
                 columns: new[] { "ChampionId", "TeamPosition", "OpponentChampionId", "Patch" },
                 unique: true);
 
-            // Rebuild the original (pre-elo-bracket) index CONCURRENTLY, matching the
-            // sibling AddMatchParticipantChampionPositionIndex migration.
+            // Rebuild the original (pre-elo-bracket) index, matching the sibling
+            // AddMatchParticipantChampionPositionIndex migration.
             migrationBuilder.Sql(
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS \"IX_match_participants_champion_position_tracked\" " +
-                "ON match_participants (\"ChampionId\", \"TeamPosition\") WHERE \"RiotAccountId\" IS NOT NULL;",
-                suppressTransaction: true);
+                "CREATE INDEX IF NOT EXISTS \"IX_match_participants_champion_position_tracked\" " +
+                "ON match_participants (\"ChampionId\", \"TeamPosition\") WHERE \"RiotAccountId\" IS NOT NULL;");
         }
     }
 }
