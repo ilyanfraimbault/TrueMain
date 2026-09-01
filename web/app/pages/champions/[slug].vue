@@ -136,6 +136,12 @@ const buildSummaryFetch = useAsyncData(
     filters.value.position ?? '',
     filters.value.eloBracket ?? '',
     filters.value.opponentChampionId ?? '',
+    // The population belongs in the key like every other slice dimension: the
+    // request below carries it, and two populations sharing one entry means one
+    // gets served under the other's filter. `watch: [championId, filters]` masks
+    // it in the live path (a fresh object every recompute forces a refetch), but
+    // the key is what SSR payload reuse keys on.
+    filters.value.truemainsOnly ? 'truemains' : 'everyone',
   ].join('-'),
   () => $fetch<ChampionBuildSummary>(`/api/champion-summary/${championId.value}`, {
     query: {

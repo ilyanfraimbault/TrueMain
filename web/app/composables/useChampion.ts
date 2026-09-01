@@ -110,7 +110,11 @@ export function useChampion(
         try {
           return await $fetch<ChampionResponse>(
             `/api/truemains/${encodeURIComponent(nameTag)}/champions/${id}`,
-            { query: f },
+            // Only what this endpoint declares. It is scoped to one account and
+            // renders no rank or population control, so forwarding `eloBracket`
+            // / `truemainsOnly` sent dead params that read as if the toggle
+            // reached this page.
+            { query: { patch: f.patch, position: f.position } },
           )
         }
         catch (error: unknown) {

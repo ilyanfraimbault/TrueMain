@@ -84,12 +84,47 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_ShouldPurgeAggregatesWhenUnqualified_WithTheDefaultPopulation()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedChampionPatternDataAsync();
+
+        // Default pipeline: mains only (#1346's widening is gated on
+        // MainAnalysis:AggregateNonMainPopulation, off until the chunking has
+        // been measured at ~4.3x the rows). A demoted account stops producing
+        // source rows entirely, so replace-by-scope prunes its aggregates —
+        // the pre-#1346 behaviour, unchanged.
+        var process = CreateProcess();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using (var mutateDb = _fixture.CreateDbContext())
+        {
+            foreach (var stat in await mutateDb.MainChampionStats.ToListAsync())
+            {
+                stat.IsMain = false;
+                stat.IsOtp = false;
+            }
+
+            await mutateDb.SaveChangesAsync();
+        }
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        (await verifyDb.ChampionAggregateScopes.ToListAsync()).Should().BeEmpty();
+        (await verifyDb.ChampionAggregatePatterns.ToListAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldDemoteAggregatesWhenAllSupportingStatsBecomeUnqualified()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
 
-        var process = CreateProcess();
+        // Demotion is what the *widened* pipeline does. With the flag off (the
+        // default) a demoted account produces no rows at all and its scopes are
+        // purged — asserted by the test below.
+        var process = CreateProcess(aggregateNonMains: true);
         await process.RunCoreAsync(CancellationToken.None);
 
         await using (var mutateDb = _fixture.CreateDbContext())
@@ -374,12 +409,16 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
         await db.SaveChangesAsync();
     }
 
-    private ChampionPatternAggregationProcess CreateProcess()
+    private ChampionPatternAggregationProcess CreateProcess(bool aggregateNonMains = false)
     {
         var dbContextFactory = new TestDbContextFactory(_fixture);
         return new ChampionPatternAggregationProcess(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
-            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
+            {
+                QueueId = LolQueueId.RankedSoloDuo,
+                AggregateNonMainPopulation = aggregateNonMains
+            }),
             new ChampionPatternSourceRowReader(dbContextFactory),
             new ChampionPatternAggregateBuilder(new FakeItemMetadataProvider()),
             new ChampionPatternAggregatePersister(

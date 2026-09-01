@@ -1,5 +1,10 @@
 import type { ChampionPosition } from '~/utils/positions'
 import { DEFAULT_ELO_BRACKET, resolveEloBracket } from '~/utils/elo-brackets'
+import {
+  EVERYONE_QUERY_PARAM,
+  EVERYONE_QUERY_VALUE,
+  resolveTruemainsOnly,
+} from '~/utils/champion-population'
 import { firstParamValue } from '~/utils/route-params'
 
 /**
@@ -29,18 +34,14 @@ export function useChampionFilters(options: { defaultEloBracket?: string } = {})
     const rawOpponent = Number.parseInt(firstParamValue(route.query.vs) ?? '', 10)
     const opponentChampionId = Number.isFinite(rawOpponent) && rawOpponent > 0 ? rawOpponent : undefined
 
-    // Population filter (#1346). On by default — the site is about truemains,
-    // and it is also the population every number here described before the
-    // aggregate started carrying the rest. Only the opt-out is ever in the URL
-    // (`?everyone=1`), so the resting URL stays clean like the bracket's.
-    //
-    // A pinned matchup forces it back on: matchups come from an aggregate whose
-    // champion side is mains-only, and the API rejects the combination outright
-    // rather than serving mains-only rows under an "everyone" label. Resolving
-    // it here makes the invalid pair unrepresentable, so a hand-edited
-    // `?vs=…&everyone=1` can't 400 the page — it just renders the matchup.
-    const truemainsOnly = opponentChampionId !== undefined
-      || firstParamValue(route.query.everyone) !== '1'
+    // Population filter (#1346). Only the opt-out is ever in the URL
+    // (`?everyone=1`), so the resting URL stays clean like the bracket's. The
+    // rule itself — on by default, and forced on by a pinned matchup — lives in
+    // `resolveTruemainsOnly` so it can be tested without a Nuxt context.
+    const truemainsOnly = resolveTruemainsOnly(
+      firstParamValue(route.query[EVERYONE_QUERY_PARAM]),
+      opponentChampionId,
+    )
 
     return {
       patch: firstParamValue(route.query.patch) || undefined,
@@ -104,8 +105,8 @@ export function useChampionFilters(options: { defaultEloBracket?: string } = {})
 
     if (updates.truemainsOnly !== undefined) {
       // Only the opt-out is written: `truemainsOnly` is the resting state.
-      if (updates.truemainsOnly) delete nextQuery.everyone
-      else nextQuery.everyone = '1'
+      if (updates.truemainsOnly) delete nextQuery[EVERYONE_QUERY_PARAM]
+      else nextQuery[EVERYONE_QUERY_PARAM] = EVERYONE_QUERY_VALUE
     }
 
     if (updates.opponentChampionId !== undefined) {
