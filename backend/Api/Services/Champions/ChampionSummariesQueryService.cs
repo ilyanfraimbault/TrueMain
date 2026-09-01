@@ -50,7 +50,7 @@ public sealed class ChampionSummariesQueryService(
     private const int MaxServableWalkBack = 4;
 
     public async Task<ChampionSummariesResult> GetAllSummariesAsync(
-        string? patch, string? eloBracket, CancellationToken ct)
+        string? patch, string? eloBracket, bool truemainsOnly, CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
 
@@ -85,17 +85,23 @@ public sealed class ChampionSummariesQueryService(
             return new ChampionSummariesResult();
         }
 
-        return await GetOrComputeSummariesAsync(activePatch, bracketKey, bracketBands, totalSw, ct);
+        return await GetOrComputeSummariesAsync(
+            activePatch, bracketKey, bracketBands, truemainsOnly, totalSw, ct);
     }
 
     private async Task<ChampionSummariesResult> GetOrComputeSummariesAsync(
         string activePatch,
         string bracketKey,
         IReadOnlyList<string>? bracketBands,
+        bool truemainsOnly,
         Stopwatch totalSw,
         CancellationToken ct)
     {
-        var cacheKey = $"champions:summaries:{activePatch}:{bracketKey}";
+        // The population is part of the key: the two answers describe different
+        // sets of games, and keying only on (patch, bracket) would serve one
+        // under the other's filter.
+        var populationKey = truemainsOnly ? "truemains" : "everyone";
+        var cacheKey = $"champions:summaries:{activePatch}:{bracketKey}:{populationKey}";
         if (cache.TryGetValue<ChampionSummariesResult>(cacheKey, out var cached) && cached is not null)
         {
             totalSw.Stop();
@@ -106,7 +112,7 @@ public sealed class ChampionSummariesQueryService(
         }
 
         var computeSw = Stopwatch.StartNew();
-        var result = await ComputeAllSummariesAsync(activePatch, bracketBands, ct);
+        var result = await ComputeAllSummariesAsync(activePatch, bracketBands, truemainsOnly, ct);
         computeSw.Stop();
         cache.Set(cacheKey, result, ApiCache.Entry(SummariesCacheTtl));
         totalSw.Stop();
@@ -130,6 +136,10 @@ public sealed class ChampionSummariesQueryService(
         var total = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
+            // Mains only (#1346): the homepage chip counts main games analysed,
+            // and it is a headline number — it must not quadruple overnight
+            // because the aggregate started holding a second population.
+            .Where(scope => scope.IsMain)
             .SumAsync(scope => (long?)scope.Games, ct) ?? 0L;
         sw.Stop();
         logger.LogInformation(
@@ -296,7 +306,10 @@ public sealed class ChampionSummariesQueryService(
     }
 
     private async Task<ChampionSummariesResult> ComputeAllSummariesAsync(
-        string activePatch, IReadOnlyList<string>? bracketBands, CancellationToken ct)
+        string activePatch,
+        IReadOnlyList<string>? bracketBands,
+        bool truemainsOnly,
+        CancellationToken ct)
     {
         // Aggregate per (champion, position) in SQL: a single GROUP BY with
         // SUM(games)/SUM(wins), MAX(aggregated_at) and COUNT(DISTINCT
@@ -322,6 +335,13 @@ public sealed class ChampionSummariesQueryService(
         if (bracketBands is not null)
         {
             groupsQuery = groupsQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
+        }
+
+        // Truemains filter (#1346): mains of the champion only, or every tracked
+        // player who has games on it.
+        if (truemainsOnly)
+        {
+            groupsQuery = groupsQuery.Where(scope => scope.IsMain);
         }
 
         var allGroups = await groupsQuery
@@ -355,7 +375,7 @@ public sealed class ChampionSummariesQueryService(
         }
 
         var topBuildsSw = Stopwatch.StartNew();
-        var topBuilds = await LoadTopBuildsAsync(activePatch, bracketBands, ct);
+        var topBuilds = await LoadTopBuildsAsync(activePatch, bracketBands, truemainsOnly, ct);
         topBuildsSw.Stop();
         logger.LogInformation(
             "{Surface} load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",
@@ -524,6 +544,7 @@ public sealed class ChampionSummariesQueryService(
     private async Task<IReadOnlyDictionary<(int ChampionId, string Position), TopBuildReadModel>> LoadTopBuildsAsync(
         string activePatch,
         IReadOnlyList<string>? bracketBands,
+        bool truemainsOnly,
         CancellationToken ct)
     {
         var queueId = (int)options.Value.QueueId;
@@ -536,6 +557,12 @@ public sealed class ChampionSummariesQueryService(
         if (bracketBands is not null)
         {
             scopeQuery = scopeQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
+        }
+
+        // Same population as the WR / PR beside it, for the same reason.
+        if (truemainsOnly)
+        {
+            scopeQuery = scopeQuery.Where(scope => scope.IsMain);
         }
 
         var groupedSw = Stopwatch.StartNew();

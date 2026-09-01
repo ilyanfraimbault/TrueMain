@@ -39,11 +39,19 @@ public interface IChampionBuildsQueryService
     /// reports its <see cref="ChampionResponse.EloCoverage"/> /
     /// <see cref="ChampionResponse.MinSampleMet"/>.
     /// </param>
+    /// <param name="truemainsOnly">
+    /// When <see langword="true"/> (the default) the build is folded only from
+    /// accounts that are <em>mains</em> of the champion — the site's truemain
+    /// population, and the only population the aggregate held before #1346.
+    /// When <see langword="false"/> it widens to every tracked player's games on
+    /// the champion.
+    /// </param>
     Task<ChampionResponse?> GetAsync(
         int championId,
         string? patch,
         string? position,
         ChampionBuildsScope? scope = null,
         string? eloBracket = null,
+        bool truemainsOnly = true,
         CancellationToken ct = default);
 }

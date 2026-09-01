@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionAggregateScope",
                 typeof(ChampionAggregateScope),
                 baseEntityType,
-                propertyCount: 15,
+                propertyCount: 16,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 4,
@@ -98,6 +98,16 @@ namespace Data.CompiledModels
                 sentinel: 0);
             games.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var isMain = runtimeEntityType.AddProperty(
+                "IsMain",
+                typeof(bool),
+                propertyInfo: typeof(ChampionAggregateScope).GetProperty("IsMain", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionAggregateScope).GetField("<IsMain>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: true);
+            isMain.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            isMain.AddAnnotation("Relational:DefaultValue", true);
+
             var kills = runtimeEntityType.AddProperty(
                 "Kills",
                 typeof(int),
@@ -167,7 +177,7 @@ namespace Data.CompiledModels
                 new[] { riotAccountId, championId, gameVersion, platformId, position });
 
             var index1 = runtimeEntityType.AddIndex(
-                new[] { championId, gameVersion, platformId, queueId, position, eloBracket });
+                new[] { championId, gameVersion, platformId, queueId, position, eloBracket, isMain });
             index1.AddAnnotation("Relational:Name", "IX_champion_aggregate_scopes_ChampionId_GameVersion_PlatformI~1");
 
             var index2 = runtimeEntityType.AddIndex(

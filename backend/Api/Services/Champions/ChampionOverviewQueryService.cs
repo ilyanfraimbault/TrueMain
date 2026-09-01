@@ -21,7 +21,10 @@ public sealed class ChampionOverviewQueryService(
 {
     public async Task<ChampionOverviewReadModel> GetOverviewAsync(int limit, CancellationToken ct)
     {
-        var result = await summariesQueryService.GetAllSummariesAsync(patch: null, eloBracket: null, ct);
+        // Truemains, always: the homepage renders no population toggle, and its
+        // teaser has to agree with the chip beside it, which counts main games.
+        var result = await summariesQueryService.GetAllSummariesAsync(
+            patch: null, eloBracket: null, truemainsOnly: true, ct);
 
         var gamesAnalyzed = await summariesQueryService.GetTotalGamesAsync(ct);
 

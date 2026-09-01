@@ -36,6 +36,12 @@ internal sealed class AggregateSourceRow
     public DateTime GameStartTimeUtc { get; init; }
     public int GameDurationSeconds { get; init; }
     public Guid RiotAccountId { get; init; }
+
+    // Whether this account was a main of this champion when the row was read.
+    // Constant across every row of a scope (a scope is one account + champion +
+    // platform, which is main_champion_stats' own key), so the scope builder
+    // reads it off the group rather than keying on it.
+    public bool IsMain { get; init; }
     public bool Win { get; init; }
     public int Kills { get; init; }
     public int Deaths { get; init; }
@@ -83,6 +89,7 @@ internal sealed record ExpandedSourceRow(
     int QueueId,
     string Position,
     string EloBracket,
+    bool IsMain,
     int PrimaryStyleId,
     int SubStyleId,
     int PerksOffense,

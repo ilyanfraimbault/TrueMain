@@ -18,12 +18,19 @@ defineProps<{
    */
   opponentOptions?: ChampionStaticListItem[]
   selectedOpponentId?: number | null
+  /**
+   * Population toggle (#1346). Optional like the rank select, and for the same
+   * reason: the per-player champion page is already scoped to one account, so
+   * "truemains or everyone" is not a question it can ask.
+   */
+  truemainsOnly?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:patch': [value: string]
   'update:position': [value: ChampionPosition | null]
   'update:eloBracket': [value: string]
+  'update:truemainsOnly': [value: boolean]
   'update:opponentChampionId': [value: number | null]
 }>()
 
@@ -44,6 +51,16 @@ function onPatchChange(value: unknown) {
       v-if="selectedEloBracket !== undefined"
       :model-value="selectedEloBracket"
       @update:model-value="value => emit('update:eloBracket', value)"
+    />
+    <!-- Beside the rank select because the two answer the same question — which
+         games am I looking at — and a reader who narrows one usually wants the
+         other in view. -->
+    <ChampionTruemainToggle
+      v-if="truemainsOnly !== undefined"
+      :model-value="truemainsOnly"
+      :disabled="Boolean(selectedOpponentId)"
+      disabled-reason="Matchups are aggregated from truemains only, so this stays on while an opponent is pinned."
+      @update:model-value="value => emit('update:truemainsOnly', value)"
     />
     <USelect
       :model-value="selectedPatch"

@@ -124,6 +124,10 @@ internal static class MainDedication
                 WHERE s."RiotAccountId" = mains."AccountId"
                   AND s."ChampionId" = mains."ChampionId"
                   AND s."QueueId" = {RankedQueueId}
+                  -- Mains only (#1346 added non-main scopes): dedication measures
+                  -- a career on a champion the player mains, not every game they
+                  -- happen to have on it.
+                  AND s."IsMain"
             ) career ON TRUE
             """;
 

@@ -449,10 +449,13 @@ public sealed class PatchCoverageQueryService(
         }
 
         // Exactly the grouping ChampionSummariesQueryService runs for the public
-        // directory: same queue filter, same (champion, lane) key, same summed games.
+        // directory: same queue filter, same (champion, lane) key, same summed games
+        // — and, since #1346, the same mains-only population. The two must agree:
+        // this panel exists to tell an operator what the directory will show.
         var groups = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == queueId && versions.Contains(scope.GameVersion))
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => new { scope.GameVersion, scope.ChampionId, scope.Position })
             .Select(group => new
             {

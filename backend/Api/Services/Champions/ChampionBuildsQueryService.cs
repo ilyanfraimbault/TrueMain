@@ -28,6 +28,7 @@ public sealed class ChampionBuildsQueryService(
         string? position,
         ChampionBuildsScope? scope = null,
         string? eloBracket = null,
+        bool truemainsOnly = true,
         CancellationToken ct = default)
     {
         // A blank / ALL filter resolves to null (every tier); a bare tier to a
@@ -43,7 +44,8 @@ public sealed class ChampionBuildsQueryService(
             riotAccountId: scope?.RiotAccountId,
             platformId: scope?.PlatformId,
             minGames: scope?.MinGames,
-            eloBrackets: bracketFilter);
+            eloBrackets: bracketFilter,
+            truemainsOnly: truemainsOnly);
         if (scopes is null)
         {
             return null;
@@ -61,7 +63,7 @@ public sealed class ChampionBuildsQueryService(
         var allBracketGames = isAllBracket
             ? totalGames
             : await CountAllBracketGamesAsync(
-                scopes[0], scope?.RiotAccountId, scope?.PlatformId, ct);
+                scopes[0], scope?.RiotAccountId, scope?.PlatformId, truemainsOnly, ct);
         var coverage = RateMath.Rate(totalGames, allBracketGames);
 
         // A champion the profile lists as a main must never dead-end on click:
@@ -154,6 +156,7 @@ public sealed class ChampionBuildsQueryService(
         ChampionAggregateScope reference,
         Guid? riotAccountId,
         string? platformId,
+        bool truemainsOnly,
         CancellationToken ct)
         => await db.ChampionAggregateScopes
             .AsNoTracking()
@@ -163,7 +166,10 @@ public sealed class ChampionBuildsQueryService(
                 riotAccountId,
                 reference.GameVersion,
                 platformId,
-                reference.Position)
+                reference.Position,
+                // Same population as the numerator, or the coverage ratio compares
+                // a mains-only slice against everyone and reads far too small.
+                truemainsOnly: truemainsOnly)
             .SumAsync(s => s.Games, ct);
 
     private async Task<IReadOnlyList<ChampionPatternEnrichedRow>> FetchRowsAsync(
