@@ -84,7 +84,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     }
 
     [Fact]
-    public async Task RunAsync_ShouldPurgeAggregatesWhenAllSupportingStatsBecomeUnqualified()
+    public async Task RunAsync_ShouldDemoteAggregatesWhenAllSupportingStatsBecomeUnqualified()
     {
         await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
@@ -107,8 +107,21 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
         await process.RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
-        (await verifyDb.ChampionAggregateScopes.ToListAsync()).Should().BeEmpty();
-        (await verifyDb.ChampionAggregatePatterns.ToListAsync()).Should().BeEmpty();
+        var scopes = await verifyDb.ChampionAggregateScopes.ToListAsync();
+
+        // Before #1346 this purged the aggregate outright, because the pipeline
+        // filtered on IsMain at the source and a demoted account simply stopped
+        // producing rows. It now carries both populations, so the rows survive —
+        // demoted, not deleted.
+        scopes.Should().NotBeEmpty();
+        scopes.Should().OnlyContain(scope => !scope.IsMain);
+        (await verifyDb.ChampionAggregatePatterns.ToListAsync()).Should().NotBeEmpty();
+
+        // The guarantee the purge was protecting is unchanged, and is now the
+        // read's job: a demoted account's games no longer count towards the
+        // champion's truemain build.
+        (await verifyDb.ChampionAggregateScopes.Where(scope => scope.IsMain).ToListAsync())
+            .Should().BeEmpty();
     }
 
     [Fact]

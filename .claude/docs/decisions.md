@@ -43,6 +43,12 @@ table-health reads in `Ops` (row counts, impossible-total detectors), which desc
 must see all of it. A default of `truemainsOnly: true` on the shared `WhereChampionScope` makes the safe
 choice the one you get by saying nothing.
 
+**A demoted account's scopes are demoted, not deleted** (#1346). The pipeline used to filter on `IsMain` at
+the source, so an account that stopped being a main of a champion simply stopped producing rows and its
+aggregates were purged on the next run. They now survive with `IsMain = false`. The guarantee that purge was
+protecting — a demoted account's games stop counting towards the champion's truemain build — is unchanged; it
+is the read's job now rather than the writer's.
+
 **Matchups reject the widened population rather than ignoring it** (#1346). The matchup slice is folded from
 an aggregate whose champion side is mains-only (#1087), so "everyone" is not an answer it can give.
 `?truemainsOnly=false` combined with `?opponentChampionId=` is a 400, for the same reason a matchup without a
