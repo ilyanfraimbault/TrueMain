@@ -4,13 +4,15 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
 
 public sealed class ChampionBuildsQueryService(
     TrueMainDbContext db,
-    IOptions<MainAnalysisOptions> options)
+    IOptions<MainAnalysisOptions> options,
+    IOptions<ChampionsListOptions> championsListOptions)
     : IChampionBuildsQueryService
 {
     // Build tabs and per-dimension variations are shared with the live matchup
@@ -19,14 +21,6 @@ public sealed class ChampionBuildsQueryService(
     private const double MinBuildPickRate = 0.05;
     private const int VariationsTopN = ChampionBuildDisplayCaps.MaxVariations;
     private const int RunePagesTopN = 3;
-
-    /// <summary>
-    /// Below this many games a bracket slice is flagged low-confidence
-    /// (<see cref="ChampionResponse.MinSampleMet"/> = false). High brackets
-    /// (Master+) routinely fall below this, so it guards the UI rather than
-    /// hiding the data.
-    /// </summary>
-    private const int MinSampleGames = 20;
 
     public async Task<ChampionResponse?> GetAsync(
         int championId,
@@ -87,7 +81,7 @@ public sealed class ChampionBuildsQueryService(
             Position = resolvedPosition,
             EloBracket = resolvedBracket,
             EloCoverage = coverage,
-            MinSampleMet = totalGames >= MinSampleGames,
+            MinSampleMet = totalGames >= championsListOptions.Value.MinBuildSampleGames,
             TotalGames = totalGames,
             TotalWins = totalWins,
             Builds = builds

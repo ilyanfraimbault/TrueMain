@@ -62,6 +62,7 @@ Every issue goes on GitHub Project #2 ("TrueMain"). No milestones. Three fields,
 
 - Backend: CI builds **Release** with code-style analyzers as errors — run `dotnet build backend --configuration Release` before pushing backend changes, not just Debug.
 - Schema changes: regenerate the EF compiled model (`dotnet ef dbcontext optimize`, output in `Data/CompiledModels`). Two schema PRs merged concurrently always conflict there — the second one must re-merge develop and regenerate (a stale model silently drops columns).
+- Schema naming: **tables snake_case, columns PascalCase** (`"ChampionId"`, not `champion_id`). `elo_bracket` is the single historical exception — do not propagate it, and do not "fix" the schema towards snake_case columns. `SchemaNamingConventionTests` fails on drift; enum persistence rule in `decisions.md`.
 - Frontends: `nuxt typecheck` can pass on stale `.nuxt` types while CI's `nuxt build` fails — verify type-level changes with a fresh build.
 - `web/package-lock.json`: regenerate with `npx npm@11.13.0` — the version CI pins for the frontend jobs (`ci.yml`, "Pin npm"); older npm omits sharp optional deps. Bump both sides together.
 - Startup migrations must stay fast — a heavy `CREATE INDEX CONCURRENTLY` in a startup migration blows the command timeout and crash-loops the API.

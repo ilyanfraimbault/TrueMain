@@ -12,7 +12,8 @@ public sealed class Worker(
     IIterationContext iterationContext,
     ICallerContext callerContext,
     IHostApplicationLifetime applicationLifetime,
-    IngestorMetrics metrics) : BackgroundService
+    IngestorMetrics metrics,
+    TimeProvider timeProvider) : BackgroundService
 {
     private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
 
@@ -61,7 +62,9 @@ public sealed class Worker(
                     return;
                 }
 
-                var delayMinutes = options.IntervalMinutes is > 0 ? options.IntervalMinutes.Value : 60;
+                // Non-null and > 0 here: startup validation (Job:IntervalMinutes) rejects anything
+                // else whenever RunOnce is false, which is the only way execution reaches this line.
+                var delayMinutes = options.IntervalMinutes!.Value;
                 logger.LogInformation(
                     "Run completed. Waiting {DelayMinutes} minutes before next run.",
                     delayMinutes);
@@ -83,7 +86,12 @@ public sealed class Worker(
         {
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(HeartbeatInterval, ct);
+                // Through TimeProvider, not Task.Delay: a 30 s wall-clock beat is
+                // otherwise untestable by construction, and the property worth pinning
+                // is precisely that this cadence is independent of how long a pass
+                // takes. Only this loop needs it — the between-passes wait below is
+                // driven by configuration a test sets directly.
+                await Task.Delay(HeartbeatInterval, timeProvider, ct);
                 await TouchHeartbeatAsync(ct);
             }
         }

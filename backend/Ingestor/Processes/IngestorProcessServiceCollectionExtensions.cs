@@ -22,6 +22,7 @@ public static class IngestorProcessServiceCollectionExtensions
     /// </remarks>
     public static IServiceCollection AddIngestorProcesses(this IServiceCollection services)
     {
+        services.AddRecordedProcess<LadderSyncProcess>(JobMode.LadderSyncOnly);
         services.AddRecordedProcess<DiscoveryProcess>(JobMode.DiscoveryOnly);
         services.AddRecordedProcess<ManualSeedProcess>(JobMode.ManualSeedOnly);
         services.AddRecordedProcess<HarvestProcess>(JobMode.HarvestOnly);

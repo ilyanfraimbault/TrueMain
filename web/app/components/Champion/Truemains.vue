@@ -18,9 +18,16 @@ const props = defineProps<{
 
 const TOP_N = 10
 
+// `server: false` (#1231): the champion page renders this card behind
+// `hydrate-on-visible`, which defers *hydration*, not server rendering — so the
+// composable's SSR default was firing `/api/truemains?championId=…` on every
+// SSR of every champion page, uncached by Nitro, for a card below the fold.
+// That page's SSR round-trip budget is deliberately spent on the build summary
+// alone (#1123, #926); the skeleton below is the server-rendered state here.
 const { rows, isInitialLoading, error } = useTruemainsLeaderboard(1, {
   pageSize: TOP_N,
   championId: () => props.championId,
+  server: false,
 })
 
 // Deepest ordinal shown, so every row sizes its rank slot identically.

@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("ac7bd30e-b6b9-4dbe-84f8-108748c39b77"), entityTypeCount: 30)
+            : base(skipDetectChanges: false, modelId: new Guid("1eef5b3a-cc5e-4595-9648-408c12dff76a"), entityTypeCount: 31)
         {
         }
 
@@ -33,6 +33,7 @@ namespace Data.CompiledModels
             var championSynergyBaselineStat = ChampionSynergyBaselineStatEntityType.Create(this);
             var championSynergyStat = ChampionSynergyStatEntityType.Create(this);
             var discoveryCursor = DiscoveryCursorEntityType.Create(this);
+            var ladderSyncCursor = LadderSyncCursorEntityType.Create(this);
             var mainCandidate = MainCandidateEntityType.Create(this);
             var mainChampionStat = MainChampionStatEntityType.Create(this);
             var match = MatchEntityType.Create(this);
@@ -81,6 +82,7 @@ namespace Data.CompiledModels
             ChampionSynergyBaselineStatEntityType.CreateAnnotations(championSynergyBaselineStat);
             ChampionSynergyStatEntityType.CreateAnnotations(championSynergyStat);
             DiscoveryCursorEntityType.CreateAnnotations(discoveryCursor);
+            LadderSyncCursorEntityType.CreateAnnotations(ladderSyncCursor);
             MainCandidateEntityType.CreateAnnotations(mainCandidate);
             MainChampionStatEntityType.CreateAnnotations(mainChampionStat);
             MatchEntityType.CreateAnnotations(match);

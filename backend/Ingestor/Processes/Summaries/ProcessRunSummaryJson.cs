@@ -20,6 +20,7 @@ namespace Ingestor.Processes.Summaries;
 [JsonSerializable(typeof(ManualSeedSummary))]
 [JsonSerializable(typeof(HarvestSummary))]
 [JsonSerializable(typeof(AccountRefreshSummary))]
+[JsonSerializable(typeof(LadderSyncSummary))]
 [JsonSerializable(typeof(MainAnalysisSummary))]
 [JsonSerializable(typeof(MainActivitySummary))]
 [JsonSerializable(typeof(ChampionPatternAggregationSummary))]

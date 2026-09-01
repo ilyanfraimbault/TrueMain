@@ -706,6 +706,35 @@ namespace Data.Migrations
                     b.ToTable("discovery_cursors", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.LadderSyncCursor", b =>
+                {
+                    b.Property<string>("PlatformId")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("Division")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.Property<int>("Page")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("PlatformId");
+
+                    b.ToTable("ladder_sync_cursors", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.MainCandidate", b =>
                 {
                     b.Property<Guid>("Id")

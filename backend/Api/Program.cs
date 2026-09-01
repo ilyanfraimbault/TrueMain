@@ -143,6 +143,7 @@ builder.Services.AddOptions<TruemainsLeaderboardOptions>()
 builder.Services.AddOptions<ChampionsListOptions>()
     .Bind(builder.Configuration.GetSection(ChampionsListOptions.SectionName))
     .Validate(options => options.MinSampleGames >= 0, "ChampionsList:MinSampleGames must be >= 0.")
+    .Validate(options => options.MinBuildSampleGames >= 0, "ChampionsList:MinBuildSampleGames must be >= 0.")
     .Validate(options => options.MinServablePatchLines >= 0, "ChampionsList:MinServablePatchLines must be >= 0.")
     .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
     // A share, so out of [0,1) it stops meaning anything: 1 would demand a single

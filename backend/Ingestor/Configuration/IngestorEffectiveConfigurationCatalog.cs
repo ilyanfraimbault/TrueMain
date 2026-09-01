@@ -29,6 +29,17 @@ public static class IngestorEffectiveConfigurationCatalog
             + "ladder from re-scanning its own top."
     };
 
+    private static EffectiveConfigurationSectionDescriptor LadderSync { get; } = new()
+    {
+        SectionName = LadderSyncOptions.SectionName,
+        OptionsType = typeof(LadderSyncOptions),
+        Title = "Ladder sync",
+        Description =
+            "Keeps stored ranks in step with the live ladder by reading the ladder instead of "
+            + "one account at a time: which tiers are swept, and the per-run request budget the "
+            + "paginated tiers below Master share."
+    };
+
     private static EffectiveConfigurationSectionDescriptor Scoring { get; } = new()
     {
         SectionName = ScoringOptions.SectionName,
@@ -89,6 +100,7 @@ public static class IngestorEffectiveConfigurationCatalog
             SharedEffectiveConfigurationSections.MainAnalysis,
             SharedEffectiveConfigurationSections.Database,
             SharedEffectiveConfigurationSections.MongoLogging,
+            LadderSync,
             Discovery,
             Scoring,
             Harvest,

@@ -32,7 +32,18 @@ public class DiscoveryOptions
 
     public int MaxLastPlayDays { get; set; } = 10;
 
-    public int MaxAccountsPerPlatformPerRun { get; set; } = 350;
+    /// <summary>
+    /// Ladder entries scanned per platform per run — also the width of the sliding window when
+    /// <see cref="SlidingWindowEnabled"/> is on.
+    /// <para>
+    /// 500, not the 350 this property used to declare: <c>appsettings.json</c> carried a 500 that
+    /// overrode it, so 500 is what every run without an explicit override has actually used. The
+    /// duplicate key is gone (defaults live in the class, not in <c>appsettings.json</c>) and the
+    /// value that was really applying moved here, rather than letting the dead one silently take
+    /// over. Both deployed stacks override it regardless — 750 in prod, 100 in preprod.
+    /// </para>
+    /// </summary>
+    public int MaxAccountsPerPlatformPerRun { get; set; } = 500;
 
     public int NewAccountsTarget { get; set; } = 50;
 

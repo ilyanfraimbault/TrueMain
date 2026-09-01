@@ -1,6 +1,7 @@
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
+using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,8 @@ namespace Ingestor.Processes;
 public sealed class MatchDataRetentionProcess(
     ILogger<MatchDataRetentionProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
+    IDataSessionFactory sessionFactory,
+    TimeProvider timeProvider,
     IOptions<MatchDataRetentionOptions> retentionOptions,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     IOptions<CandidatePruningOptions> candidatePruningOptions) : IIngestorProcess
@@ -427,10 +430,14 @@ public sealed class MatchDataRetentionProcess(
             return 0;
         }
 
-        var cutoffUtc = DateTime.UtcNow - TimeSpan.FromDays(options.PruneAfterDays);
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        var pruned = await new Data.Repositories.MainCandidateRepository(db)
-            .PruneStaleNeverPromotedAsync(cutoffUtc, ct);
+        // TimeProvider, like every other time-dependent decision in the ingestor (#270): a
+        // purge cutoff computed from DateTime.UtcNow cannot be frozen by a test.
+        var cutoffUtc = timeProvider.GetUtcNow().UtcDateTime - TimeSpan.FromDays(options.PruneAfterDays);
+
+        // The purge already lives on IDataSession.MainCandidates, so it is reached the way the
+        // rest of the ingestor reaches candidate writes, instead of new-ing the repository here.
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var pruned = await session.MainCandidates.PruneStaleNeverPromotedAsync(cutoffUtc, ct);
 
         if (pruned > 0)
         {

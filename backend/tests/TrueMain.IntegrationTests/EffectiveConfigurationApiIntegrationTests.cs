@@ -81,7 +81,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests
         api.ProcessName.Should().Be("Api");
         api.Environment.Should().Be("Testing", "the snapshot names the environment the host really booted in");
         api.Sections.Select(section => section.Name).Should().Equal(
-            "MainAnalysis", "Database", "MongoLogging", "DataQualityDetectors", "StorageHistory");
+            "MainAnalysis", "Database", "MongoLogging", "ChampionsList", "DataQualityDetectors", "StorageHistory");
         api.Sections.Should().OnlyContain(section => section.Values.Count > 0);
         api.Sections.Should().OnlyContain(section => section.Description.Length > 0);
     }

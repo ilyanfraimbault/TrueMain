@@ -55,30 +55,43 @@ public sealed class AccountValidationService(
         await using var session = await sessionFactory.CreateAsync(ct);
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
-        // The candidates themselves are not settled by this — the account was never
-        // addressed — so they go back to Queued exactly as a revert would leave them.
-        var updated = await session.MainCandidates
-            .SetStatusForAccountAsync(
-                account.PlatformId,
-                account.Puuid,
-                MainCandidateStatus.Processing,
-                MainCandidateStatus.Queued,
-                ct);
+        // Same work unit as ValidateAsync and RevertAsync, and for the same reason: these
+        // are set-based ExecuteUpdate calls that never enter the change tracker, so the
+        // SaveChangesAsync that used to close this method committed nothing. Releasing
+        // the candidates without releasing the account pins the claim for a whole lease,
+        // and here a partial failure is worse still — the row would keep its place at the
+        // head of the claim ordering and be re-claimed immediately, only to prove
+        // uningestable again (#1229).
+        int updated;
+        await using (var transaction = await session.BeginTransactionAsync(ct))
+        {
+            // The candidates themselves are not settled by this — the account was never
+            // addressed — so they go back to Queued exactly as a revert would leave them.
+            updated = await session.MainCandidates
+                .SetStatusForAccountAsync(
+                    account.PlatformId,
+                    account.Puuid,
+                    MainCandidateStatus.Processing,
+                    MainCandidateStatus.Queued,
+                    ct);
+
+            // The one thing RevertAsync must not do and this must: move the row off the head
+            // of the claim ordering, since nothing about its condition will change (#1223).
+            await session.RiotAccounts.UpdateLastMatchIngestAtAsync(account.PlatformId, account.Puuid, nowUtc, ct);
+            await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
+            await transaction.CommitAsync(ct);
+        }
 
         if (updated > 0)
         {
+            // After the commit, like ValidateAsync's: a release that rolled back is not
+            // something to report as done.
             logger.LogDebug(
                 "Released {Count} candidates back to Queued for uningestable {Platform}/{Puuid}.",
                 updated,
                 account.PlatformId,
                 account.Puuid);
         }
-
-        // The one thing RevertAsync must not do and this must: move the row off the head
-        // of the claim ordering, since nothing about its condition will change (#1223).
-        await session.RiotAccounts.UpdateLastMatchIngestAtAsync(account.PlatformId, account.Puuid, nowUtc, ct);
-        await session.RiotAccounts.SetMatchIngestStatusAsync(account.PlatformId, account.Puuid, MatchIngestStatus.Idle, ct);
-        await session.SaveChangesAsync(ct);
     }
 
     public async Task RevertAsync(AccountKey account, CancellationToken ct)

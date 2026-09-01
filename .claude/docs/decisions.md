@@ -256,6 +256,17 @@ a backend hit *per view*, not per five minutes), and no visitor or crawler reads
 long — this paragraph is the only build content in the server-rendered HTML, so its staleness is indexed.
 The share card keeps its hour: nothing renders beside it — #1273.
 
+**`hydrate-on-visible` does not make a panel free — it defers hydration, not server rendering.**
+The champion page's Truemains card is `<LazyChampionTruemains hydrate-on-visible>`, below the fold, and it
+still fired `GET /api/truemains?championId=…` on **every** SSR of every champion page, because
+`useTruemainsLeaderboard` defaults to `server: true` and the lazy wrapper has no say in that. So the budget
+#1123 argued for — one SSR round-trip, cached an hour, spent on the build summary — was quietly double what
+the entry above claims, and this second call had no Nitro cache at all. #1231 opts that one call site out
+(`server: false`); the leaderboard skeleton becomes the server-rendered state, which is what a below-the-fold
+panel should show anyway. The default stays `true`, because on `/truemains` and the homepage teaser the
+leaderboard *is* the content. The general rule this leaves: a `Lazy*` + `hydrate-on-visible` wrapper is a
+hydration-cost decision, and any fetch inside it is a separate, explicit SSR decision — #1231.
+
 **The build paragraph is typeset, and rune trees get Riot's colours to do it.**
 #1123 shipped the summary as flat grey prose under the build tabs, where it read as a wall of text naming
 twenty entities a player normally reads as *pictures* — and, sitting below the panels, as a footnote to the
@@ -1884,7 +1895,70 @@ others and is not: it also accepts an already-scaled `percent` unit, and it trim
 configured threshold reads `40%` rather than `40.0%`. Routing it through `formatPercent` would regress the
 display to buy a shared call.
 
-## A unit of work covers the writes and nothing else
+## Configuration defaults live in the class, and the two champion games floors are two keys
+
+**`appsettings.json` only carries what differs from the class default.** The ingestor's file used to restate
+~30 keys that were already the default of their `*Options` class, which made `/configuration` (#1034) useless:
+every one of them was tagged *override* though nothing was overridden, and that noise hid the single key that
+genuinely diverged — `Discovery:MaxAccountsPerPlatformPerRun`, 500 in JSON against a class default of 350, so
+for months nobody could say which value was in force. It was 500. That value moved onto `DiscoveryOptions`
+(both deployed stacks override it anyway: 750 prod, 100 preprod) and the JSON key is gone.
+`IngestorAppSettingsNoDefaultsTests` now fails the build if any key comes back equal to its class default; the
+documentation-only empty sections (`Riot`, `CommunityDragon`, `Job`) and the list-valued keys stay, because a
+list default deliberately lives in JSON — the binder *appends* to a non-empty list instead of replacing it
+(#860).
+
+**`ChampionsList:MinSampleGames` (10) and `ChampionsList:MinBuildSampleGames` (20) are different questions.**
+The first decides whether a `(champion, lane)` line is listed and ranked at all; the second decides whether an
+item/rune distribution *inside* a line is a usable sample — it splits its games across several builds, so it
+needs more of them. The build floor used to be two hard-coded `20`s, in `ChampionBuildsQueryService` and
+`PlayerBuildDivergenceQueryService`, each documented as a mirror of the other with no code link between them,
+while an operator reading `MinSampleGames = 10` on `/configuration` or `/patch-coverage` would infer the wrong
+bar for the build panel. Both now read the new key, and the whole `ChampionsList` section is on the
+configuration page. The existing key was **not** renamed: a config-facing section rename breaks deployment
+(#889).
+
+**When a process needs candidate writes, it goes through `IDataSession`.** `MatchDataRetentionProcess` used to
+`new` a `MainCandidateRepository` over its own `DbContext` — the only hand-built repository in the ingestor —
+although the purge it wanted is already on `IDataSession.MainCandidates`. `IDbContextFactory` stays the right
+tool for the set-based deletion passes in the same file, which are raw `ExecuteDelete` work over a scoped
+context; a repository operation is reached through the session.
+
+## Tables are snake_case, columns are PascalCase — and enums split by who reads them (2026-08-28)
+
+**Written down because a review read the table names and inferred the wrong rule** (#1251). "Postgres schema,
+therefore snake_case everywhere" is a reasonable guess and it is wrong here: every table is snake_case
+(`champion_matchup_stats`, `riot_accounts`), and every column is quoted **PascalCase** (`"ChampionId"`,
+`"IsMain"`, `"PowerspikeAggregated"` — see the raw SQL filters in `MatchConfiguration` and
+`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`). There is exactly one exception, `elo_bracket`, mapped by
+hand with `HasColumnName` in seven configurations. Applied literally, the "snake_case columns" reading would
+have produced new snake_case columns in the middle of a PascalCase schema — making the mix worse in the name
+of fixing it.
+
+**Nothing is renamed.** Aligning either side is a heavy migration over the largest frozen tables in the
+database and buys nothing a reader cannot get from one sentence. What is guarded is the drift:
+`SchemaNamingConventionTests` fails when a new table is not snake_case, or a new column is neither PascalCase
+nor the allow-listed `elo_bracket`. Do not extend that allow-list — an entry there is the inconsistency
+spreading, which is the only outcome this decision exists to prevent.
+
+**Enum persistence follows who reads the column, and that was previously unwritten.** Three shapes coexisted,
+each justified locally and none globally: `SeedRequestConfiguration` stores text (`HasConversion<string>`,
+"readable in ad-hoc SQL"), `MainCandidateConfiguration` and `RiotAccountConfiguration` store ints — which is
+why the partial index on `riot_accounts` has to spell `"MatchIngestStatus" <> 0` in raw SQL, with a comment
+apologising for it — and `ProcessRunDocument` uses `BsonType.String` on the Mongo side. The rule, for **new**
+enums:
+
+- **A lifecycle state an operator reads or writes by hand goes to text.** Seed request status, anything an
+  admin panel exposes, anything that turns up in an incident's psql session. The width is irrelevant next to
+  a query that says what it means.
+- **An internal flow flag stays an int.** Claim/lease states, fold progress markers — columns only code
+  touches, sitting in hot partial indexes, whose set of values changes with the code that reads them.
+- **Mongo documents always store enums as strings** (`BsonType.String`). Those collections are read ad hoc by
+  definition, and a Mongo document has no migration to rescue a renumbering.
+
+No retroactive migration: the existing three stay as they are. This settles which one a new column copies.
+
+## A unit of work covers the writes and nothing else (2026-08-28)
 
 **Transactions wrap writes, never Riot calls.** `MatchIngestionProcess` used to open its per-account
 transaction *before* up to 40 Riot round-trips (20 match-v5 + 20 timelines), each able to burn the client's
@@ -1899,8 +1973,11 @@ is idempotent through `GetExistingMatchIdsAsync` and the `TimelineIngested` flag
 **A trailing `SaveChangesAsync` after `ExecuteUpdate` calls is not a commit point.** `ExecuteUpdate` /
 `ExecuteDelete` never enter the change tracker, so the save commits nothing and only makes the code *look*
 atomic. `AccountValidationService` chained three of them bare: a failure between the first and the last left
-candidates `Validated` while the account stayed `Processing` for a whole claim lease. Those chains now run
-inside an explicit transaction, and the decorative saves are gone (#1229).
+candidates `Validated` while the account stayed `Processing` for a whole claim lease. All three of its exit
+paths — `ValidateAsync`, `RevertAsync` and `ReleaseUningestableAsync` — now run inside an explicit
+transaction, and the decorative saves are gone. The release path is the one where a partial failure hurts
+most: the account would keep its place at the head of the claim ordering and be re-claimed at once, only to
+prove uningestable again (#1229).
 
 **`ChangeTracker.Clear()` is safe only when the batch owns everything it loaded.** The ingestor's long loops
 (Scoring, Discovery, AccountRefresh, participant harvest) drain the tracker after each batch save via
@@ -1917,6 +1994,69 @@ tolerate 6 h of silence, which left it unable to detect anything short of a proc
 day. A dedicated 30 s loop now refreshes it for the worker's whole lifetime and the threshold is 300 s, so a
 wedged process is caught in minutes. Whether the *work* is progressing is a separate question with a separate
 answer already in place: the `process_runs` heartbeat, which ages a stalled run out to `Abandoned` (#1229).
+
+## Ranks are read from the ladder, not from one account at a time (2026-08-30)
+
+**The ladder endpoints are the primary rank source; the per-account call is the fallback.** `AccountRefresh`
+spends one `league-v4/entries/by-puuid` call per account at `BatchSize: 200` a cycle, which caps the whole
+fleet at roughly 2 400–4 800 refreshes a day — and that budget is shared with the Riot-ID identity backlog
+(#788), whose P0/P0.5 buckets take the entire batch whenever it is large. The visible result was LP that was
+days stale. The ladder answers the inverted question far more cheaply: one call returns a whole apex tier, one
+paginated call returns ~205 consecutive players of a division, and matching those entries against accounts we
+already store is a pure SQL join. `LadderSyncProcess` reads the three apex ladders every cycle (nine calls for
+three platforms) and sweeps the tiers below Master incrementally — #1312.
+
+**Sweep depth is bounded by a request budget, not by a tier list.** A full Challenger→Emerald pass over three
+platforms is on the order of 3 900 calls (Emerald alone is ~1 100 pages per platform). `MaxRequestsPerRun`
+therefore buys sweep *rate*, not sweep *coverage*: the cursor resumes where the previous run stopped, so
+configuring a deeper scope costs latency to come round again, never a budget blowout. The rentability rule per
+division is `tracked_accounts > population / page_size` — roughly **0.5 % of the division**. Master+ clears it
+by a wide margin, Diamond very likely, Emerald is the uncertain step, which is why the run summary reports
+entries and matches per tier: the scope is a measurement, not a guess.
+
+**The sweep never inserts accounts.** Seeding every player of every swept division across three regions would
+add millions of `riot_accounts` rows and swamp every downstream step. Discovery stays the only intake from the
+ladder, and stays scoped to the apex tiers.
+
+**Platforms rotate one page at a time, and the cursor advances before the fetch.** Draining one platform
+before the next would mean the last platform never advances once the budget is the binding constraint — the
+same region-blind allocation as #1149/#1150. Advancing the cursor first is the #486 lesson: a page that fails
+deterministically must not pin the sweep on it forever.
+
+**An account that leaves the swept range needs no special case.** It is simply not seen, so
+`LastRankSyncAtUtc` does not advance and `AccountRefresh` picks it up in its normal rotation — which is also
+what re-detects a demotion. `AccountRefresh:RankSyncFreshness` moved from 15 minutes to 12 hours in the same
+change: at 15 minutes the gate expired long before the next sweep came round, the per-account call was
+re-issued anyway, and none of the saved budget was actually reallocated.
+
+## The sitemap advertises champions, not players (2026-09-01)
+
+**Player profiles are not in the sitemap, because their server-rendered document is empty.**
+`/truemains/{nameTag}` fetches its profile client-only (`useTruemainFetch`, the #862 decision that keeps SSR
+from cross-pollinating viewers), so what a crawler receives on the first pass is a skeleton: 685
+`animate-pulse` elements, the same generic `TrueMain player profile.` description on every page, and the
+player's name appearing exactly once, in the title. Advertising 5,000 of those hands Google 5,000
+near-duplicate empty documents on a domain it knows 5 URLs of, and buries the 174 champion pages — the only
+fully server-rendered content, and the only content this site can realistically rank on. They stay reachable:
+`/truemains` is in the sitemap and links profiles, so a crawler can descend if it judges them worth it. A
+sitemap is a priority signal, not an access gate — #1337.
+
+**The family was specified in #551 and never once worked, so nothing was withdrawn from Google.** #551's own
+verification note reads "Truemain profile URLs populate when the backend is running; it was off locally, so
+that list was empty"; the page-size bug fixed in #1336 then kept the list empty in production too. Reopen the
+question only if the profile page starts rendering its content server-side, not because the code once
+intended to enumerate it.
+
+**A route family that contributes no URLs warns.** Each family is fetched defensively so one upstream outage
+cannot fail the whole sitemap — that part is right, and stays. What was wrong was that an empty family still
+produced a valid, well-formed sitemap and said nothing, which is why the missing profiles sat in production
+from the SEO foundation until someone counted the URLs — #1334.
+
+**If a dynamic slug family ever returns: the `loc` carries the raw value, and @nuxtjs/sitemap owns the
+encoding.** The app's own `to`/`href` builders correctly `encodeURIComponent` a nameTag; copying that into the
+sitemap source encodes it twice, and `Álec Lightwood-Jace` gets advertised as `%25C3%2581lec%2520Lightwood-Jace`,
+which the route hands to the backend as literal text — a 404. Riot IDs are full Unicode, so this hit 2,334 of
+the first 5,000 profiles before the family was dropped. Encoding is per-consumer, and a `loc` is not an href.
 
 ## Keeping these files current
 

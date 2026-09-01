@@ -597,6 +597,15 @@ public sealed class DiscoveryProcessIntegrationTests
 
         public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
             => throw new NotSupportedException();
+
+        public Task<List<RiotLeagueDivisionEntryDto>> GetLeagueEntriesAsync(
+            PlatformRoute platform,
+            string queue,
+            string tier,
+            string division,
+            int page,
+            CancellationToken ct)
+            => throw new NotSupportedException();
     }
 
     /// <summary>
@@ -628,6 +637,15 @@ public sealed class DiscoveryProcessIntegrationTests
 
         public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
             => _inner.GetLeagueEntriesByPuuidAsync(platform, puuid, ct);
+
+        public Task<List<RiotLeagueDivisionEntryDto>> GetLeagueEntriesAsync(
+            PlatformRoute platform,
+            string queue,
+            string tier,
+            string division,
+            int page,
+            CancellationToken ct)
+            => _inner.GetLeagueEntriesAsync(platform, queue, tier, division, page, ct);
     }
 
     private sealed class NoOpCandidateUpsertService : ICandidateUpsertService

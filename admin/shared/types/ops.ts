@@ -282,11 +282,19 @@ export interface ProcessRunsResponse {
 
 /**
  * The canonical ingestor pipeline chain, in execution order — one full pass runs
- * these processes in sequence (see `backend/Ingestor/Worker.cs`). Drives the
- * chain view: the ordered links and the per-iteration outcome lookup. Keep in
- * sync with the Worker's Full-mode sequence.
+ * these processes in sequence. Drives the chain view: the ordered links and the
+ * per-iteration outcome lookup.
+ *
+ * The source of truth is `backend/Ingestor/Options/JobModeSequence.cs`; this is a
+ * hand-maintained copy of it, so **a step added there must be added here too**.
+ * Drift is quiet rather than broken: `buildChain` appends any process it sees but
+ * does not know about, so a missing step still renders — at the end of the chain,
+ * under its raw name, instead of in its real position. That is exactly how
+ * `RunePageDeduplication` and `ChampionLaneOutcomeAggregation` came to be drawn
+ * after `StorageSnapshot`, several steps away from where they actually run.
  */
 export const PIPELINE_CHAIN: readonly string[] = [
+  'LadderSync',
   'Discovery',
   'ManualSeed',
   'Harvest',
@@ -296,8 +304,10 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'MatchTeamPositionCorrection',
   'MainAnalysis',
   'MatchParticipantEloBracketEnrichment',
+  'RunePageDeduplication',
   'ChampionPatternAggregation',
   'ChampionMatchupLeadAggregation',
+  'ChampionLaneOutcomeAggregation',
   'ChampionSynergyAggregation',
   'ChampionBanAggregation',
   'ChampionPowerspikeAggregation',
@@ -305,6 +315,128 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'MatchDataRetention',
   'StorageSnapshot',
 ]
+
+/**
+ * Display metadata for one pipeline process: the name shown on a chain chip, and
+ * the sentence explaining what the step does.
+ */
+export interface ProcessMeta {
+  label: string
+  description: string
+}
+
+/**
+ * Label and one-line explanation per process, keyed by the `processName` the
+ * ingestor records. Lives next to {@link PIPELINE_CHAIN} on purpose: the order of
+ * the chain and the naming of the chain are the same maintenance act, and keeping
+ * them in two files is how the label map came to be missing half its entries.
+ *
+ * Descriptions state what the process actually does — the pipeline table in
+ * `.claude/docs/features.md` is the reference. A step whose behaviour changes
+ * updates its sentence here in the same PR.
+ */
+export const PROCESS_META: Record<string, ProcessMeta> = {
+  LadderSync: {
+    label: 'Ladder Sync',
+    description:
+      'Refreshes the rank of accounts we already track by reading the ladders themselves: the three apex tiers whole every run, then the tiers below Master page by page under a request budget.',
+  },
+  Discovery: {
+    label: 'Discovery',
+    description:
+      'Walks the Master/Grandmaster/Challenger ladders to find accounts we do not track yet, and derives candidates from their champion mastery.',
+  },
+  ManualSeed: {
+    label: 'Manual Seed',
+    description:
+      'Drains the seed requests added by hand from the admin, queueing them directly instead of making them compete for a top-N slot.',
+  },
+  Harvest: {
+    label: 'Harvest',
+    description:
+      'Turns players already seen in ingested matches into candidates, at no Riot API cost.',
+  },
+  Scoring: {
+    label: 'Scoring',
+    description:
+      'Ranks candidates on recency, rank, mastery and champion scarcity, and promotes the per-platform top N to the ingestion queue.',
+  },
+  MainActivity: {
+    label: 'Main Activity',
+    description:
+      'Retires mains who stopped playing and reactivates those who came back, judged on champion-mastery last-play time. Flags rows, never deletes them.',
+  },
+  MatchIngestion: {
+    label: 'Match Ingestion',
+    description:
+      'Claims queued accounts and fetches their matches and timelines — the raw rows every aggregation below reads.',
+  },
+  MatchTeamPositionCorrection: {
+    label: 'Lane Position Fix',
+    description:
+      'Fills in the lane of a participant Riot left blank, for the unambiguous case where only one position in the team is missing.',
+  },
+  MainAnalysis: {
+    label: 'Main Analysis',
+    description:
+      'Decides who is a true main of which champion, from play rate against adaptive thresholds, and demotes those who no longer qualify.',
+  },
+  MatchParticipantEloBracketEnrichment: {
+    label: 'Elo Bracketing',
+    description:
+      'Stamps each game with the rank its players were at when they played it, so every stat below can be filtered by elo.',
+  },
+  RunePageDeduplication: {
+    label: 'Rune Page Dedup',
+    description:
+      'Collapses rune pages that differ only by the order they were clicked in, so one real page is not counted as several.',
+  },
+  ChampionPatternAggregation: {
+    label: 'Builds & Runes',
+    description:
+      'Rebuilds the per-champion aggregates behind the build, rune, skill-order and summoner-spell panels.',
+  },
+  ChampionMatchupLeadAggregation: {
+    label: 'Matchups',
+    description:
+      'Folds each match into the champion-versus-champion matchup stats, counting only games where the champion side is one of its mains.',
+  },
+  ChampionLaneOutcomeAggregation: {
+    label: 'Lane Outcomes',
+    description:
+      'Judges who won lane from the 15-minute gold and XP gaps, and folds that onto the matchup rows.',
+  },
+  ChampionSynergyAggregation: {
+    label: 'Synergies',
+    description:
+      'Folds each match into the same-team champion pair stats behind the synergy panel.',
+  },
+  ChampionBanAggregation: {
+    label: 'Bans',
+    description:
+      'Counts champion-select bans and the match totals they are divided by, to produce ban rates.',
+  },
+  ChampionPowerspikeAggregation: {
+    label: 'Power Spikes',
+    description:
+      'Measures when a champion pulls ahead over the course of a game, while the dense per-minute timeline data still exists.',
+  },
+  AccountRefresh: {
+    label: 'Account Refresh',
+    description:
+      'Refreshes Riot ID and rank one account at a time, and recovers or invalidates accounts whose PUUID stopped resolving. The fallback behind Ladder Sync.',
+  },
+  MatchDataRetention: {
+    label: 'Retention',
+    description:
+      'Deletes what the site no longer serves — stale candidates, out-of-window matches, intermediate timeline snapshots — to keep the database from growing without bound.',
+  },
+  StorageSnapshot: {
+    label: 'Storage Snapshot',
+    description:
+      'Records the day\'s database size per table, feeding the disk-usage forecast. Runs last so it measures the size after retention, not before.',
+  },
+}
 
 /**
  * One pipeline iteration of `GET /api/ops/process-iterations` → `iterations`.

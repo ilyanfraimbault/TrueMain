@@ -23,6 +23,7 @@ public sealed class WorkerFailureMetricsTests
 {
     private static readonly (string Name, JobMode Mode)[] FullSequence =
     [
+        ("LadderSync", JobMode.LadderSyncOnly),
         ("Discovery", JobMode.DiscoveryOnly),
         ("ManualSeed", JobMode.ManualSeedOnly),
         ("Harvest", JobMode.HarvestOnly),
@@ -196,7 +197,8 @@ public sealed class WorkerFailureMetricsTests
             new IterationContext(),
             new CallerContext(),
             lifetime,
-            new IngestorMetrics(meterFactory));
+            new IngestorMetrics(meterFactory),
+            TimeProvider.System);
     }
 
     private sealed class NoOpProcess(string name) : IIngestorProcess

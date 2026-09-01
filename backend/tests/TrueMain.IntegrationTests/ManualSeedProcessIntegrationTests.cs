@@ -169,6 +169,7 @@ public sealed class ManualSeedProcessIntegrationTests : IDisposable
             new AccountUpsertService(),
             new CandidateUpsertService(),
             new NoOpAuditLog(),
+            TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new ManualSeedOptions
             {
                 BatchSize = 25,
@@ -272,6 +273,15 @@ public sealed class ManualSeedProcessIntegrationTests : IDisposable
             => throw new NotSupportedException();
 
         public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<List<RiotLeagueDivisionEntryDto>> GetLeagueEntriesAsync(
+            PlatformRoute platform,
+            string queue,
+            string tier,
+            string division,
+            int page,
+            CancellationToken ct)
             => throw new NotSupportedException();
     }
 }

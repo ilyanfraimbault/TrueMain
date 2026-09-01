@@ -14,13 +14,6 @@ public sealed class ScoringProcess(
     TimeProvider timeProvider,
     IOptions<ScoringOptions> scoringOptions) : IIngestorProcess
 {
-    /// <summary>
-    /// Normalization factor for champion points logarithmic score.
-    /// Based on Log10 of champion points, normalized so that approximately 1 million points equals a score of 1.0.
-    /// Since Log10(1,000,000) ≈ 6, we divide by 6 to normalize the score to the [0, 1] range.
-    /// </summary>
-    private const double ChampionPointsLogNormalizer = 6.0;
-
     // Weights used by the defensive fallback in ComputeScore when the configured ones sum to
     // <= 0. They mirror the ScoringOptions defaults, except scarcity which stays 0 so the
     // fallback ranks on merit alone. Startup validation makes that fallback unreachable in
@@ -260,7 +253,11 @@ public sealed class ScoringProcess(
         var rankScore = (topN + 1 - candidate.ChampionRankInMasteryTop) / (double)topN;
         rankScore = Clamp(rankScore, 0, 1);
 
-        var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / ChampionPointsLogNormalizer, 0, 1);
+        // Defensive only, exactly like the harvest normalizer above: startup validation
+        // guarantees Scoring:ChampionPointsLogNormalizer > 0, so the 6.0 fallback is
+        // unreachable in production and only guards a test that bypasses the validator.
+        var pointsNormalizer = scoring.ChampionPointsLogNormalizer <= 0 ? 6.0 : scoring.ChampionPointsLogNormalizer;
+        var pointsScore = Clamp(Math.Log10(candidate.ChampionPoints + 1) / pointsNormalizer, 0, 1);
 
         return ComputeWeightedScore(
             recencyWeight, recencyScore,

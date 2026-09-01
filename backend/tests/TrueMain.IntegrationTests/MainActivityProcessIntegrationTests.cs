@@ -230,6 +230,15 @@ public sealed class MainActivityProcessIntegrationTests
 
         public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
             => throw new NotSupportedException();
+
+        public Task<List<RiotLeagueDivisionEntryDto>> GetLeagueEntriesAsync(
+            PlatformRoute platform,
+            string queue,
+            string tier,
+            string division,
+            int page,
+            CancellationToken ct)
+            => throw new NotSupportedException();
     }
 
     private sealed class ThrowingRiotPlatformClient : IRiotPlatformClient
@@ -253,6 +262,15 @@ public sealed class MainActivityProcessIntegrationTests
             => throw new NotSupportedException();
 
         public Task<List<RiotLeagueEntryByPuuidDto>> GetLeagueEntriesByPuuidAsync(PlatformRoute platform, string puuid, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<List<RiotLeagueDivisionEntryDto>> GetLeagueEntriesAsync(
+            PlatformRoute platform,
+            string queue,
+            string tier,
+            string division,
+            int page,
+            CancellationToken ct)
             => throw new NotSupportedException();
     }
 }

@@ -1,3 +1,4 @@
+using Core.Truemains;
 using Data;
 using Data.Entities;
 using Data.Ops.Mongo;
@@ -12,10 +13,12 @@ namespace TrueMain.Services.Ops;
 /// account's Riot ID when it has been resolved (a candidate is discovered from
 /// mastery before its account is upserted, so the join is intentionally optional).
 /// Search matches that joined Riot ID, the PUUID, or — when the term parses as an
-/// integer — the champion id; rows are ordered most-relevant first (highest score,
-/// then most recently discovered). Detail additionally counts the account's
-/// ingested <c>MatchParticipant</c> rows and surfaces the manual <c>SeedRequest</c>
-/// that brought the account in, matched on <c>ResolvedPuuid</c> + platform.
+/// integer — the champion id; a term written as <c>Name#TAG</c> is split and
+/// matched against the two Riot-ID columns instead. Rows are ordered
+/// most-relevant first (highest score, then most recently discovered). Detail
+/// additionally counts the account's ingested <c>MatchParticipant</c> rows and
+/// surfaces the manual <c>SeedRequest</c> that brought the account in, matched
+/// on <c>ResolvedPuuid</c> + platform.
 /// </summary>
 public sealed class CandidateQueryService(
     TrueMainDbContext db,
@@ -59,14 +62,34 @@ public sealed class CandidateQueryService(
             query = query.Where(row => row.candidate.PlatformId.ToUpper() == platform.ToUpper());
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
+        var (namePart, tagPart) = RiotIdSearchTerm.Split(search);
+
+        if (tagPart is not null)
         {
-            var term = search.Trim();
-            var pattern = $"%{LikeEscaping.Escape(term)}%";
+            // The term carries a '#', so it is a Riot ID: its halves are matched
+            // against the two columns they name, and never against the PUUID or
+            // the champion id, neither of which can contain one. Matching the
+            // joined string as a whole would find nothing — no column stores it.
+            var tagPattern = $"%{LikeEscaping.Escape(tagPart)}%";
+            query = query.Where(row =>
+                row.account != null && row.account.TagLine != null
+                && EF.Functions.ILike(row.account.TagLine, tagPattern, LikeEscaping.EscapeChar));
+
+            if (namePart is not null)
+            {
+                var namePattern = $"%{LikeEscaping.Escape(namePart)}%";
+                query = query.Where(row =>
+                    row.account != null
+                    && EF.Functions.ILike(row.account.GameName, namePattern, LikeEscaping.EscapeChar));
+            }
+        }
+        else if (namePart is not null)
+        {
+            var pattern = $"%{LikeEscaping.Escape(namePart)}%";
 
             // championId is matched only when the whole term is an integer, so a
             // Riot ID like "abc" never accidentally filters on a champion.
-            int? championId = int.TryParse(term, out var parsedChampionId) ? parsedChampionId : null;
+            int? championId = int.TryParse(namePart, out var parsedChampionId) ? parsedChampionId : null;
 
             query = query.Where(row =>
                 (row.account != null && EF.Functions.ILike(row.account.GameName, pattern, LikeEscaping.EscapeChar))

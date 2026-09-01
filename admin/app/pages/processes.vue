@@ -8,7 +8,7 @@
 // `summary` JSON + error is inspectable in a slide-over.
 import type { TableColumn } from '@nuxt/ui'
 import type { BadgeColor, ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
-import { PIPELINE_CHAIN } from '~~/shared/types/ops'
+import { PIPELINE_CHAIN, PROCESS_META } from '~~/shared/types/ops'
 import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 // Run-status colours and icons live in `utils/pipeline-health.ts` so this page and the
 // health cockpit paint the same run identically — they used to disagree on `Running`.
@@ -192,26 +192,29 @@ function outcomeLabel(outcome: ChainOutcome): string {
   return outcome === 'notRun' ? 'Not run' : outcome
 }
 
-// Short process labels keep the chain compact (e.g. "ChampionPatternAggregation"
-// → "Pattern Agg.") without losing meaning.
-const CHAIN_LABELS: Record<string, string> = {
-  Discovery: 'Discovery',
-  ManualSeed: 'Manual Seed',
-  Harvest: 'Harvest',
-  Scoring: 'Scoring',
-  MainActivity: 'Main Activity',
-  MatchIngestion: 'Match Ingest',
-  MatchTeamPositionCorrection: 'Position Fix',
-  MainAnalysis: 'Main Analysis',
-  MatchParticipantEloBracketEnrichment: 'Elo Enrich',
-  ChampionPatternAggregation: 'Pattern Agg.',
-  ChampionMatchupLeadAggregation: 'Matchup Agg.',
-  ChampionPowerspikeAggregation: 'Spike Agg.',
-  AccountRefresh: 'Acct Refresh',
-  MatchDataRetention: 'Retention',
-}
+// Names and explanations both come from the shared PROCESS_META, next to the
+// chain order it describes. A process with no entry still renders — under its raw
+// class name, with no tooltip — rather than blanking the chip.
 function chainLabel(processName: string): string {
-  return CHAIN_LABELS[processName] ?? processName
+  return PROCESS_META[processName]?.label ?? processName
+}
+// Shared by every process chip's UTooltip so the three usages cannot drift
+// apart from each other (they did, silently, for #1314's PIPELINE_CHAIN/
+// PROCESS_META split — a literal repeated three times is the same risk).
+const PROCESS_TOOLTIP_UI = { content: 'h-auto max-w-64 items-start px-2.5 py-2' } as const
+// The UTooltip on every chip renders the description above a smaller, muted
+// context line — what clicking does, or the raw identifier an operator greps
+// logs for. A process with no PROCESS_META entry shows the context alone
+// rather than an empty first line.
+// Current chain: the context is what clicking does, or — for a step that has not
+// run — the outcome, which is the only other thing there is to say about it.
+function chainTooltipContext(link: ChainLink): string {
+  return link.run ? 'View run details' : outcomeLabel(link.outcome)
+}
+// Iteration chips are not individually clickable, so their context is the raw
+// process name (the identifier an operator greps for) and the outcome.
+function iterationChipContext(link: ChainLink): string {
+  return `${link.processName} · ${outcomeLabel(link.outcome)}`
 }
 
 // Failure-cell coloring. The window always holds thousands of failures, so the
@@ -457,39 +460,43 @@ const selectedIterationTally = computed(() => {
           class="flex flex-wrap items-center gap-y-2 rounded-lg border border-default bg-elevated/25 p-4"
         >
           <template v-for="(link, i) in currentChain" :key="link.processName">
-            <button
-              type="button"
-              class="group inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors"
-              :class="{
-                'border-primary/50 bg-primary/10': link.outcome === 'Running',
-                'border-success/30 bg-success/5': link.outcome === 'Success',
-                'border-error/40 bg-error/10': link.outcome === 'Failed',
-                'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
-                'border-default bg-default opacity-60': link.outcome === 'notRun',
-                'cursor-default': !link.run,
-              }"
-              :disabled="!link.run"
-              :title="link.run ? 'View run details' : outcomeLabel(link.outcome)"
-              @click="link.run && openDetail(link.run)"
-            >
-              <UIcon
-                :name="outcomeIcon(link.outcome)"
-                class="size-4 shrink-0"
+            <UTooltip :ui="PROCESS_TOOLTIP_UI">
+              <button
+                type="button"
+                class="group inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors"
                 :class="{
-                  'text-primary animate-spin': link.outcome === 'Running',
-                  'text-success': link.outcome === 'Success',
-                  'text-error': link.outcome === 'Failed',
-                  'text-warning': link.outcome === 'Abandoned',
-                  'text-dimmed': link.outcome === 'notRun',
+                  'border-primary/50 bg-primary/10': link.outcome === 'Running',
+                  'border-success/30 bg-success/5': link.outcome === 'Success',
+                  'border-error/40 bg-error/10': link.outcome === 'Failed',
+                  'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
+                  'border-default bg-default opacity-60': link.outcome === 'notRun',
+                  'cursor-default': !link.run,
                 }"
-              />
-              <span
-                class="text-xs font-medium whitespace-nowrap"
-                :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-highlighted'"
+                :disabled="!link.run"
+                @click="link.run && openDetail(link.run)"
               >
-                {{ chainLabel(link.processName) }}
-              </span>
-            </button>
+                <UIcon
+                  :name="outcomeIcon(link.outcome)"
+                  class="size-4 shrink-0"
+                  :class="{
+                    'text-primary animate-spin': link.outcome === 'Running',
+                    'text-success': link.outcome === 'Success',
+                    'text-error': link.outcome === 'Failed',
+                    'text-warning': link.outcome === 'Abandoned',
+                    'text-dimmed': link.outcome === 'notRun',
+                  }"
+                />
+                <span
+                  class="text-xs font-medium whitespace-nowrap"
+                  :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-highlighted'"
+                >
+                  {{ chainLabel(link.processName) }}
+                </span>
+              </button>
+              <template #content>
+                <ProcessTooltipContent :process-name="link.processName" :context="chainTooltipContext(link)" />
+              </template>
+            </UTooltip>
             <UIcon
               v-if="i < currentChain.length - 1"
               name="i-lucide-chevron-right"
@@ -542,35 +549,39 @@ const selectedIterationTally = computed(() => {
                 v-for="(link, i) in iterationChains.get(iteration.iterationId)"
                 :key="link.processName"
               >
-                <span
-                  class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
-                  :class="{
-                    'border-primary/50 bg-primary/10': link.outcome === 'Running',
-                    'border-success/30 bg-success/5': link.outcome === 'Success',
-                    'border-error/40 bg-error/10': link.outcome === 'Failed',
-                    'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
-                    'border-default bg-default opacity-50': link.outcome === 'notRun',
-                  }"
-                  :title="`${link.processName} · ${outcomeLabel(link.outcome)}`"
-                >
-                  <UIcon
-                    :name="outcomeIcon(link.outcome)"
-                    class="size-3.5 shrink-0"
-                    :class="{
-                      'text-primary animate-spin': link.outcome === 'Running',
-                      'text-success': link.outcome === 'Success',
-                      'text-error': link.outcome === 'Failed',
-                      'text-warning': link.outcome === 'Abandoned',
-                      'text-dimmed': link.outcome === 'notRun',
-                    }"
-                  />
+                <UTooltip :ui="PROCESS_TOOLTIP_UI">
                   <span
-                    class="text-[11px] font-medium whitespace-nowrap"
-                    :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-default'"
+                    class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
+                    :class="{
+                      'border-primary/50 bg-primary/10': link.outcome === 'Running',
+                      'border-success/30 bg-success/5': link.outcome === 'Success',
+                      'border-error/40 bg-error/10': link.outcome === 'Failed',
+                      'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
+                      'border-default bg-default opacity-50': link.outcome === 'notRun',
+                    }"
                   >
-                    {{ chainLabel(link.processName) }}
+                    <UIcon
+                      :name="outcomeIcon(link.outcome)"
+                      class="size-3.5 shrink-0"
+                      :class="{
+                        'text-primary animate-spin': link.outcome === 'Running',
+                        'text-success': link.outcome === 'Success',
+                        'text-error': link.outcome === 'Failed',
+                        'text-warning': link.outcome === 'Abandoned',
+                        'text-dimmed': link.outcome === 'notRun',
+                      }"
+                    />
+                    <span
+                      class="text-[11px] font-medium whitespace-nowrap"
+                      :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-default'"
+                    >
+                      {{ chainLabel(link.processName) }}
+                    </span>
                   </span>
-                </span>
+                  <template #content>
+                    <ProcessTooltipContent :process-name="link.processName" :context="iterationChipContext(link)" />
+                  </template>
+                </UTooltip>
                 <UIcon
                   v-if="i < (iterationChains.get(iteration.iterationId)?.length ?? 0) - 1"
                   name="i-lucide-chevron-right"
@@ -966,9 +977,14 @@ const selectedIterationTally = computed(() => {
                       'text-warning': entry.link.outcome === 'Abandoned',
                     }"
                   />
-                  <span class="text-sm font-medium text-highlighted truncate">
-                    {{ chainLabel(entry.link.processName) }}
-                  </span>
+                  <UTooltip :ui="PROCESS_TOOLTIP_UI">
+                    <span class="text-sm font-medium text-highlighted truncate">
+                      {{ chainLabel(entry.link.processName) }}
+                    </span>
+                    <template #content>
+                      <ProcessTooltipContent :process-name="entry.link.processName" :context="entry.link.processName" />
+                    </template>
+                  </UTooltip>
                 </span>
                 <span class="flex items-center gap-2 shrink-0">
                   <span class="text-xs text-dimmed tabular-nums">
