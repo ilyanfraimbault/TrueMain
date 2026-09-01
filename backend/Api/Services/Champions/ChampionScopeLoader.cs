@@ -31,7 +31,8 @@ internal static class ChampionScopeLoader
         Guid? riotAccountId = null,
         string? platformId = null,
         int? minGames = null,
-        IReadOnlyCollection<string>? eloBrackets = null)
+        IReadOnlyCollection<string>? eloBrackets = null,
+        bool truemainsOnly = true)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
@@ -39,7 +40,13 @@ internal static class ChampionScopeLoader
 
         var baseQuery = db.ChampionAggregateScopes
             .AsNoTracking()
-            .WhereChampionScope(championId, queueId, riotAccountId, normalizedPatch, platformId, position);
+            .WhereChampionScope(
+                championId, queueId, riotAccountId, normalizedPatch, platformId, position,
+                // The resolution pass has to stand on the same population as the
+                // pinned pass below: resolving the dominant patch over mains and
+                // then reading it over everyone (or the reverse) can land on a
+                // patch the second pass holds nothing for.
+                truemainsOnly: truemainsOnly);
 
         var resolutionRows = await baseQuery
             .Select(scope => new ScopeResolutionRow(scope.GameVersion, scope.Position, scope.Games))
@@ -90,7 +97,8 @@ internal static class ChampionScopeLoader
                 selectedPatch,
                 platformId,
                 string.IsNullOrWhiteSpace(effectivePosition) ? null : effectivePosition,
-                eloBrackets)
+                eloBrackets,
+                truemainsOnly)
             .ToListAsync(ct);
 
         return scopedScopes.Count == 0 ? null : scopedScopes;

@@ -24,17 +24,22 @@ public sealed class ChampionPatternSourceRowReader(
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
-        // Champions with at least one "main" account — a superset of the champions
+        // Champions any tracked account has played — a superset of the champions
         // that can produce source rows. The per-champion source query re-applies
-        // the full IsMain + queue + timeline filter, so a champion with no
-        // qualifying rows just yields a cheap empty iteration. Derived from
-        // main_champion_stats (small: one row per tracked account/champion)
-        // rather than a DISTINCT over the match_participants 3-way join, which
-        // scanned the whole table and hit the 300s command timeout now that
-        // parallel query is disabled (max_parallel_workers_per_gather=0, #589).
-        var mainChampionIds = await db.MainChampionStats
+        // the full queue + timeline filter, so a champion with no qualifying rows
+        // just yields a cheap empty iteration. Derived from main_champion_stats
+        // (small: one row per tracked account/champion) rather than a DISTINCT
+        // over the match_participants 3-way join, which scanned the whole table
+        // and hit the 300s command timeout now that parallel query is disabled
+        // (max_parallel_workers_per_gather=0, #589).
+        //
+        // Deliberately *not* filtered to IsMain any more: the aggregate now holds
+        // the non-main population too, so a champion whose only games come from
+        // non-mains has to get a pass. main_champion_stats carries a row per
+        // (account, champion) pair the analysis has seen, main or not, so it
+        // remains the complete cheap source.
+        var playedChampionIds = await db.MainChampionStats
             .AsNoTracking()
-            .Where(stat => stat.IsMain)
             .Select(stat => stat.ChampionId)
             .Distinct()
             .ToListAsync(ct);
@@ -49,7 +54,7 @@ public sealed class ChampionPatternSourceRowReader(
             .Distinct()
             .ToListAsync(ct);
 
-        return mainChampionIds.Union(scopeChampionIds).ToList();
+        return playedChampionIds.Union(scopeChampionIds).ToList();
     }
 
     internal async Task<IReadOnlySet<(string GameVersion, string PlatformId)>> LoadLivePatchKeysAsync(
@@ -144,11 +149,17 @@ public sealed class ChampionPatternSourceRowReader(
         var sourceRows = await (
             from participant in db.MatchParticipants.AsNoTracking()
             join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
-            join stat in db.MainChampionStats.AsNoTracking()
+            // LEFT JOIN, and no IsMain predicate: main-ness is carried onto the
+            // row rather than used to exclude it, so the aggregate holds both
+            // populations and reads choose between them. A participant the main
+            // analysis has never scored yields no stat row at all and is simply
+            // not a main.
+            join statCandidate in db.MainChampionStats.AsNoTracking()
                 on new { match.PlatformId, participant.Puuid, participant.ChampionId }
-                equals new { stat.PlatformId, stat.Puuid, stat.ChampionId }
-            where stat.IsMain
-                && participant.ChampionId == championId
+                equals new { statCandidate.PlatformId, statCandidate.Puuid, statCandidate.ChampionId }
+                into statMatches
+            from stat in statMatches.DefaultIfEmpty()
+            where participant.ChampionId == championId
                 && participant.RiotAccountId != null
                 && match.QueueId == queueId
                 && match.TimelineIngested
@@ -163,6 +174,7 @@ public sealed class ChampionPatternSourceRowReader(
                 GameStartTimeUtc = match.GameStartTimeUtc,
                 GameDurationSeconds = match.GameDurationSeconds,
                 RiotAccountId = participant.RiotAccountId!.Value,
+                IsMain = stat != null && stat.IsMain,
                 Win = participant.Win,
                 Kills = participant.Kills,
                 Deaths = participant.Deaths,

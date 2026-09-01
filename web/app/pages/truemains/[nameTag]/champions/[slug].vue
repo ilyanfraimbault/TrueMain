@@ -3,6 +3,7 @@ import type { ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import { parseRouteParam } from '~/utils/route-params'
+import { ELO_BRACKET_ALL } from '~/utils/elo-brackets'
 import { groupMatchesByDay } from '~/utils/match-history'
 import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 
@@ -31,7 +32,10 @@ const { resolveParam, pathFor } = useChampionSlugs()
 const championId = computed(() => resolveParam(String(route.params.slug)).championId ?? Number.NaN)
 const nameTag = computed(() => parseRouteParam(route.params.nameTag))
 
-const { filters, setFilter } = useChampionFilters()
+// `ALL`, not the global pages' Master+ default: this page's scope is already
+// one account, and re-slicing a single truemain's games by rank empties the
+// build of everyone below Master. The page renders no rank selector either.
+const { filters, setFilter } = useChampionFilters({ defaultEloBracket: ELO_BRACKET_ALL })
 
 const {
   data: champion,

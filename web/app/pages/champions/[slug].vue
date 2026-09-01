@@ -142,6 +142,9 @@ const buildSummaryFetch = useAsyncData(
       patch: filters.value.patch || undefined,
       position: filters.value.position || undefined,
       eloBracket: filters.value.eloBracket || undefined,
+      // Same reason as the matchup filter below: without it the prose describes
+      // the truemain build under panels folded from every player.
+      truemainsOnly: filters.value.truemainsOnly ? undefined : 'false',
       // #923's matchup filter re-slices every build section server-side, so the
       // summary has to carry it or it describes the global build in prose right
       // under panels showing the matchup's.
@@ -228,8 +231,9 @@ const selectedEloBracket = computed<string>(() =>
 )
 
 // The elo filter forwarded to every live panel (matchups / scaling /
-// item-timings / roam). Sourced from the URL filter and undefined for ALL, so
-// the query param + cache key stay clean — the same contract patch/position use.
+// item-timings / roam). Always a concrete bracket now that the page default is
+// Master+ rather than the server's ALL: a panel left to its own default would
+// quietly render every tier beside a header that says Master+.
 const eloBracketParam = computed(() => filters.value.eloBracket)
 
 // Matchup filter (#923): opponents are every champion but this one — there is no
@@ -257,26 +261,28 @@ const noDataForRank = computed(() =>
   notEnoughData.value && selectedEloBracket.value !== ELO_BRACKET_ALL,
 )
 
-// Coverage / min-sample guards: only meaningful for a narrow (non-ALL) band.
-// `eloCoverage` is the share of all-rank games this slice covers; `minSampleMet`
-// is false for tiny high-elo slices. Surface a notice so a thin Master+ build
-// reads as "treat with caution" rather than authoritative.
-const showBracketNotice = computed(() =>
-  Boolean(champion.value)
-  && selectedEloBracket.value !== ELO_BRACKET_ALL
-  && (!champion.value!.minSampleMet || champion.value!.eloCoverage < 0.1),
-)
-const bracketCoveragePercent = computed(() =>
-  champion.value ? Math.round(champion.value.eloCoverage * 100) : 0,
-)
-const bracketNoticeText = computed(() => {
-  const label = eloBracketLabel(selectedEloBracket.value)
-  const games = champion.value?.totalGames ?? 0
-  if (champion.value && !champion.value.minSampleMet) {
-    return `Only ${games} ${games === 1 ? 'game' : 'games'} in ${label} (${bracketCoveragePercent.value}% of all ranks) — `
-      + 'too few to be reliable. Treat this build as a rough signal.'
-  }
-  return `${label} covers just ${bracketCoveragePercent.value}% of all-rank games — a narrow slice, so read it with caution.`
+// Thin-sample qualifier, carried by the header's warning-triangle tooltip (the
+// idiom the retired-sample card and the builder panels already use) rather than
+// a full-width alert: it qualifies the numbers, it is not news.
+//
+// The one thing worth saying is that the sample is small — `minSampleMet` is
+// the API's own verdict on that (games >= ChampionsList:MinBuildSampleGames).
+// It deliberately no longer mentions how much of the all-rank population the
+// bracket covers: a reader deciding whether to trust this build cares that it
+// rests on 12 games, not that Master+ is 3% of everyone.
+//
+// `null` when there is nothing to qualify: the header keys the icon off it.
+const bracketNoticeText = computed<string | null>(() => {
+  if (!champion.value || champion.value.minSampleMet) return null
+
+  const games = champion.value.totalGames
+  const countedGames = `${games} ${games === 1 ? 'game' : 'games'}`
+  // Name the rank only when one is pinned: "Only 12 games in All ranks" is not
+  // a sentence.
+  const scope = selectedEloBracket.value === ELO_BRACKET_ALL
+    ? countedGames
+    : `${countedGames} in ${eloBracketLabel(selectedEloBracket.value)}`
+  return `Only ${scope}, so this build isn't very representative.`
 })
 
 // Win rate by game duration (issue #537). Follows the resolved lane like the
@@ -479,7 +485,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           <button
             type="button"
             class="rounded text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            @click="setFilter({ eloBracket: null })"
+            @click="setFilter({ eloBracket: ELO_BRACKET_ALL })"
           >
             see all ranks</button>.
         </p>
@@ -552,6 +558,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :total-games="champion?.totalGames ?? 0"
           :total-wins="champion?.totalWins ?? 0"
           :roam-kp15="championRoam?.roamKp15 ?? null"
+          :low-sample-message="bracketNoticeText"
           :loading="!champion"
         />
         <ChampionFilters
@@ -561,9 +568,11 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :patch-options="patchOptions"
           :opponent-options="opponentOptions"
           :selected-opponent-id="filters.opponentChampionId ?? null"
+          :truemains-only="filters.truemainsOnly"
           @update:patch="value => setFilter({ patch: value })"
           @update:position="value => setFilter({ position: value })"
           @update:elo-bracket="value => setFilter({ eloBracket: value })"
+          @update:truemains-only="value => setFilter({ truemainsOnly: value })"
           @update:opponent-champion-id="onOpponentChange"
         />
         <!-- Share affordance (#926). Only on the populated state: the two
@@ -574,15 +583,6 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :description="shareDescription"
         />
       </header>
-
-      <UAlert
-        v-if="showBracketNotice"
-        color="warning"
-        variant="soft"
-        :title="`Small ${eloBracketLabel(selectedEloBracket)} sample`"
-        :description="bracketNoticeText"
-        icon="i-lucide-triangle-alert"
-      />
 
       <!--
         Two-column layout on wide screens: builds + charts on the left, the

@@ -42,6 +42,9 @@ public sealed class ChampionTrendQueryService(
             .AsNoTracking()
             .Where(scope => scope.ChampionId == championId && scope.QueueId == queueId)
             .Where(scope => scope.Position.Trim() != string.Empty)
+            // Mains only, the population this read has always described (#1346
+            // added the non-main rows; every pre-existing read keeps its meaning).
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => new { scope.GameVersion, scope.Position })
             .Select(group => new ChampionPatchRow(
                 group.Key.GameVersion,
@@ -165,6 +168,9 @@ public sealed class ChampionTrendQueryService(
             .AsNoTracking()
             .Where(scope => scope.QueueId == queueId && scope.Position == position)
             .Where(scope => patches.Contains(scope.GameVersion))
+            // Mains only, the population this read has always described (#1346
+            // added the non-main rows; every pre-existing read keeps its meaning).
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => scope.GameVersion)
             .Select(group => new { Patch = group.Key, Games = group.Sum(scope => (long)scope.Games) })
             .ToListAsync(ct);

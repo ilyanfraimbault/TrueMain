@@ -127,6 +127,11 @@ public sealed class ChampionPatternAggregateBuilder(
             QueueId = group.Key.QueueId,
             Position = group.Key.Position,
             EloBracket = group.Key.EloBracket,
+            // Read off the group rather than keyed on: a scope is one account +
+            // champion + platform, so every row in it shares one main-ness. Were
+            // that ever to stop holding, keying on it would silently split a
+            // player's slice in two; taking the first row keeps the scope whole.
+            IsMain = rows[0].IsMain,
             Games = rows.Count,
             Wins = rows.Count(row => row.Win),
             Kills = rows.Sum(row => row.Kills),
@@ -163,6 +168,7 @@ public sealed class ChampionPatternAggregateBuilder(
                 row.QueueId,
                 row.Position ?? string.Empty,
                 row.EloBracket,
+                row.IsMain,
                 row.PrimaryStyleId,
                 row.SubStyleId,
                 row.PerksOffense,

@@ -18,7 +18,8 @@ internal static class ChampionAggregateScopeQueries
         string? patch,
         string? platformId,
         string? position,
-        IReadOnlyCollection<string>? eloBrackets = null)
+        IReadOnlyCollection<string>? eloBrackets = null,
+        bool truemainsOnly = true)
     {
         var query = source.Where(scope => scope.ChampionId == championId && scope.QueueId == queueId);
 
@@ -52,6 +53,15 @@ internal static class ChampionAggregateScopeQueries
         if (eloBrackets is not null)
         {
             query = query.Where(scope => eloBrackets.Contains(scope.EloBracket));
+        }
+
+        // Truemains filter (#1346). Defaults to true — mains only — because that
+        // is what the aggregate held before it started carrying the non-main
+        // population, so every caller that doesn't opt out keeps the numbers it
+        // has always returned. Turning it off widens to every tracked player.
+        if (truemainsOnly)
+        {
+            query = query.Where(scope => scope.IsMain);
         }
 
         return query;

@@ -583,6 +583,7 @@ async function mockChampionDetail(
   id: number,
   position: string | undefined,
   eloBracket: string | undefined,
+  truemainsOnly: boolean,
 ): Promise<ChampionResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
@@ -596,7 +597,11 @@ async function mockChampionDetail(
   // Scope the slice to the requested tier(s): ALL keeps the full pool, a tier
   // (or tier-and-above) takes its share so the rank select visibly changes.
   const { bracket, fraction } = resolveEloSlice(eloBracket)
-  const totalGames = Math.round(allGames * fraction)
+  // Widening past the mains is a strict superset, so the fixture grows rather
+  // than shifts — enough for the toggle to visibly do something in mock mode.
+  // The real multiplier measured on production is ~4.3x.
+  const populationFactor = truemainsOnly ? 1 : 4.3
+  const totalGames = Math.round(allGames * fraction * populationFactor)
   return {
     championId: s.id,
     patch,
@@ -2207,8 +2212,9 @@ export async function resolveDevApiMock(
     const sub = championMatch[2]
     const position = typeof query.position === 'string' && query.position ? query.position : undefined
     const eloBracket = typeof query.eloBracket === 'string' && query.eloBracket ? query.eloBracket : undefined
+    const truemainsOnly = query.truemainsOnly !== 'false'
     const payload = await (
-      sub === undefined ? mockChampionDetail(id, position, eloBracket)
+      sub === undefined ? mockChampionDetail(id, position, eloBracket, truemainsOnly)
       : sub === 'trend' ? mockTrend(id)
       : sub === 'patch-diff' ? mockPatchDiff(id, typeof query.from === 'string' ? query.from : undefined, typeof query.to === 'string' ? query.to : undefined)
       : sub === 'scaling' ? mockScaling(id)
@@ -2268,7 +2274,9 @@ export async function resolveDevApiMock(
         typeof query.patch === 'string' && query.patch ? query.patch : null,
       )
     }
-    else payload = await mockChampionDetail(id, undefined, undefined)
+    // Player-scoped route: always the truemain population, matching the real
+    // page — it renders no toggle, because its scope is already one account.
+    else payload = await mockChampionDetail(id, undefined, undefined, true)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
     return payload
   }

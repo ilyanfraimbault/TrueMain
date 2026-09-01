@@ -32,9 +32,11 @@ public sealed class ChampionTierListQueryService(
         string? patch,
         string? position,
         string? eloBracket,
+        bool truemainsOnly,
         CancellationToken ct)
     {
-        ChampionSummariesResult result = await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, ct);
+        ChampionSummariesResult result =
+            await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, truemainsOnly, ct);
         IReadOnlyList<ChampionSummaryReadModel> summaries = result.Summaries;
         if (summaries.Count == 0)
         {

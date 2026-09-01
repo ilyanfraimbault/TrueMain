@@ -138,6 +138,87 @@ public sealed class ChampionAggregateScopeQueriesTests
         matched.Should().BeEmpty();
     }
 
+    [Fact]
+    public void WhereChampionScope_KeepsOnlyMainsByDefault()
+    {
+        var scopes = new[]
+        {
+            BuildScope(championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP"),
+            BuildScope(
+                championId: 11, queueId: 420, accountId: AccountB, version: "16.4", platform: "KR", position: "TOP",
+                isMain: false)
+        };
+
+        var matched = scopes.AsQueryable()
+            .WhereChampionScope(championId: 11, queueId: 420, riotAccountId: null, patch: null, platformId: null, position: null)
+            .ToList();
+
+        // The default has to be the pre-#1346 population: every caller that does
+        // not opt in keeps the numbers it has always returned.
+        matched.Should().ContainSingle();
+        matched[0].RiotAccountId.Should().Be(AccountA);
+    }
+
+    [Fact]
+    public void WhereChampionScope_WidensToEveryPlayerWhenTruemainsOnlyIsOff()
+    {
+        var scopes = new[]
+        {
+            BuildScope(championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP"),
+            BuildScope(
+                championId: 11, queueId: 420, accountId: AccountB, version: "16.4", platform: "KR", position: "TOP",
+                isMain: false)
+        };
+
+        var matched = scopes.AsQueryable()
+            .WhereChampionScope(
+                championId: 11,
+                queueId: 420,
+                riotAccountId: null,
+                patch: null,
+                platformId: null,
+                position: null,
+                truemainsOnly: false)
+            .ToList();
+
+        // Off is a superset, not a swap: the mains are still in there.
+        matched.Should().HaveCount(2);
+        matched.Select(scope => scope.RiotAccountId).Should().Contain([AccountA, AccountB]);
+    }
+
+    [Fact]
+    public void WhereChampionScope_CombinesTheTruemainsFilterWithTheBracketFilter()
+    {
+        var scopes = new[]
+        {
+            BuildScope(
+                championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP",
+                eloBracket: "MASTER"),
+            BuildScope(
+                championId: 11, queueId: 420, accountId: AccountB, version: "16.4", platform: "KR", position: "TOP",
+                eloBracket: "MASTER", isMain: false),
+            BuildScope(
+                championId: 11, queueId: 420, accountId: AccountA, version: "16.4", platform: "KR", position: "TOP",
+                eloBracket: "GOLD")
+        };
+
+        var matched = scopes.AsQueryable()
+            .WhereChampionScope(
+                championId: 11,
+                queueId: 420,
+                riotAccountId: null,
+                patch: null,
+                platformId: null,
+                position: null,
+                eloBrackets: ["MASTER"])
+            .ToList();
+
+        // Both narrow: a Master non-main and a Gold main are each excluded.
+        matched.Should().ContainSingle();
+        matched[0].RiotAccountId.Should().Be(AccountA);
+        matched[0].EloBracket.Should().Be("MASTER");
+    }
+
     private static ChampionAggregateScope BuildScope(
         int championId,
         int queueId,
@@ -145,7 +226,8 @@ public sealed class ChampionAggregateScopeQueriesTests
         string version,
         string platform,
         string position,
-        string eloBracket = "GOLD")
+        string eloBracket = "GOLD",
+        bool isMain = true)
     {
         return new ChampionAggregateScope
         {
@@ -157,6 +239,10 @@ public sealed class ChampionAggregateScopeQueriesTests
             PlatformId = platform,
             Position = position,
             EloBracket = eloBracket,
+            // Defaults to a main, matching the entity's own column default and
+            // the only population that existed before #1346 — so every test that
+            // isn't about the truemains filter reads as it always did.
+            IsMain = isMain,
             Games = 1,
             Wins = 1
         };

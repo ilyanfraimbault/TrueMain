@@ -81,7 +81,7 @@ public sealed class ChampionOverviewQueryServiceTests
         ChampionSummariesResult result, long totalGames)
     {
         var summaries = Substitute.For<IChampionSummariesQueryService>();
-        summaries.GetAllSummariesAsync(patch: null, eloBracket: null, Arg.Any<CancellationToken>())
+        summaries.GetAllSummariesAsync(patch: null, eloBracket: null, truemainsOnly: true, Arg.Any<CancellationToken>())
             .Returns(result);
         summaries.GetTotalGamesAsync(Arg.Any<CancellationToken>()).Returns(totalGames);
         return summaries;

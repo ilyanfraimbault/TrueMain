@@ -42,6 +42,9 @@ public sealed class ChampionPatchDiffQueryService(
             .AsNoTracking()
             .Where(scope => scope.ChampionId == championId && scope.QueueId == queueId)
             .Where(scope => scope.Position.Trim() != string.Empty)
+            // Mains only, the population this read has always described (#1346
+            // added the non-main rows; every pre-existing read keeps its meaning).
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => new { scope.GameVersion, scope.Position })
             .Select(group => new ScopeRow(group.Key.GameVersion, group.Key.Position, group.Sum(s => s.Games)))
             .ToListAsync(ct);

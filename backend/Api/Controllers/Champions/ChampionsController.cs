@@ -36,6 +36,7 @@ public sealed class ChampionsController(
     public async Task<ActionResult<IReadOnlyList<ChampionSummaryReadModel>>> ListChampionsAsync(
         [FromQuery] string? patch,
         [FromQuery] string? eloBracket,
+        [FromQuery] bool truemainsOnly = true,
         CancellationToken ct = default)
     {
         var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
@@ -44,7 +45,8 @@ public sealed class ChampionsController(
             return bracketProblem;
         }
 
-        var result = await summariesQueryService.GetAllSummariesAsync(normalizedPatch, normalizedBracket, ct);
+        var result = await summariesQueryService.GetAllSummariesAsync(
+            normalizedPatch, normalizedBracket, truemainsOnly, ct);
         return Ok(result.Summaries);
     }
 
@@ -65,6 +67,7 @@ public sealed class ChampionsController(
         [FromQuery] string? patch,
         [FromQuery] string? position,
         [FromQuery] string? eloBracket,
+        [FromQuery] bool truemainsOnly = true,
         CancellationToken ct = default)
     {
         if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
@@ -78,7 +81,8 @@ public sealed class ChampionsController(
             return bracketProblem;
         }
 
-        var tierList = await tierListQueryService.GetTierListAsync(normalizedPatch, normalizedPosition, normalizedBracket, ct);
+        var tierList = await tierListQueryService.GetTierListAsync(
+            normalizedPatch, normalizedPosition, normalizedBracket, truemainsOnly, ct);
         return Ok(tierList);
     }
 
@@ -114,6 +118,7 @@ public sealed class ChampionsController(
         [FromQuery] string? position,
         [FromQuery] string? eloBracket,
         [FromQuery] int? opponentChampionId,
+        [FromQuery] bool truemainsOnly = true,
         CancellationToken ct = default)
     {
         if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
@@ -137,6 +142,18 @@ public sealed class ChampionsController(
                 return ValidationProblem("A matchup requires a position: pass ?position= alongside ?opponentChampionId=.");
             }
 
+            // Matchups are folded from their own aggregate, whose champion side is
+            // mains-only (#1087) — the truemains population is the only one it has.
+            // Rejected rather than answered, for the same reason the missing
+            // position above is: quietly returning mains-only rows under
+            // truemainsOnly=false would be a fabricated answer, not a lenient one.
+            if (!truemainsOnly)
+            {
+                return ValidationProblem(
+                    "Matchups are aggregated over truemains only: ?truemainsOnly=false cannot be combined "
+                    + "with ?opponentChampionId=.");
+            }
+
             var matchup = await matchupBuildsQueryService.GetAsync(
                 championId,
                 opponentChampionId.Value,
@@ -153,6 +170,7 @@ public sealed class ChampionsController(
             normalizedPatch,
             normalizedPosition,
             eloBracket: normalizedBracket,
+            truemainsOnly: truemainsOnly,
             ct: ct);
 
         return response is null ? NotFound() : Ok(response);

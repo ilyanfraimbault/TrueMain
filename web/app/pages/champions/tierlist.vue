@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChampionTierListResponse } from '~~/shared/types/champions'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
-import { ELO_BRACKET_ALL, normalizeEloBracket } from '~/utils/elo-brackets'
+import { normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
 import { describeFetchError } from '~/utils/errors'
 
@@ -24,8 +24,8 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   return isChampionPosition(value) ? value : null
 })
 
-// ALL when the `?elo=` param is absent (the composable omits the default), so
-// the picker always reflects a valid threshold.
+// The composable always resolves a concrete bracket (Master+ by default), so
+// the picker always reflects the threshold actually being fetched.
 const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.value.eloBracket))
 
 // Tier list is computed server-side, so the fetch keys on patch + position +
@@ -37,16 +37,25 @@ const {
   error: tierListError,
   status: tierListStatus,
 } = useLazyAsyncData<ChampionTierListResponse>(
-  () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}-${filters.value.eloBracket ?? 'all'}`,
+  () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}`
+    + `-${filters.value.eloBracket ?? 'all'}-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
   () => {
     const query: Record<string, string> = {}
     if (filters.value.patch) query.patch = filters.value.patch
     if (selectedPosition.value) query.position = selectedPosition.value
     if (filters.value.eloBracket) query.eloBracket = filters.value.eloBracket
+    // Sent only when off: true is the API default, so pinning it would just make
+    // every resting request carry a redundant param.
+    if (!filters.value.truemainsOnly) query.truemainsOnly = 'false'
     return $fetch<ChampionTierListResponse>('/api/champions/tierlist', { query })
   },
   {
-    watch: [() => filters.value.patch, selectedPosition, () => filters.value.eloBracket],
+    watch: [
+      () => filters.value.patch,
+      selectedPosition,
+      () => filters.value.eloBracket,
+      () => filters.value.truemainsOnly,
+    ],
     server: false,
     default: () => ({ patchVersion: '', position: null, tiers: [] }),
   },
@@ -86,7 +95,9 @@ async function selectPosition(value: ChampionPosition | null) {
 }
 
 function onEloBracketChange(value: string) {
-  void setFilter({ eloBracket: value === ELO_BRACKET_ALL ? null : value })
+  // Pass the bracket through untouched — `null` would clear the param and land
+  // back on the Master+ page default, making "All ranks" unselectable.
+  void setFilter({ eloBracket: value })
 }
 
 const nameById = useChampionsById(staticList)
@@ -142,6 +153,11 @@ function championDestination(entry: { championId: number, position: string }) {
         <ChampionEloFilter
           :model-value="selectedEloBracket"
           @update:model-value="onEloBracketChange"
+        />
+
+        <ChampionTruemainToggle
+          :model-value="filters.truemainsOnly"
+          @update:model-value="value => setFilter({ truemainsOnly: value })"
         />
 
         <USelect

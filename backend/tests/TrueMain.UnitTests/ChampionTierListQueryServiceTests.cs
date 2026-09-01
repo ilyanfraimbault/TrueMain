@@ -21,12 +21,12 @@ public sealed class ChampionTierListQueryServiceTests
     public async Task GetTierListAsync_returns_empty_model_when_no_summaries()
     {
         var summaries = Substitute.For<IChampionSummariesQueryService>();
-        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new ChampionSummariesResult { PatchVersion = "16.5" });
         var service = new ChampionTierListQueryService(summaries);
 
         ChampionTierListReadModel result =
-            await service.GetTierListAsync("16.5", position: null, eloBracket: null, CancellationToken.None);
+            await service.GetTierListAsync("16.5", position: null, eloBracket: null, truemainsOnly: true, CancellationToken.None);
 
         result.PatchVersion.Should().Be("16.5");
         result.Tiers.Should().BeEmpty();
@@ -44,7 +44,7 @@ public sealed class ChampionTierListQueryServiceTests
         ChampionTierListQueryService service = ServiceReturning(rows);
 
         ChampionTierListReadModel result =
-            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, CancellationToken.None);
+            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, truemainsOnly: true, CancellationToken.None);
 
         result.PatchVersion.Should().Be("16.5", "the resolved patch is read off the summary rows");
 
@@ -77,7 +77,7 @@ public sealed class ChampionTierListQueryServiceTests
         ChampionTierListQueryService service = ServiceReturning(rows);
 
         ChampionTierListReadModel result =
-            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, CancellationToken.None);
+            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, truemainsOnly: true, CancellationToken.None);
 
         result.Tiers.Select(group => group.Tier).Should().Equal(new[] { "S", "D" });
         result.Tiers.Single(group => group.Tier == "S").Entries
@@ -98,7 +98,7 @@ public sealed class ChampionTierListQueryServiceTests
         ChampionTierListQueryService service = ServiceReturning(rows);
 
         ChampionTierListReadModel result =
-            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, CancellationToken.None);
+            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, truemainsOnly: true, CancellationToken.None);
 
         result.Tiers.Single().Entries.Select(entry => entry.ChampionId).Should().Equal(3, 7);
     }
@@ -118,9 +118,9 @@ public sealed class ChampionTierListQueryServiceTests
         ChampionTierListQueryService service = ServiceReturning(rows);
 
         ChampionTierListReadModel unscoped =
-            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, CancellationToken.None);
+            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, truemainsOnly: true, CancellationToken.None);
         ChampionTierListReadModel scoped =
-            await service.GetTierListAsync(patch: null, position: "MIDDLE", eloBracket: null, CancellationToken.None);
+            await service.GetTierListAsync(patch: null, position: "MIDDLE", eloBracket: null, truemainsOnly: true, CancellationToken.None);
 
         (int ChampionId, string Tier)[] unscopedMiddle = [.. unscoped.Tiers
             .SelectMany(group => group.Entries
@@ -149,7 +149,7 @@ public sealed class ChampionTierListQueryServiceTests
         ChampionTierListQueryService service = ServiceReturning(rows);
 
         ChampionTierListReadModel result =
-            await service.GetTierListAsync(patch: null, position: "TOP", eloBracket: null, CancellationToken.None);
+            await service.GetTierListAsync(patch: null, position: "TOP", eloBracket: null, truemainsOnly: true, CancellationToken.None);
 
         result.Position.Should().Be("TOP");
         result.Tiers.SelectMany(group => group.Entries)
@@ -169,7 +169,7 @@ public sealed class ChampionTierListQueryServiceTests
         ChampionTierListQueryService service = ServiceReturning(rows);
 
         ChampionTierListReadModel result =
-            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, CancellationToken.None);
+            await service.GetTierListAsync(patch: null, position: null, eloBracket: null, truemainsOnly: true, CancellationToken.None);
 
         result.Tiers.SelectMany(group => group.Entries).Should().HaveCount(20);
         result.Tiers.SelectMany(group => group.Entries).Should().OnlyContain(entry => entry.BanRate == null);
@@ -210,7 +210,7 @@ public sealed class ChampionTierListQueryServiceTests
     private static ChampionTierListQueryService ServiceReturning(IReadOnlyList<ChampionSummaryReadModel> rows)
     {
         IChampionSummariesQueryService summaries = Substitute.For<IChampionSummariesQueryService>();
-        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new ChampionSummariesResult
             {
                 PatchVersion = "16.5",

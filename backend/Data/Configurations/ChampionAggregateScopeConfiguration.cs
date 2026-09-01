@@ -19,6 +19,10 @@ public sealed class ChampionAggregateScopeConfiguration : IEntityTypeConfigurati
         entity.Property(e => e.QueueId).IsRequired();
         entity.Property(e => e.Position).IsRequired().HasMaxLength(16);
         entity.Property(e => e.EloBracket).IsRequired().HasMaxLength(20).HasColumnName("elo_bracket");
+        // Defaults to true: every scope that existed before this column did was
+        // produced by a mains-only pipeline, so backfilling it as `true` restates
+        // history rather than inventing it.
+        entity.Property(e => e.IsMain).IsRequired().HasDefaultValue(true);
         entity.Property(e => e.Games).IsRequired();
         entity.Property(e => e.Wins).IsRequired();
         entity.Property(e => e.Kills).IsRequired().HasDefaultValue(0);
@@ -42,8 +46,19 @@ public sealed class ChampionAggregateScopeConfiguration : IEntityTypeConfigurati
         entity.HasIndex(e => new { e.ChampionId, e.GameVersion, e.PlatformId, e.QueueId });
 
         // Reader path: builds are filtered by (champion, patch, platform, queue,
-        // position, bracket); index it so a per-bracket slice is a cheap seek.
-        entity.HasIndex(e => new { e.ChampionId, e.GameVersion, e.PlatformId, e.QueueId, e.Position, e.EloBracket });
+        // position, bracket) and then, by default, narrowed to mains — so the
+        // flag rides the same index and the default read stays a single seek
+        // rather than a seek plus a filter over every non-main row.
+        entity.HasIndex(e => new
+        {
+            e.ChampionId,
+            e.GameVersion,
+            e.PlatformId,
+            e.QueueId,
+            e.Position,
+            e.EloBracket,
+            e.IsMain
+        });
 
         entity.HasOne(e => e.RiotAccount)
             .WithMany()
