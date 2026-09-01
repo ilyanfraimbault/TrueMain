@@ -197,7 +197,8 @@ public sealed class WorkerFailureMetricsTests
             new IterationContext(),
             new CallerContext(),
             lifetime,
-            new IngestorMetrics(meterFactory));
+            new IngestorMetrics(meterFactory),
+            TimeProvider.System);
     }
 
     private sealed class NoOpProcess(string name) : IIngestorProcess

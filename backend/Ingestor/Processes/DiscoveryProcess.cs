@@ -183,75 +183,84 @@ public sealed class DiscoveryProcess(
         var saveBatchSize = Math.Max(1, options.SaveBatchSize);
         var newAccountsTarget = Math.Max(0, options.NewAccountsTarget);
 
-        var latestByAccountId = await PreloadLatestSnapshotsAsync(session, platformId, discovered, ct);
-
-        var pendingChanges = 0;
         var discoveredAccounts = 0;
 
-        foreach (var item in discovered)
+        // Walk the window in save-sized slices, each with its own preload / save /
+        // tracker drain. The whole window used to run on one accumulating change
+        // tracker across hundreds of Riot round-trips (#1229), so every SaveChanges
+        // re-ran DetectChanges over every entity the platform had touched so far.
+        // The preload moves inside the slice for that to be safe: the rank snapshots
+        // it returns are TRACKED and mutated in place by RankSnapshotWriter, so a
+        // tracker drain under a window-wide preload would silently swallow the rank
+        // updates of every later slice.
+        for (var offsetInWindow = 0; offsetInWindow < discovered.Count; offsetInWindow += saveBatchSize)
         {
-            ct.ThrowIfCancellationRequested();
+            var slice = discovered.Skip(offsetInWindow).Take(saveBatchSize).ToList();
+            var latestByAccountId = await PreloadLatestSnapshotsAsync(session, platformId, slice, ct);
+            var reachedTarget = false;
 
-            var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-            var upsertResult = await accountUpsertService.UpsertAsync(session, platform, item.Summoner, nowUtc, ct);
-            if (upsertResult.IsNew)
+            foreach (var item in slice)
             {
-                discoveredAccounts++;
-                summary.NewAccountsDiscovered++;
-            }
+                ct.ThrowIfCancellationRequested();
 
-            if (item.Rank is not null)
-            {
-                latestByAccountId.TryGetValue(upsertResult.Account.Id, out var latest);
-                var outcome = rankSnapshotWriter.Ingest(session, upsertResult.Account, item.Rank, latest, nowUtc);
-                switch (outcome)
+                var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+                var upsertResult = await accountUpsertService.UpsertAsync(session, platform, item.Summoner, nowUtc, ct);
+                if (upsertResult.IsNew)
                 {
-                    case RankSnapshotOutcome.Inserted:
-                        summary.RankSnapshotsInserted++;
-                        break;
-                    case RankSnapshotOutcome.Updated:
-                        summary.RankSnapshotsUpdated++;
-                        break;
-                    default:
-                        summary.RankSnapshotsUnchanged++;
-                        break;
+                    discoveredAccounts++;
+                    summary.NewAccountsDiscovered++;
+                }
+
+                if (item.Rank is not null)
+                {
+                    latestByAccountId.TryGetValue(upsertResult.Account.Id, out var latest);
+                    var outcome = rankSnapshotWriter.Ingest(session, upsertResult.Account, item.Rank, latest, nowUtc);
+                    switch (outcome)
+                    {
+                        case RankSnapshotOutcome.Inserted:
+                            summary.RankSnapshotsInserted++;
+                            break;
+                        case RankSnapshotOutcome.Updated:
+                            summary.RankSnapshotsUpdated++;
+                            break;
+                        default:
+                            summary.RankSnapshotsUnchanged++;
+                            break;
+                    }
+                }
+
+                var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, item.Summoner.Puuid, ct);
+                var candidateResult = await candidateUpsertService.UpsertAsync(
+                    session,
+                    platformId,
+                    item.Summoner.Puuid,
+                    masteries,
+                    options,
+                    nowUtc,
+                    ct);
+
+                summary.AccountsProcessed++;
+                summary.CandidatesInserted += candidateResult.Inserted;
+                summary.CandidatesUpdated += candidateResult.Updated;
+
+                if (newAccountsTarget > 0 && discoveredAccounts >= newAccountsTarget)
+                {
+                    logger.LogInformation(
+                        "Discovery reached new accounts target ({Target}) for platform {Platform}. Stopping early.",
+                        newAccountsTarget,
+                        platformId);
+                    reachedTarget = true;
+                    break;
                 }
             }
 
-            var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, item.Summoner.Puuid, ct);
-            var candidateResult = await candidateUpsertService.UpsertAsync(
-                session,
-                platformId,
-                item.Summoner.Puuid,
-                masteries,
-                options,
-                nowUtc,
-                ct);
+            await session.SaveChangesAsync(ct);
+            session.ClearTracking();
 
-            summary.AccountsProcessed++;
-            summary.CandidatesInserted += candidateResult.Inserted;
-            summary.CandidatesUpdated += candidateResult.Updated;
-
-            pendingChanges++;
-            if (pendingChanges >= saveBatchSize)
+            if (reachedTarget)
             {
-                await session.SaveChangesAsync(ct);
-                pendingChanges = 0;
-            }
-
-            if (newAccountsTarget > 0 && discoveredAccounts >= newAccountsTarget)
-            {
-                logger.LogInformation(
-                    "Discovery reached new accounts target ({Target}) for platform {Platform}. Stopping early.",
-                    newAccountsTarget,
-                    platformId);
                 break;
             }
-        }
-
-        if (pendingChanges > 0)
-        {
-            await session.SaveChangesAsync(ct);
         }
 
         return summary;

@@ -37,10 +37,15 @@ public sealed class MatchRepository(TrueMainDbContext db) : IMatchRepository
         return pendingIds.ToHashSet(StringComparer.Ordinal);
     }
 
-    public Task SetTimelineIngestedAsync(string matchId, bool timelineIngested, CancellationToken ct)
+    public Task SetTimelineIngestedAsync(IReadOnlyCollection<string> matchIds, bool timelineIngested, CancellationToken ct)
     {
+        if (matchIds.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
         return db.Matches
-            .Where(m => m.Id == matchId)
+            .Where(m => matchIds.Contains(m.Id))
             .ExecuteUpdateAsync(
                 setters => setters.SetProperty(m => m.TimelineIngested, timelineIngested),
                 ct);

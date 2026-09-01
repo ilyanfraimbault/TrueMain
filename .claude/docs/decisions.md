@@ -1958,6 +1958,43 @@ enums:
 
 No retroactive migration: the existing three stay as they are. This settles which one a new column copies.
 
+## A unit of work covers the writes and nothing else (2026-08-28)
+
+**Transactions wrap writes, never Riot calls.** `MatchIngestionProcess` used to open its per-account
+transaction *before* up to 40 Riot round-trips (20 match-v5 + 20 timelines), each able to burn the client's
+whole `EffectiveTotalRequestTimeout` under a 429 backoff. The connection sat `idle in transaction` for minutes
+per account, holding the claim locks and pinning VACUUM's horizon — the exact counter-model of #264, which had
+already removed that pattern from MainAnalysis. Ingestion now runs in two phases: a fetch phase that
+materialises the DTOs (bounded by `MatchIngestion:MatchesPerAccount`, so a few MB per account), then a
+transaction around the writes only. The property the transaction was opened for is unchanged: a crash still
+cannot leave a partially ingested match, and a crash during the fetch phase writes nothing at all — the replay
+is idempotent through `GetExistingMatchIdsAsync` and the `TimelineIngested` flag (#1229).
+
+**A trailing `SaveChangesAsync` after `ExecuteUpdate` calls is not a commit point.** `ExecuteUpdate` /
+`ExecuteDelete` never enter the change tracker, so the save commits nothing and only makes the code *look*
+atomic. `AccountValidationService` chained three of them bare: a failure between the first and the last left
+candidates `Validated` while the account stayed `Processing` for a whole claim lease. All three of its exit
+paths — `ValidateAsync`, `RevertAsync` and `ReleaseUningestableAsync` — now run inside an explicit
+transaction, and the decorative saves are gone. The release path is the one where a partial failure hurts
+most: the account would keep its place at the head of the claim ordering and be re-claimed at once, only to
+prove uningestable again (#1229).
+
+**`ChangeTracker.Clear()` is safe only when the batch owns everything it loaded.** The ingestor's long loops
+(Scoring, Discovery, AccountRefresh, participant harvest) drain the tracker after each batch save via
+`IDataSession.ClearTracking()` — without it every `SaveChanges` re-runs `DetectChanges` over every entity the
+run has ever touched, which is quadratic in the number of batches. The catch: three of those loops preloaded
+tracked entities for the *whole* run and mutated them later (rank snapshots overwritten in place, harvested
+candidates re-scored). Clearing under a run-wide preload detaches them, and a detached entity accepts property
+writes and persists none — silent data loss, not an error. So each preload moved inside its batch. Don't
+"optimise" one back out to the top of the loop (#1229).
+
+**The Ingestor's file heartbeat is liveness, not progress.** It used to be touched once per loop iteration, so
+it went stale for a whole `Job:IntervalMinutes` (60 min) plus a whole `Full` pass; the healthcheck had to
+tolerate 6 h of silence, which left it unable to detect anything short of a process dead for a quarter of a
+day. A dedicated 30 s loop now refreshes it for the worker's whole lifetime and the threshold is 300 s, so a
+wedged process is caught in minutes. Whether the *work* is progressing is a separate question with a separate
+answer already in place: the `process_runs` heartbeat, which ages a stalled run out to `Abandoned` (#1229).
+
 ## Ranks are read from the ladder, not from one account at a time (2026-08-30)
 
 **The ladder endpoints are the primary rank source; the per-account call is the fallback.** `AccountRefresh`

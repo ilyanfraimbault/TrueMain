@@ -68,34 +68,54 @@ public sealed class AccountRefreshProcess(
         CancellationToken ct)
     {
         await using var session = await sessionFactory.CreateAsync(ct);
-        var accountsByKey = await session.RiotAccounts.GetByKeysAsync(accounts, ct);
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var summary = new RefreshSummary { Selected = accounts.Count };
-
-        var accountIds = accountsByKey.Values.Select(a => a.Id).ToList();
-        var latestByAccountId = await session.RankSnapshots.GetLatestForAccountsAsync(accountIds, ct);
         var rankFreshness = refreshOptions.Value.RankSyncFreshness;
+        var saveBatchSize = Math.Max(1, refreshOptions.Value.SaveBatchSize);
 
         // PUUIDs handed out by Riot-ID recovery during this run. Nothing below is
-        // persisted before the single SaveChangesAsync at the end, so the database
-        // check in TryRecoverByRiotIdAsync cannot see a sibling account of the same
-        // batch that already recovered to the same PUUID (#1223).
+        // persisted before each slice's SaveChangesAsync, so the database check in
+        // TryRecoverByRiotIdAsync cannot see a sibling account of the same slice
+        // that already recovered to the same PUUID (#1223). A slice that already
+        // committed is visible to the database check in later slices, so this set
+        // only needs to catch collisions within the slice still in flight.
         var claimedPuuids = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var account in accounts)
+        // Refresh in save-sized slices, each loading its own accounts and rank snapshots
+        // and draining the change tracker after its save (#1229). The whole batch used to
+        // be loaded up front and held tracked across two Riot calls per account — up to
+        // BatchSize accounts kept alive for the length of hundreds of HTTP round-trips.
+        // The loads have to move inside the slice for the drain to be safe: both the
+        // accounts and the rank snapshots are mutated in place (RankSnapshotWriter stamps
+        // LastRankSyncAtUtc / Score and overwrites the day's snapshot row), and a detached
+        // entity would take those writes and persist none of them.
+        for (var offset = 0; offset < accounts.Count; offset += saveBatchSize)
         {
             ct.ThrowIfCancellationRequested();
-            if (!accountsByKey.TryGetValue(account, out var accountEntity))
+
+            var slice = accounts.Skip(offset).Take(saveBatchSize).ToList();
+            var accountsByKey = await session.RiotAccounts.GetByKeysAsync(slice, ct);
+            var latestByAccountId = await session.RankSnapshots.GetLatestForAccountsAsync(
+                accountsByKey.Values.Select(account => account.Id).ToList(),
+                ct);
+
+            foreach (var account in slice)
             {
-                summary.ProfileFailed++;
-                continue;
+                ct.ThrowIfCancellationRequested();
+                if (!accountsByKey.TryGetValue(account, out var accountEntity))
+                {
+                    summary.ProfileFailed++;
+                    continue;
+                }
+
+                await RefreshSingleAccountAsync(
+                    session, accountEntity, latestByAccountId, rankFreshness, nowUtc, claimedPuuids, summary, ct);
             }
 
-            await RefreshSingleAccountAsync(
-                session, accountEntity, latestByAccountId, rankFreshness, nowUtc, claimedPuuids, summary, ct);
+            await session.SaveChangesAsync(ct);
+            session.ClearTracking();
         }
 
-        await session.SaveChangesAsync(ct);
         return summary;
     }
 
@@ -184,8 +204,8 @@ public sealed class AccountRefreshProcess(
 
         // Rank ingestion is independent of the profile sync above: a 404 or
         // timeout on League-v4 must not block the GameName/TagLine update,
-        // and vice versa. Both share the single SaveChangesAsync at the end
-        // of RefreshAccountsAsync.
+        // and vice versa. Both are flushed by the slice's SaveChangesAsync in
+        // RefreshAccountsAsync.
 
         // Skip the by-puuid call when DiscoveryProcess has already snapped
         // this account's rank in the current cycle (Master+ ladder scans).

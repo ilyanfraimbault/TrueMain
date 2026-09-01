@@ -21,6 +21,23 @@ public sealed class MatchTimelineRecoveryIntegrationTests
         _fixture = fixture;
     }
 
+    /// <summary>
+    /// The two phases the process runs back to back: download outside the transaction,
+    /// then write (#1229).
+    /// </summary>
+    private static async Task<int> IngestTimelinesAsync(
+        TimelineIngestionService service,
+        IDataSession session,
+        RegionalRoute region,
+        IReadOnlyCollection<string> allMatchIds,
+        IReadOnlyCollection<string> newMatchIds,
+        int saveBatchSize,
+        CancellationToken ct)
+    {
+        var plan = await service.PrepareAsync(session, region, allMatchIds, newMatchIds, ct);
+        return await service.WriteAsync(session, plan, saveBatchSize, ct);
+    }
+
     [Fact]
     public async Task TimelineIngestionService_ShouldRepairPendingTimelineAndMarkMatchAsIngested()
     {
@@ -33,7 +50,8 @@ public sealed class MatchTimelineRecoveryIntegrationTests
         await using var session = new DataSession(db);
         var service = new TimelineIngestionService(new FakeRiotMatchClient(), NullLogger<TimelineIngestionService>.Instance);
 
-        var updated = await service.IngestTimelinesAsync(
+        var updated = await IngestTimelinesAsync(
+            service,
             session,
             RegionalRoute.Asia,
             new[] { matchId },
@@ -70,7 +88,8 @@ public sealed class MatchTimelineRecoveryIntegrationTests
             new FakeRiotMatchClient(truncatedMatchIds: [truncatedMatchId]),
             NullLogger<TimelineIngestionService>.Instance);
 
-        var updated = await service.IngestTimelinesAsync(
+        var updated = await IngestTimelinesAsync(
+            service,
             session,
             RegionalRoute.Asia,
             new[] { truncatedMatchId, healthyMatchId },

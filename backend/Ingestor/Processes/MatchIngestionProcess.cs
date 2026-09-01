@@ -174,29 +174,52 @@ public sealed class MatchIngestionProcess(
         var region = platform.Route.ToRegional();
         await using var session = await sessionFactory.CreateAsync(ct);
 
-        // Wrap the snapshot, timeline, and catalog writes for this account in a
-        // single transaction so a mid-loop crash cannot leave partially ingested
-        // matches behind. EF Core automatically creates a savepoint before each
-        // SaveChanges while a transaction is in progress, so the catalog upsert's
-        // own DbUpdateException recovery still works without poisoning the
-        // transaction.
-        await using var transaction = await session.BeginTransactionAsync(ct);
-
-        var snapshotResult = await matchSnapshotWriter.IngestSnapshotsAsync(
+        // Phase 1 — fetch. Up to 20 match-v5 calls and 20 match-v5 timeline calls, each
+        // able to burn the client's whole EffectiveTotalRequestTimeout under a 429
+        // backoff. Deliberately outside the transaction (#264, #1229): running it under
+        // BEGIN left the connection `idle in transaction` for minutes per account,
+        // holding the claim locks and pinning VACUUM's horizon for reads that take no
+        // locks at all. The payloads are bounded by MatchesPerAccount, so materialising
+        // them costs a few MB per account.
+        var snapshotPlan = await matchSnapshotWriter.PrepareAsync(
             session,
             platformId,
             account.Puuid,
             region,
             options.MatchesPerAccount,
-            options.SaveBatchSizeMatches,
             options.MaxMatchFetchConcurrency,
             ct);
 
-        var timelineUpdated = await timelineIngestionService.IngestTimelinesAsync(
+        var timelinePlan = await timelineIngestionService.PrepareAsync(
             session,
             region,
-            snapshotResult.AllMatchIds,
-            snapshotResult.NewMatchIds,
+            snapshotPlan.AllMatchIds,
+            snapshotPlan.TargetMatches.Select(match => match.MatchId).ToList(),
+            ct);
+
+        // Phase 2 — write. The transaction now spans the writes and nothing else, and
+        // still delivers the property it was opened for: a crash mid-loop cannot leave
+        // partially ingested matches behind, because every snapshot, timeline and
+        // catalog write for the account commits or rolls back as one. EF Core creates a
+        // savepoint before each SaveChanges while a transaction is in progress, so the
+        // catalog upsert's own DbUpdateException recovery still works without poisoning
+        // it. A crash during phase 1 writes nothing at all, and the account is reverted
+        // to Queued (or ages out of its claim lease) and re-fetched from scratch —
+        // GetExistingMatchIdsAsync and the TimelineIngested flag make that replay
+        // idempotent, exactly as before.
+        await using var transaction = await session.BeginTransactionAsync(ct);
+
+        var snapshotResult = await matchSnapshotWriter.WriteAsync(
+            session,
+            snapshotPlan,
+            platformId,
+            account.Puuid,
+            options.SaveBatchSizeMatches,
+            ct);
+
+        var timelineUpdated = await timelineIngestionService.WriteAsync(
+            session,
+            timelinePlan,
             options.SaveBatchSizeMatches,
             ct);
 

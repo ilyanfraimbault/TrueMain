@@ -63,26 +63,29 @@ public sealed class ScoringProcess(
             ct.ThrowIfCancellationRequested();
 
             var take = maxPerRun == 0 ? batchSize : Math.Min(batchSize, maxPerRun - result.TotalScored);
-            var scoredCandidates = await ScoreCandidatesBatchAsync(session, scoring, coverage, nowUtc, take, ct);
-            if (scoredCandidates.Count == 0)
+            var scoredByPlatform = await ScoreCandidatesBatchAsync(session, scoring, coverage, nowUtc, take, ct);
+            if (scoredByPlatform.Count == 0)
             {
                 return result;
             }
 
-            result.TotalScored += scoredCandidates.Count;
-
-            foreach (var candidate in scoredCandidates)
+            foreach (var (platformId, count) in scoredByPlatform)
             {
-                result.ScoredByPlatform[candidate.PlatformId] = result.ScoredByPlatform.TryGetValue(candidate.PlatformId, out var count)
-                    ? count + 1
-                    : 1;
+                result.TotalScored += count;
+                result.ScoredByPlatform[platformId] = result.ScoredByPlatform.TryGetValue(platformId, out var running)
+                    ? running + count
+                    : count;
             }
         }
 
         return result;
     }
 
-    private static async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
+    /// <summary>
+    /// Scores one batch and returns its per-platform counts — counts, not the entities,
+    /// so nothing survives the <c>ClearTracking</c> below (#1229).
+    /// </summary>
+    private static async Task<Dictionary<string, int>> ScoreCandidatesBatchAsync(
         IDataSession session,
         ScoringOptions scoring,
         ChampionCoverageSnapshot coverage,
@@ -96,15 +99,28 @@ public sealed class ScoringProcess(
             return [];
         }
 
+        var scoredByPlatform = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var candidate in candidates)
         {
             candidate.Score = ComputeScore(candidate, scoring, coverage, nowUtc);
             candidate.Status = MainCandidateStatus.Scored;
             candidate.ScoredAtUtc = nowUtc;
+            scoredByPlatform[candidate.PlatformId] = scoredByPlatform.TryGetValue(candidate.PlatformId, out var count)
+                ? count + 1
+                : 1;
         }
 
         await session.SaveChangesAsync(ct);
-        return candidates;
+
+        // Drain the change tracker between batches. This loop drains the whole New
+        // backlog — 100k rows in batches of 5 000 — and every candidate stayed tracked
+        // to the end, so each SaveChanges re-ran DetectChanges over every entity the
+        // run had ever touched: quadratic in the number of batches (#1229). Safe here
+        // because the batch is re-read from the database each time and nothing loaded
+        // before the clear is touched after it — the caller now gets counts, and
+        // PromoteTopCandidatesAsync loads its own candidates further down.
+        session.ClearTracking();
+        return scoredByPlatform;
     }
 
     private async Task<List<ScoringPlatformSummary>> PromoteTopCandidatesAsync(

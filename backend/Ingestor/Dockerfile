@@ -21,14 +21,17 @@ COPY --from=build /app/publish .
 RUN mkdir -p /home/app/crashes && chown app:app /home/app/crashes
 USER app
 
-# Liveness: the Worker rewrites /tmp/ingestor-heartbeat at the top of every
-# loop iteration. The healthcheck rejects the container when the heartbeat
-# is older than ~10x the default Job:IntervalMinutes — an interval value
-# above ~6h means this needs reconfiguring (rare).
+# Liveness: the Worker rewrites /tmp/ingestor-heartbeat every 30 s from a loop that
+# runs for its whole lifetime — during a pass and during the wait between passes
+# alike (#1229). The threshold is 10 beats, not a multiple of Job:IntervalMinutes:
+# the file no longer tracks pass boundaries, so it stays independent of how the job
+# is scheduled and a wedged process is caught in minutes instead of six hours.
+# Progress (as opposed to liveness) is tracked separately by the process_runs
+# heartbeat, which ages a stalled run out to Abandoned.
 ENV INGESTOR_HEARTBEAT_PATH=/tmp/ingestor-heartbeat
-HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
     CMD test -f "$INGESTOR_HEARTBEAT_PATH" \
-        && test "$(($(date +%s) - $(stat -c %Y "$INGESTOR_HEARTBEAT_PATH")))" -lt 21600 \
+        && test "$(($(date +%s) - $(stat -c %Y "$INGESTOR_HEARTBEAT_PATH")))" -lt 300 \
         || exit 1
 
 ENTRYPOINT ["dotnet", "Ingestor.dll"]

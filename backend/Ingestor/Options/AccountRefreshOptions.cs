@@ -7,6 +7,15 @@ public class AccountRefreshOptions
     public int BatchSize { get; set; } = 200;
 
     /// <summary>
+    /// How many accounts are refreshed per save + change-tracker drain (#1229). The run
+    /// holds a single EF session across two Riot calls per account, so without a bound the
+    /// tracker accumulated the whole <see cref="BatchSize"/> worth of accounts and rank
+    /// snapshots for the duration of hundreds of HTTP round-trips, and every SaveChanges
+    /// re-ran DetectChanges over all of them.
+    /// </summary>
+    public int SaveBatchSize { get; set; } = 25;
+
+    /// <summary>
     /// How recently an account's rank must have been captured for this process to skip its
     /// league-v4 by-puuid call.
     /// <para>

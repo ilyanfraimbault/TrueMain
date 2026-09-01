@@ -33,7 +33,8 @@ public sealed class WorkerResilienceTests
             new IterationContext(),
             new CallerContext(),
             lifetime,
-            TestIngestorMetrics.Create());
+            TestIngestorMetrics.Create(),
+            TimeProvider.System);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -76,7 +77,8 @@ public sealed class WorkerResilienceTests
             new IterationContext(),
             new CallerContext(),
             lifetime,
-            TestIngestorMetrics.Create());
+            TestIngestorMetrics.Create(),
+            TimeProvider.System);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -114,7 +116,7 @@ public sealed class WorkerResilienceTests
         });
 
         using var worker = new Worker(
-            logger, scopeFactory, jobOptions, new IterationContext(), new CallerContext(), lifetime, TestIngestorMetrics.Create());
+            logger, scopeFactory, jobOptions, new IterationContext(), new CallerContext(), lifetime, TestIngestorMetrics.Create(), TimeProvider.System);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -149,7 +151,8 @@ public sealed class WorkerResilienceTests
             new IterationContext(),
             new CallerContext(),
             lifetime,
-            TestIngestorMetrics.Create());
+            TestIngestorMetrics.Create(),
+            TimeProvider.System);
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
 
         await worker.StartAsync(cts.Token);

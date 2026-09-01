@@ -43,27 +43,23 @@ public sealed class MatchClaimService(
             lease,
             ct);
 
-        foreach (var account in accounts)
-        {
-            var updated = await session.MainCandidates
-                .SetStatusForAccountAsync(
-                    account.PlatformId,
-                    account.Puuid,
-                    MainCandidateStatus.Queued,
-                    MainCandidateStatus.Processing,
-                    ct);
+        // One statement per distinct platform instead of one per account (#858, #1229).
+        // The per-account loop this replaces issued up to BatchSize sequential UPDATEs
+        // inside the claim transaction, widening the very race window the comment above
+        // exists to shrink. No SaveChanges follows: the claim and this transition are
+        // both set-based ExecuteUpdate statements that never touch the change tracker,
+        // so the call that used to sit here only simulated a commit point.
+        var candidateAccounts = await session.MainCandidates.SetStatusForAccountsAsync(
+            accounts,
+            MainCandidateStatus.Queued,
+            MainCandidateStatus.Processing,
+            ct);
 
-            if (updated > 0)
-            {
-                logger.LogDebug(
-                    "Claimed {Count} candidates for {Platform}/{Puuid}.",
-                    updated,
-                    account.PlatformId,
-                    account.Puuid);
-            }
-        }
+        logger.LogDebug(
+            "Moved queued candidates to Processing for {CandidateAccountCount} of {ClaimedAccountCount} claimed accounts.",
+            candidateAccounts.Count,
+            accounts.Count);
 
-        await session.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
         // Every claimed account is returned, including the established mains that have
