@@ -24,11 +24,30 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
 
-const tooltip = computed(() => {
-  if (props.disabled && props.disabledReason) return props.disabledReason
+// Two-part tooltip — a title naming the population currently shown, then one
+// line saying what it is and what flipping does. The same shape the thin-sample
+// alert used before it became a header tooltip: the title is the state, the body
+// is the consequence, and a reader who only takes the title still learns which
+// games they are looking at.
+const tooltip = computed<{ title: string, description: string }>(() => {
+  if (props.disabled) {
+    return {
+      title: 'Locked to truemains',
+      description: props.disabledReason
+        ?? 'This slice is only aggregated over truemains.',
+    }
+  }
   return props.modelValue
-    ? 'Builds from truemains only — players who main this champion. Turn off to include every tracked player.'
-    : 'Builds from every tracked player with games on this champion. Turn on to keep truemains only.'
+    ? {
+        title: 'Truemains only',
+        description: 'Folded from players who main this champion. Turn off to include '
+          + 'every tracked player with games on it.',
+      }
+    : {
+        title: 'Every tracked player',
+        description: 'Folded from every tracked player with games on this champion, '
+          + 'mains included. Turn on to keep truemains only.',
+      }
 })
 
 function toggle() {
@@ -39,10 +58,16 @@ function toggle() {
 
 <template>
   <UTooltip
-    :text="tooltip"
     :delay-duration="150"
-    :ui="{ content: 'max-w-xs whitespace-normal h-auto' }"
+    :ui="{ content: 'max-w-xs h-auto items-start' }"
   >
+    <template #content>
+      <div class="flex flex-col gap-0.5 p-1 text-xs">
+        <span class="font-medium text-default">{{ tooltip.title }}</span>
+        <span class="text-muted">{{ tooltip.description }}</span>
+      </div>
+    </template>
+
     <button
       type="button"
       :disabled="disabled"
