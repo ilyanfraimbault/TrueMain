@@ -89,10 +89,13 @@ public sealed class WorkerHeartbeatTests : IDisposable
         await stop.WaitAsync(Patience);
 
         // And it really is over: advancing past several more intervals writes nothing.
-        var last = await File.ReadAllTextAsync(heartbeatPath, CancellationToken.None);
+        // Read a *settled* value first — `File.WriteAllTextAsync` truncates before it
+        // writes, so a read racing the last beat can legitimately come back short and
+        // make this look like a change that never happened.
+        var last = await ReadSettledAsync();
         time.Advance(HeartbeatInterval * 5);
         await Task.Delay(100, CancellationToken.None);
-        (await File.ReadAllTextAsync(heartbeatPath, CancellationToken.None)).Should().Be(last);
+        (await ReadSettledAsync()).Should().Be(last);
     }
 
     private Worker BuildWorker(IIngestorProcess pass, TimeProvider time)
@@ -128,6 +131,38 @@ public sealed class WorkerHeartbeatTests : IDisposable
     {
         time.Advance(HeartbeatInterval);
         return await WaitForBeatAfterAsync(previous);
+    }
+
+    /// <summary>
+    /// The file's content once two consecutive reads agree. The writer truncates before it
+    /// writes, so a single read can catch a half-written stamp — which is a race in the test,
+    /// never a fact about the worker.
+    /// </summary>
+    private async Task<string> ReadSettledAsync()
+    {
+        var deadline = DateTime.UtcNow + Patience;
+        var previous = string.Empty;
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                var current = await File.ReadAllTextAsync(heartbeatPath, CancellationToken.None);
+                if (current.Length > 0 && current == previous)
+                {
+                    return current;
+                }
+
+                previous = current;
+            }
+            catch (IOException)
+            {
+                // Being rewritten under us. Retry.
+            }
+
+            await Task.Delay(10, CancellationToken.None);
+        }
+
+        throw new TimeoutException($"Heartbeat at {heartbeatPath} never settled within {Patience}.");
     }
 
     private async Task<string> WaitForBeatAfterAsync(string? previous)
