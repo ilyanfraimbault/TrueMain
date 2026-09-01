@@ -33,6 +33,13 @@ cannot vary inside one row. That is what lets the filter be `WHERE "IsMain"` ove
 the unfiltered read is the superset, instead of storing the mains twice. The flag is frozen with the rest of
 the slice: it records what the account was when the aggregate was built, like every other number on the row.
 
+**The patch the site serves is resolved over mains only, never over the selected population** (#1349).
+`ResolveActivePatchAsync` and the two reads behind it (`LoadPatchesNewestFirstAsync`,
+`LoadLinesPastFloorAsync`) were missed by #1346's audit. They are pinned to mains for the same reason they
+carry no elo clause — changing a filter must not move the patch the whole site serves — and for a second one:
+`MinServablePatchLines` is #1109's anti-thin-patch floor, and a patch clearing it on non-main volume would be
+served to the default, mains-only directory while its truemain sample is still too thin to show.
+
 **Widening the aggregate meant auditing every existing read, because the dangerous direction is silent.**
 Adding rows to a table that ~16 call sites already read means each of them quietly changes meaning the day
 re-aggregation runs — the truemains leaderboard would count a player's off-main games, dedication would
@@ -43,7 +50,17 @@ table-health reads in `Ops` (row counts, impossible-total detectors), which desc
 must see all of it. A default of `truemainsOnly: true` on the shared `WhereChampionScope` makes the safe
 choice the one you get by saying nothing.
 
-**A demoted account's scopes are demoted, not deleted** (#1346). The pipeline used to filter on `IsMain` at
+**The widened population is gated on a flag, because "a separate ops step" was not true otherwise**
+(#1346, #1349). `ChampionPatternAggregationProcess` sits in `JobModeSequence.FullPipeline`, which the worker
+runs continuously — so dropping the `IsMain` filter at the source did not create an ops decision, it created
+a change that lands on the next cycle after a deploy. On production that is ~4.3x the source rows (438k →
+1.87M) on the one process that once reached ~6 GB of managed heap and got OOM-killed with the VPS attached
+(#601), whose per-champion chunking has never been measured at that volume. `MainAnalysis:AggregateNonMainPopulation`
+(default **false**) is that gate: while it is off the pipeline folds mains only, exactly as before, and the
+truemains toggle's "everyone" state returns the same rows as "truemains". Reads never branch on it — they
+filter on the persisted flag, which is simply always `true` until someone turns the gate on.
+
+**A demoted account's scopes are demoted, not deleted — once the widening is on** (#1346). The pipeline used to filter on `IsMain` at
 the source, so an account that stopped being a main of a champion simply stopped producing rows and its
 aggregates were purged on the next run. They now survive with `IsMain = false`. The guarantee that purge was
 protecting — a demoted account's games stop counting towards the champion's truemain build — is unchanged; it

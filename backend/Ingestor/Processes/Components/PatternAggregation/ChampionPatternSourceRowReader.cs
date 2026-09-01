@@ -65,17 +65,24 @@ public sealed class ChampionPatternSourceRowReader(
         return await LoadLivePatchKeysCoreAsync(db, queueId, ct);
     }
 
+    // `includeNonMains` folds the non-main population too
+    // (`MainAnalysis:AggregateNonMainPopulation`). Off by default: this process runs
+    // on every full-pipeline cycle, so widening it takes effect on the next run after
+    // a deploy rather than when someone is ready for it — and the widening is ~4.3x
+    // the source rows on production, on the process that once OOM-killed the VPS
+    // (#601).
     internal async Task<ChampionPatternAggregationInputs> LoadAggregationInputsAsync(
         int queueId,
         int championId,
         IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys,
+        bool includeNonMains,
         CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         var existingAggregateScopes = LoadExistingAggregateScopes(
             await LoadExistingScopeKeysAsync(db, queueId, championId, ct),
             livePatchKeys);
-        var sourceRows = await LoadSourceRowsAsync(db, queueId, championId, ct);
+        var sourceRows = await LoadSourceRowsAsync(db, queueId, championId, includeNonMains, ct);
 
         return new ChampionPatternAggregationInputs
         {
@@ -144,6 +151,7 @@ public sealed class ChampionPatternSourceRowReader(
         TrueMainDbContext db,
         int queueId,
         int championId,
+        bool includeNonMains,
         CancellationToken ct)
     {
         var sourceRows = await (
@@ -159,7 +167,8 @@ public sealed class ChampionPatternSourceRowReader(
                 equals new { statCandidate.PlatformId, statCandidate.Puuid, statCandidate.ChampionId }
                 into statMatches
             from stat in statMatches.DefaultIfEmpty()
-            where participant.ChampionId == championId
+            where (includeNonMains || (stat != null && stat.IsMain))
+                && participant.ChampionId == championId
                 && participant.RiotAccountId != null
                 && match.QueueId == queueId
                 && match.TimelineIngested

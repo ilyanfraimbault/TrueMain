@@ -5,6 +5,31 @@ namespace Core.Options;
 
 public class MainAnalysisOptions
 {
+    /// <summary>
+    /// Whether the champion pattern aggregation folds the <em>non-main</em>
+    /// population alongside the mains (#1346's truemains toggle).
+    ///
+    /// <para>
+    /// Off by default, and deliberately so. This process runs on every cycle of
+    /// the full pipeline, so widening it is not a decision someone takes when
+    /// they are ready — it takes effect on the next run after a deploy. On
+    /// production the widening multiplies the source rows by ~4.3 (438k → 1.87M),
+    /// and this is the process whose working set once reached ~6 GB and got
+    /// OOM-killed, taking the VPS with it (#601). The per-champion chunking that
+    /// fixed it has not been measured at that volume, so the flag is the gate
+    /// that lets it be measured first.
+    /// </para>
+    ///
+    /// <para>
+    /// While it is off the aggregate holds mains only — exactly what it held
+    /// before #1346 — and the truemains toggle's "everyone" state returns the
+    /// same rows as "truemains". Reads are unaffected either way: they filter on
+    /// the persisted flag, which is simply always <c>true</c> until this is
+    /// turned on.
+    /// </para>
+    /// </summary>
+    public bool AggregateNonMainPopulation { get; set; }
+
     public int BatchSize { get; set; } = 100;
 
     /// <summary>

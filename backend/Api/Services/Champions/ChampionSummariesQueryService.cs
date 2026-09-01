@@ -228,6 +228,12 @@ public sealed class ChampionSummariesQueryService(
         var distinctPatches = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
+            // Mains only, and deliberately not parameterised on the population —
+            // for the same reason this resolution carries no elo clause: which
+            // patch the site serves must not move when the reader changes a
+            // filter. Pinning it to the default population also keeps the
+            // servable-patch floor below honest once the non-main rows exist.
+            .Where(scope => scope.IsMain)
             .Select(scope => scope.GameVersion)
             .Distinct()
             .ToListAsync(ct);
@@ -264,11 +270,16 @@ public sealed class ChampionSummariesQueryService(
 
         // The same grouping the directory runs, minus the elo clause the resolution
         // must not have: switching bracket may not move the patch the site serves.
+        // The population is pinned to mains for the same reason, and for a second
+        // one: this is #1109's anti-thin-patch floor, and a patch that clears it
+        // only on non-main volume would be served to the default, mains-only
+        // directory with a truemain sample that is still too thin to show.
         var sw = Stopwatch.StartNew();
         var grouped = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
             .Where(scope => patches.Contains(scope.GameVersion))
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => new { scope.GameVersion, scope.ChampionId, scope.Position })
             // Projected into an anonymous type and mapped after materialisation, the
             // same shape ComputeAllSummariesAsync uses: a grouped projection straight
@@ -351,7 +362,11 @@ public sealed class ChampionSummariesQueryService(
                 group.Key.Position,
                 group.Sum(scope => scope.Games),
                 group.Sum(scope => scope.Wins),
-                group.Select(scope => scope.RiotAccountId).Distinct().Count(),
+                // Counts *mains* whatever the population filter is, so the field
+                // keeps meaning what its name says: under `truemainsOnly: false`
+                // an unqualified distinct count would be "tracked players", which
+                // is a different number wearing the truemain label.
+                group.Where(scope => scope.IsMain).Select(scope => scope.RiotAccountId).Distinct().Count(),
                 group.Max(scope => scope.AggregatedAtUtc)))
             .ToListAsync(ct);
         groupsSw.Stop();
