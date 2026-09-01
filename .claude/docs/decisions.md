@@ -1992,6 +1992,35 @@ what re-detects a demotion. `AccountRefresh:RankSyncFreshness` moved from 15 min
 change: at 15 minutes the gate expired long before the next sweep came round, the per-account call was
 re-issued anyway, and none of the saved budget was actually reallocated.
 
+## The sitemap advertises champions, not players (2026-09-01)
+
+**Player profiles are not in the sitemap, because their server-rendered document is empty.**
+`/truemains/{nameTag}` fetches its profile client-only (`useTruemainFetch`, the #862 decision that keeps SSR
+from cross-pollinating viewers), so what a crawler receives on the first pass is a skeleton: 685
+`animate-pulse` elements, the same generic `TrueMain player profile.` description on every page, and the
+player's name appearing exactly once, in the title. Advertising 5,000 of those hands Google 5,000
+near-duplicate empty documents on a domain it knows 5 URLs of, and buries the 174 champion pages — the only
+fully server-rendered content, and the only content this site can realistically rank on. They stay reachable:
+`/truemains` is in the sitemap and links profiles, so a crawler can descend if it judges them worth it. A
+sitemap is a priority signal, not an access gate — #1337.
+
+**The family was specified in #551 and never once worked, so nothing was withdrawn from Google.** #551's own
+verification note reads "Truemain profile URLs populate when the backend is running; it was off locally, so
+that list was empty"; the page-size bug fixed in #1336 then kept the list empty in production too. Reopen the
+question only if the profile page starts rendering its content server-side, not because the code once
+intended to enumerate it.
+
+**A route family that contributes no URLs warns.** Each family is fetched defensively so one upstream outage
+cannot fail the whole sitemap — that part is right, and stays. What was wrong was that an empty family still
+produced a valid, well-formed sitemap and said nothing, which is why the missing profiles sat in production
+from the SEO foundation until someone counted the URLs — #1334.
+
+**If a dynamic slug family ever returns: the `loc` carries the raw value, and @nuxtjs/sitemap owns the
+encoding.** The app's own `to`/`href` builders correctly `encodeURIComponent` a nameTag; copying that into the
+sitemap source encodes it twice, and `Álec Lightwood-Jace` gets advertised as `%25C3%2581lec%2520Lightwood-Jace`,
+which the route hands to the backend as literal text — a 404. Riot IDs are full Unicode, so this hit 2,334 of
+the first 5,000 profiles before the family was dropped. Encoding is per-consumer, and a `loc` is not an href.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

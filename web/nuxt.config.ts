@@ -66,10 +66,11 @@ export default defineNuxtConfig({
   },
   sitemap: {
     // Static pages are auto-discovered from the file-based routes; the dynamic
-    // champion and truemain URLs come from this endpoint (see
-    // server/routes/__sitemap__/urls.ts). `/dev/*` is stripped from the prod
-    // build entirely (hook below) but exclude it here too so a dev-mode
-    // sitemap stays clean.
+    // champion URLs come from this endpoint (see
+    // server/routes/__sitemap__/urls.ts), which is also where the reason player
+    // profiles are *not* advertised is written down (#1337). `/dev/*` is
+    // stripped from the prod build entirely (hook below) but exclude it here
+    // too so a dev-mode sitemap stays clean.
     sources: ['/__sitemap__/urls'],
     // `/truemains/favorites` renders a per-visitor localStorage list — there is
     // nothing stable for a crawler to index (the page also sets `noindex`).
