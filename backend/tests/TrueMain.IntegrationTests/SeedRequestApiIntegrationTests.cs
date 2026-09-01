@@ -236,6 +236,46 @@ public sealed class SeedRequestApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetSeedList_ShouldFindARowByItsFullRiotId()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+
+        var now = DateTime.UtcNow;
+        await Requests().InsertManyAsync(
+        [
+            Build("Aileri", "KR4", SeedRequestStatus.Ingested, now.AddMinutes(-30)),
+            Build("Aileri", "NJZ", SeedRequestStatus.Pending, now.AddMinutes(-20)),
+            Build("Somebody", "KR4", SeedRequestStatus.Pending, now.AddMinutes(-10))
+        ]);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateClient(factory);
+
+        // The search box's placeholder is "Riot ID", and no document stores the
+        // joined "Name#TAG" string — so without the split this returns nothing,
+        // which reads as "never requested" for an account that is right there.
+        var exact = await client.GetFromJsonAsync<SeedRequestPageContract>(
+            "/ops/accounts/seed?search=Aileri%23KR4");
+        exact.Should().NotBeNull();
+        exact!.Requests.Should().ContainSingle();
+        exact.Total.Should().Be(1);
+        exact.Requests[0].GameName.Should().Be("Aileri");
+        exact.Requests[0].TagLine.Should().Be("KR4");
+
+        // Halfway through typing the Riot ID, the name alone still matches — the
+        // '#' keystroke must not empty the list.
+        var midTyping = await client.GetFromJsonAsync<SeedRequestPageContract>(
+            "/ops/accounts/seed?search=Aileri%23");
+        midTyping!.Requests.Should().HaveCount(2);
+
+        // And a bare term keeps matching either half, so searching a tag works.
+        var bareTag = await client.GetFromJsonAsync<SeedRequestPageContract>(
+            "/ops/accounts/seed?search=KR4");
+        bareTag!.Requests.Should().HaveCount(2);
+    }
+
+    [Fact]
     public async Task GetSeedList_ShouldRejectAnUnknownRegionInsteadOfReturningNothing()
     {
         await _fixture.ResetDatabaseAsync();
@@ -275,11 +315,18 @@ public sealed class SeedRequestApiIntegrationTests
         => _mongo.GetCollection<SeedRequestDocument>(MongoFixture.SeedRequestsCollection);
 
     private static SeedRequestDocument Build(string gameName, SeedRequestStatus status, DateTime requestedAtUtc)
+        => Build(gameName, "EUW1", status, requestedAtUtc);
+
+    private static SeedRequestDocument Build(
+        string gameName,
+        string tagLine,
+        SeedRequestStatus status,
+        DateTime requestedAtUtc)
         => new()
         {
             Id = Guid.NewGuid(),
             GameName = gameName,
-            TagLine = "EUW1",
+            TagLine = tagLine,
             PlatformId = "EUW1",
             Status = status,
             RequestedAtUtc = requestedAtUtc

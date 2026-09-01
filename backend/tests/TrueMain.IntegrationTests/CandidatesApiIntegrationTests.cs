@@ -147,6 +147,33 @@ public sealed class CandidatesApiIntegrationTests
     }
 
     [Fact]
+    public async Task GetCandidates_SearchesByFullRiotId()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+        await SeedAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateAuthedClient(factory);
+
+        // The name and the tag live in two columns, so the term an operator types
+        // ("Name#TAG") only matches once it is split — matched whole it finds
+        // nothing, which reads as "no such candidate".
+        var exact = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=Phantasm%23EUW");
+        exact!.Candidates.Should().ContainSingle().Which.Id.Should().Be(ValidatedCandidateId);
+
+        // Both halves are required: this name exists and this tag exists, but not
+        // on the same account.
+        var mismatched = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=Faker%23EUW");
+        mismatched!.Candidates.Should().BeEmpty();
+        mismatched.Total.Should().Be(0);
+
+        // The '#' keystroke itself must not empty the list.
+        var midTyping = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=Phantasm%23");
+        midTyping!.Candidates.Should().ContainSingle().Which.Id.Should().Be(ValidatedCandidateId);
+    }
+
+    [Fact]
     public async Task GetCandidateById_ReturnsDetail_WithLinkedSeedRequestAndIngestedMatchCount()
     {
         await _fixture.ResetDatabaseAsync();

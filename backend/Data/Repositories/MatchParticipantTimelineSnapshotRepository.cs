@@ -9,13 +9,15 @@ public sealed class MatchParticipantTimelineSnapshotRepository(TrueMainDbContext
     public void AddRange(IEnumerable<MatchParticipantTimelineSnapshot> snapshots)
         => db.MatchParticipantTimelineSnapshots.AddRange(snapshots);
 
-    // Immediate DELETE so re-ingesting a match's timeline replaces its snapshots
+    // Immediate DELETE so re-ingesting a timeline replaces the batch's snapshots
     // without tripping the unique index (avoids the EF insert-before-delete race
     // when the same logical key is removed and re-added in one SaveChanges).
-    public Task<int> DeleteByMatchIdAsync(string matchId, CancellationToken ct)
-        => db.MatchParticipantTimelineSnapshots
-            .Where(snapshot => snapshot.MatchId == matchId)
-            .ExecuteDeleteAsync(ct);
+    public Task<int> DeleteByMatchIdsAsync(IReadOnlyCollection<string> matchIds, CancellationToken ct)
+        => matchIds.Count == 0
+            ? Task.FromResult(0)
+            : db.MatchParticipantTimelineSnapshots
+                .Where(snapshot => matchIds.Contains(snapshot.MatchId))
+                .ExecuteDeleteAsync(ct);
 
     public Task<List<MatchParticipantTimelineSnapshot>> GetByMatchIdAsync(string matchId, CancellationToken ct)
         => db.MatchParticipantTimelineSnapshots

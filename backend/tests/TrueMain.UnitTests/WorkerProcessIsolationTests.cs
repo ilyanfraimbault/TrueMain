@@ -180,7 +180,8 @@ public sealed class WorkerProcessIsolationTests
             iterationContext,
             new CallerContext(),
             lifetime,
-            TestIngestorMetrics.Create());
+            TestIngestorMetrics.Create(),
+            TimeProvider.System);
     }
 
     private sealed class RecordingProcess(JobMode mode, List<JobMode> executed) : IIngestorProcess

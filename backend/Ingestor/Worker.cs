@@ -12,9 +12,18 @@ public sealed class Worker(
     IIterationContext iterationContext,
     ICallerContext callerContext,
     IHostApplicationLifetime applicationLifetime,
-    IngestorMetrics metrics) : BackgroundService
+    IngestorMetrics metrics,
+    TimeProvider timeProvider) : BackgroundService
 {
     private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
+
+    /// <summary>
+    /// How often the liveness file is rewritten. Same cadence as
+    /// <see cref="Processes.RecordedProcess{TInner}"/>'s <c>process_runs</c> heartbeat, for
+    /// the same reason: a signal that only ticks at pass boundaries cannot distinguish a
+    /// wedged process from a slow one (#1229).
+    /// </summary>
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -23,30 +32,73 @@ public sealed class Worker(
 
         await ReconcileOrphanedRunsAsync(stoppingToken);
 
-        do
+        // The heartbeat used to be touched once per iteration, at the top. A Full pass runs
+        // for many minutes and the wait between passes for a whole Job:IntervalMinutes, so
+        // the healthcheck had to tolerate 6 h of silence to avoid killing a container that
+        // was working normally — which left it unable to detect anything short of a process
+        // that had been dead for a quarter of a day. Refreshing on its own loop, for as long
+        // as the worker lives, restores what a container liveness probe is supposed to
+        // assert: the process is up and its scheduling still runs. Whether the *work* is
+        // progressing is a separate question, and it already has a separate answer — the
+        // per-run heartbeat on process_runs, which ages a stalled run out to Abandoned.
+        await TouchHeartbeatAsync(stoppingToken);
+        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var heartbeatLoop = RunHeartbeatLoopAsync(heartbeatCts.Token);
+
+        try
         {
-            await TouchHeartbeatAsync(stoppingToken);
-            await RunOnceAsync(mode, stoppingToken);
-
-            if (options.RunOnce)
+            do
             {
-                // A single scheduled run completed successfully; ask the host to
-                // shut down so the process exits with a success code. Any failure
-                // is left to propagate from ExecuteAsync so the host's exit code
-                // reflects it (cooperative cancellation on shutdown is honoured by
-                // the loop condition below).
-                applicationLifetime.StopApplication();
-                return;
-            }
+                await RunOnceAsync(mode, stoppingToken);
 
-            // Non-null and > 0 here: startup validation (Job:IntervalMinutes) rejects anything
-            // else whenever RunOnce is false, which is the only way execution reaches this line.
-            var delayMinutes = options.IntervalMinutes!.Value;
-            logger.LogInformation(
-                "Run completed. Waiting {DelayMinutes} minutes before next run.",
-                delayMinutes);
-            await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
-        } while (!stoppingToken.IsCancellationRequested);
+                if (options.RunOnce)
+                {
+                    // A single scheduled run completed successfully; ask the host to
+                    // shut down so the process exits with a success code. Any failure
+                    // is left to propagate from ExecuteAsync so the host's exit code
+                    // reflects it (cooperative cancellation on shutdown is honoured by
+                    // the loop condition below).
+                    applicationLifetime.StopApplication();
+                    return;
+                }
+
+                // Non-null and > 0 here: startup validation (Job:IntervalMinutes) rejects anything
+                // else whenever RunOnce is false, which is the only way execution reaches this line.
+                var delayMinutes = options.IntervalMinutes!.Value;
+                logger.LogInformation(
+                    "Run completed. Waiting {DelayMinutes} minutes before next run.",
+                    delayMinutes);
+                await Task.Delay(TimeSpan.FromMinutes(delayMinutes), stoppingToken);
+            } while (!stoppingToken.IsCancellationRequested);
+        }
+        finally
+        {
+            await heartbeatCts.CancelAsync();
+            // The loop never throws (it catches everything internally), so this just
+            // joins it before the worker returns.
+            await heartbeatLoop;
+        }
+    }
+
+    private async Task RunHeartbeatLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                // Through TimeProvider, not Task.Delay: a 30 s wall-clock beat is
+                // otherwise untestable by construction, and the property worth pinning
+                // is precisely that this cadence is independent of how long a pass
+                // takes. Only this loop needs it — the between-passes wait below is
+                // driven by configuration a test sets directly.
+                await Task.Delay(HeartbeatInterval, timeProvider, ct);
+                await TouchHeartbeatAsync(ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: shutdown, or the finally above joining the loop.
+        }
     }
 
     private async Task ReconcileOrphanedRunsAsync(CancellationToken stoppingToken)
@@ -78,7 +130,7 @@ public sealed class Worker(
         }
     }
 
-    private async Task TouchHeartbeatAsync(CancellationToken stoppingToken)
+    private async Task TouchHeartbeatAsync(CancellationToken ct)
     {
         var path = Environment.GetEnvironmentVariable(HeartbeatEnvironmentVariable);
         if (string.IsNullOrWhiteSpace(path))
@@ -88,7 +140,7 @@ public sealed class Worker(
 
         try
         {
-            await File.WriteAllTextAsync(path, DateTimeOffset.UtcNow.ToString("O"), stoppingToken);
+            await File.WriteAllTextAsync(path, DateTimeOffset.UtcNow.ToString("O"), ct);
         }
         // A cancelled write is shutdown, not a heartbeat failure: let it propagate
         // so it is handled where every other OperationCanceledException in this
@@ -96,7 +148,7 @@ public sealed class Worker(
         // on the exception type, not merely on the token's state — otherwise a real
         // I/O failure racing a shutdown would escape the catch below and take the
         // host down, which is exactly what that block exists to prevent.
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
@@ -104,7 +156,7 @@ public sealed class Worker(
         {
             // The heartbeat is a liveness signal for the Docker healthcheck;
             // a write failure must not crash the worker. Log and move on so
-            // the next iteration can retry — the healthcheck will mark the
+            // the next beat can retry — the healthcheck will mark the
             // container unhealthy if the file stays stale long enough.
             logger.LogWarning(ex, "Failed to update Ingestor heartbeat at {Path}.", path);
         }

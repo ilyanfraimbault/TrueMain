@@ -12,6 +12,44 @@ namespace TrueMain.UnitTests;
 
 public sealed class MatchClaimServiceTests
 {
+    [Theory]
+    [InlineData(30, 30)]
+    // A non-positive lease falls back to the same 30 minutes the claim query does, so the
+    // reaper cannot become more aggressive than the claim on a misconfigured option.
+    [InlineData(0, 30)]
+    public async Task ReleaseExpiredClaimsAsync_DerivesTheCutoffFromTheSameLeaseTheClaimUses(
+        int leaseMinutes,
+        int expectedCutoffMinutes)
+    {
+        var nowUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        var expectedCutoff = nowUtc.AddMinutes(-expectedCutoffMinutes);
+
+        var riotAccounts = Substitute.For<IRiotAccountRepository>();
+        var mainCandidates = Substitute.For<IMainCandidateRepository>();
+        mainCandidates.ReleaseExpiredClaimsAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(7);
+        riotAccounts.ReleaseExpiredMatchIngestClaimsAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(3);
+
+        var session = Substitute.For<IDataSession>();
+        session.RiotAccounts.Returns(riotAccounts);
+        session.MainCandidates.Returns(mainCandidates);
+
+        var sessionFactory = Substitute.For<IDataSessionFactory>();
+        sessionFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(session));
+
+        var service = new MatchClaimService(
+            sessionFactory,
+            Substitute.For<IChampionCoverageProvider>(),
+            new FixedTimeProvider(nowUtc),
+            NullLogger<MatchClaimService>.Instance);
+
+        var released = await service.ReleaseExpiredClaimsAsync(TimeSpan.FromMinutes(leaseMinutes), CancellationToken.None);
+
+        released.Should().Be(new ExpiredClaimRelease(7, 3));
+
+        await mainCandidates.Received(1).ReleaseExpiredClaimsAsync(expectedCutoff, Arg.Any<CancellationToken>());
+        await riotAccounts.Received(1).ReleaseExpiredMatchIngestClaimsAsync(expectedCutoff, Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task ClaimAsync_PassesLeaseToRepositoryAndUpdatesCandidateStatus()
     {
@@ -39,8 +77,12 @@ public sealed class MatchClaimServiceTests
             .Returns(claimedAccounts);
 
         mainCandidates
-            .SetStatusForAccountAsync("KR", "puuid-1", MainCandidateStatus.Queued, MainCandidateStatus.Processing, Arg.Any<CancellationToken>())
-            .Returns(1);
+            .SetStatusForAccountsAsync(
+                Arg.Any<IReadOnlyCollection<AccountKey>>(),
+                MainCandidateStatus.Queued,
+                MainCandidateStatus.Processing,
+                Arg.Any<CancellationToken>())
+            .Returns(claimedAccounts);
 
         session.RiotAccounts.Returns(riotAccounts);
         session.MainCandidates.Returns(mainCandidates);
@@ -70,9 +112,10 @@ public sealed class MatchClaimServiceTests
             lease,
             Arg.Any<CancellationToken>());
 
-        await mainCandidates.Received(1).SetStatusForAccountAsync(
-            "KR",
-            "puuid-1",
+        // One set-based transition for the whole batch rather than one statement per
+        // claimed account (#858, #1229).
+        await mainCandidates.Received(1).SetStatusForAccountsAsync(
+            Arg.Is<IReadOnlyCollection<AccountKey>>(batch => batch.Single() == new AccountKey("KR", "puuid-1")),
             MainCandidateStatus.Queued,
             MainCandidateStatus.Processing,
             Arg.Any<CancellationToken>());

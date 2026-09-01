@@ -2000,6 +2000,46 @@ enums:
 
 No retroactive migration: the existing three stay as they are. This settles which one a new column copies.
 
+## A unit of work covers the writes and nothing else (2026-08-28)
+
+**Transactions wrap writes, never Riot calls.** `MatchIngestionProcess` used to open its per-account
+transaction *before* up to 40 Riot round-trips (20 match-v5 + 20 timelines), each able to burn the client's
+whole `EffectiveTotalRequestTimeout` under a 429 backoff. The connection sat `idle in transaction` for minutes
+per account, holding the claim locks and pinning VACUUM's horizon — the exact counter-model of #264, which had
+already removed that pattern from MainAnalysis. Ingestion now runs in two phases: a fetch phase that
+materialises the DTOs (bounded by `MatchIngestion:MatchesPerAccount`, so a few MB per account), then a
+transaction around the writes only. The property the transaction was opened for is unchanged: a crash still
+cannot leave a partially ingested match, and a crash during the fetch phase writes nothing at all — the replay
+is idempotent through `GetExistingMatchIdsAsync` and the `TimelineIngested` flag (#1229).
+
+**A trailing `SaveChangesAsync` after `ExecuteUpdate` calls is not a commit point.** `ExecuteUpdate` /
+`ExecuteDelete` never enter the change tracker, so the save commits nothing and only makes the code *look*
+atomic. `AccountValidationService` chained three of them bare: a failure between the first and the last left
+candidates `Validated` while the account stayed `Processing` for a whole claim lease. All three of its exit
+paths — `ValidateAsync`, `RevertAsync` and `ReleaseUningestableAsync` — now run inside an explicit
+transaction, and the decorative saves are gone. The release path is the one where a partial failure hurts
+most: the account would keep its place at the head of the claim ordering and be re-claimed at once, only to
+prove uningestable again (#1229).
+
+**`ChangeTracker.Clear()` is safe only when the batch owns everything it loaded.** The ingestor's long loops
+(Scoring, Discovery, AccountRefresh, participant harvest) drain the tracker after each batch save via
+`IDataSession.ClearTracking()` — without it every `SaveChanges` re-runs `DetectChanges` over every entity the
+run has ever touched, which is quadratic in the number of batches. The catch: three of those loops preloaded
+tracked entities for the *whole* run and mutated them later (rank snapshots overwritten in place, harvested
+candidates re-scored). Clearing under a run-wide preload detaches them, and a detached entity accepts property
+writes and persists none — silent data loss, not an error. So each preload moved inside its batch. Don't
+"optimise" one back out to the top of the loop: the three loops that carry the risk (Discovery,
+AccountRefresh, the participant harvest) each have an integration test that runs more than one slice and
+fails if the preload is hoisted — a unit test cannot catch this, since a mocked `IDataSession` makes
+`ClearTracking()` a no-op (#1229).
+
+**The Ingestor's file heartbeat is liveness, not progress.** It used to be touched once per loop iteration, so
+it went stale for a whole `Job:IntervalMinutes` (60 min) plus a whole `Full` pass; the healthcheck had to
+tolerate 6 h of silence, which left it unable to detect anything short of a process dead for a quarter of a
+day. A dedicated 30 s loop now refreshes it for the worker's whole lifetime and the threshold is 300 s, so a
+wedged process is caught in minutes. Whether the *work* is progressing is a separate question with a separate
+answer already in place: the `process_runs` heartbeat, which ages a stalled run out to `Abandoned` (#1229).
+
 ## Ranks are read from the ladder, not from one account at a time (2026-08-30)
 
 **The ladder endpoints are the primary rank source; the per-account call is the fallback.** `AccountRefresh`
@@ -2062,6 +2102,31 @@ encoding.** The app's own `to`/`href` builders correctly `encodeURIComponent` a 
 sitemap source encodes it twice, and `Álec Lightwood-Jace` gets advertised as `%25C3%2581lec%2520Lightwood-Jace`,
 which the route hands to the backend as literal text — a 404. Riot IDs are full Unicode, so this hit 2,334 of
 the first 5,000 profiles before the family was dropped. Encoding is per-consumer, and a `loc` is not an href.
+
+## A lease is only kept if something reaps it (2026-09-01)
+
+**`Processing` is a lease state, and the pipeline now enforces the lease.** `MatchClaimService` moves an
+account's candidates `Queued -> Processing` and stamps the account's claim; every ordinary exit path settles
+them again. A hard stop — an OOM kill, a container restart, a revert that itself failed — has no exit path,
+and `MatchIngestionProcess` already documented the intended safety net ("candidates remain Processing until
+the claim lease expires") without anything ever applying it to the rows. `MatchIngestion` now reaps expired
+claims before it claims, so what a dead run left behind is claimable in the same pass.
+
+**Recovery must not be gated on the membership the failure destroys.** The lease cutoff did exist, but only
+inside `SelectClaimableAsync`, which reaches an account through one of two predicates: it holds an active
+main, or it holds a `Queued` candidate. An account whose candidates were *all* stuck at `Processing` matched
+neither, so it was invisible to the only mechanism that would have settled its rows — the leak sealed itself
+and grew monotonically. Production had 1 185 rows across 498 accounts, 386 of them permanently unreachable,
+accumulated from 2026-06-13 onward. Whenever a recovery path is filtered by state, check that the state it
+filters on survives the failure it recovers from.
+
+**The reaper releases what no live claim stands behind, not what carries an expired one.** The predicate is
+negated on purpose: a candidate whose account row is gone has no claim at all, and an `EXISTS` on the expired
+shape would leave it `Processing` forever. Both sides take the cutoff from the same
+`MatchIngestion:ClaimLeaseMinutes` the claim uses, passed in by the caller, so the reaper cannot decide a
+lease is spent while the claim still considers it held. Measured on production: 68 ms per pass at ~864 k
+candidate rows, served by the existing `(PlatformId, Status, Score)` and partial claim indexes — no new index
+(#1344).
 
 ## Keeping these files current
 

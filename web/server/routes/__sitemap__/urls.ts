@@ -1,12 +1,15 @@
 import type { SitemapUrl } from '#sitemap/types'
+import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionSlugMap } from '~~/shared/types/static-data'
 import { defineEventHandler, setResponseHeader } from 'h3'
+import { championLastmodById } from '~~/shared/utils/sitemap-lastmod'
 
 /**
  * Dynamic sitemap entries for @nuxtjs/sitemap. Static pages are discovered from
  * the file-based routes automatically; this endpoint enumerates the one
  * data-driven family the sitemap advertises:
- *   - /champions/{slug} — one per champion on the latest patch (#1124)
+ *   - /champions/{slug} — one per champion on the latest patch (#1124),
+ *                         carrying a day-precision `lastmod` (#1256)
  *
  * The list comes from the app's own server route, so the sitemap stays in sync
  * with what the pages actually render, and is fetched defensively: an upstream
@@ -28,13 +31,33 @@ async function championUrls(): Promise<SitemapUrl[]> {
   // URLs the pages canonicalise to, and a numeric `loc` would put every
   // champion in the sitemap as a 301 to somewhere else (#1124). Same source the
   // router and the link builders read, so the three cannot disagree.
-  const slugs = await $fetch<ChampionSlugMap>('/api/static/champion-slugs')
-  return Object.values(slugs).map(slug => ({ loc: `/champions/${slug}` }))
+  //
+  // Freshness (#1256), day-precision — see `toSitemapDay` for why not finer.
+  // The slug map is what decides *which* URLs exist; the directory only
+  // decorates them, so it fails on its own: a champion-directory outage costs
+  // the `lastmod`, never the URLs. A champion the directory doesn't mention
+  // (the days after a patch flip, before its lane is folded) is emitted without
+  // one rather than with a fabricated date.
+  //
+  // The two are independent, so they go out together — the slug map's rejection
+  // still reaches the caller's catch, which is what drops the family.
+  const [slugs, summaries] = await Promise.all([
+    $fetch<ChampionSlugMap>('/api/static/champion-slugs'),
+    $fetch<ChampionSummaryResponse[]>('/api/champions').catch(() => null),
+  ])
+  const lastmodById = championLastmodById(summaries)
+
+  return Object.entries(slugs).map(([championId, slug]) => {
+    const lastmod = lastmodById.get(Number(championId))
+    return lastmod
+      ? { loc: `/champions/${slug}`, lastmod }
+      : { loc: `/champions/${slug}` }
+  })
 }
 
 // Cache the fan-out at the origin (not just via downstream CDNs): @nuxtjs/sitemap
 // caches the rendered sitemap, but this route is publicly reachable, so without
-// this every direct hit would pass straight through to the upstream. Mirrors
+// this every direct hit would pass straight through to the upstreams. Mirrors
 // server/api/static/champions.get.ts. The cache wraps the function (not the
 // handler) so the handler keeps full control of the response Cache-Control
 // header below.

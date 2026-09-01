@@ -532,6 +532,19 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             .Select(account => new AccountKey(account.PlatformId, account.Puuid))
             .ToListAsync(ct);
 
+    public Task<int> ReleaseExpiredMatchIngestClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct)
+        => db.RiotAccounts
+            // Served by IX_riot_accounts_ingest_claim_lease, the partial index this state
+            // already has: (MatchIngestStatus, MatchIngestClaimedAtUtc, ...) WHERE status <> 0.
+            .Where(account => account.MatchIngestStatus == MatchIngestStatus.Processing
+                              && (account.MatchIngestClaimedAtUtc == null
+                                  || account.MatchIngestClaimedAtUtc < leaseCutoffUtc))
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(account => account.MatchIngestStatus, MatchIngestStatus.Idle)
+                    .SetProperty(account => account.MatchIngestClaimedAtUtc, (DateTime?)null),
+                ct);
+
     public Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct)
     {
         var query = db.RiotAccounts

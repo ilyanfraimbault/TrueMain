@@ -73,5 +73,26 @@ public interface IMainCandidateRepository
     /// </summary>
     Task<int> PruneStaleNeverPromotedAsync(DateTime lastPlayCutoffUtc, CancellationToken ct);
 
+    /// <summary>
+    /// Returns every <see cref="MainCandidateStatus.Processing"/> row that no live claim
+    /// stands behind — the account's lease was taken before <paramref name="leaseCutoffUtc"/>,
+    /// or the account is Idle, or it no longer exists — to <see cref="MainCandidateStatus.Queued"/>.
+    /// Set-based; returns the number of rows released.
+    /// </summary>
+    /// <remarks>
+    /// Processing is a lease state, and every ordinary exit path settles it
+    /// (<c>ValidateAsync</c>, <c>RevertAsync</c>, <c>ReleaseUningestableAsync</c>). A hard
+    /// stop — an OOM kill, a container restart, a revert that itself failed — has no exit
+    /// path, and the claim query cannot recover the rows either: it selects accounts that
+    /// hold an active main or a <see cref="MainCandidateStatus.Queued"/> candidate, and an
+    /// account whose candidates are <em>all</em> stuck at Processing matches neither. The
+    /// leak seals itself, which is why the release has to be its own sweep rather than a
+    /// side effect of the next claim (#1344).
+    ///
+    /// Expressed as "no live claim" rather than "an expired claim" so a candidate whose
+    /// account row was deleted is released too, instead of sitting at Processing forever.
+    /// </remarks>
+    Task<int> ReleaseExpiredClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct);
+
     void Add(MainCandidate candidate);
 }
