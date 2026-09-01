@@ -10,6 +10,39 @@ public sealed class MatchClaimService(
     TimeProvider timeProvider,
     ILogger<MatchClaimService> logger) : IMatchClaimService
 {
+    public async Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct)
+    {
+        await using var session = await sessionFactory.CreateAsync(ct);
+
+        // The cutoff is derived here, from the same lease ClaimAsync hands to the claim
+        // query, so the reaper and the claim cannot end up with two different ideas of when
+        // a lease is spent — releasing a row the claim still considers held, or leaving one
+        // it has already given up on.
+        var leaseCutoffUtc = timeProvider.GetUtcNow().UtcDateTime - (lease > TimeSpan.Zero ? lease : TimeSpan.FromMinutes(30));
+
+        // Candidates first, while the stale claims are still on the account rows: the
+        // predicate reads them to decide what counts as live. Doing it the other way round
+        // reaches the same set — an Idle account has no live claim either — but only by
+        // accident of the negation, and the order would then be load-bearing without saying so.
+        var candidates = await session.MainCandidates.ReleaseExpiredClaimsAsync(leaseCutoffUtc, ct);
+        var accounts = await session.RiotAccounts.ReleaseExpiredMatchIngestClaimsAsync(leaseCutoffUtc, ct);
+
+        var released = new ExpiredClaimRelease(candidates, accounts);
+        if (!released.IsEmpty)
+        {
+            // Information, not Debug: a non-zero reap means a previous run died holding its
+            // claim, which is exactly the signal the "candidates processing" panel is built
+            // to surface. A steady-state run is silent.
+            logger.LogInformation(
+                "Released {Candidates} candidate(s) and {Accounts} account claim(s) whose lease expired before {Cutoff:O}.",
+                candidates,
+                accounts,
+                leaseCutoffUtc);
+        }
+
+        return released;
+    }
+
     public async Task<List<AccountKey>> ClaimAsync(
         IReadOnlyCollection<string> platforms,
         int batchSize,

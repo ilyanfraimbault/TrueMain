@@ -70,6 +70,9 @@ public sealed class MatchIngestionProcessIntegrationTests
             {
                 new("KR", "puuid-claimed-1")
             });
+
+        public Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct)
+            => Task.FromResult(new ExpiredClaimRelease(0, 0));
     }
 
     private sealed class FakeAccountValidationService : IAccountValidationService
