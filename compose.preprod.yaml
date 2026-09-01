@@ -181,6 +181,14 @@ services:
       MatchIngestion__MatchesPerAccount: "10"
       MainAnalysis__MatchesToConsider: "30"
       MainAnalysis__MinMatchesToEvaluate: "10"
+      # Fold the non-main population too, so the truemains toggle has both sides
+      # to show (#1346). Gated per environment (#1349) because this multiplies the
+      # aggregation's source rows and that process once OOM-killed a VPS (#601) —
+      # preprod is where the capacity question gets answered before prod. Measured
+      # here on 2026-09-01: the widened fold ran at ~250 MB RSS with no restart and
+      # no OOM, and produced 16.6k non-main scopes on the live patch alongside
+      # 20.9k main ones.
+      MainAnalysis__AggregateNonMainPopulation: "true"
     volumes:
       - truemain_preprod_ingestor_crashes:/home/app/crashes
     depends_on:
