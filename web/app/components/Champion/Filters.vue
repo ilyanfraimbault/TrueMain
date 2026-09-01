@@ -7,7 +7,13 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 // select. It's optional: the per-player champion page has no rank scoping, so it
 // omits the `selectedEloBracket` prop and the select simply isn't rendered — and
 // the same goes for the matchup picker, which needs a champion list to search.
-defineProps<{
+// `withDefaults` with an explicit `undefined`, not a bare `defineProps`: Vue
+// casts an *absent* Boolean prop to `false` rather than leaving it undefined, so
+// `truemainsOnly?: boolean` alone made `truemainsOnly !== undefined` always true
+// and rendered the population toggle on the player-scoped champion page — which
+// passes no such prop, and where the question has no meaning. The elo select
+// beside it never had the bug because String props are not cast.
+withDefaults(defineProps<{
   selectedPatch: string
   selectedPosition: ChampionPosition | null
   patchOptions: Array<{ label: string, value: string }>
@@ -24,7 +30,7 @@ defineProps<{
    * "truemains or everyone" is not a question it can ask.
    */
   truemainsOnly?: boolean
-}>()
+}>(), { truemainsOnly: undefined })
 
 const emit = defineEmits<{
   'update:patch': [value: string]
