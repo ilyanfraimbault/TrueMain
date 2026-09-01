@@ -1986,7 +1986,10 @@ run has ever touched, which is quadratic in the number of batches. The catch: th
 tracked entities for the *whole* run and mutated them later (rank snapshots overwritten in place, harvested
 candidates re-scored). Clearing under a run-wide preload detaches them, and a detached entity accepts property
 writes and persists none — silent data loss, not an error. So each preload moved inside its batch. Don't
-"optimise" one back out to the top of the loop (#1229).
+"optimise" one back out to the top of the loop: the three loops that carry the risk (Discovery,
+AccountRefresh, the participant harvest) each have an integration test that runs more than one slice and
+fails if the preload is hoisted — a unit test cannot catch this, since a mocked `IDataSession` makes
+`ClearTracking()` a no-op (#1229).
 
 **The Ingestor's file heartbeat is liveness, not progress.** It used to be touched once per loop iteration, so
 it went stale for a whole `Job:IntervalMinutes` (60 min) plus a whole `Full` pass; the healthcheck had to

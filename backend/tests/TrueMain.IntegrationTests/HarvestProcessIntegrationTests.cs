@@ -77,4 +77,76 @@ public sealed class HarvestProcessIntegrationTests
         account.GameName.Should().BeEmpty();
         account.MatchIngestStatus.Should().Be(MatchIngestStatus.Idle);
     }
+
+    [Fact]
+    public async Task RunAsync_WithMultipleSaveSlices_PersistsTheInPlaceCandidateUpdateOfEverySlice()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+        var puuids = new[] { "harvest-slice-1", "harvest-slice-2" };
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            foreach (var puuid in puuids)
+            {
+                for (var i = 0; i < 6; i++)
+                {
+                    MatchParticipantSeed.AddMatchWithParticipant(
+                        db, $"H_{puuid}_{i}", "KR", RankedSolo, now.AddDays(-i), puuid, 22, win: i < 4);
+                }
+
+                // A candidate that already exists takes the *update-in-place* branch of
+                // UpsertCandidate — the tracked entity whose writes a drained tracker would
+                // swallow — rather than the insert branch a fresh puuid would take.
+                db.MainCandidates.Add(new MainCandidate
+                {
+                    Id = Guid.NewGuid(),
+                    Puuid = puuid,
+                    PlatformId = "KR",
+                    ChampionId = 22,
+                    Source = MainCandidateSource.Harvest,
+                    Status = MainCandidateStatus.New,
+                    ObservedGames = 1,
+                    ObservedWins = 0,
+                    LastPlayTimeUtc = now.AddDays(-10),
+                    DiscoveredAtUtc = now.AddDays(-10)
+                });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var process = new HarvestProcess(
+            NullLogger<HarvestProcess>.Instance,
+            _fixture.CreateSessionFactory(),
+            new ParticipantHarvestService(),
+            new ChampionCoverageProvider(
+                Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new HarvestOptions
+            {
+                Platforms = ["KR"],
+                QueueId = RankedSolo,
+                MinObservedGames = 5,
+                LookbackDays = 0,
+                // One row per slice, so the second candidate is preloaded and mutated after
+                // the first slice's SaveChanges + ClearTracking (#1229). The preload sits
+                // inside the slice precisely so that update is not written to a detached
+                // entity and silently dropped; nothing here exercised more than one slice.
+                SaveBatchSize = 1
+            }));
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        foreach (var puuid in puuids)
+        {
+            var candidate = await verifyDb.MainCandidates.AsNoTracking()
+                .SingleAsync(c => c.Puuid == puuid && c.ChampionId == 22);
+
+            // Seeded at 1/0; the harvest observed 6 games and 4 wins for both.
+            candidate.ObservedGames.Should().Be(6, "the update of slice {0} must survive the drain", puuid);
+            candidate.ObservedWins.Should().Be(4);
+        }
+    }
 }
