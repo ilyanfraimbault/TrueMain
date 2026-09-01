@@ -17,10 +17,17 @@ import { defineEventHandler, setResponseHeader } from 'h3'
  * than failing the whole sitemap.
  */
 
-// Cap the leaderboard walk so a pathological `total` can never spin the
-// sitemap into hundreds of upstream calls. 100 pages × 100 rows = 10k players,
-// comfortably above the current roster.
-const TRUEMAIN_PAGE_SIZE = 100
+// `pageSize` is validated server-side — `TruemainsLeaderboardQueryService` caps
+// it at 50 and the controller enforces that with a `[Range]` attribute — so a
+// larger value is a 400 on the very first page, which the walk below swallows
+// and turns into a sitemap with no profile URLs at all (#1334). This constant
+// must track the API's cap, not our own idea of a reasonable page.
+const TRUEMAIN_PAGE_SIZE = 50
+// Cap the walk so a pathological `total` can never spin the sitemap into
+// hundreds of upstream calls. 100 pages × 50 rows advertises the top 5k players
+// by score, deliberately far short of the ~45k rows the leaderboard holds: a
+// single sitemap tops out at 50k URLs, and the tail of the ladder is exactly
+// the thin, fast-churning end that spends crawl budget without earning it.
 const MAX_TRUEMAIN_PAGES = 100
 
 async function championUrls(): Promise<SitemapUrl[]> {
@@ -45,11 +52,17 @@ async function truemainUrls(): Promise<SitemapUrl[]> {
         // `{gameName}-{tagLine}` is the app-wide profile slug (see
         // TruemainsPanel / LeaderboardRow); the `[nameTag]` route passes it
         // opaque to the backend, which resolves it. The `-` separator is
-        // unambiguous because Riot tagLines never contain a hyphen, and matching
-        // the existing links verbatim guarantees the sitemap URL hits a real
-        // page (no 404 / duplicate-content split).
+        // unambiguous because Riot tagLines never contain a hyphen.
+        //
+        // Deliberately **not** `encodeURIComponent`d, unlike the `to`/`href`
+        // the components above build. @nuxtjs/sitemap percent-encodes every
+        // `loc` on the way into the XML, so pre-encoding here is applied twice:
+        // a space becomes `%2520` and `Álec Lightwood` ends up advertised as
+        // `%25C3%2581lec%2520Lightwood`, which the `[nameTag]` route hands to
+        // the backend as the literal text `%C3%81lec%20Lightwood` — a 404. Riot
+        // IDs are full Unicode, so this hit 2,334 of the first 5,000 profiles.
         const slug = tagLine ? `${gameName}-${tagLine}` : gameName
-        urls.push({ loc: `/truemains/${encodeURIComponent(slug)}` })
+        urls.push({ loc: `/truemains/${slug}` })
       }
       // Last page reached: the service returned fewer rows than requested, or
       // we have collected every row the envelope reports.
@@ -84,6 +97,16 @@ const loadSitemapUrls = defineCachedFunction(
       championUrls().catch(() => [] as SitemapUrl[]),
       truemainUrls().catch(() => [] as SitemapUrl[]),
     ])
+    // Both families degrade to an empty list on any upstream failure and the
+    // sitemap still renders successfully, so a whole route family can vanish
+    // from it with nothing anywhere saying so — which is how #1334 shipped
+    // unnoticed. The graceful degradation is deliberate; the silence was not.
+    if (champions.length === 0) {
+      console.warn('[sitemap] champion source contributed no URLs')
+    }
+    if (truemains.length === 0) {
+      console.warn('[sitemap] leaderboard walk contributed no profile URLs')
+    }
     return [...champions, ...truemains]
   },
   { maxAge: 60 * 60, name: 'sitemap-urls', getKey: () => 'all' },

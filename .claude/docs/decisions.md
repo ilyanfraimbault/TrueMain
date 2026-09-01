@@ -1992,6 +1992,30 @@ what re-detects a demotion. `AccountRefresh:RankSyncFreshness` moved from 15 min
 change: at 15 minutes the gate expired long before the next sweep came round, the per-account call was
 re-issued anyway, and none of the saved budget was actually reallocated.
 
+## The sitemap advertises the top of the ladder, and never pre-encodes a slug (2026-09-01)
+
+**The leaderboard walk asks for the page size the API actually serves, and a walk that yields nothing says
+so.** `server/routes/__sitemap__/urls.ts` paged the leaderboard at `pageSize=100`;
+`TruemainsLeaderboardQueryService` caps `MaxPageSize` at 50 and the controller enforces it with a `[Range]`,
+so page 1 was a 400, the walk's `catch { break }` returned an empty list, and the rendered sitemap advertised
+174 champions, 7 static pages and **zero** of the ~45k player profiles — valid, well-formed, and missing a
+whole route family, for as long as nobody counted the URLs. The defensive `catch` is right for a failure
+*mid-walk*; it was wrong as the *only* signal when the first page fails, hence the warning when a family
+contributes nothing — #1334.
+
+**The sitemap advertises the top 5,000 players by score, not all 45k.** `MAX_TRUEMAIN_PAGES × TRUEMAIN_PAGE_SIZE`
+is a deliberate ceiling, not an accident of pagination: a single sitemap tops out at 50k URLs (past that it
+needs an index), and the tail of the ladder is the thin, fast-churning end that spends crawl budget without
+earning it. Google indexes a handful of pages on this domain today — the constraint is crawl *demand*, not
+discovery, so a longer list buys nothing. Raise the cap when indexation shows the top 5k is being crawled.
+
+**A `loc` carries the raw slug; @nuxtjs/sitemap owns the percent-encoding.** The app's own `to`/`href`
+builders (`LeaderboardRow`, `TruemainsPanel`, `AppSearch`, …) correctly `encodeURIComponent` the nameTag, and
+copying that into the sitemap source encodes it twice: a space became `%2520` and `Álec Lightwood-Jace` was
+advertised as `%25C3%2581lec%2520Lightwood-Jace`, which the `[nameTag]` route hands to the backend as the
+literal text `%C3%81lec%20Lightwood-Jace` — a 404. Riot IDs are full Unicode, so this hit **2,334 of the first
+5,000** profiles. The rule is per-consumer: an href is encoded by us, a sitemap `loc` is not.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update
