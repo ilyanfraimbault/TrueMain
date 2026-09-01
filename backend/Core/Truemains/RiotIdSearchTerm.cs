@@ -17,8 +17,10 @@ namespace Core.Truemains;
 public static class RiotIdSearchTerm
 {
     /// <summary>
-    /// Returns the name and tag fragments to match. Either can be null, never
-    /// both when the input is non-blank:
+    /// Returns the name and tag fragments to match. Either can be null, and
+    /// both are when the term carries nothing to search on — blank, or a lone
+    /// <c>#</c>, which callers read as "no search filter" rather than as a
+    /// filter that matches nothing:
     /// <list type="bullet">
     /// <item>no <c>#</c> — the whole term is the name fragment, and callers keep
     /// matching it against the tag too (searching "KR1" still works);</item>
