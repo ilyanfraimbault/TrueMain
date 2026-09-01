@@ -218,6 +218,10 @@ public sealed class AggregationsApiIntegrationTests
             QueueId = 420,
             Position = "MIDDLE",
             EloBracket = "GOLD",
+            // Mains: the population these fixtures have always described; a
+            // non-nullable bool is always written, so the column default never
+            // applies and an unset flag would seed a non-main (#1346).
+            IsMain = true,
             Games = 10,
             Wins = 6,
             Kills = 50,

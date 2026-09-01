@@ -56,8 +56,17 @@ public class ChampionAggregateScope
     /// every row the pipeline produced back then came through an <c>IsMain</c>
     /// filter, so "true" is the historically accurate value, not a guess.
     /// </para>
+    ///
+    /// <para>
+    /// The CLR initialiser matches that column default deliberately. EF always
+    /// writes a non-nullable bool, so the database default never applies to a
+    /// new row — leaving this unset would make every object-initialiser that
+    /// omits it seed a <em>non-main</em>, which is the opposite of what the
+    /// omission reads like. The aggregation always assigns it explicitly, so
+    /// this default only ever governs hand-built rows (fixtures, backfills).
+    /// </para>
     /// </summary>
-    public bool IsMain { get; set; }
+    public bool IsMain { get; set; } = true;
 
     public int Games { get; set; }
     public int Wins { get; set; }
