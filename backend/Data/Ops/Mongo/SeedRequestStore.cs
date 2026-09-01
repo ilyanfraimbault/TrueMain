@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Core.Truemains;
 using Data.Entities;
 using Data.Logging.Mongo;
 using MongoDB.Bson;
@@ -255,17 +256,37 @@ internal sealed class SeedRequestStore(MongoLogContext context) : ISeedRequestSt
             filter &= builder.Eq(doc => doc.PlatformId, platformId.Trim().ToUpperInvariant());
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
+        var (namePart, tagPart) = RiotIdSearchTerm.Split(search);
+
+        if (tagPart is not null)
         {
-            // Contains-search on name or tag, case-insensitive. Regex-escaped so a
-            // user typing '.' or '*' searches literally (the ILIKE-escaping
-            // equivalent).
-            var regex = new BsonRegularExpression(Regex.Escape(search.Trim()), "i");
+            // The term carries a '#', so it is a Riot ID and the two halves are
+            // matched against the two fields they name. Anything else would find
+            // nothing at all: no document stores the joined "Name#TAG" string.
+            filter &= builder.Regex(doc => doc.TagLine, Contains(tagPart));
+
+            if (namePart is not null)
+            {
+                filter &= builder.Regex(doc => doc.GameName, Contains(namePart));
+            }
+        }
+        else if (namePart is not null)
+        {
+            // No '#': the term is one fragment, matched against either field so a
+            // bare tag ("KR1") still finds its rows.
+            var regex = Contains(namePart);
             filter &= builder.Regex(doc => doc.GameName, regex) | builder.Regex(doc => doc.TagLine, regex);
         }
 
         return filter;
     }
+
+    /// <summary>
+    /// Case-insensitive contains-match. Regex-escaped so a user typing '.' or
+    /// '*' searches literally (the ILIKE-escaping equivalent).
+    /// </summary>
+    private static BsonRegularExpression Contains(string fragment)
+        => new(Regex.Escape(fragment), "i");
 
     private void ThrowIfInactive()
     {
