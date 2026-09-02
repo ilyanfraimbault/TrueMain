@@ -245,6 +245,16 @@ export interface ProcessRun {
    * backend's stale threshold is reported as `Abandoned`.
    */
   lastHeartbeatAtUtc: string | null
+  /**
+   * The `Job:Mode` the pass was running (`Full`, `FetchLane`, `AggregateLane`, or a
+   * single-process mode), or null for runs recorded before it was captured.
+   *
+   * The lane a run belongs to is derived from its process name, so this is not what
+   * groups the chain. What it answers is the question the process names cannot: what
+   * the pass was *supposed* to run. A one-off single-process mode looks exactly like a
+   * lane that has barely started, and only this tells them apart.
+   */
+  jobMode: string | null
   summary: Record<string, unknown> | unknown[] | null
 }
 
@@ -517,6 +527,8 @@ export interface ProcessIteration {
   startedAtUtc: string
   lastActivityAtUtc: string
   isRunning: boolean
+  /** The `Job:Mode` this pass ran, or null for passes recorded before it was captured. */
+  jobMode: string | null
   runs: ProcessRun[]
 }
 

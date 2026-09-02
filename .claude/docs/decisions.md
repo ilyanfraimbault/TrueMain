@@ -150,6 +150,7 @@ Last verified against `develop` on 2026-09-02.
 
 - Riot calls are paced by a limiter keyed on the routing value, because that is the grain Riot enforces — #1359, #855
 - The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks — #1362, #1360
+- The lane is derived from the process name; the mode it ran under is recorded (2026-09-02) — #1362
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150

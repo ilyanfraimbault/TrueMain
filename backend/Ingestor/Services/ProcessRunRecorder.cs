@@ -20,6 +20,11 @@ public sealed class ProcessRunRecorder(
             // this pass (null when recorded outside a pass), so every run of the
             // pass groups under one iteration in the admin chain view.
             IterationId = iterationContext.CurrentIterationId,
+            // The lane this pass covers (#1362). Recorded per run rather than derived
+            // from the set of processes that happen to have run: a pass that has only
+            // reached its first step is indistinguishable from a one-off single-process
+            // run by its contents alone.
+            JobMode = iterationContext.CurrentJobMode?.ToString(),
             StartedAtUtc = startedAtUtc,
             // No finish yet; mirror StartedAtUtc as a placeholder so the document
             // reads as zero-duration until it completes.
@@ -69,10 +74,12 @@ public sealed class ProcessRunRecorder(
                 {
                     Id = runId == Guid.Empty ? Guid.NewGuid() : runId,
                     ProcessName = processName,
-                    // The original Running document (which carried the iteration) is
-                    // gone; re-stamp from the still-current pass so the recovered
-                    // terminal document stays grouped with its iteration.
+                    // The original Running document (which carried the iteration and the
+                    // lane) is gone; re-stamp both from the still-current pass so the
+                    // recovered terminal document stays grouped with its iteration and is
+                    // still drawn against the right chain.
                     IterationId = iterationContext.CurrentIterationId,
+                    JobMode = iterationContext.CurrentJobMode?.ToString(),
                     StartedAtUtc = startedAtUtc,
                     FinishedAtUtc = finishedAtUtc,
                     DurationMs = durationMs,

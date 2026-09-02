@@ -1,3 +1,4 @@
+using Ingestor.Options;
 using AwesomeAssertions;
 using Data.Entities;
 using Data.Logging.Mongo;
@@ -34,7 +35,7 @@ public sealed class ProcessRunRecorderIntegrationTests
 
         Guid runId;
         Guid iterationId;
-        using (var iteration = iterationContext.BeginIteration())
+        using (var iteration = iterationContext.BeginIteration(JobMode.Full))
         {
             iterationId = iteration.IterationId;
             var startedAt = DateTime.UtcNow;
