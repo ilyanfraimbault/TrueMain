@@ -62,9 +62,9 @@ Past squash-merges make develop→master PRs report conflicts on files that are 
 
 1. Tag the master merge commit: `git fetch origin master && git tag <version> origin/master && git push origin <version>`.
 2. **Publish the GitHub Release — this, and nothing else, deploys production**: `gh release create <version> --generate-notes`. `deploy-prod.yml` is `on: release: types: [published]`; the pushed tag alone builds and deploys nothing, and the merge to master changes nothing on the VPS either. This step is not optional.
-3. **Follow the run** (`gh run list --workflow "Deploy Prod"`, then `gh run watch <id>`). Three jobs, in order:
+3. **Follow the run** (`gh run list --workflow "Deploy Prod"`, then `gh run watch <id>`). Four jobs, in order (`preflight` first: it fails the run when any secret or variable of the deployment configuration is missing, never a green skip):
    - `publish` builds and pushes the `:<version>` and `:latest` images for api / ingestor / web / admin from the released commit.
-   - `migrate-prod` generates an idempotent EF script and pipes it into the prod Postgres over SSH. It fails closed: no `PROD_SSH_HOST`/`PROD_SSH_KEY`, or a failing script, and the deploy never runs.
-   - `deploy-prod` redeploys the `truemain` Docker Manager project against `compose.prod.yaml` at the released commit, with `IMAGE_TAG`/`APP_VERSION=<version>`. All four services roll together — there is no service-by-service redeploy to do by hand. The job is skipped when `HOSTINGER_PROD_VM_ID` is unset and warns-and-skips when `PROD_ENV_FILE` is empty (it would wipe the VPS `.env`), so check it actually redeployed instead of trusting a green run.
+   - `rollout / migrate` generates an idempotent EF script and pipes it into the prod Postgres over SSH. A failing script means the deploy never runs.
+   - `rollout / deploy` redeploys the `truemain` Docker Manager project against `compose.prod.yaml` at the released commit, with `IMAGE_TAG`/`APP_VERSION=<version>`. All four services roll together — there is no service-by-service redeploy to do by hand. Check it actually redeployed instead of trusting a green run.
 4. If master gained anything develop doesn't have (the merge commit), resync: merge master back into develop.
 5. Report what the automation does **not** cover: one-off ops (collections to drop, config drift), and a new compose variable needing `PROD_ENV_FILE` updated first — the action overwrites the VPS `.env` on every run. Confirm the version shipped by checking the prod footer, which is stamped from `APP_VERSION`.

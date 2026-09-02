@@ -1,8 +1,5 @@
 version: 2
 updates:
-  # Central .NET package graph lives in Directory.Packages.props; Dependabot's
-  # nuget ecosystem scanner picks the Directory.Packages.props + per-project
-  # csproj files up automatically.
   - package-ecosystem: nuget
     directory: "/backend"
     target-branch: develop
@@ -16,22 +13,13 @@ updates:
       - dependencies
       - dotnet
     groups:
-      microsoft-extensions:
+      minor-and-patch:
         patterns:
-          - "Microsoft.Extensions.*"
-          - "Microsoft.AspNetCore.*"
-      ef-core:
-        patterns:
-          - "Microsoft.EntityFrameworkCore*"
-          - "Npgsql.EntityFrameworkCore*"
-      xunit-stack:
-        patterns:
-          - "xunit*"
-          - "Microsoft.NET.Test.Sdk"
-          - "coverlet.*"
+          - "*"
+        update-types:
+          - minor
+          - patch
 
-  # Both Nuxt apps: `admin` is a separate deployable with its own lockfile and
-  # its own image, not a route of `web`, so it needs its own update stream.
   - package-ecosystem: npm
     directories:
       - "/web"
@@ -42,20 +30,17 @@ updates:
       day: monday
       time: "06:00"
       timezone: Europe/Paris
-    # Shared across both directories, hence higher than the nuget stream's 5.
     open-pull-requests-limit: 8
     labels:
       - dependencies
       - frontend
     groups:
-      nuxt:
+      minor-and-patch:
         patterns:
-          - "nuxt"
-          - "@nuxt/*"
-      eslint:
-        patterns:
-          - "eslint*"
-          - "@typescript-eslint/*"
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -68,8 +53,14 @@ updates:
     labels:
       - dependencies
       - ci
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
-  # Base images of the four Dockerfiles we build ourselves.
   - package-ecosystem: docker
     directories:
       - /backend/Api
@@ -85,12 +76,14 @@ updates:
     labels:
       - dependencies
       - docker
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
-  # Third-party images pinned in the compose stacks (postgres, pgbouncer,
-  # mongo, umami, caddy, pgadmin). Nothing else watches them: they are never
-  # built here, so the `docker` ecosystem above — which only reads Dockerfiles
-  # — cannot see them, and they would otherwise sit on their pinned tag until
-  # someone bumps them by hand.
   - package-ecosystem: docker-compose
     directory: "/"
     target-branch: develop
@@ -103,13 +96,8 @@ updates:
       - dependencies
       - docker
     ignore:
-      # Ours; their tag is chosen by the deploy pipeline (IMAGE_TAG), not by a
-      # registry lookup.
       - dependency-name: "ghcr.io/ilyanfraimbault/truemain-*"
     groups:
-      # The same image is pinned in up to four compose files; one PR per bump
-      # keeps them from drifting apart, which is the failure this entry is
-      # here to catch in the first place.
       compose-images:
         patterns:
           - "*"

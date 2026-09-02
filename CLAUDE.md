@@ -12,7 +12,7 @@ TrueMain is a League of Legends analytics site: champion/player stats computed f
   - **Prod** auto-deploys from `compose.prod.yaml` only when a GitHub Release is **published** — merging to `develop`/`master` alone does not reach prod; cutting a release does (see the `release` skill).
   - Both jobs publish immutable `:<sha>`/`:<version>` image tags alongside the moving `:preprod`/`:latest` ones, so compose always resolves to a tag Docker Manager is forced to pull — a mutable-tag redeploy would otherwise silently keep the stale image running.
   - Both `compose.preprod.yaml` and `compose.prod.yaml` run with `ApplyMigrationsOnStartup: "false"` — migrations apply out-of-band, via a `migrate-preprod`/`migrate-prod` CI job that pipes an idempotent SQL script into the VPS's Postgres container over SSH before the deploy job rolls the images (`docs/production-migrations.md`, #208, #1058).
-- `docs/` — project docs.
+- `docs/` — project docs; `docs/ci.md` explains every workflow, Dockerfile and compose choice — the config files themselves carry no comments, keep it that way.
 
 ## Project knowledge base — read before proposing work
 
@@ -65,6 +65,7 @@ Every issue goes on GitHub Project #2 ("TrueMain"). No milestones. Three fields,
 - Schema naming: **tables snake_case, columns PascalCase** (`"ChampionId"`, not `champion_id`). `elo_bracket` is the single historical exception — do not propagate it, and do not "fix" the schema towards snake_case columns. `SchemaNamingConventionTests` fails on drift; enum persistence rule in `decisions.md`.
 - Frontends: `nuxt typecheck` can pass on stale `.nuxt` types while CI's `nuxt build` fails — verify type-level changes with a fresh build.
 - `web/package-lock.json`: regenerate with `npx npm@11.13.0` — the version CI pins for the frontend jobs (`ci.yml`, "Pin npm"); older npm omits sharp optional deps. Bump both sides together.
+- CI only runs the jobs the diff can break (a `changes` job gates them on paths, see `docs/ci.md`); pushes to `develop`/`master` always run everything. Docs-only PRs get no CI run.
 - Startup migrations must stay fast — a heavy `CREATE INDEX CONCURRENTLY` in a startup migration blows the command timeout and crash-loops the API.
 - API reads are **purpose-built query services** returning read-models, living in `Api/Services/<area>` next to the endpoints they serve, injecting `TrueMainDbContext` and projecting with `AsNoTracking`. **No generic `IRepository<T>` for reads** — every read path is shaped by the question it answers. `Data` owns the schema (entities, configurations, migrations, the compiled model), the Mongo-side query objects, and SQL that must not diverge between two consumers (e.g. `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, shared by the ingestor's repair and the admin detector).
   - `AsNoTracking` goes on **every** `DbSet` a read touches, joined sides included, even when the final projection is anonymous and nothing would be tracked anyway — it is the explicit mark that this is a read. Query services that go through `Database.SqlQuery<T>` are tracking-free by nature and take no such call; that is the rule, not an oversight to "fix" file by file.

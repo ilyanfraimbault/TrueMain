@@ -1,0 +1,109 @@
+name: Rollout
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      ref:
+        required: false
+        type: string
+        default: ''
+      project_name:
+        required: true
+        type: string
+      compose_file:
+        required: true
+        type: string
+      image_tag:
+        required: true
+        type: string
+      app_version:
+        required: true
+        type: string
+      ssh_host_key:
+        required: true
+        type: string
+      vm_id:
+        required: true
+        type: string
+    secrets:
+      ssh_host:
+        required: true
+      ssh_key:
+        required: true
+      hostinger_api_key:
+        required: true
+      env_file:
+        required: true
+
+jobs:
+  migrate:
+    name: Apply ${{ inputs.environment }} migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Generate migration script
+        id: script
+        uses: ./.github/actions/migration-script
+
+      - name: Print migration script
+        run: |
+          echo "::group::migration.sql"
+          cat "${{ steps.script.outputs.path }}"
+          echo "::endgroup::"
+
+      - name: Upload migration script
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.environment }}-migration-${{ inputs.image_tag }}
+          path: ${{ steps.script.outputs.path }}
+          retention-days: 90
+
+      - name: Apply migration script over SSH
+        env:
+          SSH_HOST: ${{ secrets.ssh_host }}
+          SSH_KEY: ${{ secrets.ssh_key }}
+          SSH_HOST_KEY: ${{ inputs.ssh_host_key }}
+          SCRIPT: ${{ steps.script.outputs.path }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_ed25519
+          chmod 600 ~/.ssh/deploy_ed25519
+          printf '%s\n' "$SSH_HOST_KEY" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_ed25519 -o StrictHostKeyChecking=yes "root@${SSH_HOST}" < "$SCRIPT"
+
+  deploy:
+    name: Deploy ${{ inputs.environment }} VPS
+    runs-on: ubuntu-24.04
+    needs: migrate
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Redeploy Docker Manager project
+        uses: hostinger/deploy-on-vps@v2
+        with:
+          api-key: ${{ secrets.hostinger_api_key }}
+          virtual-machine: ${{ inputs.vm_id }}
+          project-name: ${{ inputs.project_name }}
+          docker-compose-path: ${{ inputs.compose_file }}
+          environment-variables: |
+            ${{ secrets.env_file }}
+            IMAGE_TAG=${{ inputs.image_tag }}
+            APP_VERSION=${{ inputs.app_version }}

@@ -2495,6 +2495,21 @@ skipped nothing. Deliberately **not** done here: recording discarded match ids i
 the ids call there is nothing left to record — and the ManualSeed pacing change, which interacts with the
 candidate-funnel backlog (#1361) and belongs with it.
 
+## CI runs only what the diff can break, and config files carry no comments (2026-09-02)
+
+Every PR used to fire 13 jobs whatever it touched: a web-only change still built the .NET solution, ran the
+Testcontainers suite, built all four images and validated four compose files. `ci.yml` now opens with a
+`changes` job (`dorny/paths-filter`) whose outputs gate every other job and feed the frontend and Docker
+matrices as JSON; pushes to `develop`/`master` stay exhaustive because those are the commits that deploy,
+and docs-only PRs get no CI run. The two deploys share one reusable `rollout.yml` (migrate → deploy) and one
+composite action generating the migration script, so the script CI validates is the script CD applies, and
+preprod gained the same loud `preflight` as prod instead of a silent skip. The Claude review prompt is
+English, defines "blocking" narrowly and forbids flagging versions or APIs from memory (the bot had called
+`actions/checkout@v6` nonexistent). Dependabot groups minor+patch per ecosystem, majors stay separate. The
+workflows, Dockerfiles, `dependabot.yml` and compose files carry **no comments**: their rationale lives in
+`docs/ci.md` (and the ingestor knobs in `docs/prod.md`), where it can be read as one page instead of being
+scattered across YAML. `docker compose config` renders byte-identical before and after the strip — #1386.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

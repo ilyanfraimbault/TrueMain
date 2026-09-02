@@ -3,46 +3,27 @@ services:
     image: postgres:17.2
     container_name: truemain-postgres
     restart: unless-stopped
-    # Raised from 256m: parallel-query and hash workers allocate their shared segments
-    # here, and 256m is what got exhausted in #589. Cheap insurance now that the server
-    # is allowed to use real memory.
     shm_size: "1g"
-    # Postgres server tuning — part A of #1366.
-    #
-    # Host facts (prod VPS, measured 2026-09-02): 4 vCPU, 16 GB RAM, NVMe, ~38 GB
-    # database, and Postgres is the dominant tenant (8.8 GB RSS, ~13 GB of the host in
-    # page cache). Until now the server ran on the compiled defaults, sized for a 1 GB
-    # machine: 128 MB shared_buffers, 4 MB work_mem, random_page_cost=4 on flash.
-    # Sizing is pgtune-style for a "mixed" workload on that host.
-    #
-    # DO NOT REMOVE max_parallel_workers_per_gather=0. It is the deliberate fix for the
-    # /dev/shm exhaustion incident (#589): parallel workers on the aggregate-pattern
-    # queries exhausted the shared memory segment, Postgres raised 53100 and the API and
-    # ingestor crash-looped. Re-enabling parallelism reproduces that outage.
     command:
       - "postgres"
-      # Memory
       - "-c"
-      - "shared_buffers=4GB"              # 25% of RAM, the usual ceiling before double buffering hurts
+      - "shared_buffers=4GB"
       - "-c"
-      - "effective_cache_size=11GB"       # planner hint only; matches the page cache actually observed
+      - "effective_cache_size=11GB"
       - "-c"
-      - "work_mem=32MB"                   # per sort/hash node; the 2.7M-row match_participants folds spilled to disk at 4MB
+      - "work_mem=32MB"
       - "-c"
-      - "hash_mem_multiplier=2"           # let hash joins/aggregates use 64MB before spilling
+      - "hash_mem_multiplier=2"
       - "-c"
-      - "maintenance_work_mem=1GB"        # autovacuum and index builds on the 13GB snapshot table
-      # Planner — NVMe, not spinning rust
+      - "maintenance_work_mem=1GB"
       - "-c"
       - "random_page_cost=1.1"
       - "-c"
       - "effective_io_concurrency=200"
       - "-c"
-      - "jit=off"                         # JIT compilation is pure overhead on these short analytic queries
-      # Parallelism — see the warning above (#589)
+      - "jit=off"
       - "-c"
       - "max_parallel_workers_per_gather=0"
-      # WAL / checkpoints
       - "-c"
       - "wal_compression=lz4"
       - "-c"
@@ -51,14 +32,12 @@ services:
       - "min_wal_size=1GB"
       - "-c"
       - "checkpoint_completion_target=0.9"
-      # Autovacuum — the big tables bloat faster than the stock scale factors react
       - "-c"
       - "autovacuum_vacuum_cost_delay=2ms"
       - "-c"
       - "autovacuum_vacuum_scale_factor=0.05"
       - "-c"
       - "autovacuum_analyze_scale_factor=0.02"
-      # Statement-level visibility (extension created by an EF migration)
       - "-c"
       - "shared_preload_libraries=pg_stat_statements"
       - "-c"
@@ -131,10 +110,6 @@ services:
 
   api:
     image: ghcr.io/ilyanfraimbault/truemain-api:${IMAGE_TAG:-latest}
-    # The CI deploy passes an immutable IMAGE_TAG, so a pull is implied there;
-    # this is for the manual fallback in docs/prod.md, which has no IMAGE_TAG
-    # and falls back to the moving `:latest` — already present locally, hence
-    # silently reused unless we force the pull (#765).
     pull_policy: always
     container_name: truemain-api
     restart: unless-stopped
@@ -146,9 +121,6 @@ services:
       Database__ApplyMigrationsOnStartup: "false"
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
-      # Volume size the storage forecast projects against (#925). Unset means no
-      # forecast at all — the admin panel says so rather than fitting a line to a
-      # guessed capacity. Set STORAGE_DISK_CAPACITY_BYTES to the real disk size.
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Cors__Origins__0: "https://truemain.lol"
       Cors__Origins__1: "https://www.truemain.lol"
@@ -177,9 +149,6 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
-      # Build stamp shown small in the footer. APP_VERSION is appended to the
-      # env by the deploy job (the published release tag); empty on a manual
-      # redeploy, which just hides the label.
       NUXT_PUBLIC_APP_ENV: production
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
       NUXT_PUBLIC_UMAMI_HOST: https://analytics.truemain.lol
@@ -266,10 +235,6 @@ services:
     networks:
       - truemain_internal
 
-  # Umami self-hosted has no built-in retention for session replay/heatmap
-  # data (#1018) — without this, session_replay/heatmap_event grow unbounded,
-  # the heaviest tables Umami writes. Postgres image with the entrypoint
-  # overridden to just run the purge script on a loop, no server started.
   umami-replay-cleanup:
     image: postgres:17.2-alpine
     container_name: truemain-umami-replay-cleanup
@@ -305,26 +270,6 @@ services:
       Scoring__TopNPerPlatform: "300"
       Harvest__MaxCandidatesPerRun: "7500"
       MatchIngestion__BatchSize: "75"
-      # Manual-seed intake is FIFO and strictly batched, so a large backlog is drained at a
-      # fixed rate rather than spent at once. The unit is **one batch per full pipeline cycle**:
-      # ManualSeed is a step in JobModeSequence, and the worker sleeps Job:IntervalMinutes
-      # (unset here, so 60 min) *after* the whole sequence finishes. So a cycle is pipeline
-      # duration + 60 min — call it 12-24 cycles/day, not 24.
-      #
-      # That unit is what made the previous 200 look four times stronger than it was: its
-      # comment claimed ~5k/day, but 200/cycle is ~2.5-4.8k/day, and the OTP backlog is no
-      # longer "a few thousand seeds" — the per-champion dpm sweep puts tens of thousands in
-      # the queue in one run, which at 200 is two to three weeks of drain.
-      #
-      # 750 is ~9-18k/day. A resolved request costs 3 Riot calls (account-v1, summoner-v4,
-      # champion mastery — see ManualSeedProcess.ProcessRequestAsync); one whose Riot ID no
-      # longer exists stops after the first. So ~27-54k calls/day is the ceiling, and the real
-      # figure is lower by whatever share of the queue has gone stale:
-      # a large but deliberate reallocation while the backlog is being filled. Turn it back
-      # down once the queue is drained — this is a knob for a backlog, not a steady state.
-      #
-      # Note that MatchIngestion__BatchSize above is the next bottleneck: seeding faster gets
-      # accounts registered faster, their matches still ingest at 75/cycle.
       ManualSeed__BatchSize: "750"
     volumes:
       - truemain_ingestor_crashes:/home/app/crashes

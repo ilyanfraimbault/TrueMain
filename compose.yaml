@@ -208,10 +208,6 @@ services:
     networks:
       - truemain_internal
 
-  # Umami self-hosted has no built-in retention for session replay/heatmap
-  # data (#1018) — without this, session_replay/heatmap_event grow unbounded,
-  # the heaviest tables Umami writes. Postgres image with the entrypoint
-  # overridden to just run the purge script on a loop, no server started.
   umami-replay-cleanup:
     image: postgres:17.2-alpine
     container_name: truemain-umami-replay-cleanup

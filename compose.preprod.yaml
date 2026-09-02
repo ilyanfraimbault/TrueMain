@@ -1,9 +1,3 @@
-# Shared by both ingestor lanes (#1362). The pipeline runs as two processes: a fetch lane
-# that spends the Riot API budget and an aggregate lane that turns what it wrote into
-# aggregates. They have opposite bottlenecks — network versus Postgres — so chaining them
-# left the API key idle through every aggregation and the aggregates waiting behind ~55
-# minutes of HTTP. Everything except the mode and the cadence is identical, so it is
-# declared once here; a knob one lane does not use is simply bound and ignored.
 x-ingestor-environment: &ingestor-environment
       DOTNET_ENVIRONMENT: Production
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
@@ -22,13 +16,6 @@ x-ingestor-environment: &ingestor-environment
       MatchIngestion__MatchesPerAccount: "10"
       MainAnalysis__MatchesToConsider: "30"
       MainAnalysis__MinMatchesToEvaluate: "10"
-      # Fold the non-main population too, so the truemains toggle has both sides
-      # to show (#1346). Gated per environment (#1349) because this multiplies the
-      # aggregation's source rows and that process once OOM-killed a VPS (#601) —
-      # preprod is where the capacity question gets answered before prod. Measured
-      # here on 2026-09-01: the widened fold ran at ~250 MB RSS with no restart and
-      # no OOM, and produced 16.6k non-main scopes on the live patch alongside
-      # 20.9k main ones.
       MainAnalysis__AggregateNonMainPopulation: "true"
 
 services:
@@ -36,28 +23,9 @@ services:
     image: postgres:17.2
     container_name: truemain-preprod-postgres
     restart: unless-stopped
-    # Raised from 256m for the same reason as prod: shared segments for worker memory,
-    # and 256m is what got exhausted in #589.
     shm_size: "1g"
-    # Postgres server tuning — part A of #1366.
-    #
-    # Same shape as compose.prod.yaml, roughly halved: preprod is a smaller host (96 GB
-    # disk, ~11 GB database) and it shares the box with the whole preprod stack, so it
-    # cannot claim the memory prod's Postgres gets as the dominant tenant. The host's RAM
-    # was not measured and no share of it is budgeted to Postgres alone, so these values
-    # are deliberately conservative rather than derived; revisit them with a real
-    # measurement if preprod turns out to have headroom. Keeping the
-    # same *settings* (not the same values) means preprod still exercises the tuned plans
-    # — jit off, flash-priced random access, work_mem large enough not to spill — before
-    # prod does.
-    #
-    # DO NOT REMOVE max_parallel_workers_per_gather=0. It is the deliberate fix for the
-    # /dev/shm exhaustion incident (#589): parallel workers on the aggregate-pattern
-    # queries exhausted the shared memory segment, Postgres raised 53100 and the API and
-    # ingestor crash-looped. Re-enabling parallelism reproduces that outage.
     command:
       - "postgres"
-      # Memory (≈ half of prod)
       - "-c"
       - "shared_buffers=2GB"
       - "-c"
@@ -68,17 +36,14 @@ services:
       - "hash_mem_multiplier=2"
       - "-c"
       - "maintenance_work_mem=512MB"
-      # Planner — NVMe, not spinning rust
       - "-c"
       - "random_page_cost=1.1"
       - "-c"
       - "effective_io_concurrency=200"
       - "-c"
       - "jit=off"
-      # Parallelism — see the warning above (#589)
       - "-c"
       - "max_parallel_workers_per_gather=0"
-      # WAL / checkpoints (smaller: preprod's disk is the scarce resource here)
       - "-c"
       - "wal_compression=lz4"
       - "-c"
@@ -87,14 +52,12 @@ services:
       - "min_wal_size=512MB"
       - "-c"
       - "checkpoint_completion_target=0.9"
-      # Autovacuum
       - "-c"
       - "autovacuum_vacuum_cost_delay=2ms"
       - "-c"
       - "autovacuum_vacuum_scale_factor=0.05"
       - "-c"
       - "autovacuum_analyze_scale_factor=0.02"
-      # Statement-level visibility (extension created by an EF migration)
       - "-c"
       - "shared_preload_libraries=pg_stat_statements"
       - "-c"
@@ -180,9 +143,6 @@ services:
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
-      # Volume size the storage forecast projects against (#925). Unset means no
-      # forecast at all — the admin panel says so rather than fitting a line to a
-      # guessed capacity. Set STORAGE_DISK_CAPACITY_BYTES to the real disk size.
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Cors__Origins__0: "http://localhost:3001"
       MongoLogging__CrashFilePath: /home/app/crashes
@@ -210,11 +170,6 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
-      # Build stamp shown small in the footer, so preprod says which build it is
-      # running instead of forcing a SHA comparison on GitHub. APP_VERSION is
-      # appended to the env by the deploy job (the prerelease this deploy
-      # resolved, e.g. 1.20.0-rc.4); empty on a manual redeploy, which just
-      # hides the label.
       NUXT_PUBLIC_APP_ENV: preprod
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
       NUXT_PUBLIC_UMAMI_HOST: ${UMAMI_PUBLIC_URL:-}
@@ -260,9 +215,6 @@ services:
     restart: unless-stopped
     environment:
       <<: *ingestor-environment
-      # The Riot-bound half of the pipeline (#1362). Left on the default RunOnce loop:
-      # its passes are back-to-back, paced by the per-routing-value rate limiter rather
-      # than by a timer.
       Job__Mode: ${INGESTOR_JOB_MODE:-FetchLane}
     volumes:
       - truemain_preprod_ingestor_crashes:/home/app/crashes
@@ -283,17 +235,11 @@ services:
     restart: unless-stopped
     environment:
       <<: *ingestor-environment
-      # The Postgres-bound half (#1362): everything that reads what the fetch lane wrote,
-      # plus retention and the storage snapshot. On a timer rather than back-to-back —
-      # there is nothing to gain from re-folding the same rows the moment a pass ends, and
-      # a fixed cadence is what makes "how stale can an aggregate be?" answerable.
       Job__Mode: ${INGESTOR_AGGREGATE_JOB_MODE:-AggregateLane}
       Job__RunOnce: "false"
       Job__IntervalMinutes: "${INGESTOR_AGGREGATE_INTERVAL_MINUTES:-20}"
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor-aggregate
     volumes:
-      # Its own volume: two containers writing crash dumps to one path would race on the
-      # file the crash reporter writes before it reaches Mongo.
       - truemain_preprod_ingestor_aggregate_crashes:/home/app/crashes
     depends_on:
       postgres:
@@ -338,10 +284,6 @@ services:
     networks:
       - truemain_internal
 
-  # Umami self-hosted has no built-in retention for session replay/heatmap
-  # data (#1018) — without this, session_replay/heatmap_event grow unbounded,
-  # the heaviest tables Umami writes. Postgres image with the entrypoint
-  # overridden to just run the purge script on a loop, no server started.
   umami-replay-cleanup:
     image: postgres:17.2-alpine
     container_name: truemain-preprod-umami-replay-cleanup
