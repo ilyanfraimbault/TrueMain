@@ -691,8 +691,10 @@ population mean (#922). Narrowing it would bias every synergy on the site rather
 4 762 stored matches, 1.7% of production. The header keeps its own stricter 15-minute floor, which is not a
 second opinion about remakes but a timeline-completeness rule (no build, no skill path); a test pins the
 ordering of the two.
-**The re-fold recovers the live window only.** The migration deletes the synergy and powerspike rows of the
-patches that still have matches and re-arms `SynergyAggregated` / `PowerspikeAggregated` — deliberately *not* a
+**The re-fold recovers the live window only.** The migration deletes the synergy, powerspike **and matchup**
+rows of the patches that still have matches and re-arms all four per-match flags — the matchup table is in there
+for the remake clause alone, since #1087 already gave it the right population and an additive fold cannot correct
+what it has already added — deliberately *not* a
 `TRUNCATE` like #1087's, because these two aggregates hold frozen patches whose source matches retention has
 already deleted (#466) and which no re-fold could rebuild. So there is a seam, on purpose: frozen patches keep
 synergy and powerspike numbers counting any tracked account, live ones count mains. Two further costs, accepted:

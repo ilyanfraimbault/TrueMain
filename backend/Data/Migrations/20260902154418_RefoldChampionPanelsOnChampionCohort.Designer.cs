@@ -15,8 +15,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    [Migration("20260902154418_RefoldSynergyAndPowerspikeOnChampionCohort")]
-    partial class RefoldSynergyAndPowerspikeOnChampionCohort
+    [Migration("20260902154418_RefoldChampionPanelsOnChampionCohort")]
+    partial class RefoldChampionPanelsOnChampionCohort
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

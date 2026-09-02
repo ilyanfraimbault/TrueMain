@@ -5,11 +5,22 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Data.Migrations
 {
     /// <summary>
-    /// Data-only migration: drops the synergy and powerspike rows of the <b>live</b>
-    /// patches and re-arms their per-match flags, so both folds rebuild them under the
-    /// shared <c>Data.Aggregation.ChampionCohort</c> — mains of the champion, remakes
-    /// excluded — instead of the wider "any account we know, any game length" they were
-    /// accumulated with (#1365).
+    /// Data-only migration: drops the synergy, powerspike and matchup rows of the
+    /// <b>live</b> patches and re-arms their per-match flags, so all four folds rebuild
+    /// them under the shared <c>Data.Aggregation.ChampionCohort</c> — mains of the
+    /// champion, remakes excluded — instead of the wider "any account we know, any game
+    /// length" they were accumulated with (#1365).
+    ///
+    /// <para>
+    /// <b>Why the matchup table is in here too.</b> #1087 already gave it the mains
+    /// cohort, so its population is right; what is not is the remake clause, which is new
+    /// in #1365. Both matchup folds are additive and flagged, so every live-patch row
+    /// folded since #1087 keeps the remakes baked into its <c>Games</c> / <c>Wins</c> /
+    /// <c>LaneGames</c> counters for as long as the patch is served, diluted rather than
+    /// corrected by remake-free rows arriving after the deploy. Re-folding is cheap here
+    /// and loses nothing: the lane fold reads the 15-minute mark, which retention keeps
+    /// as one of the canonical marks (#772).
+    /// </para>
     ///
     /// <para>
     /// <b>Why a delete and not a filter going forward.</b> Both folds are additive
@@ -23,13 +34,13 @@ namespace Data.Migrations
     /// <para>
     /// <b>Why not a TRUNCATE, this time.</b> #1087 could wipe its whole table because the
     /// panel moved to a per-patch scope in the same change, so the frozen patches it
-    /// destroyed were no longer readable. These two aggregates are read across patches
+    /// destroyed were no longer readable. These aggregates are read across patches
     /// and hold history whose source matches retention has already deleted (#466) — a
     /// TRUNCATE would delete numbers that can never be recomputed. So the delete is
     /// scoped to the patches that can be re-folded, and every older patch keeps the rows
     /// it was folded with, under the old cohort. That is a deliberate seam: a frozen
-    /// patch's synergy and powerspike numbers count any tracked account, the live ones
-    /// count mains, and <c>decisions.md</c> says so.
+    /// patch's synergy and powerspike numbers count any tracked account and its matchups
+    /// count remakes, the live ones do neither, and <c>decisions.md</c> says so.
     /// </para>
     ///
     /// <para>
@@ -64,14 +75,15 @@ namespace Data.Migrations
     /// </para>
     ///
     /// <para>
-    /// The re-fold itself is the ingestor's ordinary batched path (SynergyAggregation and
-    /// PowerspikeAggregation), draining over the cycles after deploy. Both panels read
-    /// thin numbers while it drains; every row they do show is already correct, since the
-    /// fold is per-match and never partially applies one.
+    /// The re-fold itself is the ingestor's ordinary batched path (MatchupLeadAggregation,
+    /// LaneOutcomeAggregation, SynergyAggregation, PowerspikeAggregation), draining over
+    /// the cycles after deploy. The panels read thin numbers while it drains; every row
+    /// they do show is already correct, since each fold is per-match and never partially
+    /// applies one.
     /// </para>
     /// </summary>
     /// <inheritdoc />
-    public partial class RefoldSynergyAndPowerspikeOnChampionCohort : Migration
+    public partial class RefoldChampionPanelsOnChampionCohort : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -79,7 +91,7 @@ namespace Data.Migrations
             // One statement per table rather than a shared temp table: this runs as an
             // idempotent script piped into the VPS's Postgres ahead of the deploy
             // (docs/production-migrations.md), where a temp table's lifetime is one more
-            // thing to reason about for four small deletes.
+            // thing to reason about for five small deletes.
             const string livePatches =
                 """
                 SELECT DISTINCT COALESCE(m."Patch", m."GameVersion") AS patch FROM matches m
@@ -90,7 +102,10 @@ namespace Data.Migrations
                          "champion_synergy_stats",
                          "champion_synergy_baseline_stats",
                          "champion_powerspike_curve_stats",
-                         "champion_powerspike_event_stats"
+                         "champion_powerspike_event_stats",
+                         // Both matchup folds write this one; #1087's cohort was already
+                         // right, its remake clause is not.
+                         "champion_matchup_stats"
                      })
             {
                 migrationBuilder.Sql(
@@ -104,7 +119,7 @@ namespace Data.Migrations
             // No patch dimension to scope by — see the summary.
             migrationBuilder.Sql("""DELETE FROM powerspike_sigma_stats;""");
 
-            // One pass for both flags rather than two scans. The WHERE keeps it from
+            // One pass for all four flags rather than four scans. The WHERE keeps it from
             // rewriting rows that are already pending — on a freshly restored database
             // that is every row, and the update would be a no-op rewrite of the table.
             // Every retained match is by definition on a live patch, so the flags are
@@ -113,8 +128,11 @@ namespace Data.Migrations
                 """
                 UPDATE matches
                 SET "SynergyAggregated" = false,
-                    "PowerspikeAggregated" = false
-                WHERE "SynergyAggregated" OR "PowerspikeAggregated";
+                    "PowerspikeAggregated" = false,
+                    "MatchupLeadAggregated" = false,
+                    "LaneOutcomeAggregated" = false
+                WHERE "SynergyAggregated" OR "PowerspikeAggregated"
+                   OR "MatchupLeadAggregated" OR "LaneOutcomeAggregated";
                 """);
         }
 
