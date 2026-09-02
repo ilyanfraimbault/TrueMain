@@ -1,3 +1,36 @@
+# Shared by both ingestor lanes (#1362). The pipeline runs as two processes: a fetch lane
+# that spends the Riot API budget and an aggregate lane that turns what it wrote into
+# aggregates. They have opposite bottlenecks — network versus Postgres — so chaining them
+# left the API key idle through every aggregation and the aggregates waiting behind ~55
+# minutes of HTTP. Everything except the mode and the cadence is identical, so it is
+# declared once here; a knob one lane does not use is simply bound and ignored.
+x-ingestor-environment: &ingestor-environment
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
+      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
+      Riot__ApiKey: ${RIOT_API_KEY}
+      MongoLogging__CrashFilePath: /home/app/crashes
+      MongoLogging__LogsRetention: "30.00:00:00"
+      MatchDataRetention__RetainedPatchCount: "1"
+      MatchDataRetention__AggregateRetainedPatchCount: "2"
+      ManualSeed__BatchSize: "250"
+      Discovery__MaxAccountsPerPlatformPerRun: "100"
+      Discovery__NewAccountsTarget: "15"
+      Scoring__TopNPerPlatform: "50"
+      Harvest__MaxCandidatesPerRun: "500"
+      MatchIngestion__BatchSize: "25"
+      MatchIngestion__MatchesPerAccount: "10"
+      MainAnalysis__MatchesToConsider: "30"
+      MainAnalysis__MinMatchesToEvaluate: "10"
+      # Fold the non-main population too, so the truemains toggle has both sides
+      # to show (#1346). Gated per environment (#1349) because this multiplies the
+      # aggregation's source rows and that process once OOM-killed a VPS (#601) —
+      # preprod is where the capacity question gets answered before prod. Measured
+      # here on 2026-09-01: the widened fold ran at ~250 MB RSS with no restart and
+      # no OOM, and produced 16.6k non-main scopes on the live patch alongside
+      # 20.9k main ones.
+      MainAnalysis__AggregateNonMainPopulation: "true"
+
 services:
   postgres:
     image: postgres:17.2
@@ -226,34 +259,42 @@ services:
     container_name: truemain-preprod-ingestor
     restart: unless-stopped
     environment:
-      DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
-      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
-      Riot__ApiKey: ${RIOT_API_KEY}
-      Job__Mode: ${INGESTOR_JOB_MODE:-Full}
-      MongoLogging__CrashFilePath: /home/app/crashes
-      MongoLogging__LogsRetention: "30.00:00:00"
-      MatchDataRetention__RetainedPatchCount: "1"
-      MatchDataRetention__AggregateRetainedPatchCount: "2"
-      ManualSeed__BatchSize: "250"
-      Discovery__MaxAccountsPerPlatformPerRun: "100"
-      Discovery__NewAccountsTarget: "15"
-      Scoring__TopNPerPlatform: "50"
-      Harvest__MaxCandidatesPerRun: "500"
-      MatchIngestion__BatchSize: "25"
-      MatchIngestion__MatchesPerAccount: "10"
-      MainAnalysis__MatchesToConsider: "30"
-      MainAnalysis__MinMatchesToEvaluate: "10"
-      # Fold the non-main population too, so the truemains toggle has both sides
-      # to show (#1346). Gated per environment (#1349) because this multiplies the
-      # aggregation's source rows and that process once OOM-killed a VPS (#601) —
-      # preprod is where the capacity question gets answered before prod. Measured
-      # here on 2026-09-01: the widened fold ran at ~250 MB RSS with no restart and
-      # no OOM, and produced 16.6k non-main scopes on the live patch alongside
-      # 20.9k main ones.
-      MainAnalysis__AggregateNonMainPopulation: "true"
+      <<: *ingestor-environment
+      # The Riot-bound half of the pipeline (#1362). Left on the default RunOnce loop:
+      # its passes are back-to-back, paced by the per-routing-value rate limiter rather
+      # than by a timer.
+      Job__Mode: ${INGESTOR_JOB_MODE:-FetchLane}
     volumes:
       - truemain_preprod_ingestor_crashes:/home/app/crashes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
+  ingestor-aggregate:
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:${IMAGE_TAG:-preprod}
+    pull_policy: always
+    container_name: truemain-preprod-ingestor-aggregate
+    restart: unless-stopped
+    environment:
+      <<: *ingestor-environment
+      # The Postgres-bound half (#1362): everything that reads what the fetch lane wrote,
+      # plus retention and the storage snapshot. On a timer rather than back-to-back —
+      # there is nothing to gain from re-folding the same rows the moment a pass ends, and
+      # a fixed cadence is what makes "how stale can an aggregate be?" answerable.
+      Job__Mode: ${INGESTOR_AGGREGATE_JOB_MODE:-AggregateLane}
+      Job__RunOnce: "false"
+      Job__IntervalMinutes: "${INGESTOR_AGGREGATE_INTERVAL_MINUTES:-20}"
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor-aggregate
+    volumes:
+      # Its own volume: two containers writing crash dumps to one path would race on the
+      # file the crash reporter writes before it reaches Mongo.
+      - truemain_preprod_ingestor_aggregate_crashes:/home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -390,6 +431,8 @@ volumes:
     name: truemain_preprod_api_crashes
   truemain_preprod_ingestor_crashes:
     name: truemain_preprod_ingestor_crashes
+  truemain_preprod_ingestor_aggregate_crashes:
+    name: truemain_preprod_ingestor_aggregate_crashes
   truemain_preprod_umami_db_data:
     name: truemain_preprod_umami_db_data
 

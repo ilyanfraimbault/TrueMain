@@ -109,5 +109,16 @@ public interface IMainCandidateRepository
     /// </remarks>
     Task<int> ReleaseExpiredClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct);
 
+    /// <summary>
+    /// Of <paramref name="puuids"/> on <paramref name="platformId"/>, the ones that already
+    /// carry a candidate row seen at or after <paramref name="seenSinceUtc"/> — i.e. the
+    /// accounts whose champion-mastery call would re-read masteries we just stored (#1358).
+    /// </summary>
+    Task<HashSet<string>> GetPuuidsWithCandidatesSeenSinceAsync(
+        string platformId,
+        IReadOnlyCollection<string> puuids,
+        DateTime seenSinceUtc,
+        CancellationToken ct);
+
     void Add(MainCandidate candidate);
 }

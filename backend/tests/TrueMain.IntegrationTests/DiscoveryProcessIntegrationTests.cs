@@ -440,6 +440,7 @@ public sealed class DiscoveryProcessIntegrationTests
             PlatformRoute platform,
             DiscoveryOptions options,
             int offset,
+            ProfileFreshnessProbe profileFreshnessProbe,
             CancellationToken ct)
         {
             if (failingPlatform is null || platform.ToString() == failingPlatform)
@@ -447,7 +448,7 @@ public sealed class DiscoveryProcessIntegrationTests
                 throw new InvalidOperationException("simulated ladder outage");
             }
 
-            return _inner.DiscoverSummonersAsync(platform, options, offset, ct);
+            return _inner.DiscoverSummonersAsync(platform, options, offset, profileFreshnessProbe, ct);
         }
     }
 
@@ -457,6 +458,7 @@ public sealed class DiscoveryProcessIntegrationTests
             PlatformRoute platform,
             DiscoveryOptions options,
             int offset,
+            ProfileFreshnessProbe profileFreshnessProbe,
             CancellationToken ct)
         {
             var discovered = new List<DiscoveredSummoner>
@@ -473,7 +475,7 @@ public sealed class DiscoveryProcessIntegrationTests
                     Rank: null)
             };
 
-            return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset));
+            return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset, ProfileCallsSkipped: 0));
         }
     }
 
@@ -488,6 +490,7 @@ public sealed class DiscoveryProcessIntegrationTests
             PlatformRoute platform,
             DiscoveryOptions options,
             int offset,
+            ProfileFreshnessProbe profileFreshnessProbe,
             CancellationToken ct)
         {
             var discovered = new List<DiscoveredSummoner>
@@ -514,7 +517,7 @@ public sealed class DiscoveryProcessIntegrationTests
                     new RankSnapshotInput("PLATINUM", "II", 75, Wins: 10, Losses: 5))
             };
 
-            return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset));
+            return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset, ProfileCallsSkipped: 0));
         }
     }
 
@@ -524,6 +527,7 @@ public sealed class DiscoveryProcessIntegrationTests
             PlatformRoute platform,
             DiscoveryOptions options,
             int offset,
+            ProfileFreshnessProbe profileFreshnessProbe,
             CancellationToken ct)
         {
             var discovered = new List<DiscoveredSummoner>
@@ -540,7 +544,7 @@ public sealed class DiscoveryProcessIntegrationTests
                     new RankSnapshotInput("MASTER", "I", 42, Wins: 7, Losses: 3))
             };
 
-            return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset));
+            return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset, ProfileCallsSkipped: 0));
         }
     }
 
@@ -555,6 +559,7 @@ public sealed class DiscoveryProcessIntegrationTests
             PlatformRoute platform,
             DiscoveryOptions options,
             int offset,
+            ProfileFreshnessProbe profileFreshnessProbe,
             CancellationToken ct)
         {
             var discovered = new List<DiscoveredSummoner>
@@ -571,7 +576,7 @@ public sealed class DiscoveryProcessIntegrationTests
             };
 
             var applied = options.SlidingWindowEnabled && ladderSize > 0 ? offset % ladderSize : 0;
-            return Task.FromResult(new LadderDiscoveryResult(discovered, ladderSize, applied));
+            return Task.FromResult(new LadderDiscoveryResult(discovered, ladderSize, applied, ProfileCallsSkipped: 0));
         }
     }
 

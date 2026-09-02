@@ -62,6 +62,28 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     public Task<bool> ExistsByPuuidAsync(string puuid, CancellationToken ct)
         => db.RiotAccounts.AnyAsync(a => a.Puuid == puuid, ct);
 
+    public async Task<HashSet<string>> GetProfileFreshPuuidsAsync(
+        IReadOnlyCollection<string> puuids,
+        DateTime freshSinceUtc,
+        CancellationToken ct)
+    {
+        if (puuids.Count == 0)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        var puuidArray = puuids.Distinct(StringComparer.Ordinal).ToArray();
+        var found = await db.RiotAccounts
+            .AsNoTracking()
+            .Where(a => puuidArray.Contains(a.Puuid)
+                        && a.LastProfileSyncAtUtc != null
+                        && a.LastProfileSyncAtUtc >= freshSinceUtc)
+            .Select(a => a.Puuid)
+            .ToListAsync(ct);
+
+        return found.ToHashSet(StringComparer.Ordinal);
+    }
+
     public async Task<List<RiotAccount>> GetAccountsForRefreshAsync(int batchSize, CancellationToken ct)
     {
         // Prioritisation, in order:

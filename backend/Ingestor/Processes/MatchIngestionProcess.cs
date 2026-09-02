@@ -106,6 +106,7 @@ public sealed class MatchIngestionProcess(
             summary.TotalValidated += result.Validated;
             summary.TotalInserted += result.Inserted;
             summary.TotalSkipped += result.Skipped;
+            summary.TotalSkippedWrongQueue += result.SkippedWrongQueue;
             summary.TotalTimelines += result.TimelinesUpdated;
             summary.TotalErrors += result.Errors;
             summary.ByPlatform[result.PlatformId] = result.Platform;
@@ -265,14 +266,21 @@ public sealed class MatchIngestionProcess(
         var validated = await accountValidationService.ValidateAsync(account, ct);
 
         logger.LogInformation(
-            "Match ingestion for {Platform}/{Puuid}: inserted={Inserted}, skipped={Skipped}, timelinesUpdated={Timelines}.",
+            "Match ingestion for {Platform}/{Puuid}: inserted={Inserted}, skipped={Skipped}, skippedWrongQueue={SkippedWrongQueue}, timelinesUpdated={Timelines}.",
             platformId,
             account.Puuid,
             snapshotResult.Inserted,
             snapshotResult.Skipped,
+            snapshotResult.SkippedWrongQueue,
             timelineUpdated);
 
-        return new AccountIngestionSummary(platformId, snapshotResult.Inserted, snapshotResult.Skipped, timelineUpdated, validated);
+        return new AccountIngestionSummary(
+            platformId,
+            snapshotResult.Inserted,
+            snapshotResult.Skipped,
+            snapshotResult.SkippedWrongQueue,
+            timelineUpdated,
+            validated);
     }
 
     private void LogPlatformSummaries(IReadOnlyDictionary<string, PlatformSummary> summaryByPlatform)
@@ -285,11 +293,12 @@ public sealed class MatchIngestionProcess(
             }
 
             logger.LogInformation(
-                "Match ingestion summary for {Platform}: accounts={Accounts}, matchesInserted={Inserted}, matchesSkipped={Skipped}, timelinesUpdated={Timelines}.",
+                "Match ingestion summary for {Platform}: accounts={Accounts}, matchesInserted={Inserted}, matchesSkipped={Skipped}, matchesSkippedWrongQueue={SkippedWrongQueue}, timelinesUpdated={Timelines}.",
                 platformId,
                 summary.AccountsProcessed,
                 summary.MatchesInserted,
                 summary.MatchesSkipped,
+                summary.MatchesSkippedWrongQueue,
                 summary.TimelinesUpdated);
         }
     }
@@ -305,6 +314,7 @@ public sealed class MatchIngestionProcess(
             summary.TotalValidated,
             released.Candidates,
             released.Accounts,
+            summary.TotalSkippedWrongQueue,
             summary.ByPlatform
                 .Where(entry => entry.Value.AccountsProcessed > 0)
                 .Select(entry => new MatchIngestionPlatformSummary(
@@ -312,7 +322,8 @@ public sealed class MatchIngestionProcess(
                     entry.Value.AccountsProcessed,
                     entry.Value.MatchesInserted,
                     entry.Value.MatchesSkipped,
-                    entry.Value.TimelinesUpdated))
+                    entry.Value.TimelinesUpdated,
+                    entry.Value.MatchesSkippedWrongQueue))
                 .ToList());
     }
 
@@ -335,6 +346,8 @@ public sealed class MatchIngestionProcess(
 
         public int Skipped { get; private set; }
 
+        public int SkippedWrongQueue { get; private set; }
+
         public int TimelinesUpdated { get; private set; }
 
         public int Errors { get; set; }
@@ -349,11 +362,13 @@ public sealed class MatchIngestionProcess(
 
             Inserted += accountSummary.Inserted;
             Skipped += accountSummary.Skipped;
+            SkippedWrongQueue += accountSummary.SkippedWrongQueue;
             TimelinesUpdated += accountSummary.TimelinesUpdated;
 
             Platform.AccountsProcessed++;
             Platform.MatchesInserted += accountSummary.Inserted;
             Platform.MatchesSkipped += accountSummary.Skipped;
+            Platform.MatchesSkippedWrongQueue += accountSummary.SkippedWrongQueue;
             Platform.TimelinesUpdated += accountSummary.TimelinesUpdated;
         }
     }
@@ -362,6 +377,7 @@ public sealed class MatchIngestionProcess(
         string PlatformId,
         int Inserted,
         int Skipped,
+        int SkippedWrongQueue,
         int TimelinesUpdated,
         bool Validated);
 
@@ -377,6 +393,7 @@ public sealed class MatchIngestionProcess(
         public int TotalValidated { get; set; }
         public int TotalInserted { get; set; }
         public int TotalSkipped { get; set; }
+        public int TotalSkippedWrongQueue { get; set; }
         public int TotalTimelines { get; set; }
         public int TotalErrors { get; set; }
     }
@@ -386,6 +403,7 @@ public sealed class MatchIngestionProcess(
         public int AccountsProcessed { get; set; }
         public int MatchesInserted { get; set; }
         public int MatchesSkipped { get; set; }
+        public int MatchesSkippedWrongQueue { get; set; }
         public int TimelinesUpdated { get; set; }
     }
 }

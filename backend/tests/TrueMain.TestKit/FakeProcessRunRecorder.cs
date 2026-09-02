@@ -29,6 +29,6 @@ public sealed class FakeProcessRunRecorder : IProcessRunRecorder
     public Task HeartbeatAsync(Guid runId, CancellationToken ct)
         => Task.CompletedTask;
 
-    public Task<int> ReconcileOrphanedRunsAsync(CancellationToken ct)
+    public Task<int> ReconcileOrphanedRunsAsync(IReadOnlyCollection<string> processNames, CancellationToken ct)
         => Task.FromResult(0);
 }

@@ -38,6 +38,29 @@ The limiter sits **inside** the resilience handler (a retried attempt waits for 
 replaying into the limit that rejected it) and **outside** the metrics handler (a permit wait is not Riot
 latency). No configuration is needed when the key changes: the limits are learned from the response.
 
+**The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks.**
+The 20 steps were one serial chain, so the Riot key idled through every aggregation and the aggregates waited
+behind ~55 minutes of HTTP; on a Discovery day they were 2.5 hours older than they needed to be. `FetchLane`
+and `AggregateLane` are composite `JobMode`s, exactly like `Full`, so the split reuses the machinery that
+already existed rather than adding a scheduler.
+What makes it safe is that the sequence was never what ordered the work *between* steps: every aggregation
+selects only the matches whose prerequisites hold (`TimelineIngested`, the per-fold flags on `matches`), so a
+fold that runs early finds nothing and picks the rows up next pass. Order *within* a lane is still
+load-bearing — the ban fold must see stamped elo brackets, the timeline prune must not precede the powerspike
+fold — which is why the two lanes preserve the full pipeline's relative order, asserted by a test that also
+pins them as a true partition of it: a step in neither would silently stop running, a step in both would fold
+the same rows twice.
+The one thing the split genuinely broke is orphan-run reconciliation. It abandoned *every* `Running` document
+at boot, on the stated assumption of a single-instance ingestor; with two lanes that means each lane marks the
+other's live run as dead on every restart. It is now scoped to the steps the booting lane actually owns, and
+resolves those names with `GetKeyedService` rather than the required variant — an unregistered step is a
+wiring mistake the run itself reports precisely, and throwing at boot would bury that behind a vaguer error.
+An empty owned-set skips reconciliation rather than sweeping everything, because "I don't know what I own" is
+the one case where a full sweep is certainly wrong.
+**Preprod runs the two lanes; prod stays on `Full` until preprod has.** Nothing about the code forces a
+topology — a single container on `Full` still runs everything in order — so the split is a deployment
+decision, and it is the kind that is cheap to validate on preprod and expensive to get wrong on prod (#1362).
+
 **Match ingestion fans out one worker per platform, and stays sequential inside one.**
 The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained
 allowance — while the other two regional budgets went unused. The fan-out is across routing values because
@@ -2271,6 +2294,49 @@ after the restart, documented in `docs/production-migrations.md`.
 **Both changes only take effect on a Postgres restart.** `shared_buffers` and `shared_preload_libraries` are
 start-up settings. Preprod restarts on the next deploy from `develop`; prod moves only on a published
 release.
+
+## A Riot call that stores nothing is a bug, not a cost (2026-09-02)
+
+Over three days production spent ~77 k successful Riot calls a day, and roughly half the
+`MatchIngestion` half of them produced nothing storable. The rule this PR settles: a call whose response
+cannot become a row is not "budget spent on a low-yield path", it is a defect to fix, and the run summaries
+must be able to show it (#1358, epic #1357).
+
+**Flex ids were fetched, discarded, and re-fetched for ever.** The ids call sent `type=ranked`, which includes
+queue 440, and `MatchSnapshotWriter` filtered on queue 420 *after* paying for the `GET /matches/{id}`. Nothing
+is written for a discarded match, so `ExistingMatchScanner` saw the same id as new on every later claim of
+that account — the waste recurred indefinitely rather than costing one call. The fix is `queue` on the ids
+call, ANDed with `type=ranked` by Riot, sourced from `MainAnalysis:QueueId` rather than a literal so the
+source filter cannot drift from the post-fetch guard, which stays as a safety net.
+
+**The window is bounded by the last ingest.** `startTime` = `LastMatchIngestAtUtc` − 1 h (unset on a first
+ingestion; the hour covers a game that started before the previous claim and ended after it). Without it every
+claim re-listed the same fixed window, which is what made the flex re-fetch recur. `count` is clamped to
+Riot's 1..100, so `MatchIngestion:MatchesPerAccount` stays the single authoritative knob and can be raised to
+100 without a very active main being truncated at 20.
+
+**Freshness gates, not new call paths, are how the crawls stop paying twice.** Discovery's per-entry
+summoner-v4 call only supplies `profileIconId` / `summonerLevel` / `summonerId`, and every apex ladder entry
+has carried its PUUID since #1312 — so for an account stored and synced within `Discovery:ProfileSyncFreshness`
+(7 d) the call is skipped and the entry's own PUUID and rank are used. The same window skips the
+champion-mastery call for a candidate whose rows were written inside it. `AccountRefresh:ProfileSyncFreshness`
+(7 d) is the mirror for account-v1: reaching the head of the refresh queue is not on its own a reason to spend
+a call. Both mirror the shape `AccountRefresh:RankSyncFreshness` already had.
+
+**Two invariants make a skip safe.** A skipped row still gets its `UpdatedAtUtc` stamped, because every bucket
+of `GetAccountsForRefreshAsync` drains oldest-first and an unstamped skip parks the row at the head of the
+queue for ever (the #1223 failure mode). And a skipped call never writes the stamp it would have refreshed:
+`LastProfileSyncAtUtc` is only set by a call that actually happened, otherwise the gate closes permanently on
+a read that never occurred. AccountRefresh's gate additionally never applies to an identity-incomplete row —
+account-v1 is the only writer of `GameName`/`TagLine`.
+
+**The evidence lives in the run summaries, not in a new metrics pipeline.** `matchesSkipped` now means
+"already stored" only, with the discards split out as `matchesSkippedWrongQueue`; Discovery reports
+`profileCallsSkipped` / `masteryCallsSkipped` and AccountRefresh `profileSkippedFresh`. All are appended after
+the existing keys, so a run recorded before the deploy reads as "not measured" rather than as a run that
+skipped nothing. Deliberately **not** done here: recording discarded match ids in a table — with `queue` on
+the ids call there is nothing left to record — and the ManualSeed pacing change, which interacts with the
+candidate-funnel backlog (#1361) and belongs with it.
 
 ## Keeping these files current
 

@@ -25,8 +25,9 @@ public static class IngestorEffectiveConfigurationCatalog
         Title = "Discovery",
         Description =
             "How the apex-ladder crawl finds new accounts to track: tiers scraped, how many "
-            + "per platform per run, and the sliding-window offset that keeps a saturated "
-            + "ladder from re-scanning its own top."
+            + "per platform per run, the sliding-window offset that keeps a saturated ladder "
+            + "from re-scanning its own top, and the profile-sync freshness below which the "
+            + "per-entry summoner-v4 and champion-mastery calls are skipped as redundant."
     };
 
     private static EffectiveConfigurationSectionDescriptor LadderSync { get; } = new()

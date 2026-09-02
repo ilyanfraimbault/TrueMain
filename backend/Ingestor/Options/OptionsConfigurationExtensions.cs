@@ -88,6 +88,8 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.TopChampionsPerAccount > 0, "Discovery:TopChampionsPerAccount must be greater than 0.")
             .Validate(options => options.MaxAccountsPerPlatformPerRun > 0, "Discovery:MaxAccountsPerPlatformPerRun must be greater than 0.")
             .Validate(options => options.SaveBatchSize > 0, "Discovery:SaveBatchSize must be greater than 0.")
+            .Validate(options => options.ProfileSyncFreshness >= TimeSpan.Zero,
+                "Discovery:ProfileSyncFreshness must be >= 00:00:00 (zero disables the skip).")
             .ValidateOnStart();
 
         services.AddOptions<LadderSyncOptions>()
@@ -150,7 +152,10 @@ public static class OptionsConfigurationExtensions
             .Bind(configuration.GetSection(MatchIngestionOptions.SectionName))
             .PostConfigure(options => options.Platforms = platformScope.Resolve(options.Platforms))
             .Validate(options => options.BatchSize > 0, "MatchIngestion:BatchSize must be greater than 0.")
-            .Validate(options => options.MatchesPerAccount > 0, "MatchIngestion:MatchesPerAccount must be greater than 0.")
+            // Upper bound is Riot's own: the ids endpoint rejects count > 100. The client
+            // clamps too, but a configured 500 silently ingesting 100 is worth failing on.
+            .Validate(options => options.MatchesPerAccount is > 0 and <= 100,
+                "MatchIngestion:MatchesPerAccount must be between 1 and 100 (Riot's match-ids count maximum).")
             .Validate(options => options.SaveBatchSizeMatches > 0, "MatchIngestion:SaveBatchSizeMatches must be greater than 0.")
             .Validate(options => options.MaxMatchFetchConcurrency > 0, "MatchIngestion:MaxMatchFetchConcurrency must be greater than 0.")
             .Validate(options => options.ClaimLeaseMinutes > 0, "MatchIngestion:ClaimLeaseMinutes must be greater than 0.")
@@ -193,6 +198,10 @@ public static class OptionsConfigurationExtensions
             .Bind(configuration.GetSection(AccountRefreshOptions.SectionName))
             .Validate(options => options.BatchSize > 0, "AccountRefresh:BatchSize must be greater than 0.")
             .Validate(options => options.SaveBatchSize > 0, "AccountRefresh:SaveBatchSize must be greater than 0.")
+            .Validate(options => options.RankSyncFreshness >= TimeSpan.Zero,
+                "AccountRefresh:RankSyncFreshness must be >= 00:00:00 (zero disables the skip).")
+            .Validate(options => options.ProfileSyncFreshness >= TimeSpan.Zero,
+                "AccountRefresh:ProfileSyncFreshness must be >= 00:00:00 (zero disables the skip).")
             .ValidateOnStart();
 
         services.AddOptions<MatchDataRetentionOptions>()

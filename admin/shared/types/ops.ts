@@ -103,7 +103,8 @@ export interface MatchesIngestedBucket {
   bucket: string
   matchesInserted: number
   /**
-   * Seen and not written (already ingested, or filtered out). Carried because
+   * Seen and not written. Since #1358 that means "already ingested" only — the
+   * off-queue discards became their own counter on the run summary. Carried because
    * inserted-alone cannot tell "nothing to do" from "working hard and storing
    * nothing", which are opposite operational states.
    */
