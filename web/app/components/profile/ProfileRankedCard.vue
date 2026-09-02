@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import type { ProfileRanked } from '~~/shared/types/profile'
 import type { RankHistoryEntry } from '~~/shared/types/rank-history'
-import { formatPercentage } from '~~/shared/utils/ddragon'
 import {
-  formatTier,
   rankScore,
-  tierColor,
   tierHex,
 } from '~/utils/tiers'
 
@@ -20,23 +17,6 @@ const props = withDefaults(defineProps<{
 
 const CHART_HEIGHT = 150
 const DAY_MS = 24 * 60 * 60 * 1000
-
-// ─── Headline ─────────────────────────────────────────────────────────────
-const tierClass = computed(() => tierColor(props.ranked?.tier ?? null))
-const tierLabel = computed(() => {
-  if (!props.ranked) return null
-  return formatTier(props.ranked.tier, props.ranked.division)
-})
-
-const recordLabel = computed(() => {
-  if (!props.ranked) return null
-  const w = props.ranked.wins
-  const l = props.ranked.losses
-  if (w === null && l === null) return null
-  const record = `${w ?? '?'}W – ${l ?? '?'}L`
-  const wr = props.ranked.winRate === null ? null : formatPercentage(props.ranked.winRate, 0)
-  return wr ? `${record} (${wr})` : record
-})
 
 // ─── Chart series ─────────────────────────────────────────────────────────
 // A single continuous series: the rank score at each snapshot.
@@ -233,18 +213,15 @@ const showEmptyChart = computed(
     </h2>
 
     <template v-if="ranked">
-      <div class="flex items-center gap-3">
-        <RankIcon :tier="ranked.tier" :size="48" />
-        <div class="flex min-w-0 flex-col leading-tight">
-          <span class="text-base font-bold tabular-nums" :class="tierClass">
-            {{ tierLabel }}
-            <span class="text-default">{{ ranked.leaguePoints }} LP</span>
-          </span>
-          <span v-if="recordLabel" class="mt-1 text-sm text-muted tabular-nums">
-            {{ recordLabel }}
-          </span>
-        </div>
-      </div>
+      <RankSummary
+        :tier="ranked.tier"
+        :division="ranked.division"
+        :league-points="ranked.leaguePoints"
+        :wins="ranked.wins"
+        :losses="ranked.losses"
+        :win-rate="ranked.winRate"
+        :size="48"
+      />
 
       <div v-if="hasDeltas" class="flex flex-wrap gap-2">
         <span
