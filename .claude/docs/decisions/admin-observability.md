@@ -198,3 +198,28 @@ a bug that does not exist, so the read model carries `measured: false` with the 
 wrote a row on, and the page prints "not measured before *patch*" **in place of** the counts rather than
 beside them. The first-measured patch falls out of the same grouped scan that produces the per-patch numbers,
 so distinguishing the two costs nothing — `PatchCoverageQueryService`, #1033.
+
+## The pipeline chain is drawn per lane, not as one flat list (2026-09-02)
+
+**The chain view groups an iteration's runs by the lane that ran them, and shows each lane at its own newest
+iteration.** The panel was built when a pass ran all 20 steps: it drew `PIPELINE_CHAIN` in full and annotated
+whatever the iteration did not contain as `notRun`. Since #1362 an iteration belongs to *one* lane, so on a
+two-lane deployment every pass painted the other lane's dozen steps as grey "Not run" chips — a claim that is
+simply false, and one that pushed the two lanes into looking like one broken pass. Grouping says the true
+thing instead, and the tree it produces (chain → lane → steps) is also the shape the operator reasons in: the
+lanes are what run concurrently.
+
+Three details. **A `Full` iteration lights up both branches**, so prod's current topology renders under the
+same code path rather than a special case — the branches are the pipeline's shape, not the deployment's.
+**The top block asks for several iterations, not one**: the lanes have different cadences (preprod runs about
+three fetch passes per aggregate pass), so the slower lane's newest iteration sits a few positions down a
+newest-first list, and showing "the newest iteration" would hide whichever lane started earlier. **A branch's
+duration comes from its runs' statuses, not their timestamps** — the API mirrors a running run's start into
+`finishedAtUtc` so the iteration's last-activity stamp advances, so measuring from the timestamps alone
+reports a lane that has been running for minutes as `0ms`.
+
+`PIPELINE_LANES` is a hand-maintained copy of `JobModeSequence`'s two lanes, exactly as `PIPELINE_CHAIN` is
+one of `FullPipeline`, and pinned by the same kind of test — a partition of the chain, in the chain's order.
+The drift is worse than the flat chain's was: a step in neither lane is not misplaced, it stops being drawn
+at all. A run whose process no lane declares therefore still renders, in a trailing branch under its raw
+name — #1399, #1362, #1314.
