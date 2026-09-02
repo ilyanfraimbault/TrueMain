@@ -2,7 +2,6 @@ using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
@@ -50,16 +49,14 @@ public sealed class ChampionPowerspikesQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
     IOptions<ChampionsListOptions> championsOptions,
-    IMemoryCache cache)
+    IChampionReadCache cache)
     : IChampionPowerspikesQueryService
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
-
     // Half-window (minutes) each side of an event for the slope-change spike.
     // Mirrors ChampionPowerspikeAggregationProcess.
     private const int SpikeWindowMinutes = 3;
 
-    public async Task<ChampionPowerspikesResponse> GetAsync(
+    public Task<ChampionPowerspikesResponse> GetAsync(
         int championId,
         string position,
         string? patch,
@@ -71,20 +68,37 @@ public sealed class ChampionPowerspikesQueryService(
     {
         var normalizedPatch = PatchFilter.Normalize(patch);
 
-        // Resolve the elo filter to its bands (null = ALL, no clause); the cache
-        // key carries the bracket so each band caches separately. The global
-        // per-minute sigma stays unfiltered — it is just a normalising scale.
-        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
+        // The key carries the bracket so each band caches separately, plus the build
+        // and opponent the spikes are scoped to; the aggregation version is stamped on
+        // by the cache itself.
         var bracketToken = EloBracket.ResolveToken(eloBracket);
-
         var opponent = opponentChampionId is > 0 ? opponentChampionId.Value : (int?)null;
 
         var cacheKey = $"champions:powerspikes:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}"
             + $":{buildFirstItemId}:{buildKeystoneId}:{opponent?.ToString() ?? "any"}";
-        if (cache.TryGetValue<ChampionPowerspikesResponse>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
+
+        return cache.GetOrComputeAsync(
+            cacheKey,
+            token => ComputeAsync(
+                championId, position, normalizedPatch, eloBracket,
+                buildFirstItemId, buildKeystoneId, opponent, token),
+            ct);
+    }
+
+    private async Task<ChampionPowerspikesResponse> ComputeAsync(
+        int championId,
+        string position,
+        string? normalizedPatch,
+        string? eloBracket,
+        int buildFirstItemId,
+        int buildKeystoneId,
+        int? opponent,
+        CancellationToken ct)
+    {
+        // Resolve the elo filter to its bands (null = ALL, no clause). The global
+        // per-minute sigma stays unfiltered — it is just a normalising scale.
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
+        var bracketToken = EloBracket.ResolveToken(eloBracket);
 
         var queueId = (int)options.Value.QueueId;
         var minGames = championsOptions.Value.MinMatchupGames;
@@ -111,7 +125,6 @@ public sealed class ChampionPowerspikesQueryService(
 
         if (sigmaByMinute.Count == 0)
         {
-            cache.Set(cacheKey, empty, ApiCache.Entry(CacheTtl));
             return empty;
         }
 
@@ -139,7 +152,6 @@ public sealed class ChampionPowerspikesQueryService(
             Events = events
         };
 
-        cache.Set(cacheKey, response, ApiCache.Entry(CacheTtl));
         return response;
     }
 

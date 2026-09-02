@@ -40,7 +40,6 @@ public sealed class CompositionMatchQueryService(
         // stored on matches.
         var queueId = (int)analysisOptions.Value.QueueId;
         var normalizedPatch = PatchFilter.Normalize(criteria.Patch);
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
 
         var bands = EloBracket.ResolveFilterOrEmpty(criteria.EloBracket);
 
@@ -60,7 +59,7 @@ public sealed class CompositionMatchQueryService(
             .Join(
                 db.Matches.Where(m =>
                     m.QueueId == queueId
-                    && (patchPrefix == null || EF.Functions.Like(m.GameVersion, patchPrefix))),
+                    && (normalizedPatch == null || m.Patch == normalizedPatch)),
                 p => p.MatchId,
                 m => m.Id,
                 (p, m) => new { p.MatchId, p.ParticipantId, p.TeamId, p.Win, p.Puuid, m.GameStartTimeUtc })

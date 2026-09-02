@@ -18,9 +18,9 @@ RUN mkdir -p /home/app/crashes && chown app:app /home/app/crashes
 USER app
 
 ENV INGESTOR_HEARTBEAT_PATH=/tmp/ingestor-heartbeat
-HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
     CMD test -f "$INGESTOR_HEARTBEAT_PATH" \
-        && test "$(($(date +%s) - $(stat -c %Y "$INGESTOR_HEARTBEAT_PATH")))" -lt 21600 \
+        && test "$(($(date +%s) - $(stat -c %Y "$INGESTOR_HEARTBEAT_PATH")))" -lt 300 \
         || exit 1
 
 ENTRYPOINT ["dotnet", "Ingestor.dll"]

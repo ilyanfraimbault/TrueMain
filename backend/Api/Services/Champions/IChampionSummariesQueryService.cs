@@ -16,9 +16,13 @@ public interface IChampionSummariesQueryService
     ///
     /// <paramref name="eloBracket"/> is a cumulative "X+" threshold (see
     /// <see cref="Core.Lol.Ranking.EloBracket"/>); null / ALL spans every band.
+    ///
+    /// <paramref name="truemainsOnly"/> selects the population: mains of each
+    /// champion (the default, and the only population the aggregate held before
+    /// #1346) or every tracked player with games on it.
     /// </summary>
     Task<ChampionSummariesResult> GetAllSummariesAsync(
-        string? patch, string? eloBracket, CancellationToken ct);
+        string? patch, string? eloBracket, bool truemainsOnly, CancellationToken ct);
 
     /// <summary>
     /// Every aggregated game on the tracked queue, all patches summed — the homepage's

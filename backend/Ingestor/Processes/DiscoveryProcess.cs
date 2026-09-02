@@ -142,8 +142,15 @@ public sealed class DiscoveryProcess(
             ? await session.DiscoveryCursors.GetOffsetAsync(platformId, ct) ?? 0
             : 0;
 
-        var result = await ladderDiscoveryService.DiscoverSummonersAsync(platform, options, offset, ct);
+        var freshSinceUtc = timeProvider.GetUtcNow().UtcDateTime - options.ProfileSyncFreshness;
+        var result = await ladderDiscoveryService.DiscoverSummonersAsync(
+            platform,
+            options,
+            offset,
+            (puuids, token) => ProbeProfileFreshnessAsync(session, puuids, freshSinceUtc, token),
+            ct);
         var discovered = result.Discovered;
+        summary.ProfileCallsSkipped = result.ProfileCallsSkipped;
 
         // Advance the cursor past this window for the next run, wrapping at the ladder
         // end. Written immediately by its own upsert statement, independently of the
@@ -183,79 +190,121 @@ public sealed class DiscoveryProcess(
         var saveBatchSize = Math.Max(1, options.SaveBatchSize);
         var newAccountsTarget = Math.Max(0, options.NewAccountsTarget);
 
-        var latestByAccountId = await PreloadLatestSnapshotsAsync(session, platformId, discovered, ct);
-
-        var pendingChanges = 0;
         var discoveredAccounts = 0;
 
-        foreach (var item in discovered)
+        // Walk the window in save-sized slices, each with its own preload / save /
+        // tracker drain. The whole window used to run on one accumulating change
+        // tracker across hundreds of Riot round-trips (#1229), so every SaveChanges
+        // re-ran DetectChanges over every entity the platform had touched so far.
+        // The preload moves inside the slice for that to be safe: the rank snapshots
+        // it returns are TRACKED and mutated in place by RankSnapshotWriter, so a
+        // tracker drain under a window-wide preload would silently swallow the rank
+        // updates of every later slice.
+        for (var offsetInWindow = 0; offsetInWindow < discovered.Count; offsetInWindow += saveBatchSize)
         {
-            ct.ThrowIfCancellationRequested();
+            var slice = discovered.Skip(offsetInWindow).Take(saveBatchSize).ToList();
+            var latestByAccountId = await PreloadLatestSnapshotsAsync(session, platformId, slice, ct);
 
-            var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-            var upsertResult = await accountUpsertService.UpsertAsync(session, platform, item.Summoner, nowUtc, ct);
-            if (upsertResult.IsNew)
-            {
-                discoveredAccounts++;
-                summary.NewAccountsDiscovered++;
-            }
+            // Same idea as the profile gate, one query per slice: an account whose candidate
+            // rows were written within the freshness window would have its masteries re-read
+            // for nothing (#1358).
+            var masteryFreshPuuids = options.ProfileSyncFreshness > TimeSpan.Zero
+                ? await session.MainCandidates.GetPuuidsWithCandidatesSeenSinceAsync(
+                    platformId,
+                    slice.Select(item => item.Summoner.Puuid).ToList(),
+                    freshSinceUtc,
+                    ct)
+                : new HashSet<string>(StringComparer.Ordinal);
 
-            if (item.Rank is not null)
+            var reachedTarget = false;
+
+            foreach (var item in slice)
             {
-                latestByAccountId.TryGetValue(upsertResult.Account.Id, out var latest);
-                var outcome = rankSnapshotWriter.Ingest(session, upsertResult.Account, item.Rank, latest, nowUtc);
-                switch (outcome)
+                ct.ThrowIfCancellationRequested();
+
+                var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+                var upsertResult = await accountUpsertService.UpsertAsync(
+                    session, platform, item.Summoner, nowUtc, ct, item.ProfileResolved);
+                if (upsertResult.IsNew)
                 {
-                    case RankSnapshotOutcome.Inserted:
-                        summary.RankSnapshotsInserted++;
-                        break;
-                    case RankSnapshotOutcome.Updated:
-                        summary.RankSnapshotsUpdated++;
-                        break;
-                    default:
-                        summary.RankSnapshotsUnchanged++;
-                        break;
+                    discoveredAccounts++;
+                    summary.NewAccountsDiscovered++;
+                }
+
+                if (item.Rank is not null)
+                {
+                    latestByAccountId.TryGetValue(upsertResult.Account.Id, out var latest);
+                    var outcome = rankSnapshotWriter.Ingest(session, upsertResult.Account, item.Rank, latest, nowUtc);
+                    switch (outcome)
+                    {
+                        case RankSnapshotOutcome.Inserted:
+                            summary.RankSnapshotsInserted++;
+                            break;
+                        case RankSnapshotOutcome.Updated:
+                            summary.RankSnapshotsUpdated++;
+                            break;
+                        default:
+                            summary.RankSnapshotsUnchanged++;
+                            break;
+                    }
+                }
+
+                if (masteryFreshPuuids.Contains(item.Summoner.Puuid))
+                {
+                    summary.MasteryCallsSkipped++;
+                }
+                else
+                {
+                    var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, item.Summoner.Puuid, ct);
+                    var candidateResult = await candidateUpsertService.UpsertAsync(
+                        session,
+                        platformId,
+                        item.Summoner.Puuid,
+                        masteries,
+                        options,
+                        nowUtc,
+                        ct);
+
+                    summary.CandidatesInserted += candidateResult.Inserted;
+                    summary.CandidatesUpdated += candidateResult.Updated;
+                }
+
+                summary.AccountsProcessed++;
+
+                if (newAccountsTarget > 0 && discoveredAccounts >= newAccountsTarget)
+                {
+                    logger.LogInformation(
+                        "Discovery reached new accounts target ({Target}) for platform {Platform}. Stopping early.",
+                        newAccountsTarget,
+                        platformId);
+                    reachedTarget = true;
+                    break;
                 }
             }
 
-            var masteries = await riotPlatformClient.GetChampionMasteriesAsync(platform, item.Summoner.Puuid, ct);
-            var candidateResult = await candidateUpsertService.UpsertAsync(
-                session,
-                platformId,
-                item.Summoner.Puuid,
-                masteries,
-                options,
-                nowUtc,
-                ct);
+            await session.SaveChangesAsync(ct);
+            session.ClearTracking();
 
-            summary.AccountsProcessed++;
-            summary.CandidatesInserted += candidateResult.Inserted;
-            summary.CandidatesUpdated += candidateResult.Updated;
-
-            pendingChanges++;
-            if (pendingChanges >= saveBatchSize)
+            if (reachedTarget)
             {
-                await session.SaveChangesAsync(ct);
-                pendingChanges = 0;
-            }
-
-            if (newAccountsTarget > 0 && discoveredAccounts >= newAccountsTarget)
-            {
-                logger.LogInformation(
-                    "Discovery reached new accounts target ({Target}) for platform {Platform}. Stopping early.",
-                    newAccountsTarget,
-                    platformId);
                 break;
             }
         }
 
-        if (pendingChanges > 0)
-        {
-            await session.SaveChangesAsync(ct);
-        }
-
         return summary;
     }
+
+    /// <summary>
+    /// The <see cref="ProfileFreshnessProbe"/> handed to the crawl: which of the window's
+    /// PUUIDs are already stored with a profile synced since <paramref name="freshSinceUtc"/>
+    /// (#1358). One query for the window, on the session the platform pass already owns.
+    /// </summary>
+    private static async Task<IReadOnlySet<string>> ProbeProfileFreshnessAsync(
+        IDataSession session,
+        IReadOnlyCollection<string> puuids,
+        DateTime freshSinceUtc,
+        CancellationToken ct)
+        => await session.RiotAccounts.GetProfileFreshPuuidsAsync(puuids, freshSinceUtc, ct);
 
     private static async Task<Dictionary<Guid, RankSnapshot>> PreloadLatestSnapshotsAsync(
         IDataSession session,
@@ -290,7 +339,7 @@ public sealed class DiscoveryProcess(
         // operator can follow ladder-discovery throughput from /ops/logs.
         logger.LogInformation(
             OpsEvents.DiscoveryCycleCompleted,
-            "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, rankSnapshotsInserted={RankInserted}, rankSnapshotsUpdated={RankUpdated}, rankSnapshotsUnchanged={RankUnchanged}.",
+            "Discovery summary for {Platform}: accounts={AccountsProcessed}, newAccounts={NewAccounts}, candidatesInserted={Inserted}, candidatesUpdated={Updated}, rankSnapshotsInserted={RankInserted}, rankSnapshotsUpdated={RankUpdated}, rankSnapshotsUnchanged={RankUnchanged}, profileCallsSkipped={ProfileCallsSkipped}, masteryCallsSkipped={MasteryCallsSkipped}.",
             platformSummary.PlatformId,
             platformSummary.AccountsProcessed,
             platformSummary.NewAccountsDiscovered,
@@ -298,7 +347,9 @@ public sealed class DiscoveryProcess(
             platformSummary.CandidatesUpdated,
             platformSummary.RankSnapshotsInserted,
             platformSummary.RankSnapshotsUpdated,
-            platformSummary.RankSnapshotsUnchanged);
+            platformSummary.RankSnapshotsUnchanged,
+            platformSummary.ProfileCallsSkipped,
+            platformSummary.MasteryCallsSkipped);
     }
 
     private static DiscoverySummary BuildSuccessPayload(IEnumerable<PlatformSummary> summaries)
@@ -315,7 +366,9 @@ public sealed class DiscoveryProcess(
                 summary.RankSnapshotsUnchanged,
                 // Null for platforms that completed; the per-platform error message
                 // otherwise, so a partially failed run says which platform failed and why.
-                summary.FailureReason))
+                summary.FailureReason,
+                summary.ProfileCallsSkipped,
+                summary.MasteryCallsSkipped))
             .ToList());
     }
 
@@ -329,6 +382,8 @@ public sealed class DiscoveryProcess(
         public int RankSnapshotsInserted { get; set; }
         public int RankSnapshotsUpdated { get; set; }
         public int RankSnapshotsUnchanged { get; set; }
+        public int ProfileCallsSkipped { get; set; }
+        public int MasteryCallsSkipped { get; set; }
         public string? FailureReason { get; init; }
     }
 }

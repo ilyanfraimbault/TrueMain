@@ -15,6 +15,7 @@ namespace TrueMain.IntegrationTests;
 public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
 {
     private const int QueueId = 420;
+    private const string TrackedPuuid = "spike-main-puuid";
     private const int Champion = 157; // Yone
     private const int Opponent = 238; // Zed
     private const string Position = "MIDDLE";
@@ -250,9 +251,14 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
         var account = new RiotAccountBuilder()
             .WithGameName("SpikeMain")
             .WithTagLine("KR1")
-            .WithPuuid("spike-main-puuid")
+            .WithPuuid(TrackedPuuid)
             .Build();
         db.RiotAccounts.Add(account);
+
+        // The champion side of a curve is a main of that champion (ChampionCohort,
+        // #1365); without this row the corpus produces no spikes at all.
+        db.MainChampionStats.Add(
+            MainChampionStatSeed.Row(account.PlatformId, TrackedPuuid, Champion, Position));
 
         // The keystone the build key is resolved from: index 0 of the primary tree.
         db.PerkSelectionCatalogs.Add(new PerkSelectionCatalog
@@ -275,7 +281,8 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
                 .Build());
 
             db.MatchParticipants.Add(Participant(matchId, participantId: 1, Champion, teamId: 100,
-                riotAccountId: account.Id, coreItem: true, purchaseMs: ItemPurchaseMinute * 60_000));
+                riotAccountId: account.Id, coreItem: true, purchaseMs: ItemPurchaseMinute * 60_000,
+                puuid: TrackedPuuid));
             db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
             {
                 Id = Guid.NewGuid(),
@@ -333,12 +340,14 @@ public sealed class ChampionPowerspikeAggregationProcessIntegrationTests
 
     private static MatchParticipant Participant(
         string matchId, int participantId, int championId, int teamId,
-        Guid? riotAccountId, bool coreItem, int? purchaseMs)
+        Guid? riotAccountId, bool coreItem, int? purchaseMs, string? puuid = null)
         => new()
         {
             MatchId = matchId,
             ParticipantId = participantId,
-            Puuid = $"puuid-{matchId}-{participantId}",
+            // The tracked seat carries the account's own puuid, because the cohort join
+            // is on (platform, puuid, champion) — a per-row puuid would match no main.
+            Puuid = puuid ?? $"puuid-{matchId}-{participantId}",
             RiotAccountId = riotAccountId,
             SummonerName = "seed",
             SummonerLevel = 100,

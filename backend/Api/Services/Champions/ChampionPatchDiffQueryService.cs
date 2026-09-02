@@ -20,10 +20,24 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionPatchDiffQueryService(
     TrueMainDbContext db,
     IChampionBuildsQueryService buildsQueryService,
-    IOptions<MainAnalysisOptions> options)
+    IOptions<MainAnalysisOptions> options,
+    IChampionReadCache cache)
     : IChampionPatchDiffQueryService
 {
-    public async Task<ChampionPatchDiffReadModel> GetDiffAsync(
+    public Task<ChampionPatchDiffReadModel> GetDiffAsync(
+        int championId,
+        string? fromPatch,
+        string? toPatch,
+        string? position,
+        CancellationToken ct)
+        // The controller has already normalised both patches and the position, so the
+        // key space is the set of real patches, not arbitrary caller text.
+        => cache.GetOrComputeAsync(
+            $"champions:patch-diff:{championId}:{fromPatch ?? "auto"}:{toPatch ?? "auto"}:{position ?? "auto"}",
+            token => ComputeDiffAsync(championId, fromPatch, toPatch, position, token),
+            ct);
+
+    private async Task<ChampionPatchDiffReadModel> ComputeDiffAsync(
         int championId,
         string? fromPatch,
         string? toPatch,
@@ -42,6 +56,9 @@ public sealed class ChampionPatchDiffQueryService(
             .AsNoTracking()
             .Where(scope => scope.ChampionId == championId && scope.QueueId == queueId)
             .Where(scope => scope.Position.Trim() != string.Empty)
+            // Mains only, the population this read has always described (#1346
+            // added the non-main rows; every pre-existing read keeps its meaning).
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => new { scope.GameVersion, scope.Position })
             .Select(group => new ScopeRow(group.Key.GameVersion, group.Key.Position, group.Sum(s => s.Games)))
             .ToListAsync(ct);

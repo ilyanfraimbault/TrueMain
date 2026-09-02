@@ -54,7 +54,7 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         return Task.CompletedTask;
     }
 
-    public Task<int> AbandonRunningAsync(DateTime finishedAtUtc, string error, CancellationToken ct)
+    public Task<int> AbandonRunningAsync(DateTime finishedAtUtc, string error, IReadOnlyCollection<string> processNames, CancellationToken ct)
     {
         var running = Runs.Where(run => run.Status == ProcessRunStatus.Running).ToList();
         foreach (var run in running)

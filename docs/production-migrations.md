@@ -135,6 +135,35 @@ below), so the actual `migrate` job of the rollout pipes the script
 into `psql` inside the running container over SSH instead — same
 `--single-transaction` flag, different transport.
 
+### A migration that depends on a server setting runs before the setting exists
+
+`migrate-preprod` / `migrate-prod` deliberately run **before** the deploy job rolls
+the images, so the script always meets the *previous* server. A migration whose
+statement depends on a setting introduced by the same PR therefore runs against a
+server that does not have it yet, and — because EF stamps
+`__EFMigrationsHistory` regardless — it is never retried.
+
+`20260902141349_EnablePgStatStatements` is the case in point (#1366). It creates the
+`pg_stat_statements` extension, which requires
+`shared_preload_libraries=pg_stat_statements`, added to the compose files in the same
+PR and only effective after the Postgres container restarts. The migration catches
+the failure and raises a `NOTICE` rather than breaking the chain, which is the right
+behaviour for every database that will never carry the preload (a developer's local
+server, the `migrate-fresh` container, a restored dump) — but it does mean the
+extension does not appear on its own.
+
+So on each environment, **once**, after the deploy that restarts Postgres:
+
+```bash
+docker exec -i <postgres-container> psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements;'
+docker exec -i <postgres-container> psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "SELECT count(*) FROM pg_stat_statements;"
+```
+
+The general rule: when a migration depends on a server setting shipped alongside it,
+expect to apply it by hand after the restart, and say so in the PR.
+
 ## CI wiring
 
 Both `deploy-preprod.yml` (on every push to `develop`) and `deploy-prod.yml`

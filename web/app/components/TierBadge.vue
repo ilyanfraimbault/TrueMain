@@ -20,35 +20,29 @@ const props = defineProps<{
 }>()
 
 // Static per-letter class strings so Tailwind's scanner can see every
-// `bg-tier-*` utility it must generate — a computed `bg-tier-${x}` would be
-// invisible to the static scan and render as an unstyled pill. Colours come
+// `text-tier-*` utility it must generate — a computed `text-tier-${x}` would
+// be invisible to the static scan and render as unstyled text. Colours come
 // from the --color-tier-* tokens in main.css.
-//
-// The letter is `ink-950` on every tier, not `text-inverted`: the fills run
-// from rose gold to iron, all of them light enough to need dark ink,
-// and `inverted` is a theme token that would flip if a light mode ever returned
-// — while these fills would not.
 const TIER_CLASS: Record<string, string> = {
-  S: 'bg-tier-s text-ink-950',
-  A: 'bg-tier-a text-ink-950',
-  B: 'bg-tier-b text-ink-950',
-  C: 'bg-tier-c text-ink-950',
-  D: 'bg-tier-d text-ink-950',
+  S: 'text-tier-s',
+  A: 'text-tier-a',
+  B: 'text-tier-b',
+  C: 'text-tier-c',
+  D: 'text-tier-d',
 }
 
 const normalized = computed(() => props.tier?.toUpperCase() ?? '')
 const isKnown = computed(() => normalized.value in TIER_CLASS)
-// Unknown / empty tiers (e.g. a row that predates tiering) stay an outlined
-// muted dash rather than a filled pill — an unmeasured tier must not read as
-// loudly as a measured one.
-const colorClass = computed(() =>
-  TIER_CLASS[normalized.value] ?? 'text-muted ring-1 ring-inset ring-accented')
+// Unknown / empty tiers (e.g. a row that predates tiering) stay a muted dash
+// rather than a coloured letter — an unmeasured tier must not read as loudly
+// as a measured one.
+const colorClass = computed(() => TIER_CLASS[normalized.value] ?? 'text-muted')
 const label = computed(() => (isKnown.value ? normalized.value : '–'))
 </script>
 
 <template>
   <span
-    class="inline-flex h-6 min-w-7 items-center justify-center rounded-md px-1.5 font-mono text-sm font-bold leading-none tabular-nums"
+    class="inline-flex h-6 min-w-7 items-center justify-center font-mono text-sm font-bold leading-none tabular-nums"
     :class="colorClass"
     :aria-label="isKnown ? `Tier ${normalized}` : 'Tier unknown'"
   >

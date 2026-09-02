@@ -37,17 +37,28 @@ interface EloItem {
   tier: string | null
 }
 
+// Highest rank first: the list reads Challenger down to Iron, because that is
+// the direction players think about the ladder and the top of it is where the
+// page now opens (Master+). `ELO_TIERS` is stored ascending to mirror the
+// backend's own `Ladder` (position there defines "and above"), so the tier
+// entries are built in that order and reversed as a block — which keeps each
+// tier paired with its own "+" instead of scattering them.
 const items = computed<EloItem[]>(() => {
-  const options: EloItem[] = [
-    { label: eloBracketLabel(ELO_BRACKET_ALL), value: ELO_BRACKET_ALL, tier: null },
-  ]
+  const tiers: EloItem[] = []
   for (const tier of ELO_TIERS) {
-    options.push({ label: eloBracketLabel(tierOnly(tier)), value: tierOnly(tier), tier })
+    tiers.push({ label: eloBracketLabel(tierOnly(tier)), value: tierOnly(tier), tier })
     if (hasPlus(tier)) {
-      options.push({ label: eloBracketLabel(tierPlus(tier)), value: tierPlus(tier), tier })
+      tiers.push({ label: eloBracketLabel(tierPlus(tier)), value: tierPlus(tier), tier })
     }
   }
-  return options
+  tiers.reverse()
+
+  // "All ranks" stays pinned above the ladder — it is the escape hatch, not a
+  // rung on it.
+  return [
+    { label: eloBracketLabel(ELO_BRACKET_ALL), value: ELO_BRACKET_ALL, tier: null },
+    ...tiers,
+  ]
 })
 
 // Emblem for the trigger reflects the selected bracket; the "+" forms share

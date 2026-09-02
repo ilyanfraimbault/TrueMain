@@ -9,11 +9,186 @@ Last verified against `develop` on 2026-07-28.
 
 ---
 
+## Ingestion
+
+**Riot calls are paced by a limiter keyed on the routing value, because that is the grain Riot enforces.**
+The standard resilience handler's "rate limiter" strategy is a *concurrency bulkhead*, not a request-rate
+limiter, so until #1359 nothing bounded the outbound rate: pacing was reactive, discovered by taking a 429 and
+honouring `Retry-After`. Production was taking ~1 000-1 300 of them a day. The limiter (`Ingestor/Riot/RateLimiting/`)
+keeps one budget per Riot routing value — `europe`/`americas`/`asia` for the regional APIs, `euw1`/`kr`/`na1`
+for the platform ones — which is what Riot actually meters; a single global budget would have throttled the
+process to one region's allowance while the others idled.
+Four consequences worth stating, because each is a place where the obvious implementation is wrong.
+**The window is sliding where Riot's is fixed.** Riot resets on a wall-clock boundary we cannot observe, so a
+fixed window of our own would straddle theirs and take a 429 on the seam; a sliding window forbids a superset
+of what theirs does, at the cost of a little unused headroom right after a reset.
+**Riot's advertised header replaces our limits, it does not merge with them.** The header states the complete
+budget, so merging would leave the configured guess (a personal key's `20:1,100:120`) in force behind a
+production key that allows far more — and the tighter of the two always wins, which would silently cap the
+throughput the new key was obtained for. Windows whose duration survives keep their counters, so adopting a
+limit never forgets what has already been spent, and a header that parses to nothing changes nothing.
+**A 429 with no `X-Rate-Limit-Type` penalises the whole routing value, not the endpoint.** Riot omits the type
+when the throttle came from the underlying service; attributing that narrowly would keep hammering whatever is
+actually exhausted.
+**Acquisition is serialized per routing value.** The budget is a property of the routing value, so "may I send
+now" has to be decided one caller at a time to stay correct. It costs nothing: the sustained personal-key
+allowance is under one request per second per region, and regions never wait on each other — which is the
+whole point.
+**The two halves of the limiter sit on opposite sides of the resilience handler.** The first attempt put both
+inside it, reasoning that a retried attempt should wait for its own permit. Preprod disproved that within an
+hour of the deploy: inside the resilience pipeline, the wait for a permit is charged to the **10-second
+per-attempt timeout**, and a legitimate wait on a 100-per-2-minutes window is routinely longer than that. The
+attempt was cancelled on the queue rather than on the network, retried into the same queue, and the account's
+whole ingestion failed with a `TimeoutRejectedException` raised from the limiter's own `Task.Delay`.
+So **waiting happens outside** the resilience handler, bounded by `HttpClient.Timeout` (sized above the total
+request budget), and **observing happens inside** it, where it still sees every physical attempt — including
+the 429s the retry strategy absorbs, which are exactly the responses carrying the `Retry-After` the next
+acquisition must honour. The cost of the split is that the limiter charges one permit per *logical* request
+rather than per attempt; Riot's own `X-App-Rate-Limit-Count` on the way back is what corrects the count, which
+is what that header is for. The metrics handler stays innermost, so a permit wait is never recorded as Riot
+latency, and the Riot clients' `HttpClient.Timeout` is sized to cover the wait *and* the pipeline beneath it —
+sized for the pipeline alone, a long-but-legitimate wait followed by a slow pipeline would trip it and surface
+as the same opaque `TaskCanceledException` #855 fixed one layer in. A single wait is itself bounded by
+`RiotRateLimit:MaxPermitWaitSeconds`: past that ceiling the call is sent anyway, because a wait that long means
+our model and Riot's have diverged, and a 429's count headers resynchronise the window where an unbounded wait
+would just stall the pipeline behind one call. No configuration is needed when the key changes: the limits are
+learned from the response.
+
+**The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks.**
+The 20 steps were one serial chain, so the Riot key idled through every aggregation and the aggregates waited
+behind ~55 minutes of HTTP; on a Discovery day they were 2.5 hours older than they needed to be. `FetchLane`
+and `AggregateLane` are composite `JobMode`s, exactly like `Full`, so the split reuses the machinery that
+already existed rather than adding a scheduler.
+What makes it safe is that the sequence was never what ordered the work *between* steps: every aggregation
+selects only the matches whose prerequisites hold (`TimelineIngested`, the per-fold flags on `matches`), so a
+fold that runs early finds nothing and picks the rows up next pass. Order *within* a lane is still
+load-bearing — the ban fold must see stamped elo brackets, the timeline prune must not precede the powerspike
+fold — which is why the two lanes preserve the full pipeline's relative order, asserted by a test that also
+pins them as a true partition of it: a step in neither would silently stop running, a step in both would fold
+the same rows twice.
+The one thing the split genuinely broke is orphan-run reconciliation. It abandoned *every* `Running` document
+at boot, on the stated assumption of a single-instance ingestor; with two lanes that means each lane marks the
+other's live run as dead on every restart. It is now scoped to the steps the booting lane actually owns, and
+resolves those names with `GetKeyedService` rather than the required variant — an unregistered step is a
+wiring mistake the run itself reports precisely, and throwing at boot would bury that behind a vaguer error.
+An empty owned-set skips reconciliation rather than sweeping everything, because "I don't know what I own" is
+the one case where a full sweep is certainly wrong.
+**Preprod runs the two lanes; prod stays on `Full` until preprod has.** Nothing about the code forces a
+topology — a single container on `Full` still runs everything in order — so the split is a deployment
+decision, and it is the kind that is cheap to validate on preprod and expensive to get wrong on prod (#1362).
+**The claim orders by games played since the last visit, not by how long ago that visit was.**
+Ordering by `LastMatchIngestAtUtc` alone spent the batch on whoever had waited longest, whether or not they
+had played. On production that meant a **27-day median revisit** against a 20-game fetch window, so any main
+playing more than ~0.7 games a day was losing games between visits — and the players who play most are exactly
+the signal the site is built on. Meanwhile a third of every batch went to accounts that had played nothing.
+The fix costs no Riot calls, because the answer was already being paid for: `LadderSync` reads ~94 k ladder
+entries per run for ~310 calls and already refreshes wins/losses for every tracked Emerald+ account.
+`riot_accounts.LadderGames` denormalises that sum, `LadderGamesAtLastIngest` records what it was when the
+account was last ingested, and the difference is what the claim sorts on.
+Three details that are not arbitrary. **The count is refreshed on the `Unchanged` snapshot path too** — a win
+and a loss return to the same LP, and those are precisely the games that would otherwise go unnoticed. **The
+baseline is reset inside the same statement that stamps `LastMatchIngestAtUtc`**, or the account would read as
+freshly visited while still owing every game it owed before, and come straight back at the head of the next
+batch. **An account with no ladder reading keeps the old age ordering** rather than sinking behind everything
+that has one: below the swept tiers there is no signal, and a zero owed must not be read as "up to date".
+**The same difference sizes the match-ids request**, so a fixed window stops truncating whoever plays most:
+`count` widens to owed + a small drift margin, capped at Riot's 100, with `MatchesPerAccount` as the floor.
+It costs nothing — the ids endpoint is one call whatever the count. The rule lives in `LadderGamesOwed.From`
+because two callers apply it; the claim necessarily restates it as an expression tree, which the call site
+says out loud.
+**A missing baseline yields zero, not the whole season.** An account ingested before the columns existed has
+no value to subtract, and reading the absence as zero would report a career's games as owed — after the
+deploy that is every tracked account at once, which would order the pool by career volume rather than by
+recent activity until each had been visited once.
+**The difference is floored at zero**, because a Riot season reset restarts wins/losses from the bottom: the
+raw subtraction then goes negative for every account at once and would sort the whole active pool behind the
+accounts that owe nothing. It would self-heal on the next ingest — but "self-heal" there means a full sweep of
+the pool, which is the very thing this ordering exists to avoid needing.
+The count is denormalised onto the account rather than joined from `rank_snapshots` because it exists to sit
+in an `ORDER BY` over the claimable set — a lateral join to each account's newest snapshot is the one query
+the claim cannot afford to run per candidate row (#1360).
+
+**Match ingestion fans out one worker per platform, and stays sequential inside one.**
+The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained
+allowance — while the other two regional budgets went unused. The fan-out is across routing values because
+that is the grain of the budget; going wider *within* a platform would only queue behind the limiter that now
+governs it, while adding contention on the same claim rows. Every collaborator it fans out to is stateless or
+opens its own `DbContext` per account, so the only shared mutable state is the per-worker tally, merged in
+platform order once the workers finish — the run summary is read by humans comparing one cycle to the next,
+so a non-deterministic merge order would be a regression in its own right. A platform's failure stays its
+own: the per-account catch was already there, and the result being local is what stops one bad account from
+costing the other regions.
+
 ## Product
 
-**Stats are computed from *true mains* only, not from every game on a champion.**
-Averaging all games drowns the specialist signal. A player is promoted to "true main" through a
-games-vs-mastery investment signal. This is the thesis of the site — `README.md`.
+**Stats are computed from *true mains* by default, and that default is now a filter rather than the
+pipeline's only setting.** Averaging all games drowns the specialist signal. A player is promoted to
+"true main" through a games-vs-mastery investment signal. This is the thesis of the site — `README.md`.
+Until #1346 it was also a hard filter at ingest (`where stat.IsMain` in the source-row reader), so the
+aggregate physically could not answer "what does everyone build". It now carries both populations and the
+reads choose; the thesis is unchanged, it is just no longer enforced by absence of data.
+
+**The champion pages open on Master+, not on every rank** (#1346). "All ranks" was never a skew in
+practice — production is already 82% Diamond-and-above, and Master+ alone is ~72% of the games on the live
+patch — but a blended average across every tier is the one thing the site exists not to serve, and opening
+on it made the promise depend on a filter the reader had to find. Measured before switching: every one of
+the 173 champions clears the build sample floor on its dominant position but two, and those two fall back
+to the existing thin-sample warning rather than an empty page. The default is **per page**, not global: the
+player-scoped champion page passes `ELO_BRACKET_ALL`, because its scope is already one account and
+re-slicing that by rank empties the build of any truemain below Master.
+
+**The truemains population is one boolean on the scope row, not a duplicated aggregate** (#1346).
+A scope is keyed on (account, champion, platform) — exactly `main_champion_stats`' own key — so main-ness
+cannot vary inside one row. That is what lets the filter be `WHERE "IsMain"` over a single population where
+the unfiltered read is the superset, instead of storing the mains twice. The flag is frozen with the rest of
+the slice: it records what the account was when the aggregate was built, like every other number on the row.
+
+**The patch the site serves is resolved over mains only, never over the selected population** (#1349).
+`ResolveActivePatchAsync` and the two reads behind it (`LoadPatchesNewestFirstAsync`,
+`LoadLinesPastFloorAsync`) were missed by #1346's audit. They are pinned to mains for the same reason they
+carry no elo clause — changing a filter must not move the patch the whole site serves — and for a second one:
+`MinServablePatchLines` is #1109's anti-thin-patch floor, and a patch clearing it on non-main volume would be
+served to the default, mains-only directory while its truemain sample is still too thin to show.
+
+**Widening the aggregate meant auditing every existing read, because the dangerous direction is silent.**
+Adding rows to a table that ~16 call sites already read means each of them quietly changes meaning the day
+re-aggregation runs — the truemains leaderboard would count a player's off-main games, dedication would
+measure a career the player never had, the homepage's "games analysed" chip would quadruple overnight. So
+every pre-existing read states its population explicitly and keeps mains-only; only the three surfaces the
+toggle drives (champion builds, the directory, the tier list) take the parameter. The exceptions are the
+table-health reads in `Ops` (row counts, impossible-total detectors), which describe the table itself and
+must see all of it. A default of `truemainsOnly: true` on the shared `WhereChampionScope` makes the safe
+choice the one you get by saying nothing.
+
+**The widened population is gated on a flag, because "a separate ops step" was not true otherwise**
+(#1346, #1349). `ChampionPatternAggregationProcess` sits in `JobModeSequence.FullPipeline`, which the worker
+runs continuously — so dropping the `IsMain` filter at the source did not create an ops decision, it created
+a change that lands on the next cycle after a deploy. On production that is ~4.3x the source rows (438k →
+1.87M) on the one process that once reached ~6 GB of managed heap and got OOM-killed with the VPS attached
+(#601), whose per-champion chunking has never been measured at that volume. `MainAnalysis:AggregateNonMainPopulation`
+(default **false**) is that gate: while it is off the pipeline folds mains only, exactly as before, and the
+truemains toggle's "everyone" state returns the same rows as "truemains". Reads never branch on it — they
+filter on the persisted flag, which is simply always `true` until someone turns the gate on.
+
+**A demoted account's scopes are demoted, not deleted — once the widening is on** (#1346). The pipeline used to filter on `IsMain` at
+the source, so an account that stopped being a main of a champion simply stopped producing rows and its
+aggregates were purged on the next run. They now survive with `IsMain = false`. The guarantee that purge was
+protecting — a demoted account's games stop counting towards the champion's truemain build — is unchanged; it
+is the read's job now rather than the writer's.
+
+**Matchups reject the widened population rather than ignoring it** (#1346). The matchup slice is folded from
+an aggregate whose champion side is mains-only (#1087), so "everyone" is not an answer it can give.
+`?truemainsOnly=false` combined with `?opponentChampionId=` is a 400, for the same reason a matchup without a
+position is: quietly returning mains-only rows under an "everyone" label is a fabricated answer, not a
+lenient one. The UI never reaches it — the toggle locks on while an opponent is pinned, and the filter
+composable resolves the invalid pair away so a hand-edited URL renders instead of erroring.
+
+**The thin-sample caveat is a header tooltip, and it counts games rather than coverage** (#1346). It used to
+be a full-width `UAlert` above the build grid, and it also fired on `eloCoverage < 0.1` — which, once Master+
+became the default, put an incident-sized banner at the top of the page for a slice that was perfectly well
+sampled. It now rides the header's warning-triangle idiom (the one the retired-sample card and the builder
+panels already use) and says only what a reader deciding whether to trust the build needs: how many games it
+rests on. What share of the all-rank population the bracket covers is not that.
 
 **Ranked solo/duo (queue 420) is the only queue stored; match history is solo/duo-only by design.**
 Prod Postgres reached 68 GB and filled the VPS disk (Mongo SIGSEGV mid-write, API and ingestor down).
@@ -498,12 +673,44 @@ lane" off seven, the most confident-looking cell on the panel resting on its sma
 rate is null (an em dash) while `decidedLaneGames` is still returned, so the caller can say *why* rather than
 silently omitting it — #1087.
 
+**Every champion-page fold takes its cohort from one place, and a remake is not a game.**
+#1087 fixed the matchup folds and stopped there, so two panels on the same page kept counting a different
+population from the header above them: `ChampionSynergyAggregationProcess` and
+`ChampionPowerspikeAggregationProcess` still gated on `RiotAccountId != null` — any tracked account, main or
+not — while the header, the tier list, the builds and the matchups gated on `IsMain`. The gate is now
+`Data/Aggregation/ChampionCohort.cs` (the generalised `MatchupCohort`), composed by all four folds: **tracked
+account + `main_champion_stats.IsMain` + canonical `TeamPosition` + not a remake**. A unit test greps the four
+fold sources for `RiotAccountId`, `IsMain`, a private copy of the canonical positions and `GameDurationSeconds`,
+because the failure mode is not a wrong answer, it is a plausible line added to one fold that nobody re-compares
+against the header. Three things this pins.
+**The partner side stays everyone.** Only the queried/`SELF` side of a synergy pairing is a main; the ally is
+whoever shared the game, because the expected value the metric subtracts is built from a partner near the
+population mean (#922). Narrowing it would bias every synergy on the site rather than tighten it.
+**Remakes are a duration floor, in one place.** Riot's `gameEndedInEarlySurrender` is not stored on
+`match_participants` (checked, not assumed), so `ChampionCohort.MinimumGameDurationSeconds` (300) is the rule —
+4 762 stored matches, 1.7% of production. The header keeps its own stricter 15-minute floor, which is not a
+second opinion about remakes but a timeline-completeness rule (no build, no skill path); a test pins the
+ordering of the two.
+**The re-fold recovers the live window only.** The migration deletes the synergy, powerspike **and matchup**
+rows of the patches that still have matches and re-arms all four per-match flags — the matchup table is in there
+for the remake clause alone, since #1087 already gave it the right population and an additive fold cannot correct
+what it has already added — deliberately *not* a
+`TRUNCATE` like #1087's, because these two aggregates hold frozen patches whose source matches retention has
+already deleted (#466) and which no re-fold could rebuild. So there is a seam, on purpose: frozen patches keep
+synergy and powerspike numbers counting any tracked account, live ones count mains. Two further costs, accepted:
+a live match whose dense timeline grid was already pruned to {5,10,15,20,30} (#772) re-folds its curve points but
+no event spike, so the spikes panel goes thin on the live patches and refills forward (the same coverage bargain
+#957 took); and `powerspike_sigma_stats` is emptied with them, since it carries no patch dimension and a re-fold
+would otherwise add a match's spread to a total that already holds it — σ becomes the spread over the retained
+window instead of a double-counted lifetime average — #1365.
+
 **The matchup folds count mains of the champion, not every account we know.**
 `champion_matchup_stats` gated on `RiotAccountId != null` while the champion aggregates feeding the header, the
 tier list, the trend and the builds gate on `main_champion_stats.IsMain`. On production that put **14 576 games
 behind the matchups panel and 4 605 behind the header directly above it** — same champion, lane and patch, ×3.2 —
-and the read-side comment asserted the two cohorts matched. The gate now lives in `Data/Aggregation/MatchupCohort.cs`
-so the two folds that write those rows cannot drift apart from each other or from the pattern reader. **Champion
+and the read-side comment asserted the two cohorts matched. The gate now lives in `Data/Aggregation/ChampionCohort.cs`
+(named `MatchupCohort` until #1365 generalised it to all four folds) so the folds that write those rows cannot
+drift apart from each other or from the pattern reader. **Champion
 side only**: the opponent stays whoever held that lane, since narrowing both sides would measure mains-versus-mains,
 a different and far thinner question. Because both folds are additive and flag-gated, tightening the gate corrects
 nothing already written — the migration wipes the table and re-folds the retained window, which loses the matchups
@@ -1958,6 +2165,46 @@ enums:
 
 No retroactive migration: the existing three stay as they are. This settles which one a new column copies.
 
+## A unit of work covers the writes and nothing else (2026-08-28)
+
+**Transactions wrap writes, never Riot calls.** `MatchIngestionProcess` used to open its per-account
+transaction *before* up to 40 Riot round-trips (20 match-v5 + 20 timelines), each able to burn the client's
+whole `EffectiveTotalRequestTimeout` under a 429 backoff. The connection sat `idle in transaction` for minutes
+per account, holding the claim locks and pinning VACUUM's horizon — the exact counter-model of #264, which had
+already removed that pattern from MainAnalysis. Ingestion now runs in two phases: a fetch phase that
+materialises the DTOs (bounded by `MatchIngestion:MatchesPerAccount`, so a few MB per account), then a
+transaction around the writes only. The property the transaction was opened for is unchanged: a crash still
+cannot leave a partially ingested match, and a crash during the fetch phase writes nothing at all — the replay
+is idempotent through `GetExistingMatchIdsAsync` and the `TimelineIngested` flag (#1229).
+
+**A trailing `SaveChangesAsync` after `ExecuteUpdate` calls is not a commit point.** `ExecuteUpdate` /
+`ExecuteDelete` never enter the change tracker, so the save commits nothing and only makes the code *look*
+atomic. `AccountValidationService` chained three of them bare: a failure between the first and the last left
+candidates `Validated` while the account stayed `Processing` for a whole claim lease. All three of its exit
+paths — `ValidateAsync`, `RevertAsync` and `ReleaseUningestableAsync` — now run inside an explicit
+transaction, and the decorative saves are gone. The release path is the one where a partial failure hurts
+most: the account would keep its place at the head of the claim ordering and be re-claimed at once, only to
+prove uningestable again (#1229).
+
+**`ChangeTracker.Clear()` is safe only when the batch owns everything it loaded.** The ingestor's long loops
+(Scoring, Discovery, AccountRefresh, participant harvest) drain the tracker after each batch save via
+`IDataSession.ClearTracking()` — without it every `SaveChanges` re-runs `DetectChanges` over every entity the
+run has ever touched, which is quadratic in the number of batches. The catch: three of those loops preloaded
+tracked entities for the *whole* run and mutated them later (rank snapshots overwritten in place, harvested
+candidates re-scored). Clearing under a run-wide preload detaches them, and a detached entity accepts property
+writes and persists none — silent data loss, not an error. So each preload moved inside its batch. Don't
+"optimise" one back out to the top of the loop: the three loops that carry the risk (Discovery,
+AccountRefresh, the participant harvest) each have an integration test that runs more than one slice and
+fails if the preload is hoisted — a unit test cannot catch this, since a mocked `IDataSession` makes
+`ClearTracking()` a no-op (#1229).
+
+**The Ingestor's file heartbeat is liveness, not progress.** It used to be touched once per loop iteration, so
+it went stale for a whole `Job:IntervalMinutes` (60 min) plus a whole `Full` pass; the healthcheck had to
+tolerate 6 h of silence, which left it unable to detect anything short of a process dead for a quarter of a
+day. A dedicated 30 s loop now refreshes it for the worker's whole lifetime and the threshold is 300 s, so a
+wedged process is caught in minutes. Whether the *work* is progressing is a separate question with a separate
+answer already in place: the `process_runs` heartbeat, which ages a stalled run out to `Abandoned` (#1229).
+
 ## Ranks are read from the ladder, not from one account at a time (2026-08-30)
 
 **The ladder endpoints are the primary rank source; the per-account call is the fallback.** `AccountRefresh`
@@ -2020,6 +2267,233 @@ encoding.** The app's own `to`/`href` builders correctly `encodeURIComponent` a 
 sitemap source encodes it twice, and `Álec Lightwood-Jace` gets advertised as `%25C3%2581lec%2520Lightwood-Jace`,
 which the route hands to the backend as literal text — a 404. Riot IDs are full Unicode, so this hit 2,334 of
 the first 5,000 profiles before the family was dropped. Encoding is per-consumer, and a `loc` is not an href.
+
+## A lease is only kept if something reaps it (2026-09-01)
+
+**`Processing` is a lease state, and the pipeline now enforces the lease.** `MatchClaimService` moves an
+account's candidates `Queued -> Processing` and stamps the account's claim; every ordinary exit path settles
+them again. A hard stop — an OOM kill, a container restart, a revert that itself failed — has no exit path,
+and `MatchIngestionProcess` already documented the intended safety net ("candidates remain Processing until
+the claim lease expires") without anything ever applying it to the rows. `MatchIngestion` now reaps expired
+claims before it claims, so what a dead run left behind is claimable in the same pass.
+
+**Recovery must not be gated on the membership the failure destroys.** The lease cutoff did exist, but only
+inside `SelectClaimableAsync`, which reaches an account through one of two predicates: it holds an active
+main, or it holds a `Queued` candidate. An account whose candidates were *all* stuck at `Processing` matched
+neither, so it was invisible to the only mechanism that would have settled its rows — the leak sealed itself
+and grew monotonically. Production had 1 185 rows across 498 accounts, 386 of them permanently unreachable,
+accumulated from 2026-06-13 onward. Whenever a recovery path is filtered by state, check that the state it
+filters on survives the failure it recovers from.
+
+**The reaper releases what no live claim stands behind, not what carries an expired one.** The predicate is
+negated on purpose: a candidate whose account row is gone has no claim at all, and an `EXISTS` on the expired
+shape would leave it `Processing` forever. Both sides take the cutoff from the same
+`MatchIngestion:ClaimLeaseMinutes` the claim uses, passed in by the caller, so the reaper cannot decide a
+lease is spent while the claim still considers it held. Measured on production: 68 ms per pass at ~864 k
+candidate rows, served by the existing `(PlatformId, Status, Score)` and partial claim indexes — no new index
+(#1344).
+
+## The intake is sized by the claim, not by the ladder (2026-09-02)
+
+**Every stage before the match-ingest claim used to carry its own absolute budget, and none of them was
+derived from the one number that decides throughput.** Measured in production on 2026-09-02: Discovery
+produced ~3 500 candidate rows a day, Harvest 7 500 per run (its budget exhausted *every* run, ~7 450 of them
+refreshes), ManualSeed queued ~6 800, and Scoring promoted up to 900 — against a claim of
+`MatchIngestion:BatchSize` 75 with `EstablishedMainShare` 0.7, i.e. **~22 new accounts per cycle**. The
+result was `main_candidates` at 930 k rows, **773 k of them `Queued`**, 116 k dead tuples on a 441 MB table,
+and a queue whose head never moved. The surplus was not buffer: a promoted candidate's score is recomputed,
+rewritten and re-ranked every cycle, and at that ratio it goes stale years before the claim reaches it.
+
+**So the claim is the sizing authority, and everything upstream is derived from it** (`IntakeCapacity`).
+Capacity is `BatchSize - ceil(BatchSize x EstablishedMainShare)` — deliberately the complement of the claim
+query's own expression, so the two cannot drift by a rounding step. Scoring's per-platform promotion is
+capped at `capacity x Intake:PromotionHeadroomFactor / platforms`, Harvest's *refresh* budget at
+`capacity x PromotionHeadroomFactor`, and retention demotes any platform holding more than
+`Intake:MaxQueuedPerPlatform` back down.
+
+**Three deliberate non-choices.** The existing knobs were not rewired: `Scoring:TopNPerPlatform` stays the
+explicit ceiling and the derived cap only ever lowers it, so an operator can still clamp a stage by hand
+without reasoning about the derivation. Harvest's *discovery* half — pairs with no candidate yet — keeps its
+full configured share: finding unseen players is cheap, has no claim dependency, and is the half that stops
+the pool converging on the region we already ingest most (#495). And the queue drain **demotes, never
+deletes** — `Queued` → `Scored`, in bounded batches — because the row is the only record that the player was
+ever seen, and a demoted candidate re-enters the ranking on the next cycle (#900's "deactivate, never
+delete", one stage up).
+
+**The claim's own split became adaptive too.** `EstablishedMainShare` is now the midpoint of a range, not a
+constant: the quota-weighted coverage deficit the platform allocator already computes (#1150) swings it by up
+to `Intake:EstablishedMainShareSwing` — towards new candidates when coverage is far below
+`Coverage:TargetMainsPerChampion`, towards established mains when it is met. A *neutral* coverage snapshot
+returns the configured value unchanged: its zero deficits mean "no signal", and reading them as full coverage
+would tilt a cold-start claim towards established mains that do not exist yet.
+
+**What this does not fix.** The pool is still apex-only by construction — Discovery reads Master/GM/
+Challenger, so sub-Master accounts enter only by harvest luck. Discovering below Master on purpose needs the
+ladder-delta sweep (#1360) and is not part of this. Neither is the per-`(platform, champion)` promotion cap:
+capping per champion instead of per platform is the right shape — 40x over-supply on Ezreal should not crowd
+out the five Amumu candidates that exist — but it needs a schema-backed index to be efficient, and this
+change deliberately touched no schema.
+
+## Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02)
+
+**The server no longer runs on compiled defaults.** Until now the only setting either compose file overrode
+was `max_parallel_workers_per_gather=0`; everything else was stock `postgresql.conf`, sized for a 1 GB
+machine, on a host where Postgres is the dominant tenant (prod: 4 vCPU, 16 GB RAM, NVMe, a 38 GB database,
+8.8 GB RSS and ~13 GB of the host in page cache, measured 2026-09-02). `compose.prod.yaml` now passes a
+pgtune-style "mixed" set of `-c` flags and `compose.preprod.yaml` the same *settings* at roughly half the
+*values*, because preprod is a smaller host sharing its box with the whole preprod stack — same plans
+exercised first, smaller footprint (#1366, part A).
+
+**Why the risky ones.** `shared_buffers=4GB` is the conventional 25 % ceiling past which double buffering
+against the OS page cache costs more than it returns. `effective_cache_size=11GB` is a planner hint only, and
+it matches the cache actually observed — at the old 4 GB the planner under-priced index scans it should have
+preferred. `work_mem=32MB` with `hash_mem_multiplier=2` is per sort/hash *node*, so the real ceiling is
+several multiples of it per connection; it is affordable here only because pgbouncer caps the pool, and it is
+what stops the 2.7 M-row `match_participants` folds from spilling to disk at 4 MB. `random_page_cost=1.1` and
+`effective_io_concurrency=200` say the volume is flash, not a spinning disk. `jit=off` because JIT compilation
+is pure overhead on queries this short. The autovacuum scale factors drop to 0.05/0.02 because the largest
+tables bloat far faster than the stock 0.2 reacts.
+
+**`max_parallel_workers_per_gather=0` stays, permanently.** It is not a leftover to clean up while tuning the
+neighbouring settings: it is the fix for the /dev/shm exhaustion incident (#589), where parallel workers on
+the aggregate-pattern queries exhausted the shared-memory segment, Postgres raised 53100, and the API and
+ingestor crash-looped. Both compose files carry a comment saying so. `shm_size` went 256m → 1g as insurance
+now that the server is allowed real memory, but that does not make parallelism safe to re-enable.
+
+**`pg_stat_statements` is preloaded by compose and created by a migration, and the migration is tolerant.**
+`shared_preload_libraries` is a start-up setting, so `CREATE EXTENSION` fails on any server that does not
+carry it — a developer's local Postgres, the integration suite's throwaway container, a restored dump. The
+migration wraps the statement in a `DO` block that catches the failure and raises a `NOTICE`, so a database
+without the preload does not break the migration chain. The consequence, and it is the general rule for any
+migration that depends on a setting shipped with it: the `migrate-*` job runs *before* the deploy restarts
+Postgres, so the first run always takes the NOTICE branch and is stamped in `__EFMigrationsHistory` anyway —
+nothing retries it. Each environment gets one manual `CREATE EXTENSION IF NOT EXISTS pg_stat_statements;`
+after the restart, documented in `docs/production-migrations.md`.
+
+**Both changes only take effect on a Postgres restart.** `shared_buffers` and `shared_preload_libraries` are
+start-up settings. Preprod restarts on the next deploy from `develop`; prod moves only on a published
+release.
+
+## The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02)
+
+Every champion read narrows to one patch, and until #1368 every one of them did it the same way:
+`EF.Functions.Like(m.GameVersion, '16.17.%')`. `PatchFilter`'s own comment said the quiet part out loud —
+that predicate is **never index-assisted**. There is no index on `GameVersion`, and Postgres only turns a
+`LIKE` prefix into a range scan for a *literal* pattern under a `text_pattern_ops` index, never for a
+parameter. With `max_parallel_workers_per_gather = 0` (#589, and it stays off), each champion read was a
+single-threaded scan of `matches` joined to `match_participants`. Measured cold on production on 2026-09-02:
+roam 3.4–5.1 s, synergies ~2 s, the directory 2.1 s.
+
+`matches."Patch"` is now a **stored generated column** holding the `major.minor` prefix, and the filter is a
+plain equality on an indexed column. Two indexes, because there are two access shapes: `(Patch, QueueId)` for
+the reads that filter one patch, and `(QueueId, Patch, PlatformId)` for the two writers that *enumerate*
+patches — retention's live window and the pattern aggregation's live-key `DISTINCT`.
+
+**Generated, not written by the ingestor.** The alternative was a plain column filled at insert time plus a
+backfill, and it loses on the thing that matters: a second writer (a repair job, a manual `UPDATE`, a restored
+dump) can put a row in `matches` whose `Patch` disagrees with its `GameVersion`, and the disagreement is
+invisible — the row simply vanishes from a patch's numbers. `GENERATED ALWAYS AS (...) STORED` makes that
+unrepresentable, and costs nothing at read time. Stored rather than virtual because Postgres cannot index a
+virtual generated column, which is the entire point.
+
+**The SQL expression is a transcription of `PatchVersion.TryParse(...).ToMajorMinor()`, deliberately.** Same
+answer for the awkward inputs — empty segments dropped, segments trimmed, `16.04.5` → `16.4` because each
+segment is re-rendered through `::int`, and **NULL** where the C# rule returns "not a patch". One divergence,
+on purpose: segments are capped at nine digits, so a ten-digit major that `int.TryParse` would still accept
+yields NULL here instead of an out-of-range cast that would fail the INSERT. The expression lives in
+`MatchConfiguration.PatchComputedColumnSql`, and `MatchPatchColumnIntegrationTests` runs the two
+implementations against each other on real Postgres — nothing else ties them together, and a column that
+quietly disagrees with the C# rule just drops rows out of every champion read.
+
+**Not a startup migration.** Adding a STORED column rewrites the table under `ACCESS EXCLUSIVE` and the two
+index builds follow it; at ~274 k rows that is seconds, but it goes out of band through the
+`migrate-preprod`/`migrate-prod` job like every other migration (`docs/production-migrations.md`, #598). The
+indexes are ordinary `CREATE INDEX`, not `CONCURRENTLY`: the rewrite already holds the strongest lock there
+is, so concurrency would buy nothing and cost the ability to run inside the script's transaction.
+
+## Champion reads are cached until the data changes, not for 60 seconds (2026-09-02)
+
+The champion reads were each caching themselves, with their own `TryGetValue`/`Store` pair and a 60 s TTL —
+and five of them (`ChampionBuildsQueryService`, the live matchup fold, `GetTrioSynergiesAsync`,
+`ChampionTrendQueryService`, `ChampionPatchDiffQueryService`) were not caching at all. `RequestCoalescer`
+existed but only the truemains leaderboard used it. With 173 champions × 5 lanes × rank brackets, a 60 s TTL
+means practically every visit to a non-top champion pays the cold price, and nothing stopped ten concurrent
+visitors from each paying it at once.
+
+**One entry point, because the two halves only work together.** `IChampionReadCache.GetOrComputeAsync` caches
+*and* single-flights *and* sizes the entry. A cache without single-flight turns each expiry into a stampede of
+identical multi-second scans; single-flight without a cache re-runs the pass for the next visitor; and an
+entry without a `Size` is silently dropped by the size-limited shared cache (see `ApiCache`). Leaving those
+three as three things a new service must remember is how you get a read that looks cached and is not.
+`ChampionReadCacheRegistrationTests` walks `ChampionsController`'s constructor — the DI surface of the
+champion reads — and fails if any service behind it takes a raw `IMemoryCache` or no cache at all.
+
+**Keyed by aggregation version, not by a clock.** The reads served from the aggregate tables only change when
+the ingestor rewrites them, once per cycle and never in between, so a 60 s TTL was throwing away answers that
+were still exactly right. The key carries a token derived from `MAX("AggregatedAtUtc")` over
+`champion_aggregate_scopes`; a new cycle changes the token and retires every entry at once, with nothing to
+enumerate or evict. The token read is itself cached for 5 s and single-flighted, so it costs at most one
+`max()` every five seconds no matter how much traffic arrives — the one thing that must not happen is the
+version probe becoming the new hot query. An empty database is just another version (`none`), so a first-ever
+fold invalidates the empty answers by moving the token.
+
+**For the live folds the backstop *is* the freshness bound, and that is the trade.** Roam, scaling, item
+timings, powerspikes, synergies, the live branch of matchups, mains-comparison and the composition selection
+read `match_participants` directly, so they also move with match ingestion — which since #1374 runs in a lane
+of its own, decoupled from aggregation. The token does not track that, so those answers can sit up to the
+30-minute absolute expiry where they used to sit one minute. Accepted knowingly: these are precisely the reads
+that measured 2–5 s cold, the staleness is bounded and never a wrong answer, and part B of #1368 moves them
+onto aggregate tables of their own, after which the token covers them too. The absolute expiry also remains
+the guard against a token that somehow stops moving.
+
+**The owner of a coalesced pass waits it out.** `RequestCoalescer` grew an `ownerAwaitsToCompletion` flag for
+this. The champion reads run on the caller's request-scoped `DbContext`, so if the caller that *started* the
+pass abandoned its wait, its scope would be disposed underneath the shared work and every joiner would fail on
+a disposed context. The leaderboard does not need the flag — it creates its own context — and it does not get
+it.
+
+## A Riot call that stores nothing is a bug, not a cost (2026-09-02)
+
+Over three days production spent ~77 k successful Riot calls a day, and roughly half the
+`MatchIngestion` half of them produced nothing storable. The rule this PR settles: a call whose response
+cannot become a row is not "budget spent on a low-yield path", it is a defect to fix, and the run summaries
+must be able to show it (#1358, epic #1357).
+
+**Flex ids were fetched, discarded, and re-fetched for ever.** The ids call sent `type=ranked`, which includes
+queue 440, and `MatchSnapshotWriter` filtered on queue 420 *after* paying for the `GET /matches/{id}`. Nothing
+is written for a discarded match, so `ExistingMatchScanner` saw the same id as new on every later claim of
+that account — the waste recurred indefinitely rather than costing one call. The fix is `queue` on the ids
+call, ANDed with `type=ranked` by Riot, sourced from `MainAnalysis:QueueId` rather than a literal so the
+source filter cannot drift from the post-fetch guard, which stays as a safety net.
+
+**The window is bounded by the last ingest.** `startTime` = `LastMatchIngestAtUtc` − 1 h (unset on a first
+ingestion; the hour covers a game that started before the previous claim and ended after it). Without it every
+claim re-listed the same fixed window, which is what made the flex re-fetch recur. `count` is clamped to
+Riot's 1..100, so `MatchIngestion:MatchesPerAccount` stays the single authoritative knob and can be raised to
+100 without a very active main being truncated at 20.
+
+**Freshness gates, not new call paths, are how the crawls stop paying twice.** Discovery's per-entry
+summoner-v4 call only supplies `profileIconId` / `summonerLevel` / `summonerId`, and every apex ladder entry
+has carried its PUUID since #1312 — so for an account stored and synced within `Discovery:ProfileSyncFreshness`
+(7 d) the call is skipped and the entry's own PUUID and rank are used. The same window skips the
+champion-mastery call for a candidate whose rows were written inside it. `AccountRefresh:ProfileSyncFreshness`
+(7 d) is the mirror for account-v1: reaching the head of the refresh queue is not on its own a reason to spend
+a call. Both mirror the shape `AccountRefresh:RankSyncFreshness` already had.
+
+**Two invariants make a skip safe.** A skipped row still gets its `UpdatedAtUtc` stamped, because every bucket
+of `GetAccountsForRefreshAsync` drains oldest-first and an unstamped skip parks the row at the head of the
+queue for ever (the #1223 failure mode). And a skipped call never writes the stamp it would have refreshed:
+`LastProfileSyncAtUtc` is only set by a call that actually happened, otherwise the gate closes permanently on
+a read that never occurred. AccountRefresh's gate additionally never applies to an identity-incomplete row —
+account-v1 is the only writer of `GameName`/`TagLine`.
+
+**The evidence lives in the run summaries, not in a new metrics pipeline.** `matchesSkipped` now means
+"already stored" only, with the discards split out as `matchesSkippedWrongQueue`; Discovery reports
+`profileCallsSkipped` / `masteryCallsSkipped` and AccountRefresh `profileSkippedFresh`. All are appended after
+the existing keys, so a run recorded before the deploy reads as "not measured" rather than as a run that
+skipped nothing. Deliberately **not** done here: recording discarded match ids in a table — with `queue` on
+the ids call there is nothing left to record — and the ManualSeed pacing change, which interacts with the
+candidate-funnel backlog (#1361) and belongs with it.
 
 ## CI runs only what the diff can break, and config files carry no comments (2026-09-02)
 

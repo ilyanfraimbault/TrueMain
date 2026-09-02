@@ -393,18 +393,37 @@ const positionIcons = computed(() => {
 
     <!-- Rank emblem. The tier crest carries the visual weight; the LP figure
          is dropped (too wide for the row) and only the division survives for
-         the few non-apex rows, since the crest alone can't show it. Full LP
-         is still available on hover via the title. -->
-    <div
+         the few non-apex rows, since the crest alone can't show it. Full
+         rank + LP + win-loss is available on hover via the tooltip, same
+         layout as the truemains profile card's ranked section (`RankSummary`).
+         `relative z-10` lifts the trigger above the stretched profile-link
+         overlay, like the dedication column above. -->
+    <UTooltip
       v-if="ranked"
-      class="flex w-12 shrink-0 items-center justify-end gap-1"
-      :title="`${ranked.tier}${showDivision ? ' ' + ranked.division : ''} · ${ranked.leaguePoints.toLocaleString('en-US')} LP`"
+      :delay-duration="150"
+      :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
     >
-      <RankIcon :tier="ranked.tier" :size="26" loading="lazy" />
-      <span v-if="showDivision" class="text-sm font-semibold tabular-nums">
-        {{ ranked.division }}
-      </span>
-    </div>
+      <div class="relative z-10 flex w-12 shrink-0 items-center justify-end gap-1">
+        <RankIcon :tier="ranked.tier" :size="26" loading="lazy" />
+        <span v-if="showDivision" class="text-sm font-semibold tabular-nums">
+          {{ ranked.division }}
+        </span>
+      </div>
+
+      <template #content>
+        <GameTooltipSurface>
+          <RankSummary
+            :tier="ranked.tier"
+            :division="ranked.division"
+            :league-points="ranked.leaguePoints"
+            :wins="row.stats.wins"
+            :losses="row.stats.losses"
+            :win-rate="row.stats.winRate"
+            :size="32"
+          />
+        </GameTooltipSurface>
+      </template>
+    </UTooltip>
     <div v-else class="w-12 shrink-0" />
 
     <!-- Flex spacer pushes the stat block to the far right while the columns

@@ -1,6 +1,7 @@
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
 using Ingestor.Options;
@@ -55,6 +56,17 @@ namespace Ingestor.Processes;
 /// new one, and it is the only way the champion page's matchup filter can reach the
 /// spikes: the ±<see cref="SpikeWindowMinutes"/> window needs the dense grid, which
 /// retention prunes the moment this process flags the match.
+///
+/// <para>
+/// The champion side of every curve and every spike is the shared
+/// <see cref="ChampionCohort"/> — a main of the champion being played, in a game that
+/// is not a remake — since #1365. It used to be "any account we know", the cohort
+/// mismatch #1087 had already fixed for the matchup folds, which is why the games
+/// behind this panel did not match the header above it. The normaliser σ(m) keeps its
+/// population-wide grain on purpose (every lane pair of the batch, tracked or not): it
+/// is a scale for the lead, not a cohort — but a remake is excluded from it too, since
+/// a match that never happened has no spread to contribute.
+/// </para>
 /// </summary>
 public sealed class ChampionPowerspikeAggregationProcess(
     ILogger<ChampionPowerspikeAggregationProcess> logger,
@@ -64,8 +76,6 @@ public sealed class ChampionPowerspikeAggregationProcess(
     IItemMetadataProvider itemMetadataProvider,
     TimeProvider timeProvider) : IIngestorProcess
 {
-    private static readonly string[] CanonicalPositions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-
     private static readonly int[] LevelMilestones = [6, 11, 16];
 
     // Half-window (minutes) each side of an event for the slope-change spike.
@@ -242,6 +252,11 @@ public sealed class ChampionPowerspikeAggregationProcess(
             .Select(m => new { m.Id, m.GameVersion })
             .ToDictionaryAsync(m => m.Id, m => m.GameVersion, ct);
 
+        // Who may contribute a curve and its spikes. Every participant is loaded
+        // regardless — an off-cohort player is still the lane opponent the diff series
+        // is measured against, and still a pair the normaliser counts.
+        var cohort = await ChampionCohort.LoadAsync(db, matchIds, ct);
+
         var participants = await db.MatchParticipants
             .AsNoTracking()
             .Where(p => matchIds.Contains(p.MatchId))
@@ -252,7 +267,6 @@ public sealed class ChampionPowerspikeAggregationProcess(
                 p.TeamId,
                 p.TeamPosition,
                 p.EloBracket,
-                p.RiotAccountId != null,
                 new[] { p.Item0, p.Item1, p.Item2, p.Item3, p.Item4, p.Item5, p.Item6 },
                 p.ItemEvents))
             .ToListAsync(ct);
@@ -299,6 +313,11 @@ public sealed class ChampionPowerspikeAggregationProcess(
         // both directions — mirrors the read's self-join population).
         foreach (var (matchId, parts) in participantsByMatch)
         {
+            if (!cohort.IncludesMatch(matchId))
+            {
+                continue;
+            }
+
             foreach (var group in parts.GroupBy(p => p.TeamPosition))
             {
                 var laneParts = group.ToList();
@@ -330,7 +349,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
         {
             var gameVersion = versionByMatch.GetValueOrDefault(matchId);
             var patch = string.IsNullOrEmpty(gameVersion) ? null : PatchVersion.Normalize(gameVersion);
-            if (string.IsNullOrEmpty(patch))
+            if (string.IsNullOrEmpty(patch) || !cohort.IncludesMatch(matchId))
             {
                 continue;
             }
@@ -341,7 +360,7 @@ public sealed class ChampionPowerspikeAggregationProcess(
 
             foreach (var p1 in parts)
             {
-                if (!p1.Tracked || !CanonicalPositions.Contains(p1.TeamPosition))
+                if (!cohort.Includes(matchId, p1.ParticipantId))
                 {
                     continue;
                 }
@@ -807,7 +826,6 @@ public sealed class ChampionPowerspikeAggregationProcess(
         int TeamId,
         string TeamPosition,
         string EloBracket,
-        bool Tracked,
         int[] FinalItems,
         List<ItemEvent> ItemEvents);
 

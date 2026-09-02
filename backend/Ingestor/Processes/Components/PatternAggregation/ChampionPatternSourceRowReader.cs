@@ -1,7 +1,7 @@
 using Core.Lol.Map;
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Data;
+using Data.Aggregation;
 using Data.BuildFacts;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,7 +10,15 @@ namespace Ingestor.Processes.Components.PatternAggregation;
 public sealed class ChampionPatternSourceRowReader(
     IDbContextFactory<TrueMainDbContext> dbContextFactory)
 {
-    private const int MinimumAggregatedGameDurationSeconds = 15 * 60;
+    /// <summary>
+    /// The header aggregate keeps a floor of its own, strictly above
+    /// <see cref="ChampionCohort.MinimumGameDurationSeconds"/>: it reads build and skill
+    /// order out of a correlated timeline, and a game decided at 8 minutes has neither a
+    /// build nor a skill path worth folding. So it is not a second opinion about what a
+    /// remake is — it excludes every remake the shared rule does, plus the early
+    /// surrenders that are games nobody finished building in. A test pins the ordering.
+    /// </summary>
+    internal const int MinimumAggregatedGameDurationSeconds = 15 * 60;
 
     // The aggregation is chunked one champion at a time so the in-memory working
     // set is bounded by a single champion's match rows rather than the whole
@@ -24,17 +32,22 @@ public sealed class ChampionPatternSourceRowReader(
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
-        // Champions with at least one "main" account — a superset of the champions
+        // Champions any tracked account has played — a superset of the champions
         // that can produce source rows. The per-champion source query re-applies
-        // the full IsMain + queue + timeline filter, so a champion with no
-        // qualifying rows just yields a cheap empty iteration. Derived from
-        // main_champion_stats (small: one row per tracked account/champion)
-        // rather than a DISTINCT over the match_participants 3-way join, which
-        // scanned the whole table and hit the 300s command timeout now that
-        // parallel query is disabled (max_parallel_workers_per_gather=0, #589).
-        var mainChampionIds = await db.MainChampionStats
+        // the full queue + timeline filter, so a champion with no qualifying rows
+        // just yields a cheap empty iteration. Derived from main_champion_stats
+        // (small: one row per tracked account/champion) rather than a DISTINCT
+        // over the match_participants 3-way join, which scanned the whole table
+        // and hit the 300s command timeout now that parallel query is disabled
+        // (max_parallel_workers_per_gather=0, #589).
+        //
+        // Deliberately *not* filtered to IsMain any more: the aggregate now holds
+        // the non-main population too, so a champion whose only games come from
+        // non-mains has to get a pass. main_champion_stats carries a row per
+        // (account, champion) pair the analysis has seen, main or not, so it
+        // remains the complete cheap source.
+        var playedChampionIds = await db.MainChampionStats
             .AsNoTracking()
-            .Where(stat => stat.IsMain)
             .Select(stat => stat.ChampionId)
             .Distinct()
             .ToListAsync(ct);
@@ -49,7 +62,7 @@ public sealed class ChampionPatternSourceRowReader(
             .Distinct()
             .ToListAsync(ct);
 
-        return mainChampionIds.Union(scopeChampionIds).ToList();
+        return playedChampionIds.Union(scopeChampionIds).ToList();
     }
 
     internal async Task<IReadOnlySet<(string GameVersion, string PlatformId)>> LoadLivePatchKeysAsync(
@@ -60,17 +73,24 @@ public sealed class ChampionPatternSourceRowReader(
         return await LoadLivePatchKeysCoreAsync(db, queueId, ct);
     }
 
+    // `includeNonMains` folds the non-main population too
+    // (`MainAnalysis:AggregateNonMainPopulation`). Off by default: this process runs
+    // on every full-pipeline cycle, so widening it takes effect on the next run after
+    // a deploy rather than when someone is ready for it — and the widening is ~4.3x
+    // the source rows on production, on the process that once OOM-killed the VPS
+    // (#601).
     internal async Task<ChampionPatternAggregationInputs> LoadAggregationInputsAsync(
         int queueId,
         int championId,
         IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys,
+        bool includeNonMains,
         CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         var existingAggregateScopes = LoadExistingAggregateScopes(
             await LoadExistingScopeKeysAsync(db, queueId, championId, ct),
             livePatchKeys);
-        var sourceRows = await LoadSourceRowsAsync(db, queueId, championId, ct);
+        var sourceRows = await LoadSourceRowsAsync(db, queueId, championId, includeNonMains, ct);
 
         return new ChampionPatternAggregationInputs
         {
@@ -117,21 +137,35 @@ public sealed class ChampionPatternSourceRowReader(
         int queueId,
         CancellationToken ct)
     {
-        // matches.GameVersion is the raw Riot version (e.g. "16.5.2"); scopes
-        // store the normalised patch ("16.5"), so normalise before comparing.
-        // NormalizeGameVersion is C# (PatchVersion.Parse) that EF can't translate
-        // to SQL, hence the materialise-then-normalise in memory. The result set
-        // is the distinct (version, platform) pairs in `matches`, which retention
-        // keeps bounded to a handful of patches — small enough to fold client-side.
-        var rawPatchKeys = await db.Matches
+        // Scopes store the normalised patch ("16.5"), and since #1368 so does
+        // matches: "Patch" is a stored generated column carrying exactly what
+        // PatchVersion.TryParse(...).ToMajorMinor() would return. The DISTINCT is
+        // therefore served straight from IX_matches_queue_patch_platform instead of
+        // scanning the raw GameVersion of every retained match and normalising the
+        // result in memory.
+        var patchKeys = await db.Matches
             .AsNoTracking()
-            .Where(match => match.QueueId == queueId)
-            .Select(match => new { match.GameVersion, match.PlatformId })
+            .Where(match => match.QueueId == queueId && match.Patch != null)
+            .Select(match => new { Patch = match.Patch!, match.PlatformId })
             .Distinct()
             .ToListAsync(ct);
 
-        return rawPatchKeys
-            .Select(key => (NormalizeGameVersion(key.GameVersion), key.PlatformId))
+        // The unparseable tail, kept for parity: NormalizeGameVersion falls back to
+        // the raw string when the version does not parse, and the aggregate scopes
+        // written from such a row carry that raw string too — so the live key has to
+        // as well, or those scopes would silently be treated as frozen. Patch is NULL
+        // exactly when the parse fails, so the same index answers this as a NULL
+        // range, and in practice the range is empty.
+        var unparseableKeys = await db.Matches
+            .AsNoTracking()
+            .Where(match => match.QueueId == queueId && match.Patch == null)
+            .Select(match => new { Patch = match.GameVersion, match.PlatformId })
+            .Distinct()
+            .ToListAsync(ct);
+
+        return patchKeys
+            .Concat(unparseableKeys)
+            .Select(key => (key.Patch, key.PlatformId))
             .ToHashSet();
     }
 
@@ -139,15 +173,23 @@ public sealed class ChampionPatternSourceRowReader(
         TrueMainDbContext db,
         int queueId,
         int championId,
+        bool includeNonMains,
         CancellationToken ct)
     {
         var sourceRows = await (
             from participant in db.MatchParticipants.AsNoTracking()
             join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
-            join stat in db.MainChampionStats.AsNoTracking()
+            // LEFT JOIN, and no IsMain predicate: main-ness is carried onto the
+            // row rather than used to exclude it, so the aggregate holds both
+            // populations and reads choose between them. A participant the main
+            // analysis has never scored yields no stat row at all and is simply
+            // not a main.
+            join statCandidate in db.MainChampionStats.AsNoTracking()
                 on new { match.PlatformId, participant.Puuid, participant.ChampionId }
-                equals new { stat.PlatformId, stat.Puuid, stat.ChampionId }
-            where stat.IsMain
+                equals new { statCandidate.PlatformId, statCandidate.Puuid, statCandidate.ChampionId }
+                into statMatches
+            from stat in statMatches.DefaultIfEmpty()
+            where (includeNonMains || (stat != null && stat.IsMain))
                 && participant.ChampionId == championId
                 && participant.RiotAccountId != null
                 && match.QueueId == queueId
@@ -157,12 +199,16 @@ public sealed class ChampionPatternSourceRowReader(
                 MatchId = match.Id,
                 ParticipantId = participant.ParticipantId,
                 ChampionId = participant.ChampionId,
-                GameVersion = NormalizeGameVersion(match.GameVersion),
+                // Same normalisation the live keys use, now read from the stored
+                // generated column instead of computed per row on the client; the
+                // raw-version fallback is the COALESCE (#1368).
+                GameVersion = match.Patch ?? match.GameVersion,
                 PlatformId = match.PlatformId,
                 QueueId = match.QueueId,
                 GameStartTimeUtc = match.GameStartTimeUtc,
                 GameDurationSeconds = match.GameDurationSeconds,
                 RiotAccountId = participant.RiotAccountId!.Value,
+                IsMain = stat != null && stat.IsMain,
                 Win = participant.Win,
                 Kills = participant.Kills,
                 Deaths = participant.Deaths,
@@ -248,9 +294,6 @@ public sealed class ChampionPatternSourceRowReader(
             row.EloBracket = EloBracketResolver.FromNearestSnapshot(accountSnapshots, row.GameStartTimeUtc);
         }
     }
-
-    private static string NormalizeGameVersion(string gameVersion)
-        => PatchVersion.TryParse(gameVersion, out var patch) ? patch.ToMajorMinor() : gameVersion;
 
     private static async Task HydratePerkSelectionsAsync(
         TrueMainDbContext db,

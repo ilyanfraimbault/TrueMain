@@ -4,7 +4,6 @@ using Core.Options;
 using Data;
 using Data.Aggregation;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
@@ -16,31 +15,26 @@ public sealed class ChampionSummariesQueryService(
     IOptions<MainAnalysisOptions> options,
     IOptions<ChampionsListOptions> championsOptions,
     IOptions<ChampionTierOptions> tierOptions,
-    IMemoryCache cache,
+    IChampionReadCache cache,
     ILogger<ChampionSummariesQueryService> logger) : IChampionSummariesQueryService
 {
-    // The directory list is the same payload for every caller of GET /champions
-    // on a given patch and stays valid for the few seconds between ingestor
-    // flushes. Caching keyed on the resolved patch means the row-fanning groupby
-    // below is paid once per (patch, window) instead of once per request.
-    private static readonly TimeSpan SummariesCacheTtl = TimeSpan.FromSeconds(30);
-
-    // Patches change roughly every two weeks, so the resolved "active patch"
-    // for an empty query stays stable far longer than the summaries payload.
-    // Caching it skips a `SELECT DISTINCT GameVersion` round-trip on every
-    // patch-less request — including the ones that hit the summaries cache.
-    private static readonly TimeSpan ActivePatchCacheTtl = TimeSpan.FromMinutes(5);
+    // Every entry below goes through IChampionReadCache, so each is keyed by the
+    // ingestor's aggregation version rather than by a clock (#1368). That is the
+    // right lifetime for all five: the directory payload, the resolved active patch,
+    // the patch list, the servable-lines counter and the lifetime total are all folds
+    // over champion_aggregate_scopes, and none of them can change until the
+    // aggregation lane writes again. An answer computed on an empty database is not a
+    // problem either — the version token moves the moment the first fold lands, so the
+    // empty entry is simply never consulted again.
     private const string ActivePatchCacheKey = "champions:summaries:active-patch";
     private const string PatchListCacheKey = "champions:summaries:patch-list";
     private const string Surface = "champions-summaries";
 
     // The lifetime games total is one SUM over the whole table — no index leads with
     // QueueId, and the table never shrinks (prod keeps every patch), so this scan only
-    // gets longer with the site's age. Cached far longer than the directory because the
-    // homepage rounds the figure to three significant digits: at production's rate the
-    // *displayed* number moves about twice an hour, so anything finer buys precision
-    // the chip throws away.
-    private static readonly TimeSpan TotalGamesCacheTtl = TimeSpan.FromMinutes(30);
+    // gets longer with the site's age. It used to buy its own 30-minute TTL on the
+    // argument that the homepage rounds the figure to three significant digits anyway;
+    // keyed by aggregation version it is simply exact until the number actually moves.
     private const string TotalGamesCacheKey = "champions:summaries:total-games";
 
     // How far back the servable walk looks before giving up and serving the newest
@@ -50,7 +44,7 @@ public sealed class ChampionSummariesQueryService(
     private const int MaxServableWalkBack = 4;
 
     public async Task<ChampionSummariesResult> GetAllSummariesAsync(
-        string? patch, string? eloBracket, CancellationToken ct)
+        string? patch, string? eloBracket, bool truemainsOnly, CancellationToken ct)
     {
         var totalSw = Stopwatch.StartNew();
 
@@ -85,44 +79,42 @@ public sealed class ChampionSummariesQueryService(
             return new ChampionSummariesResult();
         }
 
-        return await GetOrComputeSummariesAsync(activePatch, bracketKey, bracketBands, totalSw, ct);
+        return await GetOrComputeSummariesAsync(
+            activePatch, bracketKey, bracketBands, truemainsOnly, totalSw, ct);
     }
 
     private async Task<ChampionSummariesResult> GetOrComputeSummariesAsync(
         string activePatch,
         string bracketKey,
         IReadOnlyList<string>? bracketBands,
+        bool truemainsOnly,
         Stopwatch totalSw,
         CancellationToken ct)
     {
-        var cacheKey = $"champions:summaries:{activePatch}:{bracketKey}";
-        if (cache.TryGetValue<ChampionSummariesResult>(cacheKey, out var cached) && cached is not null)
-        {
-            totalSw.Stop();
-            logger.LogInformation(
-                "{Surface} total elapsed={ElapsedMs}ms result=cache_hit count={Count}",
-                Surface, totalSw.ElapsedMilliseconds, cached.Summaries.Count);
-            return cached;
-        }
+        // The population is part of the key: the two answers describe different
+        // sets of games, and keying only on (patch, bracket) would serve one
+        // under the other's filter.
+        var populationKey = truemainsOnly ? "truemains" : "everyone";
+        var cacheKey = $"champions:summaries:{activePatch}:{bracketKey}:{populationKey}";
 
         var computeSw = Stopwatch.StartNew();
-        var result = await ComputeAllSummariesAsync(activePatch, bracketBands, ct);
+        var result = await cache.GetOrComputeAsync(
+            cacheKey,
+            token => ComputeAllSummariesAsync(activePatch, bracketBands, truemainsOnly, token),
+            ct);
         computeSw.Stop();
-        cache.Set(cacheKey, result, ApiCache.Entry(SummariesCacheTtl));
         totalSw.Stop();
         logger.LogInformation(
-            "{Surface} compute elapsed={ComputeMs}ms total={TotalMs}ms result=miss count={Count} totalGames={TotalGames}",
+            "{Surface} compute elapsed={ComputeMs}ms total={TotalMs}ms count={Count} totalGames={TotalGames}",
             Surface, computeSw.ElapsedMilliseconds, totalSw.ElapsedMilliseconds, result.Summaries.Count, result.TotalGames);
         return result;
     }
 
-    public async Task<long> GetTotalGamesAsync(CancellationToken ct)
-    {
-        if (cache.TryGetValue<long>(TotalGamesCacheKey, out var cached))
-        {
-            return cached;
-        }
+    public Task<long> GetTotalGamesAsync(CancellationToken ct)
+        => cache.GetOrComputeAsync(TotalGamesCacheKey, ComputeTotalGamesAsync, ct);
 
+    private async Task<long> ComputeTotalGamesAsync(CancellationToken ct)
+    {
         // No patch clause at all — that is the point of the figure. Nullable inside the
         // Sum so an empty table comes back as SQL NULL and maps to 0 instead of failing
         // to materialise into a non-nullable long.
@@ -130,13 +122,16 @@ public sealed class ChampionSummariesQueryService(
         var total = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
+            // Mains only (#1346): the homepage chip counts main games analysed,
+            // and it is a headline number — it must not quadruple overnight
+            // because the aggregate started holding a second population.
+            .Where(scope => scope.IsMain)
             .SumAsync(scope => (long?)scope.Games, ct) ?? 0L;
         sw.Stop();
         logger.LogInformation(
             "{Surface} sql=total_games total={Total} elapsed={ElapsedMs}ms",
             Surface, total, sw.ElapsedMilliseconds);
 
-        cache.Set(TotalGamesCacheKey, total, ApiCache.Entry(TotalGamesCacheTtl));
         return total;
     }
 
@@ -147,18 +142,13 @@ public sealed class ChampionSummariesQueryService(
             return requestedPatch;
         }
 
-        if (cache.TryGetValue<string>(ActivePatchCacheKey, out var cachedPatch) && cachedPatch is not null)
-        {
-            return cachedPatch;
-        }
+        return await cache.GetOrComputeAsync(ActivePatchCacheKey, ResolveActivePatchCoreAsync, ct);
+    }
 
+    private async Task<string?> ResolveActivePatchCoreAsync(CancellationToken ct)
+    {
         var ordered = await LoadPatchesNewestFirstAsync(ct);
-        var resolved = await ResolveServablePatchAsync(ordered, ct);
-        if (!string.IsNullOrEmpty(resolved))
-        {
-            cache.Set(ActivePatchCacheKey, resolved, ApiCache.Entry(ActivePatchCacheTtl));
-        }
-        return resolved;
+        return await ResolveServablePatchAsync(ordered, ct);
     }
 
     /// <summary>
@@ -209,15 +199,21 @@ public sealed class ChampionSummariesQueryService(
     /// </summary>
     private async Task<IReadOnlyList<string>> LoadPatchesNewestFirstAsync(CancellationToken ct)
     {
-        if (cache.TryGetValue<IReadOnlyList<string>>(PatchListCacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
+        return await cache.GetOrComputeAsync(PatchListCacheKey, LoadPatchesNewestFirstCoreAsync, ct);
+    }
 
+    private async Task<IReadOnlyList<string>> LoadPatchesNewestFirstCoreAsync(CancellationToken ct)
+    {
         var sw = Stopwatch.StartNew();
         var distinctPatches = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
+            // Mains only, and deliberately not parameterised on the population —
+            // for the same reason this resolution carries no elo clause: which
+            // patch the site serves must not move when the reader changes a
+            // filter. Pinning it to the default population also keeps the
+            // servable-patch floor below honest once the non-main rows exist.
+            .Where(scope => scope.IsMain)
             .Select(scope => scope.GameVersion)
             .Distinct()
             .ToListAsync(ct);
@@ -226,9 +222,7 @@ public sealed class ChampionSummariesQueryService(
             "{Surface} sql=distinct_patches rows={Rows} elapsed={ElapsedMs}ms",
             Surface, distinctPatches.Count, sw.ElapsedMilliseconds);
 
-        var ordered = ChampionAggregateScopeResolver.OrderNewestFirst(distinctPatches);
-        cache.Set(PatchListCacheKey, ordered, ApiCache.Entry(ActivePatchCacheTtl));
-        return ordered;
+        return ChampionAggregateScopeResolver.OrderNewestFirst(distinctPatches);
     }
 
     /// <summary>
@@ -246,19 +240,27 @@ public sealed class ChampionSummariesQueryService(
             return new Dictionary<string, int>(StringComparer.Ordinal);
         }
 
-        var cacheKey = $"champions:summaries:lines-past-floor:{string.Join('|', patches)}";
-        if (cache.TryGetValue<IReadOnlyDictionary<string, int>>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
+        return await cache.GetOrComputeAsync(
+            $"champions:summaries:lines-past-floor:{string.Join('|', patches)}",
+            token => LoadLinesPastFloorCoreAsync(patches, token),
+            ct);
+    }
 
+    private async Task<IReadOnlyDictionary<string, int>> LoadLinesPastFloorCoreAsync(
+        IReadOnlyList<string> patches, CancellationToken ct)
+    {
         // The same grouping the directory runs, minus the elo clause the resolution
         // must not have: switching bracket may not move the patch the site serves.
+        // The population is pinned to mains for the same reason, and for a second
+        // one: this is #1109's anti-thin-patch floor, and a patch that clears it
+        // only on non-main volume would be served to the default, mains-only
+        // directory with a truemain sample that is still too thin to show.
         var sw = Stopwatch.StartNew();
         var grouped = await db.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
             .Where(scope => patches.Contains(scope.GameVersion))
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => new { scope.GameVersion, scope.ChampionId, scope.Position })
             // Projected into an anonymous type and mapped after materialisation, the
             // same shape ComputeAllSummariesAsync uses: a grouped projection straight
@@ -291,12 +293,14 @@ public sealed class ChampionSummariesQueryService(
             .GroupBy(line => line.Patch, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
 
-        cache.Set(cacheKey, linesByPatch, ApiCache.Entry(SummariesCacheTtl));
         return linesByPatch;
     }
 
     private async Task<ChampionSummariesResult> ComputeAllSummariesAsync(
-        string activePatch, IReadOnlyList<string>? bracketBands, CancellationToken ct)
+        string activePatch,
+        IReadOnlyList<string>? bracketBands,
+        bool truemainsOnly,
+        CancellationToken ct)
     {
         // Aggregate per (champion, position) in SQL: a single GROUP BY with
         // SUM(games)/SUM(wins), MAX(aggregated_at) and COUNT(DISTINCT
@@ -324,6 +328,13 @@ public sealed class ChampionSummariesQueryService(
             groupsQuery = groupsQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
         }
 
+        // Truemains filter (#1346): mains of the champion only, or every tracked
+        // player who has games on it.
+        if (truemainsOnly)
+        {
+            groupsQuery = groupsQuery.Where(scope => scope.IsMain);
+        }
+
         var allGroups = await groupsQuery
             .GroupBy(scope => new { scope.ChampionId, scope.Position })
             .Select(group => new ChampionSummaryGroup(
@@ -331,7 +342,11 @@ public sealed class ChampionSummariesQueryService(
                 group.Key.Position,
                 group.Sum(scope => scope.Games),
                 group.Sum(scope => scope.Wins),
-                group.Select(scope => scope.RiotAccountId).Distinct().Count(),
+                // Counts *mains* whatever the population filter is, so the field
+                // keeps meaning what its name says: under `truemainsOnly: false`
+                // an unqualified distinct count would be "tracked players", which
+                // is a different number wearing the truemain label.
+                group.Where(scope => scope.IsMain).Select(scope => scope.RiotAccountId).Distinct().Count(),
                 group.Max(scope => scope.AggregatedAtUtc)))
             .ToListAsync(ct);
         groupsSw.Stop();
@@ -355,7 +370,7 @@ public sealed class ChampionSummariesQueryService(
         }
 
         var topBuildsSw = Stopwatch.StartNew();
-        var topBuilds = await LoadTopBuildsAsync(activePatch, bracketBands, ct);
+        var topBuilds = await LoadTopBuildsAsync(activePatch, bracketBands, truemainsOnly, ct);
         topBuildsSw.Stop();
         logger.LogInformation(
             "{Surface} load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",
@@ -524,6 +539,7 @@ public sealed class ChampionSummariesQueryService(
     private async Task<IReadOnlyDictionary<(int ChampionId, string Position), TopBuildReadModel>> LoadTopBuildsAsync(
         string activePatch,
         IReadOnlyList<string>? bracketBands,
+        bool truemainsOnly,
         CancellationToken ct)
     {
         var queueId = (int)options.Value.QueueId;
@@ -536,6 +552,12 @@ public sealed class ChampionSummariesQueryService(
         if (bracketBands is not null)
         {
             scopeQuery = scopeQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
+        }
+
+        // Same population as the WR / PR beside it, for the same reason.
+        if (truemainsOnly)
+        {
+            scopeQuery = scopeQuery.Where(scope => scope.IsMain);
         }
 
         var groupedSw = Stopwatch.StartNew();

@@ -183,7 +183,7 @@ public sealed class HarvestCandidatesQueryIntegrationTests
             SeedGames(db, "KNOWN_B", gameCount: 20, now);
             SeedGames(db, "KNOWN_C", gameCount: 10, now);
             SeedGames(db, "NEWCOMER", gameCount: 5, now);
-            AddCandidate(db, "KNOWN_A", MainCandidateSource.Harvest, MainCandidateStatus.Queued, now);
+            AddCandidate(db, "KNOWN_A", MainCandidateSource.Harvest, MainCandidateStatus.Scored, now);
             AddCandidate(db, "KNOWN_B", MainCandidateSource.Harvest, MainCandidateStatus.Scored, now);
             AddCandidate(db, "KNOWN_C", MainCandidateSource.Harvest, MainCandidateStatus.Validated, now);
             await db.SaveChangesAsync();
@@ -212,6 +212,7 @@ public sealed class HarvestCandidatesQueryIntegrationTests
         await using (var db = _fixture.CreateDbContext())
         {
             SeedGames(db, "REJECTED", gameCount: 30, now);
+            SeedGames(db, "QUEUED", gameCount: 25, now);
             SeedGames(db, "LADDER", gameCount: 20, now);
             SeedGames(db, "SEEDED", gameCount: 15, now);
             SeedGames(db, "REFRESHABLE", gameCount: 10, now);
@@ -219,6 +220,9 @@ public sealed class HarvestCandidatesQueryIntegrationTests
             // manual-seed candidates must keep their own stats — the harvest can do nothing
             // with either, so they must not consume the run's budget (#495).
             AddCandidate(db, "REJECTED", MainCandidateSource.Harvest, MainCandidateStatus.Rejected, now);
+            // A Queued candidate is past scoring (#1361): refreshing its observed stats would
+            // rewrite a row whose score nothing reads again before the claim reaches it.
+            AddCandidate(db, "QUEUED", MainCandidateSource.Harvest, MainCandidateStatus.Queued, now);
             AddCandidate(db, "LADDER", MainCandidateSource.Ladder, MainCandidateStatus.Scored, now);
             AddCandidate(db, "SEEDED", MainCandidateSource.ManualSeed, MainCandidateStatus.New, now);
             AddCandidate(db, "REFRESHABLE", MainCandidateSource.Harvest, MainCandidateStatus.Scored, now);

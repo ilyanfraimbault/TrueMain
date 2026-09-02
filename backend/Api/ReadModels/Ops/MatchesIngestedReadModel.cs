@@ -64,9 +64,12 @@ public sealed record MatchesIngestedReadModel
 /// Matches newly written in the period. The headline number.
 /// </param>
 /// <param name="MatchesSkipped">
-/// Matches the pipeline saw and did not write (already ingested, or filtered out).
-/// Carried because inserted-alone cannot distinguish "nothing to do" from "working
-/// hard and storing nothing", and those are opposite operational states.
+/// Matches the pipeline saw and did not write. Since #1358 that means "already
+/// ingested" only — the off-queue discards moved to their own summary key
+/// (<c>matchesSkippedWrongQueue</c>), and with <c>queue</c> now sent on the ids call
+/// there should be none. Carried because inserted-alone cannot distinguish "nothing to
+/// do" from "working hard and storing nothing", and those are opposite operational
+/// states.
 /// </param>
 /// <param name="TimelinesUpdated">Timelines fetched and attached in the period.</param>
 /// <param name="Runs">

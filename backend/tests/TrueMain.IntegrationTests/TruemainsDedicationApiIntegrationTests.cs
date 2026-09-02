@@ -444,6 +444,10 @@ public sealed class TruemainsDedicationApiIntegrationTests
             QueueId = 420,
             Position = "MIDDLE",
             EloBracket = EloBracket.Diamond,
+            // Mains: the population these fixtures have always described; a
+            // non-nullable bool is always written, so the column default never
+            // applies and an unset flag would seed a non-main (#1346).
+            IsMain = true,
             Games = games,
             Wins = games / 2,
             Kills = games,

@@ -214,7 +214,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
             db.RiotAccounts.Add(account);
         }
 
-        // The fold's champion-side cohort (Data.Aggregation.MatchupCohort) joins on
+        // The fold's champion-side cohort (Data.Aggregation.ChampionCohort) joins on
         // (platform, puuid, champion) and requires IsMain, so this row is what makes
         // the seeded games countable at all; `main: false` seeds a champion the same
         // account plays without maining it, which must fold to nothing.

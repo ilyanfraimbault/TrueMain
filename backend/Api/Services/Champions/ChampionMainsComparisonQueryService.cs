@@ -3,7 +3,6 @@ using Core.Options;
 using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
@@ -33,17 +32,9 @@ public sealed class ChampionMainsComparisonQueryService(
     TruemainAccountResolver resolver,
     IOptions<MainAnalysisOptions> options,
     IOptions<ChampionsListOptions> championsOptions,
-    IMemoryCache cache)
+    IChampionReadCache cache)
     : IChampionMainsComparisonQueryService
 {
-    /// <summary>
-    /// Both sides are shared across every caller asking the same question, and
-    /// the numbers underneath only move when the ingestor flushes a batch of
-    /// matches. Mirrors the TTL the sibling live panels (scaling, item timings)
-    /// use for the same reason.
-    /// </summary>
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
-
     public async Task<ChampionMainsComparisonResponse> GetAsync(
         int championId,
         string? account,
@@ -86,21 +77,36 @@ public sealed class ChampionMainsComparisonQueryService(
         var targetKey = targetAccount?.Id.ToString() ?? (targetMissing ? "unknown" : "pool");
         var cacheKey = $"champions:mains-comparison:{championId}:{position ?? "all"}:{normalizedPatch ?? "all"}"
                        + $":{playerAccount.Id}:{targetKey}";
-        if (cache.TryGetValue<ChampionMainsComparisonResponse>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
+        return await cache.GetOrComputeAsync(
+            cacheKey,
+            token => ComputeAsync(
+                championId, position, normalizedPatch, minGames,
+                playerAccount, targetAccount, targetMissing, token),
+            ct);
+    }
 
+    /// <summary>
+    /// Both columns, once the accounts are resolved. Split out so the resolution —
+    /// which decides the cache key — happens before the cache lookup, and everything
+    /// after it runs once per (champion, lane, patch, player, target) per aggregation
+    /// version no matter how many callers ask at the same time.
+    /// </summary>
+    private async Task<ChampionMainsComparisonResponse> ComputeAsync(
+        int championId,
+        string? position,
+        string? normalizedPatch,
+        int minGames,
+        TruemainAccountRef playerAccount,
+        TruemainAccountRef? targetAccount,
+        bool targetMissing,
+        CancellationToken ct)
+    {
         var queueId = (int)options.Value.QueueId;
-        // The matches table stores the full Riot GameVersion, so an exact
-        // compare would never hit; the LIKE prefix bridges normalised input to it.
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
-
         var playerTotals = await AggregateAsync(
             championId,
             position,
             queueId,
-            patchPrefix,
+            normalizedPatch,
             p => p.RiotAccountId == playerAccount.Id,
             ct);
         var player = ToSide(playerTotals, Identity(playerAccount), minGames);
@@ -111,7 +117,7 @@ public sealed class ChampionMainsComparisonQueryService(
         // account we do know.
         if (targetMissing)
         {
-            return Cache(cacheKey, new ChampionMainsComparisonResponse
+            return new ChampionMainsComparisonResponse
             {
                 ChampionId = championId,
                 Patch = normalizedPatch,
@@ -119,7 +125,7 @@ public sealed class ChampionMainsComparisonQueryService(
                 MinGames = minGames,
                 Status = ChampionComparisonStatus.UnknownTarget,
                 Player = player,
-            });
+            };
         }
 
         // The mains pool is every tracked main of this champion *except* the
@@ -131,7 +137,7 @@ public sealed class ChampionMainsComparisonQueryService(
                 championId,
                 position,
                 queueId,
-                patchPrefix,
+                normalizedPatch,
                 p => p.RiotAccountId != playerAccount.Id
                      && db.RiotAccounts.Any(a =>
                          a.Id == p.RiotAccountId
@@ -146,13 +152,13 @@ public sealed class ChampionMainsComparisonQueryService(
                 championId,
                 position,
                 queueId,
-                patchPrefix,
+                normalizedPatch,
                 p => p.RiotAccountId == targetAccount.Id,
                 ct);
 
         var mains = ToSide(mainsTotals, targetAccount is null ? null : Identity(targetAccount), minGames);
 
-        return Cache(cacheKey, new ChampionMainsComparisonResponse
+        return new ChampionMainsComparisonResponse
         {
             ChampionId = championId,
             Patch = normalizedPatch,
@@ -163,15 +169,8 @@ public sealed class ChampionMainsComparisonQueryService(
                 : ChampionComparisonStatus.InsufficientSample,
             Player = player,
             Mains = mains,
-        });
+        };
     }
-
-    /// <summary>
-    /// Stores an assembled response under its request-shape key and hands it
-    /// back (see <see cref="ApiCache"/> for why sizing is not optional).
-    /// </summary>
-    private ChampionMainsComparisonResponse Cache(string cacheKey, ChampionMainsComparisonResponse response)
-        => cache.Store(cacheKey, response, CacheTtl);
 
     /// <summary>
     /// Sums one side's games in a single grouped round trip. Grouping by account
@@ -183,7 +182,7 @@ public sealed class ChampionMainsComparisonQueryService(
         int championId,
         string? position,
         int queueId,
-        string? patchPrefix,
+        string? normalizedPatch,
         Expression<Func<MatchParticipant, bool>> accountFilter,
         CancellationToken ct)
     {
@@ -203,7 +202,7 @@ public sealed class ChampionMainsComparisonQueryService(
             .Join(
                 db.Matches.Where(m =>
                     m.QueueId == queueId
-                    && (patchPrefix == null || EF.Functions.Like(m.GameVersion, patchPrefix))),
+                    && (normalizedPatch == null || m.Patch == normalizedPatch)),
                 participant => participant.MatchId,
                 match => match.Id,
                 (participant, match) => new

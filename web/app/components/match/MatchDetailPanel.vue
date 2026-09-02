@@ -140,7 +140,12 @@ const tabItems = [
                Ten 56px portraits plus their gaps need ~694px, so the two teams
                only sit side by side from `@3xl`; below that they stack, which
                is what fits the drawer. `@sm` shrinks them again on a phone. -->
-          <div class="flex flex-col items-center gap-2 overflow-x-auto pb-1 @3xl:flex-row @3xl:justify-between @3xl:gap-3">
+          <!-- `p-1` is load-bearing: the scroller clips on both axes, and the
+               selected portrait's `ring-2` plus the lane badge's `-bottom-1
+               -left-1` both bleed outside the button box — without the padding
+               the ring loses its top edge and the first portrait loses half its
+               lane glyph. -->
+          <div class="flex flex-col items-center gap-2 overflow-x-auto p-1 pb-2 @3xl:flex-row @3xl:justify-between @3xl:gap-3">
             <template v-for="(team, teamIdx) in [blueTeam, redTeam]" :key="`team-${teamIdx}`">
               <div class="flex shrink-0 items-center gap-2">
                 <button

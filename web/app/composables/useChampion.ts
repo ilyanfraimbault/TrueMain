@@ -57,16 +57,36 @@ export function useChampion(
   // The opponent is part of the key: a matchup slice and the global slice are
   // different answers to the same (patch, position, rank), and caching them
   // together would serve one under the other's filter.
-  const buildKey = (patch: string, position: string, eloBracket = '', opponent = '') =>
-    ['champion', nameTagRef.value ?? 'global', championIdRef.value, patch, position, eloBracket, opponent]
-      .join('-')
+  // The population (#1346) is part of the key for the same reason the bracket
+  // is: truemains-only and everyone are two different answers to the same
+  // (patch, position, rank), and sharing one entry would both serve one under
+  // the other's filter and — since the key is what `useLazyAsyncData` watches —
+  // skip the refetch entirely when the toggle flips.
+  const buildKey = (
+    patch: string,
+    position: string,
+    eloBracket = '',
+    opponent = '',
+    truemainsOnly = true,
+  ) =>
+    [
+      'champion',
+      nameTagRef.value ?? 'global',
+      championIdRef.value,
+      patch,
+      position,
+      eloBracket,
+      opponent,
+      truemainsOnly ? 'truemains' : 'everyone',
+    ].join('-')
 
   const result = useLazyAsyncData<ChampionResponse | null>(
     () => {
       const f = filters.value
       return buildKey(
         f.patch ?? '', f.position ?? '', f.eloBracket ?? '',
-        f.opponentChampionId ? String(f.opponentChampionId) : '')
+        f.opponentChampionId ? String(f.opponentChampionId) : '',
+        f.truemainsOnly)
     },
     async () => {
       const id = championIdRef.value
@@ -83,14 +103,18 @@ export function useChampion(
       // The fallback keeps the rank, and — when a matchup is pinned — the
       // opponent and its position too, so its stash key must carry them.
       const unfilteredKey = f.opponentChampionId
-        ? buildKey('', f.position ?? '', f.eloBracket ?? '', String(f.opponentChampionId))
-        : buildKey('', '', f.eloBracket ?? '')
+        ? buildKey('', f.position ?? '', f.eloBracket ?? '', String(f.opponentChampionId), f.truemainsOnly)
+        : buildKey('', '', f.eloBracket ?? '', '', f.truemainsOnly)
 
       if (nameTag) {
         try {
           return await $fetch<ChampionResponse>(
             `/api/truemains/${encodeURIComponent(nameTag)}/champions/${id}`,
-            { query: f },
+            // Only what this endpoint declares. It is scoped to one account and
+            // renders no rank or population control, so forwarding `eloBracket`
+            // / `truemainsOnly` sent dead params that read as if the toggle
+            // reached this page.
+            { query: { patch: f.patch, position: f.position } },
           )
         }
         catch (error: unknown) {
@@ -130,8 +154,8 @@ export function useChampion(
       getCachedData: (key, _app, ctx) => {
         const f = filters.value
         const stashKey = f.opponentChampionId
-          ? buildKey('', f.position ?? '', f.eloBracket ?? '', String(f.opponentChampionId))
-          : buildKey('', '', f.eloBracket ?? '')
+          ? buildKey('', f.position ?? '', f.eloBracket ?? '', String(f.opponentChampionId), f.truemainsOnly)
+          : buildKey('', '', f.eloBracket ?? '', '', f.truemainsOnly)
         if (nameTagRef.value || key !== stashKey) return undefined
         // Mirror Nuxt's default getter: never short-circuit an explicit
         // refresh, only the watch/key-change reload the reconciler triggers.

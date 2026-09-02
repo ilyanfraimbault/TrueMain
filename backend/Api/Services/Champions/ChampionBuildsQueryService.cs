@@ -12,7 +12,8 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionBuildsQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
-    IOptions<ChampionsListOptions> championsListOptions)
+    IOptions<ChampionsListOptions> championsListOptions,
+    IChampionReadCache cache)
     : IChampionBuildsQueryService
 {
     // Build tabs and per-dimension variations are shared with the live matchup
@@ -22,13 +23,32 @@ public sealed class ChampionBuildsQueryService(
     private const int VariationsTopN = ChampionBuildDisplayCaps.MaxVariations;
     private const int RunePagesTopN = 3;
 
-    public async Task<ChampionResponse?> GetAsync(
+    public Task<ChampionResponse?> GetAsync(
         int championId,
         string? patch,
         string? position,
         ChampionBuildsScope? scope = null,
         string? eloBracket = null,
+        bool truemainsOnly = true,
         CancellationToken ct = default)
+        // This read had no cache at all before #1368, and it is not a cheap one: it
+        // loads the scope's patterns and walks the build tree for every tab the page
+        // mounts. The scope object is part of the key because it narrows the rows.
+        => cache.GetOrComputeAsync(
+            $"champions:builds:{championId}:{patch ?? "auto"}:{position ?? "auto"}"
+                + $":{eloBracket ?? "all"}:{(truemainsOnly ? "truemains" : "everyone")}"
+                + $":{scope?.CacheToken() ?? "default"}",
+            token => ComputeAsync(championId, patch, position, scope, eloBracket, truemainsOnly, token),
+            ct);
+
+    private async Task<ChampionResponse?> ComputeAsync(
+        int championId,
+        string? patch,
+        string? position,
+        ChampionBuildsScope? scope,
+        string? eloBracket,
+        bool truemainsOnly,
+        CancellationToken ct)
     {
         // A blank / ALL filter resolves to null (every tier); a bare tier to a
         // single bucket; a TIER_PLUS filter to that tier and the ones above it;
@@ -43,7 +63,8 @@ public sealed class ChampionBuildsQueryService(
             riotAccountId: scope?.RiotAccountId,
             platformId: scope?.PlatformId,
             minGames: scope?.MinGames,
-            eloBrackets: bracketFilter);
+            eloBrackets: bracketFilter,
+            truemainsOnly: truemainsOnly);
         if (scopes is null)
         {
             return null;
@@ -61,7 +82,7 @@ public sealed class ChampionBuildsQueryService(
         var allBracketGames = isAllBracket
             ? totalGames
             : await CountAllBracketGamesAsync(
-                scopes[0], scope?.RiotAccountId, scope?.PlatformId, ct);
+                scopes[0], scope?.RiotAccountId, scope?.PlatformId, truemainsOnly, ct);
         var coverage = RateMath.Rate(totalGames, allBracketGames);
 
         // A champion the profile lists as a main must never dead-end on click:
@@ -154,6 +175,7 @@ public sealed class ChampionBuildsQueryService(
         ChampionAggregateScope reference,
         Guid? riotAccountId,
         string? platformId,
+        bool truemainsOnly,
         CancellationToken ct)
         => await db.ChampionAggregateScopes
             .AsNoTracking()
@@ -163,7 +185,10 @@ public sealed class ChampionBuildsQueryService(
                 riotAccountId,
                 reference.GameVersion,
                 platformId,
-                reference.Position)
+                reference.Position,
+                // Same population as the numerator, or the coverage ratio compares
+                // a mains-only slice against everyone and reads far too small.
+                truemainsOnly: truemainsOnly)
             .SumAsync(s => s.Games, ct);
 
     private async Task<IReadOnlyList<ChampionPatternEnrichedRow>> FetchRowsAsync(

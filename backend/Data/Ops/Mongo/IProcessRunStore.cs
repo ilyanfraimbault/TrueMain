@@ -39,12 +39,25 @@ public interface IProcessRunStore
     Task TouchHeartbeatAsync(Guid id, DateTime nowUtc, CancellationToken ct);
 
     /// <summary>
-    /// Flips every still-Running document to <see cref="ProcessRunStatus.Abandoned"/>
-    /// with a real finish time and duration. Called at ingestor startup — the
-    /// single-instance ingestor owns every in-flight run, so anything Running at
-    /// boot died with the previous process. Returns the number of runs abandoned.
+    /// Flips still-Running documents to <see cref="ProcessRunStatus.Abandoned"/> with a
+    /// real finish time and duration. Called at ingestor startup: anything Running at boot
+    /// died with the previous process. Returns the number of runs abandoned.
     /// </summary>
-    Task<int> AbandonRunningAsync(DateTime finishedAtUtc, string error, CancellationToken ct);
+    /// <param name="finishedAtUtc">Finish time to stamp on the abandoned runs.</param>
+    /// <param name="error">Reason recorded on each abandoned run.</param>
+    /// <param name="processNames">
+    /// Restricts the sweep to these process names. Required since the pipeline can run as
+    /// two lanes in separate processes (#1362): an unrestricted sweep would let one lane's
+    /// startup abandon the other lane's genuinely in-flight runs, which are neither dead
+    /// nor its own. An empty collection means "every process", which is only correct when a
+    /// single process owns the whole pipeline.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    Task<int> AbandonRunningAsync(
+        DateTime finishedAtUtc,
+        string error,
+        IReadOnlyCollection<string> processNames,
+        CancellationToken ct);
 
     /// <summary>
     /// The start time of the most recent run of <paramref name="processName"/> that

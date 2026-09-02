@@ -193,9 +193,12 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
   app ownership; a root-owned mount point would make the crash-file sink fail
   silently.
 - `ingestor`: same shape on `runtime:10.0`. Liveness is a heartbeat file the
-  worker rewrites at the top of every loop; the healthcheck rejects the
-  container when it is older than six hours, about ten times the default
-  `Job:IntervalMinutes`, so an interval above ~6h needs this threshold raised.
+  worker rewrites every 30 s from a loop that runs for its whole lifetime,
+  during a pass and during the wait between passes alike (#1229). The
+  healthcheck rejects the container when the file is older than 300 s, ten
+  beats: it is independent of how the job is scheduled and catches a wedged
+  process in minutes. Progress, as opposed to liveness, is tracked by the
+  `process_runs` heartbeat, which ages a stalled run out to Abandoned.
 - `*.dev` variants run `dotnet watch` / `nuxt dev` with a long `start_period`
   (90–120s) so `condition: service_healthy` in `compose.dev.yaml` survives a
   cold start.

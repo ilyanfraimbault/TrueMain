@@ -24,5 +24,16 @@ public interface IChampionTierListQueryService
     /// selected tier(s) feed the winRate / pickRate blend.
     /// </param>
     /// <param name="ct">Cancellation token.</param>
-    Task<ChampionTierListReadModel> GetTierListAsync(string? patch, string? position, string? eloBracket, CancellationToken ct);
+    /// <param name="truemainsOnly">
+    /// Population the tiers are computed over: mains of each champion (the
+    /// default) or every tracked player. Forwarded straight to the summaries
+    /// query the tier list is derived from, so a tier and the directory row it
+    /// came from always describe the same games.
+    /// </param>
+    Task<ChampionTierListReadModel> GetTierListAsync(
+        string? patch,
+        string? position,
+        string? eloBracket,
+        bool truemainsOnly,
+        CancellationToken ct);
 }

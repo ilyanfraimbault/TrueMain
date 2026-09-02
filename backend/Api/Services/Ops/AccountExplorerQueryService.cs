@@ -304,7 +304,11 @@ public sealed class AccountExplorerQueryService(
 
         var scopes = db.ChampionAggregateScopes
             .AsNoTracking()
-            .Where(s => s.RiotAccountId == account.Id);
+            .Where(s => s.RiotAccountId == account.Id)
+            // Mains only (#1346). The explorer's career figures describe the
+            // account as the product does — its main champions — so they must
+            // not start counting the non-main scopes the aggregate now holds.
+            .Where(s => s.IsMain);
 
         var careerGames = await scopes.SumAsync(s => (long)s.Games, ct);
         var patchCount = await scopes.Select(s => s.GameVersion).Distinct().CountAsync(ct);

@@ -15,6 +15,26 @@ public sealed class ChampionAggregateSeeder
     private readonly Dictionary<ScopeKey, ScopeAccumulator> _scopes = [];
 
     /// <summary>
+    /// Population the next <c>Add*</c> calls seed into. Defaults to mains — the
+    /// only population the aggregate held before #1346, and the one every test
+    /// written before it describes. Without this default the seeded scopes would
+    /// carry <c>IsMain = false</c> (a non-nullable bool is always written, so the
+    /// column default never applies) and every mains-only read would see nothing.
+    /// </summary>
+    private bool _isMain = true;
+
+    /// <summary>
+    /// Seeds the following patterns as the non-main population, so a test can
+    /// hold both sides of the truemains filter at once. Fluent and sticky: call
+    /// it again with <see langword="true"/> to go back to seeding mains.
+    /// </summary>
+    public ChampionAggregateSeeder WithPopulation(bool isMain)
+    {
+        _isMain = isMain;
+        return this;
+    }
+
+    /// <summary>
     /// Convenience overload that uses the default starter-items fixture
     /// ([1055, 2003] with key "1055-2003") used by the legacy tests.
     /// </summary>
@@ -118,7 +138,8 @@ public sealed class ChampionAggregateSeeder
         DateTime aggregatedAtUtc,
         string eloBracket = EloBracket.Gold)
     {
-        var key = new ScopeKey(riotAccountId, championId, patch, platformId, queueId, position, eloBracket);
+        var key = new ScopeKey(
+            riotAccountId, championId, patch, platformId, queueId, position, eloBracket, _isMain);
 
         if (!_scopes.TryGetValue(key, out var acc))
         {
@@ -200,6 +221,7 @@ public sealed class ChampionAggregateSeeder
                 QueueId = accumulator.Key.QueueId,
                 Position = accumulator.Key.Position,
                 EloBracket = accumulator.Key.EloBracket,
+                IsMain = accumulator.Key.IsMain,
                 Games = accumulator.Games,
                 Wins = accumulator.Wins,
                 LastGameStartTimeUtc = accumulator.AggregatedAtUtc.AddMinutes(-30),
@@ -324,7 +346,8 @@ public sealed class ChampionAggregateSeeder
         string PlatformId,
         int QueueId,
         string Position,
-        string EloBracket);
+        string EloBracket,
+        bool IsMain);
 
     private readonly record struct BuildKey(
         int BootsItemId,

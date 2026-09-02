@@ -41,10 +41,30 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionMatchupQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
-    IOptions<ChampionsListOptions> championsOptions)
+    IOptions<ChampionsListOptions> championsOptions,
+    IChampionReadCache cache)
     : IChampionMatchupQueryService
 {
-    public async Task<ChampionMatchupsResponse> GetAsync(
+    public Task<ChampionMatchupsResponse> GetAsync(
+        int championId,
+        string position,
+        string? patch,
+        Guid? riotAccountId,
+        int? opponentChampionId,
+        string? eloBracket,
+        CancellationToken ct)
+        // Covers both branches, the pre-aggregated one and the live self-join that
+        // ComputeLiveAsync runs for a player- or opponent-scoped request — the latter
+        // was the uncached one (#1368).
+        => cache.GetOrComputeAsync(
+            $"champions:matchups:{championId}:{position}:{PatchFilter.Normalize(patch) ?? "all"}"
+                + $":{riotAccountId?.ToString() ?? "pool"}:{opponentChampionId?.ToString() ?? "any"}"
+                + $":{EloBracket.ResolveToken(eloBracket)}",
+            token => ComputeAsync(
+                championId, position, patch, riotAccountId, opponentChampionId, eloBracket, token),
+            ct);
+
+    private async Task<ChampionMatchupsResponse> ComputeAsync(
         int championId,
         string position,
         string? patch,
@@ -196,10 +216,6 @@ public sealed class ChampionMatchupQueryService(
         // is drawn from the same population as the build / summary pages.
         var queueId = (int)options.Value.QueueId;
 
-        // The matches table stores the full Riot GameVersion, so an exact compare
-        // would never hit; the LIKE prefix bridges normalised input to it.
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
-
         // A deliberate opponent lookup shows the head-to-head from a single game up;
         // the player's own leaderboard keeps the lower per-player floor. The
         // share-based floor never applies here — one player's whole matchup history
@@ -219,8 +235,7 @@ public sealed class ChampionMatchupQueryService(
             .Where(p1 => db.Matches.Any(m =>
                 m.Id == p1.MatchId
                 && m.QueueId == queueId
-                && (normalizedPatch == null
-                    || EF.Functions.Like(m.GameVersion, patchPrefix!))));
+                && (normalizedPatch == null || m.Patch == normalizedPatch)));
 
         // Narrow to the requested elo bands (null = every band).
         if (bands is not null)

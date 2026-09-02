@@ -9,12 +9,14 @@ public sealed class MatchParticipantKillPositionRepository(TrueMainDbContext db)
     public void AddRange(IEnumerable<MatchParticipantKillPosition> positions)
         => db.MatchParticipantKillPositions.AddRange(positions);
 
-    // Immediate DELETE so re-ingesting a timeline replaces the match's positions
+    // Immediate DELETE so re-ingesting a timeline replaces the batch's positions
     // cleanly (mirrors the snapshot repository's idempotent rewrite).
-    public Task<int> DeleteByMatchIdAsync(string matchId, CancellationToken ct)
-        => db.MatchParticipantKillPositions
-            .Where(position => position.MatchId == matchId)
-            .ExecuteDeleteAsync(ct);
+    public Task<int> DeleteByMatchIdsAsync(IReadOnlyCollection<string> matchIds, CancellationToken ct)
+        => matchIds.Count == 0
+            ? Task.FromResult(0)
+            : db.MatchParticipantKillPositions
+                .Where(position => matchIds.Contains(position.MatchId))
+                .ExecuteDeleteAsync(ct);
 
     public Task<List<MatchParticipantKillPosition>> GetByMatchIdAsync(string matchId, CancellationToken ct)
         => db.MatchParticipantKillPositions

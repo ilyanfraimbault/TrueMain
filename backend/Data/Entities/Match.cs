@@ -22,6 +22,24 @@ public class Match
 
     public string GameVersion { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The canonical <c>major.minor</c> patch of <see cref="GameVersion"/>, computed by
+    /// the database as a stored generated column so it can be indexed (#1368).
+    /// <see cref="GameVersion"/> holds the full Riot version ("16.17.700.9993"), which
+    /// every champion read used to narrow with an unindexable
+    /// <c>LIKE '16.17.%'</c> — a single-threaded scan of the whole table now that
+    /// parallel query is off (#589).
+    /// </summary>
+    /// <remarks>
+    /// The generating expression mirrors <c>Core.Lol.Patches.PatchVersion.TryParse</c>
+    /// followed by <c>ToMajorMinor()</c>: the first two dot-separated, whitespace-trimmed,
+    /// non-empty segments, each re-rendered as an integer ("16.04.5" → "16.4"), and
+    /// <see langword="null"/> whenever that parse fails — the same "no patch" answer the
+    /// C# rule gives. Never assigned from code: Postgres computes it on write, EF maps it
+    /// read-only.
+    /// </remarks>
+    public string? Patch { get; private set; }
+
     public DateTime CreatedAtUtc { get; set; }
 
     public bool TimelineIngested { get; set; }

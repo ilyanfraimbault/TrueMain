@@ -846,7 +846,12 @@ public sealed class TruemainsLeaderboardQueryService(
                 ctx.ChampionAggregateScopes.AsNoTracking()
                     .Where(scope => scope.QueueId == queueId
                         && accountIds.Contains(scope.RiotAccountId)
-                        && championIds.Contains(scope.ChampionId)),
+                        && championIds.Contains(scope.ChampionId))
+                    // Mains only: this is the truemains leaderboard, and since
+                    // #1346 the aggregate also holds non-main scopes. Without
+                    // this a player's off-main games would count towards the
+                    // champion they are ranked on.
+                    .Where(scope => scope.IsMain),
                 pattern => pattern.ScopeId,
                 scope => scope.Id,
                 (pattern, scope) => new
@@ -984,6 +989,10 @@ public sealed class TruemainsLeaderboardQueryService(
         var rows = await ctx.ChampionAggregateScopes
             .AsNoTracking()
             .Where(scope => scope.QueueId == queue && accountIds.Contains(scope.RiotAccountId))
+            // Mains only — see #1346. The comment above already says this total is
+            // "gated on IsMain"; that used to be true of the source rows, and is
+            // now true because the read says so.
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => scope.RiotAccountId)
             .Select(group => new
             {

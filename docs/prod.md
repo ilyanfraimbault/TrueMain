@@ -10,7 +10,9 @@ Design goals:
 - **Tracks releases** — every published release rebuilds the images and, once
   the Hostinger credentials are configured, redeploys the VPS automatically.
 - **Production Riot API key** — never the preprod key. PUUIDs are encrypted
-  per API app, so the key and the database form an inseparable pair.
+  per API app, so the key and the database form an inseparable pair. Replacing
+  it is a destructive operation with its own runbook:
+  [`docs/riot-key-switch.md`](riot-key-switch.md).
 - **Full-volume ingestion** — `compose.prod.yaml` runs the largest data-diet
   knobs (see the table in `docs/preprod.md`); most are explicit overrides now
   (#811), a few still fall back to the `appsettings.json` defaults.
@@ -116,6 +118,46 @@ for exactly this path: with no `IMAGE_TAG` in the env the images resolve to
 the moving `:latest`, which is already present locally and would otherwise be
 silently reused (#765). The CI rollout passes an immutable `IMAGE_TAG`, so a
 pull is implied there anyway.
+
+## Postgres server tuning
+
+`compose.prod.yaml` starts Postgres with explicit `-c` settings (part A of #1366).
+Host facts measured on 2026-09-02: 4 vCPU, 16 GB RAM, NVMe, a ~38 GB database,
+and Postgres is the dominant tenant (8.8 GB RSS, ~13 GB of the host in page
+cache). Until then the server ran on the compiled defaults, sized for a 1 GB
+machine: 128 MB `shared_buffers`, 4 MB `work_mem`, `random_page_cost=4` on
+flash. The sizing is pgtune-style for a "mixed" workload on that host:
+
+| Setting | Value | Why |
+| ------- | ----- | --- |
+| `shared_buffers` | 4GB | 25% of RAM, the usual ceiling before double buffering hurts |
+| `effective_cache_size` | 11GB | planner hint only; matches the page cache actually observed |
+| `work_mem` | 32MB | per sort/hash node; the 2.7M-row `match_participants` folds spilled to disk at 4MB |
+| `hash_mem_multiplier` | 2 | hash joins and aggregates may use 64MB before spilling |
+| `maintenance_work_mem` | 1GB | autovacuum and index builds on the 13GB snapshot table |
+| `random_page_cost` / `effective_io_concurrency` | 1.1 / 200 | NVMe, not spinning rust |
+| `jit` | off | pure overhead on these short analytic queries |
+| `max_parallel_workers_per_gather` | **0** | **do not remove**, see below |
+| `wal_compression`, `max_wal_size`, `min_wal_size`, `checkpoint_completion_target` | lz4, 4GB, 1GB, 0.9 | fewer, smoother checkpoints |
+| `autovacuum_vacuum_cost_delay` / `_vacuum_scale_factor` / `_analyze_scale_factor` | 2ms / 0.05 / 0.02 | the big tables bloat faster than the stock scale factors react |
+| `shared_preload_libraries` | pg_stat_statements | statement-level visibility; the extension itself is created by an EF migration |
+
+**`max_parallel_workers_per_gather=0` is the deliberate fix for the `/dev/shm`
+exhaustion incident (#589)**: parallel workers on the aggregate-pattern queries
+exhausted the shared memory segment, Postgres raised `53100`, and the API and
+ingestor crash-looped. Re-enabling parallelism reproduces that outage. The
+container's `shm_size` was still raised from 256m to 1g, because parallel-query
+and hash workers allocate their shared segments there and 256m is what got
+exhausted; cheap insurance now that the server is allowed to use real memory.
+
+Preprod (`compose.preprod.yaml`) runs the same *settings* with roughly halved
+values (`shared_buffers=2GB`, `effective_cache_size=5GB`, `work_mem=16MB`,
+`maintenance_work_mem=512MB`, `max_wal_size=2GB`, `min_wal_size=512MB`): it is
+a smaller host (96 GB disk, ~11 GB database) sharing the box with the whole
+preprod stack, its RAM was not measured, so the values are conservative rather
+than derived. Keeping the same settings means preprod exercises the tuned
+plans (jit off, flash-priced random access, a `work_mem` that does not spill)
+before prod does; revisit with a real measurement if preprod has headroom.
 
 ## Ingestor tuning knobs
 

@@ -83,6 +83,12 @@ interface SummaryQuery {
    * prose directly under panels showing a different one.
    */
   opponentChampionId: number | null
+  /**
+   * Population the prose describes (#1346). Mirrors the page's own toggle: the
+   * summary sits under the build panels, so folding it from a different set of
+   * players than they use would put two different builds on one screen.
+   */
+  truemainsOnly: boolean
 }
 
 function readChampionId(raw: string | undefined): number | null {
@@ -110,6 +116,9 @@ function readQuery(event: H3Event): SummaryQuery {
     opponentChampionId: readChampionId(
       typeof query.opponentChampionId === 'string' ? query.opponentChampionId.trim() : undefined,
     ),
+    // Opt-out only, and anything that isn't the literal "false" means on — the
+    // safe direction for a public, cache-keyed route.
+    truemainsOnly: query.truemainsOnly !== 'false',
   }
 }
 
@@ -126,6 +135,7 @@ const loadChampionBuildSummary = defineCachedFunction(
           patch,
           position: query.position ?? undefined,
           eloBracket: query.eloBracket ?? undefined,
+          truemainsOnly: query.truemainsOnly ? undefined : 'false',
           opponentChampionId: query.opponentChampionId ?? undefined,
         },
       }).catch(() => null),
@@ -161,6 +171,7 @@ const loadChampionBuildSummary = defineCachedFunction(
       query.eloBracket ?? '',
       query.position ?? '',
       query.opponentChampionId ?? '',
+      query.truemainsOnly ? 'truemains' : 'everyone',
     ].join('-'),
   },
 )

@@ -200,6 +200,82 @@ public sealed class ChampionBuildsApiIntegrationTests
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task GetChampionAsync_CountsOnlyTruemainsByDefault_AndWidensWhenAskedTo()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMixedPopulationAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // Default: the main's 40 games alone. The non-main account's 10 are in the
+        // same slice and must not be counted — that default is what keeps every
+        // pre-#1346 caller returning the numbers it always did.
+        var truemains = await client.GetFromJsonAsync<ChampionResponse>("/champions/778");
+        truemains.Should().NotBeNull();
+        truemains!.TotalGames.Should().Be(40);
+
+        // Widened: a superset, so both accounts land in the same slice.
+        var everyone = await client.GetFromJsonAsync<ChampionResponse>(
+            "/champions/778?truemainsOnly=false");
+        everyone.Should().NotBeNull();
+        everyone!.TotalGames.Should().Be(50);
+    }
+
+    [Fact]
+    public async Task GetChampionAsync_RejectsTheWidenedPopulationOnAMatchup()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMixedPopulationAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // The matchup aggregate's champion side is mains-only, so "everyone" is not
+        // an answer it can give — rejected rather than silently served as mains.
+        var response = await client.GetAsync(
+            "/champions/778?position=MIDDLE&opponentChampionId=122&truemainsOnly=false");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private async Task SeedMixedPopulationAggregatesAsync()
+    {
+        var now = DateTime.UtcNow;
+        var mainId = Guid.Parse("cccc3333-3333-3333-3333-333333333333");
+        var nonMainId = Guid.Parse("dddd4444-4444-4444-4444-444444444444");
+
+        await using var db = _fixture.CreateDbContext();
+
+        db.RiotAccounts.Add(BuildAccount(mainId, "KR", "population-puuid-main", "population-main", now));
+        db.RiotAccounts.Add(BuildAccount(nonMainId, "KR", "population-puuid-other", "population-other", now));
+        await db.SaveChangesAsync();
+
+        // One champion, one patch, one lane, one bracket — the two scopes differ
+        // only by population, so the counts below isolate the filter.
+        await new ChampionAggregateSeeder()
+            .AddPatternWithRune(mainId, 778, "16.5", "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 40, wins: 22, aggregatedAtUtc: now.AddMinutes(-10),
+                eloBracket: EloBracket.Master)
+            .WithPopulation(isMain: false)
+            .AddPatternWithRune(nonMainId, 778, "16.5", "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-E-W",
+                buildItems: [6673, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8010, secondaryStyleId: 8400,
+                games: 10, wins: 5, aggregatedAtUtc: now.AddMinutes(-9),
+                eloBracket: EloBracket.Master)
+            .SaveAsync(db);
+    }
+
     private async Task SeedMultiTierAggregatesAsync()
     {
         var now = DateTime.UtcNow;

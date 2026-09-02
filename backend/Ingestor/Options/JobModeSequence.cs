@@ -85,6 +85,54 @@ public static class JobModeSequence
         JobMode.StorageSnapshotOnly
     ]);
 
+    // The two halves of FullPipeline, in the same relative order (#1362). Riot-bound work
+    // and Postgres-bound work have opposite bottlenecks, and a single chain made the
+    // aggregations wait behind ~55 minutes of HTTP while the API key idled through every
+    // aggregation. Split, each lane runs at its own cadence.
+    //
+    // The split is safe because it is not what orders the work: every aggregation already
+    // selects only the matches whose prerequisites are satisfied (TimelineIngested, the
+    // per-fold flags on `matches`), so a fold that runs "too early" simply finds nothing
+    // to do and picks the rows up on its next pass. What the sequence still owns is the
+    // order *within* a lane, which is why the two lists below preserve it.
+    //
+    // Invariant, asserted in the unit tests: FetchLane + AggregateLane is exactly
+    // FullPipeline, each step in exactly one lane.
+    private static readonly ReadOnlyCollection<JobMode> FetchLanePipeline = Array.AsReadOnly<JobMode>(
+    [
+        JobMode.LadderSyncOnly,
+        JobMode.DiscoveryOnly,
+        JobMode.ManualSeedOnly,
+        JobMode.HarvestOnly,
+        JobMode.ScoringOnly,
+        JobMode.MainActivityOnly,
+        JobMode.MatchIngestionOnly,
+        JobMode.AccountRefreshOnly
+    ]);
+
+    private static readonly ReadOnlyCollection<JobMode> AggregateLanePipeline = Array.AsReadOnly<JobMode>(
+    [
+        JobMode.TeamPositionCorrectionOnly,
+        JobMode.MainAnalysisOnly,
+        JobMode.EloBracketEnrichmentOnly,
+        JobMode.RunePageDeduplicationOnly,
+        JobMode.PatternAggregationOnly,
+        JobMode.MatchupLeadAggregationOnly,
+        JobMode.LaneOutcomeAggregationOnly,
+        JobMode.SynergyAggregationOnly,
+        JobMode.BanAggregationOnly,
+        JobMode.PowerspikeAggregationOnly,
+        JobMode.MatchDataRetentionOnly,
+        JobMode.StorageSnapshotOnly
+    ]);
+
+    /// <summary>
+    /// The modes that expand to a sequence of other modes rather than to a process of
+    /// their own. Nothing may be registered in DI under these keys.
+    /// </summary>
+    public static IReadOnlyCollection<JobMode> CompositeModes { get; } =
+        Array.AsReadOnly<JobMode>([JobMode.Full, JobMode.FetchLane, JobMode.AggregateLane]);
+
     /// <summary>
     /// Returns the ordered steps to run for <paramref name="mode"/>.
     /// </summary>
@@ -99,6 +147,16 @@ public static class JobModeSequence
         if (mode == JobMode.Full)
         {
             return FullPipeline;
+        }
+
+        if (mode == JobMode.FetchLane)
+        {
+            return FetchLanePipeline;
+        }
+
+        if (mode == JobMode.AggregateLane)
+        {
+            return AggregateLanePipeline;
         }
 
         if (!Enum.IsDefined(mode))

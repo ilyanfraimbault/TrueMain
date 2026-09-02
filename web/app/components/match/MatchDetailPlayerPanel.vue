@@ -96,14 +96,20 @@ const championStaticPending = computed(() => isLoadingStatus(championStaticStatu
 
 // Skill order grid — one column per level (chronological), one row per slot.
 // Each slot's row header is the real spell icon (with a Q/W/E/R key badge), not
-// a bare letter. Fills keep a palette-safe per-slot hue (sky / amber / emerald /
-// rose, no violet) and the level number is always white for legibility — the
-// amber/emerald rows are one shade darker so white stays readable on them.
+// a bare letter.
+//
+// One fill per slot, all four taken from the house ramp: the rose-gold ladder
+// descends Q → W → E, and the ultimate caps it in `--color-gold` (the MVP
+// crown's token). Four distinct colours, none of them foreign to the site —
+// which is what the sky / amber / emerald / rose version this replaces got
+// wrong: it read the rows apart with three hues used nowhere else.
+// All four stay light enough for the same dark-ink text: a darker E needing a
+// pale text colour reads as "white" the moment it lands next to the others.
 const SKILL_META: Record<number, { key: 'Q' | 'W' | 'E' | 'R', fill: string }> = {
-  1: { key: 'Q', fill: 'bg-sky-500 text-white' },
-  2: { key: 'W', fill: 'bg-amber-600 text-white' },
-  3: { key: 'E', fill: 'bg-emerald-600 text-white' },
-  4: { key: 'R', fill: 'bg-rose-500 text-white' },
+  1: { key: 'Q', fill: 'bg-rosegold-200 text-ink-950' },
+  2: { key: 'W', fill: 'bg-rosegold-300 text-ink-950' },
+  3: { key: 'E', fill: 'bg-rosegold-400 text-ink-950' },
+  4: { key: 'R', fill: 'bg-gold text-ink-950' },
 }
 const skillRows = computed(() => {
   const events = props.participant.skillEvents
@@ -142,9 +148,12 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
             <p class="text-[10px] text-muted">xp diff</p>
           </div>
           <div>
+            <!-- Winning the level-2 race is an advantage, not a victory: it
+                 reads on the data axis with the three diffs beside it, not in
+                 the blue/red the row uses for who won the game. -->
             <p
               class="text-sm font-bold"
-              :class="participant.firstToLevelTwo ? 'text-sky-400' : 'text-muted'"
+              :class="participant.firstToLevelTwo ? 'text-data-good' : 'text-muted'"
             >
               {{ participant.firstToLevelTwo === null ? '—' : participant.firstToLevelTwo ? 'Yes' : 'No' }}
             </p>
@@ -222,31 +231,42 @@ const hasSkills = computed(() => props.participant.skillEvents.length > 0)
     <!-- Skill order -->
     <div class="surface rounded-md p-3">
       <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">Skill order</p>
-      <div v-if="hasSkills" class="space-y-1 overflow-x-auto">
-        <div
-          v-for="row in skillRows"
-          :key="`skill-${row.slot}`"
-          class="flex items-center gap-0.5"
-        >
-          <div class="relative mr-1 size-7 shrink-0">
-            <GameTooltipChampionSpellIcon
-              :spell="row.spell"
-              :fallback-label="row.key"
-              :pending="championStaticPending"
-              :width="28"
-              :height="28"
-              class="size-7 rounded"
-            />
-            <ItemRankBadge :value="row.key" />
-          </div>
-          <span
-            v-for="(filled, lvl) in row.levels"
-            :key="`lvl-${lvl}`"
-            class="flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold tabular-nums"
-            :class="filled ? row.fill : 'bg-default/20 text-transparent'"
+      <!-- `overflow-y-hidden` is explicit on purpose: a lone `overflow-x-auto`
+           computes the *other* axis to `auto` too, so anything spilling out of
+           the rows raises a vertical scrollbar over the grid — which is exactly
+           what the spell icons' inline-baseline descender did (7px of phantom
+           scroll). The `flex` on each icon wrapper below removes that spill at
+           the source; this keeps the axis honest either way.
+           The inner block is `w-fit mx-auto` so the grid sits centred in the
+           card while it fits, and degrades to scrolling from its left edge when
+           it doesn't (auto margins collapse to 0 with no free space). -->
+      <div v-if="hasSkills" class="overflow-x-auto overflow-y-hidden">
+        <div class="mx-auto w-fit space-y-1">
+          <div
+            v-for="row in skillRows"
+            :key="`skill-${row.slot}`"
+            class="flex items-center gap-1"
           >
-            {{ filled ? lvl + 1 : '' }}
-          </span>
+            <div class="relative mr-1.5 flex size-7 shrink-0">
+              <GameTooltipChampionSpellIcon
+                :spell="row.spell"
+                :fallback-label="row.key"
+                :pending="championStaticPending"
+                :width="28"
+                :height="28"
+                class="size-7 rounded"
+              />
+              <ItemRankBadge :value="row.key" />
+            </div>
+            <span
+              v-for="(filled, lvl) in row.levels"
+              :key="`lvl-${lvl}`"
+              class="flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-extrabold tabular-nums"
+              :class="filled ? row.fill : 'bg-accented text-transparent'"
+            >
+              {{ filled ? lvl + 1 : '' }}
+            </span>
+          </div>
         </div>
       </div>
       <p v-else class="text-[11px] text-muted">No skill data for this game.</p>

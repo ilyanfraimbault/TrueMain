@@ -2,6 +2,7 @@ using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Coverage;
+using Ingestor.Processes.Components.Intake;
 using Ingestor.Processes.Summaries;
 using Microsoft.Extensions.Options;
 
@@ -12,7 +13,9 @@ public sealed class ScoringProcess(
     IDataSessionFactory sessionFactory,
     IChampionCoverageProvider coverageProvider,
     TimeProvider timeProvider,
-    IOptions<ScoringOptions> scoringOptions) : IIngestorProcess
+    IOptions<ScoringOptions> scoringOptions,
+    IOptions<MatchIngestionOptions> matchIngestionOptions,
+    IOptions<IntakeOptions> intakeOptions) : IIngestorProcess
 {
     // Weights used by the defensive fallback in ComputeScore when the configured ones sum to
     // <= 0. They mirror the ScoringOptions defaults, except scarcity which stays 0 so the
@@ -38,8 +41,27 @@ public sealed class ScoringProcess(
             return new NoWorkSummary("No new candidates to score.", 0);
         }
 
-        var platformSummaries = await PromoteTopCandidatesAsync(session, scoring, coverage, scoringResult.ScoredByPlatform, ct);
-        return BuildSuccessPayload(platformSummaries);
+        // Sized by the claim, not by the ladder (#1361): promoting more per cycle than the
+        // claim can absorb does not accelerate anything, it only deepens a queue whose head
+        // never moves. Scoring:TopNPerPlatform stays the explicit ceiling; this is the
+        // dynamic cap underneath it.
+        var matchIngestion = matchIngestionOptions.Value;
+        var promotionCap = IntakeCapacity.PromotionCapPerPlatform(
+            matchIngestion,
+            intakeOptions.Value,
+            matchIngestion.Platforms.Count,
+            scoring.TopNPerPlatform);
+
+        logger.LogInformation(
+            "Promotion cap per platform: {Cap} (claim capacity {Capacity} new account(s)/cycle x headroom {Headroom} over {Platforms} platform(s), ceiling Scoring:TopNPerPlatform={TopN}).",
+            promotionCap,
+            IntakeCapacity.NewCandidateSlotsPerCycle(matchIngestion),
+            intakeOptions.Value.PromotionHeadroomFactor,
+            matchIngestion.Platforms.Count,
+            scoring.TopNPerPlatform);
+
+        var platformSummaries = await PromoteTopCandidatesAsync(session, coverage, promotionCap, scoringResult.ScoredByPlatform, ct);
+        return BuildSuccessPayload(platformSummaries, promotionCap);
     }
 
     private static async Task<ScoringResult> ScoreCandidatesAsync(
@@ -63,26 +85,29 @@ public sealed class ScoringProcess(
             ct.ThrowIfCancellationRequested();
 
             var take = maxPerRun == 0 ? batchSize : Math.Min(batchSize, maxPerRun - result.TotalScored);
-            var scoredCandidates = await ScoreCandidatesBatchAsync(session, scoring, coverage, nowUtc, take, ct);
-            if (scoredCandidates.Count == 0)
+            var scoredByPlatform = await ScoreCandidatesBatchAsync(session, scoring, coverage, nowUtc, take, ct);
+            if (scoredByPlatform.Count == 0)
             {
                 return result;
             }
 
-            result.TotalScored += scoredCandidates.Count;
-
-            foreach (var candidate in scoredCandidates)
+            foreach (var (platformId, count) in scoredByPlatform)
             {
-                result.ScoredByPlatform[candidate.PlatformId] = result.ScoredByPlatform.TryGetValue(candidate.PlatformId, out var count)
-                    ? count + 1
-                    : 1;
+                result.TotalScored += count;
+                result.ScoredByPlatform[platformId] = result.ScoredByPlatform.TryGetValue(platformId, out var running)
+                    ? running + count
+                    : count;
             }
         }
 
         return result;
     }
 
-    private static async Task<List<MainCandidate>> ScoreCandidatesBatchAsync(
+    /// <summary>
+    /// Scores one batch and returns its per-platform counts — counts, not the entities,
+    /// so nothing survives the <c>ClearTracking</c> below (#1229).
+    /// </summary>
+    private static async Task<Dictionary<string, int>> ScoreCandidatesBatchAsync(
         IDataSession session,
         ScoringOptions scoring,
         ChampionCoverageSnapshot coverage,
@@ -96,21 +121,34 @@ public sealed class ScoringProcess(
             return [];
         }
 
+        var scoredByPlatform = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var candidate in candidates)
         {
             candidate.Score = ComputeScore(candidate, scoring, coverage, nowUtc);
             candidate.Status = MainCandidateStatus.Scored;
             candidate.ScoredAtUtc = nowUtc;
+            scoredByPlatform[candidate.PlatformId] = scoredByPlatform.TryGetValue(candidate.PlatformId, out var count)
+                ? count + 1
+                : 1;
         }
 
         await session.SaveChangesAsync(ct);
-        return candidates;
+
+        // Drain the change tracker between batches. This loop drains the whole New
+        // backlog — 100k rows in batches of 5 000 — and every candidate stayed tracked
+        // to the end, so each SaveChanges re-ran DetectChanges over every entity the
+        // run had ever touched: quadratic in the number of batches (#1229). Safe here
+        // because the batch is re-read from the database each time and nothing loaded
+        // before the clear is touched after it — the caller now gets counts, and
+        // PromoteTopCandidatesAsync loads its own candidates further down.
+        session.ClearTracking();
+        return scoredByPlatform;
     }
 
     private async Task<List<ScoringPlatformSummary>> PromoteTopCandidatesAsync(
         IDataSession session,
-        ScoringOptions scoring,
         ChampionCoverageSnapshot coverage,
+        int promotionCap,
         IReadOnlyDictionary<string, int> scoredByPlatform,
         CancellationToken ct)
     {
@@ -130,7 +168,7 @@ public sealed class ScoringProcess(
             var queuedCandidates = await QueueTopCandidatesByPlatformAsync(
                 session,
                 platformId,
-                scoring.TopNPerPlatform,
+                promotionCap,
                 coverage.SaturatedChampionIdsFor(platformId).ToList(),
                 ct);
             var scoredCount = scoredByPlatform[platformId];
@@ -150,12 +188,12 @@ public sealed class ScoringProcess(
     private static async Task<IReadOnlyList<MainCandidate>> QueueTopCandidatesByPlatformAsync(
         IDataSession session,
         string platformId,
-        int topNPerPlatform,
+        int promotionCap,
         IReadOnlyCollection<int> saturatedChampionIds,
         CancellationToken ct)
     {
         var queuedCandidates = await session.MainCandidates
-            .GetScoredByPlatformAsync(platformId, topNPerPlatform, saturatedChampionIds, ct);
+            .GetScoredByPlatformAsync(platformId, promotionCap, saturatedChampionIds, ct);
         foreach (var candidate in queuedCandidates)
         {
             candidate.Status = MainCandidateStatus.Queued;
@@ -165,9 +203,11 @@ public sealed class ScoringProcess(
         return queuedCandidates;
     }
 
-    private static ScoringSummary BuildSuccessPayload(IEnumerable<ScoringPlatformSummary> platformSummaries)
+    private static ScoringSummary BuildSuccessPayload(
+        IEnumerable<ScoringPlatformSummary> platformSummaries,
+        int promotionCap)
     {
-        return new ScoringSummary(platformSummaries.ToList());
+        return new ScoringSummary(platformSummaries.ToList(), promotionCap);
     }
 
     private sealed class ScoringResult

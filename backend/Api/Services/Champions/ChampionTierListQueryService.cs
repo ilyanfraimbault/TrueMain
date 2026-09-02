@@ -26,15 +26,30 @@ namespace TrueMain.Services.Champions;
 /// </para>
 /// </summary>
 public sealed class ChampionTierListQueryService(
-    IChampionSummariesQueryService summariesQueryService) : IChampionTierListQueryService
+    IChampionSummariesQueryService summariesQueryService,
+    IChampionReadCache cache) : IChampionTierListQueryService
 {
-    public async Task<ChampionTierListReadModel> GetTierListAsync(
+    public Task<ChampionTierListReadModel> GetTierListAsync(
         string? patch,
         string? position,
         string? eloBracket,
+        bool truemainsOnly,
+        CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"champions:tierlist:{patch ?? "auto"}:{position ?? "all"}:{eloBracket ?? "all"}"
+                + $":{(truemainsOnly ? "truemains" : "everyone")}",
+            token => ComputeTierListAsync(patch, position, eloBracket, truemainsOnly, token),
+            ct);
+
+    private async Task<ChampionTierListReadModel> ComputeTierListAsync(
+        string? patch,
+        string? position,
+        string? eloBracket,
+        bool truemainsOnly,
         CancellationToken ct)
     {
-        ChampionSummariesResult result = await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, ct);
+        ChampionSummariesResult result =
+            await summariesQueryService.GetAllSummariesAsync(patch, eloBracket, truemainsOnly, ct);
         IReadOnlyList<ChampionSummaryReadModel> summaries = result.Summaries;
         if (summaries.Count == 0)
         {

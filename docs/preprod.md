@@ -11,13 +11,52 @@ Design goals:
 - **Tracks `develop`** — updating preprod is just pulling the latest images.
 - **Own Riot API key** — never the production key. PUUIDs are encrypted per
   API app, so the key and the database form an inseparable pair: a new key
-  requires starting from an empty database.
+  requires starting from an empty database — or, when the accounts must be
+  kept, the re-resolution procedure in
+  [`docs/riot-key-switch.md`](riot-key-switch.md), which is rehearsed here
+  before it is run on prod.
 - **Tiny database** — `compose.preprod.yaml` overrides the ingestor's
   app settings so every pipeline stage runs (discovery, harvest, scoring,
   match ingestion, main analysis, aggregations, retention) but per-run volumes
   are small and only the current patch's match data is retained. The
   accounts/mains base is never purged by retention — only match data is — so
   the player base persists while matches stay bounded.
+
+## Two ingestor lanes
+
+Preprod runs the ingestion pipeline as **two containers** (#1362), where prod still runs one:
+
+| container | `Job:Mode` | cadence |
+| --- | --- | --- |
+| `truemain-preprod-ingestor` | `FetchLane` | back-to-back (`RunOnce`, restarted by Docker) |
+| `truemain-preprod-ingestor-aggregate` | `AggregateLane` | every `INGESTOR_AGGREGATE_INTERVAL_MINUTES` (default 20) |
+
+The two halves have opposite bottlenecks — the fetch lane waits on Riot, the aggregate lane on Postgres — so
+chaining them left the API key idle through every aggregation. Splitting them is a deployment choice, not a
+code one: a single container on `Job:Mode=Full` still runs all 20 steps in order, which is what prod does.
+
+Both lanes share one environment block in `compose.preprod.yaml` (the `x-ingestor-environment` anchor); only
+the mode, the cadence, the `Application Name` on the connection string and the crash volume differ. To collapse
+preprod back to one lane, set `INGESTOR_JOB_MODE=Full` and stop the aggregate container.
+
+The fetch lane stays on the default `RunOnce` loop: its passes are back-to-back, paced by the per-routing-value
+rate limiter rather than by a timer. The aggregate lane runs on a timer (`INGESTOR_AGGREGATE_INTERVAL_MINUTES`,
+default 20): there is nothing to gain from re-folding the same rows the moment a pass ends, and a fixed cadence
+is what makes "how stale can an aggregate be?" answerable. Each lane has its own crash volume, because two
+containers writing crash dumps to one path would race on the file the crash reporter writes before it reaches
+Mongo. `MainAnalysis__AggregateNonMainPopulation` is on here (#1346, gated per environment by #1349) because
+the widened fold multiplies the aggregation's source rows and that process once OOM-killed a VPS (#601);
+measured on 2026-09-01 it ran at ~250 MB RSS with no restart and produced 16.6k non-main scopes on the live
+patch alongside 20.9k main ones. Postgres runs the prod tuning at roughly half the values, see `docs/prod.md`.
+
+What to watch while the split is on trial:
+
+- `process_runs` — each lane's steps should keep completing; no run should turn `Abandoned` when the *other*
+  lane restarts (that was the bug the scoped reconciliation fixes).
+- `pg_stat_activity` — retention (aggregate lane) deletes while the fetch lane inserts. They touch disjoint
+  patches by construction, so this should show no lock waits growing over time.
+- The Riot usage panel — the point of the split is that the key stops idling during aggregation.
+
 
 ## First deployment on a host (fresh database)
 

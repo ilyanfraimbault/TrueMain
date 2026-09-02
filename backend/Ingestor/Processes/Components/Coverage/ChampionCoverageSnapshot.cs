@@ -22,7 +22,6 @@ public sealed class ChampionCoverageSnapshot
 {
     private readonly IReadOnlyDictionary<(string PlatformId, int ChampionId), int> _mainsByPlatformChampion;
     private readonly int _targetMainsPerChampion;
-    private readonly bool _isNeutral;
 
     public ChampionCoverageSnapshot(
         IReadOnlyDictionary<(string PlatformId, int ChampionId), int> mainsByPlatformChampion,
@@ -72,7 +71,7 @@ public sealed class ChampionCoverageSnapshot
     {
         _mainsByPlatformChampion = new Dictionary<(string, int), int>(PlatformChampionComparer.Instance);
         _targetMainsPerChampion = 1;
-        _isNeutral = true;
+        IsNeutral = true;
         ChampionIds = new HashSet<int>();
         SaturatedChampionIdsByPlatform = new Dictionary<string, IReadOnlySet<int>>(StringComparer.OrdinalIgnoreCase);
     }
@@ -85,6 +84,13 @@ public sealed class ChampionCoverageSnapshot
     /// dictionary.
     /// </summary>
     public static ChampionCoverageSnapshot Empty { get; } = new();
+
+    /// <summary>
+    /// Whether this is the no-signal snapshot (<see cref="Empty"/>). Distinct from "every
+    /// deficit is 0": a consumer that reads a deficit of 0 as full coverage — the adaptive
+    /// claim share (#1361) does — must not draw that conclusion from a cold start.
+    /// </summary>
+    public bool IsNeutral { get; }
 
     /// <summary>
     /// Every champion that holds at least one active main on at least one tracked platform —
@@ -122,7 +128,7 @@ public sealed class ChampionCoverageSnapshot
     /// </summary>
     public double Deficit(string platformId, int championId)
     {
-        if (_isNeutral)
+        if (IsNeutral)
         {
             return 0;
         }
@@ -144,7 +150,7 @@ public sealed class ChampionCoverageSnapshot
     /// </summary>
     public double MeanDeficit(string platformId)
     {
-        if (_isNeutral || ChampionIds.Count == 0)
+        if (IsNeutral || ChampionIds.Count == 0)
         {
             return 0;
         }

@@ -27,6 +27,12 @@ public sealed class ChampionPatternAggregationProcess(
         // scope persist commits independently — a mid-run crash leaves already-
         // processed champions on fresh data and the rest on their previous data,
         // every scope internally consistent. The next run finishes the rest.
+        // Off unless ops turns it on: this loop runs on every full-pipeline cycle,
+        // so the widened population would otherwise land on the next run after a
+        // deploy rather than when someone has checked the chunking holds at ~4.3x
+        // the rows (#1346, #601).
+        var includeNonMains = analysisOptions.Value.AggregateNonMainPopulation;
+
         var livePatchKeys = await sourceRowReader.LoadLivePatchKeysAsync(queueId, ct);
         var championIds = await sourceRowReader.LoadChampionIdsAsync(queueId, ct);
 
@@ -47,7 +53,8 @@ public sealed class ChampionPatternAggregationProcess(
         {
             ct.ThrowIfCancellationRequested();
 
-            var inputs = await sourceRowReader.LoadAggregationInputsAsync(queueId, championId, livePatchKeys, ct);
+            var inputs = await sourceRowReader.LoadAggregationInputsAsync(
+                queueId, championId, livePatchKeys, includeNonMains, ct);
             if (inputs.SourceRows.Count == 0 && inputs.ExistingAggregateScopes.Count == 0)
             {
                 continue;
