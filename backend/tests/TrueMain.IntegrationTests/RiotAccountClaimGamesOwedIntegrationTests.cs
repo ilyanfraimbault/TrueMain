@@ -62,6 +62,26 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
     }
 
     [Fact]
+    public async Task Claim_TreatsAnUnknownBaselineAsOwingNothing()
+    {
+        await fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // The transitional state right after the deploy: the ladder sweep has filled in
+        // LadderGames, but the account has not been ingested since, so there is no baseline
+        // to subtract. Reading the missing baseline as zero would report the player's whole
+        // season as owed — for every tracked account at once — and sort the pool by career
+        // volume instead of by recent activity. Exercised through the claim, not just the
+        // rule, so the SQL translation of the ternary is covered too.
+        await SeedMainAsync("no-baseline", lastMatchIngestAtUtc: now.AddDays(-1), ladderGames: 900, ladderGamesAtLastIngest: null);
+        await SeedMainAsync("played-a-little", lastMatchIngestAtUtc: now.AddDays(-1), ladderGames: 510, ladderGamesAtLastIngest: 500);
+
+        var claimed = await ClaimAsync(now, take: 2);
+
+        claimed.Select(account => account.Puuid).Should().Equal(["puuid-played-a-little", "puuid-no-baseline"]);
+    }
+
+    [Fact]
     public async Task Claim_StillTakesNeverIngestedAccountsFirst()
     {
         await fixture.ResetDatabaseAsync();
