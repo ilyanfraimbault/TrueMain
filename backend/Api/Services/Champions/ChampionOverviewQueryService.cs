@@ -17,11 +17,24 @@ namespace TrueMain.Services.Champions;
 /// </para>
 /// </summary>
 public sealed class ChampionOverviewQueryService(
-    IChampionSummariesQueryService summariesQueryService) : IChampionOverviewQueryService
+    IChampionSummariesQueryService summariesQueryService,
+    IChampionReadCache cache) : IChampionOverviewQueryService
 {
-    public async Task<ChampionOverviewReadModel> GetOverviewAsync(int limit, CancellationToken ct)
+    public Task<ChampionOverviewReadModel> GetOverviewAsync(int limit, CancellationToken ct)
+        // The summaries underneath are cached too, but the homepage teaser is a sort
+        // and a trim over ~900 lines on top of them — cheap, and pointless to repeat
+        // for every visitor between two aggregation cycles.
+        => cache.GetOrComputeAsync(
+            $"champions:overview:{limit}",
+            token => ComputeOverviewAsync(limit, token),
+            ct);
+
+    private async Task<ChampionOverviewReadModel> ComputeOverviewAsync(int limit, CancellationToken ct)
     {
-        var result = await summariesQueryService.GetAllSummariesAsync(patch: null, eloBracket: null, ct);
+        // Truemains, always: the homepage renders no population toggle, and its
+        // teaser has to agree with the chip beside it, which counts main games.
+        var result = await summariesQueryService.GetAllSummariesAsync(
+            patch: null, eloBracket: null, truemainsOnly: true, ct);
 
         var gamesAnalyzed = await summariesQueryService.GetTotalGamesAsync(ct);
 

@@ -35,7 +35,7 @@ namespace Ingestor.Processes;
 ///
 /// <para>
 /// The champion side of every row is a <b>main of that champion</b>
-/// (<see cref="MatchupCohort"/>), the same cohort the champion aggregates on the page
+/// (<see cref="ChampionCohort"/>), the same cohort the champion aggregates on the page
 /// around the panel count. It used to be the wider "any account we know", which put
 /// 3.2× more games behind the matchups panel than behind the header directly above it.
 /// </para>
@@ -47,11 +47,6 @@ public sealed class ChampionMatchupLeadAggregationProcess(
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     TimeProvider timeProvider) : IIngestorProcess
 {
-    // The five canonical lane positions. Off-position rows (empty/garbage
-    // TeamPosition) can never be a real lane matchup, so they are excluded up
-    // front rather than stored as junk the reads would never ask for.
-    private static readonly string[] CanonicalPositions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-
     public string Name => "ChampionMatchupLeadAggregation";
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
@@ -126,13 +121,14 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
         // Who may contribute a champion-side row. Every participant below is loaded
         // regardless — an off-cohort player is still somebody's lane opponent — and
-        // membership is tested per row against this set. See MatchupCohort for why the
-        // gate is "main of this champion" rather than "account we know".
-        var cohort = await MatchupCohort.LoadAsync(db, matchIds, ct);
+        // membership is tested per row against this set. See ChampionCohort for why the
+        // gate is "main of this champion" rather than "account we know", and why a
+        // remake is not a game.
+        var cohort = await ChampionCohort.LoadAsync(db, matchIds, ct);
 
         var participants = await db.MatchParticipants
             .AsNoTracking()
-            .Where(p => matchIds.Contains(p.MatchId) && CanonicalPositions.Contains(p.TeamPosition))
+            .Where(p => matchIds.Contains(p.MatchId) && ChampionCohort.CanonicalPositions.Contains(p.TeamPosition))
             .Select(p => new ParticipantRow(
                 p.MatchId,
                 p.ParticipantId,
@@ -159,7 +155,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
             foreach (var p1 in parts)
             {
-                if (!cohort.Contains(new MatchupCohortKey(matchId, p1.ParticipantId)))
+                if (!cohort.Includes(matchId, p1.ParticipantId))
                 {
                     continue;
                 }

@@ -73,5 +73,52 @@ public interface IMainCandidateRepository
     /// </summary>
     Task<int> PruneStaleNeverPromotedAsync(DateTime lastPlayCutoffUtc, CancellationToken ct);
 
+    /// <summary>
+    /// How many candidates sit in <c>Queued</c> per platform — the queue depth the intake cap
+    /// is measured against (#1361).
+    /// </summary>
+    Task<IReadOnlyDictionary<string, int>> GetQueuedDepthByPlatformAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Demotes up to <paramref name="batchSize"/> of the lowest-scored <c>Queued</c> candidates
+    /// on <paramref name="platformId"/> back to <c>Scored</c>, and returns how many rows moved
+    /// (#1361). Never deletes: a demoted candidate is re-ranked and can be promoted again.
+    /// The batch size is explicit so a one-off drain of a very deep queue makes bounded,
+    /// committed progress instead of blowing the command timeout in one statement.
+    /// </summary>
+    Task<int> DemoteLowestScoredQueuedAsync(string platformId, int batchSize, CancellationToken ct);
+
+    /// <summary>
+    /// Returns every <see cref="MainCandidateStatus.Processing"/> row that no live claim
+    /// stands behind — the account's lease was taken before <paramref name="leaseCutoffUtc"/>,
+    /// or the account is Idle, or it no longer exists — to <see cref="MainCandidateStatus.Queued"/>.
+    /// Set-based; returns the number of rows released.
+    /// </summary>
+    /// <remarks>
+    /// Processing is a lease state, and every ordinary exit path settles it
+    /// (<c>ValidateAsync</c>, <c>RevertAsync</c>, <c>ReleaseUningestableAsync</c>). A hard
+    /// stop — an OOM kill, a container restart, a revert that itself failed — has no exit
+    /// path, and the claim query cannot recover the rows either: it selects accounts that
+    /// hold an active main or a <see cref="MainCandidateStatus.Queued"/> candidate, and an
+    /// account whose candidates are <em>all</em> stuck at Processing matches neither. The
+    /// leak seals itself, which is why the release has to be its own sweep rather than a
+    /// side effect of the next claim (#1344).
+    ///
+    /// Expressed as "no live claim" rather than "an expired claim" so a candidate whose
+    /// account row was deleted is released too, instead of sitting at Processing forever.
+    /// </remarks>
+    Task<int> ReleaseExpiredClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct);
+
+    /// <summary>
+    /// Of <paramref name="puuids"/> on <paramref name="platformId"/>, the ones that already
+    /// carry a candidate row seen at or after <paramref name="seenSinceUtc"/> — i.e. the
+    /// accounts whose champion-mastery call would re-read masteries we just stored (#1358).
+    /// </summary>
+    Task<HashSet<string>> GetPuuidsWithCandidatesSeenSinceAsync(
+        string platformId,
+        IReadOnlyCollection<string> puuids,
+        DateTime seenSinceUtc,
+        CancellationToken ct);
+
     void Add(MainCandidate candidate);
 }

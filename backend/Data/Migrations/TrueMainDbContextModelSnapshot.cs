@@ -153,6 +153,11 @@ namespace Data.Migrations
                     b.Property<int>("Games")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsMain")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<int>("Kills")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -186,7 +191,7 @@ namespace Data.Migrations
 
                     b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "Position");
 
-                    b.HasIndex("ChampionId", "GameVersion", "PlatformId", "QueueId", "Position", "EloBracket")
+                    b.HasIndex("ChampionId", "GameVersion", "PlatformId", "QueueId", "Position", "EloBracket", "IsMain")
                         .HasDatabaseName("IX_champion_aggregate_scopes_ChampionId_GameVersion_PlatformI~1");
 
                     b.HasIndex("RiotAccountId", "ChampionId", "GameVersion", "PlatformId", "QueueId", "Position", "EloBracket")
@@ -940,6 +945,12 @@ namespace Data.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<string>("Patch")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasComputedColumnSql("((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[1])::int::text || '.' || ((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[2])::int::text", true);
+
                     b.Property<string>("PlatformId")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -979,8 +990,14 @@ namespace Data.Migrations
                     b.HasIndex("TimelineIngested")
                         .HasDatabaseName("IX_matches_timeline_ingested");
 
+                    b.HasIndex("Patch", "QueueId")
+                        .HasDatabaseName("IX_matches_patch_queue");
+
                     b.HasIndex("PlatformId", "QueueId", "GameStartTimeUtc")
                         .HasDatabaseName("IX_matches_platform_queue_game_start");
+
+                    b.HasIndex("QueueId", "Patch", "PlatformId")
+                        .HasDatabaseName("IX_matches_queue_patch_platform");
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_bans_pending")
                         .HasFilter("\"BansAggregated\" = false");
@@ -1500,6 +1517,12 @@ namespace Data.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("LadderGames")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LadderGamesAtLastIngest")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("LastActivityCheckAtUtc")
                         .HasColumnType("timestamp with time zone");

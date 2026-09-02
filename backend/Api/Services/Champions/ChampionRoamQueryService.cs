@@ -3,7 +3,6 @@ using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
@@ -19,17 +18,15 @@ namespace TrueMain.Services.Champions;
 /// <see cref="LolMap.IsRoam"/>, and divides by the games actually played in that
 /// lane (so games with no early roam still pull the average down). JUNGLE is
 /// excluded — a jungler has no own lane, so every gank would read as a roam.
-/// Computed live, cached 60s.
+/// Computed live, then cached and coalesced by aggregation version.
 /// </summary>
 public sealed class ChampionRoamQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
     IOptions<ChampionsListOptions> championsOptions,
-    IMemoryCache cache)
+    IChampionReadCache cache)
     : IChampionRoamQueryService
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
-
     // Cumulative early-game marks the roam average is reported at. The stored
     // kill positions are already bounded to before 15 min by the ingestor.
     private const int Window5Ms = 5 * 60 * 1000;
@@ -39,7 +36,7 @@ public sealed class ChampionRoamQueryService(
     // Riot team id for the blue side (bottom-left of the map); 200 is red.
     private const int BlueTeamId = 100;
 
-    public async Task<ChampionRoamResponse> GetAsync(
+    public Task<ChampionRoamResponse> GetAsync(
         int championId,
         string position,
         string? patch,
@@ -48,27 +45,38 @@ public sealed class ChampionRoamQueryService(
     {
         var normalizedPatch = PatchFilter.Normalize(patch);
 
-        // Resolve the elo filter to its bands (null = ALL, no clause); the cache
-        // key carries the bracket so each band caches separately.
-        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
+        // The key carries the bracket so each band caches separately; the aggregation
+        // version is stamped on by the cache itself. This is the read that measured
+        // 14.1 s cold on production, so it is also the one that most needs the pass to
+        // be shared rather than repeated per concurrent visitor.
         var bracketToken = EloBracket.ResolveToken(eloBracket);
-
         var cacheKey = $"champions:roam:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
-        if (cache.TryGetValue<ChampionRoamResponse>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
+
+        return cache.GetOrComputeAsync(
+            cacheKey,
+            token => ComputeAsync(championId, position, normalizedPatch, eloBracket, token),
+            ct);
+    }
+
+    private async Task<ChampionRoamResponse> ComputeAsync(
+        int championId,
+        string position,
+        string? normalizedPatch,
+        string? eloBracket,
+        CancellationToken ct)
+    {
+        // Resolve the elo filter to its bands (null = ALL, no clause).
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
 
         // Junglers have no own lane to roam from; the metric is meaningless for
         // them. Return an empty slice rather than a misleading near-100% roam.
         var ownLane = ExpectedZone(position);
         if (ownLane is MapZone.Jungle or MapZone.Unknown)
         {
-            return Cache(cacheKey, Empty(championId, position, normalizedPatch));
+            return Empty(championId, position, normalizedPatch);
         }
 
         var queueId = (int)options.Value.QueueId;
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
         var minGames = championsOptions.Value.MinMatchupGames;
 
         // Denominator: games the champion played in this lane that also have
@@ -83,7 +91,7 @@ public sealed class ChampionRoamQueryService(
                 && db.Matches.Any(m =>
                     m.Id == p.MatchId
                     && m.QueueId == queueId
-                    && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!)))
+                    && (normalizedPatch == null || m.Patch == normalizedPatch))
                 && db.MatchParticipantKillPositions.Any(k => k.MatchId == p.MatchId));
         if (bands is not null)
         {
@@ -97,7 +105,7 @@ public sealed class ChampionRoamQueryService(
 
         if (gamesPlayed < minGames)
         {
-            return Cache(cacheKey, Empty(championId, position, normalizedPatch, gamesPlayed));
+            return Empty(championId, position, normalizedPatch, gamesPlayed);
         }
 
         var killRows =
@@ -111,7 +119,7 @@ public sealed class ChampionRoamQueryService(
                 && db.Matches.Any(m =>
                     m.Id == killPosition.MatchId
                     && m.QueueId == queueId
-                    && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!)))
+                    && (normalizedPatch == null || m.Patch == normalizedPatch))
             select new { killPosition.X, killPosition.Y, killPosition.TimestampMs, participant.TeamId, participant.EloBracket };
 
         // Narrow the champion side to the requested elo bands (null = every band).
@@ -159,12 +167,7 @@ public sealed class ChampionRoamQueryService(
             RoamKp15 = (double)roam15 / gamesPlayed
         };
 
-        return Cache(cacheKey, response);
-    }
-
-    private ChampionRoamResponse Cache(string cacheKey, ChampionRoamResponse response)
-    {
-        return cache.Store(cacheKey, response, CacheTtl);
+        return response;
     }
 
     private static ChampionRoamResponse Empty(int championId, string position, string? patch, int games = 0)

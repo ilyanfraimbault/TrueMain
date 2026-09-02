@@ -69,7 +69,9 @@ public sealed class ScoringHarvestBranchTests
             sessionFactory,
             coverageProvider,
             TimeProvider.System,
-            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);
 

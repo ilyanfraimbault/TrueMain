@@ -325,6 +325,10 @@ public sealed class CanonicalizeStarterItemsKeysMigrationIntegrationTests
             PlatformId = "KR",
             QueueId = 420,
             Position = position,
+            // Mains: the population these fixtures have always described; a
+            // non-nullable bool is always written, so the column default never
+            // applies and an unset flag would seed a non-main (#1346).
+            IsMain = true,
             Games = 0,
             Wins = 0,
             LastGameStartTimeUtc = DateTime.UtcNow,

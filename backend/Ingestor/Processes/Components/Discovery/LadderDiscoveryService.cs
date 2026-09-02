@@ -14,6 +14,7 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
         PlatformRoute platform,
         DiscoveryOptions options,
         int offset,
+        ProfileFreshnessProbe profileFreshnessProbe,
         CancellationToken ct)
     {
         var ladderEntries = await FetchLadderEntriesAsync(platform, options, ct);
@@ -36,10 +37,36 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
             .Take(window)
             .ToList();
 
+        // One query for the whole window instead of a Riot call per entry: every apex entry
+        // has carried its PUUID since #1312, so for an account we already store and synced
+        // recently, summoner-v4 would return profileIconId / summonerLevel / summonerId and
+        // nothing else — cosmetics, worth no request (#1358).
+        var freshPuuids = options.ProfileSyncFreshness > TimeSpan.Zero
+            ? await profileFreshnessProbe(
+                boundedEntries
+                    .Select(entry => entry.Puuid)
+                    .OfType<string>()
+                    .ToList(),
+                ct)
+            : (IReadOnlySet<string>)new HashSet<string>(StringComparer.Ordinal);
+
         var discovered = new List<DiscoveredSummoner>(boundedEntries.Count);
+        var profileCallsSkipped = 0;
         foreach (var entry in boundedEntries)
         {
             ct.ThrowIfCancellationRequested();
+
+            if (entry.Puuid is { } ladderPuuid && freshPuuids.Contains(ladderPuuid))
+            {
+                // The ladder entry is the whole payload here: the account exists, and only
+                // its rank — which the entry carries — is worth writing this run.
+                profileCallsSkipped++;
+                discovered.Add(new DiscoveredSummoner(
+                    new RiotSummonerDto { Puuid = ladderPuuid },
+                    entry.Rank,
+                    ProfileResolved: false));
+                continue;
+            }
 
             var summoner = await ResolveSummonerAsync(platform, entry, ct);
             if (string.IsNullOrWhiteSpace(summoner.Puuid))
@@ -50,7 +77,7 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
             discovered.Add(new DiscoveredSummoner(summoner, entry.Rank));
         }
 
-        return new LadderDiscoveryResult(discovered, ladderSize, appliedOffset);
+        return new LadderDiscoveryResult(discovered, ladderSize, appliedOffset, profileCallsSkipped);
     }
 
     private async Task<List<LadderEntry>> FetchLadderEntriesAsync(

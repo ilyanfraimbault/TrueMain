@@ -42,6 +42,27 @@ public class RiotAccount
     public DateTime? LastMatchIngestAtUtc { get; set; }
 
     /// <summary>
+    /// Ranked games this account has played according to the most recent ladder reading —
+    /// the sum of the wins and losses on its latest rank snapshot (#1360). Null when no
+    /// reading has ever carried them (an unranked account, or a tier the ladder sweep does
+    /// not cover).
+    /// </summary>
+    /// <remarks>
+    /// Denormalised onto the account, rather than joined from <c>rank_snapshots</c> at claim
+    /// time, because it exists to be part of an ORDER BY over the claimable set: a lateral
+    /// join to the newest snapshot per account is exactly the query the claim cannot afford
+    /// to run for every candidate row it considers.
+    /// </remarks>
+    public int? LadderGames { get; set; }
+
+    /// <summary>
+    /// The value <see cref="LadderGames"/> held when this account's matches were last
+    /// ingested (#1360). The difference between the two is how many ranked games the player
+    /// has played since we last looked — the signal the claim orders by.
+    /// </summary>
+    public int? LadderGamesAtLastIngest { get; set; }
+
+    /// <summary>
     /// Last time <c>MainActivityProcess</c> asked champion mastery whether this
     /// account still plays its mains (#900). Throttles that one call per account
     /// per <c>MainActivity:RecheckAfterHours</c> and orders the selection

@@ -62,6 +62,28 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     public Task<bool> ExistsByPuuidAsync(string puuid, CancellationToken ct)
         => db.RiotAccounts.AnyAsync(a => a.Puuid == puuid, ct);
 
+    public async Task<HashSet<string>> GetProfileFreshPuuidsAsync(
+        IReadOnlyCollection<string> puuids,
+        DateTime freshSinceUtc,
+        CancellationToken ct)
+    {
+        if (puuids.Count == 0)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        var puuidArray = puuids.Distinct(StringComparer.Ordinal).ToArray();
+        var found = await db.RiotAccounts
+            .AsNoTracking()
+            .Where(a => puuidArray.Contains(a.Puuid)
+                        && a.LastProfileSyncAtUtc != null
+                        && a.LastProfileSyncAtUtc >= freshSinceUtc)
+            .Select(a => a.Puuid)
+            .ToListAsync(ct);
+
+        return found.ToHashSet(StringComparer.Ordinal);
+    }
+
     public async Task<List<RiotAccount>> GetAccountsForRefreshAsync(int batchSize, CancellationToken ct)
     {
         // Prioritisation, in order:
@@ -526,11 +548,46 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                                       && account.MatchIngestClaimedAtUtc != null
                                       && account.MatchIngestClaimedAtUtc < leaseCutoff)))
             .Where(membership)
+            // Never-ingested accounts first, then by how many ranked games the player has
+            // actually played since the last visit, then oldest-visited (#1360).
+            //
+            // Ordering by age alone spent the batch on whoever had waited longest, whether or
+            // not they had played: production revisited an account every 27 days (median) with
+            // a 20-game window, so the most active mains — the ones the site is about — were
+            // losing games between visits while idle accounts consumed slots. The ladder sweep
+            // already refreshes wins/losses for every tracked Emerald+ account at ~310 calls a
+            // run, so this signal is free.
+            //
+            // An account with no ladder reading has an owed of zero and falls back to the
+            // age ordering, which is exactly the behaviour it had before — no starvation is
+            // introduced, the accounts that played simply stop queueing behind those that
+            // did not.
             .OrderBy(account => account.LastMatchIngestAtUtc == null ? 0 : 1)
+            // This restates LadderGamesOwed.From as an expression tree, because a query cannot
+            // call it. The two must stay in step; that type documents why each case yields
+            // zero — a missing baseline is "unknown", not "the whole season", and a season
+            // reset makes the raw difference negative for every account at once.
+            .ThenByDescending(account =>
+                account.LadderGames != null && account.LadderGamesAtLastIngest != null
+                    ? Math.Max(0, account.LadderGames.Value - account.LadderGamesAtLastIngest.Value)
+                    : 0)
             .ThenBy(account => account.LastMatchIngestAtUtc)
             .Take(take)
             .Select(account => new AccountKey(account.PlatformId, account.Puuid))
             .ToListAsync(ct);
+
+    public Task<int> ReleaseExpiredMatchIngestClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct)
+        => db.RiotAccounts
+            // Served by IX_riot_accounts_ingest_claim_lease, the partial index this state
+            // already has: (MatchIngestStatus, MatchIngestClaimedAtUtc, ...) WHERE status <> 0.
+            .Where(account => account.MatchIngestStatus == MatchIngestStatus.Processing
+                              && (account.MatchIngestClaimedAtUtc == null
+                                  || account.MatchIngestClaimedAtUtc < leaseCutoffUtc))
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(account => account.MatchIngestStatus, MatchIngestStatus.Idle)
+                    .SetProperty(account => account.MatchIngestClaimedAtUtc, (DateTime?)null),
+                ct);
 
     public Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct)
     {
@@ -555,7 +612,14 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         => db.RiotAccounts
             .Where(a => a.PlatformId == platformId && a.Puuid == puuid)
             .ExecuteUpdateAsync(
-                setters => setters.SetProperty(a => a.LastMatchIngestAtUtc, atUtc),
+                setters => setters
+                    .SetProperty(a => a.LastMatchIngestAtUtc, atUtc)
+                    // Reset the games-owed baseline in the same statement that records the
+                    // visit (#1360). Doing it anywhere else would leave a window in which the
+                    // account reads as freshly ingested but still owing every game it owed
+                    // before, and the claim would hand it straight back at the top of the
+                    // next batch.
+                    .SetProperty(a => a.LadderGamesAtLastIngest, a => a.LadderGames),
                 ct);
 
     public void Add(RiotAccount account)

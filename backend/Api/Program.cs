@@ -281,6 +281,13 @@ builder.Services.AddRateLimiter(options =>
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));
 });
+// The one door every champion read goes through: shared cache + single flight, keyed
+// by the ingestor's aggregation version rather than by a 60s clock (#1368). Registered
+// before the reads themselves because every one of them depends on it — a champion
+// query service that took a raw IMemoryCache instead would be caching without
+// coalescing, which is how a popular page's expiry became ten identical 14s scans.
+builder.Services.AddScoped<IChampionAggregationStamp, ChampionAggregationStamp>();
+builder.Services.AddScoped<IChampionReadCache, ChampionReadCache>();
 builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
 builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryService>();
 builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryService>();

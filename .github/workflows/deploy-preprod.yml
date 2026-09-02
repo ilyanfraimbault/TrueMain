@@ -1,6 +1,3 @@
-# Triggered on every push to develop: resolves this build's prerelease version,
-# builds and publishes the :preprod images, then redeploys the preprod VPS
-# (deploy-preprod job) and finally tags the commit (tag-preprod job).
 name: Deploy Preprod
 
 on:
@@ -13,21 +10,43 @@ permissions:
   contents: read
   packages: write
 
-# Workflow-level, not just on the deploy job: the rc counter is derived from the
-# tags already on the remote, so two runs resolving a version at the same time
-# would both land on the same number. Serialising the whole pipeline is what
-# makes the sequence gapless. `cancel-in-progress: false` keeps the running
-# deploy alive; GitHub still collapses the queue to the newest pending run, so a
-# burst of merges deploys the last commit — and only deployed commits get a tag,
-# which is the property we want.
 concurrency:
   group: preprod-pipeline
   cancel-in-progress: false
 
 jobs:
-  version:
-    name: Resolve Preprod Version
+  preflight:
+    name: Preflight deployment configuration
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Require the full preprod deployment configuration
+        env:
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SSH_HOST }}
+          PREPROD_SSH_KEY: ${{ secrets.PREPROD_SSH_KEY }}
+          PREPROD_ENV_FILE: ${{ secrets.PREPROD_ENV_FILE }}
+          HOSTINGER_API_KEY: ${{ secrets.HOSTINGER_API_KEY }}
+          HOSTINGER_PREPROD_VM_ID: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
+        run: |
+          set -uo pipefail
+          missing=""
+          for name in PREPROD_SSH_HOST PREPROD_SSH_KEY PREPROD_ENV_FILE HOSTINGER_API_KEY HOSTINGER_PREPROD_VM_ID; do
+            if [ -z "${!name}" ]; then
+              missing="${missing} ${name}"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Incomplete preprod deployment configuration:${missing}. Set the missing secrets/variables (docs/preprod.md) and re-run."
+            exit 1
+          fi
+          echo "Preprod deployment configuration is complete." >> "$GITHUB_STEP_SUMMARY"
+
+  version:
+    name: Resolve preprod version
+    runs-on: ubuntu-24.04
+    needs: preflight
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.resolve.outputs.version }}
 
@@ -35,14 +54,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Full history + tags: the version is derived from the tags already
-          # published, so a shallow clone would restart the counter every run.
           fetch-depth: 0
 
-      # The rules live in .github/scripts/resolve-preprod-version.sh, which CI
-      # tests directly (.github/scripts/resolve-preprod-version.test.sh) — an
-      # inline block here could only be checked by re-implementing it, and a
-      # test that re-implements the thing it tests drifts silently.
       - name: Resolve the prerelease version
         id: resolve
         env:
@@ -53,147 +66,41 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "Preprod version: ${version}" >> "$GITHUB_STEP_SUMMARY"
 
-  publish-preprod:
-    name: Build & Publish Preprod Images
+  publish:
+    name: Build and publish preprod images
     needs: version
     uses: ./.github/workflows/build-images.yml
     with:
-      # Immutable per-commit tag alongside the moving :preprod pointer, so the
-      # deploy references an image name that actually changes each merge
-      # (mutable-tag redeploys never recreate the containers — see #765).
-      # The prerelease tag is the human-readable alias for that same image:
-      # `-rc.` and `.` are both legal in a Docker reference, `+` would not be,
-      # which is why the version is a prerelease and not build metadata.
       tags: |
         preprod
         ${{ github.sha }}
         ${{ needs.version.outputs.version }}
 
-  migrate-preprod:
-    name: Apply Preprod Migrations
+  rollout:
+    name: Roll out preprod
+    needs: [version, publish]
+    uses: ./.github/workflows/rollout.yml
+    with:
+      environment: preprod
+      project_name: truemain-preprod
+      compose_file: compose.preprod.yaml
+      image_tag: ${{ github.sha }}
+      app_version: ${{ needs.version.outputs.version }}
+      ssh_host_key: ${{ vars.PREPROD_SSH_HOST_KEY }}
+      vm_id: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
+    secrets:
+      ssh_host: ${{ secrets.PREPROD_SSH_HOST }}
+      ssh_key: ${{ secrets.PREPROD_SSH_KEY }}
+      hostinger_api_key: ${{ secrets.HOSTINGER_API_KEY }}
+      env_file: ${{ secrets.PREPROD_ENV_FILE }}
+
+  tag:
+    name: Tag preprod release
     runs-on: ubuntu-24.04
-    needs: publish-preprod
-    if: success()
-    concurrency:
-      group: migrate-preprod
-      cancel-in-progress: false
-
-    steps:
-      - name: Require PREPROD_SSH_HOST / PREPROD_SSH_KEY
-        env:
-          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SSH_HOST }}
-          PREPROD_SSH_KEY: ${{ secrets.PREPROD_SSH_KEY }}
-        run: |
-          if [ -z "$PREPROD_SSH_HOST" ] || [ -z "$PREPROD_SSH_KEY" ]; then
-            echo "::error::PREPROD_SSH_HOST/PREPROD_SSH_KEY are unset — refusing to let deploy-preprod proceed against a possibly-unmigrated schema. Set both secrets (see docs/preprod.md)."
-            exit 1
-          fi
-
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Install EF Core CLI
-        run: dotnet tool install --global dotnet-ef --version 10.0.10
-
-      - name: Restore Data project
-        working-directory: backend
-        run: dotnet restore Data/Data.csproj
-
-      - name: Generate idempotent migration script
-        working-directory: backend
-        env:
-          ConnectionStrings__TrueMain: Host=localhost;Port=5432;Database=truemain;Username=truemain;Password=truemain
-        run: |
-          dotnet ef migrations script --idempotent \
-            --project Data/Data.csproj --startup-project Data/Data.csproj \
-            --output "$RUNNER_TEMP/migration.sql"
-
-      - name: Print migration script
-        run: |
-          echo "::group::migration.sql"
-          cat "$RUNNER_TEMP/migration.sql"
-          echo "::endgroup::"
-
-      - name: Upload migration script
-        uses: actions/upload-artifact@v7
-        with:
-          name: preprod-migration-${{ github.sha }}
-          path: ${{ runner.temp }}/migration.sql
-          retention-days: 90
-
-      - name: Apply migration script over SSH
-        env:
-          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SSH_HOST }}
-          PREPROD_SSH_KEY: ${{ secrets.PREPROD_SSH_KEY }}
-          PREPROD_SSH_HOST_KEY: ${{ vars.PREPROD_SSH_HOST_KEY }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$PREPROD_SSH_KEY" > ~/.ssh/preprod_ed25519
-          chmod 600 ~/.ssh/preprod_ed25519
-          printf '%s\n' "$PREPROD_SSH_HOST_KEY" > ~/.ssh/known_hosts
-          ssh -i ~/.ssh/preprod_ed25519 -o StrictHostKeyChecking=yes "root@${PREPROD_SSH_HOST}" \
-            < "$RUNNER_TEMP/migration.sql"
-
-  deploy-preprod:
-    name: Deploy Preprod VPS
-    runs-on: ubuntu-24.04
-    needs: [version, publish-preprod, migrate-preprod]
-    # No-op until the Hostinger credentials are configured: set the
-    # HOSTINGER_PREPROD_VM_ID repository variable plus the HOSTINGER_API_KEY
-    # and PREPROD_ENV_FILE secrets (see docs/preprod.md). success() must be
-    # explicit — a custom `if:` replaces the implicit needs-succeeded check,
-    # and deploying after a failed publish or a failed migration would ship
-    # stale/mixed images or images that expect a schema not yet applied.
-    if: success() && vars.HOSTINGER_PREPROD_VM_ID != ''
-    concurrency:
-      group: deploy-preprod
-      cancel-in-progress: false
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Redeploy Docker Manager project
-        uses: hostinger/deploy-on-vps@v2
-        with:
-          api-key: ${{ secrets.HOSTINGER_API_KEY }}
-          virtual-machine: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
-          project-name: truemain-preprod
-          docker-compose-path: compose.preprod.yaml
-          # Newline-separated KEY=value pairs mirroring the VPS .env, plus the
-          # immutable image tag for this commit. IMAGE_TAG makes compose resolve
-          # each service image to an absent :<sha>, so Docker Manager pulls it
-          # and recreates the containers instead of reusing the cached :preprod
-          # image (#765). It defaults to :preprod in the file for manual runs.
-          #
-          # APP_VERSION rides the same channel into NUXT_PUBLIC_APP_VERSION, so
-          # the footer states which build is serving the page. It stays a
-          # deploy-time value rather than a build arg: the image is then
-          # promotable as-is, and a version that changes every merge never
-          # invalidates a Docker layer.
-          environment-variables: |
-            ${{ secrets.PREPROD_ENV_FILE }}
-            IMAGE_TAG=${{ github.sha }}
-            APP_VERSION=${{ needs.version.outputs.version }}
-
-  tag-preprod:
-    name: Tag Preprod Release
-    runs-on: ubuntu-24.04
-    needs: [version, deploy-preprod]
-    # Scoped here rather than workflow-wide: this is the only job that writes to
-    # the repo, so the token every other job runs with stays read-only.
+    needs: [version, rollout]
+    timeout-minutes: 5
     permissions:
       contents: write
-    # Only after the VPS actually took the deploy. The whole point of the tag is
-    # that `1.20.0-rc.4` means "this ran on preprod" — tagging at build time
-    # would leave tags for commits that never got there, which is exactly the
-    # ambiguity this replaces.
-    if: success()
 
     steps:
       - name: Checkout
@@ -207,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
-            echo "::notice::${VERSION} already exists — re-run of an already-tagged deploy, nothing to do."
+            echo "::notice::${VERSION} already exists, nothing to do."
             exit 0
           fi
           git tag "${VERSION}" "${GITHUB_SHA}"

@@ -10,6 +10,16 @@ public interface IRiotAccountRepository
     Task<bool> ExistsByPuuidAsync(string puuid, CancellationToken ct);
 
     /// <summary>
+    /// Of <paramref name="puuids"/>, the ones already stored with a profile synced at or after
+    /// <paramref name="freshSinceUtc"/> — i.e. the accounts a summoner-v4 call would tell us
+    /// nothing new about (#1358).
+    /// </summary>
+    Task<HashSet<string>> GetProfileFreshPuuidsAsync(
+        IReadOnlyCollection<string> puuids,
+        DateTime freshSinceUtc,
+        CancellationToken ct);
+
+    /// <summary>
     /// The subset of <paramref name="puuids"/> that already have an account, in one query.
     /// Lets the harvest create minimal accounts for unknown puuids without a lookup per row.
     /// </summary>
@@ -45,6 +55,22 @@ public interface IRiotAccountRepository
         DateTime nowUtc,
         TimeSpan lease,
         CancellationToken ct);
+    /// <summary>
+    /// Clears every match-ingest claim whose lease was taken before
+    /// <paramref name="leaseCutoffUtc"/> (or that carries no stamp at all), returning those
+    /// accounts to <see cref="MatchIngestStatus.Idle"/> and dropping the stale
+    /// <see cref="RiotAccount.MatchIngestClaimedAtUtc"/>. Set-based; returns the number of
+    /// accounts released.
+    /// </summary>
+    /// <remarks>
+    /// The claim already treats an expired lease as claimable, so this is not what makes the
+    /// account reachable again — it is what stops <c>MatchIngestStatus</c> from reading
+    /// Processing for accounts that no run holds, which is the state the admin account
+    /// explorer and the partial claim index both take at face value (#1344). Same cutoff as
+    /// the claim's, passed in by the caller, so the two cannot disagree about "expired".
+    /// </remarks>
+    Task<int> ReleaseExpiredMatchIngestClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct);
+
     Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct);
     Task UpdateLastMatchIngestAtAsync(string platformId, string puuid, DateTime atUtc, CancellationToken ct);
 

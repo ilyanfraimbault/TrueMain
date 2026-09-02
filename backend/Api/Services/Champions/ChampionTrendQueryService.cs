@@ -9,6 +9,7 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionTrendQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
+    IChampionReadCache cache,
     ILogger<ChampionTrendQueryService> logger)
     : IChampionTrendQueryService
 {
@@ -21,7 +22,16 @@ public sealed class ChampionTrendQueryService(
     private const int MaxPatches = 5;
     private const string Surface = "champions-trend";
 
-    public async Task<ChampionTrendReadModel> GetTrendAsync(
+    public Task<ChampionTrendReadModel> GetTrendAsync(
+        int championId,
+        string? position,
+        CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"champions:trend:{championId}:{position ?? "auto"}",
+            token => ComputeTrendAsync(championId, position, token),
+            ct);
+
+    private async Task<ChampionTrendReadModel> ComputeTrendAsync(
         int championId,
         string? position,
         CancellationToken ct)
@@ -42,6 +52,9 @@ public sealed class ChampionTrendQueryService(
             .AsNoTracking()
             .Where(scope => scope.ChampionId == championId && scope.QueueId == queueId)
             .Where(scope => scope.Position.Trim() != string.Empty)
+            // Mains only, the population this read has always described (#1346
+            // added the non-main rows; every pre-existing read keeps its meaning).
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => new { scope.GameVersion, scope.Position })
             .Select(group => new ChampionPatchRow(
                 group.Key.GameVersion,
@@ -165,6 +178,9 @@ public sealed class ChampionTrendQueryService(
             .AsNoTracking()
             .Where(scope => scope.QueueId == queueId && scope.Position == position)
             .Where(scope => patches.Contains(scope.GameVersion))
+            // Mains only, the population this read has always described (#1346
+            // added the non-main rows; every pre-existing read keeps its meaning).
+            .Where(scope => scope.IsMain)
             .GroupBy(scope => scope.GameVersion)
             .Select(group => new { Patch = group.Key, Games = group.Sum(scope => (long)scope.Games) })
             .ToListAsync(ct);

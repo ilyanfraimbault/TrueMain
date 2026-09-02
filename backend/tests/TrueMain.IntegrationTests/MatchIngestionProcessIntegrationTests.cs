@@ -70,6 +70,9 @@ public sealed class MatchIngestionProcessIntegrationTests
             {
                 new("KR", "puuid-claimed-1")
             });
+
+        public Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct)
+            => Task.FromResult(new ExpiredClaimRelease(0, 0));
     }
 
     private sealed class FakeAccountValidationService : IAccountValidationService
@@ -99,7 +102,7 @@ public sealed class MatchIngestionProcessIntegrationTests
 
     private sealed class FakeRiotMatchClient : IRiotMatchClient
     {
-        public Task<List<string>> GetMatchIdsAsync(string puuid, RegionalRoute region, int count, CancellationToken ct)
+        public Task<List<string>> GetMatchIdsAsync(MatchIdQuery query, CancellationToken ct)
             => Task.FromResult(new List<string> { "KR_200" });
 
         public Task<RiotMatchDto> GetMatchAsync(string matchId, RegionalRoute region, CancellationToken ct)

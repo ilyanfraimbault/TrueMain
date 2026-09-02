@@ -25,8 +25,9 @@ public static class IngestorEffectiveConfigurationCatalog
         Title = "Discovery",
         Description =
             "How the apex-ladder crawl finds new accounts to track: tiers scraped, how many "
-            + "per platform per run, and the sliding-window offset that keeps a saturated "
-            + "ladder from re-scanning its own top."
+            + "per platform per run, the sliding-window offset that keeps a saturated ladder "
+            + "from re-scanning its own top, and the profile-sync freshness below which the "
+            + "per-entry summoner-v4 and champion-mastery calls are skipped as redundant."
     };
 
     private static EffectiveConfigurationSectionDescriptor LadderSync { get; } = new()
@@ -93,6 +94,30 @@ public static class IngestorEffectiveConfigurationCatalog
             + "keep each deletion pass from blowing a single transaction's lock footprint."
     };
 
+    private static EffectiveConfigurationSectionDescriptor RiotRateLimit { get; } = new()
+    {
+        SectionName = RiotRateLimitOptions.SectionName,
+        OptionsType = typeof(RiotRateLimitOptions),
+        Title = "Riot rate limiting",
+        Description =
+            "How outbound Riot API calls are paced against the budget Riot enforces per "
+            + "routing value: the limits assumed before Riot advertises its own, whether "
+            + "per-endpoint method limits are enforced too, and the headroom held back so a "
+            + "count we under-tracked does not become a 429."
+    };
+
+    private static EffectiveConfigurationSectionDescriptor Intake { get; } = new()
+    {
+        SectionName = IntakeOptions.SectionName,
+        OptionsType = typeof(IntakeOptions),
+        Title = "Intake sizing",
+        Description =
+            "Sizes the candidate funnel to what the match-ingest claim can absorb: the "
+            + "headroom the promotion queue may carry ahead of the claim, the per-platform "
+            + "queue-depth cap and the batches retention demotes it with, and how far the "
+            + "established-main share swings with the coverage deficit."
+    };
+
     public static EffectiveConfigurationCatalog Instance { get; } = new(
         ProcessName: "Ingestor",
         Sections:
@@ -100,11 +125,13 @@ public static class IngestorEffectiveConfigurationCatalog
             SharedEffectiveConfigurationSections.MainAnalysis,
             SharedEffectiveConfigurationSections.Database,
             SharedEffectiveConfigurationSections.MongoLogging,
+            RiotRateLimit,
             LadderSync,
             Discovery,
             Scoring,
             Harvest,
             MatchIngestion,
+            Intake,
             LaneOutcomeAggregation,
             MatchDataRetention
         ]);

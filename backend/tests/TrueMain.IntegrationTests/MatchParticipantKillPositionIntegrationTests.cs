@@ -40,7 +40,7 @@ public sealed class MatchParticipantKillPositionIntegrationTests
         rows[0].TimestampMs.Should().Be(120_000);
         rows[0].X.Should().Be(1000);
 
-        var deleted = await repository.DeleteByMatchIdAsync("m-kp-1", CancellationToken.None);
+        var deleted = await repository.DeleteByMatchIdsAsync(["m-kp-1"], CancellationToken.None);
         deleted.Should().Be(3);
         (await repository.GetByMatchIdAsync("m-kp-1", CancellationToken.None)).Should().BeEmpty();
     }

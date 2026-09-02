@@ -274,7 +274,7 @@ public sealed class ChampionLaneOutcomeAggregationProcessIntegrationTests
         db.RiotAccounts.Add(account);
 
         // The fold's champion-side cohort is "main of this champion"
-        // (Data.Aggregation.MatchupCohort), joined on (platform, puuid, champion) —
+        // (Data.Aggregation.ChampionCohort), joined on (platform, puuid, champion) —
         // so a tracked account alone no longer folds anything, and the participant
         // rows below must carry the account's real puuid the way RiotMatchMapper
         // writes them.

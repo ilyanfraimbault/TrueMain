@@ -1,36 +1,63 @@
 import type { ChampionPosition } from '~/utils/positions'
-import { normalizeEloBracket, ELO_BRACKET_ALL } from '~/utils/elo-brackets'
+import { DEFAULT_ELO_BRACKET, resolveEloBracket } from '~/utils/elo-brackets'
+import {
+  EVERYONE_QUERY_PARAM,
+  EVERYONE_QUERY_VALUE,
+  resolveTruemainsOnly,
+} from '~/utils/champion-population'
 import { firstParamValue } from '~/utils/route-params'
 
-export function useChampionFilters() {
+/**
+ * @param options.defaultEloBracket Bracket used when `?elo=` is absent. Master+
+ * on the global champion pages (`DEFAULT_ELO_BRACKET`); the player-scoped
+ * champion page passes `ELO_BRACKET_ALL`, because its scope is already one
+ * account and re-slicing that by rank empties the build of any truemain below
+ * Master.
+ */
+export function useChampionFilters(options: { defaultEloBracket?: string } = {}) {
   const route = useRoute()
   const router = useRouter()
+  const defaultEloBracket = options.defaultEloBracket ?? DEFAULT_ELO_BRACKET
 
   const filters = computed(() => {
-    // Only forward a recognised, non-default bracket. Normalise first (upper-
-    // cases + validates) so a hand-typed / shared `?elo=gold` is honoured like
-    // the backend does, instead of being silently dropped. `ALL` (and any junk)
-    // is the server default, so it maps to `undefined` — keeping the query, and
-    // the data cache key, identical to an unfiltered request.
-    const rawBracket = firstParamValue(route.query.elo) ?? ''
-    const normalizedBracket = normalizeEloBracket(rawBracket)
-    const eloBracket = normalizedBracket === ELO_BRACKET_ALL ? undefined : normalizedBracket
+    // Always resolves to a concrete bracket — never `undefined`. The page
+    // default is no longer the server's (`ALL`), so "no param" can't mean "send
+    // no param": every consumer forwards this value explicitly, otherwise the
+    // page would render Master+ in its header while fetching every tier. A
+    // hand-typed / shared `?elo=gold` is upper-cased and honoured like the
+    // backend does; junk falls back to the page default rather than widening to
+    // every tier under a header that says Master+.
+    const eloBracket = resolveEloBracket(firstParamValue(route.query.elo), defaultEloBracket)
 
     // `vs` holds the lane opponent (#923). Parsed to a positive int so a junk
     // value is dropped rather than forwarded to the API as garbage.
     const rawOpponent = Number.parseInt(firstParamValue(route.query.vs) ?? '', 10)
     const opponentChampionId = Number.isFinite(rawOpponent) && rawOpponent > 0 ? rawOpponent : undefined
 
+    // Population filter (#1346). Only the opt-out is ever in the URL
+    // (`?everyone=1`), so the resting URL stays clean like the bracket's. The
+    // rule itself — on by default, and forced on by a pinned matchup — lives in
+    // `resolveTruemainsOnly` so it can be tested without a Nuxt context.
+    const truemainsOnly = resolveTruemainsOnly(
+      firstParamValue(route.query[EVERYONE_QUERY_PARAM]),
+      opponentChampionId,
+    )
+
     return {
       patch: firstParamValue(route.query.patch) || undefined,
       position: firstParamValue(route.query.position) || undefined,
       eloBracket,
+      truemainsOnly,
       opponentChampionId,
     }
   })
 
+  // The default bracket is not a filter — it is the page's resting state, so
+  // it must not light up the "filters active" affordances on an untouched page.
   const hasFilters = computed(() =>
-    Boolean(filters.value.patch || filters.value.position || filters.value.eloBracket
+    Boolean(filters.value.patch || filters.value.position
+      || filters.value.eloBracket !== defaultEloBracket
+      || !filters.value.truemainsOnly
       || filters.value.opponentChampionId),
   )
 
@@ -45,6 +72,7 @@ export function useChampionFilters() {
     position?: ChampionPosition | null
     championId?: number | null
     eloBracket?: string | null
+    truemainsOnly?: boolean
     opponentChampionId?: number | null
   }, options: { resetPage?: boolean } = {}) {
     const nextQuery: Record<string, string> = {}
@@ -66,9 +94,19 @@ export function useChampionFilters() {
       else delete nextQuery.championId
     }
     if (updates.eloBracket !== undefined) {
-      // `ALL` is the default, so clear the param rather than pin it.
-      if (updates.eloBracket && updates.eloBracket !== ELO_BRACKET_ALL) nextQuery.elo = updates.eloBracket
+      // Drop the param at the page default so the resting URL stays clean, and
+      // pin every other bracket — `ALL` included, which is now a deliberate
+      // choice rather than the absence of one.
+      if (updates.eloBracket && updates.eloBracket !== defaultEloBracket) {
+        nextQuery.elo = updates.eloBracket
+      }
       else delete nextQuery.elo
+    }
+
+    if (updates.truemainsOnly !== undefined) {
+      // Only the opt-out is written: `truemainsOnly` is the resting state.
+      if (updates.truemainsOnly) delete nextQuery[EVERYONE_QUERY_PARAM]
+      else nextQuery[EVERYONE_QUERY_PARAM] = EVERYONE_QUERY_VALUE
     }
 
     if (updates.opponentChampionId !== undefined) {

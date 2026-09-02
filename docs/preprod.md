@@ -2,7 +2,7 @@
 
 Preprod is the pre-production stack: it runs the `:preprod` images, which are
 built and published from `develop` on every push (see
-`.github/workflows/deploy-preprod.yml`). It replaces the former "QA"
+`.github/workflows/deploy-preprod.yml` and `docs/ci.md`). It replaces the former "QA"
 stack and typically lives on a dedicated host (historically the old production
 VPS).
 
@@ -11,13 +11,52 @@ Design goals:
 - **Tracks `develop`** — updating preprod is just pulling the latest images.
 - **Own Riot API key** — never the production key. PUUIDs are encrypted per
   API app, so the key and the database form an inseparable pair: a new key
-  requires starting from an empty database.
+  requires starting from an empty database — or, when the accounts must be
+  kept, the re-resolution procedure in
+  [`docs/riot-key-switch.md`](riot-key-switch.md), which is rehearsed here
+  before it is run on prod.
 - **Tiny database** — `compose.preprod.yaml` overrides the ingestor's
   app settings so every pipeline stage runs (discovery, harvest, scoring,
   match ingestion, main analysis, aggregations, retention) but per-run volumes
   are small and only the current patch's match data is retained. The
   accounts/mains base is never purged by retention — only match data is — so
   the player base persists while matches stay bounded.
+
+## Two ingestor lanes
+
+Preprod runs the ingestion pipeline as **two containers** (#1362), where prod still runs one:
+
+| container | `Job:Mode` | cadence |
+| --- | --- | --- |
+| `truemain-preprod-ingestor` | `FetchLane` | back-to-back (`RunOnce`, restarted by Docker) |
+| `truemain-preprod-ingestor-aggregate` | `AggregateLane` | every `INGESTOR_AGGREGATE_INTERVAL_MINUTES` (default 20) |
+
+The two halves have opposite bottlenecks — the fetch lane waits on Riot, the aggregate lane on Postgres — so
+chaining them left the API key idle through every aggregation. Splitting them is a deployment choice, not a
+code one: a single container on `Job:Mode=Full` still runs all 20 steps in order, which is what prod does.
+
+Both lanes share one environment block in `compose.preprod.yaml` (the `x-ingestor-environment` anchor); only
+the mode, the cadence, the `Application Name` on the connection string and the crash volume differ. To collapse
+preprod back to one lane, set `INGESTOR_JOB_MODE=Full` and stop the aggregate container.
+
+The fetch lane stays on the default `RunOnce` loop: its passes are back-to-back, paced by the per-routing-value
+rate limiter rather than by a timer. The aggregate lane runs on a timer (`INGESTOR_AGGREGATE_INTERVAL_MINUTES`,
+default 20): there is nothing to gain from re-folding the same rows the moment a pass ends, and a fixed cadence
+is what makes "how stale can an aggregate be?" answerable. Each lane has its own crash volume, because two
+containers writing crash dumps to one path would race on the file the crash reporter writes before it reaches
+Mongo. `MainAnalysis__AggregateNonMainPopulation` is on here (#1346, gated per environment by #1349) because
+the widened fold multiplies the aggregation's source rows and that process once OOM-killed a VPS (#601);
+measured on 2026-09-01 it ran at ~250 MB RSS with no restart and produced 16.6k non-main scopes on the live
+patch alongside 20.9k main ones. Postgres runs the prod tuning at roughly half the values, see `docs/prod.md`.
+
+What to watch while the split is on trial:
+
+- `process_runs` — each lane's steps should keep completing; no run should turn `Abandoned` when the *other*
+  lane restarts (that was the bug the scoped reconciliation fixes).
+- `pg_stat_activity` — retention (aggregate lane) deletes while the fetch lane inserts. They touch disjoint
+  patches by construction, so this should show no lock waits growing over time.
+- The Riot usage panel — the point of the split is that the key stops idling during aggregation.
+
 
 ## First deployment on a host (fresh database)
 
@@ -90,11 +129,12 @@ tester IPs like the rest, not to the host itself.
 
 ### Automatic (Hostinger Docker Manager API)
 
-The `deploy-preprod` job in `deploy-preprod.yml` redeploys the
-`truemain-preprod` Docker Manager project right after the `:preprod` images are
-published, using the official `hostinger/deploy-on-vps` action (a pure API
-call — no SSH material in CI). It is a no-op until three pieces of repository
-configuration exist:
+The `deploy` job of the `rollout` workflow called by `deploy-preprod.yml`
+redeploys the `truemain-preprod` Docker Manager project right after the
+`:preprod` images are published and the migrations applied, using the official
+`hostinger/deploy-on-vps` action (a pure API call — no SSH material in CI). A
+`preflight` job fails the whole run, never a green skip, until these three
+pieces of repository configuration exist (plus the two SSH secrets below):
 
 | Kind | Name | Value |
 | ---- | ---- | ----- |
@@ -138,7 +178,7 @@ test the real thing — `resolve-preprod-version.test.sh`, run by the
   when a release moves the base, and a deleted tag can never make it reuse a
   number.
 
-`tag-preprod` pushes the git tag **after** the VPS has taken the deploy, so a
+`tag` pushes the git tag **after** the VPS has taken the deploy, so a
 `-rc.N` tag always means "this ran on preprod" rather than "this was built".
 The same string also tags the four images on GHCR (`…/truemain-web:1.20.0-rc.4`),
 which is why the version is a semver *prerelease* and not build metadata — a `+`
@@ -158,14 +198,13 @@ Two consequences worth knowing:
 
 ### Applying migrations before the deploy
 
-The `migrate-preprod` job runs between `publish-preprod` and `deploy-preprod`
-and applies pending EF migrations as an idempotent SQL script — see
-`docs/production-migrations.md` for why this replaced startup migrations.
-Unlike the `deploy-preprod` guard on `PREPROD_ENV_FILE`, this one fails the
-job (not a green skip) when its secrets are missing: since
+The `migrate` job of the rollout runs between `publish` and `deploy` and
+applies pending EF migrations as an idempotent SQL script — see
+`docs/production-migrations.md` for why this replaced startup migrations. Its
+SSH secrets are part of the same `preflight` check: since
 `Database__ApplyMigrationsOnStartup` is permanently `false` in
-`compose.preprod.yaml`, letting `deploy-preprod` proceed without a migration
-attempt would silently roll a new image against a possibly-stale schema.
+`compose.preprod.yaml`, letting the deploy proceed without a migration attempt
+would silently roll a new image against a possibly-stale schema.
 
 | Kind     | Name                   | Value                                                        |
 | -------- | ---------------------- | ------------------------------------------------------------ |
@@ -177,8 +216,8 @@ Postgres is only bound to `127.0.0.1:5432` on the VPS, so the job connects
 over SSH and pipes the generated script into `psql` running inside the
 already-live `truemain-preprod-postgres` container, using the
 `POSTGRES_USER`/`POSTGRES_DB` already set in `/docker/truemain-preprod/.env`.
-`deploy-preprod` depends on this job succeeding, so a failed or skipped
-migration blocks the image roll.
+The deploy depends on this job succeeding, so a failed or skipped migration
+blocks the image roll.
 
 `PREPROD_SSH_KEY`'s public half is installed in the VPS's
 `~/.ssh/authorized_keys` with a forced `command=/usr/local/bin/apply-migration.sh`

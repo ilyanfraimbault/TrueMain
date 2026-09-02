@@ -44,6 +44,7 @@ public sealed class IngestorAppSettingsNoDefaultsTests
         (AccountRefreshOptions.SectionName, typeof(AccountRefreshOptions)),
         (MatchDataRetentionOptions.SectionName, typeof(MatchDataRetentionOptions)),
         (CandidatePruningOptions.SectionName, typeof(CandidatePruningOptions)),
+        (IntakeOptions.SectionName, typeof(IntakeOptions)),
         (PowerspikeAggregationOptions.SectionName, typeof(PowerspikeAggregationOptions)),
         (MatchupLeadAggregationOptions.SectionName, typeof(MatchupLeadAggregationOptions)),
         (SynergyAggregationOptions.SectionName, typeof(SynergyAggregationOptions)),

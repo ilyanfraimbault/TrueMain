@@ -16,7 +16,9 @@ namespace TrueMain.UnitTests;
 /// dies mid-stream, so the resilience handler (which decides on the headers) never
 /// retries it and System.Text.Json throws while reading. One such payload used to
 /// abort the whole account's ingestion — see issue #1052. These tests pin the
-/// boundary between "isolated bad payload" and "systemic failure".
+/// boundary between "isolated bad payload" and "systemic failure"; since #1229 that
+/// boundary lives in the download phase, which runs before the write transaction is
+/// opened, so a systemic failure aborts the account without ever having written.
 /// </summary>
 public sealed class TimelineIngestionServiceFailureIsolationTests
 {
@@ -29,20 +31,23 @@ public sealed class TimelineIngestionServiceFailureIsolationTests
             new TruncatingRiotMatchClient(matchIds),
             NullLogger<TimelineIngestionService>.Instance);
 
-        var updated = await service.IngestTimelinesAsync(
+        var plan = await service.PrepareAsync(
             session,
             RegionalRoute.Asia,
             Array.Empty<string>(),
             matchIds,
-            saveBatchSize: 10,
             CancellationToken.None);
+
+        plan.Timelines.Should().BeEmpty();
+
+        var updated = await service.WriteAsync(session, plan, saveBatchSize: 10, CancellationToken.None);
 
         updated.Should().Be(0);
         // Nothing was marked ingested, so the pending-timeline path re-fetches these
         // matches on a later run instead of the account being reverted to queued.
         await session.Matches
             .DidNotReceive()
-            .SetTimelineIngestedAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+            .SetTimelineIngestedAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -54,12 +59,11 @@ public sealed class TimelineIngestionServiceFailureIsolationTests
             new TruncatingRiotMatchClient(matchIds),
             NullLogger<TimelineIngestionService>.Instance);
 
-        var ingest = async () => await service.IngestTimelinesAsync(
+        var ingest = async () => await service.PrepareAsync(
             session,
             RegionalRoute.Asia,
             Array.Empty<string>(),
             matchIds,
-            saveBatchSize: 10,
             CancellationToken.None);
 
         // A Riot outage must still abort the account rather than report a healthy
@@ -82,12 +86,11 @@ public sealed class TimelineIngestionServiceFailureIsolationTests
             new TruncatingRiotMatchClient(truncated),
             NullLogger<TimelineIngestionService>.Instance);
 
-        var ingest = async () => await service.IngestTimelinesAsync(
+        var ingest = async () => await service.PrepareAsync(
             session,
             RegionalRoute.Asia,
             Array.Empty<string>(),
             matchIds,
-            saveBatchSize: 100,
             CancellationToken.None);
 
         await ingest.Should().NotThrowAsync();
@@ -121,7 +124,7 @@ public sealed class TimelineIngestionServiceFailureIsolationTests
         public Task<RiotMatchDto> GetMatchAsync(string matchId, RegionalRoute region, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<List<string>> GetMatchIdsAsync(string puuid, RegionalRoute region, int count, CancellationToken ct)
+        public Task<List<string>> GetMatchIdsAsync(MatchIdQuery query, CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<MatchTimelineDto> GetTimelineAsync(string matchId, RegionalRoute region, CancellationToken ct)

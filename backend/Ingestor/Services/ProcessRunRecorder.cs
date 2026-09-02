@@ -92,12 +92,15 @@ public sealed class ProcessRunRecorder(
         // resurrect it as "fresh".
         => store.TouchHeartbeatAsync(runId, DateTime.UtcNow, ct);
 
-    public Task<int> ReconcileOrphanedRunsAsync(CancellationToken ct)
-        // Single-instance ingestor: anything still Running at startup was owned by
-        // the previous process that is now gone, so it can never complete.
+    public Task<int> ReconcileOrphanedRunsAsync(IReadOnlyCollection<string> processNames, CancellationToken ct)
+        // Anything still Running at startup among *this* instance's own processes was owned
+        // by the previous incarnation of it, which is gone, so it can never complete. The
+        // scoping matters since #1362: with a fetch lane and an aggregate lane in separate
+        // processes, an unscoped sweep would abandon runs that are very much alive.
         => store.AbandonRunningAsync(
             DateTime.UtcNow,
             "Abandoned: ingestor restarted while this run was in flight.",
+            processNames,
             ct);
 
     private static string? Truncate(string? value, int maxLength)

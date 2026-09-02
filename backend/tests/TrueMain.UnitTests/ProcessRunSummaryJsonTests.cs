@@ -38,18 +38,18 @@ public sealed class ProcessRunSummaryJsonTests
         // Spelled out rather than compared, so a reviewer can read the persisted
         // shape of the two summaries that nest an array of objects.
         ProcessRunSummaryJson.Serialize(new DiscoverySummary(
-            [new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null)]))
+            [new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null, 9, 4)]))
             .Should().Be(
                 """
-                {"platforms":[{"platform":"EUW1","accountsProcessed":40,"newAccounts":3,"candidatesInserted":12,"candidatesUpdated":5,"rankSnapshotsInserted":2,"rankSnapshotsUpdated":6,"rankSnapshotsUnchanged":32,"error":null}]}
+                {"platforms":[{"platform":"EUW1","accountsProcessed":40,"newAccounts":3,"candidatesInserted":12,"candidatesUpdated":5,"rankSnapshotsInserted":2,"rankSnapshotsUpdated":6,"rankSnapshotsUnchanged":32,"error":null,"profileCallsSkipped":9,"masteryCallsSkipped":4}]}
                 """);
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
-            3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 9, 6, 11, 3,
+            3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 4, 5, 8, 9, 6, 11, 3,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]))
             .Should().Be(
                 """
-                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"deletedSynergyStats":8,"deletedBanStats":9,"prunedSubFloorPowerspikeEvents":6,"collapsedPowerspikeOpponentShards":11,"collapsedPowerspikeOpponentGroups":3,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
+                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"demotedQueuedCandidates":42,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"deletedSynergyStats":8,"deletedBanStats":9,"prunedSubFloorPowerspikeEvents":6,"collapsedPowerspikeOpponentShards":11,"collapsedPowerspikeOpponentGroups":3,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
                 """);
     }
 
@@ -59,7 +59,7 @@ public sealed class ProcessRunSummaryJsonTests
         // The admin's per-platform row reads `error`; dropping the key for a
         // healthy platform (WhenWritingNull) would change the stored shape.
         ProcessRunSummaryJson.Serialize(new DiscoverySummary(
-            [new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, null)]))
+            [new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, null, 0, 0)]))
             .Should().Contain("\"error\":null");
     }
 
@@ -115,20 +115,21 @@ public sealed class ProcessRunSummaryJsonTests
             new { reason = "No champions available for champion pattern aggregation.", patterns = 0 });
 
         yield return (
-            new ScoringSummary([new ScoringPlatformSummary("EUW1", 120, 20)]),
+            new ScoringSummary([new ScoringPlatformSummary("EUW1", 120, 20)], 45),
             new
             {
                 platforms = new List<object>
                 {
                     new { platform = "EUW1", scored = 120, queued = 20 }
-                }
+                },
+                promotionCapPerPlatform = 45
             });
 
         yield return (
             new DiscoverySummary(
             [
-                new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null),
-                new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, "simulated ladder outage")
+                new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null, 9, 4),
+                new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, "simulated ladder outage", 0, 0)
             ]),
             new
             {
@@ -144,7 +145,11 @@ public sealed class ProcessRunSummaryJsonTests
                         rankSnapshotsInserted = 2,
                         rankSnapshotsUpdated = 6,
                         rankSnapshotsUnchanged = 32,
-                        error = (string?)null
+                        error = (string?)null,
+                        // Appended by #1358: the summoner-v4 / champion-mastery calls the
+                        // freshness gate did not make.
+                        profileCallsSkipped = 9,
+                        masteryCallsSkipped = 4
                     },
                     new
                     {
@@ -156,17 +161,20 @@ public sealed class ProcessRunSummaryJsonTests
                         rankSnapshotsInserted = 0,
                         rankSnapshotsUpdated = 0,
                         rankSnapshotsUnchanged = 0,
-                        error = (string?)"simulated ladder outage"
+                        error = (string?)"simulated ladder outage",
+                        profileCallsSkipped = 0,
+                        masteryCallsSkipped = 0
                     }
                 }
             });
 
         yield return (
-            new MatchIngestionSummary(9, 30, 4, 12, 1, 7,
+            new MatchIngestionSummary(9, 30, 4, 12, 1, 7, 6, 2, 5,
             [
-                new MatchIngestionPlatformSummary("EUW1", 5, 20, 3, 8),
-                new MatchIngestionPlatformSummary("KR", 4, 10, 1, 4)
-            ]),
+                new MatchIngestionPlatformSummary("EUW1", 5, 20, 3, 8, 4),
+                new MatchIngestionPlatformSummary("KR", 4, 10, 1, 4, 2)
+            ],
+            3),
             new
             {
                 accountsProcessed = 9,
@@ -179,6 +187,14 @@ public sealed class ProcessRunSummaryJsonTests
                 // same — it simply has no accountsValidated, which is exactly how
                 // the funnel tells "not measured yet" from "measured zero".
                 accountsValidated = 7,
+                // Appended by #1344 for the same reason: a run recorded before the
+                // deploy simply has no reap counters, which reads as "not measured"
+                // rather than as a run that reaped nothing.
+                expiredCandidatesReleased = 6,
+                expiredClaimsReleased = 2,
+                // Appended by #1358: matchesSkipped now means "already stored" only, and the
+                // matches fetched then discarded for being off-queue are counted here.
+                matchesSkippedWrongQueue = 5,
                 byPlatform = new[]
                 {
                     new
@@ -187,7 +203,8 @@ public sealed class ProcessRunSummaryJsonTests
                         accountsProcessed = 5,
                         matchesInserted = 20,
                         matchesSkipped = 3,
-                        timelinesUpdated = 8
+                        timelinesUpdated = 8,
+                        matchesSkippedWrongQueue = 4
                     },
                     new
                     {
@@ -195,9 +212,14 @@ public sealed class ProcessRunSummaryJsonTests
                         accountsProcessed = 4,
                         matchesInserted = 10,
                         matchesSkipped = 1,
-                        timelinesUpdated = 4
+                        timelinesUpdated = 4,
+                        matchesSkippedWrongQueue = 2
                     }
-                }.ToList()
+                }.ToList(),
+                // Appended by #1360, for the same reason as the two blocks above: a run
+                // recorded before the deploy has no key here, which reads as "not measured"
+                // rather than as a batch where every visit found new matches.
+                accountsWithoutNewMatches = 3
             });
 
         yield return (
@@ -219,7 +241,7 @@ public sealed class ProcessRunSummaryJsonTests
             });
 
         yield return (
-            new AccountRefreshSummary(50, 30, 2, 1, 10, 3, 20, 8, 25, 4, 6, 2),
+            new AccountRefreshSummary(50, 30, 2, 1, 10, 3, 20, 8, 25, 4, 6, 2, 11),
             new
             {
                 selected = 50,
@@ -233,7 +255,10 @@ public sealed class ProcessRunSummaryJsonTests
                 rankUnchanged = 25,
                 rankSkippedUnranked = 4,
                 rankSkippedFresh = 6,
-                rankFailed = 2
+                rankFailed = 2,
+                // Appended by #1358: the account-v1 call skipped because the stored profile
+                // is still fresh.
+                profileSkippedFresh = 11
             });
 
         yield return (
@@ -301,7 +326,7 @@ public sealed class ProcessRunSummaryJsonTests
             });
 
         yield return (
-            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 5, 900, 1, 2, 4, 5, 8, 9, 6, 11, 3,
+            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 4, 5, 8, 9, 6, 11, 3,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]),
             new
             {
@@ -311,6 +336,7 @@ public sealed class ProcessRunSummaryJsonTests
                 deletedParticipants = 100,
                 deletedNonRankedMatches = 4,
                 prunedCandidates = 7,
+                demotedQueuedCandidates = 42,
                 prunedSnapshotMatches = 5,
                 deletedIntermediateSnapshots = 900,
                 deletedAggregateScopes = 1,

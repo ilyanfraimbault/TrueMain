@@ -9,7 +9,7 @@
   files and in `appsettings.Development.json`.
 - **Preprod and production:** an **idempotent SQL script** generated from the
   migrations is applied as a discrete deployment step, by the
-  `migrate-preprod`/`migrate-prod` jobs in `deploy-preprod.yml`/`deploy-prod.yml`,
+  `migrate` job of `rollout.yml`, called by `deploy-preprod.yml`/`deploy-prod.yml`,
   before the new images roll. `Database__ApplyMigrationsOnStartup` is `false`
   in both `compose.preprod.yaml` and `compose.prod.yaml`.
 
@@ -131,23 +131,52 @@ the second time. Any statement incompatible with the deploy path fails the
 build instead of surfacing during a disaster recovery.
 
 Neither VPS exposes a connection string reachable from CI (see "CI wiring"
-below), so the actual `migrate-preprod`/`migrate-prod` jobs pipe the script
+below), so the actual `migrate` job of the rollout pipes the script
 into `psql` inside the running container over SSH instead — same
 `--single-transaction` flag, different transport.
+
+### A migration that depends on a server setting runs before the setting exists
+
+`migrate-preprod` / `migrate-prod` deliberately run **before** the deploy job rolls
+the images, so the script always meets the *previous* server. A migration whose
+statement depends on a setting introduced by the same PR therefore runs against a
+server that does not have it yet, and — because EF stamps
+`__EFMigrationsHistory` regardless — it is never retried.
+
+`20260902141349_EnablePgStatStatements` is the case in point (#1366). It creates the
+`pg_stat_statements` extension, which requires
+`shared_preload_libraries=pg_stat_statements`, added to the compose files in the same
+PR and only effective after the Postgres container restarts. The migration catches
+the failure and raises a `NOTICE` rather than breaking the chain, which is the right
+behaviour for every database that will never carry the preload (a developer's local
+server, the `migrate-fresh` container, a restored dump) — but it does mean the
+extension does not appear on its own.
+
+So on each environment, **once**, after the deploy that restarts Postgres:
+
+```bash
+docker exec -i <postgres-container> psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements;'
+docker exec -i <postgres-container> psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "SELECT count(*) FROM pg_stat_statements;"
+```
+
+The general rule: when a migration depends on a server setting shipped alongside it,
+expect to apply it by hand after the restart, and say so in the PR.
 
 ## CI wiring
 
 Both `deploy-preprod.yml` (on every push to `develop`) and `deploy-prod.yml`
-(on every published release) run three jobs in sequence: publish images →
-apply migrations → roll the VPS. The deploy job depends on the migrate job
+(on every published release) run the same sequence: publish images →
+apply migrations (`rollout.yml`, job `migrate`) → roll the VPS (job `deploy`). The deploy job depends on the migrate job
 succeeding, so a failed or aborted migration blocks the image roll instead of
 shipping a schema mismatch. Preprod runs this on every merge to `develop`,
 so it is the first place a bad migration script shows up — before it ever
 reaches prod.
 
-`deploy-prod.yml` puts a `preflight` job in front of all three: it fails the
-run when any piece of the deployment configuration (SSH secrets,
-`PROD_ENV_FILE`, `HOSTINGER_PROD_API_KEY`, `HOSTINGER_PROD_VM_ID`) is missing.
+Both workflows put a `preflight` job in front of everything: it fails the
+run when any piece of the deployment configuration (SSH secrets, env file,
+Hostinger API key, VM id) is missing.
 Deliberately not a green skip: the migration runs first, so a deploy-side
 configuration checked at deploy time could only ever skip the image roll
 *after* the schema had already moved — the mismatch in the other direction,
@@ -157,10 +186,8 @@ or neither does.
 
 The migrate job, in each workflow:
 
-1. Fails immediately if its SSH secrets are missing — deliberately not a green
-   skip, for the same reason. On prod this check lives in `preflight` instead,
-   so it fires before the images are even published; `migrate-preprod` still
-   carries its own.
+1. Runs only once `preflight` has confirmed the SSH secrets exist, so the
+   check fires before the images are even published.
 2. Restores `Data.csproj` (a plain checkout has no `obj/project.assets.json`
    yet, and `dotnet ef` does not restore on its own), then generates the
    idempotent script from the deployed commit/tag's checkout.
@@ -170,22 +197,9 @@ The migrate job, in each workflow:
    `dbcontext scaffold`, `migrations script` has no `--connection` flag — so
    the runner (which has no real database reachable, let alone credentials)
    is given a throwaway one via the `ConnectionStrings__TrueMain` environment
-   variable:
-
-   ```yaml
-   - name: Restore Data project
-     working-directory: backend
-     run: dotnet restore Data/Data.csproj
-
-   - name: Generate idempotent migration script
-     working-directory: backend
-     env:
-       ConnectionStrings__TrueMain: Host=localhost;Port=5432;Database=truemain;Username=truemain;Password=truemain
-     run: |
-       dotnet ef migrations script --idempotent \
-         --project Data/Data.csproj --startup-project Data/Data.csproj \
-         --output "$RUNNER_TEMP/migration.sql"
-   ```
+   variable. All of this lives in the `.github/actions/migration-script`
+   composite action, shared with the `migrate-fresh` CI job so the script
+   validated in CI is generated exactly like the one deployed.
 
 3. Prints the script to the job log and uploads it as a build artifact
    (90-day retention) — an auditable record of exactly what ran, since

@@ -14,7 +14,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var buildQuery = new CountingBuildQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), cache);
+            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), TestChampionReadCache.Wrapping(cache));
 
         var criteria = new CompositionSearchCriteria
         {
@@ -38,7 +38,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var buildQuery = new CountingBuildQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), cache);
+            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), TestChampionReadCache.Wrapping(cache));
 
         await service.GetAsync(
             new CompositionSearchCriteria
@@ -67,7 +67,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var buildQuery = new CountingBuildQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), cache);
+            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), TestChampionReadCache.Wrapping(cache));
 
         // Same draft, slots listed in a different order: dictionaries are
         // sorted into the key, so the second call must hit.
@@ -99,7 +99,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var gamesQuery = new CountingGamesQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, buildQuery, gamesQuery, new StubLaneQueryService(), cache);
+            matchQuery, buildQuery, gamesQuery, new StubLaneQueryService(), TestChampionReadCache.Wrapping(cache));
 
         var criteria = new CompositionSearchCriteria
         {
@@ -125,7 +125,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var gamesQuery = new CountingGamesQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, new CountingBuildQueryService(), gamesQuery, new StubLaneQueryService(), cache);
+            matchQuery, new CountingBuildQueryService(), gamesQuery, new StubLaneQueryService(), TestChampionReadCache.Wrapping(cache));
 
         var criteria = new CompositionSearchCriteria { ChampionId = 157, Position = "MIDDLE" };
 
@@ -145,7 +145,7 @@ public sealed class CompositionRecommendationQueryServiceTests
         var gamesQuery = new CountingGamesQueryService();
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
         var service = new CompositionRecommendationQueryService(
-            matchQuery, new CountingBuildQueryService(), gamesQuery, new StubLaneQueryService(), cache);
+            matchQuery, new CountingBuildQueryService(), gamesQuery, new StubLaneQueryService(), TestChampionReadCache.Wrapping(cache));
 
         var games = await service.GetGamesAsync(
             new CompositionSearchCriteria { ChampionId = 157, Position = "MIDDLE" },

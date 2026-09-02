@@ -27,7 +27,9 @@ internal static class MatchParticipantSeed
         int championId,
         bool win,
         Guid? riotAccountId = null,
-        int? participantId = null)
+        int? participantId = null,
+        int gameDurationSeconds = 1800,
+        string teamPosition = "BOTTOM")
     {
         // Default to a process-unique id so two participants seeded into the same match never
         // collide on the (MatchId, ParticipantId) unique index, even if a caller forgets to
@@ -43,7 +45,7 @@ internal static class MatchParticipantSeed
             GameMode = queueId == 450 ? "ARAM" : "CLASSIC",
             GameType = "MATCHED_GAME",
             GameStartTimeUtc = gameStartTimeUtc,
-            GameDurationSeconds = 1800,
+            GameDurationSeconds = gameDurationSeconds,
             GameVersion = "16.6.1",
             CreatedAtUtc = gameStartTimeUtc,
             TimelineIngested = true
@@ -60,9 +62,9 @@ internal static class MatchParticipantSeed
             SummonerLevel = 100,
             ChampionId = championId,
             TeamId = 100,
-            TeamPosition = "BOTTOM",
-            IndividualPosition = "BOTTOM",
-            Lane = "BOTTOM",
+            TeamPosition = teamPosition,
+            IndividualPosition = teamPosition,
+            Lane = teamPosition,
             Role = "CARRY",
             Win = win,
             Kills = 1,

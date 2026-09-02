@@ -4,7 +4,7 @@ namespace Data.Entities;
 /// Pre-aggregated champion-vs-lane-opponent record for the global matchups
 /// leaderboard. One row per (champion, position, opponent, patch) slice on the
 /// configured queue, counting the games of players who are <b>mains of the
-/// champion side</b> — see <c>Data.Aggregation.MatchupCohort</c>, which both folds
+/// champion side</b> — see <c>Data.Aggregation.ChampionCohort</c>, which both folds
 /// share — against whoever held that lane. Stores the additive facts only, with NO
 /// sample floor applied, so the read side can fold rows to the requested patch
 /// scope (a single patch, or all patches summed) and apply its floors on the

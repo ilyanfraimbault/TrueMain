@@ -332,7 +332,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             Microsoft.Extensions.Options.Options.Create(new CandidatePruningOptions
             {
                 Enabled = false
-            }));
+            }),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         return new RecordedProcess<MatchDataRetentionProcess>(
             process,

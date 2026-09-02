@@ -45,7 +45,8 @@ const {
   error: summariesError,
   status: summariesStatus,
 } = useLazyAsyncData<ChampionSummaryResponse[]>(
-  () => `champions-list-${filters.value.patch ?? 'latest'}-${filters.value.eloBracket ?? 'ALL'}`,
+  () => `champions-list-${filters.value.patch ?? 'latest'}-${filters.value.eloBracket ?? 'ALL'}`
+    + `-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
   () => {
     const patch = filters.value.patch
     const elo = filters.value.eloBracket
@@ -55,11 +56,17 @@ const {
         // Cumulative "X+" threshold; the composable already omits the default
         // ALL, so a value here is always a real filter the backend expands.
         ...(elo ? { eloBracket: elo } : {}),
+        // Sent only when off — true is the API default.
+        ...(filters.value.truemainsOnly ? {} : { truemainsOnly: 'false' }),
       },
     })
   },
   {
-    watch: [() => filters.value.patch, () => filters.value.eloBracket],
+    watch: [
+      () => filters.value.patch,
+      () => filters.value.eloBracket,
+      () => filters.value.truemainsOnly,
+    ],
     server: false,
     default: () => [],
   },
@@ -126,8 +133,8 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
   return isChampionPosition(value) ? value : null
 })
 
-// ALL when the `?elo=` param is absent (the composable omits the default), so
-// the picker always reflects a valid threshold.
+// The composable always resolves a concrete bracket (Master+ by default), so
+// the picker always reflects the threshold actually being fetched.
 const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.value.eloBracket))
 
 // Champion filter sources from `?championId=` so deep links and back/forward
@@ -245,6 +252,11 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
             size="sm"
             :model-value="selectedEloBracket"
             @update:model-value="onEloBracketChange"
+          />
+
+          <ChampionTruemainToggle
+            :model-value="filters.truemainsOnly"
+            @update:model-value="value => setFilter({ truemainsOnly: value }, { resetPage: true })"
           />
 
           <USelect

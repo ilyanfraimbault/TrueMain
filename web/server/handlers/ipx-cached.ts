@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer'
-import { useBase } from 'h3'
-import { createIPX, createIPXH3Handler, ipxFSStorage, ipxHttpStorage } from 'ipx'
+import { toWebRequest, useBase } from 'h3'
+import { createIPX, createIPXFetchHandler, ipxFSStorage, ipxHttpStorage } from 'ipx'
 import { IPX_CACHE_SECONDS } from '~~/shared/utils/ipx'
 import { createBoundedByteCache } from '../utils/bounded-byte-cache'
 import { createPatchRetention, isOutsideRetention } from '../utils/ipx-patch-retention'
@@ -75,9 +75,24 @@ const ipx = createIPX({
   }),
 })
 
+// IPX v4 dropped its h3-native handler in favour of a fetch-style one, so
+// adapt it into an h3 handler: convert the event to a `Request`, run it
+// through IPX, then copy the `Response` back onto the event as the Buffer
+// the caching logic below expects. IPX never throws here — it converts its
+// own errors (missing resource, invalid modifier, forbidden host, ...) into
+// an error `Response` itself.
+const ipxFetchHandler = createIPXFetchHandler(ipx)
+
 // `useBase` strips the route prefix before IPX parses the rest as
 // `<modifiers>/<source>` — the same wrapping @nuxt/image applies.
-const ipxHandler = useBase('/_ipx', createIPXH3Handler(ipx))
+const ipxHandler = useBase('/_ipx', defineEventHandler(async (event) => {
+  const response = await ipxFetchHandler(toWebRequest(event))
+  setResponseStatus(event, response.status, response.statusText || undefined)
+  response.headers.forEach((value, name) => setResponseHeader(event, name, value))
+  const bytes = Buffer.from(await response.arrayBuffer())
+  // Mirrors the conditional-request case below: no body to cache or send.
+  return bytes.byteLength > 0 ? bytes : null
+}))
 
 function restoreHeaders(event: Parameters<typeof setResponseHeader>[0], entry: CachedImage) {
   if (entry.contentType) setResponseHeader(event, 'content-type', entry.contentType)

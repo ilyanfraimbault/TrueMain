@@ -37,7 +37,9 @@ public sealed class ScoringProcessIntegrationTests
                 RecencyWeight = 0.65,
                 RankWeight = 0.20,
                 PointsWeight = 0.15
-            }));
+            }),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);
 
@@ -75,7 +77,9 @@ public sealed class ScoringProcessIntegrationTests
                 RecencyWeight = 0.65,
                 RankWeight = 0.20,
                 PointsWeight = 0.15
-            }));
+            }),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);
 

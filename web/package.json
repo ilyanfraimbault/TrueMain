@@ -21,18 +21,18 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@nuxt/image": "^2.0.0",
-    "@nuxt/ui": "^4.8.2",
-    "@nuxtjs/seo": "^5.3.2",
+    "@nuxt/image": "^2.1.0",
+    "@nuxt/ui": "^4.11.0",
+    "@nuxtjs/seo": "^5.3.14",
     "@resvg/resvg-js": "^2.6.2",
-    "nuxt": "^4.4.8",
+    "nuxt": "^4.5.2",
     "nuxt-charts": "^2.2.1",
     "satori": "^0.33.4",
     "vue": "^3.5.42"
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
-    "happy-dom": "^20.11.12",
+    "happy-dom": "^20.12.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",

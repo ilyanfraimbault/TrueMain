@@ -30,12 +30,27 @@ public sealed record ChampionPatternNoWorkSummary(string Reason, int Patterns) :
 public sealed record ScoringPlatformSummary(string Platform, int Scored, int Queued);
 
 /// <summary>Scoring outcome, one entry per platform that had scored candidates.</summary>
-public sealed record ScoringSummary(IReadOnlyList<ScoringPlatformSummary> Platforms) : IProcessRunSummary;
+/// <summary>
+/// <see cref="PromotionCapPerPlatform"/> (#1361) is the cap actually applied this run: the
+/// claim's per-cycle capacity for new candidates times <c>Intake:PromotionHeadroomFactor</c>,
+/// split across platforms and clamped by <c>Scoring:TopNPerPlatform</c>. Appended after
+/// <see cref="Platforms"/> so the pre-existing key keeps its wire order.
+/// </summary>
+public sealed record ScoringSummary(
+    IReadOnlyList<ScoringPlatformSummary> Platforms,
+    int PromotionCapPerPlatform) : IProcessRunSummary;
 
 /// <summary>
 /// Per-platform discovery outcome. <see cref="Error"/> is null for platforms that
 /// completed and carries the failure message otherwise, so a partially failed run
 /// says which platform failed and why.
+/// <para>
+/// <see cref="ProfileCallsSkipped"/> / <see cref="MasteryCallsSkipped"/> (#1358) are the
+/// summoner-v4 and champion-mastery calls the run did <em>not</em> make because the stored row
+/// was already fresh — the ladder entry carries the PUUID, so those calls would have returned
+/// nothing the database did not already have. Appended after <see cref="Error"/> so the
+/// pre-existing keys keep their wire order.
+/// </para>
 /// </summary>
 public sealed record DiscoveryPlatformSummary(
     string Platform,
@@ -46,18 +61,27 @@ public sealed record DiscoveryPlatformSummary(
     int RankSnapshotsInserted,
     int RankSnapshotsUpdated,
     int RankSnapshotsUnchanged,
-    string? Error);
+    string? Error,
+    int ProfileCallsSkipped,
+    int MasteryCallsSkipped);
 
 /// <summary>Discovery outcome, one entry per attempted platform.</summary>
 public sealed record DiscoverySummary(IReadOnlyList<DiscoveryPlatformSummary> Platforms) : IProcessRunSummary;
 
-/// <summary>Per-platform match ingestion outcome.</summary>
+/// <summary>
+/// Per-platform match ingestion outcome. <see cref="MatchesSkipped"/> is the healthy skip —
+/// ids we already had stored, which cost no per-match call — while
+/// <see cref="MatchesSkippedWrongQueue"/> (#1358) counts matches fetched and then discarded for
+/// being off-queue, i.e. calls that stored nothing. Appended last so the pre-existing keys keep
+/// their wire order.
+/// </summary>
 public sealed record MatchIngestionPlatformSummary(
     string Platform,
     int AccountsProcessed,
     int MatchesInserted,
     int MatchesSkipped,
-    int TimelinesUpdated);
+    int TimelinesUpdated,
+    int MatchesSkippedWrongQueue);
 
 /// <summary>
 /// Match ingestion outcome, with a per-platform breakdown.
@@ -67,6 +91,24 @@ public sealed record MatchIngestionPlatformSummary(
 /// and it is the only record of a validation — the transition itself leaves no trace in
 /// <c>main_candidates</c> once retention prunes the row. Appended after <see cref="Errors"/>
 /// so the pre-existing keys keep their wire order.
+/// <para>
+/// <see cref="ExpiredCandidatesReleased"/> / <see cref="ExpiredClaimsReleased"/> (#1344) are
+/// what the run reaped before claiming: rows a previous run died holding. Non-zero means a
+/// run died, not that this one misbehaved — a healthy steady state reports zeroes.
+/// </para>
+/// <para>
+/// <see cref="MatchesSkippedWrongQueue"/> (#1358) splits the calls that stored nothing out of
+/// <see cref="MatchesSkipped"/>, which now means "already stored" only. Since the ids call sends
+/// <c>queue</c>, a non-zero value means Riot returned an off-queue id anyway — visible instead of
+/// buried inside a number that is normally large.
+/// </para>
+/// <para>
+/// <see cref="AccountsWithoutNewMatches"/> (#1360) is how the claim's ordering is judged: an
+/// account whose visit produced nothing spent a match-ids call and a batch slot to learn that
+/// the player had not played. Ordering by age alone made that the common case; ordering by
+/// games actually played since the last visit should drive it toward zero. Appended last so
+/// the pre-existing keys keep their wire order.
+/// </para>
 /// </summary>
 public sealed record MatchIngestionSummary(
     int AccountsProcessed,
@@ -75,7 +117,11 @@ public sealed record MatchIngestionSummary(
     int TimelinesUpdated,
     int Errors,
     int AccountsValidated,
-    IReadOnlyList<MatchIngestionPlatformSummary> ByPlatform) : IProcessRunSummary;
+    int ExpiredCandidatesReleased,
+    int ExpiredClaimsReleased,
+    int MatchesSkippedWrongQueue,
+    IReadOnlyList<MatchIngestionPlatformSummary> ByPlatform,
+    int AccountsWithoutNewMatches = 0) : IProcessRunSummary;
 
 /// <summary>Manual seed outcome for the claimed batch.</summary>
 public sealed record ManualSeedSummary(
@@ -119,7 +165,13 @@ public sealed record LadderSyncSummary(
     int RankUnchanged,
     IReadOnlyList<LadderSyncTierSummary> Tiers) : IProcessRunSummary;
 
-/// <summary>Account refresh outcome, split by profile and rank sub-step.</summary>
+/// <summary>
+/// Account refresh outcome, split by profile and rank sub-step.
+/// <see cref="ProfileSkippedFresh"/> (#1358) is the account-v1 call not made because the stored
+/// profile is younger than <c>AccountRefresh:ProfileSyncFreshness</c> — the profile mirror of the
+/// existing <see cref="RankSkippedFresh"/>. Appended last so the pre-existing keys keep their
+/// wire order.
+/// </summary>
 public sealed record AccountRefreshSummary(
     int Selected,
     int ProfileUpdated,
@@ -132,7 +184,8 @@ public sealed record AccountRefreshSummary(
     int RankUnchanged,
     int RankSkippedUnranked,
     int RankSkippedFresh,
-    int RankFailed) : IProcessRunSummary;
+    int RankFailed,
+    int ProfileSkippedFresh) : IProcessRunSummary;
 
 /// <summary>Main analysis outcome.</summary>
 public sealed record MainAnalysisSummary(
@@ -251,6 +304,10 @@ public sealed record MatchDataRetentionSummary(
     int DeletedParticipants,
     int DeletedNonRankedMatches,
     int PrunedCandidates,
+    // Queued candidates pushed back to Scored by the queue-depth cap (#1361). Distinct from
+    // PrunedCandidates above, which deletes never-promoted rows: nothing is deleted here, the
+    // rows simply leave a queue the claim could not reach and re-enter the promotion ranking.
+    int DemotedQueuedCandidates,
     int PrunedSnapshotMatches,
     int DeletedIntermediateSnapshots,
     int DeletedAggregateScopes,

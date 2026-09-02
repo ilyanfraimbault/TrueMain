@@ -93,7 +93,9 @@ public sealed class ScoringProcessMaxCandidatesPerRunTests
             {
                 BatchSize = batchSize,
                 MaxCandidatesPerRun = maxCandidatesPerRun,
-            }));
+            }),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);
 

@@ -52,11 +52,11 @@ public sealed class MatchIngestionValidatedCounterTests
             .Returns(true);
 
         var snapshotWriter = Substitute.For<IMatchSnapshotWriter>();
-        snapshotWriter.IngestSnapshotsAsync(
+        snapshotWriter.PrepareAsync(
                 Arg.Any<IDataSession>(), Arg.Any<string>(), Arg.Any<string>(),
-                Arg.Any<Core.Lol.Identifiers.RegionalRoute>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(),
+                Arg.Any<Core.Lol.Identifiers.RegionalRoute>(), Arg.Any<int>(), Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromException<SnapshotIngestionResult>(new InvalidOperationException("ingest boom")));
+            .Returns(_ => Task.FromException<SnapshotIngestionPlan>(new InvalidOperationException("ingest boom")));
 
         var summary = await RunAsync(
             accountValidationService,
@@ -113,11 +113,15 @@ public sealed class MatchIngestionValidatedCounterTests
     private static IMatchSnapshotWriter SucceedingSnapshotWriter()
     {
         var snapshotWriter = Substitute.For<IMatchSnapshotWriter>();
-        snapshotWriter.IngestSnapshotsAsync(
+        snapshotWriter.PrepareAsync(
                 Arg.Any<IDataSession>(), Arg.Any<string>(), Arg.Any<string>(),
-                Arg.Any<Core.Lol.Identifiers.RegionalRoute>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(),
+                Arg.Any<Core.Lol.Identifiers.RegionalRoute>(), Arg.Any<int>(), Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new SnapshotIngestionResult([], [], 0, 0)));
+            .Returns(Task.FromResult(new SnapshotIngestionPlan([], [], [], new Dictionary<AccountKey, Data.Entities.RiotAccount>(), null, 0)));
+        snapshotWriter.WriteAsync(
+                Arg.Any<IDataSession>(), Arg.Any<SnapshotIngestionPlan>(), Arg.Any<string>(), Arg.Any<string>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new SnapshotIngestionResult([], [], 0, 0, 0)));
         return snapshotWriter;
     }
 }

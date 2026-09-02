@@ -68,4 +68,23 @@ public class DiscoveryOptions
     /// <see cref="TimeSpan.Zero"/> (default) runs it every iteration (legacy behaviour).
     /// </summary>
     public TimeSpan MinRunInterval { get; set; } = TimeSpan.Zero;
+
+    /// <summary>
+    /// How recently an account must have been seen for the crawl to skip the two per-entry
+    /// Riot calls it would otherwise make for it (#1358).
+    /// <para>
+    /// Since #1312 every apex ladder entry carries its PUUID, so the summoner-v4 call adds
+    /// nothing but <c>profileIconId</c> / <c>summonerLevel</c> / <c>summonerId</c> — cosmetics
+    /// no surface reads within the hour. When the account already exists and its
+    /// <c>LastProfileSyncAtUtc</c> is younger than this, the call is skipped and the ladder
+    /// entry's PUUID is used directly. The same window gates the champion-mastery call: a
+    /// candidate whose masteries were read this recently is re-read for nothing.
+    /// </para>
+    /// <para>
+    /// A call that stores nothing is a bug, not a cost: the crawl is a slow exploration arm
+    /// (see <see cref="MinRunInterval"/>), and its budget belongs to accounts we have never
+    /// seen. <see cref="TimeSpan.Zero"/> restores the pre-#1358 behaviour of always calling.
+    /// </para>
+    /// </summary>
+    public TimeSpan ProfileSyncFreshness { get; set; } = TimeSpan.FromDays(7);
 }

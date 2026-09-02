@@ -26,5 +26,17 @@ public enum JobMode
     StorageSnapshotOnly = 17,
     RunePageDeduplicationOnly = 18,
     LaneOutcomeAggregationOnly = 19,
-    LadderSyncOnly = 20
+    LadderSyncOnly = 20,
+
+    /// <summary>
+    /// Everything that spends the Riot API budget, in pipeline order (#1362). Composite,
+    /// like <see cref="Full"/>: it expands to a sub-sequence rather than to a process.
+    /// </summary>
+    FetchLane = 21,
+
+    /// <summary>
+    /// Everything that reads what the fetch lane wrote and turns it into aggregates, plus
+    /// retention (#1362). Composite, like <see cref="Full"/>.
+    /// </summary>
+    AggregateLane = 22
 }

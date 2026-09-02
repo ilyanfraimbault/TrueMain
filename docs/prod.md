@@ -2,15 +2,17 @@
 
 Production runs the released images (`:latest`, tagged with the release
 version), which are built and published when a GitHub Release is published
-(see `.github/workflows/deploy-prod.yml`). The stack is defined by
-`compose.prod.yaml`.
+(see `.github/workflows/deploy-prod.yml` and `docs/ci.md`). The stack is
+defined by `compose.prod.yaml`.
 
 Design goals:
 
 - **Tracks releases** — every published release rebuilds the images and, once
   the Hostinger credentials are configured, redeploys the VPS automatically.
 - **Production Riot API key** — never the preprod key. PUUIDs are encrypted
-  per API app, so the key and the database form an inseparable pair.
+  per API app, so the key and the database form an inseparable pair. Replacing
+  it is a destructive operation with its own runbook:
+  [`docs/riot-key-switch.md`](riot-key-switch.md).
 - **Full-volume ingestion** — `compose.prod.yaml` runs the largest data-diet
   knobs (see the table in `docs/preprod.md`); most are explicit overrides now
   (#811), a few still fall back to the `appsettings.json` defaults.
@@ -19,8 +21,9 @@ Design goals:
 
 ### Automatic (Hostinger Docker Manager API)
 
-The `deploy-prod` job in `deploy-prod.yml` redeploys the `truemain` Docker
-Manager project right after the release images are published, using the
+The `deploy` job of the `rollout` workflow called by `deploy-prod.yml`
+redeploys the `truemain` Docker Manager project right after the release images
+are published and the migrations applied, using the
 official `hostinger/deploy-on-vps` action (a pure API call — no SSH material in
 CI). It needs three pieces of repository configuration:
 
@@ -38,10 +41,10 @@ The action points Docker Manager at `compose.prod.yaml` at the released commit,
 so the project on the VPS always matches the release. Keep `PROD_ENV_FILE` in
 sync when a new variable is added to the compose file.
 
-These are not checked by `deploy-prod` itself but by a `preflight` job that
+These are not checked by the deploy itself but by a `preflight` job that
 every other job in the workflow depends on, and which **fails the run** — no
 green skip — when any of them (plus the two SSH secrets below) is missing. The
-distinction matters because `migrate-prod` runs *before* `deploy-prod`:
+distinction matters because the migration runs *before* the deploy:
 checking the deploy configuration at deploy time meant an empty `PROD_ENV_FILE`
 skipped the image roll while the migrations had already been applied, leaving
 prod on the old binary against the new schema — precisely the mismatch
@@ -71,12 +74,12 @@ doesn't set `APP_VERSION` simply hides the label instead of showing a stale one.
 
 ### Applying migrations before the deploy
 
-The `migrate-prod` job runs between `publish` and `deploy-prod` and applies
+The `migrate` job of the rollout runs between `publish` and `deploy` and applies
 pending EF migrations as an idempotent SQL script — see
 `docs/production-migrations.md` for why this replaced startup migrations. Its
 SSH secrets are part of the same `preflight` check: since
 `Database__ApplyMigrationsOnStartup` is permanently `false` in
-`compose.prod.yaml`, letting `deploy-prod` proceed without a migration
+`compose.prod.yaml`, letting the deploy proceed without a migration
 attempt would silently roll a new image against a possibly-stale schema.
 
 | Kind     | Name                 | Value                                                        |
@@ -89,7 +92,7 @@ Postgres only listens on the VPS-internal Docker network (no published port),
 so the job connects over SSH and pipes the generated script into `psql`
 running inside the already-live `truemain-postgres` container, using the
 `POSTGRES_USER`/`POSTGRES_DB` already set in `/docker/truemain/.env` — the
-same credential the app itself connects with. `deploy-prod` depends on this
+same credential the app itself connects with. The deploy depends on this
 job succeeding, so a failed or skipped migration blocks the image roll rather
 than shipping a schema mismatch.
 
@@ -110,4 +113,76 @@ docker compose up -d
 ```
 
 If `compose.prod.yaml` itself changed in the release, re-download it before
-pulling.
+pulling. The file sets `pull_policy: always` on the four application services
+for exactly this path: with no `IMAGE_TAG` in the env the images resolve to
+the moving `:latest`, which is already present locally and would otherwise be
+silently reused (#765). The CI rollout passes an immutable `IMAGE_TAG`, so a
+pull is implied there anyway.
+
+## Postgres server tuning
+
+`compose.prod.yaml` starts Postgres with explicit `-c` settings (part A of #1366).
+Host facts measured on 2026-09-02: 4 vCPU, 16 GB RAM, NVMe, a ~38 GB database,
+and Postgres is the dominant tenant (8.8 GB RSS, ~13 GB of the host in page
+cache). Until then the server ran on the compiled defaults, sized for a 1 GB
+machine: 128 MB `shared_buffers`, 4 MB `work_mem`, `random_page_cost=4` on
+flash. The sizing is pgtune-style for a "mixed" workload on that host:
+
+| Setting | Value | Why |
+| ------- | ----- | --- |
+| `shared_buffers` | 4GB | 25% of RAM, the usual ceiling before double buffering hurts |
+| `effective_cache_size` | 11GB | planner hint only; matches the page cache actually observed |
+| `work_mem` | 32MB | per sort/hash node; the 2.7M-row `match_participants` folds spilled to disk at 4MB |
+| `hash_mem_multiplier` | 2 | hash joins and aggregates may use 64MB before spilling |
+| `maintenance_work_mem` | 1GB | autovacuum and index builds on the 13GB snapshot table |
+| `random_page_cost` / `effective_io_concurrency` | 1.1 / 200 | NVMe, not spinning rust |
+| `jit` | off | pure overhead on these short analytic queries |
+| `max_parallel_workers_per_gather` | **0** | **do not remove**, see below |
+| `wal_compression`, `max_wal_size`, `min_wal_size`, `checkpoint_completion_target` | lz4, 4GB, 1GB, 0.9 | fewer, smoother checkpoints |
+| `autovacuum_vacuum_cost_delay` / `_vacuum_scale_factor` / `_analyze_scale_factor` | 2ms / 0.05 / 0.02 | the big tables bloat faster than the stock scale factors react |
+| `shared_preload_libraries` | pg_stat_statements | statement-level visibility; the extension itself is created by an EF migration |
+
+**`max_parallel_workers_per_gather=0` is the deliberate fix for the `/dev/shm`
+exhaustion incident (#589)**: parallel workers on the aggregate-pattern queries
+exhausted the shared memory segment, Postgres raised `53100`, and the API and
+ingestor crash-looped. Re-enabling parallelism reproduces that outage. The
+container's `shm_size` was still raised from 256m to 1g, because parallel-query
+and hash workers allocate their shared segments there and 256m is what got
+exhausted; cheap insurance now that the server is allowed to use real memory.
+
+Preprod (`compose.preprod.yaml`) runs the same *settings* with roughly halved
+values (`shared_buffers=2GB`, `effective_cache_size=5GB`, `work_mem=16MB`,
+`maintenance_work_mem=512MB`, `max_wal_size=2GB`, `min_wal_size=512MB`): it is
+a smaller host (96 GB disk, ~11 GB database) sharing the box with the whole
+preprod stack, its RAM was not measured, so the values are conservative rather
+than derived. Keeping the same settings means preprod exercises the tuned
+plans (jit off, flash-priced random access, a `work_mem` that does not spill)
+before prod does; revisit with a real measurement if preprod has headroom.
+
+## Ingestor tuning knobs
+
+`compose.prod.yaml` overrides the ingestor's app settings for full-volume
+ingestion. Two of them deserve a note because their unit is easy to misread:
+
+- **`ManualSeed__BatchSize` (750).** Manual-seed intake is FIFO and strictly
+  batched, so a large backlog drains at a fixed rate rather than being spent
+  at once. The unit is **one batch per full pipeline cycle**: `ManualSeed` is a
+  step in `JobModeSequence`, and the worker sleeps `Job:IntervalMinutes`
+  (unset here, so 60 min) *after* the whole sequence finishes. A cycle is
+  therefore pipeline duration + 60 min, call it 12–24 cycles a day, not 24.
+  That unit made the previous value of 200 look four times stronger than it
+  was: 200/cycle is ~2.5–4.8k seeds a day, and the per-champion dpm sweep puts
+  tens of thousands in the queue in one run, two to three weeks of drain.
+  750 is ~9–18k a day. A resolved request costs three Riot calls (account-v1,
+  summoner-v4, champion mastery, see `ManualSeedProcess.ProcessRequestAsync`);
+  one whose Riot ID no longer exists stops after the first, so ~27–54k
+  calls/day is the ceiling and the real figure is lower by whatever share of
+  the queue has gone stale. This is a knob for a backlog, not a steady state:
+  turn it back down once the queue is drained.
+- **`MatchIngestion__BatchSize`** is the next bottleneck: seeding faster gets
+  accounts registered faster, their matches still ingest at that many per
+  cycle.
+
+`STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
+projects against (#925); unset means no forecast, which the panel says rather
+than fitting a line to a guessed capacity.

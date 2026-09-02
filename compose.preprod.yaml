@@ -1,10 +1,69 @@
+x-ingestor-environment: &ingestor-environment
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
+      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
+      Riot__ApiKey: ${RIOT_API_KEY}
+      MongoLogging__CrashFilePath: /home/app/crashes
+      MongoLogging__LogsRetention: "30.00:00:00"
+      MatchDataRetention__RetainedPatchCount: "1"
+      MatchDataRetention__AggregateRetainedPatchCount: "2"
+      ManualSeed__BatchSize: "250"
+      Discovery__MaxAccountsPerPlatformPerRun: "100"
+      Discovery__NewAccountsTarget: "15"
+      Scoring__TopNPerPlatform: "50"
+      Harvest__MaxCandidatesPerRun: "500"
+      MatchIngestion__BatchSize: "25"
+      MatchIngestion__MatchesPerAccount: "10"
+      MainAnalysis__MatchesToConsider: "30"
+      MainAnalysis__MinMatchesToEvaluate: "10"
+      MainAnalysis__AggregateNonMainPopulation: "true"
+
 services:
   postgres:
     image: postgres:17.2
     container_name: truemain-preprod-postgres
     restart: unless-stopped
-    shm_size: "256m"
-    command: ["postgres", "-c", "max_parallel_workers_per_gather=0"]
+    shm_size: "1g"
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=2GB"
+      - "-c"
+      - "effective_cache_size=5GB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "hash_mem_multiplier=2"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "jit=off"
+      - "-c"
+      - "max_parallel_workers_per_gather=0"
+      - "-c"
+      - "wal_compression=lz4"
+      - "-c"
+      - "max_wal_size=2GB"
+      - "-c"
+      - "min_wal_size=512MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "autovacuum_vacuum_cost_delay=2ms"
+      - "-c"
+      - "autovacuum_vacuum_scale_factor=0.05"
+      - "-c"
+      - "autovacuum_analyze_scale_factor=0.02"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=5000"
+      - "-c"
+      - "pg_stat_statements.track=top"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -84,9 +143,6 @@ services:
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
-      # Volume size the storage forecast projects against (#925). Unset means no
-      # forecast at all — the admin panel says so rather than fitting a line to a
-      # guessed capacity. Set STORAGE_DISK_CAPACITY_BYTES to the real disk size.
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Cors__Origins__0: "http://localhost:3001"
       MongoLogging__CrashFilePath: /home/app/crashes
@@ -114,11 +170,6 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
-      # Build stamp shown small in the footer, so preprod says which build it is
-      # running instead of forcing a SHA comparison on GitHub. APP_VERSION is
-      # appended to the env by the deploy job (the prerelease this deploy
-      # resolved, e.g. 1.20.0-rc.4); empty on a manual redeploy, which just
-      # hides the label.
       NUXT_PUBLIC_APP_ENV: preprod
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
       NUXT_PUBLIC_UMAMI_HOST: ${UMAMI_PUBLIC_URL:-}
@@ -163,26 +214,33 @@ services:
     container_name: truemain-preprod-ingestor
     restart: unless-stopped
     environment:
-      DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
-      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
-      Riot__ApiKey: ${RIOT_API_KEY}
-      Job__Mode: ${INGESTOR_JOB_MODE:-Full}
-      MongoLogging__CrashFilePath: /home/app/crashes
-      MongoLogging__LogsRetention: "30.00:00:00"
-      MatchDataRetention__RetainedPatchCount: "1"
-      MatchDataRetention__AggregateRetainedPatchCount: "2"
-      ManualSeed__BatchSize: "250"
-      Discovery__MaxAccountsPerPlatformPerRun: "100"
-      Discovery__NewAccountsTarget: "15"
-      Scoring__TopNPerPlatform: "50"
-      Harvest__MaxCandidatesPerRun: "500"
-      MatchIngestion__BatchSize: "25"
-      MatchIngestion__MatchesPerAccount: "10"
-      MainAnalysis__MatchesToConsider: "30"
-      MainAnalysis__MinMatchesToEvaluate: "10"
+      <<: *ingestor-environment
+      Job__Mode: ${INGESTOR_JOB_MODE:-FetchLane}
     volumes:
       - truemain_preprod_ingestor_crashes:/home/app/crashes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
+  ingestor-aggregate:
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:${IMAGE_TAG:-preprod}
+    pull_policy: always
+    container_name: truemain-preprod-ingestor-aggregate
+    restart: unless-stopped
+    environment:
+      <<: *ingestor-environment
+      Job__Mode: ${INGESTOR_AGGREGATE_JOB_MODE:-AggregateLane}
+      Job__RunOnce: "false"
+      Job__IntervalMinutes: "${INGESTOR_AGGREGATE_INTERVAL_MINUTES:-20}"
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor-aggregate
+    volumes:
+      - truemain_preprod_ingestor_aggregate_crashes:/home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -226,10 +284,6 @@ services:
     networks:
       - truemain_internal
 
-  # Umami self-hosted has no built-in retention for session replay/heatmap
-  # data (#1018) — without this, session_replay/heatmap_event grow unbounded,
-  # the heaviest tables Umami writes. Postgres image with the entrypoint
-  # overridden to just run the purge script on a loop, no server started.
   umami-replay-cleanup:
     image: postgres:17.2-alpine
     container_name: truemain-preprod-umami-replay-cleanup
@@ -319,6 +373,8 @@ volumes:
     name: truemain_preprod_api_crashes
   truemain_preprod_ingestor_crashes:
     name: truemain_preprod_ingestor_crashes
+  truemain_preprod_ingestor_aggregate_crashes:
+    name: truemain_preprod_ingestor_aggregate_crashes
   truemain_preprod_umami_db_data:
     name: truemain_preprod_umami_db_data
 
