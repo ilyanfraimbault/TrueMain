@@ -65,4 +65,5 @@ gh pr merge <n> --squash --delete-branch
 - Deploys are automatic and asymmetric — say which environment now has the change:
   - **Preprod**: every push to develop (so every squash-merge) triggers `deploy-preprod.yml` — images rebuilt, migrations applied, VPS redeployed a few minutes later. Nothing to do by hand.
   - **Prod**: unmoved. `deploy-prod.yml` runs on `release: published` only, so the change reaches prod when someone cuts a release (the `release` skill) and not before.
+- **Ingestor changes are verified on preprod, not just by CI.** CI cannot see pacing, timeouts or 429 storms. Once `deploy-preprod.yml` is green, wait for a couple of pipeline passes, then check the admin's process runs (`/processes`, `/riot-api`) or the preprod host directly (access details in `CLAUDE.local.md`): every process still records runs, the Riot 429 rate has not jumped, and the ingestor's restart count is flat. A regression here reopens the work; the merge alone is not "done".
 - Final report: PR link, what was verified, merge done, branch deleted, board updated.
