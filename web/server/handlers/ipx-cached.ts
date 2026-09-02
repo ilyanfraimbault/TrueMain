@@ -1,7 +1,7 @@
+import type { H3Event } from 'h3'
 import { Buffer } from 'node:buffer'
-import { toWebRequest, useBase } from 'h3'
 import { createIPX, createIPXFetchHandler, ipxFSStorage, ipxHttpStorage } from 'ipx'
-import { IPX_CACHE_SECONDS } from '~~/shared/utils/ipx'
+import { IPX_CACHE_SECONDS, ipxRequestPath } from '~~/shared/utils/ipx'
 import { createBoundedByteCache } from '../utils/bounded-byte-cache'
 import { createPatchRetention, isOutsideRetention } from '../utils/ipx-patch-retention'
 
@@ -83,16 +83,38 @@ const ipx = createIPX({
 // an error `Response` itself.
 const ipxFetchHandler = createIPXFetchHandler(ipx)
 
-// `useBase` strips the route prefix before IPX parses the rest as
-// `<modifiers>/<source>` — the same wrapping @nuxt/image applies.
-const ipxHandler = useBase('/_ipx', defineEventHandler(async (event) => {
-  const response = await ipxFetchHandler(toWebRequest(event))
+/**
+ * The `Request` IPX must see: the route prefix removed, because IPX parses the
+ * path it is given as `<modifiers>/<source>` and nothing strips the prefix for it.
+ *
+ * Wrapping the handler in h3's `useBase` looks like it does this and does not.
+ * `useBase` rewrites `event.path`, but `toWebRequest` returns `event.web.request`
+ * when Nitro has one — the original, unrewritten request — so IPX received
+ * `/_ipx/f_webp,s_64x64/https://…`, consumed `_ipx` as the modifiers segment, and
+ * was left with an id that no longer looks like a URL. It then routed it to the
+ * filesystem storage, which answered `403 IPX_FORBIDDEN_PATH`, and every image on
+ * the site failed at once.
+ *
+ * So the prefix is removed here, from `event.path`, which is the value this
+ * handler is actually mounted against.
+ */
+function toIpxRequest(event: H3Event): Request {
+  // Built from the string rather than `new URL(path, origin)`: the source is an
+  // absolute URL embedded in the path, and its `//` must survive intact.
+  return new Request(`http://ipx.invalid${ipxRequestPath(event.path)}`, {
+    method: event.method,
+    headers: event.headers,
+  })
+}
+
+const ipxHandler = defineEventHandler(async (event) => {
+  const response = await ipxFetchHandler(toIpxRequest(event))
   setResponseStatus(event, response.status, response.statusText || undefined)
   response.headers.forEach((value, name) => setResponseHeader(event, name, value))
   const bytes = Buffer.from(await response.arrayBuffer())
   // Mirrors the conditional-request case below: no body to cache or send.
   return bytes.byteLength > 0 ? bytes : null
-}))
+})
 
 function restoreHeaders(event: Parameters<typeof setResponseHeader>[0], entry: CachedImage) {
   if (entry.contentType) setResponseHeader(event, 'content-type', entry.contentType)
