@@ -11,7 +11,10 @@ Design goals:
 - **Tracks `develop`** — updating preprod is just pulling the latest images.
 - **Own Riot API key** — never the production key. PUUIDs are encrypted per
   API app, so the key and the database form an inseparable pair: a new key
-  requires starting from an empty database.
+  requires starting from an empty database — or, when the accounts must be
+  kept, the re-resolution procedure in
+  [`docs/riot-key-switch.md`](riot-key-switch.md), which is rehearsed here
+  before it is run on prod.
 - **Tiny database** — `compose.preprod.yaml` overrides the ingestor's
   app settings so every pipeline stage runs (discovery, harvest, scoring,
   match ingestion, main analysis, aggregations, retention) but per-run volumes

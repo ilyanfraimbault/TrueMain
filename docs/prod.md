@@ -10,7 +10,9 @@ Design goals:
 - **Tracks releases** — every published release rebuilds the images and, once
   the Hostinger credentials are configured, redeploys the VPS automatically.
 - **Production Riot API key** — never the preprod key. PUUIDs are encrypted
-  per API app, so the key and the database form an inseparable pair.
+  per API app, so the key and the database form an inseparable pair. Replacing
+  it is a destructive operation with its own runbook:
+  [`docs/riot-key-switch.md`](riot-key-switch.md).
 - **Full-volume ingestion** — `compose.prod.yaml` runs the largest data-diet
   knobs (see the table in `docs/preprod.md`); most are explicit overrides now
   (#811), a few still fall back to the `appsettings.json` defaults.
