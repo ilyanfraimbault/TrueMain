@@ -145,6 +145,39 @@ moving `:latest`. A running deploy is never cancelled, GitHub collapses the
 pending queue to the newest run, and on preprod only a commit that actually
 deployed gets its `-rc.N` tag (`tag` runs last).
 
+### Verifying the rollout reached the VPS
+
+`hostinger/deploy-on-vps` does not upload the compose file. It hands Docker
+Manager a URL and Docker Manager **clones this repository from the VPS** to
+read it, so the action returns as soon as the API accepts the request and
+reports success without knowing whether anything rolled. Release `1.20.0`
+shipped that way: seven green jobs, migrations applied, and prod left running
+the previous release's images for forty minutes, i.e. the new schema against
+the old binaries — the exact mismatch `preflight` exists to prevent, arriving
+through the one door it does not watch (#1394).
+
+`verify-rollout.sh` closes it. After the redeploy the job polls the host over
+SSH — the same key and pinned host key the migration uses, installed by the
+`ssh-credentials` composite action — until every container built from an image
+named in the compose file runs `IMAGE_TAG` and reports healthy. It fails the
+run otherwise, so a rollout that never reached the environment can no longer
+be green.
+
+The expected images are **read from the compose file** rather than listed in
+the workflow, so adding a service extends the check for free, and a compose
+file naming none of our images is a hard error instead of a vacuous pass. The
+grain is the **image reference**, not the service name: preprod runs two
+ingestor lanes from one image (#1374), and rolling only one of them is a
+partial deploy no service-name check would catch. Health is required as well
+as the tag, because a container that starts on the right image and crash-loops
+has not deployed either; `health: starting` is treated as not-ready and polled
+through, which is what lets a slow but successful roll pass.
+
+The wait is ten minutes at fifteen-second intervals, which is why the deploy
+job's own timeout is larger than the migration's. `.github/scripts/verify-rollout.test.sh`
+pins the behaviour against fixed `docker ps` listings, including the 1.20.0
+listing itself, and runs in the `deploy-scripts` CI job.
+
 ### Preprod versioning
 
 `version` resolves `<base>-rc.<N>` from a full-history checkout: the base is

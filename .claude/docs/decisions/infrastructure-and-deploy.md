@@ -41,6 +41,29 @@ leaving prod on the old binary against the new one. All of it (SSH secrets, `PRO
 depends on, `publish` included — publishing would otherwise move `:latest` ahead of what prod runs. Both
 halves of a release happen or neither does — #1228.
 
+**A deploy job proves the environment moved; the API acknowledgement is not evidence.**
+#1228 made an incomplete *configuration* fail the run rather than skip green. Release `1.20.0` produced the
+same mismatch through the door that check does not watch: everything was configured, all seven jobs were
+green, the migrations applied, and prod went on running the previous release's images for forty minutes —
+the new schema against the old binaries, with #1365's re-fold migration meanwhile deleting the live-patch
+aggregates and re-arming their flags so the *old* ingestor rebuilt them under the old cohort rule.
+`hostinger/deploy-on-vps` never uploads the compose file: it hands Docker Manager a URL and Docker Manager
+**clones this repository from the VPS**, so the action reports success on a 2xx from the API, before the only
+step that can fail. That clone failed (the host had no registered key and GitHub answers `401` to
+unauthenticated git), and nothing in the pipeline was watching.
+The rule this settles is not about that clone, which is a repairable host problem, but about what a deploy
+job is allowed to conclude: **it polls the host until the containers actually run the deployed `IMAGE_TAG`
+and report healthy, and fails otherwise** (`.github/scripts/verify-rollout.sh`, over the same SSH channel the
+migration already uses). Three choices inside it. The expected images are **read from the compose file**, so
+a new service is covered without editing the check and a compose naming none of our images is an error
+rather than a vacuous pass. The grain is the **image reference, not the service name** — preprod runs two
+ingestor lanes from one image (#1374), and rolling one of them is a partial deploy a per-service check would
+bless. And **health counts as much as the tag**, since a container that starts on the right image and
+crash-loops has not deployed either; `health: starting` is polled through rather than failed, which is what
+lets a slow roll pass. Verifying was preferred to moving the rollout onto SSH and dropping Docker Manager:
+that would remove this failure mode and lose the hosting panel's view of the stack, and it would still need
+this check to notice the next one — #1394, `docs/ci.md`.
+
 **Both deploy pipelines serialise at workflow level, not per job.**
 Preprod needs it because the `-rc.N` counter is read from the remote tags; prod needs it because two
 releases published back to back would interleave their `publish` jobs and race for the moving `:latest`

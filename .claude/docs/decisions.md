@@ -184,6 +184,7 @@ Last verified against `develop` on 2026-09-02.
 - Prod deploys from the version-controlled compose file — no hand-maintained host compose — #462
 - Preprod and prod both apply migrations out-of-band, as a discrete CI step before the images roll — not at startup — #208, #246, #1058
 - An incomplete prod deployment configuration fails the release run; it is never a green skip — #1228
+- A deploy job proves the environment moved; the API acknowledgement is not evidence — #1394, #1365, #1374
 - Both deploy pipelines serialise at workflow level, not per job — #1228
 - Integration tests run on pushes to `develop`/`master`, not only on pull requests — #1228
 - Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database — #705
