@@ -83,6 +83,19 @@ The split doubles as palette hygiene. `CHART_SERIES` holds three colours in a fi
 colourblind separation, and the file already said a fourth series "gets its own chart" — Progression was at
 three and the outcome series had nowhere to go.
 
+**#1403 raised the palette to six, and the outcome chart is what spends them.** Asked for the candidate levels
+on the existing curve rather than in new cards, that chart now draws five statuses plus the cumulative
+demotion. The three added colours were picked by search over OKLab ΔE under four vision models
+(normal/protan/deutan/tritan), not by eye, and the result is worth recording because it is two facts, not one:
+*adjacency did not degrade* — the worst adjacent pair is still 11.1, the same emerald↔amber the trio already
+had, so slot order remains the guarantee and series must keep taking the palette in declaration order — but
+*separation over all pairs did*, down to 5.8 (red↔orange), which is below what colour alone can carry in a
+six-entry legend. Six is therefore the ceiling, and it only works because every series' current value is
+printed as text under the chart; past three series that text is the identity mechanism, not a courtesy.
+(`lime-400` was the obvious sixth and is disqualified at ΔE 1.4 against amber — the same colour, to a
+deuteranope.) The cumulative `validated` curve was dropped in the same move: the Validated *level* answers
+"how big is the roster" with the real figure instead of a window-bound running total.
+
 Grouped, not stacked, is a recurring call and it turns on nesting: stack only when the series sum to a real
 whole. The funnel's three intake sources do (they add up to "candidates that entered"). `promoted ⊂ scored` and
 `retries ⊂ calls` do not, so `/riot-api`'s call-volume chart is grouped bars — that one was safe to convert

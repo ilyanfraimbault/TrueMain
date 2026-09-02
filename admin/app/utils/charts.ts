@@ -13,17 +13,37 @@ export const CHART_ACCENT_SKY = '#38bdf8' // sky-400
 
 // Categorical series colours for a multi-series chart, in FIXED slot order:
 // series 1 takes CHART_SERIES[0], series 2 CHART_SERIES[1], and so on. The order
-// is the colourblind-safety mechanism, not decoration — emerald↔amber and
-// amber↔sky are the adjacent pairs, and this ordering is the one that keeps both
-// apart (worst adjacent CVD ΔE 10.6, normal-vision ΔE 21.2, OKLab ×100, measured
+// is the colourblind-safety mechanism, not decoration — what it protects is the
+// ADJACENT pairs, and this ordering keeps every one of them apart (worst adjacent
+// CVD ΔE 11.1 under protanopia, normal-vision ΔE 21.2, OKLab ×100, measured
 // against the dark card surface #18181b). Putting emerald next to sky instead
-// collapses to ΔE 3.0 under tritanopia. Never cycle or reorder per chart; a
-// fourth series folds into an "other" bucket or gets its own chart.
+// collapses to ΔE 4.5 under tritanopia. Never cycle or reorder per chart.
 //
-// All three are below 3:1 against the LIGHT surface, so any chart using them ships the
-// per-series totals as visible text underneath — identity and magnitude are then
-// readable without relying on the fill at all.
-export const CHART_SERIES = [CHART_PRIMARY, CHART_ACCENT_AMBER, CHART_ACCENT_SKY] as const
+// #1403 extended this from three slots to six, for the candidate-state chart that
+// draws five statuses plus the demotion curve on one axis. The last three were
+// chosen by search, not by eye: red/yellow/orange is the set that maximises the
+// worst pair over all four vision models. Two things about that are worth knowing
+// before adding a seventh:
+//   * adjacency did NOT degrade — the worst adjacent pair is still 11.1, the same
+//     emerald↔amber pair the trio already had, so slot order remains the guarantee;
+//   * separation over ALL pairs did — it drops to 5.8 (red↔orange), which is below
+//     what colour alone can carry. Six is therefore the ceiling, and only because
+//     of the mitigation below.
+// (`lime-400` looked like the obvious sixth and is disqualified outright: ΔE 1.4
+// against amber — the same colour, to a deuteranope.)
+//
+// All six are below 3:1 against the LIGHT surface, so any chart using them ships the
+// per-series values as visible text underneath — identity and magnitude are then
+// readable without relying on the fill at all. Past three series that text is not a
+// courtesy, it is what makes the chart legible.
+export const CHART_SERIES = [
+  CHART_PRIMARY,
+  CHART_ACCENT_AMBER,
+  CHART_ACCENT_SKY,
+  '#f87171', // red-400
+  '#fde047', // yellow-300
+  '#fb923c', // orange-400
+] as const
 
 // Axis tick text colour — zinc-400, matching `text-muted` so axis labels read
 // as quiet metadata rather than competing with the data.
@@ -237,57 +257,6 @@ export function horizontalBarProps(labelWidth: number) {
 // on their loading skeletons to avoid CLS.
 export function barChartHeight(count: number, { min, step }: { min: number, step: number }): number {
   return Math.max(min, count * step)
-}
-
-// Every period key from the first to the last of `buckets`, inclusive — the
-// grid a series has to be drawn on when the backend only sends the periods it
-// actually measured (#1403).
-//
-// A stock series must not close its own gaps. The candidate-stock snapshots are
-// absent for any period the ingestor did not run, and a chart fed only the
-// measured periods would join the two sides of an outage into a continuous curve
-// — the one shape that says "nothing happened" when what happened was a stall.
-// Filling the grid and leaving the values `undefined` breaks the line there
-// instead. Zeros would be worse than either: they would claim the funnel emptied.
-//
-// Bounded at 2000 steps so a malformed or far-apart pair of keys cannot spin;
-// the longest legitimate grid is a 90-day window at hourly resolution (2160)
-// clamped by the snapshot TTL well before that.
-export function expandPeriodGrid(
-  buckets: readonly string[],
-  granularity: 'hour' | 'day' | 'week' | 'month',
-): string[] {
-  const first = buckets[0]
-  const last = buckets[buckets.length - 1]
-  if (!first || !last) {
-    return []
-  }
-
-  const end = new Date(last)
-  const cursor = new Date(first)
-  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime())) {
-    return [...buckets]
-  }
-
-  const grid: string[] = []
-  for (let step = 0; cursor <= end && step < 2000; step += 1) {
-    grid.push(isoBucketKey(cursor))
-    switch (granularity) {
-      case 'hour': cursor.setUTCHours(cursor.getUTCHours() + 1); break
-      case 'day': cursor.setUTCDate(cursor.getUTCDate() + 1); break
-      case 'week': cursor.setUTCDate(cursor.getUTCDate() + 7); break
-      case 'month': cursor.setUTCMonth(cursor.getUTCMonth() + 1); break
-    }
-  }
-  return grid
-}
-
-// The backend's bucket key shape (`RunTimeBuckets.Format`): ISO-8601 UTC, seconds
-// precision, `Z` suffix. Rebuilt rather than taken from `toISOString()` so the
-// keys this grid produces match the ones the payload carries exactly — a
-// millisecond suffix would miss every lookup.
-function isoBucketKey(date: Date): string {
-  return `${date.toISOString().slice(0, 19)}Z`
 }
 
 // Build an `xFormatter` that maps the chart's numeric tick index back to a

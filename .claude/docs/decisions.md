@@ -230,6 +230,7 @@ Last verified against `develop` on 2026-09-02.
 - The health cockpit (`/health`, #1031) holds no depth of its own — every tile is a link, and the verdict is judged server-side
 - A process that has never recorded a run is `unknown`, not amber; an abandoned run is a warning, not an error — #1031
 - A chart's mark is chosen by what the series measures: flows are bars, stocks are lines (2026-08-25) — #924
+- The chart palette holds six colours; adjacency still separates, all-pairs no longer does, so values ship as text — #1403, #1218
 - Admin bar charts go through a wrapper, because vue-chrts' bar tooltip is broken twice (2026-08-25) — #1218
 - The admin portal has one status vocabulary and one duration ladder (2026-08-28) — #924, #1024
 - The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28) — #1249
