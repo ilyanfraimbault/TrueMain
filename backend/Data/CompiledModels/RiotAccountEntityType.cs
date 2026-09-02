@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.RiotAccount",
                 typeof(RiotAccount),
                 baseEntityType,
-                propertyCount: 21,
+                propertyCount: 23,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 5,
@@ -54,6 +54,22 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(RiotAccount).GetField("<GameName>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 32);
             gameName.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var ladderGames = runtimeEntityType.AddProperty(
+                "LadderGames",
+                typeof(int?),
+                propertyInfo: typeof(RiotAccount).GetProperty("LadderGames", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(RiotAccount).GetField("<LadderGames>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            ladderGames.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var ladderGamesAtLastIngest = runtimeEntityType.AddProperty(
+                "LadderGamesAtLastIngest",
+                typeof(int?),
+                propertyInfo: typeof(RiotAccount).GetProperty("LadderGamesAtLastIngest", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(RiotAccount).GetField("<LadderGamesAtLastIngest>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            ladderGamesAtLastIngest.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var lastActivityCheckAtUtc = runtimeEntityType.AddProperty(
                 "LastActivityCheckAtUtc",

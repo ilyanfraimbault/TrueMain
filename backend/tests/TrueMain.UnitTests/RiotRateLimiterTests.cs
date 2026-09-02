@@ -248,6 +248,25 @@ public sealed class RiotRateLimiterTests
         IssueImmediately(limiter, "europe", "match-v5.match");
     }
 
+    [Fact]
+    public void Acquire_SendsAnywayRatherThanWaitingPastTheConfiguredCeiling()
+    {
+        var time = new FakeTimeProvider(Origin);
+        using var limiter = CreateLimiter(time, options =>
+        {
+            options.AppLimits = "1:600";
+            options.SafetyHeadroom = 0;
+            options.MaxPermitWaitSeconds = 30;
+        });
+
+        IssueImmediately(limiter, "europe", "match-v5.match");
+
+        // The next permit is ten minutes away, far past the ceiling. Waiting for it would
+        // stall the pipeline behind one call; sending takes a 429 at worst, and the response's
+        // count headers resynchronise the window.
+        IssueImmediately(limiter, "europe", "match-v5.match");
+    }
+
     /// <summary>
     /// Takes a permit that must be available now. Asserting synchronous completion keeps a
     /// regression visible as a failing test instead of a suite that hangs on a fake clock.

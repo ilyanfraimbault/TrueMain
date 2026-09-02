@@ -109,6 +109,7 @@ public sealed class MatchIngestionProcess(
             summary.TotalSkippedWrongQueue += result.SkippedWrongQueue;
             summary.TotalTimelines += result.TimelinesUpdated;
             summary.TotalErrors += result.Errors;
+            summary.TotalWithoutNewMatches += result.WithoutNewMatches;
             summary.ByPlatform[result.PlatformId] = result.Platform;
         }
 
@@ -324,7 +325,8 @@ public sealed class MatchIngestionProcess(
                     entry.Value.MatchesSkipped,
                     entry.Value.TimelinesUpdated,
                     entry.Value.MatchesSkippedWrongQueue))
-                .ToList());
+                .ToList(),
+            summary.TotalWithoutNewMatches);
     }
 
     /// <summary>
@@ -352,9 +354,19 @@ public sealed class MatchIngestionProcess(
 
         public int Errors { get; set; }
 
+        public int WithoutNewMatches { get; private set; }
+
         public void Record(AccountIngestionSummary accountSummary)
         {
             Accounts++;
+            if (accountSummary.Inserted == 0)
+            {
+                // A visit that stored nothing: the player had not played since the last one.
+                // #1360's claim ordering exists to make this rare, so it is counted rather
+                // than inferred from the difference between two other numbers.
+                WithoutNewMatches++;
+            }
+
             if (accountSummary.Validated)
             {
                 Validated++;
@@ -396,6 +408,7 @@ public sealed class MatchIngestionProcess(
         public int TotalSkippedWrongQueue { get; set; }
         public int TotalTimelines { get; set; }
         public int TotalErrors { get; set; }
+        public int TotalWithoutNewMatches { get; set; }
     }
 
     private sealed class PlatformSummary

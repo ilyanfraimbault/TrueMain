@@ -102,6 +102,13 @@ public sealed record MatchIngestionPlatformSummary(
 /// <c>queue</c>, a non-zero value means Riot returned an off-queue id anyway — visible instead of
 /// buried inside a number that is normally large.
 /// </para>
+/// <para>
+/// <see cref="AccountsWithoutNewMatches"/> (#1360) is how the claim's ordering is judged: an
+/// account whose visit produced nothing spent a match-ids call and a batch slot to learn that
+/// the player had not played. Ordering by age alone made that the common case; ordering by
+/// games actually played since the last visit should drive it toward zero. Appended last so
+/// the pre-existing keys keep their wire order.
+/// </para>
 /// </summary>
 public sealed record MatchIngestionSummary(
     int AccountsProcessed,
@@ -113,7 +120,8 @@ public sealed record MatchIngestionSummary(
     int ExpiredCandidatesReleased,
     int ExpiredClaimsReleased,
     int MatchesSkippedWrongQueue,
-    IReadOnlyList<MatchIngestionPlatformSummary> ByPlatform) : IProcessRunSummary;
+    IReadOnlyList<MatchIngestionPlatformSummary> ByPlatform,
+    int AccountsWithoutNewMatches = 0) : IProcessRunSummary;
 
 /// <summary>Manual seed outcome for the claimed batch.</summary>
 public sealed record ManualSeedSummary(

@@ -44,4 +44,18 @@ public class RiotRateLimitOptions
     /// header, in seconds.
     /// </summary>
     public int DefaultRetryAfterSeconds { get; set; } = 5;
+
+    /// <summary>
+    /// Longest a single call may wait for a permit, in seconds. Serves two purposes: it is
+    /// added to the Riot clients' <c>HttpClient.Timeout</c>, which now has to cover the wait
+    /// <em>and</em> the resilience pipeline beneath it, and it caps a single acquisition.
+    /// </summary>
+    /// <remarks>
+    /// The default covers a ten-minute window, which is the longest a production key
+    /// advertises. A wait that would exceed it means our model of the budget and Riot's have
+    /// diverged badly; the call then proceeds rather than waiting indefinitely, takes a 429
+    /// if it was wrong, and the response's own count headers resynchronise the window — which
+    /// recovers, where an unbounded wait would simply stall the pipeline behind one call.
+    /// </remarks>
+    public int MaxPermitWaitSeconds { get; set; } = 600;
 }

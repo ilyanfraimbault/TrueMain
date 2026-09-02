@@ -34,9 +34,25 @@ actually exhausted.
 now" has to be decided one caller at a time to stay correct. It costs nothing: the sustained personal-key
 allowance is under one request per second per region, and regions never wait on each other — which is the
 whole point.
-The limiter sits **inside** the resilience handler (a retried attempt waits for its own permit instead of
-replaying into the limit that rejected it) and **outside** the metrics handler (a permit wait is not Riot
-latency). No configuration is needed when the key changes: the limits are learned from the response.
+**The two halves of the limiter sit on opposite sides of the resilience handler.** The first attempt put both
+inside it, reasoning that a retried attempt should wait for its own permit. Preprod disproved that within an
+hour of the deploy: inside the resilience pipeline, the wait for a permit is charged to the **10-second
+per-attempt timeout**, and a legitimate wait on a 100-per-2-minutes window is routinely longer than that. The
+attempt was cancelled on the queue rather than on the network, retried into the same queue, and the account's
+whole ingestion failed with a `TimeoutRejectedException` raised from the limiter's own `Task.Delay`.
+So **waiting happens outside** the resilience handler, bounded by `HttpClient.Timeout` (sized above the total
+request budget), and **observing happens inside** it, where it still sees every physical attempt — including
+the 429s the retry strategy absorbs, which are exactly the responses carrying the `Retry-After` the next
+acquisition must honour. The cost of the split is that the limiter charges one permit per *logical* request
+rather than per attempt; Riot's own `X-App-Rate-Limit-Count` on the way back is what corrects the count, which
+is what that header is for. The metrics handler stays innermost, so a permit wait is never recorded as Riot
+latency, and the Riot clients' `HttpClient.Timeout` is sized to cover the wait *and* the pipeline beneath it —
+sized for the pipeline alone, a long-but-legitimate wait followed by a slow pipeline would trip it and surface
+as the same opaque `TaskCanceledException` #855 fixed one layer in. A single wait is itself bounded by
+`RiotRateLimit:MaxPermitWaitSeconds`: past that ceiling the call is sent anyway, because a wait that long means
+our model and Riot's have diverged, and a 429's count headers resynchronise the window where an unbounded wait
+would just stall the pipeline behind one call. No configuration is needed when the key changes: the limits are
+learned from the response.
 
 **The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks.**
 The 20 steps were one serial chain, so the Riot key idled through every aggregation and the aggregates waited
@@ -60,6 +76,28 @@ the one case where a full sweep is certainly wrong.
 **Preprod runs the two lanes; prod stays on `Full` until preprod has.** Nothing about the code forces a
 topology — a single container on `Full` still runs everything in order — so the split is a deployment
 decision, and it is the kind that is cheap to validate on preprod and expensive to get wrong on prod (#1362).
+**The claim orders by games played since the last visit, not by how long ago that visit was.**
+Ordering by `LastMatchIngestAtUtc` alone spent the batch on whoever had waited longest, whether or not they
+had played. On production that meant a **27-day median revisit** against a 20-game fetch window, so any main
+playing more than ~0.7 games a day was losing games between visits — and the players who play most are exactly
+the signal the site is built on. Meanwhile a third of every batch went to accounts that had played nothing.
+The fix costs no Riot calls, because the answer was already being paid for: `LadderSync` reads ~94 k ladder
+entries per run for ~310 calls and already refreshes wins/losses for every tracked Emerald+ account.
+`riot_accounts.LadderGames` denormalises that sum, `LadderGamesAtLastIngest` records what it was when the
+account was last ingested, and the difference is what the claim sorts on.
+Three details that are not arbitrary. **The count is refreshed on the `Unchanged` snapshot path too** — a win
+and a loss return to the same LP, and those are precisely the games that would otherwise go unnoticed. **The
+baseline is reset inside the same statement that stamps `LastMatchIngestAtUtc`**, or the account would read as
+freshly visited while still owing every game it owed before, and come straight back at the head of the next
+batch. **An account with no ladder reading keeps the old age ordering** rather than sinking behind everything
+that has one: below the swept tiers there is no signal, and a zero owed must not be read as "up to date".
+**The difference is floored at zero**, because a Riot season reset restarts wins/losses from the bottom: the
+raw subtraction then goes negative for every account at once and would sort the whole active pool behind the
+accounts that owe nothing. It would self-heal on the next ingest — but "self-heal" there means a full sweep of
+the pool, which is the very thing this ordering exists to avoid needing.
+The count is denormalised onto the account rather than joined from `rank_snapshots` because it exists to sit
+in an `ORDER BY` over the claimable set — a lateral join to each account's newest snapshot is the one query
+the claim cannot afford to run per candidate row (#1360).
 
 **Match ingestion fans out one worker per platform, and stays sequential inside one.**
 The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained
