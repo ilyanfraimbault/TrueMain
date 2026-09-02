@@ -58,6 +58,17 @@ public sealed class RankSnapshotWriter : IRankSnapshotWriter
         account.LastRankSyncAtUtc = nowUtc;
         account.Score = RankScore.Compute(input.Tier, input.Division, input.LeaguePoints);
 
+        // Kept current on every reading, including the Unchanged path (#1360): the claim
+        // orders by how many games this account has played since we last ingested it, and
+        // that difference is only meaningful if the left-hand side tracks the ladder. A rank
+        // that is "unchanged" in tier/division/LP can still sit on a different game count —
+        // a win and a loss return to the same LP — and those are exactly the games the claim
+        // would otherwise never learn about.
+        if (input.Wins is { } wins && input.Losses is { } losses)
+        {
+            account.LadderGames = wins + losses;
+        }
+
         var unchanged = latest is not null
             && string.Equals(latest.Tier, input.Tier, StringComparison.Ordinal)
             && string.Equals(latest.Division, input.Division, StringComparison.Ordinal)

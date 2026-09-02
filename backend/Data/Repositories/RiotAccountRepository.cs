@@ -548,7 +548,28 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
                                       && account.MatchIngestClaimedAtUtc != null
                                       && account.MatchIngestClaimedAtUtc < leaseCutoff)))
             .Where(membership)
+            // Never-ingested accounts first, then by how many ranked games the player has
+            // actually played since the last visit, then oldest-visited (#1360).
+            //
+            // Ordering by age alone spent the batch on whoever had waited longest, whether or
+            // not they had played: production revisited an account every 27 days (median) with
+            // a 20-game window, so the most active mains — the ones the site is about — were
+            // losing games between visits while idle accounts consumed slots. The ladder sweep
+            // already refreshes wins/losses for every tracked Emerald+ account at ~310 calls a
+            // run, so this signal is free.
+            //
+            // An account with no ladder reading has an owed of zero and falls back to the
+            // age ordering, which is exactly the behaviour it had before — no starvation is
+            // introduced, the accounts that played simply stop queueing behind those that
+            // did not.
             .OrderBy(account => account.LastMatchIngestAtUtc == null ? 0 : 1)
+            // Floored at zero: a Riot season reset restarts wins/losses from the bottom, so
+            // the raw difference goes negative for every account at once and would sort the
+            // whole active pool behind the accounts that owe nothing. It self-heals on the
+            // next ingest, but "self-heals" here means a full sweep of the pool, which is the
+            // thing this ordering exists to avoid needing.
+            .ThenByDescending(account =>
+                Math.Max(0, (account.LadderGames ?? 0) - (account.LadderGamesAtLastIngest ?? 0)))
             .ThenBy(account => account.LastMatchIngestAtUtc)
             .Take(take)
             .Select(account => new AccountKey(account.PlatformId, account.Puuid))
@@ -590,7 +611,14 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         => db.RiotAccounts
             .Where(a => a.PlatformId == platformId && a.Puuid == puuid)
             .ExecuteUpdateAsync(
-                setters => setters.SetProperty(a => a.LastMatchIngestAtUtc, atUtc),
+                setters => setters
+                    .SetProperty(a => a.LastMatchIngestAtUtc, atUtc)
+                    // Reset the games-owed baseline in the same statement that records the
+                    // visit (#1360). Doing it anywhere else would leave a window in which the
+                    // account reads as freshly ingested but still owing every game it owed
+                    // before, and the claim would hand it straight back at the top of the
+                    // next batch.
+                    .SetProperty(a => a.LadderGamesAtLastIngest, a => a.LadderGames),
                 ct);
 
     public void Add(RiotAccount account)
