@@ -69,24 +69,26 @@ jobs:
           path: ${{ steps.script.outputs.path }}
           retention-days: 90
 
+      - name: Install SSH credentials
+        id: ssh
+        uses: ./.github/actions/ssh-credentials
+        with:
+          key: ${{ secrets.ssh_key }}
+          host_key: ${{ inputs.ssh_host_key }}
+
       - name: Apply migration script over SSH
         env:
           SSH_HOST: ${{ secrets.ssh_host }}
-          SSH_KEY: ${{ secrets.ssh_key }}
-          SSH_HOST_KEY: ${{ inputs.ssh_host_key }}
+          SSH_IDENTITY: ${{ steps.ssh.outputs.identity }}
           SCRIPT: ${{ steps.script.outputs.path }}
         run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_ed25519
-          chmod 600 ~/.ssh/deploy_ed25519
-          printf '%s\n' "$SSH_HOST_KEY" > ~/.ssh/known_hosts
-          ssh -i ~/.ssh/deploy_ed25519 -o StrictHostKeyChecking=yes "root@${SSH_HOST}" < "$SCRIPT"
+          ssh -i "$SSH_IDENTITY" -o StrictHostKeyChecking=yes "root@${SSH_HOST}" < "$SCRIPT"
 
   deploy:
     name: Deploy ${{ inputs.environment }} VPS
     runs-on: ubuntu-24.04
     needs: migrate
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
 
@@ -95,6 +97,13 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
+
+      - name: Install SSH credentials
+        id: ssh
+        uses: ./.github/actions/ssh-credentials
+        with:
+          key: ${{ secrets.ssh_key }}
+          host_key: ${{ inputs.ssh_host_key }}
 
       - name: Redeploy Docker Manager project
         uses: hostinger/deploy-on-vps@v2
@@ -107,3 +116,13 @@ jobs:
             ${{ secrets.env_file }}
             IMAGE_TAG=${{ inputs.image_tag }}
             APP_VERSION=${{ inputs.app_version }}
+
+      - name: Verify the VPS is running the deployed images
+        env:
+          SSH_HOST: ${{ secrets.ssh_host }}
+          SSH_IDENTITY: ${{ steps.ssh.outputs.identity }}
+          COMPOSE_FILE: ${{ inputs.compose_file }}
+          EXPECTED_TAG: ${{ inputs.image_tag }}
+          TIMEOUT_SECONDS: '600'
+          POLL_SECONDS: '15'
+        run: .github/scripts/verify-rollout.sh

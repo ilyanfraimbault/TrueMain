@@ -1,0 +1,31 @@
+name: SSH credentials
+description: Install the deploy key and the pinned host key used to reach a VPS.
+
+inputs:
+  key:
+    description: Private deploy key.
+    required: true
+  host_key:
+    description: Pinned public host key of the target VPS.
+    required: true
+
+outputs:
+  identity:
+    description: Path to the installed private key.
+    value: ${{ steps.install.outputs.identity }}
+
+runs:
+  using: composite
+  steps:
+    - id: install
+      shell: bash
+      env:
+        SSH_KEY: ${{ inputs.key }}
+        SSH_HOST_KEY: ${{ inputs.host_key }}
+      run: |
+        set -euo pipefail
+        install -m 700 -d ~/.ssh
+        printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_ed25519
+        chmod 600 ~/.ssh/deploy_ed25519
+        printf '%s\n' "$SSH_HOST_KEY" > ~/.ssh/known_hosts
+        echo "identity=$HOME/.ssh/deploy_ed25519" >> "$GITHUB_OUTPUT"
