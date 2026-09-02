@@ -31,10 +31,17 @@ public static class IntakeCapacity
         var establishedShare = Math.Clamp(matchIngestion.EstablishedMainShare, 0d, 1d);
 
         // Deliberately the complement of the claim's own expression rather than an
-        // independent ceiling of batchSize x (1 - share): the claim query reserves
-        // ceil(quota x share) for established mains (RiotAccountRepository), so mirroring it
-        // keeps the two arithmetics in step instead of leaving them to drift by a rounding
-        // step — and avoids 750 x 0.3 evaluating to 225.00000000000003 and reading as 226.
+        // independent ceiling of batchSize x (1 - share): the claim reserves
+        // ceil(quota x share) for established mains (RiotAccountRepository), so mirroring the
+        // shape keeps the two readable against each other — and avoids 750 x 0.3 evaluating
+        // to 225.00000000000003 and reading as 226.
+        //
+        // Not an exact match, and it does not need to be: the claim applies its ceiling
+        // per platform, and a ceiling is super-additive, so the real reservation can exceed
+        // ceil(batchSize x share) by up to one slot per platform (3 platforms at quota 25 and
+        // share 0.7 reserve 3 x 18 = 54, against the 53 computed here — 21 real slots against
+        // 22). This is an upper bound on a sizing input, off by less than the platform count,
+        // and every consumer clamps it further (MinPromotionPerPlatform, TopNPerPlatform).
         return Math.Max(1, batchSize - (int)Math.Ceiling(batchSize * establishedShare));
     }
 
