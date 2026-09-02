@@ -156,27 +156,43 @@ the previous release's images for forty minutes, i.e. the new schema against
 the old binaries — the exact mismatch `preflight` exists to prevent, arriving
 through the one door it does not watch (#1394).
 
-`verify-rollout.sh` closes it. After the redeploy the job polls the host over
-SSH — the same key and pinned host key the migration uses, installed by the
-`ssh-credentials` composite action — until every container built from an image
-named in the compose file runs `IMAGE_TAG` and reports healthy. It fails the
-run otherwise, so a rollout that never reached the environment can no longer
-be green.
+`verify-rollout.sh` closes it. After the redeploy the job polls
+`GET /vps/v1/virtual-machines/{id}/docker` — the same API the deploy posts to,
+with the API key the job already holds — until every container built from an
+image named in the compose file runs `IMAGE_TAG` and is healthy. It fails the
+run otherwise, so a rollout that never reached the environment can no longer be
+green.
+
+**The migration's SSH channel cannot be reused for this.** The CI key is
+pinned to a forced command in the host's `authorized_keys`
+(`command="…",no-pty`), so it may run the migration and nothing else: any
+remote command the workflow passes is discarded and the forced one runs in its
+place. That is the right shape for a CI credential and it is deliberately left
+alone, but it means the deploy job's evidence has to come from somewhere the
+key does not gate. The Hostinger API is that place, it needs no new secret,
+and it reports the live container list rather than what the compose file
+intends.
 
 The expected images are **read from the compose file** rather than listed in
 the workflow, so adding a service extends the check for free, and a compose
 file naming none of our images is a hard error instead of a vacuous pass. The
 grain is the **image reference**, not the service name: preprod runs two
 ingestor lanes from one image (#1374), and rolling only one of them is a
-partial deploy no service-name check would catch. Health is required as well
-as the tag, because a container that starts on the right image and crash-loops
-has not deployed either; `health: starting` is treated as not-ready and polled
-through, which is what lets a slow but successful roll pass.
+partial deploy no service-name check would catch. Health is required as well as
+the tag, because a container that starts on the right image and crash-loops has
+not deployed either; a container with no healthcheck of its own reports an
+empty health and is not read as unhealthy, while `starting` is treated as
+not-ready and polled through, which is what lets a slow roll pass.
+
+An API error is fatal rather than an empty container list: "the API did not
+answer" and "the project runs nothing" are different facts, and reading the
+first as the second is how a check reports a deploy that never happened as
+merely slow.
 
 The wait is ten minutes at fifteen-second intervals, which is why the deploy
-job's own timeout is larger than the migration's. `.github/scripts/verify-rollout.test.sh`
-pins the behaviour against fixed `docker ps` listings, including the 1.20.0
-listing itself, and runs in the `deploy-scripts` CI job.
+job's own timeout is larger than the migration's.
+`.github/scripts/verify-rollout.test.sh` pins the behaviour against fixed API
+responses and runs in the `deploy-scripts` CI job.
 
 ### Preprod versioning
 
