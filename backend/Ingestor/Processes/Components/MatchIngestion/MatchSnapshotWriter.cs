@@ -22,6 +22,15 @@ public sealed class MatchSnapshotWriter(
 
     private readonly int _targetQueueId = (int)mainAnalysisOptions.Value.QueueId;
 
+    /// <summary>Riot's maximum for the match-ids endpoint's <c>count</c>.</summary>
+    private const int RiotMatchIdsMaxCount = 100;
+
+    /// <summary>
+    /// Extra ids requested on top of the games the ladder says are owed (#1360), covering a
+    /// game the ladder has counted before match-v5 published it and any drift between the two.
+    /// </summary>
+    private const int OwedGamesMargin = 5;
+
     public async Task<SnapshotIngestionPlan> PrepareAsync(
         IDataSession session,
         string platformId,
@@ -37,7 +46,7 @@ public sealed class MatchSnapshotWriter(
         var trackedAccount = await session.RiotAccounts.GetByKeyAsync(platformId, puuid, ct);
 
         var allMatchIds = (await riotMatchClient.GetMatchIdsAsync(
-                BuildMatchIdQuery(puuid, region, matchesPerAccount, trackedAccount?.LastMatchIngestAtUtc),
+                BuildMatchIdQuery(puuid, region, matchesPerAccount, trackedAccount),
                 ct))
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.Ordinal)
@@ -108,23 +117,42 @@ public sealed class MatchSnapshotWriter(
     /// that post-fetch guard stays as a safety net for an id Riot returns anyway.
     /// </para>
     /// <para>
-    /// <paramref name="lastIngestAtUtc"/> becomes <c>startTime</c> minus one hour: minus,
-    /// because a match that ended after the previous claim may have started before it, and the
-    /// hour is a generous bound on a League game plus clock skew. Unset on a first ingestion,
-    /// so the account's full <c>MatchesPerAccount</c> window is listed once.
+    /// The account's last ingest becomes <c>startTime</c> minus one hour: minus, because a
+    /// match that ended after the previous claim may have started before it, and the hour is a
+    /// generous bound on a League game plus clock skew. Unset on a first ingestion, so the
+    /// account's full <c>MatchesPerAccount</c> window is listed once.
+    /// </para>
+    /// <para>
+    /// The count is widened to the games the ladder says the player owes (#1360). A fixed
+    /// window silently truncates whoever plays most — exactly the players the site is about —
+    /// and production revisited an account every 27 days against a 20-game window. Widening
+    /// costs nothing: the ids endpoint is one call whatever the count, and Riot caps it at 100.
+    /// <c>MatchesPerAccount</c> stays the floor, so an account whose owed is unknown or small
+    /// is listed exactly as before.
     /// </para>
     /// </summary>
     private MatchIdQuery BuildMatchIdQuery(
         string puuid,
         RegionalRoute region,
         int matchesPerAccount,
-        DateTime? lastIngestAtUtc)
-        => new(
+        RiotAccount? trackedAccount)
+    {
+        var owed = LadderGamesOwed.From(trackedAccount?.LadderGames, trackedAccount?.LadderGamesAtLastIngest);
+
+        // The margin covers what the two counters cannot agree on: a game the ladder has
+        // already counted but match-v5 has not yet published, and the queues the ladder count
+        // does not distinguish.
+        var count = owed > 0
+            ? Math.Clamp(owed + OwedGamesMargin, matchesPerAccount, RiotMatchIdsMaxCount)
+            : matchesPerAccount;
+
+        return new MatchIdQuery(
             puuid,
             region,
-            matchesPerAccount,
+            count,
             _targetQueueId,
-            lastIngestAtUtc?.Add(-StartTimeSafetyMargin));
+            trackedAccount?.LastMatchIngestAtUtc?.Add(-StartTimeSafetyMargin));
+    }
 
     public async Task<SnapshotIngestionResult> WriteAsync(
         IDataSession session,

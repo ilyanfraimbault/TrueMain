@@ -57,6 +57,66 @@ public sealed class MatchSnapshotWriterQueryTests
         query.StartTimeUtc.Should().BeNull("there is no previous claim to bound the window with");
     }
 
+    [Fact]
+    public async Task PrepareAsync_WidensTheWindowToTheGamesTheLadderSaysAreOwed()
+    {
+        var (writer, matchClient) = BuildWriter();
+
+        // 45 games since the last visit against a 20-game window: a fixed window would
+        // silently drop 25 of them, and it drops them for the players who play most.
+        await writer.PrepareAsync(
+            BuildSession(NowUtc.AddDays(-3), ladderGames: 545, ladderGamesAtLastIngest: 500),
+            "KR", "puuid-a", RegionalRoute.Asia, 20, 4, CancellationToken.None);
+
+        Query(matchClient).Count.Should().Be(50, "45 owed plus the drift margin");
+    }
+
+    [Fact]
+    public async Task PrepareAsync_NeverAsksForMoreThanRiotAllows()
+    {
+        var (writer, matchClient) = BuildWriter();
+
+        await writer.PrepareAsync(
+            BuildSession(NowUtc.AddDays(-60), ladderGames: 900, ladderGamesAtLastIngest: 500),
+            "KR", "puuid-a", RegionalRoute.Asia, 20, 4, CancellationToken.None);
+
+        Query(matchClient).Count.Should().Be(100, "Riot caps the ids endpoint at 100");
+    }
+
+    [Fact]
+    public async Task PrepareAsync_KeepsTheConfiguredWindow_WhenTheLadderSaysNothingWasPlayed()
+    {
+        var (writer, matchClient) = BuildWriter();
+
+        await writer.PrepareAsync(
+            BuildSession(NowUtc.AddDays(-3), ladderGames: 500, ladderGamesAtLastIngest: 500),
+            "KR", "puuid-a", RegionalRoute.Asia, 20, 4, CancellationToken.None);
+
+        // Never narrower than the configured window: the ladder only covers the swept tiers
+        // and only the ranked queue, so "owes nothing" is not proof that nothing was played.
+        Query(matchClient).Count.Should().Be(20);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_KeepsTheConfiguredWindow_WhenTheBaselineIsUnknown()
+    {
+        var (writer, matchClient) = BuildWriter();
+
+        // An account ingested before the baseline column existed. Reading the missing
+        // baseline as zero would ask for the player's entire season.
+        await writer.PrepareAsync(
+            BuildSession(NowUtc.AddDays(-3), ladderGames: 900, ladderGamesAtLastIngest: null),
+            "KR", "puuid-a", RegionalRoute.Asia, 20, 4, CancellationToken.None);
+
+        Query(matchClient).Count.Should().Be(20);
+    }
+
+    private static MatchIdQuery Query(IRiotMatchClient matchClient)
+        => matchClient.ReceivedCalls()
+            .Single(call => call.GetMethodInfo().Name == nameof(IRiotMatchClient.GetMatchIdsAsync))
+            .GetArguments()[0]
+            .Should().BeOfType<MatchIdQuery>().Subject;
+
     private static (MatchSnapshotWriter Writer, IRiotMatchClient MatchClient) BuildWriter()
     {
         var matchClient = Substitute.For<IRiotMatchClient>();
@@ -71,7 +131,10 @@ public sealed class MatchSnapshotWriterQueryTests
         return (writer, matchClient);
     }
 
-    private static IDataSession BuildSession(DateTime? lastIngestUtc)
+    private static IDataSession BuildSession(
+        DateTime? lastIngestUtc,
+        int? ladderGames = null,
+        int? ladderGamesAtLastIngest = null)
     {
         var accounts = Substitute.For<IRiotAccountRepository>();
         accounts.GetByKeyAsync("KR", "puuid-a", Arg.Any<CancellationToken>())
@@ -80,7 +143,9 @@ public sealed class MatchSnapshotWriterQueryTests
                 Id = Guid.NewGuid(),
                 Puuid = "puuid-a",
                 PlatformId = "KR",
-                LastMatchIngestAtUtc = lastIngestUtc
+                LastMatchIngestAtUtc = lastIngestUtc,
+                LadderGames = ladderGames,
+                LadderGamesAtLastIngest = ladderGamesAtLastIngest
             }));
         accounts.GetByKeysAsync(Arg.Any<IReadOnlyCollection<AccountKey>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new Dictionary<AccountKey, RiotAccount>()));

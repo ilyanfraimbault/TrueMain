@@ -91,6 +91,15 @@ baseline is reset inside the same statement that stamps `LastMatchIngestAtUtc`**
 freshly visited while still owing every game it owed before, and come straight back at the head of the next
 batch. **An account with no ladder reading keeps the old age ordering** rather than sinking behind everything
 that has one: below the swept tiers there is no signal, and a zero owed must not be read as "up to date".
+**The same difference sizes the match-ids request**, so a fixed window stops truncating whoever plays most:
+`count` widens to owed + a small drift margin, capped at Riot's 100, with `MatchesPerAccount` as the floor.
+It costs nothing — the ids endpoint is one call whatever the count. The rule lives in `LadderGamesOwed.From`
+because two callers apply it; the claim necessarily restates it as an expression tree, which the call site
+says out loud.
+**A missing baseline yields zero, not the whole season.** An account ingested before the columns existed has
+no value to subtract, and reading the absence as zero would report a career's games as owed — after the
+deploy that is every tracked account at once, which would order the pool by career volume rather than by
+recent activity until each had been visited once.
 **The difference is floored at zero**, because a Riot season reset restarts wins/losses from the bottom: the
 raw subtraction then goes negative for every account at once and would sort the whole active pool behind the
 accounts that owe nothing. It would self-heal on the next ingest — but "self-heal" there means a full sweep of
