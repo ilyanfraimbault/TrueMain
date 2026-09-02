@@ -236,7 +236,9 @@ public sealed class ScoringWeightedScoreTests
             sessionFactory,
             coverageProvider,
             new FixedTimeProvider(Now),
-            Microsoft.Extensions.Options.Options.Create(scoring));
+            Microsoft.Extensions.Options.Options.Create(scoring),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);
 

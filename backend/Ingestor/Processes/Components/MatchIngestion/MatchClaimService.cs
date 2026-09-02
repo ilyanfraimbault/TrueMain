@@ -1,6 +1,9 @@
 using Data.Entities;
 using Data.Repositories;
+using Ingestor.Options;
 using Ingestor.Processes.Components.Coverage;
+using Ingestor.Processes.Components.Intake;
+using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 
@@ -8,6 +11,7 @@ public sealed class MatchClaimService(
     IDataSessionFactory sessionFactory,
     IChampionCoverageProvider coverageProvider,
     TimeProvider timeProvider,
+    IOptions<IntakeOptions> intakeOptions,
     ILogger<MatchClaimService> logger) : IMatchClaimService
 {
     public async Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct)
@@ -59,9 +63,21 @@ public sealed class MatchClaimService(
         var coverage = await coverageProvider.GetSnapshotAsync(session, ct);
         var quotas = PlatformBudgetAllocator.Allocate(platforms, batchSize, coverage);
 
+        // The same deficit signal, one level up (#1361): the allocator decides *where* the
+        // batch goes, this decides *what* it is spent on. Far below
+        // Coverage:TargetMainsPerChampion the batch tilts towards new candidates (breadth —
+        // there are champions with no main at all to deepen); at target it tilts back towards
+        // established mains (depth, #900). Quota-weighted, so the platforms actually receiving
+        // the batch are the ones that decide its composition, and the configured share stays
+        // the midpoint of the range.
+        var effectiveShare = ResolveEstablishedMainShare(establishedMainShare, quotas, coverage);
+
         logger.LogInformation(
-            "Claim allocation for a batch of {BatchSize}: {Quotas}.",
+            "Claim allocation for a batch of {BatchSize} at establishedMainShare {Share:0.###} "
+            + "(configured {ConfiguredShare}): {Quotas}.",
             batchSize,
+            effectiveShare,
+            establishedMainShare,
             string.Join(", ", quotas
                 .OrderBy(entry => entry.Key, StringComparer.Ordinal)
                 .Select(entry => $"{entry.Key}={entry.Value} (deficit {coverage.MeanDeficit(entry.Key):P0})")));
@@ -71,7 +87,7 @@ public sealed class MatchClaimService(
         var accounts = await session.RiotAccounts.ClaimAccountsForMatchIngestAtomicallyAsync(
             quotas,
             batchSize,
-            establishedMainShare,
+            effectiveShare,
             timeProvider.GetUtcNow().UtcDateTime,
             lease,
             ct);
@@ -103,5 +119,33 @@ public sealed class MatchClaimService(
         // nor reverted, and sat out its whole lease. ValidateAsync / RevertAsync both
         // no-op on zero candidates and still reset the account, so returning them is safe.
         return accounts;
+    }
+
+    /// <summary>
+    /// The quota-weighted mean coverage deficit of the platforms in the batch, turned into an
+    /// established-main share around the configured midpoint (#1361).
+    /// </summary>
+    /// <remarks>
+    /// A neutral snapshot returns the configured share unchanged. Its deficits are all 0, which
+    /// means "no signal" rather than "fully covered" — reading it as full coverage would tilt a
+    /// cold-start claim towards established mains that do not exist yet.
+    /// </remarks>
+    private double ResolveEstablishedMainShare(
+        double configuredShare,
+        IReadOnlyDictionary<string, int> quotas,
+        ChampionCoverageSnapshot coverage)
+    {
+        var totalQuota = quotas.Values.Sum();
+        if (coverage.IsNeutral || totalQuota <= 0)
+        {
+            return Math.Clamp(configuredShare, 0d, 1d);
+        }
+
+        var weightedDeficit = quotas.Sum(entry => coverage.MeanDeficit(entry.Key) * entry.Value) / totalQuota;
+
+        return IntakeCapacity.AdaptiveEstablishedMainShare(
+            configuredShare,
+            intakeOptions.Value.EstablishedMainShareSwing,
+            weightedDeficit);
     }
 }

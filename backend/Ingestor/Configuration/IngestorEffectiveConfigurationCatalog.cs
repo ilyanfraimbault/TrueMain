@@ -105,6 +105,18 @@ public static class IngestorEffectiveConfigurationCatalog
             + "count we under-tracked does not become a 429."
     };
 
+    private static EffectiveConfigurationSectionDescriptor Intake { get; } = new()
+    {
+        SectionName = IntakeOptions.SectionName,
+        OptionsType = typeof(IntakeOptions),
+        Title = "Intake sizing",
+        Description =
+            "Sizes the candidate funnel to what the match-ingest claim can absorb: the "
+            + "headroom the promotion queue may carry ahead of the claim, the per-platform "
+            + "queue-depth cap and the batches retention demotes it with, and how far the "
+            + "established-main share swings with the coverage deficit."
+    };
+
     public static EffectiveConfigurationCatalog Instance { get; } = new(
         ProcessName: "Ingestor",
         Sections:
@@ -118,6 +130,7 @@ public static class IngestorEffectiveConfigurationCatalog
             Scoring,
             Harvest,
             MatchIngestion,
+            Intake,
             LaneOutcomeAggregation,
             MatchDataRetention
         ]);

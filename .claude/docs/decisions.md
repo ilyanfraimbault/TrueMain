@@ -2191,6 +2191,47 @@ lease is spent while the claim still considers it held. Measured on production: 
 candidate rows, served by the existing `(PlatformId, Status, Score)` and partial claim indexes — no new index
 (#1344).
 
+## The intake is sized by the claim, not by the ladder (2026-09-02)
+
+**Every stage before the match-ingest claim used to carry its own absolute budget, and none of them was
+derived from the one number that decides throughput.** Measured in production on 2026-09-02: Discovery
+produced ~3 500 candidate rows a day, Harvest 7 500 per run (its budget exhausted *every* run, ~7 450 of them
+refreshes), ManualSeed queued ~6 800, and Scoring promoted up to 900 — against a claim of
+`MatchIngestion:BatchSize` 75 with `EstablishedMainShare` 0.7, i.e. **~22 new accounts per cycle**. The
+result was `main_candidates` at 930 k rows, **773 k of them `Queued`**, 116 k dead tuples on a 441 MB table,
+and a queue whose head never moved. The surplus was not buffer: a promoted candidate's score is recomputed,
+rewritten and re-ranked every cycle, and at that ratio it goes stale years before the claim reaches it.
+
+**So the claim is the sizing authority, and everything upstream is derived from it** (`IntakeCapacity`).
+Capacity is `BatchSize - ceil(BatchSize x EstablishedMainShare)` — deliberately the complement of the claim
+query's own expression, so the two cannot drift by a rounding step. Scoring's per-platform promotion is
+capped at `capacity x Intake:PromotionHeadroomFactor / platforms`, Harvest's *refresh* budget at
+`capacity x PromotionHeadroomFactor`, and retention demotes any platform holding more than
+`Intake:MaxQueuedPerPlatform` back down.
+
+**Three deliberate non-choices.** The existing knobs were not rewired: `Scoring:TopNPerPlatform` stays the
+explicit ceiling and the derived cap only ever lowers it, so an operator can still clamp a stage by hand
+without reasoning about the derivation. Harvest's *discovery* half — pairs with no candidate yet — keeps its
+full configured share: finding unseen players is cheap, has no claim dependency, and is the half that stops
+the pool converging on the region we already ingest most (#495). And the queue drain **demotes, never
+deletes** — `Queued` → `Scored`, in bounded batches — because the row is the only record that the player was
+ever seen, and a demoted candidate re-enters the ranking on the next cycle (#900's "deactivate, never
+delete", one stage up).
+
+**The claim's own split became adaptive too.** `EstablishedMainShare` is now the midpoint of a range, not a
+constant: the quota-weighted coverage deficit the platform allocator already computes (#1150) swings it by up
+to `Intake:EstablishedMainShareSwing` — towards new candidates when coverage is far below
+`Coverage:TargetMainsPerChampion`, towards established mains when it is met. A *neutral* coverage snapshot
+returns the configured value unchanged: its zero deficits mean "no signal", and reading them as full coverage
+would tilt a cold-start claim towards established mains that do not exist yet.
+
+**What this does not fix.** The pool is still apex-only by construction — Discovery reads Master/GM/
+Challenger, so sub-Master accounts enter only by harvest luck. Discovering below Master on purpose needs the
+ladder-delta sweep (#1360) and is not part of this. Neither is the per-`(platform, champion)` promotion cap:
+capping per champion instead of per platform is the right shape — 40x over-supply on Ezreal should not crowd
+out the five Amumu candidates that exist — but it needs a schema-backed index to be efficient, and this
+change deliberately touched no schema.
+
 ## Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02)
 
 **The server no longer runs on compiled defaults.** Until now the only setting either compose file overrode

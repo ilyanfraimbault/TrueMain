@@ -37,7 +37,9 @@ public sealed class ScoringProcessNoOpTests
             sessionFactory,
             coverageProvider,
             TimeProvider.System,
-            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunRecordedAsync(runRecorder);
 
@@ -97,7 +99,9 @@ public sealed class ScoringProcessNoOpTests
             sessionFactory,
             coverageProvider,
             TimeProvider.System,
-            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunRecordedAsync(runRecorder);
 
@@ -165,7 +169,9 @@ public sealed class ScoringProcessNoOpTests
             sessionFactory,
             coverageProvider,
             TimeProvider.System,
-            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);
 
@@ -213,7 +219,9 @@ public sealed class ScoringProcessNoOpTests
             sessionFactory,
             coverageProvider,
             TimeProvider.System,
-            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()));
+            Microsoft.Extensions.Options.Options.Create(new ScoringOptions()),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);
 

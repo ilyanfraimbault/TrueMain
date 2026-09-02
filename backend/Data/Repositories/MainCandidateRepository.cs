@@ -177,6 +177,49 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
                                                      && a.MatchIngestClaimedAtUtc >= leaseCutoffUtc))
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, MainCandidateStatus.Queued), ct);
 
+    public async Task<IReadOnlyDictionary<string, int>> GetQueuedDepthByPlatformAsync(CancellationToken ct)
+    {
+        var depths = await db.MainCandidates
+            .AsNoTracking()
+            .Where(c => c.Status == MainCandidateStatus.Queued)
+            .GroupBy(c => c.PlatformId)
+            .Select(g => new { PlatformId = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+
+        return depths.ToDictionary(row => row.PlatformId, row => row.Count, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public async Task<int> DemoteLowestScoredQueuedAsync(string platformId, int batchSize, CancellationToken ct)
+    {
+        var take = Math.Max(1, batchSize);
+
+        // Two round-trips per batch instead of one UPDATE ... IN (subquery): EF cannot express
+        // an ordered, limited subquery inside ExecuteUpdate, and an unbounded UPDATE over a
+        // ~700 k-row backlog is exactly the statement that blows Command Timeout=300 (#988).
+        // Selecting the ids first keeps every statement's row count explicit and bounded, and
+        // the ingestor is a single sequential process, so nothing writes these rows in between.
+        var ids = await db.MainCandidates
+            .AsNoTracking()
+            .Where(c => c.PlatformId == platformId && c.Status == MainCandidateStatus.Queued)
+            .OrderBy(c => c.Score)
+            .ThenBy(c => c.Id)
+            .Select(c => c.Id)
+            .Take(take)
+            .ToListAsync(ct);
+
+        if (ids.Count == 0)
+        {
+            return 0;
+        }
+
+        // Back to Scored, never deleted (#900's reasoning): the row is the only record that
+        // this (platform, puuid, champion) was ever seen, and a demoted candidate re-enters
+        // the promotion ranking on the next cycle instead of having to be re-discovered.
+        return await db.MainCandidates
+            .Where(c => ids.Contains(c.Id) && c.Status == MainCandidateStatus.Queued)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, MainCandidateStatus.Scored), ct);
+    }
+
     public void Add(MainCandidate candidate)
         => db.MainCandidates.Add(candidate);
 }
