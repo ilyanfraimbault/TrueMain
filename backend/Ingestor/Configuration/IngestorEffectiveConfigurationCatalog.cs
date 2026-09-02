@@ -93,6 +93,18 @@ public static class IngestorEffectiveConfigurationCatalog
             + "keep each deletion pass from blowing a single transaction's lock footprint."
     };
 
+    private static EffectiveConfigurationSectionDescriptor RiotRateLimit { get; } = new()
+    {
+        SectionName = RiotRateLimitOptions.SectionName,
+        OptionsType = typeof(RiotRateLimitOptions),
+        Title = "Riot rate limiting",
+        Description =
+            "How outbound Riot API calls are paced against the budget Riot enforces per "
+            + "routing value: the limits assumed before Riot advertises its own, whether "
+            + "per-endpoint method limits are enforced too, and the headroom held back so a "
+            + "count we under-tracked does not become a 429."
+    };
+
     public static EffectiveConfigurationCatalog Instance { get; } = new(
         ProcessName: "Ingestor",
         Sections:
@@ -100,6 +112,7 @@ public static class IngestorEffectiveConfigurationCatalog
             SharedEffectiveConfigurationSections.MainAnalysis,
             SharedEffectiveConfigurationSections.Database,
             SharedEffectiveConfigurationSections.MongoLogging,
+            RiotRateLimit,
             LadderSync,
             Discovery,
             Scoring,

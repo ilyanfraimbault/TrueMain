@@ -49,6 +49,19 @@ public static class OptionsConfigurationExtensions
                 "Riot:TotalRequestTimeoutSeconds must be >= Riot:AttemptTimeoutSeconds.")
             .ValidateOnStart();
 
+        services.AddOptions<RiotRateLimitOptions>()
+            .Bind(configuration.GetSection(RiotRateLimitOptions.SectionName))
+            .Validate(
+                options => !options.Enabled || RiotRateLimitOptionsValidation.HasParsableWindow(options.AppLimits),
+                "RiotRateLimit:AppLimits must contain at least one \"requests:seconds\" window, e.g. \"20:1,100:120\".")
+            .Validate(
+                options => options.SafetyHeadroom is >= 0 and < 0.5,
+                "RiotRateLimit:SafetyHeadroom must be >= 0 and < 0.5.")
+            .Validate(
+                options => options.DefaultRetryAfterSeconds is > 0 and <= 600,
+                "RiotRateLimit:DefaultRetryAfterSeconds must be between 1 and 600.")
+            .ValidateOnStart();
+
         services.AddOptions<CommunityDragonOptions>()
             .Bind(configuration.GetSection(CommunityDragonOptions.SectionName))
             .Validate(options => options.MaxRetryAttempts is > 0 and <= 10, "CommunityDragon:MaxRetryAttempts must be between 1 and 10.")

@@ -9,6 +9,35 @@ Last verified against `develop` on 2026-07-28.
 
 ---
 
+## Ingestion
+
+**Riot calls are paced by a limiter keyed on the routing value, because that is the grain Riot enforces.**
+The standard resilience handler's "rate limiter" strategy is a *concurrency bulkhead*, not a request-rate
+limiter, so until #1359 nothing bounded the outbound rate: pacing was reactive, discovered by taking a 429 and
+honouring `Retry-After`. Production was taking ~1 000-1 300 of them a day. The limiter (`Ingestor/Riot/RateLimiting/`)
+keeps one budget per Riot routing value — `europe`/`americas`/`asia` for the regional APIs, `euw1`/`kr`/`na1`
+for the platform ones — which is what Riot actually meters; a single global budget would have throttled the
+process to one region's allowance while the others idled.
+Four consequences worth stating, because each is a place where the obvious implementation is wrong.
+**The window is sliding where Riot's is fixed.** Riot resets on a wall-clock boundary we cannot observe, so a
+fixed window of our own would straddle theirs and take a 429 on the seam; a sliding window forbids a superset
+of what theirs does, at the cost of a little unused headroom right after a reset.
+**Riot's advertised header replaces our limits, it does not merge with them.** The header states the complete
+budget, so merging would leave the configured guess (a personal key's `20:1,100:120`) in force behind a
+production key that allows far more — and the tighter of the two always wins, which would silently cap the
+throughput the new key was obtained for. Windows whose duration survives keep their counters, so adopting a
+limit never forgets what has already been spent, and a header that parses to nothing changes nothing.
+**A 429 with no `X-Rate-Limit-Type` penalises the whole routing value, not the endpoint.** Riot omits the type
+when the throttle came from the underlying service; attributing that narrowly would keep hammering whatever is
+actually exhausted.
+**Acquisition is serialized per routing value.** The budget is a property of the routing value, so "may I send
+now" has to be decided one caller at a time to stay correct. It costs nothing: the sustained personal-key
+allowance is under one request per second per region, and regions never wait on each other — which is the
+whole point.
+The limiter sits **inside** the resilience handler (a retried attempt waits for its own permit instead of
+replaying into the limit that rejected it) and **outside** the metrics handler (a permit wait is not Riot
+latency). No configuration is needed when the key changes: the limits are learned from the response.
+
 ## Product
 
 **Stats are computed from *true mains* by default, and that default is now a filter rather than the
