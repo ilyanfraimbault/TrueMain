@@ -256,6 +256,9 @@ jobs:
       - name: Preprod version resolver
         run: .github/scripts/resolve-preprod-version.test.sh
 
+      - name: Rollout verification
+        run: .github/scripts/verify-rollout.test.sh
+
   compose-config:
     name: Compose config validation
     runs-on: ubuntu-24.04

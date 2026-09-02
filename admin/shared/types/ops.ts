@@ -246,8 +246,13 @@ export interface ProcessRun {
    */
   lastHeartbeatAtUtc: string | null
   /**
-   * The job mode the pass ran (`Full`, `FetchLane`, `AggregateLane`, or a
+   * The `Job:Mode` the pass was running (`Full`, `FetchLane`, `AggregateLane`, or a
    * single-process mode), or null for runs recorded before it was captured.
+   *
+   * The lane a run belongs to is derived from its process name, so this is not what
+   * groups the chain. What it answers is the question the process names cannot: what
+   * the pass was *supposed* to run. A one-off single-process mode looks exactly like a
+   * lane that has barely started, and only this tells them apart.
    */
   jobMode: string | null
   summary: Record<string, unknown> | unknown[] | null
@@ -323,88 +328,71 @@ export const PIPELINE_CHAIN: readonly string[] = [
 ]
 
 /**
- * The Riot-bound half of the pipeline, run by `Job:Mode=FetchLane` (#1362).
- * Mirrors `JobModeSequence.FetchLanePipeline`.
- */
-export const FETCH_LANE_CHAIN: readonly string[] = [
-  'LadderSync',
-  'Discovery',
-  'ManualSeed',
-  'Harvest',
-  'Scoring',
-  'MainActivity',
-  'MatchIngestion',
-  'AccountRefresh',
-]
-
-/**
- * The Postgres-bound half, run by `Job:Mode=AggregateLane` (#1362).
- * Mirrors `JobModeSequence.AggregateLanePipeline`.
+ * One lane of the pipeline: the steps a single ingestor instance runs, in order.
  *
- * Together with {@link FETCH_LANE_CHAIN} this is exactly {@link PIPELINE_CHAIN} —
- * a partition, asserted on the backend side by
- * `IngestorProcessRegistrationTests.FetchAndAggregateLanes_PartitionTheFullPipeline`.
+ * Since #1362 the ingestor is not one chain but two composite `JobMode`s that
+ * partition it — `FetchLane` is bounded by the Riot limiter, `AggregateLane` by
+ * Postgres — deployed as two containers on their own cadences. The chain view
+ * renders one branch per lane, so a lane's iteration no longer paints the other
+ * lane's steps as phantom "Not run" chips.
  */
-export const AGGREGATE_LANE_CHAIN: readonly string[] = [
-  'MatchTeamPositionCorrection',
-  'MainAnalysis',
-  'MatchParticipantEloBracketEnrichment',
-  'RunePageDeduplication',
-  'ChampionPatternAggregation',
-  'ChampionMatchupLeadAggregation',
-  'ChampionLaneOutcomeAggregation',
-  'ChampionSynergyAggregation',
-  'ChampionBanAggregation',
-  'ChampionPowerspikeAggregation',
-  'MatchDataRetention',
-  'StorageSnapshot',
-]
-
-/** Human label for a lane, shown next to an iteration. */
-export const JOB_MODE_LABELS: Readonly<Record<string, string>> = {
-  Full: 'Full pipeline',
-  FetchLane: 'Fetch lane',
-  AggregateLane: 'Aggregate lane',
+export interface PipelineLane {
+  id: PipelineLaneId
+  label: string
+  /** What paces the lane — the one thing that explains its cadence. */
+  description: string
+  /** Its steps, in the relative order they hold in {@link PIPELINE_CHAIN}. */
+  steps: readonly string[]
 }
 
+export type PipelineLaneId = 'fetch' | 'aggregate'
+
 /**
- * The chain an iteration should be drawn against.
- *
- * Since #1362 a pass runs one lane, not the whole sequence, so drawing every
- * iteration against {@link PIPELINE_CHAIN} renders the other lane's twelve steps
- * as "not run" — a complete pass reads as a half-broken one. The mode recorded on
- * the run is the authority; the process names are only a fallback for iterations
- * recorded before the mode was stamped, and they answer unambiguously because the
- * two lanes share no process.
+ * The two lanes, mirroring `JobModeSequence.FetchLanePipeline` /
+ * `AggregateLanePipeline` — the same hand-maintained copy {@link PIPELINE_CHAIN}
+ * is, and pinned the same way: `pipeline-lanes.test.ts` asserts they are a true
+ * partition of the chain, in its order. A step in neither would stop being drawn
+ * altogether (worse than the old misplacement), a step in both would be drawn
+ * twice.
  */
-export function resolvePipelineChain(
-  jobMode: string | null | undefined,
-  processNames: readonly string[] = [],
-): readonly string[] {
-  if (jobMode === 'FetchLane')
-    return FETCH_LANE_CHAIN
-  if (jobMode === 'AggregateLane')
-    return AGGREGATE_LANE_CHAIN
-  if (jobMode === 'Full')
-    return PIPELINE_CHAIN
-
-  // A single-process mode (`RetentionOnly`, ...) is a deliberate one-off, not a
-  // pass through a chain: draw only what ran rather than implying eleven steps
-  // were skipped.
-  if (jobMode && jobMode !== 'Full')
-    return processNames.length > 0 ? processNames : PIPELINE_CHAIN
-
-  if (processNames.length === 0)
-    return PIPELINE_CHAIN
-
-  const fetch = new Set(FETCH_LANE_CHAIN)
-  const aggregate = new Set(AGGREGATE_LANE_CHAIN)
-  if (processNames.every(name => fetch.has(name)))
-    return FETCH_LANE_CHAIN
-  if (processNames.every(name => aggregate.has(name)))
-    return AGGREGATE_LANE_CHAIN
-  return PIPELINE_CHAIN
-}
+export const PIPELINE_LANES: readonly PipelineLane[] = [
+  {
+    id: 'fetch',
+    label: 'Fetch lane',
+    description:
+      'Everything that talks to Riot, paced by the per-region limiter: it reads the ladders, picks who to visit and downloads their matches.',
+    steps: [
+      'LadderSync',
+      'Discovery',
+      'ManualSeed',
+      'Harvest',
+      'Scoring',
+      'MainActivity',
+      'MatchIngestion',
+      'AccountRefresh',
+    ],
+  },
+  {
+    id: 'aggregate',
+    label: 'Aggregate lane',
+    description:
+      'Everything that only reads and writes Postgres: it folds the matches already downloaded into the stats the site serves, then prunes what is no longer needed.',
+    steps: [
+      'MatchTeamPositionCorrection',
+      'MainAnalysis',
+      'MatchParticipantEloBracketEnrichment',
+      'RunePageDeduplication',
+      'ChampionPatternAggregation',
+      'ChampionMatchupLeadAggregation',
+      'ChampionLaneOutcomeAggregation',
+      'ChampionSynergyAggregation',
+      'ChampionBanAggregation',
+      'ChampionPowerspikeAggregation',
+      'MatchDataRetention',
+      'StorageSnapshot',
+    ],
+  },
+]
 
 /**
  * Display metadata for one pipeline process: the name shown on a chain chip, and
@@ -539,10 +527,7 @@ export interface ProcessIteration {
   startedAtUtc: string
   lastActivityAtUtc: string
   isRunning: boolean
-  /**
-   * The job mode this pass ran, or null for passes recorded before it was
-   * captured. Decides which chain the iteration is drawn against.
-   */
+  /** The `Job:Mode` this pass ran, or null for passes recorded before it was captured. */
   jobMode: string | null
   runs: ProcessRun[]
 }

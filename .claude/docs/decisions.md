@@ -150,7 +150,7 @@ Last verified against `develop` on 2026-09-02.
 
 - Riot calls are paced by a limiter keyed on the routing value, because that is the grain Riot enforces — #1359, #855
 - The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks — #1362, #1360
-- The lane is recorded on the run, not inferred from it (2026-09-02) — #1362
+- The lane is derived from the process name; the mode it ran under is recorded (2026-09-02) — #1362
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150
@@ -185,6 +185,7 @@ Last verified against `develop` on 2026-09-02.
 - Prod deploys from the version-controlled compose file — no hand-maintained host compose — #462
 - Preprod and prod both apply migrations out-of-band, as a discrete CI step before the images roll — not at startup — #208, #246, #1058
 - An incomplete prod deployment configuration fails the release run; it is never a green skip — #1228
+- A deploy job proves the environment moved; the API acknowledgement is not evidence — #1394, #1365, #1374
 - Both deploy pipelines serialise at workflow level, not per job — #1228
 - Integration tests run on pushes to `develop`/`master`, not only on pull requests — #1228
 - Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database — #705
@@ -213,6 +214,7 @@ Last verified against `develop` on 2026-09-02.
 - Riot API caller attribution uses an `AsyncLocal` ambient context, mirroring `IterationContext` — #1035
 - The budget-headroom estimate (#1035) requires 24h of rollup history before it will extrapolate, and picks the app rate-limit window with the smallest daily ceiling as "binding"
 - The configuration viewer is an allow-list, and each host reports itself (2026-08-08) — #1034, #1033, #924
+- The pipeline chain is drawn per lane, not as one flat list (2026-09-02) — #1399, #1362
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 

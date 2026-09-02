@@ -8,8 +8,13 @@
 // `summary` JSON + error is inspectable in a slide-over.
 import type { TableColumn } from '@nuxt/ui'
 import type { BadgeColor, ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
-import { JOB_MODE_LABELS, PROCESS_META, resolvePipelineChain } from '~~/shared/types/ops'
+import type { ChainLink, ChainOutcome, LaneBranch } from '~~/shared/utils/pipeline-lanes'
+import { PROCESS_META } from '~~/shared/types/ops'
 import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
+// The chain is grouped by lane, not flat: since #1362 an iteration belongs to one
+// lane, and drawing the canonical 20 steps every time painted the other lane's
+// dozen as phantom "Not run" chips. `buildLaneBranches` owns that grouping.
+import { buildLaneBranches, pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
 // Run-status colours and icons live in `utils/pipeline-health.ts` so this page and the
 // health cockpit paint the same run identically — they used to disagree on `Running`.
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
@@ -107,80 +112,38 @@ const finishedIterations = computed<ProcessIteration[]>(() => iterationsData.val
 const iterationsTotal = computed(() => iterationsData.value?.total ?? 0)
 const iterationsServerPage = computed(() => iterationsData.value?.page ?? iterationsPage.value)
 
-// The top "current chain" block must always reflect the globally most-recent
-// iteration (page 1, item 0), independent of which page of the iterations LIST
-// the operator is viewing. A dedicated `page=1&pageSize=1` fetch keeps it both
-// correct AND live — paginating the list below never moves it.
+// The top "current" block must always reflect the most-recent iteration OF EACH
+// LANE, independent of which page of the iterations LIST the operator is viewing.
+// A dedicated page-1 fetch keeps it both correct AND live — paginating the list
+// below never moves it.
+//
+// It asks for several iterations rather than one because the lanes run at their
+// own cadences: on preprod the fetch lane completes roughly three passes per
+// aggregate pass, so the aggregate lane's newest iteration sits a few positions
+// down a newest-first list. Six covers that ratio with margin and is still one
+// small request; a lane that has not run within the window simply shows as
+// not-yet-run rather than being invented.
+const LATEST_ITERATION_PROBE = 6
 const { data: latestIterationData, error: latestIterationError } = useProcessIterations({
   page: 1,
-  pageSize: 1,
+  pageSize: LATEST_ITERATION_PROBE,
 })
-const latestIteration = computed<ProcessIteration | null>(
-  () => latestIterationData.value?.iterations?.[0] ?? null,
+const latestIterations = computed<ProcessIteration[]>(
+  () => latestIterationData.value?.iterations ?? [],
 )
 
-// Per-process outcome within one iteration. `notRun` covers both a process that
-// hasn't started yet in the current pass and one that was skipped this pass.
-type ChainOutcome = ProcessRunStatus | 'notRun'
+// The live tree at the top: each lane shown at its own newest iteration. On a
+// two-lane deployment those are two different passes running concurrently; on a
+// `Full` one, a single iteration supplies both branches. Driven by the dedicated
+// latest-iterations fetch so list pagination never changes it. The assembly lives
+// in the shared util, with the lanes themselves, so it is pinned by tests.
+const currentLanes = computed(() => pickCurrentLanes(latestIterations.value))
+const currentIterationRunning = computed(() => currentLanes.value.some(lane => lane.isRunning))
 
-interface ChainLink {
-  processName: string
-  outcome: ChainOutcome
-  run: ProcessRun | null
-}
-
-// Build the ordered chain for one iteration: the union of the chain that pass was
-// supposed to run and every process actually present in `runs`. Chain processes
-// keep their known position (annotated `notRun` when absent this pass); any
-// extra/unknown process that ran is appended in run order, so no run is ever
-// silently dropped just because its name isn't in the chain.
-//
-// The chain is resolved per iteration rather than fixed (#1362): a pass runs one
-// lane, so drawing it against the whole 20-step sequence renders the other lane's
-// twelve steps as "not run" and makes a complete pass look half-broken.
-function buildChain(runs: ProcessRun[], jobMode: string | null = null): ChainLink[] {
-  const byName = new Map(runs.map(run => [run.processName, run]))
-  const chain = resolvePipelineChain(
-    jobMode ?? runs.find(run => run.jobMode)?.jobMode ?? null,
-    runs.map(run => run.processName),
-  )
-  const canonical = new Set(chain)
-  const links: ChainLink[] = chain.map((processName) => {
-    const run = byName.get(processName) ?? null
-    return {
-      processName,
-      outcome: run?.status ?? 'notRun',
-      run,
-    }
-  })
-  const seenExtra = new Set<string>()
-  for (const run of runs) {
-    if (canonical.has(run.processName) || seenExtra.has(run.processName))
-      continue
-    seenExtra.add(run.processName)
-    // Resolve through `byName` like the canonical links do, so a process that
-    // ran twice this pass (a retry) shows its latest run in both paths; the
-    // loop order still fixes the extra's position at its first appearance.
-    const latest = byName.get(run.processName) ?? run
-    links.push({ processName: latest.processName, outcome: latest.status, run: latest })
-  }
-  return links
-}
-
-// The live chain shown at the top: the globally newest iteration's outcomes when
-// present, otherwise the bare canonical chain with everything not-yet-run. This
-// is what highlights "where we currently are". Driven by the dedicated
-// latest-iteration fetch so list pagination never changes it.
-const currentChain = computed<ChainLink[]>(() => {
-  return buildChain(latestIteration.value?.runs ?? [], latestIteration.value?.jobMode ?? null)
-})
-const currentIterationRunning = computed(() => latestIteration.value?.isRunning ?? false)
-
-// Precompute each finished iteration's chain once, so the recent-iterations
-// template shares one array between its v-for and its separator length check
-// (which now tracks the actual rendered link count, not PIPELINE_CHAIN.length).
-const iterationChains = computed<Map<string, ChainLink[]>>(
-  () => new Map(finishedIterations.value.map(it => [it.iterationId, buildChain(it.runs, it.jobMode)])),
+// Precompute each finished iteration's branches once, so the recent-iterations
+// template shares one array between its v-for and its separator length check.
+const iterationBranches = computed<Map<string, LaneBranch[]>>(
+  () => new Map(finishedIterations.value.map(it => [it.iterationId, buildLaneBranches(it.runs)])),
 )
 
 // A chain outcome is a run status plus one case the run table has no word for. `notRun`
@@ -200,17 +163,43 @@ function outcomeLabel(outcome: ChainOutcome): string {
   return outcome === 'notRun' ? 'Not run' : outcome
 }
 
-// The lane badge on an iteration row. Null for a full pass (the chain is already
-// the whole sequence, so the label would be noise) and for a pass recorded before
-// the mode was stamped, where claiming a lane would be a guess dressed as a fact.
-// A single-process mode shows its own name: that is what an operator triggered.
-function laneLabel(iteration: ProcessIteration): string | null {
-  const mode = iteration.jobMode
-    ?? iteration.runs.find(run => run.jobMode)?.jobMode
-    ?? null
-  if (!mode || mode === 'Full')
-    return null
-  return JOB_MODE_LABELS[mode] ?? mode
+// The icon tint for an outcome, in one place: the same class map used to be
+// written out per chip, per iteration chip and per detail row, which is how the
+// three drifted before. `Skipped` deliberately inherits the surrounding colour —
+// it is neutral, and only its icon distinguishes it from `notRun`.
+function outcomeTextClass(outcome: ChainOutcome): string {
+  switch (outcome) {
+    case 'Running':
+      return 'text-primary animate-spin'
+    case 'Success':
+      return 'text-success'
+    case 'Failed':
+      return 'text-error'
+    case 'Abandoned':
+      return 'text-warning'
+    case 'notRun':
+      return 'text-dimmed'
+    default:
+      return ''
+  }
+}
+
+// The lane's rail — the vertical stroke that makes the branch read as one level
+// below the chain — carries the lane's own status, so a failed lane is visible
+// before reading a single chip.
+function laneRailClass(outcome: ChainOutcome): string {
+  switch (outcome) {
+    case 'Running':
+      return 'border-primary/50'
+    case 'Failed':
+      return 'border-error/40'
+    case 'Abandoned':
+      return 'border-warning/40'
+    case 'Success':
+      return 'border-success/30'
+    default:
+      return 'border-default'
+  }
 }
 
 // Names and explanations both come from the shared PROCESS_META, next to the
@@ -352,11 +341,15 @@ function openIterationDetail(iteration: ProcessIteration) {
   iterationDetailOpen.value = true
 }
 
-// The iteration's runs in canonical chain order, keeping only processes that
-// actually ran this pass (skip `notRun` placeholders in the detail view).
+// The iteration's runs in canonical order, keeping only processes that actually
+// ran this pass (skip `notRun` placeholders in the detail view). Flattened
+// across lanes: a finished iteration belongs to one lane anyway, and the detail
+// view is a list of what ran, not a topology.
 const selectedIterationLinks = computed<ChainLink[]>(() =>
   selectedIteration.value
-    ? buildChain(selectedIteration.value.runs, selectedIteration.value.jobMode).filter(link => link.run)
+    ? buildLaneBranches(selectedIteration.value.runs)
+      .flatMap(branch => branch.links)
+      .filter(link => link.run)
     : [],
 )
 
@@ -453,9 +446,11 @@ const selectedIterationTally = computed(() => {
         class="mb-6"
       />
 
-      <!-- Pipeline chain: the canonical ordered chain with the current position
-           highlighted (the Running link). Reflects the newest iteration's
-           per-process outcomes, or a bare not-yet-run chain when none exist. -->
+      <!-- Pipeline chain: one branch per lane, each at its own newest iteration,
+           with the running step highlighted. Two lanes run concurrently since
+           #1362, so a flat chain would draw the idle lane's steps as phantom
+           "Not run" chips; a `Full` deployment lights up both branches of the
+           same pass. -->
       <div class="mb-6">
         <div class="flex items-center justify-between gap-2 mb-3">
           <p class="text-xs text-muted uppercase">
@@ -478,52 +473,81 @@ const selectedIterationTally = computed(() => {
         </div>
         <div
           v-else
-          class="flex flex-wrap items-center gap-y-2 rounded-lg border border-default bg-elevated/25 p-4"
+          class="rounded-lg border border-default bg-elevated/25 p-4 space-y-4"
         >
-          <template v-for="(link, i) in currentChain" :key="link.processName">
-            <UTooltip :ui="PROCESS_TOOLTIP_UI">
-              <button
-                type="button"
-                class="group inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors"
-                :class="{
-                  'border-primary/50 bg-primary/10': link.outcome === 'Running',
-                  'border-success/30 bg-success/5': link.outcome === 'Success',
-                  'border-error/40 bg-error/10': link.outcome === 'Failed',
-                  'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
-                  'border-default bg-default opacity-60': link.outcome === 'notRun',
-                  'cursor-default': !link.run,
-                }"
-                :disabled="!link.run"
-                @click="link.run && openDetail(link.run)"
-              >
-                <UIcon
-                  :name="outcomeIcon(link.outcome)"
-                  class="size-4 shrink-0"
-                  :class="{
-                    'text-primary animate-spin': link.outcome === 'Running',
-                    'text-success': link.outcome === 'Success',
-                    'text-error': link.outcome === 'Failed',
-                    'text-warning': link.outcome === 'Abandoned',
-                    'text-dimmed': link.outcome === 'notRun',
-                  }"
-                />
-                <span
-                  class="text-xs font-medium whitespace-nowrap"
-                  :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-highlighted'"
-                >
-                  {{ chainLabel(link.processName) }}
+          <div
+            v-for="lane in currentLanes"
+            :key="lane.branch.id"
+            class="relative border-l-2 pl-4"
+            :class="laneRailClass(lane.branch.outcome)"
+          >
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+              <UTooltip :text="lane.branch.description" :ui="PROCESS_TOOLTIP_UI">
+                <span class="inline-flex items-center gap-1.5">
+                  <UIcon
+                    :name="outcomeIcon(lane.branch.outcome)"
+                    class="size-4 shrink-0"
+                    :class="outcomeTextClass(lane.branch.outcome)"
+                  />
+                  <span class="text-sm font-medium text-highlighted">{{ lane.branch.label }}</span>
                 </span>
-              </button>
-              <template #content>
-                <ProcessTooltipContent :process-name="link.processName" :context="chainTooltipContext(link)" />
+              </UTooltip>
+              <span v-if="lane.branch.startedAtUtc" class="text-xs text-dimmed">
+                {{ formatDateTime(lane.branch.startedAtUtc) }}
+              </span>
+              <span v-if="lane.branch.durationMs !== null" class="text-xs text-dimmed tabular-nums">
+                · {{ formatElapsed(lane.branch.durationMs) }}
+              </span>
+              <span
+                v-if="lane.isRunning"
+                class="inline-flex items-center gap-1 text-xs text-primary font-medium"
+              >
+                <UIcon name="i-lucide-loader-circle" class="size-3 animate-spin" />
+                In progress
+              </span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-y-2">
+              <template v-for="(link, i) in lane.branch.links" :key="link.processName">
+                <UTooltip :ui="PROCESS_TOOLTIP_UI">
+                  <button
+                    type="button"
+                    class="group inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors"
+                    :class="{
+                      'border-primary/50 bg-primary/10': link.outcome === 'Running',
+                      'border-success/30 bg-success/5': link.outcome === 'Success',
+                      'border-error/40 bg-error/10': link.outcome === 'Failed',
+                      'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
+                      'border-default bg-default opacity-60': link.outcome === 'notRun',
+                      'cursor-default': !link.run,
+                    }"
+                    :disabled="!link.run"
+                    @click="link.run && openDetail(link.run)"
+                  >
+                    <UIcon
+                      :name="outcomeIcon(link.outcome)"
+                      class="size-4 shrink-0"
+                      :class="outcomeTextClass(link.outcome)"
+                    />
+                    <span
+                      class="text-xs font-medium whitespace-nowrap"
+                      :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-highlighted'"
+                    >
+                      {{ chainLabel(link.processName) }}
+                    </span>
+                  </button>
+                  <template #content>
+                    <ProcessTooltipContent :process-name="link.processName" :context="chainTooltipContext(link)" />
+                  </template>
+                </UTooltip>
+                <UIcon
+                  v-if="i < lane.branch.links.length - 1"
+                  name="i-lucide-chevron-right"
+                  class="size-4 text-dimmed shrink-0 mx-0.5"
+                />
               </template>
-            </UTooltip>
-            <UIcon
-              v-if="i < currentChain.length - 1"
-              name="i-lucide-chevron-right"
-              class="size-4 text-dimmed shrink-0 mx-0.5"
-            />
-          </template>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -559,68 +583,66 @@ const selectedIterationTally = computed(() => {
             @click="openIterationDetail(iteration)"
           >
             <div class="flex items-center justify-between gap-2 mb-3">
-              <span class="flex items-center gap-2 text-sm text-muted">
+              <span class="text-sm text-muted">
                 {{ formatDateTime(iteration.startedAtUtc) }}
-                <!-- Which half of the pipeline this pass covered (#1362). Without it the
-                     twelve steps of the other lane read as skipped rather than as
-                     belonging to a different pass. Hidden for a full pass, where the
-                     chain is the whole sequence and the label adds nothing. -->
-                <UBadge
-                  v-if="laneLabel(iteration)"
-                  color="neutral"
-                  variant="subtle"
-                  size="sm"
-                >
-                  {{ laneLabel(iteration) }}
-                </UBadge>
               </span>
               <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" />
             </div>
 
-            <div class="flex flex-wrap items-center gap-y-2">
-              <template
-                v-for="(link, i) in iterationChains.get(iteration.iterationId)"
-                :key="link.processName"
-              >
-                <UTooltip :ui="PROCESS_TOOLTIP_UI">
-                  <span
-                    class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
-                    :class="{
-                      'border-primary/50 bg-primary/10': link.outcome === 'Running',
-                      'border-success/30 bg-success/5': link.outcome === 'Success',
-                      'border-error/40 bg-error/10': link.outcome === 'Failed',
-                      'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
-                      'border-default bg-default opacity-50': link.outcome === 'notRun',
-                    }"
-                  >
-                    <UIcon
-                      :name="outcomeIcon(link.outcome)"
-                      class="size-3.5 shrink-0"
-                      :class="{
-                        'text-primary animate-spin': link.outcome === 'Running',
-                        'text-success': link.outcome === 'Success',
-                        'text-error': link.outcome === 'Failed',
-                        'text-warning': link.outcome === 'Abandoned',
-                        'text-dimmed': link.outcome === 'notRun',
-                      }"
-                    />
+            <!-- One branch per lane the pass ran — normally exactly one, since a
+                 pass belongs to a lane; a `Full` deployment shows both. -->
+            <div
+              v-for="branch in iterationBranches.get(iteration.iterationId)"
+              :key="branch.id"
+              class="relative border-l-2 pl-3 not-first:mt-3"
+              :class="laneRailClass(branch.outcome)"
+            >
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1.5">
+                <span class="text-xs font-medium text-muted">{{ branch.label }}</span>
+                <span v-if="branch.durationMs !== null" class="text-[11px] text-dimmed tabular-nums">
+                  · {{ formatElapsed(branch.durationMs) }}
+                </span>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-y-2">
+                <template
+                  v-for="(link, i) in branch.links"
+                  :key="link.processName"
+                >
+                  <UTooltip :ui="PROCESS_TOOLTIP_UI">
                     <span
-                      class="text-[11px] font-medium whitespace-nowrap"
-                      :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-default'"
+                      class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
+                      :class="{
+                        'border-primary/50 bg-primary/10': link.outcome === 'Running',
+                        'border-success/30 bg-success/5': link.outcome === 'Success',
+                        'border-error/40 bg-error/10': link.outcome === 'Failed',
+                        'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
+                        'border-default bg-default opacity-50': link.outcome === 'notRun',
+                      }"
                     >
-                      {{ chainLabel(link.processName) }}
+                      <UIcon
+                        :name="outcomeIcon(link.outcome)"
+                        class="size-3.5 shrink-0"
+                        :class="outcomeTextClass(link.outcome)"
+                      />
+                      <span
+                        class="text-[11px] font-medium whitespace-nowrap"
+                        :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-default'"
+                      >
+                        {{ chainLabel(link.processName) }}
+                      </span>
                     </span>
-                  </span>
-                  <template #content>
-                    <ProcessTooltipContent :process-name="link.processName" :context="iterationChipContext(link)" />
-                  </template>
-                </UTooltip>
-                <UIcon
-                  v-if="i < (iterationChains.get(iteration.iterationId)?.length ?? 0) - 1"
-                  name="i-lucide-chevron-right"
-                  class="size-3.5 text-dimmed shrink-0 mx-0.5"
-                />
-              </template>
+                    <template #content>
+                      <ProcessTooltipContent :process-name="link.processName" :context="iterationChipContext(link)" />
+                    </template>
+                  </UTooltip>
+                  <UIcon
+                    v-if="i < branch.links.length - 1"
+                    name="i-lucide-chevron-right"
+                    class="size-3.5 text-dimmed shrink-0 mx-0.5"
+                  />
+                </template>
+              </div>
             </div>
           </button>
         </div>

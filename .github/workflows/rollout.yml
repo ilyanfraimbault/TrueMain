@@ -86,7 +86,7 @@ jobs:
     name: Deploy ${{ inputs.environment }} VPS
     runs-on: ubuntu-24.04
     needs: migrate
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
 
@@ -107,3 +107,14 @@ jobs:
             ${{ secrets.env_file }}
             IMAGE_TAG=${{ inputs.image_tag }}
             APP_VERSION=${{ inputs.app_version }}
+
+      - name: Verify the VPS is running the deployed images
+        env:
+          HOSTINGER_API_KEY: ${{ secrets.hostinger_api_key }}
+          VM_ID: ${{ inputs.vm_id }}
+          PROJECT_NAME: ${{ inputs.project_name }}
+          COMPOSE_FILE: ${{ inputs.compose_file }}
+          EXPECTED_TAG: ${{ inputs.image_tag }}
+          TIMEOUT_SECONDS: '600'
+          POLL_SECONDS: '15'
+        run: .github/scripts/verify-rollout.sh
