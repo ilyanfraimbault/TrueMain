@@ -10,6 +10,16 @@ public interface IRiotAccountRepository
     Task<bool> ExistsByPuuidAsync(string puuid, CancellationToken ct);
 
     /// <summary>
+    /// Of <paramref name="puuids"/>, the ones already stored with a profile synced at or after
+    /// <paramref name="freshSinceUtc"/> — i.e. the accounts a summoner-v4 call would tell us
+    /// nothing new about (#1358).
+    /// </summary>
+    Task<HashSet<string>> GetProfileFreshPuuidsAsync(
+        IReadOnlyCollection<string> puuids,
+        DateTime freshSinceUtc,
+        CancellationToken ct);
+
+    /// <summary>
     /// The subset of <paramref name="puuids"/> that already have an account, in one query.
     /// Lets the harvest create minimal accounts for unknown puuids without a lookup per row.
     /// </summary>

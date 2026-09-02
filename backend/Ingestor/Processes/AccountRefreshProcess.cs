@@ -36,7 +36,7 @@ public sealed class AccountRefreshProcess(
 
         var summary = await RefreshAccountsAsync(accounts, ct);
         logger.LogInformation(
-            "Account refresh summary: selected={Selected}, profileUpdated={ProfileUpdated}, profileRecovered={ProfileRecovered}, profileInvalidated={ProfileInvalidated}, profileSkipped={ProfileSkipped}, profileFailed={ProfileFailed}, rankInserted={RankInserted}, rankUpdated={RankUpdated}, rankUnchanged={RankUnchanged}, rankSkippedUnranked={RankSkippedUnranked}, rankSkippedFresh={RankSkippedFresh}, rankFailed={RankFailed}.",
+            "Account refresh summary: selected={Selected}, profileUpdated={ProfileUpdated}, profileRecovered={ProfileRecovered}, profileInvalidated={ProfileInvalidated}, profileSkipped={ProfileSkipped}, profileFailed={ProfileFailed}, rankInserted={RankInserted}, rankUpdated={RankUpdated}, rankUnchanged={RankUnchanged}, rankSkippedUnranked={RankSkippedUnranked}, rankSkippedFresh={RankSkippedFresh}, rankFailed={RankFailed}, profileSkippedFresh={ProfileSkippedFresh}.",
             summary.Selected,
             summary.ProfileUpdated,
             summary.ProfileRecovered,
@@ -48,7 +48,8 @@ public sealed class AccountRefreshProcess(
             summary.RankUnchanged,
             summary.RankSkippedUnranked,
             summary.RankSkippedFresh,
-            summary.RankFailed);
+            summary.RankFailed,
+            summary.ProfileSkippedFresh);
 
         return BuildSuccessPayload(summary);
     }
@@ -71,6 +72,7 @@ public sealed class AccountRefreshProcess(
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var summary = new RefreshSummary { Selected = accounts.Count };
         var rankFreshness = refreshOptions.Value.RankSyncFreshness;
+        var profileFreshness = refreshOptions.Value.ProfileSyncFreshness;
         var saveBatchSize = Math.Max(1, refreshOptions.Value.SaveBatchSize);
 
         // PUUIDs handed out by Riot-ID recovery during this run. Nothing below is
@@ -109,7 +111,15 @@ public sealed class AccountRefreshProcess(
                 }
 
                 await RefreshSingleAccountAsync(
-                    session, accountEntity, latestByAccountId, rankFreshness, nowUtc, claimedPuuids, summary, ct);
+                    session,
+                    accountEntity,
+                    latestByAccountId,
+                    rankFreshness,
+                    profileFreshness,
+                    nowUtc,
+                    claimedPuuids,
+                    summary,
+                    ct);
             }
 
             await session.SaveChangesAsync(ct);
@@ -124,6 +134,7 @@ public sealed class AccountRefreshProcess(
         RiotAccount account,
         IReadOnlyDictionary<Guid, RankSnapshot> latestByAccountId,
         TimeSpan rankFreshness,
+        TimeSpan profileFreshness,
         DateTime nowUtc,
         HashSet<string> claimedPuuids,
         RefreshSummary summary,
@@ -146,60 +157,20 @@ public sealed class AccountRefreshProcess(
         }
 
         var region = platform.Route.ToRegional();
-        try
+
+        // Reaching the head of the queue is not on its own a reason to spend account-v1
+        // (#1358): a profile synced within ProfileSyncFreshness would rewrite the same
+        // GameName/TagLine. The stamp still moves — same reasoning as the invalid-platform
+        // branch above — so the row leaves the head of the selection instead of being
+        // re-picked, and skipped, on every cycle.
+        if (IsProfileFresh(account, profileFreshness, nowUtc))
         {
-            var profile = await riotAccountClient.GetAccountByPuuidAsync(account.Puuid, region, ct);
-
-            if (!string.IsNullOrWhiteSpace(profile.GameName))
-            {
-                account.GameName = profile.GameName;
-            }
-
-            account.TagLine = string.IsNullOrWhiteSpace(profile.TagLine) ? null : profile.TagLine;
             account.UpdatedAtUtc = nowUtc;
-            account.LastProfileSyncAtUtc = nowUtc;
-            summary.ProfileUpdated++;
+            summary.ProfileSkippedFresh++;
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        else if (!await SyncProfileAsync(session, account, region, nowUtc, claimedPuuids, summary, ct))
         {
-            // account-v1 by-puuid returned 404: the PUUID no longer resolves
-            // (deleted/banned account, or a rotated PUUID). Try to recover the
-            // account by its Riot ID before giving up.
-            var outcome = await TryRecoverByRiotIdAsync(session, account, region, nowUtc, claimedPuuids, ct);
-            switch (outcome)
-            {
-                case RecoveryOutcome.Recovered:
-                    summary.ProfileRecovered++;
-                    break;
-
-                case RecoveryOutcome.RetryLater:
-                    // Transient failure on the recovery lookup — keep the account
-                    // Active and let the next cycle try again. Skip rank this time.
-                    summary.ProfileFailed++;
-                    return;
-
-                case RecoveryOutcome.Unrecoverable:
-                    // No usable Riot ID, or Riot ID also 404s: mark the row Invalid
-                    // so it drops out of every selection and stops burning a request
-                    // on the same dead PUUID every cycle. Kept for history, not deleted.
-                    account.Status = RiotAccountStatus.Invalid;
-                    account.UpdatedAtUtc = nowUtc;
-                    summary.ProfileInvalidated++;
-                    logger.LogWarning(
-                        "Invalidated riot account {Platform}/{Puuid}: unresolvable by PUUID and by Riot ID.",
-                        account.PlatformId,
-                        account.Puuid);
-                    return;
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(
-                ex,
-                "Failed to refresh riot account {Platform}/{Puuid}.",
-                account.PlatformId,
-                account.Puuid);
-            summary.ProfileFailed++;
+            return;
         }
 
         // Rank ingestion is independent of the profile sync above: a 404 or
@@ -260,6 +231,92 @@ public sealed class AccountRefreshProcess(
             summary.RankFailed++;
         }
     }
+
+    /// <summary>
+    /// The account-v1 half of a refresh: identity update, 404 recovery, invalidation.
+    /// Returns false when the account must not go on to rank ingestion this cycle.
+    /// </summary>
+    private async Task<bool> SyncProfileAsync(
+        IDataSession session,
+        RiotAccount account,
+        RegionalRoute region,
+        DateTime nowUtc,
+        HashSet<string> claimedPuuids,
+        RefreshSummary summary,
+        CancellationToken ct)
+    {
+        try
+        {
+            var profile = await riotAccountClient.GetAccountByPuuidAsync(account.Puuid, region, ct);
+
+            if (!string.IsNullOrWhiteSpace(profile.GameName))
+            {
+                account.GameName = profile.GameName;
+            }
+
+            account.TagLine = string.IsNullOrWhiteSpace(profile.TagLine) ? null : profile.TagLine;
+            account.UpdatedAtUtc = nowUtc;
+            account.LastProfileSyncAtUtc = nowUtc;
+            summary.ProfileUpdated++;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            // account-v1 by-puuid returned 404: the PUUID no longer resolves
+            // (deleted/banned account, or a rotated PUUID). Try to recover the
+            // account by its Riot ID before giving up.
+            var outcome = await TryRecoverByRiotIdAsync(session, account, region, nowUtc, claimedPuuids, ct);
+            switch (outcome)
+            {
+                case RecoveryOutcome.Recovered:
+                    summary.ProfileRecovered++;
+                    break;
+
+                case RecoveryOutcome.RetryLater:
+                    // Transient failure on the recovery lookup — keep the account
+                    // Active and let the next cycle try again. Skip rank this time.
+                    summary.ProfileFailed++;
+                    return false;
+
+                case RecoveryOutcome.Unrecoverable:
+                    // No usable Riot ID, or Riot ID also 404s: mark the row Invalid
+                    // so it drops out of every selection and stops burning a request
+                    // on the same dead PUUID every cycle. Kept for history, not deleted.
+                    account.Status = RiotAccountStatus.Invalid;
+                    account.UpdatedAtUtc = nowUtc;
+                    summary.ProfileInvalidated++;
+                    logger.LogWarning(
+                        "Invalidated riot account {Platform}/{Puuid}: unresolvable by PUUID and by Riot ID.",
+                        account.PlatformId,
+                        account.Puuid);
+                    return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Failed to refresh riot account {Platform}/{Puuid}.",
+                account.PlatformId,
+                account.Puuid);
+            summary.ProfileFailed++;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// True when account-v1 would rewrite what the row already holds (#1358): the profile was
+    /// synced within <paramref name="profileFreshness"/> and the identity is complete. An
+    /// identity-incomplete row is never fresh — account-v1 is the only thing that can fill
+    /// GameName/TagLine, and draining that backlog is what the selection's identity buckets
+    /// exist for.
+    /// </summary>
+    private static bool IsProfileFresh(RiotAccount account, TimeSpan profileFreshness, DateTime nowUtc)
+        => profileFreshness > TimeSpan.Zero
+            && !string.IsNullOrWhiteSpace(account.GameName)
+            && !string.IsNullOrWhiteSpace(account.TagLine)
+            && account.LastProfileSyncAtUtc is { } lastProfileSync
+            && nowUtc - lastProfileSync < profileFreshness;
 
     /// <summary>
     /// Recovers an account whose PUUID stopped resolving by looking it up via its
@@ -355,7 +412,8 @@ public sealed class AccountRefreshProcess(
             summary.RankUnchanged,
             summary.RankSkippedUnranked,
             summary.RankSkippedFresh,
-            summary.RankFailed);
+            summary.RankFailed,
+            summary.ProfileSkippedFresh);
     }
 
     private enum RecoveryOutcome
@@ -378,6 +436,7 @@ public sealed class AccountRefreshProcess(
         public int ProfileInvalidated { get; set; }
         public int ProfileSkipped { get; set; }
         public int ProfileFailed { get; set; }
+        public int ProfileSkippedFresh { get; set; }
         public int RankInserted { get; set; }
         public int RankUpdated { get; set; }
         public int RankUnchanged { get; set; }

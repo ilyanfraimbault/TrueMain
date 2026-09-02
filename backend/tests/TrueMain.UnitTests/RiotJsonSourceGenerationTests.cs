@@ -240,7 +240,9 @@ public sealed class RiotJsonSourceGenerationTests
         using var httpClient = new HttpClient(handler);
         var client = new RiotMatchClient(httpClient);
 
-        var ids = await client.GetMatchIdsAsync("puuid-a", RegionalRoute.Asia, 3, CancellationToken.None);
+        var ids = await client.GetMatchIdsAsync(
+            new MatchIdQuery("puuid-a", RegionalRoute.Asia, 3),
+            CancellationToken.None);
 
         ids.Should().Equal("KR_1", "KR_2", "KR_3");
     }

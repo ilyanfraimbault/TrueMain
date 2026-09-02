@@ -323,7 +323,7 @@ public sealed class MatchSnapshotWriterIntegrationTests
 
     private sealed class FakeRiotMatchClient(int queueId = (int)LolQueueId.RankedSoloDuo) : IRiotMatchClient
     {
-        public Task<List<string>> GetMatchIdsAsync(string puuid, RegionalRoute region, int count, CancellationToken ct)
+        public Task<List<string>> GetMatchIdsAsync(MatchIdQuery query, CancellationToken ct)
             => Task.FromResult(new List<string> { "KR_100" });
 
         public Task<RiotMatchDto> GetMatchAsync(string matchId, RegionalRoute region, CancellationToken ct)

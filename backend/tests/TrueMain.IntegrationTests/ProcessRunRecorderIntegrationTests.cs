@@ -78,7 +78,7 @@ public sealed class ProcessRunRecorderIntegrationTests
             startedAt,
             startedAt.AddSeconds(2),
             ProcessRunStatus.Success,
-            new DiscoverySummary([new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null)]),
+            new DiscoverySummary([new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null, 9, 4)]),
             error: null,
             CancellationToken.None);
 

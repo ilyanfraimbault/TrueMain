@@ -177,6 +177,30 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
                                                      && a.MatchIngestClaimedAtUtc >= leaseCutoffUtc))
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, MainCandidateStatus.Queued), ct);
 
+    public async Task<HashSet<string>> GetPuuidsWithCandidatesSeenSinceAsync(
+        string platformId,
+        IReadOnlyCollection<string> puuids,
+        DateTime seenSinceUtc,
+        CancellationToken ct)
+    {
+        if (puuids.Count == 0)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        var puuidArray = puuids.Distinct(StringComparer.Ordinal).ToArray();
+        var found = await db.MainCandidates
+            .AsNoTracking()
+            .Where(c => c.PlatformId == platformId
+                        && puuidArray.Contains(c.Puuid)
+                        && c.DiscoveredAtUtc >= seenSinceUtc)
+            .Select(c => c.Puuid)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return found.ToHashSet(StringComparer.Ordinal);
+    }
+
     public void Add(MainCandidate candidate)
         => db.MainCandidates.Add(candidate);
 }
