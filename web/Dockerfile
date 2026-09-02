@@ -9,7 +9,6 @@ FROM deps AS build
 WORKDIR /app
 
 COPY . ./
-RUN npm run typecheck
 RUN npm run build
 
 FROM node:26-alpine AS runner
@@ -21,8 +20,6 @@ ENV NITRO_PORT=3000
 
 COPY --from=build /app/.output ./.output
 
-# node:26-alpine ships a non-root "node" user (uid 1000). The Nitro
-# server binds port 3000 (>1024) so it does not need root capabilities.
 USER node
 
 EXPOSE 3000

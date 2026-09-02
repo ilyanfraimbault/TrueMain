@@ -2,7 +2,7 @@
 
 Preprod is the pre-production stack: it runs the `:preprod` images, which are
 built and published from `develop` on every push (see
-`.github/workflows/deploy-preprod.yml`). It replaces the former "QA"
+`.github/workflows/deploy-preprod.yml` and `docs/ci.md`). It replaces the former "QA"
 stack and typically lives on a dedicated host (historically the old production
 VPS).
 
@@ -90,11 +90,12 @@ tester IPs like the rest, not to the host itself.
 
 ### Automatic (Hostinger Docker Manager API)
 
-The `deploy-preprod` job in `deploy-preprod.yml` redeploys the
-`truemain-preprod` Docker Manager project right after the `:preprod` images are
-published, using the official `hostinger/deploy-on-vps` action (a pure API
-call — no SSH material in CI). It is a no-op until three pieces of repository
-configuration exist:
+The `deploy` job of the `rollout` workflow called by `deploy-preprod.yml`
+redeploys the `truemain-preprod` Docker Manager project right after the
+`:preprod` images are published and the migrations applied, using the official
+`hostinger/deploy-on-vps` action (a pure API call — no SSH material in CI). A
+`preflight` job fails the whole run, never a green skip, until these three
+pieces of repository configuration exist (plus the two SSH secrets below):
 
 | Kind | Name | Value |
 | ---- | ---- | ----- |
@@ -138,7 +139,7 @@ test the real thing — `resolve-preprod-version.test.sh`, run by the
   when a release moves the base, and a deleted tag can never make it reuse a
   number.
 
-`tag-preprod` pushes the git tag **after** the VPS has taken the deploy, so a
+`tag` pushes the git tag **after** the VPS has taken the deploy, so a
 `-rc.N` tag always means "this ran on preprod" rather than "this was built".
 The same string also tags the four images on GHCR (`…/truemain-web:1.20.0-rc.4`),
 which is why the version is a semver *prerelease* and not build metadata — a `+`
@@ -158,14 +159,13 @@ Two consequences worth knowing:
 
 ### Applying migrations before the deploy
 
-The `migrate-preprod` job runs between `publish-preprod` and `deploy-preprod`
-and applies pending EF migrations as an idempotent SQL script — see
-`docs/production-migrations.md` for why this replaced startup migrations.
-Unlike the `deploy-preprod` guard on `PREPROD_ENV_FILE`, this one fails the
-job (not a green skip) when its secrets are missing: since
+The `migrate` job of the rollout runs between `publish` and `deploy` and
+applies pending EF migrations as an idempotent SQL script — see
+`docs/production-migrations.md` for why this replaced startup migrations. Its
+SSH secrets are part of the same `preflight` check: since
 `Database__ApplyMigrationsOnStartup` is permanently `false` in
-`compose.preprod.yaml`, letting `deploy-preprod` proceed without a migration
-attempt would silently roll a new image against a possibly-stale schema.
+`compose.preprod.yaml`, letting the deploy proceed without a migration attempt
+would silently roll a new image against a possibly-stale schema.
 
 | Kind     | Name                   | Value                                                        |
 | -------- | ---------------------- | ------------------------------------------------------------ |
@@ -177,8 +177,8 @@ Postgres is only bound to `127.0.0.1:5432` on the VPS, so the job connects
 over SSH and pipes the generated script into `psql` running inside the
 already-live `truemain-preprod-postgres` container, using the
 `POSTGRES_USER`/`POSTGRES_DB` already set in `/docker/truemain-preprod/.env`.
-`deploy-preprod` depends on this job succeeding, so a failed or skipped
-migration blocks the image roll.
+The deploy depends on this job succeeding, so a failed or skipped migration
+blocks the image roll.
 
 `PREPROD_SSH_KEY`'s public half is installed in the VPS's
 `~/.ssh/authorized_keys` with a forced `command=/usr/local/bin/apply-migration.sh`

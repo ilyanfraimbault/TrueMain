@@ -14,10 +14,6 @@ COPY . ./
 
 EXPOSE 3000
 
-# Nuxt dev server boots much slower than the production bundle (Vite warm-up,
-# first-request compile). Give it a long start_period before failing the
-# container so docker compose's `condition: service_healthy` does not time
-# out on a cold start.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=10 \
     CMD wget --quiet --tries=1 --spider http://127.0.0.1:3000/ || exit 1
 

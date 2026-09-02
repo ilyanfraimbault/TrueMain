@@ -71,10 +71,6 @@ services:
 
   api:
     image: ghcr.io/ilyanfraimbault/truemain-api:${IMAGE_TAG:-latest}
-    # The CI deploy passes an immutable IMAGE_TAG, so a pull is implied there;
-    # this is for the manual fallback in docs/prod.md, which has no IMAGE_TAG
-    # and falls back to the moving `:latest` — already present locally, hence
-    # silently reused unless we force the pull (#765).
     pull_policy: always
     container_name: truemain-api
     restart: unless-stopped
@@ -86,9 +82,6 @@ services:
       Database__ApplyMigrationsOnStartup: "false"
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
-      # Volume size the storage forecast projects against (#925). Unset means no
-      # forecast at all — the admin panel says so rather than fitting a line to a
-      # guessed capacity. Set STORAGE_DISK_CAPACITY_BYTES to the real disk size.
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Cors__Origins__0: "https://truemain.lol"
       Cors__Origins__1: "https://www.truemain.lol"
@@ -117,9 +110,6 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
-      # Build stamp shown small in the footer. APP_VERSION is appended to the
-      # env by the deploy job (the published release tag); empty on a manual
-      # redeploy, which just hides the label.
       NUXT_PUBLIC_APP_ENV: production
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
       NUXT_PUBLIC_UMAMI_HOST: https://analytics.truemain.lol
@@ -206,10 +196,6 @@ services:
     networks:
       - truemain_internal
 
-  # Umami self-hosted has no built-in retention for session replay/heatmap
-  # data (#1018) — without this, session_replay/heatmap_event grow unbounded,
-  # the heaviest tables Umami writes. Postgres image with the entrypoint
-  # overridden to just run the purge script on a loop, no server started.
   umami-replay-cleanup:
     image: postgres:17.2-alpine
     container_name: truemain-umami-replay-cleanup
@@ -245,26 +231,6 @@ services:
       Scoring__TopNPerPlatform: "300"
       Harvest__MaxCandidatesPerRun: "7500"
       MatchIngestion__BatchSize: "75"
-      # Manual-seed intake is FIFO and strictly batched, so a large backlog is drained at a
-      # fixed rate rather than spent at once. The unit is **one batch per full pipeline cycle**:
-      # ManualSeed is a step in JobModeSequence, and the worker sleeps Job:IntervalMinutes
-      # (unset here, so 60 min) *after* the whole sequence finishes. So a cycle is pipeline
-      # duration + 60 min — call it 12-24 cycles/day, not 24.
-      #
-      # That unit is what made the previous 200 look four times stronger than it was: its
-      # comment claimed ~5k/day, but 200/cycle is ~2.5-4.8k/day, and the OTP backlog is no
-      # longer "a few thousand seeds" — the per-champion dpm sweep puts tens of thousands in
-      # the queue in one run, which at 200 is two to three weeks of drain.
-      #
-      # 750 is ~9-18k/day. A resolved request costs 3 Riot calls (account-v1, summoner-v4,
-      # champion mastery — see ManualSeedProcess.ProcessRequestAsync); one whose Riot ID no
-      # longer exists stops after the first. So ~27-54k calls/day is the ceiling, and the real
-      # figure is lower by whatever share of the queue has gone stale:
-      # a large but deliberate reallocation while the backlog is being filled. Turn it back
-      # down once the queue is drained — this is a knob for a backlog, not a steady state.
-      #
-      # Note that MatchIngestion__BatchSize above is the next bottleneck: seeding faster gets
-      # accounts registered faster, their matches still ingest at 75/cycle.
       ManualSeed__BatchSize: "750"
     volumes:
       - truemain_ingestor_crashes:/home/app/crashes
