@@ -2181,8 +2181,11 @@ now that the server is allowed real memory, but that does not make parallelism s
 `shared_preload_libraries` is a start-up setting, so `CREATE EXTENSION` fails on any server that does not
 carry it — a developer's local Postgres, the integration suite's throwaway container, a restored dump. The
 migration wraps the statement in a `DO` block that catches the failure and raises a `NOTICE`, so a database
-without the preload does not break the migration chain; the extension appears on its own the next time
-migrations run against a preloaded server.
+without the preload does not break the migration chain. The consequence, and it is the general rule for any
+migration that depends on a setting shipped with it: the `migrate-*` job runs *before* the deploy restarts
+Postgres, so the first run always takes the NOTICE branch and is stamped in `__EFMigrationsHistory` anyway —
+nothing retries it. Each environment gets one manual `CREATE EXTENSION IF NOT EXISTS pg_stat_statements;`
+after the restart, documented in `docs/production-migrations.md`.
 
 **Both changes only take effect on a Postgres restart.** `shared_buffers` and `shared_preload_libraries` are
 start-up settings. Preprod restarts on the next deploy from `develop`; prod moves only on a published

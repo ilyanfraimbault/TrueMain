@@ -10,7 +10,10 @@ services:
     #
     # Same shape as compose.prod.yaml, roughly halved: preprod is a smaller host (96 GB
     # disk, ~11 GB database) and it shares the box with the whole preprod stack, so it
-    # cannot claim the memory prod's Postgres gets as the dominant tenant. Keeping the
+    # cannot claim the memory prod's Postgres gets as the dominant tenant. The host's RAM
+    # was not measured and no share of it is budgeted to Postgres alone, so these values
+    # are deliberately conservative rather than derived; revisit them with a real
+    # measurement if preprod turns out to have headroom. Keeping the
     # same *settings* (not the same values) means preprod still exercises the tuned plans
     # — jit off, flash-priced random access, work_mem large enough not to spill — before
     # prod does.

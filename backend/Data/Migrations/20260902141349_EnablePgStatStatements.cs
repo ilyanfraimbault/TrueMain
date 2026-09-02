@@ -22,9 +22,18 @@ namespace Data.Migrations
     /// the integration suite spins up, a restored dump on a plain server. Letting the raw
     /// statement run there would break the whole migration chain over a purely diagnostic
     /// extension. So the failure is caught and downgraded to a NOTICE — the schema is
-    /// identical either way, and the extension appears on its own the next time the
-    /// migration chain runs against a correctly preloaded server. It is also why the
-    /// prod/preprod compose change and this migration have to ship together.
+    /// identical either way. It is also why the prod/preprod compose change and this
+    /// migration have to ship together.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The extension will not appear on its own on preprod or prod.</b> The
+    /// <c>migrate-*</c> job runs before the deploy job restarts Postgres, so the very
+    /// first run of this migration meets the server that does not preload the library
+    /// yet, takes the NOTICE branch, and is stamped in <c>__EFMigrationsHistory</c> all
+    /// the same — nothing re-runs it. Each environment needs one manual
+    /// <c>CREATE EXTENSION IF NOT EXISTS pg_stat_statements;</c> after the restart; the
+    /// exact command is in <c>docs/production-migrations.md</c>.
     /// </para>
     ///
     /// <para>
