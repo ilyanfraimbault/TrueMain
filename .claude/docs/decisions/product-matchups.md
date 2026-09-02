@@ -40,13 +40,45 @@ silently omitting it — #1087.
 `champion_matchup_stats` gated on `RiotAccountId != null` while the champion aggregates feeding the header, the
 tier list, the trend and the builds gate on `main_champion_stats.IsMain`. On production that put **14 576 games
 behind the matchups panel and 4 605 behind the header directly above it** — same champion, lane and patch, ×3.2 —
-and the read-side comment asserted the two cohorts matched. The gate now lives in `Data/Aggregation/MatchupCohort.cs`
-so the two folds that write those rows cannot drift apart from each other or from the pattern reader. **Champion
+and the read-side comment asserted the two cohorts matched. The gate now lives in `Data/Aggregation/ChampionCohort.cs`
+(named `MatchupCohort` until #1365 generalised it to all four folds) so the folds that write those rows cannot
+drift apart from each other or from the pattern reader. **Champion
 side only**: the opponent stays whoever held that lane, since narrowing both sides would measure mains-versus-mains,
 a different and far thinner question. Because both folds are additive and flag-gated, tightening the gate corrects
 nothing already written — the migration wipes the table and re-folds the retained window, which loses the matchups
 of patches whose raw matches are already gone (accepted: the panel became per-patch in the same change, so those
 patches were no longer readable anyway) — #1087.
+
+**Every champion-page fold takes its cohort from one place, and a remake is not a game.**
+#1087 fixed the matchup folds and stopped there, so two panels on the same page kept counting a different
+population from the header above them: `ChampionSynergyAggregationProcess` and
+`ChampionPowerspikeAggregationProcess` still gated on `RiotAccountId != null` — any tracked account, main or
+not — while the header, the tier list, the builds and the matchups gated on `IsMain`. The gate is now
+`Data/Aggregation/ChampionCohort.cs` (the generalised `MatchupCohort`), composed by all four folds: **tracked
+account + `main_champion_stats.IsMain` + canonical `TeamPosition` + not a remake**. A unit test greps the four
+fold sources for `RiotAccountId`, `IsMain`, a private copy of the canonical positions and `GameDurationSeconds`,
+because the failure mode is not a wrong answer, it is a plausible line added to one fold that nobody re-compares
+against the header. Three things this pins.
+**The partner side stays everyone.** Only the queried/`SELF` side of a synergy pairing is a main; the ally is
+whoever shared the game, because the expected value the metric subtracts is built from a partner near the
+population mean (#922). Narrowing it would bias every synergy on the site rather than tighten it.
+**Remakes are a duration floor, in one place.** Riot's `gameEndedInEarlySurrender` is not stored on
+`match_participants` (checked, not assumed), so `ChampionCohort.MinimumGameDurationSeconds` (300) is the rule —
+4 762 stored matches, 1.7% of production. The header keeps its own stricter 15-minute floor, which is not a
+second opinion about remakes but a timeline-completeness rule (no build, no skill path); a test pins the
+ordering of the two.
+**The re-fold recovers the live window only.** The migration deletes the synergy, powerspike **and matchup**
+rows of the patches that still have matches and re-arms all four per-match flags — the matchup table is in there
+for the remake clause alone, since #1087 already gave it the right population and an additive fold cannot correct
+what it has already added — deliberately *not* a
+`TRUNCATE` like #1087's, because these two aggregates hold frozen patches whose source matches retention has
+already deleted (#466) and which no re-fold could rebuild. So there is a seam, on purpose: frozen patches keep
+synergy and powerspike numbers counting any tracked account, live ones count mains. Two further costs, accepted:
+a live match whose dense timeline grid was already pruned to {5,10,15,20,30} (#772) re-folds its curve points but
+no event spike, so the spikes panel goes thin on the live patches and refills forward (the same coverage bargain
+#957 took); and `powerspike_sigma_stats` is emptied with them, since it carries no patch dimension and a re-fold
+would otherwise add a match's spread to a total that already holds it — σ becomes the spread over the retained
+window instead of a double-counted lifetime average — #1365.
 
 **The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one.**
 It forwarded position and elo but never patch, and its aggregate outlives the matches it was folded from, so the

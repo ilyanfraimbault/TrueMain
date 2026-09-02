@@ -1,6 +1,7 @@
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
@@ -32,7 +33,14 @@ namespace Ingestor.Processes;
 ///    each teammate in another canonical lane. Same asymmetry, though: the
 ///    (champion, position) side is always a tracked account and the partner side is
 ///    whoever was on the team, because the question being answered is "you play X —
-///    who should your friends play?".
+///    who should your friends play?". The tracked side is the shared
+///    <see cref="ChampionCohort"/> — a main of the champion they are playing, in a
+///    game that is not a remake — since #1365; it used to be the wider "any account we
+///    know", which is the cohort mismatch #1087 had already fixed for matchups while
+///    this fold and the powerspike one kept counting a different population from the
+///    header above them. The <b>partner</b> side stays everyone: the expected value the
+///    metric subtracts is built from an ally drawn near the population mean, so
+///    narrowing it would bias every synergy on the site (#922).
 ///
 /// 2. <b>It also writes baselines.</b> Synergy is observed minus expected win rate,
 ///    and expected needs each champion's marginal rate. Deriving those from another
@@ -53,11 +61,6 @@ public sealed class ChampionSynergyAggregationProcess(
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     TimeProvider timeProvider) : IIngestorProcess
 {
-    // The five canonical lane positions. A participant with an empty or garbage
-    // TeamPosition cannot be placed in a composition, so it is excluded on both
-    // sides of the pair rather than stored as a partner nobody can ask for.
-    private static readonly string[] CanonicalPositions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-
     public string Name => "ChampionSynergyAggregation";
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
@@ -132,16 +135,26 @@ public sealed class ChampionSynergyAggregationProcess(
             .Select(m => new { m.Id, m.GameVersion })
             .ToDictionaryAsync(m => m.Id, m => PatchVersion.Normalize(m.GameVersion), ct);
 
+        // Who may sit on the queried side of a pairing. Every participant below is
+        // loaded regardless — an off-cohort player is still somebody's partner — and
+        // membership is tested per row against this set (ChampionCohort).
+        var cohort = await ChampionCohort.LoadAsync(db, matchIds, ct);
+
+        // A participant with an empty or garbage TeamPosition cannot be placed in a
+        // composition, so it is excluded on both sides of the pair rather than stored
+        // as a partner nobody can ask for. Same canonical set the cohort tests, so the
+        // partner side and the queried side cannot drift apart.
         var participants = await db.MatchParticipants
             .AsNoTracking()
-            .Where(p => matchIds.Contains(p.MatchId) && CanonicalPositions.Contains(p.TeamPosition))
+            .Where(p => matchIds.Contains(p.MatchId)
+                && ChampionCohort.CanonicalPositions.Contains(p.TeamPosition))
             .Select(p => new ParticipantRow(
                 p.MatchId,
+                p.ParticipantId,
                 p.ChampionId,
                 p.TeamId,
                 p.TeamPosition,
                 p.EloBracket,
-                p.RiotAccountId != null,
                 p.Win))
             .ToListAsync(ct);
 
@@ -162,7 +175,10 @@ public sealed class ChampionSynergyAggregationProcess(
 
             foreach (var self in parts)
             {
-                if (!self.Tracked)
+                // The queried side, and only it: a main of this champion, in a game
+                // that lasted. The ally rows below are emitted from this seat, so the
+                // partner side keeps taking whoever shared the game.
+                if (!cohort.Includes(matchId, self.ParticipantId))
                 {
                     continue;
                 }
@@ -321,11 +337,11 @@ public sealed class ChampionSynergyAggregationProcess(
 
     private sealed record ParticipantRow(
         string MatchId,
+        int ParticipantId,
         int ChampionId,
         int TeamId,
         string TeamPosition,
         string EloBracket,
-        bool Tracked,
         bool Win);
 
     private readonly record struct SynergyKey(

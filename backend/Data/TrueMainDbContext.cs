@@ -24,7 +24,7 @@ public class TrueMainDbContext : DbContext
     // Pre-aggregated read model for the champion page's global matchups
     // leaderboard (#606), carrying the lane counters and gold/XP gaps folded into
     // the same rows (#919/#976/#1111). The champion side is a main of that
-    // champion — Data.Aggregation.MatchupCohort (#1087). Populated by
+    // champion — Data.Aggregation.ChampionCohort (#1087). Populated by
     // ChampionMatchupLeadAggregationProcess, lane counters by
     // ChampionLaneOutcomeAggregationProcess.
     public DbSet<ChampionMatchupStat> ChampionMatchupStats => Set<ChampionMatchupStat>();

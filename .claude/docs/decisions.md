@@ -73,6 +73,7 @@ Last verified against `develop` on 2026-09-02.
 - The matchups leaderboard floors on a *share* of the champion's games, and ranks on Wilson bounds, not the raw rate — #1087
 - The lane win rate carries its own floor, because it is its own sample — #1087
 - The matchup folds count mains of the champion, not every account we know — #1087
+- Every champion-page fold takes its cohort from one place, and a remake is not a game — #1365, #1087, #922
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
