@@ -22,6 +22,32 @@ Design goals:
   accounts/mains base is never purged by retention — only match data is — so
   the player base persists while matches stay bounded.
 
+## Two ingestor lanes
+
+Preprod runs the ingestion pipeline as **two containers** (#1362), where prod still runs one:
+
+| container | `Job:Mode` | cadence |
+| --- | --- | --- |
+| `truemain-preprod-ingestor` | `FetchLane` | back-to-back (`RunOnce`, restarted by Docker) |
+| `truemain-preprod-ingestor-aggregate` | `AggregateLane` | every `INGESTOR_AGGREGATE_INTERVAL_MINUTES` (default 20) |
+
+The two halves have opposite bottlenecks — the fetch lane waits on Riot, the aggregate lane on Postgres — so
+chaining them left the API key idle through every aggregation. Splitting them is a deployment choice, not a
+code one: a single container on `Job:Mode=Full` still runs all 20 steps in order, which is what prod does.
+
+Both lanes share one environment block in `compose.preprod.yaml` (the `x-ingestor-environment` anchor); only
+the mode, the cadence, the `Application Name` on the connection string and the crash volume differ. To collapse
+preprod back to one lane, set `INGESTOR_JOB_MODE=Full` and stop the aggregate container.
+
+What to watch while the split is on trial:
+
+- `process_runs` — each lane's steps should keep completing; no run should turn `Abandoned` when the *other*
+  lane restarts (that was the bug the scoped reconciliation fixes).
+- `pg_stat_activity` — retention (aggregate lane) deletes while the fetch lane inserts. They touch disjoint
+  patches by construction, so this should show no lock waits growing over time.
+- The Riot usage panel — the point of the split is that the key stops idling during aggregation.
+
+
 ## First deployment on a host (fresh database)
 
 If the host previously ran another TrueMain stack (e.g. the old production),

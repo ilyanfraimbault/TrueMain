@@ -48,9 +48,10 @@ public sealed class IngestorProcessRegistrationTests
         // name-indexed dictionary did.
         keys.Should().OnlyHaveUniqueItems();
 
-        // Full is a composite expanded by JobModeSequence, so it is the one mode
-        // with no process of its own; every other mode must have exactly one.
-        keys.Should().BeEquivalentTo(Enum.GetValues<JobMode>().Where(m => m != JobMode.Full));
+        // The composite modes are expanded by JobModeSequence and have no process of their
+        // own; every other mode must have exactly one.
+        keys.Should().BeEquivalentTo(
+            Enum.GetValues<JobMode>().Where(mode => !JobModeSequence.CompositeModes.Contains(mode)));
     }
 
     [Fact]
@@ -81,9 +82,44 @@ public sealed class IngestorProcessRegistrationTests
     [Fact]
     public void For_ReturnsTheModeItself_ForEverySingleProcessMode()
     {
-        foreach (var mode in Enum.GetValues<JobMode>().Where(m => m != JobMode.Full))
+        foreach (var mode in Enum.GetValues<JobMode>().Where(mode => !JobModeSequence.CompositeModes.Contains(mode)))
         {
             JobModeSequence.For(mode).Should().Equal(mode);
+        }
+    }
+
+    /// <summary>
+    /// The two lanes (#1362) are a partition of the full pipeline, not a re-selection of it:
+    /// a step in neither would silently stop running the moment the lanes are deployed, and a
+    /// step in both would run twice per cycle against the same rows.
+    /// </summary>
+    [Fact]
+    public void FetchAndAggregateLanes_PartitionTheFullPipeline()
+    {
+        var full = JobModeSequence.For(JobMode.Full);
+        var fetch = JobModeSequence.For(JobMode.FetchLane);
+        var aggregate = JobModeSequence.For(JobMode.AggregateLane);
+
+        fetch.Should().OnlyHaveUniqueItems();
+        aggregate.Should().OnlyHaveUniqueItems();
+        fetch.Should().NotIntersectWith(aggregate);
+        fetch.Concat(aggregate).Should().BeEquivalentTo(full);
+    }
+
+    /// <summary>
+    /// Each lane keeps the relative order the full pipeline gives its steps: the order
+    /// within a lane is still load-bearing (the ban fold must see stamped elo brackets, the
+    /// timeline prune must not precede the powerspike fold), even though the two lanes
+    /// themselves are free to run at different cadences.
+    /// </summary>
+    [Fact]
+    public void EachLane_KeepsTheRelativeOrderOfTheFullPipeline()
+    {
+        var full = JobModeSequence.For(JobMode.Full).ToList();
+
+        foreach (var lane in new[] { JobModeSequence.For(JobMode.FetchLane), JobModeSequence.For(JobMode.AggregateLane) })
+        {
+            lane.Select(step => full.IndexOf(step)).Should().BeInAscendingOrder();
         }
     }
 
