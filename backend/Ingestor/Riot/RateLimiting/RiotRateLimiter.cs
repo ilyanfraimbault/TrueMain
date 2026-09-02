@@ -99,6 +99,22 @@ public sealed class RiotRateLimiter : IRiotRateLimiter, IDisposable
                     }
                 }
 
+                var remainingBudget = TimeSpan.FromSeconds(_options.MaxPermitWaitSeconds) - totalWaited;
+                if (wait > remainingBudget)
+                {
+                    // Waiting longer than the configured ceiling means our model of the budget
+                    // and Riot's have diverged badly. Proceeding takes a 429 if we were wrong,
+                    // and the response's count headers resynchronise the window — which
+                    // recovers, where an unbounded wait would stall the pipeline behind one
+                    // call and recover nothing.
+                    _logger.LogWarning(
+                        "Rate-limit wait for {RoutingValue}/{Endpoint} would exceed {MaxWaitSeconds}s; sending anyway.",
+                        routingValue,
+                        endpoint,
+                        _options.MaxPermitWaitSeconds);
+                    wait = TimeSpan.Zero;
+                }
+
                 if (wait <= TimeSpan.Zero)
                 {
                     budget.Application.RecordIssued(now);

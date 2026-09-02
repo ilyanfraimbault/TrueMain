@@ -46,7 +46,13 @@ the 429s the retry strategy absorbs, which are exactly the responses carrying th
 acquisition must honour. The cost of the split is that the limiter charges one permit per *logical* request
 rather than per attempt; Riot's own `X-App-Rate-Limit-Count` on the way back is what corrects the count, which
 is what that header is for. The metrics handler stays innermost, so a permit wait is never recorded as Riot
-latency. No configuration is needed when the key changes: the limits are learned from the response.
+latency, and the Riot clients' `HttpClient.Timeout` is sized to cover the wait *and* the pipeline beneath it —
+sized for the pipeline alone, a long-but-legitimate wait followed by a slow pipeline would trip it and surface
+as the same opaque `TaskCanceledException` #855 fixed one layer in. A single wait is itself bounded by
+`RiotRateLimit:MaxPermitWaitSeconds`: past that ceiling the call is sent anyway, because a wait that long means
+our model and Riot's have diverged, and a 429's count headers resynchronise the window where an unbounded wait
+would just stall the pipeline behind one call. No configuration is needed when the key changes: the limits are
+learned from the response.
 
 **Match ingestion fans out one worker per platform, and stays sequential inside one.**
 The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained

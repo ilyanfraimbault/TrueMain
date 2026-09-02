@@ -172,6 +172,7 @@ catch (Exception ex)
 static void ConfigureRiotClient(IServiceProvider serviceProvider, HttpClient client)
 {
     var options = serviceProvider.GetRequiredService<IOptions<RiotOptions>>().Value;
+    var rateLimit = serviceProvider.GetRequiredService<IOptions<RiotRateLimitOptions>>().Value;
     client.DefaultRequestHeaders.Add("X-Riot-Token", options.ApiKey);
 
     // HttpClient.Timeout wraps the whole resilience pipeline, and its 100s default
@@ -182,7 +183,15 @@ static void ConfigureRiotClient(IServiceProvider serviceProvider, HttpClient cli
     // was truncated without a trace (#855). Sizing it from the same
     // EffectiveTotalRequestTimeout the resilience handler uses keeps the two
     // from ever drifting apart.
-    client.Timeout = options.EffectiveTotalRequestTimeout() + TimeSpan.FromSeconds(5);
+    //
+    // Since #1359 this budget also has to cover the wait for a rate-limit permit, which
+    // happens in a handler outside the resilience pipeline: sized for the pipeline alone, a
+    // long-but-legitimate wait followed by a slow pipeline would trip the client timeout and
+    // surface as an opaque TaskCanceledException — the same class of failure #855 fixed, one
+    // layer out. RiotRateLimit:MaxPermitWaitSeconds is what bounds the wait itself.
+    client.Timeout = options.EffectiveTotalRequestTimeout()
+        + TimeSpan.FromSeconds(rateLimit.MaxPermitWaitSeconds)
+        + TimeSpan.FromSeconds(5);
 }
 
 static void ConfigureCommunityDragonClient(IServiceProvider serviceProvider, HttpClient client)

@@ -60,6 +60,9 @@ public static class OptionsConfigurationExtensions
             .Validate(
                 options => options.DefaultRetryAfterSeconds is > 0 and <= 600,
                 "RiotRateLimit:DefaultRetryAfterSeconds must be between 1 and 600.")
+            .Validate(
+                options => options.MaxPermitWaitSeconds is > 0 and <= 3600,
+                "RiotRateLimit:MaxPermitWaitSeconds must be between 1 and 3600.")
             .ValidateOnStart();
 
         services.AddOptions<CommunityDragonOptions>()
