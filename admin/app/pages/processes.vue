@@ -8,7 +8,7 @@
 // `summary` JSON + error is inspectable in a slide-over.
 import type { TableColumn } from '@nuxt/ui'
 import type { BadgeColor, ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
-import { PIPELINE_CHAIN, PROCESS_META } from '~~/shared/types/ops'
+import { JOB_MODE_LABELS, PROCESS_META, resolvePipelineChain } from '~~/shared/types/ops'
 import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 // Run-status colours and icons live in `utils/pipeline-health.ts` so this page and the
 // health cockpit paint the same run identically — they used to disagree on `Running`.
@@ -129,15 +129,23 @@ interface ChainLink {
   run: ProcessRun | null
 }
 
-// Build the ordered chain for one iteration: the union of the canonical
-// PIPELINE_CHAIN order and every process actually present in `runs`. Canonical
-// processes keep their known position (annotated `notRun` when absent this
-// pass); any extra/unknown process that ran is appended in run order, so no run
-// is ever silently dropped just because its name isn't in PIPELINE_CHAIN.
-function buildChain(runs: ProcessRun[]): ChainLink[] {
+// Build the ordered chain for one iteration: the union of the chain that pass was
+// supposed to run and every process actually present in `runs`. Chain processes
+// keep their known position (annotated `notRun` when absent this pass); any
+// extra/unknown process that ran is appended in run order, so no run is ever
+// silently dropped just because its name isn't in the chain.
+//
+// The chain is resolved per iteration rather than fixed (#1362): a pass runs one
+// lane, so drawing it against the whole 20-step sequence renders the other lane's
+// twelve steps as "not run" and makes a complete pass look half-broken.
+function buildChain(runs: ProcessRun[], jobMode: string | null = null): ChainLink[] {
   const byName = new Map(runs.map(run => [run.processName, run]))
-  const canonical = new Set(PIPELINE_CHAIN)
-  const links: ChainLink[] = PIPELINE_CHAIN.map((processName) => {
+  const chain = resolvePipelineChain(
+    jobMode ?? runs.find(run => run.jobMode)?.jobMode ?? null,
+    runs.map(run => run.processName),
+  )
+  const canonical = new Set(chain)
+  const links: ChainLink[] = chain.map((processName) => {
     const run = byName.get(processName) ?? null
     return {
       processName,
@@ -164,7 +172,7 @@ function buildChain(runs: ProcessRun[]): ChainLink[] {
 // is what highlights "where we currently are". Driven by the dedicated
 // latest-iteration fetch so list pagination never changes it.
 const currentChain = computed<ChainLink[]>(() => {
-  return buildChain(latestIteration.value?.runs ?? [])
+  return buildChain(latestIteration.value?.runs ?? [], latestIteration.value?.jobMode ?? null)
 })
 const currentIterationRunning = computed(() => latestIteration.value?.isRunning ?? false)
 
@@ -172,7 +180,7 @@ const currentIterationRunning = computed(() => latestIteration.value?.isRunning 
 // template shares one array between its v-for and its separator length check
 // (which now tracks the actual rendered link count, not PIPELINE_CHAIN.length).
 const iterationChains = computed<Map<string, ChainLink[]>>(
-  () => new Map(finishedIterations.value.map(it => [it.iterationId, buildChain(it.runs)])),
+  () => new Map(finishedIterations.value.map(it => [it.iterationId, buildChain(it.runs, it.jobMode)])),
 )
 
 // A chain outcome is a run status plus one case the run table has no word for. `notRun`
@@ -190,6 +198,19 @@ function outcomeIcon(outcome: ChainOutcome): string {
 }
 function outcomeLabel(outcome: ChainOutcome): string {
   return outcome === 'notRun' ? 'Not run' : outcome
+}
+
+// The lane badge on an iteration row. Null for a full pass (the chain is already
+// the whole sequence, so the label would be noise) and for a pass recorded before
+// the mode was stamped, where claiming a lane would be a guess dressed as a fact.
+// A single-process mode shows its own name: that is what an operator triggered.
+function laneLabel(iteration: ProcessIteration): string | null {
+  const mode = iteration.jobMode
+    ?? iteration.runs.find(run => run.jobMode)?.jobMode
+    ?? null
+  if (!mode || mode === 'Full')
+    return null
+  return JOB_MODE_LABELS[mode] ?? mode
 }
 
 // Names and explanations both come from the shared PROCESS_META, next to the
@@ -335,7 +356,7 @@ function openIterationDetail(iteration: ProcessIteration) {
 // actually ran this pass (skip `notRun` placeholders in the detail view).
 const selectedIterationLinks = computed<ChainLink[]>(() =>
   selectedIteration.value
-    ? buildChain(selectedIteration.value.runs).filter(link => link.run)
+    ? buildChain(selectedIteration.value.runs, selectedIteration.value.jobMode).filter(link => link.run)
     : [],
 )
 
@@ -538,8 +559,20 @@ const selectedIterationTally = computed(() => {
             @click="openIterationDetail(iteration)"
           >
             <div class="flex items-center justify-between gap-2 mb-3">
-              <span class="text-sm text-muted">
+              <span class="flex items-center gap-2 text-sm text-muted">
                 {{ formatDateTime(iteration.startedAtUtc) }}
+                <!-- Which half of the pipeline this pass covered (#1362). Without it the
+                     twelve steps of the other lane read as skipped rather than as
+                     belonging to a different pass. Hidden for a full pass, where the
+                     chain is the whole sequence and the label adds nothing. -->
+                <UBadge
+                  v-if="laneLabel(iteration)"
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ laneLabel(iteration) }}
+                </UBadge>
               </span>
               <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" />
             </div>

@@ -1,3 +1,5 @@
+using Ingestor.Options;
+
 namespace Ingestor.Services;
 
 /// <summary>
@@ -10,18 +12,27 @@ namespace Ingestor.Services;
 public sealed class IterationContext : IIterationContext
 {
     private readonly AsyncLocal<Guid?> _current = new();
+    private readonly AsyncLocal<JobMode?> _currentMode = new();
 
     public Guid? CurrentIterationId => _current.Value;
 
-    public IIterationScope BeginIteration()
+    public JobMode? CurrentJobMode => _currentMode.Value;
+
+    public IIterationScope BeginIteration(JobMode mode)
     {
         var previous = _current.Value;
+        var previousMode = _currentMode.Value;
         var iterationId = Guid.NewGuid();
         _current.Value = iterationId;
-        return new IterationScope(this, iterationId, previous);
+        _currentMode.Value = mode;
+        return new IterationScope(this, iterationId, previous, previousMode);
     }
 
-    private sealed class IterationScope(IterationContext owner, Guid iterationId, Guid? previous)
+    private sealed class IterationScope(
+        IterationContext owner,
+        Guid iterationId,
+        Guid? previous,
+        JobMode? previousMode)
         : IIterationScope
     {
         private bool _disposed;
@@ -37,6 +48,7 @@ public sealed class IterationContext : IIterationContext
 
             _disposed = true;
             owner._current.Value = previous;
+            owner._currentMode.Value = previousMode;
         }
     }
 }

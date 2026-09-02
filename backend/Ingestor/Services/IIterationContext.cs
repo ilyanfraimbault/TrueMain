@@ -1,3 +1,5 @@
+using Ingestor.Options;
+
 namespace Ingestor.Services;
 
 /// <summary>
@@ -15,11 +17,20 @@ public interface IIterationContext
     Guid? CurrentIterationId { get; }
 
     /// <summary>
-    /// Opens a new iteration on the calling async flow and returns it. The id is
-    /// in effect until the returned scope is disposed, which restores the prior
-    /// value (so nested or sequential passes don't leak into one another).
+    /// The <see cref="JobMode"/> the current pass is running, or null outside a pass.
+    /// Recorded on every run so a reader can tell which half of the pipeline a pass
+    /// covered: since #1362 the sequence is split into a fetch lane and an aggregate
+    /// lane, and an iteration that ran one of them is complete, not half-finished.
     /// </summary>
-    IIterationScope BeginIteration();
+    JobMode? CurrentJobMode { get; }
+
+    /// <summary>
+    /// Opens a new iteration on the calling async flow and returns it. The id and the
+    /// mode are in effect until the returned scope is disposed, which restores the
+    /// prior values (so nested or sequential passes don't leak into one another).
+    /// </summary>
+    /// <param name="mode">The job mode this pass is running.</param>
+    IIterationScope BeginIteration(JobMode mode);
 }
 
 /// <summary>An active iteration; disposing it ends the iteration on the flow.</summary>
