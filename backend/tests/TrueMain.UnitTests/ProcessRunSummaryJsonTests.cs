@@ -172,7 +172,8 @@ public sealed class ProcessRunSummaryJsonTests
             [
                 new MatchIngestionPlatformSummary("EUW1", 5, 20, 3, 8, 4),
                 new MatchIngestionPlatformSummary("KR", 4, 10, 1, 4, 2)
-            ]),
+            ],
+            3),
             new
             {
                 accountsProcessed = 9,
@@ -213,7 +214,11 @@ public sealed class ProcessRunSummaryJsonTests
                         timelinesUpdated = 4,
                         matchesSkippedWrongQueue = 2
                     }
-                }.ToList()
+                }.ToList(),
+                // Appended by #1360, for the same reason as the two blocks above: a run
+                // recorded before the deploy has no key here, which reads as "not measured"
+                // rather than as a batch where every visit found new matches.
+                accountsWithoutNewMatches = 3
             });
 
         yield return (

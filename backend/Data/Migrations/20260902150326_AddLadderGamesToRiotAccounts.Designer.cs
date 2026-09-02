@@ -6,6 +6,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902150326_AddLadderGamesToRiotAccounts")]
+    partial class AddLadderGamesToRiotAccounts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -945,12 +948,6 @@ namespace Data.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
-                    b.Property<string>("Patch")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasComputedColumnSql("((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[1])::int::text || '.' || ((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[2])::int::text", true);
-
                     b.Property<string>("PlatformId")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -990,14 +987,8 @@ namespace Data.Migrations
                     b.HasIndex("TimelineIngested")
                         .HasDatabaseName("IX_matches_timeline_ingested");
 
-                    b.HasIndex("Patch", "QueueId")
-                        .HasDatabaseName("IX_matches_patch_queue");
-
                     b.HasIndex("PlatformId", "QueueId", "GameStartTimeUtc")
                         .HasDatabaseName("IX_matches_platform_queue_game_start");
-
-                    b.HasIndex("QueueId", "Patch", "PlatformId")
-                        .HasDatabaseName("IX_matches_queue_patch_platform");
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_bans_pending")
                         .HasFilter("\"BansAggregated\" = false");

@@ -60,6 +60,28 @@ the one case where a full sweep is certainly wrong.
 **Preprod runs the two lanes; prod stays on `Full` until preprod has.** Nothing about the code forces a
 topology — a single container on `Full` still runs everything in order — so the split is a deployment
 decision, and it is the kind that is cheap to validate on preprod and expensive to get wrong on prod (#1362).
+**The claim orders by games played since the last visit, not by how long ago that visit was.**
+Ordering by `LastMatchIngestAtUtc` alone spent the batch on whoever had waited longest, whether or not they
+had played. On production that meant a **27-day median revisit** against a 20-game fetch window, so any main
+playing more than ~0.7 games a day was losing games between visits — and the players who play most are exactly
+the signal the site is built on. Meanwhile a third of every batch went to accounts that had played nothing.
+The fix costs no Riot calls, because the answer was already being paid for: `LadderSync` reads ~94 k ladder
+entries per run for ~310 calls and already refreshes wins/losses for every tracked Emerald+ account.
+`riot_accounts.LadderGames` denormalises that sum, `LadderGamesAtLastIngest` records what it was when the
+account was last ingested, and the difference is what the claim sorts on.
+Three details that are not arbitrary. **The count is refreshed on the `Unchanged` snapshot path too** — a win
+and a loss return to the same LP, and those are precisely the games that would otherwise go unnoticed. **The
+baseline is reset inside the same statement that stamps `LastMatchIngestAtUtc`**, or the account would read as
+freshly visited while still owing every game it owed before, and come straight back at the head of the next
+batch. **An account with no ladder reading keeps the old age ordering** rather than sinking behind everything
+that has one: below the swept tiers there is no signal, and a zero owed must not be read as "up to date".
+**The difference is floored at zero**, because a Riot season reset restarts wins/losses from the bottom: the
+raw subtraction then goes negative for every account at once and would sort the whole active pool behind the
+accounts that owe nothing. It would self-heal on the next ingest — but "self-heal" there means a full sweep of
+the pool, which is the very thing this ordering exists to avoid needing.
+The count is denormalised onto the account rather than joined from `rank_snapshots` because it exists to sit
+in an `ORDER BY` over the claimable set — a lateral join to each account's newest snapshot is the one query
+the claim cannot afford to run per candidate row (#1360).
 
 **Match ingestion fans out one worker per platform, and stays sequential inside one.**
 The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained
