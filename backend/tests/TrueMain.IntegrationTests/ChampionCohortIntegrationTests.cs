@@ -7,8 +7,8 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 /// <summary>
-/// Pins <see cref="MatchupCohort"/> directly, one clause of its predicate at a time.
-/// Three folds read this set and the champion aggregates the matchups panel is read
+/// Pins <see cref="ChampionCohort"/> directly, one clause of its predicate at a time.
+/// Four folds read this set and the champion aggregates the matchups panel is read
 /// beside depend on it agreeing with them; when it last drifted (#1087) it put 3.2×
 /// more games behind the panel than behind the header immediately above it, and the
 /// fold suites that exercise it end-to-end only caught that because someone compared
@@ -20,7 +20,7 @@ namespace TrueMain.IntegrationTests;
 /// matching.
 /// </remarks>
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchupCohortIntegrationTests
+public sealed class ChampionCohortIntegrationTests
 {
     private const int QueueId = 420;
     private const int Yone = 157;
@@ -30,7 +30,7 @@ public sealed class MatchupCohortIntegrationTests
 
     private readonly PostgresFixture _fixture;
 
-    public MatchupCohortIntegrationTests(PostgresFixture fixture)
+    public ChampionCohortIntegrationTests(PostgresFixture fixture)
     {
         _fixture = fixture;
     }
@@ -41,9 +41,9 @@ public sealed class MatchupCohortIntegrationTests
         await _fixture.ResetDatabaseAsync();
         await using var db = _fixture.CreateDbContext();
 
-        var keys = await MatchupCohort.LoadAsync(db, [], CancellationToken.None);
+        var cohort = await ChampionCohort.LoadAsync(db, [], CancellationToken.None);
 
-        keys.Should().BeEmpty();
+        cohort.Keys.Should().BeEmpty();
     }
 
     [Fact]
@@ -61,10 +61,10 @@ public sealed class MatchupCohortIntegrationTests
 
         await using (var db = _fixture.CreateDbContext())
         {
-            var keys = await MatchupCohort.LoadAsync(db, ["EUW1_MAIN"], CancellationToken.None);
+            var cohort = await ChampionCohort.LoadAsync(db, ["EUW1_MAIN"], CancellationToken.None);
 
-            keys.Should().ContainSingle()
-                .Which.Should().Be(new MatchupCohortKey("EUW1_MAIN", 4));
+            cohort.Keys.Should().ContainSingle()
+                .Which.Should().Be(new ChampionCohortKey("EUW1_MAIN", 4));
         }
     }
 
@@ -85,9 +85,9 @@ public sealed class MatchupCohortIntegrationTests
 
         await using (var db = _fixture.CreateDbContext())
         {
-            var keys = await MatchupCohort.LoadAsync(db, ["EUW1_ORPHAN"], CancellationToken.None);
+            var cohort = await ChampionCohort.LoadAsync(db, ["EUW1_ORPHAN"], CancellationToken.None);
 
-            keys.Should().BeEmpty();
+            cohort.Keys.Should().BeEmpty();
         }
     }
 
@@ -116,10 +116,10 @@ public sealed class MatchupCohortIntegrationTests
 
         await using (var db = _fixture.CreateDbContext())
         {
-            var keys = await MatchupCohort.LoadAsync(
+            var cohort = await ChampionCohort.LoadAsync(
                 db, ["EUW1_OFFMAIN", "EUW1_ONMAIN"], CancellationToken.None);
 
-            keys.Select(key => key.MatchId).Should().BeEquivalentTo(["EUW1_ONMAIN"]);
+            cohort.Keys.Select(key => key.MatchId).Should().BeEquivalentTo(["EUW1_ONMAIN"]);
         }
     }
 
@@ -141,9 +141,9 @@ public sealed class MatchupCohortIntegrationTests
 
         await using (var db = _fixture.CreateDbContext())
         {
-            var keys = await MatchupCohort.LoadAsync(db, ["EUW1_XPLAT"], CancellationToken.None);
+            var cohort = await ChampionCohort.LoadAsync(db, ["EUW1_XPLAT"], CancellationToken.None);
 
-            keys.Should().BeEmpty();
+            cohort.Keys.Should().BeEmpty();
         }
     }
 
@@ -165,9 +165,9 @@ public sealed class MatchupCohortIntegrationTests
 
         await using (var db = _fixture.CreateDbContext())
         {
-            var keys = await MatchupCohort.LoadAsync(db, ["EUW1_RETIRED"], CancellationToken.None);
+            var cohort = await ChampionCohort.LoadAsync(db, ["EUW1_RETIRED"], CancellationToken.None);
 
-            keys.Should().ContainSingle();
+            cohort.Keys.Should().ContainSingle();
         }
     }
 
@@ -187,9 +187,9 @@ public sealed class MatchupCohortIntegrationTests
 
         await using (var db = _fixture.CreateDbContext())
         {
-            var keys = await MatchupCohort.LoadAsync(db, ["EUW1_ASKED"], CancellationToken.None);
+            var cohort = await ChampionCohort.LoadAsync(db, ["EUW1_ASKED"], CancellationToken.None);
 
-            keys.Select(key => key.MatchId).Should().BeEquivalentTo(["EUW1_ASKED"]);
+            cohort.Keys.Select(key => key.MatchId).Should().BeEquivalentTo(["EUW1_ASKED"]);
         }
     }
 
@@ -212,14 +212,70 @@ public sealed class MatchupCohortIntegrationTests
 
         await using (var db = _fixture.CreateDbContext())
         {
-            var keys = await MatchupCohort.LoadAsync(
+            var cohort = await ChampionCohort.LoadAsync(
                 db, ["EUW1_G1", "EUW1_G2"], CancellationToken.None);
 
-            keys.Should().BeEquivalentTo(
+            cohort.Keys.Should().BeEquivalentTo(
             [
-                new MatchupCohortKey("EUW1_G1", 3),
-                new MatchupCohortKey("EUW1_G2", 3)
+                new ChampionCohortKey("EUW1_G1", 3),
+                new ChampionCohortKey("EUW1_G2", 3)
             ]);
+        }
+    }
+
+    [Fact]
+    public async Task Excludes_a_remade_game_because_a_remake_is_not_a_game()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = AddAccount(db, TrackedPuuid);
+            // Under the 5-minute floor: the pre-vote remake every fold used to decide
+            // for itself whether to count. Riot's gameEndedInEarlySurrender is not
+            // stored, so the duration is the signal (#1365).
+            Seed(db, "EUW1_REMAKE", TrackedPuuid, Yone, account.Id, participantId: 1,
+                gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds - 1);
+            Seed(db, "EUW1_GAME", TrackedPuuid, Yone, account.Id, participantId: 1,
+                gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds);
+            db.MainChampionStats.Add(MainRow(TrackedPuuid, Yone, isMain: true));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var cohort = await ChampionCohort.LoadAsync(
+                db, ["EUW1_REMAKE", "EUW1_GAME"], CancellationToken.None);
+
+            cohort.Keys.Select(key => key.MatchId).Should().BeEquivalentTo(["EUW1_GAME"]);
+            cohort.IncludesMatch("EUW1_GAME").Should().BeTrue();
+            cohort.IncludesMatch("EUW1_REMAKE").Should()
+                .BeFalse("a remake contributes nothing at all, not even to a population-wide normaliser");
+        }
+    }
+
+    [Fact]
+    public async Task Excludes_a_participant_whose_position_is_not_canonical()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = AddAccount(db, TrackedPuuid);
+            // An empty TeamPosition cannot be placed in a lane, a matchup or a
+            // composition, so it is nobody's champion side.
+            Seed(db, "EUW1_NOLANE", TrackedPuuid, Yone, account.Id, participantId: 1, teamPosition: "");
+            db.MainChampionStats.Add(MainRow(TrackedPuuid, Yone, isMain: true));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var cohort = await ChampionCohort.LoadAsync(db, ["EUW1_NOLANE"], CancellationToken.None);
+
+            cohort.Keys.Should().BeEmpty();
+            cohort.IncludesMatch("EUW1_NOLANE").Should()
+                .BeTrue("the match is still a game - it just has nobody on the champion side");
         }
     }
 
@@ -242,7 +298,9 @@ public sealed class MatchupCohortIntegrationTests
         string puuid,
         int championId,
         Guid? riotAccountId,
-        int participantId)
+        int participantId,
+        int gameDurationSeconds = 1800,
+        string teamPosition = "BOTTOM")
         => MatchParticipantSeed.AddMatchWithParticipant(
             db,
             matchId,
@@ -253,7 +311,9 @@ public sealed class MatchupCohortIntegrationTests
             championId,
             win: true,
             riotAccountId,
-            participantId);
+            participantId,
+            gameDurationSeconds,
+            teamPosition);
 
     private static MainChampionStat MainRow(
         string puuid,

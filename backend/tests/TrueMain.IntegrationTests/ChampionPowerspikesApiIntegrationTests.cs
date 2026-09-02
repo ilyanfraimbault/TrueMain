@@ -27,6 +27,9 @@ namespace TrueMain.IntegrationTests;
 public sealed class ChampionPowerspikesApiIntegrationTests
 {
     private const int QueueId = 420;
+    private const string MainPuuid = "spike-main-puuid";
+    private const string BracketPuuid = "spike-bracket-puuid";
+    private const string MatchupPuuid = "spike-matchup-puuid";
     private const int Champion = 157; // Yone
     private const int Opponent = 238; // Zed
     private const int SecondOpponent = 103; // Ahri — the other side of the matchup split (#957)
@@ -351,14 +354,17 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         var account = new RiotAccountBuilder()
             .WithGameName("SpikeMain")
             .WithTagLine("KR1")
-            .WithPuuid("spike-main-puuid")
+            .WithPuuid(MainPuuid)
             .Build();
         db.RiotAccounts.Add(account);
+        // The fold counts mains of the champion, not every tracked account
+        // (ChampionCohort, #1365), so the main row is part of the corpus.
+        db.MainChampionStats.Add(MainChampionStatSeed.Row(account.PlatformId, account.Puuid, Champion, Position));
         AddKeystoneCatalog(db);
 
         for (var i = 0; i < games; i++)
         {
-            AddSpikeGame(db, $"m-spike-{i}", i, games, account.Id, eloBracket: "");
+            AddSpikeGame(db, $"m-spike-{i}", i, games, account.Id, eloBracket: "", MainPuuid);
         }
 
         await db.SaveChangesAsync();
@@ -381,18 +387,21 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         var account = new RiotAccountBuilder()
             .WithGameName("SpikeBracket")
             .WithTagLine("KR1")
-            .WithPuuid("spike-bracket-puuid")
+            .WithPuuid(BracketPuuid)
             .Build();
         db.RiotAccounts.Add(account);
+        // The fold counts mains of the champion, not every tracked account
+        // (ChampionCohort, #1365), so the main row is part of the corpus.
+        db.MainChampionStats.Add(MainChampionStatSeed.Row(account.PlatformId, account.Puuid, Champion, Position));
         AddKeystoneCatalog(db);
 
         for (var i = 0; i < perBracketGames; i++)
         {
-            AddSpikeGame(db, $"m-spike-gold-{i}", i, perBracketGames, account.Id, EloBracket.Gold);
+            AddSpikeGame(db, $"m-spike-gold-{i}", i, perBracketGames, account.Id, EloBracket.Gold, BracketPuuid);
         }
         for (var i = 0; i < perBracketGames; i++)
         {
-            AddSpikeGame(db, $"m-spike-iron-{i}", i, perBracketGames, account.Id, EloBracket.Iron);
+            AddSpikeGame(db, $"m-spike-iron-{i}", i, perBracketGames, account.Id, EloBracket.Iron, BracketPuuid);
         }
 
         await db.SaveChangesAsync();
@@ -419,18 +428,21 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         var account = new RiotAccountBuilder()
             .WithGameName("SpikeMatchup")
             .WithTagLine("KR1")
-            .WithPuuid("spike-matchup-puuid")
+            .WithPuuid(MatchupPuuid)
             .Build();
         db.RiotAccounts.Add(account);
+        // The fold counts mains of the champion, not every tracked account
+        // (ChampionCohort, #1365), so the main row is part of the corpus.
+        db.MainChampionStats.Add(MainChampionStatSeed.Row(account.PlatformId, account.Puuid, Champion, Position));
         AddKeystoneCatalog(db);
 
         for (var i = 0; i < perOpponentGames; i++)
         {
-            AddSpikeGame(db, $"m-spike-zed-{i}", i, perOpponentGames, account.Id, eloBracket: "", Opponent);
+            AddSpikeGame(db, $"m-spike-zed-{i}", i, perOpponentGames, account.Id, eloBracket: "", MatchupPuuid, Opponent);
         }
         for (var i = 0; i < perOpponentGames; i++)
         {
-            AddSpikeGame(db, $"m-spike-ahri-{i}", i, perOpponentGames, account.Id, eloBracket: "", SecondOpponent);
+            AddSpikeGame(db, $"m-spike-ahri-{i}", i, perOpponentGames, account.Id, eloBracket: "", MatchupPuuid, SecondOpponent);
         }
 
         await db.SaveChangesAsync();
@@ -494,7 +506,7 @@ public sealed class ChampionPowerspikesApiIntegrationTests
 
     private static void AddSpikeGame(
         Data.TrueMainDbContext db, string matchId, int index, int cohortGames, Guid accountId, string eloBracket,
-        int opponentChampionId = Opponent)
+        string trackedPuuid, int opponentChampionId = Opponent)
     {
         db.Matches.Add(new MatchBuilder()
             .WithId(matchId)
@@ -508,7 +520,8 @@ public sealed class ChampionPowerspikesApiIntegrationTests
         // the whole slope change — the population baseline stays shallow.
         var kink = KinkMinute + (index % (2 * KinkSpread + 1)) - KinkSpread;
 
-        var champion = Participant(matchId, 1, Champion, teamId: 100, win: true, accountId, eloBracket);
+        var champion = Participant(
+            matchId, 1, Champion, teamId: 100, win: true, accountId, eloBracket, trackedPuuid);
         // The aggregation detects completions from the purchase events + item
         // metadata, but the build key still comes from the final inventory, so the
         // completed item must also sit in a build slot.
@@ -583,12 +596,15 @@ public sealed class ChampionPowerspikesApiIntegrationTests
 
     private static MatchParticipant Participant(
         string matchId, int participantId, int championId, int teamId, bool win,
-        Guid? riotAccountId = null, string eloBracket = "")
+        Guid? riotAccountId = null, string eloBracket = "", string? puuid = null)
         => new()
         {
             MatchId = matchId,
             ParticipantId = participantId,
-            Puuid = $"puuid-{matchId}-{participantId}",
+            // The tracked seat carries the account's own puuid: the champion cohort
+            // joins main_champion_stats on (platform, puuid, champion), so a per-row
+            // puuid would put this participant outside the fold's cohort entirely.
+            Puuid = puuid ?? $"puuid-{matchId}-{participantId}",
             RiotAccountId = riotAccountId,
             SummonerName = "seed",
             SummonerLevel = 100,
