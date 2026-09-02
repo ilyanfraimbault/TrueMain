@@ -15,7 +15,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    [Migration("20260902144855_AddMatchPatchGeneratedColumn")]
+    [Migration("20260902152627_AddMatchPatchGeneratedColumn")]
     partial class AddMatchPatchGeneratedColumn
     {
         /// <inheritdoc />
@@ -1520,6 +1520,12 @@ namespace Data.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("LadderGames")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LadderGamesAtLastIngest")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("LastActivityCheckAtUtc")
                         .HasColumnType("timestamp with time zone");
