@@ -337,22 +337,15 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
             />
           </div>
         </template>
-        <USkeleton v-if="historyPending" class="h-[260px] w-full" />
-        <div
-          v-else-if="!hasGrowthTrend"
-          class="flex h-[260px] items-center justify-center text-center text-sm text-muted"
-        >
-          Not enough snapshots yet to draw a trend — one point is recorded per day.
-        </div>
-        <NcAreaChart
-          v-else
-          :data="growthRows"
+        <ChartsAreaChart
+          :data="hasGrowthTrend ? growthRows : []"
           :height="260"
           :categories="growthCategories"
+          :loading="historyPending"
+          empty-message="Not enough snapshots yet to draw a trend — one point is recorded per day."
           :x-num-ticks="Math.min(growthRows.length, 8)"
           :x-formatter="growthLabelFormatter"
           :y-formatter="growthValueFormatter"
-          v-bind="areaChartProps()"
         />
       </UCard>
 
