@@ -38,6 +38,17 @@ The limiter sits **inside** the resilience handler (a retried attempt waits for 
 replaying into the limit that rejected it) and **outside** the metrics handler (a permit wait is not Riot
 latency). No configuration is needed when the key changes: the limits are learned from the response.
 
+**Match ingestion fans out one worker per platform, and stays sequential inside one.**
+The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained
+allowance — while the other two regional budgets went unused. The fan-out is across routing values because
+that is the grain of the budget; going wider *within* a platform would only queue behind the limiter that now
+governs it, while adding contention on the same claim rows. Every collaborator it fans out to is stateless or
+opens its own `DbContext` per account, so the only shared mutable state is the per-worker tally, merged in
+platform order once the workers finish — the run summary is read by humans comparing one cycle to the next,
+so a non-deterministic merge order would be a regression in its own right. A platform's failure stays its
+own: the per-account catch was already there, and the result being local is what stops one bad account from
+costing the other regions.
+
 ## Product
 
 **Stats are computed from *true mains* by default, and that default is now a filter rather than the
