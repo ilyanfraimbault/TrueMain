@@ -3,7 +3,7 @@ import { Orientation } from '@unovis/ts'
 import { describe, expect, it } from 'vitest'
 import { h } from 'vue'
 import BarChart from '~/components/charts/BarChart.vue'
-import BarChartTooltip from '~/components/charts/BarChartTooltip.vue'
+import ChartTooltip from '~/components/charts/ChartTooltip.vue'
 
 // <ChartsBarChart> exists to repair two vue-chrts tooltip defects, both of which
 // typecheck, render, and are silently empty or silently WRONG in a browser. They
@@ -16,12 +16,12 @@ const CATEGORIES = {
 }
 
 function mountTooltip(values: unknown, props: Record<string, unknown> = {}) {
-  return mount(BarChartTooltip, {
+  return mount(ChartTooltip, {
     props: { values, categories: CATEGORIES, ...props },
   })
 }
 
-describe('ChartsBarChartTooltip', () => {
+describe('ChartsChartTooltip', () => {
   it('unwraps the datum @unovis/ts binds to a STACKED bar', () => {
     // The shape upstream's own tooltip fails on: the row is nested under
     // `datum`, so looking category keys up at the root finds nothing at all.

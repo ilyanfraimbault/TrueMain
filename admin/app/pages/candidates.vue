@@ -505,7 +505,7 @@ const pipelineStages = computed(() =>
               <p class="text-xs text-muted uppercase mb-1.5">
                 Outcome, cumulative over the window
               </p>
-              <NcAreaChart
+              <ChartsAreaChart
                 :data="outcomeChartData"
                 :height="240"
                 :categories="outcomeChartCategories"
@@ -513,7 +513,6 @@ const pipelineStages = computed(() =>
                 :x-num-ticks="Math.min(outcomeChartData.length, 8)"
                 :x-formatter="outcomeXFormatter"
                 :y-formatter="formatCount"
-                v-bind="multiAreaChartProps()"
               />
               <p class="mt-3 text-xs text-dimmed tabular-nums">
                 {{ formatNumber(funnelTotals.validated) }} validated ·

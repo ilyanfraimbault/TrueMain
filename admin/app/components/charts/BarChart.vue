@@ -1,7 +1,12 @@
 <script setup lang="ts" generic="TItem extends Record<string, unknown>">
 import { Orientation } from '@unovis/ts'
-import { onBeforeUnmount } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import type { BulletLegendItemInterface } from 'vue-chrts/types'
+// Imports below are explicit rather than auto-imported: this component is
+// mounted directly by the unit tests, which run outside Nuxt and resolve
+// neither auto-imported utils nor auto-registered components.
+import { escapeTickFormatter } from '~/utils/chart-text'
+import ChartTooltip from './ChartTooltip.vue'
 
 // Thin wrapper over <NcBarChart> that repairs two tooltip defects in vue-chrts.
 // Both were verified against 2.1.4 in a browser and both are still present in
@@ -34,7 +39,7 @@ import type { BulletLegendItemInterface } from 'vue-chrts/types'
 // land on the wrapping div.
 defineOptions({ inheritAttrs: false })
 
-defineProps<{
+const props = defineProps<{
   // `data`, `height` and `yAxis` are declared rather than left to `$attrs`
   // because <NcBarChart> requires them: a fall-through attr does not satisfy a
   // required prop at the type level, so the build fails without them.
@@ -45,7 +50,7 @@ defineProps<{
   categories: Record<string, BulletLegendItemInterface>
   /**
    * Which axis the bars run along. Declared because the tooltip's value
-   * formatter depends on it — see `BarChartTooltip`.
+   * formatter depends on it — see `ChartTooltip`.
    */
   orientation?: Orientation
   xFormatter?: (value: number | Date) => string
@@ -129,6 +134,15 @@ function cancelReplay() {
 }
 
 onBeforeUnmount(cancelReplay)
+
+// Tick text is string-interpolated into an SVG fragment and parsed as strict
+// XML by @unovis/ts, so `&`/`<`/`>` in a label must be escaped before it reaches
+// an AXIS (#842) — champion names such as "Nunu & Willump" are the live case.
+// The tooltip keeps the RAW formatters: its text goes through Vue
+// interpolation, which escapes on its own, and feeding it pre-escaped text
+// would print the entity itself.
+const safeXFormatter = computed(() => escapeTickFormatter(props.xFormatter))
+const safeYFormatter = computed(() => escapeTickFormatter(props.yFormatter))
 </script>
 
 <template>
@@ -143,12 +157,12 @@ onBeforeUnmount(cancelReplay)
       :y-axis="yAxis"
       :categories="categories"
       :orientation="orientation"
-      :x-formatter="xFormatter"
-      :y-formatter="yFormatter"
+      :x-formatter="safeXFormatter"
+      :y-formatter="safeYFormatter"
       :tooltip-title-formatter="tooltipTitleFormatter"
     >
       <template #tooltip="{ values }">
-        <ChartsBarChartTooltip
+        <ChartTooltip
           :values="values"
           :categories="categories"
           :orientation="orientation"
