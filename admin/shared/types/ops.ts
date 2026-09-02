@@ -318,6 +318,73 @@ export const PIPELINE_CHAIN: readonly string[] = [
 ]
 
 /**
+ * One lane of the pipeline: the steps a single ingestor instance runs, in order.
+ *
+ * Since #1362 the ingestor is not one chain but two composite `JobMode`s that
+ * partition it — `FetchLane` is bounded by the Riot limiter, `AggregateLane` by
+ * Postgres — deployed as two containers on their own cadences. The chain view
+ * renders one branch per lane, so a lane's iteration no longer paints the other
+ * lane's steps as phantom "Not run" chips.
+ */
+export interface PipelineLane {
+  id: PipelineLaneId
+  label: string
+  /** What paces the lane — the one thing that explains its cadence. */
+  description: string
+  /** Its steps, in the relative order they hold in {@link PIPELINE_CHAIN}. */
+  steps: readonly string[]
+}
+
+export type PipelineLaneId = 'fetch' | 'aggregate'
+
+/**
+ * The two lanes, mirroring `JobModeSequence.FetchLanePipeline` /
+ * `AggregateLanePipeline` — the same hand-maintained copy {@link PIPELINE_CHAIN}
+ * is, and pinned the same way: `pipeline-lanes.test.ts` asserts they are a true
+ * partition of the chain, in its order. A step in neither would stop being drawn
+ * altogether (worse than the old misplacement), a step in both would be drawn
+ * twice.
+ */
+export const PIPELINE_LANES: readonly PipelineLane[] = [
+  {
+    id: 'fetch',
+    label: 'Fetch lane',
+    description:
+      'Everything that talks to Riot, paced by the per-region limiter: it reads the ladders, picks who to visit and downloads their matches.',
+    steps: [
+      'LadderSync',
+      'Discovery',
+      'ManualSeed',
+      'Harvest',
+      'Scoring',
+      'MainActivity',
+      'MatchIngestion',
+      'AccountRefresh',
+    ],
+  },
+  {
+    id: 'aggregate',
+    label: 'Aggregate lane',
+    description:
+      'Everything that only reads and writes Postgres: it folds the matches already downloaded into the stats the site serves, then prunes what is no longer needed.',
+    steps: [
+      'MatchTeamPositionCorrection',
+      'MainAnalysis',
+      'MatchParticipantEloBracketEnrichment',
+      'RunePageDeduplication',
+      'ChampionPatternAggregation',
+      'ChampionMatchupLeadAggregation',
+      'ChampionLaneOutcomeAggregation',
+      'ChampionSynergyAggregation',
+      'ChampionBanAggregation',
+      'ChampionPowerspikeAggregation',
+      'MatchDataRetention',
+      'StorageSnapshot',
+    ],
+  },
+]
+
+/**
  * Display metadata for one pipeline process: the name shown on a chain chip, and
  * the sentence explaining what the step does.
  */
