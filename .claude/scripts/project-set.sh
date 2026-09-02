@@ -36,6 +36,12 @@ sprint_iterations() {
         | @tsv'
 }
 
+# "$1 + $2 days" as YYYY-MM-DD, on GNU date (Linux, CI) and BSD date (macOS).
+add_days() {
+  date -u -d "$1 +$2 days" +%F 2>/dev/null \
+    || date -u -j -v+"$2"d -f %Y-%m-%d "$1" +%F
+}
+
 # current = the iteration containing today; next = the first one starting after
 # today. Anything else is matched on title.
 resolve_sprint() {
@@ -44,7 +50,7 @@ resolve_sprint() {
 
   while IFS=$'\t' read -r id title start duration; do
     [ -n "$id" ] || continue
-    end="$(date -u -d "$start +$duration days" +%F)"
+    end="$(add_days "$start" "$duration")"
     case "$want" in
       current) [[ "$today" < "$end" && ! "$today" < "$start" ]] && { echo "$id	$title"; return; } ;;
       next)    [[ "$start" > "$today" ]] && { echo "$id	$title"; return; } ;;
@@ -77,8 +83,11 @@ case "$FIELD" in
     FIELD_ID="$SPRINT_FIELD_ID"
     if [ "$VALUE" != "none" ]; then
       if ! RESOLVED="$(resolve_sprint "$VALUE")"; then
-        echo "no iteration matches '$VALUE'. Known iterations:" >&2
-        sprint_iterations | cut -f2 | sed 's/^/  /' >&2
+        echo "no iteration matches '$VALUE'. Known iterations (title, start, days):" >&2
+        sprint_iterations | cut -f2- | sed 's/^/  /' >&2
+        case "$VALUE" in current|next)
+          echo "today ($(date -u +%F)) is past every configured iteration: add the next sprint in the project's Sprint field settings (GitHub UI), then retry." >&2 ;;
+        esac
         exit 1
       fi
       ITERATION_ID="${RESOLVED%%	*}"
