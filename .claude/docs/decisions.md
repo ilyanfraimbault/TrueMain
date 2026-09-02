@@ -213,6 +213,7 @@ Last verified against `develop` on 2026-09-02.
 - Riot API caller attribution uses an `AsyncLocal` ambient context, mirroring `IterationContext` — #1035
 - The budget-headroom estimate (#1035) requires 24h of rollup history before it will extrapolate, and picks the app rate-limit window with the smallest daily ceiling as "binding"
 - The configuration viewer is an allow-list, and each host reports itself (2026-08-08) — #1034, #1033, #924
+- The pipeline chain is drawn per lane, not as one flat list (2026-09-02) — #1399, #1362
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
