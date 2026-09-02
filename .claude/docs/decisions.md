@@ -38,6 +38,29 @@ The limiter sits **inside** the resilience handler (a retried attempt waits for 
 replaying into the limit that rejected it) and **outside** the metrics handler (a permit wait is not Riot
 latency). No configuration is needed when the key changes: the limits are learned from the response.
 
+**The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks.**
+The 20 steps were one serial chain, so the Riot key idled through every aggregation and the aggregates waited
+behind ~55 minutes of HTTP; on a Discovery day they were 2.5 hours older than they needed to be. `FetchLane`
+and `AggregateLane` are composite `JobMode`s, exactly like `Full`, so the split reuses the machinery that
+already existed rather than adding a scheduler.
+What makes it safe is that the sequence was never what ordered the work *between* steps: every aggregation
+selects only the matches whose prerequisites hold (`TimelineIngested`, the per-fold flags on `matches`), so a
+fold that runs early finds nothing and picks the rows up next pass. Order *within* a lane is still
+load-bearing — the ban fold must see stamped elo brackets, the timeline prune must not precede the powerspike
+fold — which is why the two lanes preserve the full pipeline's relative order, asserted by a test that also
+pins them as a true partition of it: a step in neither would silently stop running, a step in both would fold
+the same rows twice.
+The one thing the split genuinely broke is orphan-run reconciliation. It abandoned *every* `Running` document
+at boot, on the stated assumption of a single-instance ingestor; with two lanes that means each lane marks the
+other's live run as dead on every restart. It is now scoped to the steps the booting lane actually owns, and
+resolves those names with `GetKeyedService` rather than the required variant — an unregistered step is a
+wiring mistake the run itself reports precisely, and throwing at boot would bury that behind a vaguer error.
+An empty owned-set skips reconciliation rather than sweeping everything, because "I don't know what I own" is
+the one case where a full sweep is certainly wrong.
+**Preprod runs the two lanes; prod stays on `Full` until preprod has.** Nothing about the code forces a
+topology — a single container on `Full` still runs everything in order — so the split is a deployment
+decision, and it is the kind that is cheap to validate on preprod and expensive to get wrong on prod (#1362).
+
 **Match ingestion fans out one worker per platform, and stays sequential inside one.**
 The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained
 allowance — while the other two regional budgets went unused. The fan-out is across routing values because

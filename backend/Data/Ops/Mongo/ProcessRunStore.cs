@@ -79,8 +79,14 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
             cancellationToken: ct);
     }
 
-    public async Task<int> AbandonRunningAsync(DateTime finishedAtUtc, string error, CancellationToken ct)
+    public async Task<int> AbandonRunningAsync(
+        DateTime finishedAtUtc,
+        string error,
+        IReadOnlyCollection<string> processNames,
+        CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(processNames);
+
         if (!context.IsActive)
         {
             return 0;
@@ -90,8 +96,18 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
 
         // Per-document duration (finish − that run's own start) can't ride a
         // single UpdateMany, so fetch the (few) running docs and bulk-update them.
+        // Narrowed to the caller's own processes when it names them: with the pipeline
+        // split into a fetch lane and an aggregate lane (#1362), each in its own process,
+        // an unrestricted sweep at one lane's boot would abandon the other lane's in-flight
+        // runs and make the admin panels report a healthy pipeline as broken.
+        var filter = processNames.Count == 0
+            ? Builders<ProcessRunDocument>.Filter.Eq(doc => doc.Status, ProcessRunStatus.Running)
+            : Builders<ProcessRunDocument>.Filter.And(
+                Builders<ProcessRunDocument>.Filter.Eq(doc => doc.Status, ProcessRunStatus.Running),
+                Builders<ProcessRunDocument>.Filter.In(doc => doc.ProcessName, processNames));
+
         var running = await context.ProcessRuns
-            .Find(doc => doc.Status == ProcessRunStatus.Running)
+            .Find(filter)
             .ToListAsync(ct);
 
         if (running.Count == 0)

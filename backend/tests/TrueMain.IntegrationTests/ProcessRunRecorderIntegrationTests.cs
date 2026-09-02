@@ -158,7 +158,7 @@ public sealed class ProcessRunRecorderIntegrationTests
 
         using var context = BuildContext();
         var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
-        var reconciled = await recorder.ReconcileOrphanedRunsAsync(CancellationToken.None);
+        var reconciled = await recorder.ReconcileOrphanedRunsAsync(["Discovery", "Scoring"], CancellationToken.None);
 
         reconciled.Should().Be(1);
 
@@ -172,6 +172,53 @@ public sealed class ProcessRunRecorderIntegrationTests
 
         var successAfter = await GetRunAsync(successId);
         successAfter.Status.Should().Be(ProcessRunStatus.Success);
+    }
+
+    [Fact]
+    public async Task ReconcileOrphanedRunsAsync_LeavesAnotherLanesRunningRunAlone()
+    {
+        await _mongo.ResetAsync();
+
+        var startedAt = DateTime.UtcNow.AddMinutes(-3);
+        var ownId = Guid.NewGuid();
+        var otherLaneId = Guid.NewGuid();
+        await Collection().InsertManyAsync(
+        [
+            new ProcessRunDocument
+            {
+                Id = ownId,
+                ProcessName = "Discovery",
+                StartedAtUtc = startedAt,
+                FinishedAtUtc = startedAt,
+                DurationMs = 0,
+                Status = ProcessRunStatus.Running,
+                Host = "fetch-lane",
+                LastHeartbeatAtUtc = startedAt
+            },
+            new ProcessRunDocument
+            {
+                Id = otherLaneId,
+                ProcessName = "ChampionPatternAggregation",
+                StartedAtUtc = startedAt,
+                FinishedAtUtc = startedAt,
+                DurationMs = 0,
+                Status = ProcessRunStatus.Running,
+                Host = "aggregate-lane",
+                LastHeartbeatAtUtc = startedAt
+            }
+        ]);
+
+        using var context = BuildContext();
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
+
+        // The fetch lane restarting must reclaim its own orphan and leave the aggregate
+        // lane's genuinely in-flight run alone (#1362) — the two lanes are separate
+        // processes against one database.
+        var reconciled = await recorder.ReconcileOrphanedRunsAsync(["Discovery", "MatchIngestion"], CancellationToken.None);
+
+        reconciled.Should().Be(1);
+        (await GetRunAsync(ownId)).Status.Should().Be(ProcessRunStatus.Abandoned);
+        (await GetRunAsync(otherLaneId)).Status.Should().Be(ProcessRunStatus.Running);
     }
 
     [Fact]
@@ -193,7 +240,7 @@ public sealed class ProcessRunRecorderIntegrationTests
 
         using var context = BuildContext();
         var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
-        (await recorder.ReconcileOrphanedRunsAsync(CancellationToken.None)).Should().Be(0);
+        (await recorder.ReconcileOrphanedRunsAsync(["Discovery"], CancellationToken.None)).Should().Be(0);
     }
 
     private IMongoCollection<ProcessRunDocument> Collection()
