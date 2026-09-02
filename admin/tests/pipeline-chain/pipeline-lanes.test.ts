@@ -1,7 +1,7 @@
 import type { ProcessRun } from '~~/shared/types/ops'
 import { describe, expect, it } from 'vitest'
 import { PIPELINE_CHAIN, PIPELINE_LANES } from '~~/shared/types/ops'
-import { buildLaneBranches, laneForProcess } from '~~/shared/utils/pipeline-lanes'
+import { buildLaneBranches, laneForProcess, pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
 
 // PIPELINE_LANES is a hand-maintained copy of the ingestor's FetchLanePipeline /
 // AggregateLanePipeline, the way PIPELINE_CHAIN is one of FullPipeline — and the
@@ -29,7 +29,7 @@ function run(processName: string, overrides: Partial<ProcessRun> = {}): ProcessR
 const FETCH_STEPS = PIPELINE_LANES.find(lane => lane.id === 'fetch')!.steps
 const AGGREGATE_STEPS = PIPELINE_LANES.find(lane => lane.id === 'aggregate')!.steps
 
-describe('pIPELINE_LANES', () => {
+describe('PIPELINE_LANES', () => {
   it('partitions PIPELINE_CHAIN exactly', () => {
     const laneSteps = PIPELINE_LANES.flatMap(lane => lane.steps)
 
@@ -157,5 +157,54 @@ describe('buildLaneBranches', () => {
 
     expect(link!.run!.id).toBe('retry')
     expect(link!.outcome).toBe('Success')
+  })
+})
+
+describe('pickCurrentLanes', () => {
+  it('shows each lane at its own newest iteration', () => {
+    // Newest first, the way the API returns them: the fetch lane has run twice
+    // since the aggregate lane's last pass.
+    const lanes = pickCurrentLanes([
+      { runs: [run('LadderSync', { status: 'Running', finishedAtUtc: null })] },
+      { runs: [run('LadderSync'), run('MatchIngestion')] },
+      { runs: [run('MainAnalysis'), run('ChampionBanAggregation')] },
+    ])
+
+    expect(lanes.map(lane => lane.branch.id)).toEqual(['fetch', 'aggregate'])
+    expect(lanes[0]!.isRunning).toBe(true)
+    expect(lanes[0]!.branch.links.find(link => link.processName === 'MatchIngestion')!.outcome).toBe('notRun')
+    expect(lanes[1]!.isRunning).toBe(false)
+    expect(lanes[1]!.branch.ran).toBe(true)
+  })
+
+  it('keeps a lane that has not run in the window, marked not-run', () => {
+    // The case the panel exists for: one lane stalled or dead. It must stay on
+    // screen rather than disappear because no recent iteration mentions it.
+    const lanes = pickCurrentLanes([{ runs: [run('LadderSync'), run('MatchIngestion')] }])
+
+    expect(lanes.map(lane => lane.branch.id)).toEqual(['fetch', 'aggregate'])
+    const aggregate = lanes[1]!
+    expect(aggregate.branch.ran).toBe(false)
+    expect(aggregate.branch.outcome).toBe('notRun')
+    expect(aggregate.isRunning).toBe(false)
+  })
+
+  it('shows every lane not-run when nothing has been recorded at all', () => {
+    const lanes = pickCurrentLanes([])
+
+    expect(lanes.map(lane => lane.branch.id)).toEqual(['fetch', 'aggregate'])
+    expect(lanes.every(lane => !lane.branch.ran)).toBe(true)
+  })
+
+  it('reports a Full pass as one running lane, not two', () => {
+    // The iteration is running, but only the branch holding the running step is.
+    const lanes = pickCurrentLanes([{
+      runs: [
+        run('LadderSync'),
+        run('MainAnalysis', { status: 'Running', finishedAtUtc: null }),
+      ],
+    }])
+
+    expect(lanes.map(lane => lane.isRunning)).toEqual([false, true])
   })
 })

@@ -156,3 +156,52 @@ function toBranch(
     durationMs,
   }
 }
+
+/** One lane as it stands right now, for the live tree at the top of the panel. */
+export interface CurrentLane {
+  branch: LaneBranch
+  isRunning: boolean
+}
+
+/**
+ * The current state of every lane, from the most recent iterations (newest first).
+ *
+ * Each lane is shown at *its own* newest iteration, which is why this takes a
+ * handful of them rather than one: the lanes run at their own cadences, so the
+ * slower one's newest pass sits a few positions down a newest-first list, and
+ * "the newest iteration" would show one lane and hide the other.
+ *
+ * Every lane is always returned. A lane absent from the window has not run
+ * recently — a stalled or dead lane is exactly what this panel is read for — so
+ * it stays on screen, marked not-run, instead of vanishing.
+ */
+export function pickCurrentLanes(
+  iterations: readonly { runs: ProcessRun[] }[],
+): CurrentLane[] {
+  const byLane = new Map<string, CurrentLane>(
+    buildLaneBranches([]).map(branch => [branch.id, { branch, isRunning: false }]),
+  )
+
+  for (const iteration of iterations) {
+    for (const branch of buildLaneBranches(iteration.runs)) {
+      // First iteration that ran the lane wins — the list is newest-first.
+      if (!branch.ran || byLane.get(branch.id)?.branch.ran) {
+        continue
+      }
+      byLane.set(branch.id, {
+        branch,
+        // The iteration's own running flag would mark BOTH branches of a `Full`
+        // pass as running because one of them is; the branch's own outcome is the
+        // honest per-lane answer.
+        isRunning: branch.outcome === 'Running',
+      })
+    }
+  }
+
+  // Lanes assembled from different iterations still read in pipeline order,
+  // with the catch-all branch last.
+  const rank = new Map<string, number>(PIPELINE_LANES.map((lane, index) => [lane.id, index]))
+  return [...byLane.values()].sort(
+    (a, b) => (rank.get(a.branch.id) ?? PIPELINE_LANES.length) - (rank.get(b.branch.id) ?? PIPELINE_LANES.length),
+  )
+}

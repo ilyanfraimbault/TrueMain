@@ -9,12 +9,12 @@
 import type { TableColumn } from '@nuxt/ui'
 import type { BadgeColor, ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import type { ChainLink, ChainOutcome, LaneBranch } from '~~/shared/utils/pipeline-lanes'
-import { PIPELINE_LANES, PROCESS_META } from '~~/shared/types/ops'
+import { PROCESS_META } from '~~/shared/types/ops'
 import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 // The chain is grouped by lane, not flat: since #1362 an iteration belongs to one
 // lane, and drawing the canonical 20 steps every time painted the other lane's
 // dozen as phantom "Not run" chips. `buildLaneBranches` owns that grouping.
-import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
+import { buildLaneBranches, pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
 // Run-status colours and icons live in `utils/pipeline-health.ts` so this page and the
 // health cockpit paint the same run identically — they used to disagree on `Running`.
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
@@ -132,52 +132,12 @@ const latestIterations = computed<ProcessIteration[]>(
   () => latestIterationData.value?.iterations ?? [],
 )
 
-// One lane's branch of the live tree: the lane as it stands in the most recent
-// iteration that ran it, plus which iteration that was.
-interface CurrentLane {
-  branch: LaneBranch
-  iterationId: string
-  isRunning: boolean
-}
-
-// Rendering order of the branches, so lanes assembled from *different*
-// iterations still read top-to-bottom in pipeline order (`other` last).
-const LANE_ORDER = new Map<string, number>(PIPELINE_LANES.map((lane, i) => [lane.id, i]))
-function laneRank(id: LaneBranch['id']): number {
-  return LANE_ORDER.get(id) ?? PIPELINE_LANES.length
-}
-
 // The live tree at the top: each lane shown at its own newest iteration. On a
 // two-lane deployment those are two different passes running concurrently; on a
-// `Full` one, a single iteration supplies both branches and they share an id.
-// Driven by the dedicated latest-iterations fetch so list pagination never
-// changes it.
-const currentLanes = computed<CurrentLane[]>(() => {
-  const iterations = latestIterations.value
-  if (iterations.length === 0) {
-    // Nothing recorded yet: show the shape of the pipeline, all steps not-yet-run.
-    return buildLaneBranches([]).map(branch => ({ branch, iterationId: branch.id, isRunning: false }))
-  }
-
-  // Newest-first, so the first iteration that ran a lane is that lane's current one.
-  const byLane = new Map<string, CurrentLane>()
-  for (const iteration of iterations) {
-    for (const branch of buildLaneBranches(iteration.runs)) {
-      if (!branch.ran || byLane.has(branch.id)) {
-        continue
-      }
-      byLane.set(branch.id, {
-        branch,
-        iterationId: iteration.iterationId,
-        // The iteration's own flag would mark BOTH branches of a `Full` pass as
-        // running because one of them is; the branch's own outcome is the honest
-        // per-lane answer.
-        isRunning: branch.outcome === 'Running',
-      })
-    }
-  }
-  return [...byLane.values()].sort((a, b) => laneRank(a.branch.id) - laneRank(b.branch.id))
-})
+// `Full` one, a single iteration supplies both branches. Driven by the dedicated
+// latest-iterations fetch so list pagination never changes it. The assembly lives
+// in the shared util, with the lanes themselves, so it is pinned by tests.
+const currentLanes = computed(() => pickCurrentLanes(latestIterations.value))
 const currentIterationRunning = computed(() => currentLanes.value.some(lane => lane.isRunning))
 
 // Precompute each finished iteration's branches once, so the recent-iterations
