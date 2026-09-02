@@ -7,7 +7,7 @@ namespace Data.Migrations
     /// <summary>
     /// Data-only migration: empties <c>champion_matchup_stats</c> and re-arms both folds
     /// that write it, so the table is rebuilt under the mains cohort
-    /// (<c>Data.Aggregation.MatchupCohort</c>) instead of the wider "any account we know"
+    /// (<c>Data.Aggregation.MatchupCohort</c>, renamed <c>ChampionCohort</c> in #1365) instead of the wider "any account we know"
     /// one it was accumulated with.
     ///
     /// <para>

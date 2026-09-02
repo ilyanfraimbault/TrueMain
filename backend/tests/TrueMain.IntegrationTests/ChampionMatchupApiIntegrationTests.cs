@@ -1058,7 +1058,7 @@ public sealed class ChampionMatchupApiIntegrationTests
 
     /// <summary>
     /// The fold's champion-side cohort is "a main of this champion"
-    /// (<c>Data.Aggregation.MatchupCohort</c>), so every account whose games are
+    /// (<c>Data.Aggregation.ChampionCohort</c>), so every account whose games are
     /// meant to reach the aggregate needs one of these rows — including the second
     /// tracked account in the seeds that assert what the *global* pool holds.
     /// </summary>
