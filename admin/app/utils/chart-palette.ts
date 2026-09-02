@@ -7,10 +7,19 @@
 // hue when a hue means something (#1404). Charts were the visible half of the
 // divergence, because a chart is nothing but colour carrying meaning.
 //
-// Deliberately a mirror of `web/app/utils/chart-palette.ts` so the two files
-// diff cleanly. The one thing that does NOT cross over is the neutral: the web
-// app's guides are drawn from its `ink` ramp, which would sit wrong on the
-// portal's zinc surfaces, so the guide and axis neutrals below are zinc.
+// What it shares with `web/app/utils/chart-palette.ts` is the accent and the
+// reasoning, not the file: the two answer different questions and are expected
+// to keep diverging.
+//   * the SERIES strategy is different, and deliberately. The public site's
+//     `CHART_SERIES_PALETTE` is the accent followed by a descending grey ramp,
+//     because a second series there is almost always a comparison baseline and a
+//     saturated hue would compete with the data axis. The portal's `CHART_SERIES`
+//     is a genuinely categorical triad, because its series are independent
+//     sources — ladder, harvest and manual seed fail separately, and the reader
+//     has to tell which one dried up.
+//   * the NEUTRAL is different because the surfaces are. The site draws its
+//     guides from `ink`; the portal's chrome is zinc, so the guide and axis
+//     neutrals below are zinc.
 
 // The app accent, and the first slot of every series list: a single-series
 // chart picks it up without asking.
