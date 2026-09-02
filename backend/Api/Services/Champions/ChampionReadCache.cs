@@ -80,9 +80,15 @@ public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCa
         ArgumentNullException.ThrowIfNull(compute);
 
         var versionedKey = ComposeKey(await GetAggregationVersionAsync(ct), key);
-        if (cache.TryGetValue<T>(versionedKey, out var cached) && cached is not null)
+
+        // Presence, not truthiness: several of these reads answer a legitimate "no data
+        // for this slice" with null (an unplayed matchup, a lane a champion never
+        // takes), and those are exactly the slices nobody has warmed. Treating a cached
+        // null as a miss would leave the emptiest corners of the site re-scanning on
+        // every visit. Only this key writes this entry, so the cast is safe.
+        if (cache.TryGetValue(versionedKey, out var cached))
         {
-            return cached;
+            return (T)cached!;
         }
 
         var computed = await ReadCoalescer.GetOrJoinAsync(
@@ -91,7 +97,7 @@ public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCa
             {
                 // Re-check under the coalescer: this caller may have queued behind a
                 // pass that has since finished and cached its answer.
-                if (cache.TryGetValue<T>(versionedKey, out var justCached) && justCached is not null)
+                if (cache.TryGetValue(versionedKey, out var justCached))
                 {
                     return justCached;
                 }

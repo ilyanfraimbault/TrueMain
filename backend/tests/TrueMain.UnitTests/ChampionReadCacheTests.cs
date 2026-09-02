@@ -53,6 +53,34 @@ public sealed class ChampionReadCacheTests
     }
 
     [Fact]
+    public async Task A_null_answer_is_cached_like_any_other()
+    {
+        // "No data for this slice" is a real answer — an unplayed matchup, a lane a
+        // champion never takes — and it comes from the corners of the site nobody has
+        // warmed. Re-deriving it on every visit is the one case where a cache that
+        // checks for truthiness instead of presence quietly does nothing.
+        using var cache = SizedCache();
+        var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache);
+        var computations = 0;
+
+        for (var i = 0; i < 3; i++)
+        {
+            var answer = await subject.GetOrComputeAsync<string?>(
+                "champions:matchup-builds:empty",
+                _ =>
+                {
+                    computations++;
+                    return Task.FromResult<string?>(null);
+                },
+                default);
+
+            answer.Should().BeNull();
+        }
+
+        computations.Should().Be(1);
+    }
+
+    [Fact]
     public async Task The_version_token_is_read_once_per_burst_not_once_per_read()
     {
         // The token read is the one query every champion request now makes, so it must
