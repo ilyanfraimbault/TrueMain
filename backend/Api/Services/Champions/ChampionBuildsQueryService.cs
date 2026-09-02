@@ -12,7 +12,8 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionBuildsQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
-    IOptions<ChampionsListOptions> championsListOptions)
+    IOptions<ChampionsListOptions> championsListOptions,
+    IChampionReadCache cache)
     : IChampionBuildsQueryService
 {
     // Build tabs and per-dimension variations are shared with the live matchup
@@ -22,7 +23,7 @@ public sealed class ChampionBuildsQueryService(
     private const int VariationsTopN = ChampionBuildDisplayCaps.MaxVariations;
     private const int RunePagesTopN = 3;
 
-    public async Task<ChampionResponse?> GetAsync(
+    public Task<ChampionResponse?> GetAsync(
         int championId,
         string? patch,
         string? position,
@@ -30,6 +31,24 @@ public sealed class ChampionBuildsQueryService(
         string? eloBracket = null,
         bool truemainsOnly = true,
         CancellationToken ct = default)
+        // This read had no cache at all before #1368, and it is not a cheap one: it
+        // loads the scope's patterns and walks the build tree for every tab the page
+        // mounts. The scope object is part of the key because it narrows the rows.
+        => cache.GetOrComputeAsync(
+            $"champions:builds:{championId}:{patch ?? "auto"}:{position ?? "auto"}"
+                + $":{eloBracket ?? "all"}:{(truemainsOnly ? "truemains" : "everyone")}"
+                + $":{scope?.CacheToken() ?? "default"}",
+            token => ComputeAsync(championId, patch, position, scope, eloBracket, truemainsOnly, token),
+            ct);
+
+    private async Task<ChampionResponse?> ComputeAsync(
+        int championId,
+        string? patch,
+        string? position,
+        ChampionBuildsScope? scope,
+        string? eloBracket,
+        bool truemainsOnly,
+        CancellationToken ct)
     {
         // A blank / ALL filter resolves to null (every tier); a bare tier to a
         // single bucket; a TIER_PLUS filter to that tier and the ones above it;

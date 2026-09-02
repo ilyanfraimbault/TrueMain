@@ -20,9 +20,9 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 17,
+                propertyCount: 18,
                 navigationCount: 1,
-                unnamedIndexCount: 4,
+                unnamedIndexCount: 6,
                 namedIndexCount: 5,
                 keyCount: 1);
 
@@ -123,6 +123,20 @@ namespace Data.CompiledModels
             matchupLeadAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             matchupLeadAggregated.AddAnnotation("Relational:DefaultValue", false);
 
+            var patch = runtimeEntityType.AddProperty(
+                "Patch",
+                typeof(string),
+                propertyInfo: typeof(Match).GetProperty("Patch", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<Patch>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                valueGenerated: ValueGenerated.OnAddOrUpdate,
+                beforeSaveBehavior: PropertySaveBehavior.Ignore,
+                afterSaveBehavior: PropertySaveBehavior.Ignore,
+                maxLength: 32);
+            patch.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            patch.AddAnnotation("Relational:ComputedColumnSql", "((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[1])::int::text || '.' || ((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[2])::int::text");
+            patch.AddAnnotation("Relational:IsStored", true);
+
             var platformId = runtimeEntityType.AddProperty(
                 "PlatformId",
                 typeof(string),
@@ -196,8 +210,16 @@ namespace Data.CompiledModels
             index1.AddAnnotation("Relational:Name", "IX_matches_timeline_ingested");
 
             var index2 = runtimeEntityType.AddIndex(
+                new[] { patch, queueId });
+            index2.AddAnnotation("Relational:Name", "IX_matches_patch_queue");
+
+            var index3 = runtimeEntityType.AddIndex(
                 new[] { platformId, queueId, gameStartTimeUtc });
-            index2.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
+            index3.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
+
+            var index4 = runtimeEntityType.AddIndex(
+                new[] { queueId, patch, platformId });
+            index4.AddAnnotation("Relational:Name", "IX_matches_queue_patch_platform");
 
             var iX_matches_bans_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

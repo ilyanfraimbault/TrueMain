@@ -1,5 +1,4 @@
 using Core.Lol.Ranking;
-using Microsoft.Extensions.Caching.Memory;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions;
@@ -7,11 +6,12 @@ namespace TrueMain.Services.Champions;
 /// <summary>
 /// Orchestrates the two composition stages — top-K similarity selection
 /// (<see cref="ICompositionMatchQueryService"/>) then win-weighted build
-/// aggregation (<see cref="ICompositionBuildQueryService"/>) — behind a short
-/// in-memory cache keyed on the normalised request. The cache is load-bearing,
+/// aggregation (<see cref="ICompositionBuildQueryService"/>) — behind the shared
+/// champion read cache, keyed on the normalised request. The cache is load-bearing,
 /// not an optimisation: the selection scan is live over match_participants and
 /// single-threaded in prod, so repeated identical drafts (the common case
-/// while a lobby theorycrafts) must not re-scan.
+/// while a lobby theorycrafts) must not re-scan — and the single flight behind the
+/// same door means a lobby refreshing together shares one scan rather than one each.
 ///
 /// The selection is cached separately from the response so the provenance
 /// drawer (#940) — which pages that very same selection back to the user —
@@ -23,11 +23,9 @@ public sealed class CompositionRecommendationQueryService(
     ICompositionBuildQueryService buildQueryService,
     ICompositionGamesQueryService gamesQueryService,
     ICompositionLaneOutcomeQueryService laneQueryService,
-    IMemoryCache cache)
+    IChampionReadCache cache)
     : ICompositionRecommendationQueryService
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(30);
-
     /// <summary>Page size of the provenance listing when the caller passes none.</summary>
     private const int DefaultGamesPageSize = 10;
 
@@ -37,17 +35,23 @@ public sealed class CompositionRecommendationQueryService(
     /// </summary>
     private const int MaxGamesPageSize = 25;
 
-    public async Task<CompositionBuildResponse> GetAsync(
+    public Task<CompositionBuildResponse> GetAsync(
         CompositionSearchCriteria criteria,
         CancellationToken ct)
     {
         var bracketToken = EloBracket.ResolveToken(criteria.EloBracket);
-        var cacheKey = BuildCacheKey(criteria, bracketToken);
-        if (cache.TryGetValue<CompositionBuildResponse>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
 
+        return cache.GetOrComputeAsync(
+            BuildCacheKey(criteria, bracketToken),
+            token => ComputeAsync(criteria, bracketToken, token),
+            ct);
+    }
+
+    private async Task<CompositionBuildResponse> ComputeAsync(
+        CompositionSearchCriteria criteria,
+        string bracketToken,
+        CancellationToken ct)
+    {
         var matches = await GetMatchesAsync(criteria, bracketToken, ct);
         var build = await buildQueryService.AggregateAsync(
             criteria.ChampionId, criteria.Position, matches.Matches, matches.MaxPossibleScore, ct);
@@ -75,7 +79,7 @@ public sealed class CompositionRecommendationQueryService(
             Build = build,
         };
 
-        return cache.Store(cacheKey, response, CacheTtl);
+        return response;
     }
 
     public async Task<CompositionBuildGamesResponse> GetGamesAsync(
@@ -117,21 +121,14 @@ public sealed class CompositionRecommendationQueryService(
     /// The selection stage behind its own cache entry, so a recommendation and
     /// its provenance listing scan match_participants once between them.
     /// </summary>
-    private async Task<CompositionMatchesResult> GetMatchesAsync(
+    private Task<CompositionMatchesResult> GetMatchesAsync(
         CompositionSearchCriteria criteria,
         string bracketToken,
         CancellationToken ct)
-    {
-        var cacheKey = BuildCacheKey(criteria, bracketToken) + ":matches";
-        if (cache.TryGetValue<CompositionMatchesResult>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        var matches = await matchQueryService.FindTopMatchesAsync(criteria, ct);
-
-        return cache.Store(cacheKey, matches, CacheTtl);
-    }
+        => cache.GetOrComputeAsync(
+            BuildCacheKey(criteria, bracketToken) + ":matches",
+            token => matchQueryService.FindTopMatchesAsync(criteria, token),
+            ct);
 
     /// <summary>
     /// Deterministic key over the normalised criteria: slots are sorted by

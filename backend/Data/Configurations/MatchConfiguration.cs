@@ -6,6 +6,30 @@ namespace Data.Configurations;
 
 public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
 {
+    /// <summary>
+    /// The Postgres expression behind the stored generated column <c>matches."Patch"</c>
+    /// (#1368). It is the SQL transcription of
+    /// <c>PatchVersion.TryParse(gameVersion, out var v) ? v.ToMajorMinor() : null</c>:
+    /// <list type="bullet">
+    ///   <item>split on dots, trimming each segment and dropping the empty ones — the
+    ///   <c>[\s.]*</c> runs absorb both;</item>
+    ///   <item>the first two surviving segments must parse as integers, sign allowed
+    ///   (<c>[+-]?[0-9]{1,9}</c>), and the match must end at a dot or at the end of the
+    ///   string, so a segment like <c>4x</c> fails the parse exactly as
+    ///   <c>int.TryParse</c> does;</item>
+    ///   <item>each captured segment is re-rendered through <c>::int::text</c>, so
+    ///   <c>16.04.5</c> normalises to <c>16.4</c> the way <c>ToMajorMinor()</c> does;</item>
+    ///   <item>no match ⇒ <c>regexp_match</c> yields NULL ⇒ the concatenation is NULL,
+    ///   which is this column's "not a patch" value — the same answer callers get when
+    ///   <c>TryParse</c> returns false.</item>
+    /// </list>
+    /// The one deliberate divergence is the <c>{1,9}</c> digit cap: a ten-digit segment
+    /// that <c>int.TryParse</c> would still accept yields NULL here rather than an
+    /// out-of-range cast that would fail the INSERT. No Riot version comes close.
+    /// </summary>
+    public const string PatchComputedColumnSql =
+        """((regexp_match("GameVersion", '^[\s.]*([+-]?[0-9]{1,9})[\s]*\.[\s.]*([+-]?[0-9]{1,9})[\s]*(\.|$)'))[1])::int::text || '.' || ((regexp_match("GameVersion", '^[\s.]*([+-]?[0-9]{1,9})[\s]*\.[\s.]*([+-]?[0-9]{1,9})[\s]*(\.|$)'))[2])::int::text""";
+
     public void Configure(EntityTypeBuilder<Match> entity)
     {
         entity.ToTable("matches");
@@ -43,6 +67,14 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         entity.Property(e => e.GameVersion)
             .IsRequired()
             .HasMaxLength(32);
+
+        // Stored, not virtual: the point of the column is to be indexed, and Postgres
+        // cannot index a virtual generated column. The database writes it on every
+        // insert and on every update of GameVersion; the application never does, hence
+        // the private setter on the entity.
+        entity.Property(e => e.Patch)
+            .HasMaxLength(32)
+            .HasComputedColumnSql(PatchComputedColumnSql, stored: true);
 
         entity.Property(e => e.CreatedAtUtc)
             .IsRequired()
@@ -84,6 +116,20 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
 
         entity.HasIndex(e => e.TimelineIngested)
             .HasDatabaseName("IX_matches_timeline_ingested");
+
+        // Every champion read narrows the same way: this queue, this patch, then a join
+        // back to match_participants on the primary key. Patch leads because it is the
+        // selective half (one patch out of the few retained); QueueId follows so the
+        // ranked-only filter is satisfied from the index too (#1368).
+        entity.HasIndex(e => new { e.Patch, e.QueueId })
+            .HasDatabaseName("IX_matches_patch_queue");
+
+        // Queue-first sibling for the two readers that enumerate patches instead of
+        // filtering on one: the pattern aggregation's DISTINCT (Patch, PlatformId) live
+        // keys and retention's per-platform live window. Both become index-only scans
+        // instead of a full pass over matches.
+        entity.HasIndex(e => new { e.QueueId, e.Patch, e.PlatformId })
+            .HasDatabaseName("IX_matches_queue_patch_platform");
 
         // Partial index over the not-yet-aggregated tail so the incremental
         // powerspike batch selection stays cheap; once backfilled almost every row

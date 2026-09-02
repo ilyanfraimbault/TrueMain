@@ -33,6 +33,7 @@ public sealed class ChampionMatchupBuildsQueryService(
     TrueMainDbContext db,
     ParticipantBuildFactsLoader factsLoader,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
+    IChampionReadCache cache,
     ILogger<ChampionMatchupBuildsQueryService> logger) : IChampionMatchupBuildsQueryService
 {
     /// <summary>
@@ -42,7 +43,20 @@ public sealed class ChampionMatchupBuildsQueryService(
     /// </summary>
     private const int MaxMatchupGames = 2_000;
 
-    public async Task<ChampionResponse?> GetAsync(
+    public Task<ChampionResponse?> GetAsync(
+        int championId,
+        int opponentChampionId,
+        string? patch,
+        string position,
+        string? eloBracket,
+        CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"champions:matchup-builds:{championId}:{opponentChampionId}:{position}"
+                + $":{PatchFilter.Normalize(patch) ?? "all"}:{EloBracket.ResolveToken(eloBracket)}",
+            token => ComputeAsync(championId, opponentChampionId, patch, position, eloBracket, token),
+            ct);
+
+    private async Task<ChampionResponse?> ComputeAsync(
         int championId,
         int opponentChampionId,
         string? patch,
@@ -184,8 +198,6 @@ public sealed class ChampionMatchupBuildsQueryService(
         int queueId,
         string? patch)
     {
-        var patchPrefix = PatchFilter.Prefix(patch);
-
         return participants
             .Join(
                 db.MatchParticipants.AsNoTracking().Where(o =>
@@ -196,7 +208,7 @@ public sealed class ChampionMatchupBuildsQueryService(
             .Where(pair => pair.Opponent.TeamId != pair.Participant.TeamId)
             .Join(
                 db.Matches.AsNoTracking().Where(m => m.QueueId == queueId
-                    && (patchPrefix == null || EF.Functions.Like(m.GameVersion, patchPrefix))),
+                    && (patch == null || m.Patch == patch)),
                 pair => pair.Participant.MatchId,
                 m => m.Id,
                 (pair, m) => new MatchupMatchRow

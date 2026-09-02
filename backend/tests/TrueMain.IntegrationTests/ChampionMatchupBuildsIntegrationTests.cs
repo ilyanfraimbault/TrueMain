@@ -167,6 +167,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
                 new FakeItemMetadataProvider(),
                 NullLogger<ParticipantBuildFactsLoader>.Instance),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions()),
+            TestChampionReadCache.PassThrough(),
             NullLogger<ChampionMatchupBuildsQueryService>.Instance);
     }
 

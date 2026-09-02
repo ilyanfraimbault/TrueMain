@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Truemains;
-using TrueMain.Services.Champions;
 
 namespace TrueMain.Services.Truemains;
 
@@ -103,10 +102,6 @@ public sealed class PlayerChampionPerformanceQueryService(
         }
 
         var queueId = (int)options.Value.QueueId;
-        // The matches table stores the full Riot GameVersion, so an exact compare
-        // would never hit; the LIKE prefix bridges normalised input to it.
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
-
         // The player's own rows on the champion, newest first, bounded to the
         // window. Only the match ids are needed here — every stat is re-read
         // below with the other nine participants, so the score is computed from
@@ -122,7 +117,7 @@ public sealed class PlayerChampionPerformanceQueryService(
             where p.Puuid == account.Puuid
                   && p.ChampionId == championId
                   && m.QueueId == queueId
-                  && (patchPrefix == null || EF.Functions.Like(m.GameVersion, patchPrefix))
+                  && (normalizedPatch == null || m.Patch == normalizedPatch)
                   && (normalizedPosition == null || p.TeamPosition == normalizedPosition)
             orderby m.GameStartTimeUtc descending, m.Id descending
             select new { p.MatchId, m.GameDurationSeconds })

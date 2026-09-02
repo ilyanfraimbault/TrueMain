@@ -9,6 +9,7 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionTrendQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
+    IChampionReadCache cache,
     ILogger<ChampionTrendQueryService> logger)
     : IChampionTrendQueryService
 {
@@ -21,7 +22,16 @@ public sealed class ChampionTrendQueryService(
     private const int MaxPatches = 5;
     private const string Surface = "champions-trend";
 
-    public async Task<ChampionTrendReadModel> GetTrendAsync(
+    public Task<ChampionTrendReadModel> GetTrendAsync(
+        int championId,
+        string? position,
+        CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"champions:trend:{championId}:{position ?? "auto"}",
+            token => ComputeTrendAsync(championId, position, token),
+            ct);
+
+    private async Task<ChampionTrendReadModel> ComputeTrendAsync(
         int championId,
         string? position,
         CancellationToken ct)

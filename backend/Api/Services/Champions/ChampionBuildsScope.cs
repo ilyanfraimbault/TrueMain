@@ -25,4 +25,13 @@ namespace TrueMain.Services.Champions;
 public sealed record ChampionBuildsScope(
     Guid RiotAccountId,
     string PlatformId,
-    int MinGames);
+    int MinGames)
+{
+    /// <summary>
+    /// The scope's contribution to a champion-read cache key. Spelled out rather than
+    /// left to <c>ToString()</c> so adding a field to the record cannot silently widen
+    /// what the read returns while leaving the key — and therefore the cached answer —
+    /// unchanged: this has to be edited alongside it.
+    /// </summary>
+    public string CacheToken() => $"{RiotAccountId}|{PlatformId}|{MinGames}";
+}

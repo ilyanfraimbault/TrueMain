@@ -22,7 +22,7 @@ public sealed class ChampionOverviewQueryServiceTests
             },
             totalGames: 1_204_886);
 
-        var overview = await new ChampionOverviewQueryService(summaries)
+        var overview = await new ChampionOverviewQueryService(summaries, TestChampionReadCache.PassThrough())
             .GetOverviewAsync(limit: 8, CancellationToken.None);
 
         overview.PatchVersion.Should().Be("16.15", "the teaser is still ranked on one patch");
@@ -74,7 +74,7 @@ public sealed class ChampionOverviewQueryServiceTests
                 Summaries = rows,
             },
             totalGames: rows.Sum(row => (long)row.Games));
-        return new ChampionOverviewQueryService(summaries);
+        return new ChampionOverviewQueryService(summaries, TestChampionReadCache.PassThrough());
     }
 
     private static IChampionSummariesQueryService SummariesReturning(
