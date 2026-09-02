@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Core;
 using Core.Lol.Identifiers;
 using Data.Logging;
@@ -72,6 +73,61 @@ public sealed class MatchIngestionProcess(
     {
         var summary = new IngestionSummary(platforms);
 
+        // One worker per platform, each still sequential over its own accounts (#1359).
+        // Riot meters its application limit per routing value, so a single serial loop
+        // spent the whole run inside one region's allowance while the others idled —
+        // measured at 0.77 req/s on production, which is exactly one region's sustained
+        // cap. The parallelism that pays is therefore *across* routing values, not inside
+        // one: going wider within a platform would only queue up behind the rate limiter
+        // that now governs it, while adding contention on the same claim rows.
+        //
+        // Every collaborator this fans out to is stateless or creates its own DbContext
+        // per account (IngestSingleAccountAsync opens the session), so the only shared
+        // mutable state is the per-worker result merged below.
+        var platformGroups = claimedAccounts
+            .GroupBy(account => account.PlatformId.ToUpperInvariant(), StringComparer.Ordinal)
+            .ToList();
+
+        var results = new ConcurrentBag<PlatformIngestionResult>();
+        await Parallel.ForEachAsync(
+            platformGroups,
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Math.Max(1, platformGroups.Count),
+                CancellationToken = ct
+            },
+            async (group, token) => results.Add(await IngestPlatformAsync(group.Key, [.. group], options, token)));
+
+        // Merged in a deterministic order: the bag's enumeration order is not, and the
+        // run summary is read by humans comparing one cycle to the next.
+        foreach (var result in results.OrderBy(result => result.PlatformId, StringComparer.Ordinal))
+        {
+            summary.TotalAccounts += result.Accounts;
+            summary.TotalValidated += result.Validated;
+            summary.TotalInserted += result.Inserted;
+            summary.TotalSkipped += result.Skipped;
+            summary.TotalTimelines += result.TimelinesUpdated;
+            summary.TotalErrors += result.Errors;
+            summary.ByPlatform[result.PlatformId] = result.Platform;
+        }
+
+        return summary;
+    }
+
+    /// <summary>
+    /// Ingests one platform's claimed accounts, one after another. A failure is recorded
+    /// against this platform and the loop moves on, exactly as the single serial loop did:
+    /// one bad account must not cost the rest of its own platform, and it must not cost
+    /// the other platforms either, which is why the result is local and merged afterwards.
+    /// </summary>
+    private async Task<PlatformIngestionResult> IngestPlatformAsync(
+        string platformKey,
+        IReadOnlyList<AccountKey> claimedAccounts,
+        MatchIngestionOptions options,
+        CancellationToken ct)
+    {
+        var result = new PlatformIngestionResult(platformKey);
+
         foreach (var account in claimedAccounts)
         {
             ct.ThrowIfCancellationRequested();
@@ -88,7 +144,7 @@ public sealed class MatchIngestionProcess(
                     // back at the head of the next claim and consumed one of the batch's
                     // slots on every single cycle (#1223). Still inside the try: a failure
                     // of the release itself must not abort the rest of the batch.
-                    summary.TotalErrors++;
+                    result.Errors++;
                     logger.LogError(
                         "Unknown platform {Platform} on claimed account {Puuid}; releasing the claim without ingesting.",
                         account.PlatformId,
@@ -98,20 +154,11 @@ public sealed class MatchIngestionProcess(
                 }
 
                 var accountSummary = await IngestSingleAccountAsync(account, platformId, platform, options, ct);
-                summary.TotalAccounts++;
-                if (accountSummary.Validated)
-                {
-                    summary.TotalValidated++;
-                }
-
-                summary.TotalInserted += accountSummary.Inserted;
-                summary.TotalSkipped += accountSummary.Skipped;
-                summary.TotalTimelines += accountSummary.TimelinesUpdated;
-                UpdatePlatformSummary(summary.ByPlatform, accountSummary);
+                result.Record(accountSummary);
             }
             catch (Exception ex)
             {
-                summary.TotalErrors++;
+                result.Errors++;
                 logger.LogError(
                     ex,
                     "Match ingestion failed for {Platform}/{Puuid}. Reverting to queued.",
@@ -121,7 +168,7 @@ public sealed class MatchIngestionProcess(
             }
         }
 
-        return summary;
+        return result;
     }
 
     private async Task RevertClaimAsync(AccountKey account, Exception ingestionException, CancellationToken ct)
@@ -152,22 +199,6 @@ public sealed class MatchIngestionProcess(
                 account.PlatformId,
                 account.Puuid);
         }
-    }
-
-    private static void UpdatePlatformSummary(
-        IDictionary<string, PlatformSummary> summaryByPlatform,
-        AccountIngestionSummary accountSummary)
-    {
-        if (!summaryByPlatform.TryGetValue(accountSummary.PlatformId, out var platformSummary))
-        {
-            platformSummary = new PlatformSummary();
-            summaryByPlatform[accountSummary.PlatformId] = platformSummary;
-        }
-
-        platformSummary.AccountsProcessed++;
-        platformSummary.MatchesInserted += accountSummary.Inserted;
-        platformSummary.MatchesSkipped += accountSummary.Skipped;
-        platformSummary.TimelinesUpdated += accountSummary.TimelinesUpdated;
     }
 
     private async Task<AccountIngestionSummary> IngestSingleAccountAsync(
@@ -283,6 +314,48 @@ public sealed class MatchIngestionProcess(
                     entry.Value.MatchesSkipped,
                     entry.Value.TimelinesUpdated))
                 .ToList());
+    }
+
+    /// <summary>
+    /// One platform worker's tally. Local to the worker, so the platforms can run
+    /// concurrently without sharing a counter, and merged into the run summary once they
+    /// have all finished.
+    /// </summary>
+    private sealed class PlatformIngestionResult(string platformId)
+    {
+        public string PlatformId { get; } = platformId;
+
+        public PlatformSummary Platform { get; } = new();
+
+        public int Accounts { get; private set; }
+
+        public int Validated { get; private set; }
+
+        public int Inserted { get; private set; }
+
+        public int Skipped { get; private set; }
+
+        public int TimelinesUpdated { get; private set; }
+
+        public int Errors { get; set; }
+
+        public void Record(AccountIngestionSummary accountSummary)
+        {
+            Accounts++;
+            if (accountSummary.Validated)
+            {
+                Validated++;
+            }
+
+            Inserted += accountSummary.Inserted;
+            Skipped += accountSummary.Skipped;
+            TimelinesUpdated += accountSummary.TimelinesUpdated;
+
+            Platform.AccountsProcessed++;
+            Platform.MatchesInserted += accountSummary.Inserted;
+            Platform.MatchesSkipped += accountSummary.Skipped;
+            Platform.TimelinesUpdated += accountSummary.TimelinesUpdated;
+        }
     }
 
     private sealed record AccountIngestionSummary(

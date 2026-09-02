@@ -37,8 +37,10 @@ public sealed class MatchSnapshotWriter(
         // Downstream order is irrelevant (catalog keys are deduplicated, and each match
         // persists independently), so a ConcurrentBag avoids a pre-sized slot array whose
         // uninitialized entries would surface as a NullReferenceException if a future
-        // caller ever swallowed a fetch exception. The resilience handler enforces
-        // per-region rate limiting, so MaxDegreeOfParallelism only caps the in-flight count.
+        // caller ever swallowed a fetch exception. The per-routing-value rate limiter
+        // (#1359) is what bounds the request rate — the resilience handler never did,
+        // despite what this comment used to claim — so MaxDegreeOfParallelism only caps
+        // how many of these may be in flight at once.
         var fetched = new ConcurrentBag<FetchedMatch>();
         await Parallel.ForEachAsync(
             scan.Fresh,
