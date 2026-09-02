@@ -127,6 +127,10 @@ builder.Services.AddEffectiveConfigurationPublisher(IngestorEffectiveConfigurati
 builder.Services.AddMetrics();
 builder.Services.AddSingleton<IngestorMetrics>();
 
+// Resolved once at construction from INGESTOR_HEARTBEAT_PATH, rather than read from the
+// environment on every beat: the environment is process-global and a worker is not (#1348).
+builder.Services.AddSingleton<IHeartbeatFile, EnvironmentHeartbeatFile>();
+
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

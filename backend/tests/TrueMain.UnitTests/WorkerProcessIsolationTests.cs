@@ -181,7 +181,8 @@ public sealed class WorkerProcessIsolationTests
             new CallerContext(),
             lifetime,
             TestIngestorMetrics.Create(),
-            TimeProvider.System);
+            TimeProvider.System,
+            NoHeartbeatFile.Instance);
     }
 
     private sealed class RecordingProcess(JobMode mode, List<JobMode> executed) : IIngestorProcess

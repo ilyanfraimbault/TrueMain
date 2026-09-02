@@ -28,22 +28,20 @@ namespace TrueMain.UnitTests;
 /// </summary>
 public sealed class WorkerHeartbeatTests : IDisposable
 {
-    private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
 
     private readonly string heartbeatPath =
         Path.Combine(Path.GetTempPath(), $"ingestor-heartbeat-{Guid.NewGuid():N}");
 
-    // The variable is process-global, so every test that touches it lives in this one class:
-    // xUnit runs the tests of a class sequentially, and nothing else reads it.
-    public WorkerHeartbeatTests()
-        => Environment.SetEnvironmentVariable(HeartbeatEnvironmentVariable, heartbeatPath);
-
+    // The path is injected, not published through the environment. It used to be set as
+    // INGESTOR_HEARTBEAT_PATH, which every Worker in the process read on every beat — so a
+    // worker from another test class, running concurrently in its own xUnit collection,
+    // wrote its own beat into this test's file and made the shutdown assertion fail (#1348).
     public void Dispose()
     {
-        Environment.SetEnvironmentVariable(HeartbeatEnvironmentVariable, null);
         File.Delete(heartbeatPath);
+        GC.SuppressFinalize(this);
     }
 
     [Fact]
@@ -119,7 +117,8 @@ public sealed class WorkerHeartbeatTests : IDisposable
             new CallerContext(),
             Substitute.For<IHostApplicationLifetime>(),
             TestIngestorMetrics.Create(),
-            time);
+            time,
+            new TestHeartbeatFile(heartbeatPath));
     }
 
     /// <summary>
@@ -202,6 +201,12 @@ public sealed class WorkerHeartbeatTests : IDisposable
             // The blocked pass observes the shutdown token and cancels out. That is the
             // cooperative shutdown path (#255), not a failure.
         }
+    }
+
+    /// <summary>The heartbeat file this test instance owns.</summary>
+    private sealed class TestHeartbeatFile(string path) : IHeartbeatFile
+    {
+        public string? Path { get; } = path;
     }
 
     /// <summary>A pass that never returns — the wedged process the healthcheck exists for.</summary>

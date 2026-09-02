@@ -198,7 +198,8 @@ public sealed class WorkerFailureMetricsTests
             new CallerContext(),
             lifetime,
             new IngestorMetrics(meterFactory),
-            TimeProvider.System);
+            TimeProvider.System,
+            NoHeartbeatFile.Instance);
     }
 
     private sealed class NoOpProcess(string name) : IIngestorProcess
