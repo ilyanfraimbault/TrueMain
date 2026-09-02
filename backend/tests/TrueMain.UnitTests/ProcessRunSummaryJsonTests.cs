@@ -38,10 +38,10 @@ public sealed class ProcessRunSummaryJsonTests
         // Spelled out rather than compared, so a reviewer can read the persisted
         // shape of the two summaries that nest an array of objects.
         ProcessRunSummaryJson.Serialize(new DiscoverySummary(
-            [new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null)]))
+            [new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null, 9, 4)]))
             .Should().Be(
                 """
-                {"platforms":[{"platform":"EUW1","accountsProcessed":40,"newAccounts":3,"candidatesInserted":12,"candidatesUpdated":5,"rankSnapshotsInserted":2,"rankSnapshotsUpdated":6,"rankSnapshotsUnchanged":32,"error":null}]}
+                {"platforms":[{"platform":"EUW1","accountsProcessed":40,"newAccounts":3,"candidatesInserted":12,"candidatesUpdated":5,"rankSnapshotsInserted":2,"rankSnapshotsUpdated":6,"rankSnapshotsUnchanged":32,"error":null,"profileCallsSkipped":9,"masteryCallsSkipped":4}]}
                 """);
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
@@ -59,7 +59,7 @@ public sealed class ProcessRunSummaryJsonTests
         // The admin's per-platform row reads `error`; dropping the key for a
         // healthy platform (WhenWritingNull) would change the stored shape.
         ProcessRunSummaryJson.Serialize(new DiscoverySummary(
-            [new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, null)]))
+            [new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, null, 0, 0)]))
             .Should().Contain("\"error\":null");
     }
 
@@ -127,8 +127,8 @@ public sealed class ProcessRunSummaryJsonTests
         yield return (
             new DiscoverySummary(
             [
-                new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null),
-                new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, "simulated ladder outage")
+                new DiscoveryPlatformSummary("EUW1", 40, 3, 12, 5, 2, 6, 32, null, 9, 4),
+                new DiscoveryPlatformSummary("KR", 0, 0, 0, 0, 0, 0, 0, "simulated ladder outage", 0, 0)
             ]),
             new
             {
@@ -144,7 +144,11 @@ public sealed class ProcessRunSummaryJsonTests
                         rankSnapshotsInserted = 2,
                         rankSnapshotsUpdated = 6,
                         rankSnapshotsUnchanged = 32,
-                        error = (string?)null
+                        error = (string?)null,
+                        // Appended by #1358: the summoner-v4 / champion-mastery calls the
+                        // freshness gate did not make.
+                        profileCallsSkipped = 9,
+                        masteryCallsSkipped = 4
                     },
                     new
                     {
@@ -156,16 +160,18 @@ public sealed class ProcessRunSummaryJsonTests
                         rankSnapshotsInserted = 0,
                         rankSnapshotsUpdated = 0,
                         rankSnapshotsUnchanged = 0,
-                        error = (string?)"simulated ladder outage"
+                        error = (string?)"simulated ladder outage",
+                        profileCallsSkipped = 0,
+                        masteryCallsSkipped = 0
                     }
                 }
             });
 
         yield return (
-            new MatchIngestionSummary(9, 30, 4, 12, 1, 7, 6, 2,
+            new MatchIngestionSummary(9, 30, 4, 12, 1, 7, 6, 2, 5,
             [
-                new MatchIngestionPlatformSummary("EUW1", 5, 20, 3, 8),
-                new MatchIngestionPlatformSummary("KR", 4, 10, 1, 4)
+                new MatchIngestionPlatformSummary("EUW1", 5, 20, 3, 8, 4),
+                new MatchIngestionPlatformSummary("KR", 4, 10, 1, 4, 2)
             ]),
             new
             {
@@ -184,6 +190,9 @@ public sealed class ProcessRunSummaryJsonTests
                 // rather than as a run that reaped nothing.
                 expiredCandidatesReleased = 6,
                 expiredClaimsReleased = 2,
+                // Appended by #1358: matchesSkipped now means "already stored" only, and the
+                // matches fetched then discarded for being off-queue are counted here.
+                matchesSkippedWrongQueue = 5,
                 byPlatform = new[]
                 {
                     new
@@ -192,7 +201,8 @@ public sealed class ProcessRunSummaryJsonTests
                         accountsProcessed = 5,
                         matchesInserted = 20,
                         matchesSkipped = 3,
-                        timelinesUpdated = 8
+                        timelinesUpdated = 8,
+                        matchesSkippedWrongQueue = 4
                     },
                     new
                     {
@@ -200,7 +210,8 @@ public sealed class ProcessRunSummaryJsonTests
                         accountsProcessed = 4,
                         matchesInserted = 10,
                         matchesSkipped = 1,
-                        timelinesUpdated = 4
+                        timelinesUpdated = 4,
+                        matchesSkippedWrongQueue = 2
                     }
                 }.ToList()
             });
@@ -224,7 +235,7 @@ public sealed class ProcessRunSummaryJsonTests
             });
 
         yield return (
-            new AccountRefreshSummary(50, 30, 2, 1, 10, 3, 20, 8, 25, 4, 6, 2),
+            new AccountRefreshSummary(50, 30, 2, 1, 10, 3, 20, 8, 25, 4, 6, 2, 11),
             new
             {
                 selected = 50,
@@ -238,7 +249,10 @@ public sealed class ProcessRunSummaryJsonTests
                 rankUnchanged = 25,
                 rankSkippedUnranked = 4,
                 rankSkippedFresh = 6,
-                rankFailed = 2
+                rankFailed = 2,
+                // Appended by #1358: the account-v1 call skipped because the stored profile
+                // is still fresh.
+                profileSkippedFresh = 11
             });
 
         yield return (

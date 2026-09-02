@@ -46,5 +46,11 @@ public interface IProcessRunRecorder
     /// ingestor startup: on the single-instance ingestor any row still running at
     /// boot was orphaned by the previous process and can never complete.
     /// </summary>
-    Task<int> ReconcileOrphanedRunsAsync(CancellationToken ct);
+    /// <param name="processNames">
+    /// The processes this instance owns — the steps of its own <c>Job:Mode</c>. Scoping the
+    /// sweep is what lets the pipeline run as two lanes in two processes (#1362) without
+    /// each one abandoning the other's in-flight runs at boot.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    Task<int> ReconcileOrphanedRunsAsync(IReadOnlyCollection<string> processNames, CancellationToken ct);
 }

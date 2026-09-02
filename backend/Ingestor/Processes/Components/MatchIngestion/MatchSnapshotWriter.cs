@@ -14,6 +14,12 @@ public sealed class MatchSnapshotWriter(
     TimeProvider timeProvider,
     IOptions<MainAnalysisOptions> mainAnalysisOptions) : IMatchSnapshotWriter
 {
+    /// <summary>
+    /// How far before the previous ingest the <c>startTime</c> window opens. One hour covers a
+    /// long game that started before the last claim and ended after it, plus clock skew.
+    /// </summary>
+    private static readonly TimeSpan StartTimeSafetyMargin = TimeSpan.FromHours(1);
+
     private readonly int _targetQueueId = (int)mainAnalysisOptions.Value.QueueId;
 
     public async Task<SnapshotIngestionPlan> PrepareAsync(
@@ -25,20 +31,27 @@ public sealed class MatchSnapshotWriter(
         int maxFetchConcurrency,
         CancellationToken ct)
     {
-        var allMatchIds = (await riotMatchClient.GetMatchIdsAsync(puuid, region, matchesPerAccount, ct))
+        // Read the account first: its last ingest time bounds the id listing below, so a claim
+        // that comes round again an hour later re-lists an hour of history instead of the same
+        // fixed window of ids it already stored (#1358).
+        var trackedAccount = await session.RiotAccounts.GetByKeyAsync(platformId, puuid, ct);
+
+        var allMatchIds = (await riotMatchClient.GetMatchIdsAsync(
+                BuildMatchIdQuery(puuid, region, matchesPerAccount, trackedAccount?.LastMatchIngestAtUtc),
+                ct))
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.Ordinal)
             .ToList();
-
-        var trackedAccount = await session.RiotAccounts.GetByKeyAsync(platformId, puuid, ct);
         var scan = await ExistingMatchScanner.ScanAsync(session, allMatchIds, ct);
 
         // Fetch the account's fresh matches in parallel into a concurrent collection.
         // Downstream order is irrelevant (catalog keys are deduplicated, and each match
         // persists independently), so a ConcurrentBag avoids a pre-sized slot array whose
         // uninitialized entries would surface as a NullReferenceException if a future
-        // caller ever swallowed a fetch exception. The resilience handler enforces
-        // per-region rate limiting, so MaxDegreeOfParallelism only caps the in-flight count.
+        // caller ever swallowed a fetch exception. The per-routing-value rate limiter
+        // (#1359) is what bounds the request rate — the resilience handler never did,
+        // despite what this comment used to claim — so MaxDegreeOfParallelism only caps
+        // how many of these may be in flight at once.
         var fetched = new ConcurrentBag<FetchedMatch>();
         await Parallel.ForEachAsync(
             scan.Fresh,
@@ -83,8 +96,35 @@ public sealed class MatchSnapshotWriter(
             scan.Existing,
             targetMatches,
             participantAccounts,
-            trackedAccount?.Id);
+            trackedAccount?.Id,
+            fetched.Count - targetMatches.Count);
     }
+
+    /// <summary>
+    /// Narrows the id listing to what this pipeline can actually store (#1358).
+    /// <para>
+    /// The queue comes from the configured tracked queue rather than a literal 420, so the
+    /// filter cannot drift from the one <see cref="PrepareAsync"/> applies after the fetch —
+    /// that post-fetch guard stays as a safety net for an id Riot returns anyway.
+    /// </para>
+    /// <para>
+    /// <paramref name="lastIngestAtUtc"/> becomes <c>startTime</c> minus one hour: minus,
+    /// because a match that ended after the previous claim may have started before it, and the
+    /// hour is a generous bound on a League game plus clock skew. Unset on a first ingestion,
+    /// so the account's full <c>MatchesPerAccount</c> window is listed once.
+    /// </para>
+    /// </summary>
+    private MatchIdQuery BuildMatchIdQuery(
+        string puuid,
+        RegionalRoute region,
+        int matchesPerAccount,
+        DateTime? lastIngestAtUtc)
+        => new(
+            puuid,
+            region,
+            matchesPerAccount,
+            _targetQueueId,
+            lastIngestAtUtc?.Add(-StartTimeSafetyMargin));
 
     public async Task<SnapshotIngestionResult> WriteAsync(
         IDataSession session,
@@ -131,7 +171,12 @@ public sealed class MatchSnapshotWriter(
             await session.SaveChangesAsync(ct);
         }
 
-        return new SnapshotIngestionResult(plan.AllMatchIds, persistedIds, inserted, plan.ExistingMatchIds.Count);
+        return new SnapshotIngestionResult(
+            plan.AllMatchIds,
+            persistedIds,
+            inserted,
+            plan.ExistingMatchIds.Count,
+            plan.SkippedWrongQueue);
     }
 
     private static void PersistMatch(

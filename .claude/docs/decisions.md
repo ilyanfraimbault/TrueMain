@@ -9,6 +9,69 @@ Last verified against `develop` on 2026-07-28.
 
 ---
 
+## Ingestion
+
+**Riot calls are paced by a limiter keyed on the routing value, because that is the grain Riot enforces.**
+The standard resilience handler's "rate limiter" strategy is a *concurrency bulkhead*, not a request-rate
+limiter, so until #1359 nothing bounded the outbound rate: pacing was reactive, discovered by taking a 429 and
+honouring `Retry-After`. Production was taking ~1 000-1 300 of them a day. The limiter (`Ingestor/Riot/RateLimiting/`)
+keeps one budget per Riot routing value — `europe`/`americas`/`asia` for the regional APIs, `euw1`/`kr`/`na1`
+for the platform ones — which is what Riot actually meters; a single global budget would have throttled the
+process to one region's allowance while the others idled.
+Four consequences worth stating, because each is a place where the obvious implementation is wrong.
+**The window is sliding where Riot's is fixed.** Riot resets on a wall-clock boundary we cannot observe, so a
+fixed window of our own would straddle theirs and take a 429 on the seam; a sliding window forbids a superset
+of what theirs does, at the cost of a little unused headroom right after a reset.
+**Riot's advertised header replaces our limits, it does not merge with them.** The header states the complete
+budget, so merging would leave the configured guess (a personal key's `20:1,100:120`) in force behind a
+production key that allows far more — and the tighter of the two always wins, which would silently cap the
+throughput the new key was obtained for. Windows whose duration survives keep their counters, so adopting a
+limit never forgets what has already been spent, and a header that parses to nothing changes nothing.
+**A 429 with no `X-Rate-Limit-Type` penalises the whole routing value, not the endpoint.** Riot omits the type
+when the throttle came from the underlying service; attributing that narrowly would keep hammering whatever is
+actually exhausted.
+**Acquisition is serialized per routing value.** The budget is a property of the routing value, so "may I send
+now" has to be decided one caller at a time to stay correct. It costs nothing: the sustained personal-key
+allowance is under one request per second per region, and regions never wait on each other — which is the
+whole point.
+The limiter sits **inside** the resilience handler (a retried attempt waits for its own permit instead of
+replaying into the limit that rejected it) and **outside** the metrics handler (a permit wait is not Riot
+latency). No configuration is needed when the key changes: the limits are learned from the response.
+
+**The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks.**
+The 20 steps were one serial chain, so the Riot key idled through every aggregation and the aggregates waited
+behind ~55 minutes of HTTP; on a Discovery day they were 2.5 hours older than they needed to be. `FetchLane`
+and `AggregateLane` are composite `JobMode`s, exactly like `Full`, so the split reuses the machinery that
+already existed rather than adding a scheduler.
+What makes it safe is that the sequence was never what ordered the work *between* steps: every aggregation
+selects only the matches whose prerequisites hold (`TimelineIngested`, the per-fold flags on `matches`), so a
+fold that runs early finds nothing and picks the rows up next pass. Order *within* a lane is still
+load-bearing — the ban fold must see stamped elo brackets, the timeline prune must not precede the powerspike
+fold — which is why the two lanes preserve the full pipeline's relative order, asserted by a test that also
+pins them as a true partition of it: a step in neither would silently stop running, a step in both would fold
+the same rows twice.
+The one thing the split genuinely broke is orphan-run reconciliation. It abandoned *every* `Running` document
+at boot, on the stated assumption of a single-instance ingestor; with two lanes that means each lane marks the
+other's live run as dead on every restart. It is now scoped to the steps the booting lane actually owns, and
+resolves those names with `GetKeyedService` rather than the required variant — an unregistered step is a
+wiring mistake the run itself reports precisely, and throwing at boot would bury that behind a vaguer error.
+An empty owned-set skips reconciliation rather than sweeping everything, because "I don't know what I own" is
+the one case where a full sweep is certainly wrong.
+**Preprod runs the two lanes; prod stays on `Full` until preprod has.** Nothing about the code forces a
+topology — a single container on `Full` still runs everything in order — so the split is a deployment
+decision, and it is the kind that is cheap to validate on preprod and expensive to get wrong on prod (#1362).
+
+**Match ingestion fans out one worker per platform, and stays sequential inside one.**
+The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained
+allowance — while the other two regional budgets went unused. The fan-out is across routing values because
+that is the grain of the budget; going wider *within* a platform would only queue behind the limiter that now
+governs it, while adding contention on the same claim rows. Every collaborator it fans out to is stateless or
+opens its own `DbContext` per account, so the only shared mutable state is the per-worker tally, merged in
+platform order once the workers finish — the run summary is read by humans comparing one cycle to the next,
+so a non-deterministic merge order would be a regression in its own right. A platform's failure stays its
+own: the per-account catch was already there, and the result being local is what stops one bad account from
+costing the other regions.
+
 ## Product
 
 **Stats are computed from *true mains* by default, and that default is now a filter rather than the
@@ -2260,6 +2323,49 @@ this. The champion reads run on the caller's request-scoped `DbContext`, so if t
 pass abandoned its wait, its scope would be disposed underneath the shared work and every joiner would fail on
 a disposed context. The leaderboard does not need the flag — it creates its own context — and it does not get
 it.
+
+## A Riot call that stores nothing is a bug, not a cost (2026-09-02)
+
+Over three days production spent ~77 k successful Riot calls a day, and roughly half the
+`MatchIngestion` half of them produced nothing storable. The rule this PR settles: a call whose response
+cannot become a row is not "budget spent on a low-yield path", it is a defect to fix, and the run summaries
+must be able to show it (#1358, epic #1357).
+
+**Flex ids were fetched, discarded, and re-fetched for ever.** The ids call sent `type=ranked`, which includes
+queue 440, and `MatchSnapshotWriter` filtered on queue 420 *after* paying for the `GET /matches/{id}`. Nothing
+is written for a discarded match, so `ExistingMatchScanner` saw the same id as new on every later claim of
+that account — the waste recurred indefinitely rather than costing one call. The fix is `queue` on the ids
+call, ANDed with `type=ranked` by Riot, sourced from `MainAnalysis:QueueId` rather than a literal so the
+source filter cannot drift from the post-fetch guard, which stays as a safety net.
+
+**The window is bounded by the last ingest.** `startTime` = `LastMatchIngestAtUtc` − 1 h (unset on a first
+ingestion; the hour covers a game that started before the previous claim and ended after it). Without it every
+claim re-listed the same fixed window, which is what made the flex re-fetch recur. `count` is clamped to
+Riot's 1..100, so `MatchIngestion:MatchesPerAccount` stays the single authoritative knob and can be raised to
+100 without a very active main being truncated at 20.
+
+**Freshness gates, not new call paths, are how the crawls stop paying twice.** Discovery's per-entry
+summoner-v4 call only supplies `profileIconId` / `summonerLevel` / `summonerId`, and every apex ladder entry
+has carried its PUUID since #1312 — so for an account stored and synced within `Discovery:ProfileSyncFreshness`
+(7 d) the call is skipped and the entry's own PUUID and rank are used. The same window skips the
+champion-mastery call for a candidate whose rows were written inside it. `AccountRefresh:ProfileSyncFreshness`
+(7 d) is the mirror for account-v1: reaching the head of the refresh queue is not on its own a reason to spend
+a call. Both mirror the shape `AccountRefresh:RankSyncFreshness` already had.
+
+**Two invariants make a skip safe.** A skipped row still gets its `UpdatedAtUtc` stamped, because every bucket
+of `GetAccountsForRefreshAsync` drains oldest-first and an unstamped skip parks the row at the head of the
+queue for ever (the #1223 failure mode). And a skipped call never writes the stamp it would have refreshed:
+`LastProfileSyncAtUtc` is only set by a call that actually happened, otherwise the gate closes permanently on
+a read that never occurred. AccountRefresh's gate additionally never applies to an identity-incomplete row —
+account-v1 is the only writer of `GameName`/`TagLine`.
+
+**The evidence lives in the run summaries, not in a new metrics pipeline.** `matchesSkipped` now means
+"already stored" only, with the discards split out as `matchesSkippedWrongQueue`; Discovery reports
+`profileCallsSkipped` / `masteryCallsSkipped` and AccountRefresh `profileSkippedFresh`. All are appended after
+the existing keys, so a run recorded before the deploy reads as "not measured" rather than as a run that
+skipped nothing. Deliberately **not** done here: recording discarded match ids in a table — with `queue` on
+the ids call there is nothing left to record — and the ManualSeed pacing change, which interacts with the
+candidate-funnel backlog (#1361) and belongs with it.
 
 ## Keeping these files current
 

@@ -16,6 +16,7 @@ using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Ranking;
 using Ingestor.Riot;
+using Ingestor.Riot.RateLimiting;
 using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
@@ -30,12 +31,30 @@ builder.Services.AddOptions<DatabaseOptions>()
 // retried 429s the resilience handler backs off on — which is what the
 // /ops/riot-usage rate-limit and status-code views need (#93).
 builder.Services.AddTransient<RiotApiMetricsHandler>();
+
+// One limiter for the whole process, shared by the three typed clients: Riot's
+// application budget belongs to the routing value, not to the client that happens to
+// call it, so the match client and the account client hitting `europe` must draw on
+// the same budget (#1359). Registered before the clients that consume it.
+builder.Services.AddSingleton<IRiotRateLimiter, RiotRateLimiter>();
+builder.Services.AddTransient<RiotRateLimitHandler>();
+
+// Handler order per client, outermost first: resilience -> rate limiter -> metrics.
+// The limiter sits inside the resilience handler so a retried attempt waits for its
+// own permit instead of replaying straight into the limit that rejected it, and
+// outside the metrics handler so a permit wait is not recorded as Riot latency.
 builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>(ConfigureRiotClient)
-    .AddRiotResilienceHandler().AddHttpMessageHandler<RiotApiMetricsHandler>();
+    .AddRiotResilienceHandler()
+    .AddHttpMessageHandler<RiotRateLimitHandler>()
+    .AddHttpMessageHandler<RiotApiMetricsHandler>();
 builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>(ConfigureRiotClient)
-    .AddRiotResilienceHandler().AddHttpMessageHandler<RiotApiMetricsHandler>();
+    .AddRiotResilienceHandler()
+    .AddHttpMessageHandler<RiotRateLimitHandler>()
+    .AddHttpMessageHandler<RiotApiMetricsHandler>();
 builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>(ConfigureRiotClient)
-    .AddRiotResilienceHandler().AddHttpMessageHandler<RiotApiMetricsHandler>();
+    .AddRiotResilienceHandler()
+    .AddHttpMessageHandler<RiotRateLimitHandler>()
+    .AddHttpMessageHandler<RiotApiMetricsHandler>();
 
 // Single clock source for the whole ingestor: every process and component that
 // needs "now" injects TimeProvider and calls GetUtcNow().UtcDateTime instead of
@@ -107,6 +126,10 @@ builder.Services.AddEffectiveConfigurationPublisher(IngestorEffectiveConfigurati
 // and keeps the registration visible next to its consumer.
 builder.Services.AddMetrics();
 builder.Services.AddSingleton<IngestorMetrics>();
+
+// Resolved once at construction from INGESTOR_HEARTBEAT_PATH, rather than read from the
+// environment on every beat: the environment is process-global and a worker is not (#1348).
+builder.Services.AddSingleton<IHeartbeatFile, EnvironmentHeartbeatFile>();
 
 builder.Services.AddHostedService<Worker>();
 

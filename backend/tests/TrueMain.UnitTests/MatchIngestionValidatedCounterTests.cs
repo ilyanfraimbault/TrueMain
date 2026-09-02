@@ -117,11 +117,11 @@ public sealed class MatchIngestionValidatedCounterTests
                 Arg.Any<IDataSession>(), Arg.Any<string>(), Arg.Any<string>(),
                 Arg.Any<Core.Lol.Identifiers.RegionalRoute>(), Arg.Any<int>(), Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new SnapshotIngestionPlan([], [], [], new Dictionary<AccountKey, Data.Entities.RiotAccount>(), null)));
+            .Returns(Task.FromResult(new SnapshotIngestionPlan([], [], [], new Dictionary<AccountKey, Data.Entities.RiotAccount>(), null, 0)));
         snapshotWriter.WriteAsync(
                 Arg.Any<IDataSession>(), Arg.Any<SnapshotIngestionPlan>(), Arg.Any<string>(), Arg.Any<string>(),
                 Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new SnapshotIngestionResult([], [], 0, 0)));
+            .Returns(Task.FromResult(new SnapshotIngestionResult([], [], 0, 0, 0)));
         return snapshotWriter;
     }
 }

@@ -34,7 +34,8 @@ public sealed class WorkerResilienceTests
             new CallerContext(),
             lifetime,
             TestIngestorMetrics.Create(),
-            TimeProvider.System);
+            TimeProvider.System,
+            NoHeartbeatFile.Instance);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -78,7 +79,8 @@ public sealed class WorkerResilienceTests
             new CallerContext(),
             lifetime,
             TestIngestorMetrics.Create(),
-            TimeProvider.System);
+            TimeProvider.System,
+            NoHeartbeatFile.Instance);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -116,7 +118,7 @@ public sealed class WorkerResilienceTests
         });
 
         using var worker = new Worker(
-            logger, scopeFactory, jobOptions, new IterationContext(), new CallerContext(), lifetime, TestIngestorMetrics.Create(), TimeProvider.System);
+            logger, scopeFactory, jobOptions, new IterationContext(), new CallerContext(), lifetime, TestIngestorMetrics.Create(), TimeProvider.System, NoHeartbeatFile.Instance);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -152,7 +154,8 @@ public sealed class WorkerResilienceTests
             new CallerContext(),
             lifetime,
             TestIngestorMetrics.Create(),
-            TimeProvider.System);
+            TimeProvider.System,
+            NoHeartbeatFile.Instance);
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
 
         await worker.StartAsync(cts.Token);

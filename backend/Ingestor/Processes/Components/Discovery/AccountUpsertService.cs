@@ -12,7 +12,8 @@ public sealed class AccountUpsertService : IAccountUpsertService
         PlatformRoute platform,
         RiotSummonerDto summoner,
         DateTime nowUtc,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool profileResolved = true)
     {
         var existing = await session.RiotAccounts.GetByPuuidAsync(summoner.Puuid, ct);
         var platformId = platform.ToString();
@@ -27,6 +28,8 @@ public sealed class AccountUpsertService : IAccountUpsertService
         // next refresh cycle populates them.
         if (existing is null)
         {
+            // An unresolved profile can only reach here for an account the freshness probe
+            // found in the database, so this branch always has a real summoner-v4 response.
             var created = new RiotAccount
             {
                 Id = Guid.NewGuid(),
@@ -43,10 +46,20 @@ public sealed class AccountUpsertService : IAccountUpsertService
         }
 
         existing.PlatformId = platformId;
+        existing.UpdatedAtUtc = nowUtc;
+
+        // Nothing read this run, so nothing to write: the caller skipped summoner-v4 because
+        // this row is already fresh (#1358). Writing the blanks of a synthesised DTO would
+        // erase the cosmetics, and re-stamping LastProfileSyncAtUtc would make the row look
+        // freshly read for ever — the freshness gate would then never reopen.
+        if (!profileResolved)
+        {
+            return new AccountUpsertResult(IsNew: false, Account: existing);
+        }
+
         existing.SummonerId = summoner.Id;
         existing.ProfileIconId = summoner.ProfileIconId;
         existing.SummonerLevel = RiotValueConverters.ToIntSafe(summoner.SummonerLevel);
-        existing.UpdatedAtUtc = nowUtc;
         existing.LastProfileSyncAtUtc = nowUtc;
         return new AccountUpsertResult(IsNew: false, Account: existing);
     }

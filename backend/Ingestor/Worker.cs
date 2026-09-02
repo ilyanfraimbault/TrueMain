@@ -13,9 +13,9 @@ public sealed class Worker(
     ICallerContext callerContext,
     IHostApplicationLifetime applicationLifetime,
     IngestorMetrics metrics,
-    TimeProvider timeProvider) : BackgroundService
+    TimeProvider timeProvider,
+    IHeartbeatFile heartbeatFile) : BackgroundService
 {
-    private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
 
     /// <summary>
     /// How often the liveness file is rewritten. Same cadence as
@@ -30,7 +30,7 @@ public sealed class Worker(
         var options = jobOptions.Value;
         var mode = JobModeParser.Parse(options.Mode);
 
-        await ReconcileOrphanedRunsAsync(stoppingToken);
+        await ReconcileOrphanedRunsAsync(mode, stoppingToken);
 
         // The heartbeat used to be touched once per iteration, at the top. A Full pass runs
         // for many minutes and the wait between passes for a whole Job:IntervalMinutes, so
@@ -101,7 +101,7 @@ public sealed class Worker(
         }
     }
 
-    private async Task ReconcileOrphanedRunsAsync(CancellationToken stoppingToken)
+    private async Task ReconcileOrphanedRunsAsync(JobMode mode, CancellationToken stoppingToken)
     {
         // Single-instance ingestor: any ProcessRun still Running at boot was
         // orphaned by the previous process (a crash, OOM-kill or redeploy) and can
@@ -112,12 +112,36 @@ public sealed class Worker(
         {
             await using var scope = scopeFactory.CreateAsyncScope();
             var recorder = scope.ServiceProvider.GetRequiredService<IProcessRunRecorder>();
-            var abandoned = await recorder.ReconcileOrphanedRunsAsync(stoppingToken);
+
+            // Only this instance's own steps (#1362). Running the pipeline as two lanes puts
+            // two ingestor processes on the same database, and a sweep that abandoned every
+            // Running document would mark the other lane's live run as dead on every restart.
+            //
+            // Resolved with GetKeyedService, not GetRequiredKeyedService: a step with no
+            // registration is a wiring mistake that the run itself reports, precisely and by
+            // name. Throwing here would bury that behind a second, vaguer boot error.
+            var ownedProcesses = JobModeSequence.For(mode)
+                .Select(step => scope.ServiceProvider.GetKeyedService<IIngestorProcess>(step)?.Name)
+                .OfType<string>()
+                .ToList();
+
+            if (ownedProcesses.Count == 0)
+            {
+                // An empty list means "every process" to the store, which is the one thing
+                // this must not do when it does not know what it owns.
+                logger.LogWarning(
+                    "No registered process resolved for mode {Mode}; skipping orphaned-run reconciliation.",
+                    mode);
+                return;
+            }
+
+            var abandoned = await recorder.ReconcileOrphanedRunsAsync(ownedProcesses, stoppingToken);
             if (abandoned > 0)
             {
                 logger.LogWarning(
-                    "Reconciled {AbandonedCount} orphaned Running process run(s) to Abandoned at startup.",
-                    abandoned);
+                    "Reconciled {AbandonedCount} orphaned Running process run(s) of mode {Mode} to Abandoned at startup.",
+                    abandoned,
+                    mode);
             }
             else
             {
@@ -132,7 +156,9 @@ public sealed class Worker(
 
     private async Task TouchHeartbeatAsync(CancellationToken ct)
     {
-        var path = Environment.GetEnvironmentVariable(HeartbeatEnvironmentVariable);
+        // Resolved once, by the injected file, rather than read from the environment on
+        // every beat: the environment is process-global and a worker is not (#1348).
+        var path = heartbeatFile.Path;
         if (string.IsNullOrWhiteSpace(path))
         {
             return;

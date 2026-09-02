@@ -21,7 +21,7 @@ public sealed class LadderDiscoverySlidingWindowTests
         var service = BuildService(ladderSize: 5);
         var options = Options(window: 2, slidingEnabled: true);
 
-        var result = await service.DiscoverSummonersAsync(Platform, options, offset, CancellationToken.None);
+        var result = await service.DiscoverSummonersAsync(Platform, options, offset, NoFreshProfiles, CancellationToken.None);
 
         result.LadderSize.Should().Be(5);
         result.AppliedOffset.Should().Be(offset);
@@ -35,7 +35,7 @@ public sealed class LadderDiscoverySlidingWindowTests
         var options = Options(window: 2, slidingEnabled: true);
 
         // Offset == ladder size: modulo wraps back to the top instead of returning nothing.
-        var result = await service.DiscoverSummonersAsync(Platform, options, offset: 5, CancellationToken.None);
+        var result = await service.DiscoverSummonersAsync(Platform, options, offset: 5, NoFreshProfiles, CancellationToken.None);
 
         result.AppliedOffset.Should().Be(0);
         result.Discovered.Select(d => d.Summoner.Puuid).Should().Equal("p0", "p1");
@@ -47,11 +47,15 @@ public sealed class LadderDiscoverySlidingWindowTests
         var service = BuildService(ladderSize: 5);
         var options = Options(window: 2, slidingEnabled: false);
 
-        var result = await service.DiscoverSummonersAsync(Platform, options, offset: 3, CancellationToken.None);
+        var result = await service.DiscoverSummonersAsync(Platform, options, offset: 3, NoFreshProfiles, CancellationToken.None);
 
         result.AppliedOffset.Should().Be(0);
         result.Discovered.Select(d => d.Summoner.Puuid).Should().Equal("p0", "p1");
     }
+
+    /// <summary>Nothing is stored, so every entry still costs its summoner-v4 call.</summary>
+    private static Task<IReadOnlySet<string>> NoFreshProfiles(IReadOnlyCollection<string> puuids, CancellationToken ct)
+        => Task.FromResult<IReadOnlySet<string>>(new HashSet<string>(StringComparer.Ordinal));
 
     private static LadderDiscoveryService BuildService(int ladderSize)
     {
