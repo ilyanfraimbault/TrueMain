@@ -3,8 +3,68 @@ services:
     image: postgres:17.2
     container_name: truemain-postgres
     restart: unless-stopped
-    shm_size: "256m"
-    command: ["postgres", "-c", "max_parallel_workers_per_gather=0"]
+    # Raised from 256m: parallel-query and hash workers allocate their shared segments
+    # here, and 256m is what got exhausted in #589. Cheap insurance now that the server
+    # is allowed to use real memory.
+    shm_size: "1g"
+    # Postgres server tuning — part A of #1366.
+    #
+    # Host facts (prod VPS, measured 2026-09-02): 4 vCPU, 16 GB RAM, NVMe, ~38 GB
+    # database, and Postgres is the dominant tenant (8.8 GB RSS, ~13 GB of the host in
+    # page cache). Until now the server ran on the compiled defaults, sized for a 1 GB
+    # machine: 128 MB shared_buffers, 4 MB work_mem, random_page_cost=4 on flash.
+    # Sizing is pgtune-style for a "mixed" workload on that host.
+    #
+    # DO NOT REMOVE max_parallel_workers_per_gather=0. It is the deliberate fix for the
+    # /dev/shm exhaustion incident (#589): parallel workers on the aggregate-pattern
+    # queries exhausted the shared memory segment, Postgres raised 53100 and the API and
+    # ingestor crash-looped. Re-enabling parallelism reproduces that outage.
+    command:
+      - "postgres"
+      # Memory
+      - "-c"
+      - "shared_buffers=4GB"              # 25% of RAM, the usual ceiling before double buffering hurts
+      - "-c"
+      - "effective_cache_size=11GB"       # planner hint only; matches the page cache actually observed
+      - "-c"
+      - "work_mem=32MB"                   # per sort/hash node; the 2.7M-row match_participants folds spilled to disk at 4MB
+      - "-c"
+      - "hash_mem_multiplier=2"           # let hash joins/aggregates use 64MB before spilling
+      - "-c"
+      - "maintenance_work_mem=1GB"        # autovacuum and index builds on the 13GB snapshot table
+      # Planner — NVMe, not spinning rust
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "jit=off"                         # JIT compilation is pure overhead on these short analytic queries
+      # Parallelism — see the warning above (#589)
+      - "-c"
+      - "max_parallel_workers_per_gather=0"
+      # WAL / checkpoints
+      - "-c"
+      - "wal_compression=lz4"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      # Autovacuum — the big tables bloat faster than the stock scale factors react
+      - "-c"
+      - "autovacuum_vacuum_cost_delay=2ms"
+      - "-c"
+      - "autovacuum_vacuum_scale_factor=0.05"
+      - "-c"
+      - "autovacuum_analyze_scale_factor=0.02"
+      # Statement-level visibility (extension created by an EF migration)
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=5000"
+      - "-c"
+      - "pg_stat_statements.track=top"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
