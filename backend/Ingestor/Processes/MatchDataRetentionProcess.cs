@@ -3,6 +3,7 @@ using Core.Options;
 using Data;
 using Data.Repositories;
 using Ingestor.Options;
+using Ingestor.Processes.Components.Intake;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -17,7 +18,8 @@ public sealed class MatchDataRetentionProcess(
     TimeProvider timeProvider,
     IOptions<MatchDataRetentionOptions> retentionOptions,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
-    IOptions<CandidatePruningOptions> candidatePruningOptions) : IIngestorProcess
+    IOptions<CandidatePruningOptions> candidatePruningOptions,
+    IOptions<IntakeOptions> intakeOptions) : IIngestorProcess
 {
     public string Name => "MatchDataRetention";
 
@@ -32,6 +34,12 @@ public sealed class MatchDataRetentionProcess(
         // Prune stale never-promoted candidates first (#487) — independent of match
         // retention, so it runs even when there is nothing to delete below.
         var prunedCandidates = await PruneStaleCandidatesAsync(ct);
+
+        // Then bound the queue itself (#1361). Pruning only ever removed never-promoted
+        // candidates, so it could not touch the 773 k rows sitting in Queued — a queue the
+        // claim drains at ~22 accounts per cycle, i.e. faster than the pipeline could ever
+        // consume even if nothing else were added.
+        var demotedCandidates = await DemoteExcessQueuedCandidatesAsync(ct);
 
         var retentionPlan = await LoadRetentionPlanAsync(ct);
 
@@ -84,6 +92,7 @@ public sealed class MatchDataRetentionProcess(
             deletedParticipants,
             nonRankedDeletion.DeletedMatches,
             prunedCandidates,
+            demotedCandidates,
             aggregateDeletion,
             snapshotPrune,
             prunedPowerspikeEvents,
@@ -450,6 +459,74 @@ public sealed class MatchDataRetentionProcess(
         return pruned;
     }
 
+    /// <summary>
+    /// Caps how deep the <c>Queued</c> queue may get on any one platform (#1361), demoting the
+    /// lowest-scored excess back to <c>Scored</c>.
+    ///
+    /// <para>
+    /// A demotion is not a rejection: the candidate keeps its row and re-enters the promotion
+    /// ranking on the next scoring pass, so this only decides <em>when</em> a candidate is in
+    /// the claim's line of sight, never <em>whether</em> it ever will be. Deleting instead
+    /// would throw away the only record that the player was seen at all — the same reasoning
+    /// as #900's "deactivate, never delete".
+    /// </para>
+    ///
+    /// <para>
+    /// Bounded twice over: each statement touches at most
+    /// <c>Intake:QueueDepthDemotionBatchSize</c> rows, and a run issues at most
+    /// <c>Intake:MaxDemotionBatchesPerRun</c> of them per platform. The first drain of a
+    /// backlog therefore spreads across cycles instead of putting a ~700 k-row UPDATE inside
+    /// one 300 s command timeout (#988's lesson, applied to the candidate queue).
+    /// </para>
+    /// </summary>
+    private async Task<int> DemoteExcessQueuedCandidatesAsync(CancellationToken ct)
+    {
+        var options = intakeOptions.Value;
+        if (options.MaxQueuedPerPlatform <= 0 || options.MaxDemotionBatchesPerRun <= 0)
+        {
+            return 0;
+        }
+
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var depths = await session.MainCandidates.GetQueuedDepthByPlatformAsync(ct);
+
+        var demoted = 0;
+        foreach (var (platformId, depth) in depths.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+        {
+            var batches = QueueDepthDrain.PlanBatches(depth, options);
+            if (batches.Count == 0)
+            {
+                continue;
+            }
+
+            var demotedOnPlatform = 0;
+            foreach (var take in batches)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var moved = await session.MainCandidates.DemoteLowestScoredQueuedAsync(platformId, take, ct);
+                if (moved == 0)
+                {
+                    break;
+                }
+
+                demotedOnPlatform += moved;
+            }
+
+            demoted += demotedOnPlatform;
+            logger.LogInformation(
+                "Queue-depth cap on {Platform}: {Depth} queued candidate(s) against a cap of {Cap}; "
+                + "demoted {Demoted} row(s) back to Scored this run, {Remaining} still over the cap.",
+                platformId,
+                depth,
+                options.MaxQueuedPerPlatform,
+                demotedOnPlatform,
+                Math.Max(0, depth - options.MaxQueuedPerPlatform - demotedOnPlatform));
+        }
+
+        return demoted;
+    }
+
     private async Task<RetentionPlan> LoadRetentionPlanAsync(CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
@@ -648,6 +725,7 @@ public sealed class MatchDataRetentionProcess(
         int deletedParticipants,
         int deletedNonRankedMatches,
         int prunedCandidates,
+        int demotedQueuedCandidates,
         AggregateDeletionResult aggregateDeletion,
         SnapshotPruneResult snapshotPrune,
         int prunedPowerspikeEvents,
@@ -660,6 +738,7 @@ public sealed class MatchDataRetentionProcess(
             deletedParticipants,
             deletedNonRankedMatches,
             prunedCandidates,
+            demotedQueuedCandidates,
             snapshotPrune.PrunedMatches,
             snapshotPrune.DeletedSnapshots,
             aggregateDeletion.DeletedScopes,

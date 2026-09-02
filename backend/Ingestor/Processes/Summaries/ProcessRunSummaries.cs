@@ -30,7 +30,15 @@ public sealed record ChampionPatternNoWorkSummary(string Reason, int Patterns) :
 public sealed record ScoringPlatformSummary(string Platform, int Scored, int Queued);
 
 /// <summary>Scoring outcome, one entry per platform that had scored candidates.</summary>
-public sealed record ScoringSummary(IReadOnlyList<ScoringPlatformSummary> Platforms) : IProcessRunSummary;
+/// <summary>
+/// <see cref="PromotionCapPerPlatform"/> (#1361) is the cap actually applied this run: the
+/// claim's per-cycle capacity for new candidates times <c>Intake:PromotionHeadroomFactor</c>,
+/// split across platforms and clamped by <c>Scoring:TopNPerPlatform</c>. Appended after
+/// <see cref="Platforms"/> so the pre-existing key keeps its wire order.
+/// </summary>
+public sealed record ScoringSummary(
+    IReadOnlyList<ScoringPlatformSummary> Platforms,
+    int PromotionCapPerPlatform) : IProcessRunSummary;
 
 /// <summary>
 /// Per-platform discovery outcome. <see cref="Error"/> is null for platforms that
@@ -296,6 +304,10 @@ public sealed record MatchDataRetentionSummary(
     int DeletedParticipants,
     int DeletedNonRankedMatches,
     int PrunedCandidates,
+    // Queued candidates pushed back to Scored by the queue-depth cap (#1361). Distinct from
+    // PrunedCandidates above, which deletes never-promoted rows: nothing is deleted here, the
+    // rows simply leave a queue the claim could not reach and re-enter the promotion ranking.
+    int DemotedQueuedCandidates,
     int PrunedSnapshotMatches,
     int DeletedIntermediateSnapshots,
     int DeletedAggregateScopes,

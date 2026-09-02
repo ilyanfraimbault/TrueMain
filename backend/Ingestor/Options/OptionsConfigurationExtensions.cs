@@ -220,6 +220,17 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.PruneAfterDays >= 0, "CandidatePruning:PruneAfterDays must be >= 0.")
             .ValidateOnStart();
 
+        services.AddOptions<IntakeOptions>()
+            .Bind(configuration.GetSection(IntakeOptions.SectionName))
+            .Validate(options => options.PromotionHeadroomFactor > 0, "Intake:PromotionHeadroomFactor must be greater than 0.")
+            .Validate(options => options.PromotionHeadroomFactor <= 100, "Intake:PromotionHeadroomFactor must be <= 100 — beyond that the cap is no longer sized by the claim.")
+            .Validate(options => options.MinPromotionPerPlatform > 0, "Intake:MinPromotionPerPlatform must be greater than 0.")
+            .Validate(options => options.MaxQueuedPerPlatform >= 0, "Intake:MaxQueuedPerPlatform must be >= 0 (0 disables the queue-depth drain).")
+            .Validate(options => options.QueueDepthDemotionBatchSize > 0, "Intake:QueueDepthDemotionBatchSize must be greater than 0.")
+            .Validate(options => options.MaxDemotionBatchesPerRun >= 0, "Intake:MaxDemotionBatchesPerRun must be >= 0 (0 disables the queue-depth drain).")
+            .Validate(options => options.EstablishedMainShareSwing is >= 0 and <= 1, "Intake:EstablishedMainShareSwing must be between 0 and 1.")
+            .ValidateOnStart();
+
         services.AddOptions<PowerspikeAggregationOptions>()
             .Bind(configuration.GetSection(PowerspikeAggregationOptions.SectionName))
             .Validate(options => options.MatchBatchSize > 0, "PowerspikeAggregation:MatchBatchSize must be greater than 0.")

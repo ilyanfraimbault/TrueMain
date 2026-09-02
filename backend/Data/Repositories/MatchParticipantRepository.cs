@@ -166,6 +166,7 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         var safeMaxRows = Math.Max(1, maxRowsPerBucket);
         var harvestSource = (int)MainCandidateSource.Harvest;
         var rejectedStatus = (int)MainCandidateStatus.Rejected;
+        var queuedStatus = (int)MainCandidateStatus.Queued;
 
         // Aggregate one platform at a time instead of PlatformId = ANY(...) (#632). The
         // cross-platform statement hash-aggregated the orphan rows of the whole live
@@ -202,9 +203,12 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
             // the platform pinned to the literal (equal to o.platform_id here) so the planner
             // gets a sargable leading-column predicate. Pairs whose candidate exists but is
             // NOT refreshable are dropped from both classes: a ladder/manual-seed candidate is
-            // left untouched by the harvest on purpose (observed stats stay 0 outside Harvest)
-            // and a Rejected one must not be resurrected, so returning either would only burn
-            // budget on a no-op.
+            // left untouched by the harvest on purpose (observed stats stay 0 outside Harvest),
+            // a Rejected one must not be resurrected, and a Queued one is already past scoring
+            // (#1361) — refreshing its observed stats rewrites a row whose score nothing will
+            // read again before the claim reaches it, which is what made this the pipeline's
+            // single largest write source. Returning any of them would only burn budget on a
+            // no-op.
             //
             // `ranked`: rank within each class and carry the class's exact size. The window
             // COUNT is computed before the LIMIT, so the caller can report what it dropped
@@ -240,7 +244,9 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
                            AND c."Puuid" = o.puuid
                            AND c."ChampionId" = o.champion_id
                         WHERE c."Id" IS NULL
-                           OR (c."Source" = {harvestSource} AND c."Status" <> {rejectedStatus})
+                           OR (c."Source" = {harvestSource}
+                               AND c."Status" <> {rejectedStatus}
+                               AND c."Status" <> {queuedStatus})
                     ),
                     ranked AS (
                         SELECT

@@ -55,7 +55,9 @@ public sealed class HarvestProcessIntegrationTests
                 // process stamps the cutoff from the wall clock. The lookback is covered by
                 // HarvestCandidatesQueryIntegrationTests.
                 LookbackDays = 0
-            }));
+            }),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);
 
@@ -134,7 +136,9 @@ public sealed class HarvestProcessIntegrationTests
                 // inside the slice precisely so that update is not written to a detached
                 // entity and silently dropped; nothing here exercised more than one slice.
                 SaveBatchSize = 1
-            }));
+            }),
+            Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
         await process.RunCoreAsync(CancellationToken.None);
 

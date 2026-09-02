@@ -70,7 +70,53 @@ public sealed class CandidatePruningIntegrationTests
         (await verifyDb.MainCandidates.AsNoTracking().CountAsync()).Should().Be(1);
     }
 
-    private MatchDataRetentionProcess BuildProcess(int pruneAfterDays, bool enabled = true) => new(
+    [Fact]
+    public async Task RunAsync_DemotesTheLowestScoredExcessOfAnOverDeepQueue()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var fresh = DateTime.UtcNow.AddDays(-1);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // Four queued candidates against a cap of 2: the two lowest-scored ones are the
+            // excess. The KR row is on another platform, whose own queue is within the cap —
+            // depth is a per-platform question, like every other budget in the pipeline.
+            db.MainCandidates.AddRange(
+                Candidate("keep-high", 1, MainCandidateStatus.Queued, fresh, score: 90, platformId: "EUW1"),
+                Candidate("keep-mid", 2, MainCandidateStatus.Queued, fresh, score: 80, platformId: "EUW1"),
+                Candidate("demote-low", 3, MainCandidateStatus.Queued, fresh, score: 10, platformId: "EUW1"),
+                Candidate("demote-lowest", 4, MainCandidateStatus.Queued, fresh, score: 5, platformId: "EUW1"),
+                Candidate("other-platform", 5, MainCandidateStatus.Queued, fresh, score: 1));
+            await db.SaveChangesAsync();
+        }
+
+        await BuildProcess(
+                pruneAfterDays: 30,
+                intake: new IntakeOptions
+                {
+                    MaxQueuedPerPlatform = 2,
+                    QueueDepthDemotionBatchSize = 1,
+                    MaxDemotionBatchesPerRun = 4
+                })
+            .RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var byPuuid = await verifyDb.MainCandidates.AsNoTracking()
+            .ToDictionaryAsync(c => c.Puuid, c => c.Status);
+
+        // Demoted, never deleted: the rows are still there, back in the promotion ranking.
+        byPuuid.Should().HaveCount(5);
+        byPuuid["keep-high"].Should().Be(MainCandidateStatus.Queued);
+        byPuuid["keep-mid"].Should().Be(MainCandidateStatus.Queued);
+        byPuuid["demote-low"].Should().Be(MainCandidateStatus.Scored);
+        byPuuid["demote-lowest"].Should().Be(MainCandidateStatus.Scored);
+        byPuuid["other-platform"].Should().Be(MainCandidateStatus.Queued);
+    }
+
+    private MatchDataRetentionProcess BuildProcess(
+        int pruneAfterDays,
+        bool enabled = true,
+        IntakeOptions? intake = null) => new(
         NullLogger<MatchDataRetentionProcess>.Instance,
         new TrueMain.TestKit.TestDbContextFactory(_fixture),
         _fixture.CreateSessionFactory(),
@@ -81,19 +127,23 @@ public sealed class CandidatePruningIntegrationTests
         {
             Enabled = enabled,
             PruneAfterDays = pruneAfterDays
-        }));
+        }),
+        Microsoft.Extensions.Options.Options.Create(intake ?? new IntakeOptions()));
 
     private static MainCandidate Candidate(
         string puuid,
         int championId,
         MainCandidateStatus status,
         DateTime lastPlayTimeUtc,
-        DateTime? validatedAtUtc = null) => new()
+        DateTime? validatedAtUtc = null,
+        double score = 0,
+        string platformId = "KR") => new()
     {
-        PlatformId = "KR",
+        PlatformId = platformId,
         Puuid = puuid,
         ChampionId = championId,
         Status = status,
+        Score = score,
         LastPlayTimeUtc = lastPlayTimeUtc,
         DiscoveredAtUtc = lastPlayTimeUtc,
         ValidatedAtUtc = validatedAtUtc

@@ -74,6 +74,21 @@ public interface IMainCandidateRepository
     Task<int> PruneStaleNeverPromotedAsync(DateTime lastPlayCutoffUtc, CancellationToken ct);
 
     /// <summary>
+    /// How many candidates sit in <c>Queued</c> per platform — the queue depth the intake cap
+    /// is measured against (#1361).
+    /// </summary>
+    Task<IReadOnlyDictionary<string, int>> GetQueuedDepthByPlatformAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Demotes up to <paramref name="batchSize"/> of the lowest-scored <c>Queued</c> candidates
+    /// on <paramref name="platformId"/> back to <c>Scored</c>, and returns how many rows moved
+    /// (#1361). Never deletes: a demoted candidate is re-ranked and can be promoted again.
+    /// The batch size is explicit so a one-off drain of a very deep queue makes bounded,
+    /// committed progress instead of blowing the command timeout in one statement.
+    /// </summary>
+    Task<int> DemoteLowestScoredQueuedAsync(string platformId, int batchSize, CancellationToken ct);
+
+    /// <summary>
     /// Returns every <see cref="MainCandidateStatus.Processing"/> row that no live claim
     /// stands behind — the account's lease was taken before <paramref name="leaseCutoffUtc"/>,
     /// or the account is Idle, or it no longer exists — to <see cref="MainCandidateStatus.Queued"/>.
