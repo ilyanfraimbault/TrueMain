@@ -46,6 +46,8 @@ public sealed class MongoLogContext : IDisposable
         Crashes = _database.GetCollection<CrashReportDocument>(_options.CrashesCollection);
         DbTableSizeSnapshots =
             _database.GetCollection<DbTableSizeSnapshotDocument>(_options.DbTableSizeSnapshotsCollection);
+        CandidateStockSnapshots =
+            _database.GetCollection<CandidateStockSnapshotDocument>(_options.CandidateStockSnapshotsCollection);
         ProcessRuns = _database.GetCollection<ProcessRunDocument>(_options.ProcessRunsCollection);
         SeedRequests = _database.GetCollection<SeedRequestDocument>(_options.SeedRequestsCollection);
         EffectiveConfigurations = _database.GetCollection<EffectiveConfigurationDocument>(
@@ -108,6 +110,17 @@ public sealed class MongoLogContext : IDisposable
     /// database panel's growth charts and disk forecast.
     /// </summary>
     public IMongoCollection<DbTableSizeSnapshotDocument> DbTableSizeSnapshots
+    {
+        get => field ?? throw Inactive();
+        private init;
+    }
+
+    /// <summary>
+    /// Hourly candidate-stock snapshots (#1403), written by the Ingestor's
+    /// candidate-stock snapshot step (one hour-keyed upsert per platform and status)
+    /// and read by the admin candidates panel to chart the funnel's level over time.
+    /// </summary>
+    public IMongoCollection<CandidateStockSnapshotDocument> CandidateStockSnapshots
     {
         get => field ?? throw Inactive();
         private init;
@@ -344,6 +357,49 @@ public sealed class MongoLogContext : IDisposable
 
         await ReconcileTtlIndexAsync(
             DbTableSizeSnapshots, doc => doc.SnapshotDateUtc, _options.DbTableSizeSnapshotsRetention, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting indexes for the <c>candidate_stock_snapshots</c>
+    /// collection idempotently (#1403): a unique
+    /// <c>(snapshotHourUtc, platformId, status)</c> compound so the hour-keyed upsert
+    /// targets exactly one document per series per hour, a descending
+    /// <c>snapshotHourUtc</c> index for the window scan every read performs, and the
+    /// reconciled TTL index enforcing
+    /// <see cref="MongoLoggingOptions.CandidateStockSnapshotsRetention"/>. Called on
+    /// the snapshot step's first run; safe to re-run.
+    /// </summary>
+    public async Task EnsureCandidateStockSnapshotIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        var models = new List<CreateIndexModel<CandidateStockSnapshotDocument>>
+        {
+            // The upsert key: one document per (platform, status) per hour. Unique, so
+            // two ingestor containers running concurrently — which is exactly what the
+            // two-lane split (#1362) produces — cannot split an hour into duplicate
+            // documents and double the level the panel draws.
+            new(Builders<CandidateStockSnapshotDocument>.IndexKeys
+                    .Ascending(doc => doc.SnapshotHourUtc)
+                    .Ascending(doc => doc.PlatformId)
+                    .Ascending(doc => doc.Status),
+                new CreateIndexOptions { Name = "ux_hour_platform_status", Unique = true }),
+            // Every read is "the last N days", so the window lower bound is served
+            // descending, newest first.
+            new(Builders<CandidateStockSnapshotDocument>.IndexKeys.Descending(doc => doc.SnapshotHourUtc),
+                new CreateIndexOptions { Name = "ix_snapshot_hour_desc" })
+        };
+
+        await CandidateStockSnapshots.Indexes.CreateManyAsync(models, ct);
+
+        await ReconcileTtlIndexAsync(
+            CandidateStockSnapshots,
+            doc => doc.SnapshotHourUtc,
+            _options.CandidateStockSnapshotsRetention,
+            ct);
     }
 
     /// <summary>

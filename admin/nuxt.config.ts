@@ -20,7 +20,7 @@ export default defineNuxtConfig({
   nuxtCharts: {
     prefix: 'Nc',
   },
-  css: ['./app/assets/css/main.css'],
+  css: ['~/assets/css/main.css'],
   compatibilityDate: '2026-06-09',
   // Auth-gated internal tool with no SEO need: render as a client-side SPA.
   // Disabling SSR removes server/client hydration mismatches entirely (the

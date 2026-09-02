@@ -264,6 +264,20 @@ public sealed record StorageSnapshotSummary(
     long MongoBytes) : IProcessRunSummary;
 
 /// <summary>
+/// Candidate-stock snapshot outcome (#1403). <see cref="Written"/> is 0 rather than
+/// <see cref="Series"/> when Mongo is unconfigured, the same way the storage snapshot
+/// reports an environment with no metrics store: a completed run that persisted
+/// nothing, not a failure. <see cref="Candidates"/> is the whole <c>main_candidates</c>
+/// population at snapshot time — the sum of every series — so a single glance at the
+/// run says whether the funnel is growing without opening the panel.
+/// </summary>
+public sealed record CandidateStockSnapshotSummary(
+    int Platforms,
+    int Series,
+    int Written,
+    long Candidates) : IProcessRunSummary;
+
+/// <summary>
 /// Rune-page deduplication outcome (#911). The counters separate the two ways a
 /// pattern row can move: <see cref="RepointedPatterns"/> simply changed page,
 /// <see cref="FoldedPatterns"/> had its games/wins added into an existing row and was

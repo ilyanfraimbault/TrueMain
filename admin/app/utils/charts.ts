@@ -239,6 +239,57 @@ export function barChartHeight(count: number, { min, step }: { min: number, step
   return Math.max(min, count * step)
 }
 
+// Every period key from the first to the last of `buckets`, inclusive — the
+// grid a series has to be drawn on when the backend only sends the periods it
+// actually measured (#1403).
+//
+// A stock series must not close its own gaps. The candidate-stock snapshots are
+// absent for any period the ingestor did not run, and a chart fed only the
+// measured periods would join the two sides of an outage into a continuous curve
+// — the one shape that says "nothing happened" when what happened was a stall.
+// Filling the grid and leaving the values `undefined` breaks the line there
+// instead. Zeros would be worse than either: they would claim the funnel emptied.
+//
+// Bounded at 2000 steps so a malformed or far-apart pair of keys cannot spin;
+// the longest legitimate grid is a 90-day window at hourly resolution (2160)
+// clamped by the snapshot TTL well before that.
+export function expandPeriodGrid(
+  buckets: readonly string[],
+  granularity: 'hour' | 'day' | 'week' | 'month',
+): string[] {
+  const first = buckets[0]
+  const last = buckets[buckets.length - 1]
+  if (!first || !last) {
+    return []
+  }
+
+  const end = new Date(last)
+  const cursor = new Date(first)
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime())) {
+    return [...buckets]
+  }
+
+  const grid: string[] = []
+  for (let step = 0; cursor <= end && step < 2000; step += 1) {
+    grid.push(isoBucketKey(cursor))
+    switch (granularity) {
+      case 'hour': cursor.setUTCHours(cursor.getUTCHours() + 1); break
+      case 'day': cursor.setUTCDate(cursor.getUTCDate() + 1); break
+      case 'week': cursor.setUTCDate(cursor.getUTCDate() + 7); break
+      case 'month': cursor.setUTCMonth(cursor.getUTCMonth() + 1); break
+    }
+  }
+  return grid
+}
+
+// The backend's bucket key shape (`RunTimeBuckets.Format`): ISO-8601 UTC, seconds
+// precision, `Z` suffix. Rebuilt rather than taken from `toISOString()` so the
+// keys this grid produces match the ones the payload carries exactly — a
+// millisecond suffix would miss every lookup.
+function isoBucketKey(date: Date): string {
+  return `${date.toISOString().slice(0, 19)}Z`
+}
+
 // Build an `xFormatter` that maps the chart's numeric tick index back to a
 // label. nuxt-charts feeds the tick's index for categorical x-axes, so we look
 // the label up by position in the source array.
@@ -269,6 +320,7 @@ export function labelTooltipTitle(d: { label: string }): string {
 // timestamps of the period start and are formatted in UTC so the label matches
 // the bucket boundary regardless of the viewer's timezone; `patch` buckets are
 // already the human "MAJOR.MINOR" string and pass through untouched.
+//   hour  -> "2026-06-03 14:00"
 //   day   -> "2026-06-03"
 //   week  -> "2026-06-01" (period start date)
 //   month -> "Jun 2026"
@@ -276,7 +328,7 @@ export function labelTooltipTitle(d: { label: string }): string {
 //   patch -> "16.4"
 export function formatBucketLabel(
   bucket: string,
-  granularity: 'day' | 'week' | 'month' | 'year' | 'patch',
+  granularity: 'hour' | 'day' | 'week' | 'month' | 'year' | 'patch',
 ): string {
   if (granularity === 'patch') {
     return bucket
@@ -288,6 +340,11 @@ export function formatBucketLabel(
     return bucket
   }
   switch (granularity) {
+    case 'hour':
+      // Date + hour, still UTC: an hourly bucket read in local time would sit an
+      // offset away from the boundary the backend truncated it to.
+      return `${date.toLocaleDateString('sv-SE', { timeZone: 'UTC' })} ${date
+        .toLocaleTimeString('sv-SE', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' })}`
     case 'day':
     case 'week':
       // ISO date (YYYY-MM-DD) in UTC; `sv-SE` yields that exact shape.
