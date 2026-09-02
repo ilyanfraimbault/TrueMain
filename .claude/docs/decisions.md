@@ -2308,15 +2308,23 @@ three as three things a new service must remember is how you get a read that loo
 `ChampionReadCacheRegistrationTests` walks `ChampionsController`'s constructor — the DI surface of the
 champion reads — and fails if any service behind it takes a raw `IMemoryCache` or no cache at all.
 
-**Keyed by aggregation version, not by a clock.** These answers are folds over data the ingestor rewrites once
-per aggregation cycle and never in between, so a 60 s TTL was throwing away answers that were still exactly
-right. The key carries a token derived from `MAX("AggregatedAtUtc")` over `champion_aggregate_scopes`; a new
-cycle changes the token and retires every entry at once, with nothing to enumerate or evict. The token read is
-itself cached for 5 s and single-flighted, so it costs at most one `max()` every five seconds no matter how
-much traffic arrives — the one thing that must not happen is the version probe becoming the new hot query. A
-30-minute absolute expiry stays as a backstop: not for freshness, but so a token that somehow stops moving
-cannot pin a stale answer for ever. An empty database is just another version (`none`), so a first-ever fold
-invalidates the empty answers by moving the token.
+**Keyed by aggregation version, not by a clock.** The reads served from the aggregate tables only change when
+the ingestor rewrites them, once per cycle and never in between, so a 60 s TTL was throwing away answers that
+were still exactly right. The key carries a token derived from `MAX("AggregatedAtUtc")` over
+`champion_aggregate_scopes`; a new cycle changes the token and retires every entry at once, with nothing to
+enumerate or evict. The token read is itself cached for 5 s and single-flighted, so it costs at most one
+`max()` every five seconds no matter how much traffic arrives — the one thing that must not happen is the
+version probe becoming the new hot query. An empty database is just another version (`none`), so a first-ever
+fold invalidates the empty answers by moving the token.
+
+**For the live folds the backstop *is* the freshness bound, and that is the trade.** Roam, scaling, item
+timings, powerspikes, synergies, the live branch of matchups, mains-comparison and the composition selection
+read `match_participants` directly, so they also move with match ingestion — which since #1374 runs in a lane
+of its own, decoupled from aggregation. The token does not track that, so those answers can sit up to the
+30-minute absolute expiry where they used to sit one minute. Accepted knowingly: these are precisely the reads
+that measured 2–5 s cold, the staleness is bounded and never a wrong answer, and part B of #1368 moves them
+onto aggregate tables of their own, after which the token covers them too. The absolute expiry also remains
+the guard against a token that somehow stops moving.
 
 **The owner of a coalesced pass waits it out.** `RequestCoalescer` grew an `ownerAwaitsToCompletion` flag for
 this. The champion reads run on the caller's request-scoped `DbContext`, so if the caller that *started* the

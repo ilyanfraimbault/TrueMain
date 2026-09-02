@@ -30,14 +30,23 @@ namespace TrueMain.Services.Champions;
 /// the controller resolves takes this and not a raw <c>IMemoryCache</c>.
 /// </para>
 /// <para>
-/// <b>Keyed by aggregation version, not by a clock.</b> These answers are folds over
-/// data the ingestor rewrites once per aggregation cycle (~1–2 h) and never in
-/// between, so expiring them every 60 s threw away answers that were still exactly
-/// right. Every key instead carries the version token below, and entries survive
-/// until the ingestor actually publishes new numbers.
-/// <see cref="AbsoluteBackstop"/> remains as a backstop — not for freshness, but so a
-/// version token that somehow stops moving cannot pin a stale answer for ever, and so
-/// the cache's own bookkeeping keeps turning over.
+/// <b>Keyed by aggregation version, not by a clock.</b> The reads served from the
+/// aggregate tables only change when the ingestor rewrites them, once per aggregation
+/// cycle (~1–2 h) and never in between, so expiring them every 60 s threw away answers
+/// that were still exactly right. Every key carries the version token below, and those
+/// entries survive until the ingestor actually publishes new numbers.
+/// </para>
+/// <para>
+/// <b>The live folds are a weaker case, deliberately.</b> Roam, scaling, item timings,
+/// powerspikes, synergies, the live branch of matchups, mains-comparison and the
+/// composition selection read <c>match_participants</c> directly, so their answers also
+/// move with match ingestion — which since #1374 runs in a lane of its own, not with the
+/// aggregation. The version token does not track that, so for these
+/// <see cref="AbsoluteBackstop"/> is the real freshness bound: up to half an hour, where
+/// it used to be a minute. That is the trade this exists to make — these are exactly the
+/// reads that measured 2–5 s cold — and it is bounded staleness, never a wrong answer.
+/// Part B of #1368 moves them onto aggregate tables of their own, at which point the
+/// token covers them too.
 /// </para>
 /// </remarks>
 public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCache cache) : IChampionReadCache
