@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Data.Entities;
 using Data.Ops.Mongo;
 using Ingestor.Options;
 using Ingestor.Services;
@@ -49,6 +50,43 @@ public sealed class ProcessRunJobModeTests
         // A run recorded outside a pass has no lane to claim, and an invented one would
         // read as fact in the admin panel.
         document.JobMode.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RecordAsync_StampsTheMode_OnTheRecoveryInsertToo()
+    {
+        var store = Substitute.For<IProcessRunStore>();
+        // The in-flight document was reaped by the TTL before the run finished, so
+        // finalising misses and the recorder inserts a fresh terminal document instead.
+        store.FinalizeAsync(
+                Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<ProcessRunStatus>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var context = new IterationContext();
+        var recorder = new ProcessRunRecorder(store, context);
+
+        using var iteration = context.BeginIteration(JobMode.FetchLane);
+        var startedAt = DateTime.UtcNow;
+        await recorder.RecordAsync(
+            Guid.NewGuid(),
+            "MatchIngestion",
+            startedAt,
+            startedAt.AddSeconds(1),
+            ProcessRunStatus.Success,
+            summary: null,
+            error: null,
+            CancellationToken.None);
+
+        var document = store.ReceivedCalls()
+            .Single(call => call.GetMethodInfo().Name == nameof(IProcessRunStore.InsertAsync))
+            .GetArguments()[0]
+            .Should().BeOfType<ProcessRunDocument>().Subject;
+
+        // Without this the recovered document is the one row of the pass with no lane,
+        // and it is the only row a reader would have for a run that lost its original.
+        document.JobMode.Should().Be(nameof(JobMode.FetchLane));
+        document.IterationId.Should().Be(iteration.IterationId);
     }
 
     [Fact]

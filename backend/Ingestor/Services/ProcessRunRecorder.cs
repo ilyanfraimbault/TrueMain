@@ -74,10 +74,12 @@ public sealed class ProcessRunRecorder(
                 {
                     Id = runId == Guid.Empty ? Guid.NewGuid() : runId,
                     ProcessName = processName,
-                    // The original Running document (which carried the iteration) is
-                    // gone; re-stamp from the still-current pass so the recovered
-                    // terminal document stays grouped with its iteration.
+                    // The original Running document (which carried the iteration and the
+                    // lane) is gone; re-stamp both from the still-current pass so the
+                    // recovered terminal document stays grouped with its iteration and is
+                    // still drawn against the right chain.
                     IterationId = iterationContext.CurrentIterationId,
+                    JobMode = iterationContext.CurrentJobMode?.ToString(),
                     StartedAtUtc = startedAtUtc,
                     FinishedAtUtc = finishedAtUtc,
                     DurationMs = durationMs,
