@@ -72,8 +72,6 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
 {
     private const int LaneOutcomeMinute = 15;
 
-    private static readonly string[] CanonicalPositions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-
     public string Name => "ChampionLaneOutcomeAggregation";
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
@@ -160,11 +158,11 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
             .Select(m => new { m.Id, m.GameVersion })
             .ToDictionaryAsync(m => m.Id, m => PatchVersion.Normalize(m.GameVersion), ct);
 
-        var cohort = await MatchupCohort.LoadAsync(db, matchIds, ct);
+        var cohort = await ChampionCohort.LoadAsync(db, matchIds, ct);
 
         var participants = await db.MatchParticipants
             .AsNoTracking()
-            .Where(p => matchIds.Contains(p.MatchId) && CanonicalPositions.Contains(p.TeamPosition))
+            .Where(p => matchIds.Contains(p.MatchId) && ChampionCohort.CanonicalPositions.Contains(p.TeamPosition))
             .Select(p => new ParticipantRow(
                 p.MatchId,
                 p.ParticipantId,
@@ -203,9 +201,9 @@ public sealed class ChampionLaneOutcomeAggregationProcess(
                 // Same asymmetry as the matchup fold it sits beside: the (champion,
                 // position) side is a main of that champion, the opponent is whoever
                 // was in that lane. Keeping the two folds' cohorts identical — hence
-                // the shared MatchupCohort — is what lets the read put lane WR and
+                // the shared ChampionCohort — is what lets the read put lane WR and
                 // game WR on the same row.
-                if (!cohort.Contains(new MatchupCohortKey(matchId, self.ParticipantId)))
+                if (!cohort.Includes(matchId, self.ParticipantId))
                 {
                     continue;
                 }

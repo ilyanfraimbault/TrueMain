@@ -24,6 +24,7 @@ namespace TrueMain.IntegrationTests;
 public sealed class ChampionSynergyApiIntegrationTests
 {
     private const int QueueId = 420;
+    private const string TrackedPuuid = "synergy-api-puuid";
     private const int Champion = 157; // Yone, MIDDLE — the tracked side.
     private const string Position = "MIDDLE";
     private const int Support = 350; // Yuumi, UTILITY
@@ -453,9 +454,14 @@ public sealed class ChampionSynergyApiIntegrationTests
             var account = new RiotAccountBuilder()
                 .WithGameName("SynergyMain")
                 .WithTagLine("KR1")
-                .WithPuuid("synergy-api-puuid")
+                .WithPuuid(TrackedPuuid)
                 .Build();
             db.RiotAccounts.Add(account);
+
+            // The queried side of a pairing is a main of the champion, not merely a
+            // tracked account (ChampionCohort, #1365).
+            db.MainChampionStats.Add(
+                MainChampionStatSeed.Row(account.PlatformId, TrackedPuuid, Champion, Position));
 
             for (var i = 0; i < games; i++)
             {
@@ -471,7 +477,8 @@ public sealed class ChampionSynergyApiIntegrationTests
                 var participantId = 1;
 
                 db.MatchParticipants.Add(Participant(
-                    matchId, participantId++, Champion, Position, teamId: 100, win: win, riotAccountId: account.Id));
+                    matchId, participantId++, Champion, Position, teamId: 100, win: win,
+                    riotAccountId: account.Id, puuid: TrackedPuuid));
                 foreach (var (allyChampion, allyPosition) in allies)
                 {
                     db.MatchParticipants.Add(Participant(matchId, participantId++, allyChampion, allyPosition, 100, win));
@@ -497,12 +504,14 @@ public sealed class ChampionSynergyApiIntegrationTests
 
     private static MatchParticipant Participant(
         string matchId, int participantId, int championId, string position, int teamId, bool win,
-        Guid? riotAccountId = null)
+        Guid? riotAccountId = null, string? puuid = null)
         => new()
         {
             MatchId = matchId,
             ParticipantId = participantId,
-            Puuid = $"puuid-{matchId}-{participantId}",
+            // The cohort joins main_champion_stats on (platform, puuid, champion), so
+            // the tracked seat carries its account's own puuid.
+            Puuid = puuid ?? $"puuid-{matchId}-{participantId}",
             RiotAccountId = riotAccountId,
             SummonerName = "seed",
             SummonerLevel = 100,

@@ -1,6 +1,7 @@
 using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Data;
+using Data.Aggregation;
 using Data.BuildFacts;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +10,15 @@ namespace Ingestor.Processes.Components.PatternAggregation;
 public sealed class ChampionPatternSourceRowReader(
     IDbContextFactory<TrueMainDbContext> dbContextFactory)
 {
-    private const int MinimumAggregatedGameDurationSeconds = 15 * 60;
+    /// <summary>
+    /// The header aggregate keeps a floor of its own, strictly above
+    /// <see cref="ChampionCohort.MinimumGameDurationSeconds"/>: it reads build and skill
+    /// order out of a correlated timeline, and a game decided at 8 minutes has neither a
+    /// build nor a skill path worth folding. So it is not a second opinion about what a
+    /// remake is — it excludes every remake the shared rule does, plus the early
+    /// surrenders that are games nobody finished building in. A test pins the ordering.
+    /// </summary>
+    internal const int MinimumAggregatedGameDurationSeconds = 15 * 60;
 
     // The aggregation is chunked one champion at a time so the in-memory working
     // set is bounded by a single champion's match rows rather than the whole
