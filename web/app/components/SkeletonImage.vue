@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ICON_FETCH_SIZE } from '~/utils/icon-fetch'
+import { iconPlaceholderClass } from '~/utils/icon-placeholder'
 
 defineOptions({ inheritAttrs: false })
 
@@ -131,13 +132,20 @@ onMounted(() => {
            numerous skeleton on the site, so it is what "the page is loading"
            actually looks like. It used to be `bg-elevated`, i.e. the exact fill
            of every card it sits in — invisible.
-           The pulse is dropped once the image has actually failed: a 404 is a
-           final state, and animating it made dead icons (e.g. a profile icon
-           Data Dragon doesn't ship) read as loading forever. -->
+
+           A failed image is a *different state* and now looks like one: hollow
+           (a darker fill inside a ring) rather than solid-and-still. Dropping
+           the pulse alone was not enough to tell them apart — the two differed
+           only by animation, so a page whose icons had all failed read as a page
+           still loading. The `/_ipx` outage in 1.20.0 was exactly that: every
+           icon on the site dead, and the page merely looked slow.
+           Kept to CSS on the existing element rather than a broken-image glyph:
+           a champion page carries ~470 of these, and an extra element or icon
+           component each is the cost this component exists to avoid. -->
       <span
         v-else-if="!src || !loaded || failed"
-        class="absolute inset-0 size-full rounded-md bg-ink-700"
-        :class="failed ? '' : 'animate-pulse'"
+        class="absolute inset-0 size-full rounded-md"
+        :class="iconPlaceholderClass(failed)"
       />
       <img
         v-if="src"

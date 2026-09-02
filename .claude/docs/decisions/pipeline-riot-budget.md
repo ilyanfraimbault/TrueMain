@@ -64,6 +64,16 @@ resolves those names with `GetKeyedService` rather than the required variant —
 wiring mistake the run itself reports precisely, and throwing at boot would bury that behind a vaguer error.
 An empty owned-set skips reconciliation rather than sweeping everything, because "I don't know what I own" is
 the one case where a full sweep is certainly wrong.
+
+**The lane a run belongs to is derived from its name; the mode it ran under is recorded.** Those are two
+different questions and the panel needs both. Which lane a step belongs to is static, so the admin derives it
+from the process name (`laneForProcess`) and draws one branch per lane — an iteration then renders its own
+lane instead of painting the other lane's twelve steps as phantom "Not run" chips. What the name cannot
+answer is what the pass *intended* to run: a deliberate `MatchDataRetentionOnly` and an aggregate lane that
+has only reached its first step contain exactly the same thing. So `IIterationContext` carries the mode, the
+recorder stamps it on every `process_runs` document, and the panel narrows a single-process pass to the step
+that ran rather than surrounding it with skipped chips — #1362.
+
 **Preprod runs the two lanes; prod stays on `Full` until preprod has.** Nothing about the code forces a
 topology — a single container on `Full` still runs everything in order — so the split is a deployment
 decision, and it is the kind that is cheap to validate on preprod and expensive to get wrong on prod (#1362).

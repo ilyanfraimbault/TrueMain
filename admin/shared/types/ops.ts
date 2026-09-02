@@ -73,9 +73,11 @@ export interface MatchTimeBucket {
  * Granularities of the ingestion-throughput series. Narrower than
  * `MatchTimeGranularity` on purpose: a patch is a property of the games, not of
  * when we ingested them, and a year cannot fill two buckets under the 180-day
- * run retention.
+ * run retention. `hour` exists for the candidate-stock series (#1403), whose two
+ * transient statuses are invisible at daily resolution; the flow panels accept it
+ * but do not offer it.
  */
-export type IngestionTimeGranularity = 'day' | 'week' | 'month'
+export type IngestionTimeGranularity = 'hour' | 'day' | 'week' | 'month'
 
 /**
  * `GET /api/ops/stats/matches-ingested` — how many matches the pipeline actually
@@ -245,6 +247,16 @@ export interface ProcessRun {
    * backend's stale threshold is reported as `Abandoned`.
    */
   lastHeartbeatAtUtc: string | null
+  /**
+   * The `Job:Mode` the pass was running (`Full`, `FetchLane`, `AggregateLane`, or a
+   * single-process mode), or null for runs recorded before it was captured.
+   *
+   * The lane a run belongs to is derived from its process name, so this is not what
+   * groups the chain. What it answers is the question the process names cannot: what
+   * the pass was *supposed* to run. A one-off single-process mode looks exactly like a
+   * lane that has barely started, and only this tells them apart.
+   */
+  jobMode: string | null
   summary: Record<string, unknown> | unknown[] | null
 }
 
@@ -314,6 +326,7 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'ChampionPowerspikeAggregation',
   'AccountRefresh',
   'MatchDataRetention',
+  'CandidateStockSnapshot',
   'StorageSnapshot',
 ]
 
@@ -379,6 +392,7 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'ChampionBanAggregation',
       'ChampionPowerspikeAggregation',
       'MatchDataRetention',
+      'CandidateStockSnapshot',
       'StorageSnapshot',
     ],
   },
@@ -499,6 +513,11 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     description:
       'Deletes what the site no longer serves — stale candidates, out-of-window matches, intermediate timeline snapshots — to keep the database from growing without bound.',
   },
+  CandidateStockSnapshot: {
+    label: 'Candidate Stock',
+    description:
+      'Counts how many candidates sit in each stage of the funnel and records the reading, so the backlog can be charted over time. Runs after retention, so the level it stores is the one the pipeline actually sits at.',
+  },
   StorageSnapshot: {
     label: 'Storage Snapshot',
     description:
@@ -517,6 +536,8 @@ export interface ProcessIteration {
   startedAtUtc: string
   lastActivityAtUtc: string
   isRunning: boolean
+  /** The `Job:Mode` this pass ran, or null for passes recorded before it was captured. */
+  jobMode: string | null
   runs: ProcessRun[]
 }
 
@@ -924,6 +945,59 @@ export interface CandidateFunnelBucket {
   demoted: number
   /** Runs of any contributing process in this period; `0` means the pipeline was idle. */
   runs: number
+}
+
+/**
+ * `GET /api/ops/candidates/stock` (#1403) — the candidate funnel's *level* per
+ * period: how many rows sat in each status at the end of each period, from the hourly
+ * snapshots the ingestor records.
+ *
+ * The companion of `CandidateFunnel`, which measures the same funnel's *flow*. Neither
+ * derives from the other: a period that scored 5,000 candidates and promoted 5,000 out
+ * of the pool leaves the level flat, and a flat level is also what a stalled pipeline
+ * produces.
+ *
+ * Forward-only and never backfilled — periods before `earliestSnapshotAtUtc` are absent
+ * from `buckets`, not zero. The level then was unmeasured, and unlike a counter it
+ * cannot be reconstructed afterwards: `main_candidates` has no `QueuedAtUtc`, so Scored
+ * and Queued are indistinguishable in the past, and pruning deletes rows outright.
+ */
+export interface CandidateStock {
+  buckets: CandidateStockBucket[]
+  /** The requested window in days, after backend clamping. */
+  windowDays: number
+  /** How long snapshot history is kept — the hard bound on `windowDays`. */
+  retentionDays: number
+  /** The oldest snapshot in the window; `null` when the step has never run. */
+  earliestSnapshotAtUtc: string | null
+  /** The most recent reading's timestamp, for the panel's "as of" line. */
+  latestSnapshotAtUtc: string | null
+}
+
+/**
+ * One period's level, summed across platforms.
+ *
+ * Sampled, never summed across time: a period holding several hourly readings reports
+ * its *last* one, because adding two readings of the same 419,000 queued candidates
+ * would report 838,000 of them. Across platforms within that one reading the counts
+ * *are* summed — disjoint populations at a single instant.
+ *
+ * Every status is present on every bucket, zeros included: a recorded zero is a
+ * measurement (`new: 0` means scoring drained its backlog, the healthy state) and must
+ * stay distinguishable from an unmeasured period, which is absent from `buckets`.
+ */
+export interface CandidateStockBucket {
+  /** Period start, ISO-8601 UTC. */
+  bucket: string
+  new: number
+  scored: number
+  queued: number
+  processing: number
+  validated: number
+  /** Structurally 0 — no process assigns `Rejected` (#1029). Carried, not charted. */
+  rejected: number
+  /** The exact instant this period's reading was taken, ISO-8601 UTC. */
+  sampledAtUtc: string
 }
 
 /**

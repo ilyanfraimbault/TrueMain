@@ -101,6 +101,7 @@ public sealed class ProcessRunsQueryService(IProcessRunStore store) : IProcessRu
             Status = ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now).ToString(),
             Error = run.Error,
             Host = run.Host,
+            JobMode = run.JobMode,
             LastHeartbeatAtUtc = run.LastHeartbeatAtUtc,
             Summary = ProcessRunSummaryParsing.Parse(run.SummaryJson)
         };

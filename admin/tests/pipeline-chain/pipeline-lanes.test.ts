@@ -20,6 +20,7 @@ function run(processName: string, overrides: Partial<ProcessRun> = {}): ProcessR
     status: 'Success',
     error: null,
     host: 'test',
+    jobMode: null,
     lastHeartbeatAtUtc: null,
     summary: null,
     ...overrides,
@@ -206,5 +207,39 @@ describe('pickCurrentLanes', () => {
     }])
 
     expect(lanes.map(lane => lane.isRunning)).toEqual([false, true])
+  })
+})
+
+describe('a deliberate single-process run', () => {
+  // The ingestor records the mode it opened the pass with, because a one-off
+  // `RetentionOnly` and an aggregate lane that has only reached its first step are
+  // indistinguishable by their contents. Drawing the one-off against a whole lane
+  // would put eleven "Not run" chips beside it and claim they were skipped — the
+  // misreading the lane split exists to remove, just narrower.
+  it('is drawn as only the step that ran', () => {
+    const branches = buildLaneBranches([
+      run('MatchDataRetention', { jobMode: 'MatchDataRetentionOnly' }),
+    ])
+
+    expect(branches).toHaveLength(1)
+    expect(branches[0]!.links.map(link => link.processName)).toEqual(['MatchDataRetention'])
+    expect(branches[0]!.label).toBe('MatchDataRetentionOnly')
+  })
+
+  it('does not narrow a composite mode', () => {
+    // FetchLane is a sequence, so a pass that has only reached LadderSync really has
+    // seven steps still to come and must keep showing them.
+    const branches = buildLaneBranches([run('LadderSync', { jobMode: 'FetchLane' })])
+
+    expect(branches).toHaveLength(1)
+    expect(branches[0]!.links.length).toBeGreaterThan(1)
+  })
+
+  it('falls back to the lane rendering when no mode was recorded', () => {
+    // Runs written before the ingestor stamped the mode: guessing "one-off" from a
+    // single run would hide the rest of a lane that had merely just started.
+    const branches = buildLaneBranches([run('MatchDataRetention')])
+
+    expect(branches[0]!.links.length).toBeGreaterThan(1)
   })
 })

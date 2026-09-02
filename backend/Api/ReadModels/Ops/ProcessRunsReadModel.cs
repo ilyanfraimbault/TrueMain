@@ -50,6 +50,15 @@ public sealed record ProcessRunReadModel
     public string? Host { get; init; }
 
     /// <summary>
+    /// The job mode the pass was running (<c>Full</c>, <c>FetchLane</c>,
+    /// <c>AggregateLane</c>, or a single-process mode), or null for runs recorded before
+    /// #1362 captured it. Without it a complete fetch-lane pass is indistinguishable from
+    /// a full pass that stopped halfway, since the two differ only in which processes
+    /// were supposed to run.
+    /// </summary>
+    public string? JobMode { get; init; }
+
+    /// <summary>
     /// Last liveness heartbeat of an in-flight run, or null for legacy rows / runs
     /// that never beat. The frontend can surface how fresh a <c>Running</c> row is;
     /// the API has already aged a stale one out to "Abandoned" in <see cref="Status"/>.

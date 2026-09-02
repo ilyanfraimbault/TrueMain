@@ -78,6 +78,11 @@ public static class MongoLoggingServiceCollectionExtensions
         services.TryAddSingleton<IDbStorageSnapshotStore, DbStorageSnapshotStore>();
         services.TryAddSingleton<IMongoStorageStatsReader, MongoStorageStatsReader>();
 
+        // Hourly candidate-stock snapshots (#1403): same direct-call shape as the
+        // storage snapshots above — the Ingestor's snapshot step writes, the Api reads
+        // for the admin candidates panel.
+        services.TryAddSingleton<ICandidateStockSnapshotStore, CandidateStockSnapshotStore>();
+
         // Admin-portal data moved off Postgres: recorded process runs (written by
         // the Ingestor's ProcessRunRecorder, read by the admin process panels) and
         // the seed-request queue (written by the API, claimed by ManualSeedProcess).

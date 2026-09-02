@@ -42,6 +42,14 @@ public sealed record ProcessIterationReadModel
     /// </summary>
     public bool IsRunning { get; init; }
 
+    /// <summary>
+    /// The job mode this pass ran, taken from its runs, or null when none of them
+    /// recorded one (runs written before #1362 captured it). This is what tells a reader
+    /// which lane the pass covered, and therefore which chain it should be judged
+    /// against: an iteration that ran the fetch lane is complete, not half-finished.
+    /// </summary>
+    public string? JobMode { get; init; }
+
     /// <summary>The iteration's runs in pipeline order (by <c>StartedAtUtc</c>).</summary>
     public IReadOnlyList<ProcessRunReadModel> Runs { get; init; } = [];
 }

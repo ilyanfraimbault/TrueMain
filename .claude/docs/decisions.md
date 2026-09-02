@@ -118,6 +118,8 @@ Last verified against `develop` on 2026-09-02.
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
+- A failed icon is hollow; a loading one is solid and moving (2026-09-02) — #1396
+
 - The rose-gold-only surface rule is reversed: neutral surfaces, a scarce accent, and a data axis of its own (2026-08-10) — #1060, #1059, #927
 - Measurements are rose gold again: the cold→warm data axis is withdrawn (2026-08-11) — #1096, #1060, #927
 - Measurements are set in Inter again: the mono stat face is withdrawn — #1060, #1111
@@ -150,6 +152,7 @@ Last verified against `develop` on 2026-09-02.
 
 - Riot calls are paced by a limiter keyed on the routing value, because that is the grain Riot enforces — #1359, #855
 - The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks — #1362, #1360
+- The lane is derived from the process name; the mode it ran under is recorded (2026-09-02) — #1362
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150
@@ -206,6 +209,9 @@ Last verified against `develop` on 2026-09-02.
 - A forward-only counter renders as absent, not as zero, and key presence is what says which — #1024, #924
 - `ValidatedAtUtc` had never been written in production, and the queue-latency snapshot is why that surfaced — #1024
 - Queue latency is a snapshot over retained rows and is labelled as one, rather than being faked into a series — #1024
+- The candidate stock is snapshotted hourly, because it cannot be reconstructed afterwards — #1403
+- A recorded zero is a measurement; an unmeasured period is absent — #1403, #924
+- A stock is sampled across time and summed across platforms — never the other way round — #1403
 - Daily storage snapshots go to Mongo and are keyed on the day, not the run — #925
 - The disk forecast is absent rather than approximate when the data can't support it — #680, #925
 - Logs and metrics live in MongoDB, not Postgres, with two different guarantees — #416

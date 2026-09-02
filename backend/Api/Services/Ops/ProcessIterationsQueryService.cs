@@ -65,6 +65,10 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IPro
                     LastActivityAtUtc = runs.Count == 0
                         ? header.StartedAtUtc
                         : runs.Max(run => run.FinishedAtUtc),
+                    // Every run of a pass carries the same mode, so the first non-null one
+                    // answers for the iteration; null only when the whole pass predates
+                    // #1362's stamping.
+                    JobMode = runs.Select(run => run.JobMode).FirstOrDefault(mode => mode is not null),
                     IsRunning = runs.Any(run =>
                         ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now)
                         == ProcessRunStatus.Running),

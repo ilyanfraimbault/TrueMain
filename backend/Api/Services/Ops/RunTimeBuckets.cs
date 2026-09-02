@@ -7,9 +7,13 @@ namespace TrueMain.Services.Ops;
 /// Narrower than <see cref="MatchTimeGranularity"/> on purpose:
 /// <c>Patch</c> is a property of the games, not of when the pipeline ran, and
 /// <c>Year</c> cannot fill more than one bucket under the 180-day run retention.
+/// <c>Hour</c> exists for the candidate-stock series (#1403), whose two transient
+/// statuses are invisible at daily resolution; the flow series accept it too, since
+/// bucketing runs by hour is well defined, but their panels do not offer it.
 /// </summary>
 public enum IngestionTimeGranularity
 {
+    Hour,
     Day,
     Week,
     Month
@@ -34,6 +38,8 @@ internal static class RunTimeBuckets
 
         return granularity switch
         {
+            IngestionTimeGranularity.Hour =>
+                new DateTime(day.Year, day.Month, day.Day, instant.Hour, 0, 0, DateTimeKind.Utc),
             IngestionTimeGranularity.Day => day,
             IngestionTimeGranularity.Week => day.AddDays(-((int)day.DayOfWeek + 6) % 7),
             IngestionTimeGranularity.Month => new DateTime(day.Year, day.Month, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -44,6 +50,7 @@ internal static class RunTimeBuckets
     public static DateTime Advance(DateTime bucket, IngestionTimeGranularity granularity)
         => granularity switch
         {
+            IngestionTimeGranularity.Hour => bucket.AddHours(1),
             IngestionTimeGranularity.Day => bucket.AddDays(1),
             IngestionTimeGranularity.Week => bucket.AddDays(7),
             IngestionTimeGranularity.Month => bucket.AddMonths(1),

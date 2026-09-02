@@ -65,6 +65,7 @@ public static class SharedEffectiveConfigurationSections
             nameof(MongoLoggingOptions.LogsRetention),
             nameof(MongoLoggingOptions.RiotApiCallsRetention),
             nameof(MongoLoggingOptions.DbTableSizeSnapshotsRetention),
+            nameof(MongoLoggingOptions.CandidateStockSnapshotsRetention),
             nameof(MongoLoggingOptions.ProcessRunsRetention),
             nameof(MongoLoggingOptions.CrashesRetention),
             nameof(MongoLoggingOptions.Capacity),
@@ -88,6 +89,11 @@ public static class SharedEffectiveConfigurationSections
                 nameof(MongoLoggingOptions.DbTableSizeSnapshotsRetention),
                 UnsetCondition.ZeroOrNegative,
                 "No TTL index: daily storage snapshots are kept forever."),
+            new EffectiveConfigurationNotice(
+                nameof(MongoLoggingOptions.CandidateStockSnapshotsRetention),
+                UnsetCondition.ZeroOrNegative,
+                "No TTL index: hourly candidate-stock snapshots are kept forever — the densest of the "
+                + "snapshot collections, at one document per platform and status per hour."),
             new EffectiveConfigurationNotice(
                 nameof(MongoLoggingOptions.ProcessRunsRetention),
                 UnsetCondition.ZeroOrNegative,

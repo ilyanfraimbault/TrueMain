@@ -30,6 +30,7 @@ namespace Ingestor.Processes.Summaries;
 [JsonSerializable(typeof(SynergyAggregationSummary))]
 [JsonSerializable(typeof(BanAggregationSummary))]
 [JsonSerializable(typeof(StorageSnapshotSummary))]
+[JsonSerializable(typeof(CandidateStockSnapshotSummary))]
 [JsonSerializable(typeof(RunePageDeduplicationSummary))]
 [JsonSerializable(typeof(LaneOutcomeAggregationSummary))]
 [JsonSerializable(typeof(MatchDataRetentionSummary))]

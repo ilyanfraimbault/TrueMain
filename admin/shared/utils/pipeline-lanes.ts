@@ -86,6 +86,26 @@ export function buildLaneBranches(runs: readonly ProcessRun[]): LaneBranch[] {
   // what the flat chain did.
   const byName = new Map(runs.map(run => [run.processName, run]))
 
+  // A pass that ran one process on purpose is not a lane that stopped after one
+  // step, and the two are indistinguishable by their contents — which is why the
+  // ingestor records the mode it opened the pass with. Drawing such a run against a
+  // whole lane would put eleven "Not run" chips beside it and claim they were
+  // skipped, the same misreading the lane split was made to remove, just narrower.
+  const singleProcessMode = singleProcessModeOf(runs)
+  if (singleProcessMode) {
+    const links: ChainLink[] = runs.map(run => ({
+      processName: run.processName,
+      outcome: run.status,
+      run,
+    }))
+    return [toBranch(
+      laneForProcess(runs[0]!.processName) ?? 'other',
+      singleProcessMode,
+      'A single process run on its own, outside the lane cadences.',
+      links,
+    )]
+  }
+
   const branches = PIPELINE_LANES.map((lane) => {
     const links: ChainLink[] = lane.steps.map((processName) => {
       const run = byName.get(processName) ?? null
@@ -117,6 +137,28 @@ export function buildLaneBranches(runs: readonly ProcessRun[]): LaneBranch[] {
   const ranBranches = branches.filter(branch => branch.ran)
   return ranBranches.length > 0 ? ranBranches : branches
 }
+
+/**
+ * The recorded `Job:Mode` when this pass was a deliberate single-process run, else
+ * null. `Full`, `FetchLane` and `AggregateLane` are the composite modes — they
+ * expand to a sequence, so they are drawn against their lanes. Anything else names
+ * one process, and a pass with no recorded mode (written before the ingestor
+ * stamped it) is left to the lane rendering rather than guessed at.
+ */
+function singleProcessModeOf(runs: readonly ProcessRun[]): string | null {
+  if (runs.length === 0) {
+    return null
+  }
+
+  const mode = runs.find(run => run.jobMode)?.jobMode
+  if (!mode || COMPOSITE_JOB_MODES.has(mode)) {
+    return null
+  }
+
+  return mode
+}
+
+const COMPOSITE_JOB_MODES: ReadonlySet<string> = new Set(['Full', 'FetchLane', 'AggregateLane'])
 
 function toBranch(
   id: LaneBranch['id'],

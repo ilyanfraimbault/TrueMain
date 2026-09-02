@@ -223,7 +223,7 @@ public sealed class Worker(
         // below (across the per-process scopes) is stamped with the same id and the
         // admin can group them as one chain. The AsyncLocal id flows into each
         // awaited process; the scope restores the prior value when the pass ends.
-        using var iteration = iterationContext.BeginIteration();
+        using var iteration = iterationContext.BeginIteration(mode);
         logger.LogInformation("Starting iteration {IterationId}.", iteration.IterationId);
 
         foreach (var step in sequence)
