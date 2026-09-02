@@ -352,11 +352,14 @@ const rowTint = computed(() =>
             </div>
             <!-- LP delta stays behind a guard for when the backend starts
                  deriving it (always null today, so it renders nothing in
-                 prod). -->
+                 prod). It is a *measurement* — how much the game moved you —
+                 so it takes the data axis, not the blue/red the row wears for
+                 who won: the win/loss is already said by the tint, the KDA
+                 slash colours and the scoreboard header. -->
             <div
               v-if="lpDeltaText"
               class="text-[11px] font-semibold tabular-nums"
-              :class="(self.lpDelta ?? 0) >= 0 ? 'text-sky-400' : 'text-red-400'"
+              :class="(self.lpDelta ?? 0) >= 0 ? 'text-data-good' : 'text-data-bad'"
             >
               {{ lpDeltaText }}
             </div>
