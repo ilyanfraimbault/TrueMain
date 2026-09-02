@@ -34,9 +34,19 @@ actually exhausted.
 now" has to be decided one caller at a time to stay correct. It costs nothing: the sustained personal-key
 allowance is under one request per second per region, and regions never wait on each other — which is the
 whole point.
-The limiter sits **inside** the resilience handler (a retried attempt waits for its own permit instead of
-replaying into the limit that rejected it) and **outside** the metrics handler (a permit wait is not Riot
-latency). No configuration is needed when the key changes: the limits are learned from the response.
+**The two halves of the limiter sit on opposite sides of the resilience handler.** The first attempt put both
+inside it, reasoning that a retried attempt should wait for its own permit. Preprod disproved that within an
+hour of the deploy: inside the resilience pipeline, the wait for a permit is charged to the **10-second
+per-attempt timeout**, and a legitimate wait on a 100-per-2-minutes window is routinely longer than that. The
+attempt was cancelled on the queue rather than on the network, retried into the same queue, and the account's
+whole ingestion failed with a `TimeoutRejectedException` raised from the limiter's own `Task.Delay`.
+So **waiting happens outside** the resilience handler, bounded by `HttpClient.Timeout` (sized above the total
+request budget), and **observing happens inside** it, where it still sees every physical attempt — including
+the 429s the retry strategy absorbs, which are exactly the responses carrying the `Retry-After` the next
+acquisition must honour. The cost of the split is that the limiter charges one permit per *logical* request
+rather than per attempt; Riot's own `X-App-Rate-Limit-Count` on the way back is what corrects the count, which
+is what that header is for. The metrics handler stays innermost, so a permit wait is never recorded as Riot
+latency. No configuration is needed when the key changes: the limits are learned from the response.
 
 **Match ingestion fans out one worker per platform, and stays sequential inside one.**
 The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained

@@ -38,22 +38,33 @@ builder.Services.AddTransient<RiotApiMetricsHandler>();
 // the same budget (#1359). Registered before the clients that consume it.
 builder.Services.AddSingleton<IRiotRateLimiter, RiotRateLimiter>();
 builder.Services.AddTransient<RiotRateLimitHandler>();
+builder.Services.AddTransient<RiotRateLimitObserverHandler>();
 
-// Handler order per client, outermost first: resilience -> rate limiter -> metrics.
-// The limiter sits inside the resilience handler so a retried attempt waits for its
-// own permit instead of replaying straight into the limit that rejected it, and
-// outside the metrics handler so a permit wait is not recorded as Riot latency.
+// Handler order per client, outermost first:
+//   rate limiter -> resilience -> rate-limit observer -> metrics.
+//
+// The two halves of the limiter sit on opposite sides of the resilience handler, and both
+// placements are load-bearing. Waiting goes OUTSIDE it: inside, a permit wait is charged to
+// the 10-second per-attempt timeout, while a legitimate wait on a 100-per-2-minutes window
+// is routinely longer than that — preprod failed whole accounts that way within an hour of
+// the first deploy. Observing goes INSIDE it, where it sees every physical attempt including
+// the 429s the retry strategy absorbs, which are the responses carrying the Retry-After the
+// next acquisition must honour. The metrics handler stays innermost so a permit wait is
+// never recorded as Riot latency.
 builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>(ConfigureRiotClient)
-    .AddRiotResilienceHandler()
     .AddHttpMessageHandler<RiotRateLimitHandler>()
+    .AddRiotResilienceHandler()
+    .AddHttpMessageHandler<RiotRateLimitObserverHandler>()
     .AddHttpMessageHandler<RiotApiMetricsHandler>();
 builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>(ConfigureRiotClient)
-    .AddRiotResilienceHandler()
     .AddHttpMessageHandler<RiotRateLimitHandler>()
+    .AddRiotResilienceHandler()
+    .AddHttpMessageHandler<RiotRateLimitObserverHandler>()
     .AddHttpMessageHandler<RiotApiMetricsHandler>();
 builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>(ConfigureRiotClient)
-    .AddRiotResilienceHandler()
     .AddHttpMessageHandler<RiotRateLimitHandler>()
+    .AddRiotResilienceHandler()
+    .AddHttpMessageHandler<RiotRateLimitObserverHandler>()
     .AddHttpMessageHandler<RiotApiMetricsHandler>();
 
 // Single clock source for the whole ingestor: every process and component that
