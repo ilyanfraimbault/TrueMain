@@ -51,6 +51,12 @@ import type {
   BuildDivergence,
   PlayerBuildDivergenceResponse,
 } from '~~/shared/types/divergence'
+import type {
+  MatchDetailItemEvent,
+  MatchDetailParticipant,
+  MatchDetailResponse,
+  MatchDetailSkillEvent,
+} from '~~/shared/types/match-detail'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
 import type {
   PerformanceComponentKind,
@@ -1650,94 +1656,290 @@ function mockActivity(player: MockPlayer): TruemainActivityResponse {
   }
 }
 
-function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchSummariesResponse {
-  const { page, pageSize } = pageParams(query, 20, 50)
-  const total = 46
+/** How many games the fixture history holds, for every player. */
+const MATCH_HISTORY_TOTAL = 46
+
+/**
+ * One generated game of a player's history. Extracted from `mockMatches` so
+ * `mockMatchDetail` can regenerate *the same* match from its id: the detail
+ * panel expands inside the row it belongs to, and a second, independent roll
+ * of the dice would show ten different champions than the row right above it.
+ */
+function mockMatchSummary(player: MockPlayer, index: number): MatchSummaryResponse {
   const now = Date.now()
   const pool = CHAMPION_SEEDS
+  const rng = mulberry32(player.row.rank * 8887 + index * 271)
+  const main = player.row.topChampions[Math.floor(rng() * player.row.topChampions.length)]!
+  const mainSeed = seedsById.get(main.championId)!
+  const archetype = ARCHETYPES[mainSeed.archetype]
+  const win = rng() < (player.row.stats.winRate ?? 0.5)
+  const kills = Math.floor(rng() * 12)
+  const deaths = Math.floor(rng() * 8)
+  const assists = Math.floor(rng() * 14)
+  const duration = 1350 + Math.floor(rng() * 1100)
+
+  // Performance score, placement and the MVP/ACE accolade, kept mutually
+  // consistent: the accolade is "placement 1 on your own side", so it can
+  // only fire on a top-3 overall game. The real API derives all three from
+  // one ranking (docs/performance-score.md); a mock with three independent
+  // dice would show a crown on a 34 and make the panel look broken.
+  const perf = 28 + Math.floor(rng() * 62)
+  const placement = 1 + Math.floor((100 - perf) / 100 * 10)
+  const topOfTeam = placement <= 3
+
+  // 10 participants: self + 9 others drawn from the champion pool, split 5v5.
+  const selfTeam = rng() < 0.5 ? 100 : 200
+  const selfIndex = player.row.rank - 1
+  const participants = Array.from({ length: 10 }, (_, slot) => {
+    // Skip the current player's own index so self never shows up a second
+    // time among the "others".
+    let otherIndex = (player.row.rank + slot * 17 + index) % PLAYER_COUNT
+    if (otherIndex === selfIndex) otherIndex = (otherIndex + 1) % PLAYER_COUNT
+    const other = players()[otherIndex]!
+    return {
+      championId: slot === 0 ? main.championId : pool[(index * 7 + slot * 13) % pool.length]!.id,
+      teamId: slot < 5 ? selfTeam : selfTeam === 100 ? 200 : 100,
+      // Slots 0-4 / 5-9 are each a full team in role order, so slot % 5
+      // yields a valid one-of-each position assignment per side.
+      position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[slot % 5]!,
+      gameName: slot === 0 ? player.row.identity.gameName : other.row.identity.gameName,
+      tagLine: slot === 0 ? player.row.identity.tagLine : other.row.identity.tagLine,
+    }
+  })
+
+  return {
+    matchId: `EUW1_${7_100_000_000 + player.row.rank * 10_000 + index}`,
+    queueId: 420,
+    gameMode: 'CLASSIC',
+    gameStartTimeUtc: new Date(now - (index * 11 + 3) * 60 * 60 * 1000).toISOString(),
+    gameDurationSeconds: duration,
+    self: {
+      championId: main.championId,
+      championLevel: 12 + Math.floor(rng() * 7),
+      summoner1Id: archetype.spells[0],
+      summoner2Id: archetype.spells[1],
+      primaryStyleId: mainSeed.primaryStyle,
+      subStyleId: mainSeed.secondaryStyle,
+      keystoneId: mainSeed.keystone,
+      kills,
+      deaths,
+      assists,
+      cs: Math.round(duration / 60 * (5.5 + rng() * 3.5)),
+      killParticipation: round3(Math.min(0.9, 0.3 + rng() * 0.5)),
+      items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
+      trinketItemId: 3364,
+      teamId: selfTeam,
+      position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[index % 5]!,
+      win,
+      lpDelta: win ? 14 + Math.floor(rng() * 12) : -(12 + Math.floor(rng() * 12)),
+      // Correlated with the accolade below rather than independent, so the
+      // mock never renders a crown next to a mediocre score — the real API
+      // derives both from the same ranking.
+      performanceScore: perf,
+      placement,
+      isMvp: win && topOfTeam,
+      isAce: !win && topOfTeam,
+    },
+    participants,
+  }
+}
+
+function mockMatches(player: MockPlayer, query: Record<string, unknown>): MatchSummariesResponse {
+  const { page, pageSize } = pageParams(query, 20, 50)
+  const total = MATCH_HISTORY_TOTAL
 
   // Generate exactly the rows this page holds (the last page is short).
   const start = (page - 1) * pageSize
   const count = Math.max(0, Math.min(pageSize, total - start))
-  const matches = Array.from({ length: count }, (_, i): MatchSummaryResponse => {
-    const index = start + i
-    const rng = mulberry32(player.row.rank * 8887 + index * 271)
-    const main = player.row.topChampions[Math.floor(rng() * player.row.topChampions.length)]!
-    const mainSeed = seedsById.get(main.championId)!
-    const archetype = ARCHETYPES[mainSeed.archetype]
-    const win = rng() < (player.row.stats.winRate ?? 0.5)
-    const kills = Math.floor(rng() * 12)
-    const deaths = Math.floor(rng() * 8)
-    const assists = Math.floor(rng() * 14)
-    const duration = 1350 + Math.floor(rng() * 1100)
+  const matches = Array.from({ length: count }, (_, i) => mockMatchSummary(player, start + i))
 
-    // Performance score, placement and the MVP/ACE accolade, kept mutually
-    // consistent: the accolade is "placement 1 on your own side", so it can
-    // only fire on a top-3 overall game. The real API derives all three from
-    // one ranking (docs/performance-score.md); a mock with three independent
-    // dice would show a crown on a 34 and make the panel look broken.
-    const perf = 28 + Math.floor(rng() * 62)
-    const placement = 1 + Math.floor((100 - perf) / 100 * 10)
-    const topOfTeam = placement <= 3
+  return { matches, page, pageSize, total }
+}
 
-    // 10 participants: self + 9 others drawn from the champion pool, split 5v5.
-    const selfTeam = rng() < 0.5 ? 100 : 200
-    const selfIndex = player.row.rank - 1
-    const participants = Array.from({ length: 10 }, (_, slot) => {
-      // Skip the current player's own index so self never shows up a second
-      // time among the "others".
-      let otherIndex = (player.row.rank + slot * 17 + index) % PLAYER_COUNT
-      if (otherIndex === selfIndex) otherIndex = (otherIndex + 1) % PLAYER_COUNT
-      const other = players()[otherIndex]!
-      return {
-        championId: slot === 0 ? main.championId : pool[(index * 7 + slot * 13) % pool.length]!.id,
-        teamId: slot < 5 ? selfTeam : selfTeam === 100 ? 200 : 100,
-        // Slots 0-4 / 5-9 are each a full team in role order, so slot % 5
-        // yields a valid one-of-each position assignment per side.
-        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[slot % 5]!,
-        gameName: slot === 0 ? player.row.identity.gameName : other.row.identity.gameName,
-        tagLine: slot === 0 ? player.row.identity.tagLine : other.row.identity.tagLine,
-      }
+// ─── Match detail (one expanded row) ─────────────────────────────────────────
+
+/** Priority order → skill slot (1 = Q, 2 = W, 3 = E, 4 = R). */
+const SKILL_SLOTS: Record<string, number> = { Q: 1, W: 2, E: 3, R: 4 }
+
+/**
+ * A legal level-up sequence for `levels` levels: R whenever it is available
+ * (6/11/16) and not already maxed, otherwise the next point down the
+ * archetype's max order. The panel's grid is a direct render of this list, so
+ * a lazier "random slot per level" would draw six points in one skill.
+ */
+function skillSequence(order: readonly string[], levels: number, rng: () => number): MatchDetailSkillEvent[] {
+  const points: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
+  const priority = order.map(key => SKILL_SLOTS[key]!)
+  const events: MatchDetailSkillEvent[] = []
+  for (let level = 1; level <= levels; level++) {
+    let slot: number
+    if ((level === 6 || level === 11 || level === 16) && points[4]! < 3) {
+      slot = 4
+    }
+    else if (level <= 3) {
+      // The first three points open one rank of each basic ability, in max order.
+      slot = priority[level - 1]!
+    }
+    else {
+      slot = priority.find(s => points[s]! < 5) ?? priority[0]!
+    }
+    points[slot] = points[slot]! + 1
+    // ~70s a level, drifting, so the build and skill timelines stay plausible
+    // against each other without either being derived from the other.
+    events.push({ timestampMs: Math.round((level * 68 + rng() * 25) * 1000), skillSlot: slot })
+  }
+  return events
+}
+
+/**
+ * Build order for one participant: the starting purchase, then components and
+ * completed items spread across the game, with one sale late so the panel's
+ * "correction" styling has something to render. Purchases sharing a minute are
+ * what the panel collapses into a single shopping trip.
+ */
+function buildOrder(
+  archetype: (typeof ARCHETYPES)[keyof typeof ARCHETYPES],
+  minutes: number,
+  rng: () => number,
+): MatchDetailItemEvent[] {
+  const events: MatchDetailItemEvent[] = []
+  const purchase = (minute: number, itemId: number) => events.push({
+    timestampMs: Math.round((minute * 60 + rng() * 45) * 1000),
+    eventType: 'ITEM_PURCHASED',
+    itemId,
+    beforeId: null,
+    afterId: null,
+  })
+
+  for (const itemId of archetype.starterItems) purchase(0, itemId)
+
+  let minute = 3 + Math.floor(rng() * 2)
+  const legendaries = [archetype.boots[0]!, ...archetype.items]
+  for (const itemId of legendaries) {
+    if (minute > minutes) break
+    purchase(minute, itemId)
+    // A control ward on roughly every other trip, bought in the same minute so
+    // the panel has multi-item groups to collapse.
+    if (rng() < 0.5) purchase(minute, 2055)
+    minute += 2 + Math.floor(rng() * 4)
+  }
+
+  if (minutes > 22) {
+    events.push({
+      timestampMs: Math.round((Math.min(minutes - 1, 24) * 60) * 1000),
+      eventType: 'ITEM_SOLD',
+      itemId: archetype.starterItems[0]!,
+      beforeId: null,
+      afterId: null,
     })
+  }
+  return events.sort((a, b) => a.timestampMs - b.timestampMs)
+}
+
+async function mockMatchDetail(player: MockPlayer, matchId: string): Promise<MatchDetailResponse | null> {
+  // The id encodes the history index (see `mockMatchSummary`), which is what
+  // lets the detail regenerate exactly the game the row summarised. An id from
+  // another player's history — or a hand-typed one — has no fixture behind it.
+  const suffix = Number(matchId.split('_')[1])
+  const index = suffix - 7_100_000_000 - player.row.rank * 10_000
+  if (!Number.isInteger(index) || index < 0 || index >= MATCH_HISTORY_TOTAL) return null
+
+  const summary = mockMatchSummary(player, index)
+  const minutes = Math.round(summary.gameDurationSeconds / 60)
+
+  const participants = summary.participants.map((p, slot): MatchDetailParticipant => {
+    const rng = mulberry32(index * 7919 + slot * 131 + player.row.rank)
+    const isSelf = slot === 0
+    const seedForChamp = seedsById.get(p.championId)!
+    const archetype = ARCHETYPES[seedForChamp.archetype]
+    const primary = STYLE_PERKS[seedForChamp.primaryStyle]!
+    const secondary = STYLE_PERKS[seedForChamp.secondaryStyle]!
+    const pick = (row: number[]) => row[Math.floor(rng() * row.length)]!
+
+    const win = p.teamId === summary.self.teamId ? summary.self.win : !summary.self.win
+    const kills = isSelf ? summary.self.kills : Math.floor(rng() * 13)
+    const deaths = isSelf ? summary.self.deaths : Math.floor(rng() * 9)
+    const assists = isSelf ? summary.self.assists : Math.floor(rng() * 15)
+    const cs = isSelf ? summary.self.cs : Math.round(minutes * (3 + rng() * 6))
+    const gold = Math.round(minutes * (330 + rng() * 190))
+    const damage = Math.round(minutes * (350 + rng() * 800))
+    const vision = Math.round(minutes * (0.6 + rng() * 1.6))
+    const level = Math.min(18, Math.max(6, 6 + Math.floor(minutes / 2.2)))
 
     return {
-      matchId: `EUW1_${7_100_000_000 + player.row.rank * 10_000 + index}`,
-      queueId: 420,
-      gameMode: 'CLASSIC',
-      gameStartTimeUtc: new Date(now - (index * 11 + 3) * 60 * 60 * 1000).toISOString(),
-      gameDurationSeconds: duration,
-      self: {
-        championId: main.championId,
-        championLevel: 12 + Math.floor(rng() * 7),
-        summoner1Id: archetype.spells[0],
-        summoner2Id: archetype.spells[1],
-        primaryStyleId: mainSeed.primaryStyle,
-        subStyleId: mainSeed.secondaryStyle,
-        keystoneId: mainSeed.keystone,
-        kills,
-        deaths,
-        assists,
-        cs: Math.round(duration / 60 * (5.5 + rng() * 3.5)),
-        killParticipation: round3(Math.min(0.9, 0.3 + rng() * 0.5)),
-        items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
-        trinketItemId: 3364,
-        teamId: selfTeam,
-        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[index % 5]!,
-        win,
-        lpDelta: win ? 14 + Math.floor(rng() * 12) : -(12 + Math.floor(rng() * 12)),
-        // Correlated with the accolade below rather than independent, so the
-        // mock never renders a crown next to a mediocre score — the real API
-        // derives both from the same ranking.
-        performanceScore: perf,
-        placement,
-        isMvp: win && topOfTeam,
-        isAce: !win && topOfTeam,
+      participantId: slot + 1,
+      championId: p.championId,
+      champLevel: level,
+      summonerName: p.gameName ?? `Player ${slot + 1}`,
+      gameName: p.gameName,
+      tagLine: p.tagLine,
+      teamId: p.teamId,
+      teamPosition: p.position ?? '',
+      win,
+      kills,
+      deaths,
+      assists,
+      items: [...archetype.items.slice(0, 5), archetype.boots[0]!, 0],
+      trinketItemId: 3364,
+      summoner1Id: archetype.spells[0],
+      summoner2Id: archetype.spells[1],
+      primaryStyleId: seedForChamp.primaryStyle,
+      subStyleId: seedForChamp.secondaryStyle,
+      keystoneId: seedForChamp.keystone,
+      totalDamageDealtToChampions: damage,
+      visionScore: vision,
+      goldEarned: gold,
+      cs,
+      rank: player.row.ranked
+        ? {
+            tier: player.row.ranked.tier,
+            division: player.row.ranked.division,
+            leaguePoints: player.row.ranked.leaguePoints,
+          }
+        : null,
+      killParticipation: round3(Math.min(0.95, 0.25 + rng() * 0.6)),
+      csPerMin: round3(cs / minutes),
+      damagePerMin: Math.round(damage / minutes),
+      goldPerMin: Math.round(gold / minutes),
+      visionPerMin: round3(vision / minutes),
+      performanceScore: isSelf ? summary.self.performanceScore : 25 + Math.floor(rng() * 70),
+      placement: isSelf ? summary.self.placement : 1 + ((slot * 3 + index) % 10),
+      isMvp: isSelf ? summary.self.isMvp : false,
+      isAce: isSelf ? summary.self.isAce : false,
+      // Every fixture game runs past 15 minutes, so the @15 block always has
+      // something to show; the diffs are mirrored across the lane so the two
+      // opponents never both read as ahead.
+      laning15: {
+        csDiff: Math.round((rng() - 0.5) * 40) * (p.teamId === 100 ? 1 : -1),
+        goldDiff: Math.round((rng() - 0.5) * 1600) * (p.teamId === 100 ? 1 : -1),
+        xpDiff: Math.round((rng() - 0.5) * 1400) * (p.teamId === 100 ? 1 : -1),
       },
-      participants,
+      firstToLevelTwo: rng() < 0.5,
+      runes: [
+        { styleId: seedForChamp.primaryStyle, selectionIndex: 0, perkId: seedForChamp.keystone },
+        { styleId: seedForChamp.primaryStyle, selectionIndex: 1, perkId: pick(primary[1]) },
+        { styleId: seedForChamp.primaryStyle, selectionIndex: 2, perkId: pick(primary[2]) },
+        { styleId: seedForChamp.primaryStyle, selectionIndex: 3, perkId: pick(primary[3]) },
+        { styleId: seedForChamp.secondaryStyle, selectionIndex: 0, perkId: pick(secondary[1]) },
+        { styleId: seedForChamp.secondaryStyle, selectionIndex: 1, perkId: pick(secondary[2]) },
+      ],
+      statPerkOffense: STAT_SHARDS.offense[Math.floor(rng() * 3)]!,
+      statPerkFlex: STAT_SHARDS.flex[Math.floor(rng() * 3)]!,
+      statPerkDefense: STAT_SHARDS.defense[Math.floor(rng() * 3)]!,
+      itemEvents: buildOrder(archetype, minutes, rng),
+      skillEvents: skillSequence(archetype.skillOrders[0]!, level, rng),
     }
   })
 
-  return { matches, page, pageSize, total }
+  return {
+    matchId: summary.matchId,
+    queueId: summary.queueId,
+    gameMode: summary.gameMode,
+    gameStartTimeUtc: summary.gameStartTimeUtc,
+    gameDurationSeconds: summary.gameDurationSeconds,
+    gameVersion: `${await latestShortPatch()}.1`,
+    participants,
+  }
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -2240,6 +2442,18 @@ export async function resolveDevApiMock(
 
   if (path === '/truemains') return mockLeaderboard(query)
   if (path === '/truemains/search') return mockSearch(typeof query.q === 'string' ? query.q : '')
+
+  // Two segments deep, so it has to come before the single-segment player
+  // routes below.
+  const matchDetailMatch = path.match(/^\/truemains\/([^/]+)\/matches\/([A-Za-z0-9_]+)$/)
+  if (matchDetailMatch) {
+    const name = safeDecodeURIComponent(matchDetailMatch[1]!)
+    const player = name === undefined ? undefined : findPlayer(name)
+    if (!player) throw createError({ statusCode: 404, statusMessage: 'Unknown truemain (dev mock)' })
+    const detail = await mockMatchDetail(player, matchDetailMatch[2]!)
+    if (!detail) throw createError({ statusCode: 404, statusMessage: 'Unknown match (dev mock)' })
+    return detail
+  }
 
   const playerMatch = path.match(/^\/truemains\/([^/]+)\/(profile|rank-history|activity|matches)$/)
   if (playerMatch) {
