@@ -563,8 +563,13 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             // introduced, the accounts that played simply stop queueing behind those that
             // did not.
             .OrderBy(account => account.LastMatchIngestAtUtc == null ? 0 : 1)
+            // Floored at zero: a Riot season reset restarts wins/losses from the bottom, so
+            // the raw difference goes negative for every account at once and would sort the
+            // whole active pool behind the accounts that owe nothing. It self-heals on the
+            // next ingest, but "self-heals" here means a full sweep of the pool, which is the
+            // thing this ordering exists to avoid needing.
             .ThenByDescending(account =>
-                (account.LadderGames ?? 0) - (account.LadderGamesAtLastIngest ?? 0))
+                Math.Max(0, (account.LadderGames ?? 0) - (account.LadderGamesAtLastIngest ?? 0)))
             .ThenBy(account => account.LastMatchIngestAtUtc)
             .Take(take)
             .Select(account => new AccountKey(account.PlatformId, account.Puuid))

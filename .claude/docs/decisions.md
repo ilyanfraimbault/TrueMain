@@ -75,6 +75,10 @@ baseline is reset inside the same statement that stamps `LastMatchIngestAtUtc`**
 freshly visited while still owing every game it owed before, and come straight back at the head of the next
 batch. **An account with no ladder reading keeps the old age ordering** rather than sinking behind everything
 that has one: below the swept tiers there is no signal, and a zero owed must not be read as "up to date".
+**The difference is floored at zero**, because a Riot season reset restarts wins/losses from the bottom: the
+raw subtraction then goes negative for every account at once and would sort the whole active pool behind the
+accounts that owe nothing. It would self-heal on the next ingest — but "self-heal" there means a full sweep of
+the pool, which is the very thing this ordering exists to avoid needing.
 The count is denormalised onto the account rather than joined from `rank_snapshots` because it exists to sit
 in an `ORDER BY` over the claimable set — a lateral join to each account's newest snapshot is the one query
 the claim cannot afford to run per candidate row (#1360).

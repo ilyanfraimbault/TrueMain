@@ -76,6 +76,24 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
     }
 
     [Fact]
+    public async Task Claim_TreatsASeasonResetAsNoGamesOwed_RatherThanAsNegative()
+    {
+        await fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // A Riot season reset restarts wins/losses from the bottom, so the raw difference
+        // goes negative for every account at once. Floored at zero, such an account is
+        // merely "owes nothing" and keeps its place in the age ordering; unfloored it would
+        // sort behind accounts that genuinely owe nothing.
+        await SeedMainAsync("reset", lastMatchIngestAtUtc: now.AddDays(-20), ladderGames: 12, ladderGamesAtLastIngest: 800);
+        await SeedMainAsync("steady", lastMatchIngestAtUtc: now.AddDays(-1), ladderGames: 300, ladderGamesAtLastIngest: 300);
+
+        var claimed = await ClaimAsync(now, take: 2);
+
+        claimed.Select(account => account.Puuid).Should().Equal(["puuid-reset", "puuid-steady"]);
+    }
+
+    [Fact]
     public async Task MarkingAnIngest_ResetsTheOwedBaselineInTheSameStatement()
     {
         await fixture.ResetDatabaseAsync();
