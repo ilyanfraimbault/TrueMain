@@ -2231,6 +2231,49 @@ after the restart, documented in `docs/production-migrations.md`.
 start-up settings. Preprod restarts on the next deploy from `develop`; prod moves only on a published
 release.
 
+## A Riot call that stores nothing is a bug, not a cost (2026-09-02)
+
+Over three days production spent ~77 k successful Riot calls a day, and roughly half the
+`MatchIngestion` half of them produced nothing storable. The rule this PR settles: a call whose response
+cannot become a row is not "budget spent on a low-yield path", it is a defect to fix, and the run summaries
+must be able to show it (#1358, epic #1357).
+
+**Flex ids were fetched, discarded, and re-fetched for ever.** The ids call sent `type=ranked`, which includes
+queue 440, and `MatchSnapshotWriter` filtered on queue 420 *after* paying for the `GET /matches/{id}`. Nothing
+is written for a discarded match, so `ExistingMatchScanner` saw the same id as new on every later claim of
+that account — the waste recurred indefinitely rather than costing one call. The fix is `queue` on the ids
+call, ANDed with `type=ranked` by Riot, sourced from `MainAnalysis:QueueId` rather than a literal so the
+source filter cannot drift from the post-fetch guard, which stays as a safety net.
+
+**The window is bounded by the last ingest.** `startTime` = `LastMatchIngestAtUtc` − 1 h (unset on a first
+ingestion; the hour covers a game that started before the previous claim and ended after it). Without it every
+claim re-listed the same fixed window, which is what made the flex re-fetch recur. `count` is clamped to
+Riot's 1..100, so `MatchIngestion:MatchesPerAccount` stays the single authoritative knob and can be raised to
+100 without a very active main being truncated at 20.
+
+**Freshness gates, not new call paths, are how the crawls stop paying twice.** Discovery's per-entry
+summoner-v4 call only supplies `profileIconId` / `summonerLevel` / `summonerId`, and every apex ladder entry
+has carried its PUUID since #1312 — so for an account stored and synced within `Discovery:ProfileSyncFreshness`
+(7 d) the call is skipped and the entry's own PUUID and rank are used. The same window skips the
+champion-mastery call for a candidate whose rows were written inside it. `AccountRefresh:ProfileSyncFreshness`
+(7 d) is the mirror for account-v1: reaching the head of the refresh queue is not on its own a reason to spend
+a call. Both mirror the shape `AccountRefresh:RankSyncFreshness` already had.
+
+**Two invariants make a skip safe.** A skipped row still gets its `UpdatedAtUtc` stamped, because every bucket
+of `GetAccountsForRefreshAsync` drains oldest-first and an unstamped skip parks the row at the head of the
+queue for ever (the #1223 failure mode). And a skipped call never writes the stamp it would have refreshed:
+`LastProfileSyncAtUtc` is only set by a call that actually happened, otherwise the gate closes permanently on
+a read that never occurred. AccountRefresh's gate additionally never applies to an identity-incomplete row —
+account-v1 is the only writer of `GameName`/`TagLine`.
+
+**The evidence lives in the run summaries, not in a new metrics pipeline.** `matchesSkipped` now means
+"already stored" only, with the discards split out as `matchesSkippedWrongQueue`; Discovery reports
+`profileCallsSkipped` / `masteryCallsSkipped` and AccountRefresh `profileSkippedFresh`. All are appended after
+the existing keys, so a run recorded before the deploy reads as "not measured" rather than as a run that
+skipped nothing. Deliberately **not** done here: recording discarded match ids in a table — with `queue` on
+the ids call there is nothing left to record — and the ManualSeed pacing change, which interacts with the
+candidate-funnel backlog (#1361) and belongs with it.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

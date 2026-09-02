@@ -27,7 +27,11 @@ public sealed class DiscoveryCadenceTests
         await harness.Process(minRunInterval: TimeSpan.FromDays(1)).RunCoreAsync(CancellationToken.None);
 
         await harness.Ladder.DidNotReceive().DiscoverSummonersAsync(
-            Arg.Any<PlatformRoute>(), Arg.Any<DiscoveryOptions>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<PlatformRoute>(),
+            Arg.Any<DiscoveryOptions>(),
+            Arg.Any<int>(),
+            Arg.Any<ProfileFreshnessProbe>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -38,7 +42,11 @@ public sealed class DiscoveryCadenceTests
         await harness.Process(minRunInterval: TimeSpan.FromDays(1)).RunCoreAsync(CancellationToken.None);
 
         await harness.Ladder.Received(1).DiscoverSummonersAsync(
-            Arg.Any<PlatformRoute>(), Arg.Any<DiscoveryOptions>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<PlatformRoute>(),
+            Arg.Any<DiscoveryOptions>(),
+            Arg.Any<int>(),
+            Arg.Any<ProfileFreshnessProbe>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -49,7 +57,11 @@ public sealed class DiscoveryCadenceTests
         await harness.Process(minRunInterval: TimeSpan.Zero).RunCoreAsync(CancellationToken.None);
 
         await harness.Ladder.Received(1).DiscoverSummonersAsync(
-            Arg.Any<PlatformRoute>(), Arg.Any<DiscoveryOptions>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<PlatformRoute>(),
+            Arg.Any<DiscoveryOptions>(),
+            Arg.Any<int>(),
+            Arg.Any<ProfileFreshnessProbe>(),
+            Arg.Any<CancellationToken>());
     }
 
     private sealed class Harness
@@ -68,8 +80,12 @@ public sealed class DiscoveryCadenceTests
             // No summoners resolved -> the per-platform path returns immediately after the
             // ladder call, which is all these tests assert on.
             Ladder.DiscoverSummonersAsync(
-                    Arg.Any<PlatformRoute>(), Arg.Any<DiscoveryOptions>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult(new LadderDiscoveryResult([], 0, 0)));
+                    Arg.Any<PlatformRoute>(),
+                    Arg.Any<DiscoveryOptions>(),
+                    Arg.Any<int>(),
+                    Arg.Any<ProfileFreshnessProbe>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new LadderDiscoveryResult([], 0, 0, 0)));
         }
 
         public DiscoveryProcess Process(TimeSpan minRunInterval) => new(

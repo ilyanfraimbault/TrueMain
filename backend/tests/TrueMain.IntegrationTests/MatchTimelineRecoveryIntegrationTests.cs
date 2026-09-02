@@ -174,7 +174,7 @@ public sealed class MatchTimelineRecoveryIntegrationTests
         public Task<RiotMatchDto> GetMatchAsync(string matchId, RegionalRoute region, CancellationToken ct)
             => throw new NotSupportedException();
 
-        public Task<List<string>> GetMatchIdsAsync(string puuid, RegionalRoute region, int count, CancellationToken ct)
+        public Task<List<string>> GetMatchIdsAsync(MatchIdQuery query, CancellationToken ct)
             => throw new NotSupportedException();
 
         public Task<MatchTimelineDto> GetTimelineAsync(string matchId, RegionalRoute region, CancellationToken ct)

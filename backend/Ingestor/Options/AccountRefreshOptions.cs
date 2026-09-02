@@ -29,4 +29,22 @@ public class AccountRefreshOptions
     /// </para>
     /// </summary>
     public TimeSpan RankSyncFreshness { get; set; } = TimeSpan.FromHours(12);
+
+    /// <summary>
+    /// How recently an account's profile must have been synced for this process to skip its
+    /// account-v1 by-puuid call (#1358).
+    /// <para>
+    /// The profile mirror of <see cref="RankSyncFreshness"/>. Reaching the head of the refresh
+    /// queue is not on its own a reason to spend a call: game names and tag lines change
+    /// rarely, so a profile read a day ago rewrites the same two strings. A week is long enough
+    /// that a rename still surfaces within one sweep of the queue, and short enough that the
+    /// call is not what decides whether the row moves.
+    /// </para>
+    /// <para>
+    /// The skip never applies to an account whose identity is still incomplete: those are what
+    /// the selection's identity buckets exist to drain, and account-v1 is the only thing that
+    /// can fill them. <see cref="TimeSpan.Zero"/> disables the skip.
+    /// </para>
+    /// </summary>
+    public TimeSpan ProfileSyncFreshness { get; set; } = TimeSpan.FromDays(7);
 }

@@ -142,12 +142,12 @@ public sealed class MatchIngestionPlatformConcurrencyTests
             .Returns(_ =>
             {
                 onPrepare?.Invoke();
-                return Task.FromResult(new SnapshotIngestionPlan([], [], [], new Dictionary<AccountKey, Data.Entities.RiotAccount>(), null));
+                return Task.FromResult(new SnapshotIngestionPlan([], [], [], new Dictionary<AccountKey, Data.Entities.RiotAccount>(), null, 0));
             });
         snapshotWriter.WriteAsync(
                 Arg.Any<IDataSession>(), Arg.Any<SnapshotIngestionPlan>(), Arg.Any<string>(), Arg.Any<string>(),
                 Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new SnapshotIngestionResult([], [], 0, 0)));
+            .Returns(Task.FromResult(new SnapshotIngestionResult([], [], 0, 0, 0)));
         return snapshotWriter;
     }
 }
