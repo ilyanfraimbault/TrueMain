@@ -13,9 +13,9 @@ public sealed class Worker(
     ICallerContext callerContext,
     IHostApplicationLifetime applicationLifetime,
     IngestorMetrics metrics,
-    TimeProvider timeProvider) : BackgroundService
+    TimeProvider timeProvider,
+    IHeartbeatFile heartbeatFile) : BackgroundService
 {
-    private const string HeartbeatEnvironmentVariable = "INGESTOR_HEARTBEAT_PATH";
 
     /// <summary>
     /// How often the liveness file is rewritten. Same cadence as
@@ -132,7 +132,9 @@ public sealed class Worker(
 
     private async Task TouchHeartbeatAsync(CancellationToken ct)
     {
-        var path = Environment.GetEnvironmentVariable(HeartbeatEnvironmentVariable);
+        // Resolved once, by the injected file, rather than read from the environment on
+        // every beat: the environment is process-global and a worker is not (#1348).
+        var path = heartbeatFile.Path;
         if (string.IsNullOrWhiteSpace(path))
         {
             return;
