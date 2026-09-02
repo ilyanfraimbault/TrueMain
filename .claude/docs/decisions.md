@@ -209,6 +209,9 @@ Last verified against `develop` on 2026-09-02.
 - A forward-only counter renders as absent, not as zero, and key presence is what says which — #1024, #924
 - `ValidatedAtUtc` had never been written in production, and the queue-latency snapshot is why that surfaced — #1024
 - Queue latency is a snapshot over retained rows and is labelled as one, rather than being faked into a series — #1024
+- The candidate stock is snapshotted hourly, because it cannot be reconstructed afterwards — #1403
+- A recorded zero is a measurement; an unmeasured period is absent — #1403, #924
+- A stock is sampled across time and summed across platforms — never the other way round — #1403
 - Daily storage snapshots go to Mongo and are keyed on the day, not the run — #925
 - The disk forecast is absent rather than approximate when the data can't support it — #680, #925
 - Logs and metrics live in MongoDB, not Postgres, with two different guarantees — #416

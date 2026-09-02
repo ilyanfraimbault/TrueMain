@@ -51,6 +51,107 @@ const {
   refresh: refreshFunnel,
 } = useCandidateFunnel(funnelGranularity, funnelWindowDays)
 
+// =============================================================================
+// Backlog (#1403) — the funnel's LEVEL, next to the throughput series above
+// =============================================================================
+// Flow and stock answer different questions and neither derives from the other: a
+// period that promotes everything it scores leaves the level flat, and so does a
+// pipeline that has stopped. These curves come from the hourly snapshots the
+// ingestor records, which is the only way to have them — `main_candidates` has no
+// `QueuedAtUtc` (Scored and Queued are indistinguishable in the past) and pruning
+// deletes rows, so the past level cannot be reconstructed after the fact.
+const stockGranularityItems: { label: string, value: IngestionTimeGranularity }[] = [
+  { label: 'Hour', value: 'hour' },
+  { label: 'Day', value: 'day' },
+  { label: 'Week', value: 'week' },
+]
+const stockWindowItems = [
+  { label: '2 days', value: 2 },
+  { label: '7 days', value: 7 },
+  { label: '30 days', value: 30 },
+  { label: '90 days', value: 90 },
+]
+// Hourly by default: two of the five statuses are transient by construction —
+// Scoring drains the whole New backlog each run, Processing is a claim held for one
+// ingestion pass — so a daily reading shows both at 0 forever and says nothing about
+// whether scoring is behind or leases are stuck.
+const stockGranularity = ref<IngestionTimeGranularity>('hour')
+const stockWindowDays = ref(7)
+
+const {
+  data: stock,
+  pending: stockPending,
+  error: stockError,
+  refresh: refreshStock,
+} = useCandidateStock(stockGranularity, stockWindowDays)
+
+// The measured periods, expanded onto the full grid so an outage stays a gap in the
+// curve rather than a straight line joining the two sides of it. `undefined` (not 0)
+// is what breaks the line: the level during a period nobody measured was not zero.
+const stockChartRows = computed(() => {
+  const buckets = stock.value?.buckets ?? []
+  const byBucket = new Map(buckets.map(bucket => [bucket.bucket, bucket]))
+  return expandPeriodGrid(buckets.map(bucket => bucket.bucket), stockGranularity.value)
+    .map(key => ({ key, bucket: byBucket.get(key) }))
+})
+
+// Pool: the three stages a candidate actually sits in, stacked because they are
+// disjoint populations that do sum to "candidates we are holding".
+const poolChartData = computed(() =>
+  stockChartRows.value.map(row => ({
+    label: formatBucketLabel(row.key, stockGranularity.value),
+    scored: row.bucket?.scored,
+    queued: row.bucket?.queued,
+    validated: row.bucket?.validated,
+  })),
+)
+const poolChartCategories = {
+  scored: { name: 'Scored', color: CHART_SERIES[0] },
+  queued: { name: 'Queued', color: CHART_SERIES[1] },
+  validated: { name: 'Validated', color: CHART_SERIES[2] },
+}
+
+// In flight, on its own axis for the same reason `validated` left the progression
+// chart: New and Processing live three orders of magnitude below the pool, so on a
+// shared linear axis they are a flat line on the baseline whatever the mark — and a
+// flat line on the baseline is exactly what a stall would also look like. Here a
+// non-zero New means scoring is behind, and a Processing that does not fall back to
+// zero means leases are not being reaped (#1344). `Rejected` is not charted at all:
+// no process assigns it (#1029), so its series is structurally 0.
+const inFlightChartData = computed(() =>
+  stockChartRows.value.map(row => ({
+    label: formatBucketLabel(row.key, stockGranularity.value),
+    pendingScoring: row.bucket?.new,
+    processing: row.bucket?.processing,
+  })),
+)
+const inFlightChartCategories = {
+  pendingScoring: { name: 'New (awaiting scoring)', color: CHART_SERIES[0] },
+  processing: { name: 'Processing (claimed)', color: CHART_SERIES[1] },
+}
+
+const poolXFormatter = computed(() =>
+  indexLabelFormatter(poolChartData.value, row => row.label),
+)
+const inFlightXFormatter = computed(() =>
+  indexLabelFormatter(inFlightChartData.value, row => row.label),
+)
+
+// The latest reading, spelled out under the charts: the series colours sit below 3:1
+// against the light surface, so the numbers are what carry magnitude for a reader who
+// cannot separate the hues.
+const stockLatest = computed(() => stock.value?.buckets.at(-1) ?? null)
+
+const stockBoundNote = computed(() => {
+  const payload = stock.value
+  if (!payload || payload.buckets.length === 0) {
+    return null
+  }
+  return payload.windowDays > payload.retentionDays
+    ? `Snapshots are kept ${payload.retentionDays} days, so the series stops there rather than at the requested ${payload.windowDays}.`
+    : null
+})
+
 const {
   data: latency,
   pending: latencyPending,
@@ -333,12 +434,14 @@ const seedColumns: TableColumn<SeedRequestReadModel>[] = [
 
 // --- Refresh every panel at once --------------------------------------------
 const anyPending = computed(() =>
-  candidatePending.value || seedPending.value || funnelPending.value || latencyPending.value,
+  candidatePending.value || seedPending.value || funnelPending.value
+  || stockPending.value || latencyPending.value,
 )
 function refreshAll() {
   refreshCandidates()
   refreshSeedRequests()
   refreshFunnel()
+  refreshStock()
   refreshLatency()
 }
 
@@ -581,6 +684,122 @@ const pipelineStages = computed(() =>
               candidate waits.
             </p>
           </div>
+        </template>
+      </UCard>
+
+      <!-- ============================= Backlog =========================== -->
+      <UCard :ui="{ root: 'overflow-visible' }" class="mb-8">
+        <template #header>
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-sm font-medium text-highlighted">
+                Backlog
+              </p>
+              <p class="text-xs text-dimmed mt-0.5">
+                How much is <em>waiting</em>, sampled hourly — the level the throughput
+                above leaves behind. A period that promotes everything it scores keeps
+                these curves flat, and so does a pipeline that has stopped.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <USelect
+                v-model="stockGranularity"
+                :items="stockGranularityItems"
+                class="w-28"
+                aria-label="Backlog bucket granularity"
+              />
+              <USelect
+                v-model="stockWindowDays"
+                :items="stockWindowItems"
+                class="w-28"
+                aria-label="Backlog window"
+              />
+            </div>
+          </div>
+        </template>
+
+        <FetchErrorAlert
+          v-if="stockError"
+          :error="stockError"
+          title="Failed to load the candidate backlog"
+        />
+        <USkeleton v-else-if="stockPending" class="h-[260px] w-full" />
+        <div
+          v-else-if="!stockLatest"
+          class="h-[260px] flex flex-col items-center justify-center gap-1 text-sm text-muted"
+        >
+          <p>No candidate snapshot on record in this window.</p>
+          <p class="text-xs text-dimmed">
+            The level is recorded going forward, never backfilled — it cannot be
+            reconstructed from the candidates that survive today.
+          </p>
+        </div>
+        <template v-else>
+          <div class="grid gap-6 lg:grid-cols-2">
+            <div>
+              <p class="text-xs text-muted uppercase mb-1.5">
+                Pool, by stage
+              </p>
+              <NcAreaChart
+                :data="poolChartData"
+                :height="240"
+                :categories="poolChartCategories"
+                :stacked="true"
+                :x-num-ticks="Math.min(poolChartData.length, 6)"
+                :x-formatter="poolXFormatter"
+                :y-formatter="formatCount"
+                v-bind="multiAreaChartProps()"
+              />
+              <p class="mt-3 text-xs text-dimmed tabular-nums">
+                {{ formatNumber(stockLatest.scored) }} scored ·
+                {{ formatNumber(stockLatest.queued) }} queued ·
+                {{ formatNumber(stockLatest.validated) }} validated
+              </p>
+              <p class="mt-1 text-xs text-dimmed">
+                Stacked — the three stages are disjoint and do sum to the candidates
+                we hold. Levels, not totals: the last reading of each period, never
+                the sum of its readings.
+              </p>
+            </div>
+
+            <div>
+              <p class="text-xs text-muted uppercase mb-1.5">
+                In flight
+              </p>
+              <NcAreaChart
+                :data="inFlightChartData"
+                :height="240"
+                :categories="inFlightChartCategories"
+                :x-num-ticks="Math.min(inFlightChartData.length, 6)"
+                :x-formatter="inFlightXFormatter"
+                :y-formatter="formatCount"
+                v-bind="multiAreaChartProps()"
+              />
+              <p class="mt-3 text-xs text-dimmed tabular-nums">
+                {{ formatNumber(stockLatest.new) }} awaiting scoring ·
+                {{ formatNumber(stockLatest.processing) }} claimed
+              </p>
+              <p class="mt-1 text-xs text-dimmed">
+                Both are transient by design and read 0 when the pipeline is healthy:
+                scoring drains its whole backlog each run, and a claim lasts one
+                ingestion pass. They get their own axis because at the pool's scale
+                they would sit on the baseline — indistinguishable from a stall.
+                Sustained above zero, they are one: scoring behind, or leases not
+                being reaped.
+              </p>
+            </div>
+          </div>
+
+          <p class="mt-4 text-xs text-dimmed">
+            Recorded going forward from
+            {{ formatDateTime(stock?.earliestSnapshotAtUtc) }}, last read
+            {{ formatDateTime(stock?.latestSnapshotAtUtc) }}. Earlier periods are absent
+            rather than zero, and a gap in a curve is an ingestor that was not running —
+            the level then was unmeasured, not empty.
+          </p>
+          <p v-if="stockBoundNote" class="mt-1 text-xs text-dimmed">
+            {{ stockBoundNote }}
+          </p>
         </template>
       </UCard>
 

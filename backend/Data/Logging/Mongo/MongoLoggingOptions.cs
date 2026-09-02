@@ -68,6 +68,13 @@ public sealed class MongoLoggingOptions
     public string DbTableSizeSnapshotsCollection { get; set; } = "db_table_size_snapshots";
 
     /// <summary>
+    /// Collection holding the hourly candidate-stock snapshots (#1403), written by the
+    /// Ingestor's candidate-stock snapshot step and read by the admin candidates panel.
+    /// Same database as the logs, for the same one-connection reason as the rollups above.
+    /// </summary>
+    public string CandidateStockSnapshotsCollection { get; set; } = "candidate_stock_snapshots";
+
+    /// <summary>
     /// Collection holding recorded ingestor process runs, written by the
     /// Ingestor's <c>ProcessRunRecorder</c> and read by the admin process panels.
     /// Moved out of Postgres with the rest of the admin-portal observability data;
@@ -154,6 +161,16 @@ public sealed class MongoLoggingOptions
     /// <see cref="TimeSpan.Zero"/> or negative to disable the TTL index.
     /// </summary>
     public TimeSpan DbTableSizeSnapshotsRetention { get; set; } = TimeSpan.FromDays(365);
+
+    /// <summary>
+    /// Retention window for the <c>candidate_stock_snapshots</c> collection (#1403),
+    /// enforced by a native Mongo TTL index on <c>snapshotHourUtc</c>. Defaults to 90
+    /// days: hourly points make this the densest of the snapshot collections, and the
+    /// question it answers — is the queue growing, is scoring keeping up — is asked
+    /// over weeks, not years. Set to <see cref="TimeSpan.Zero"/> or negative to disable
+    /// the TTL index (retain indefinitely).
+    /// </summary>
+    public TimeSpan CandidateStockSnapshotsRetention { get; set; } = TimeSpan.FromDays(90);
 
     /// <summary>
     /// Retention window for the <c>process_runs</c> collection, enforced by a

@@ -19,6 +19,7 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string ProcessRunsCollection = "process_runs";
     public const string SeedRequestsCollection = "seed_requests";
     public const string DbTableSizeSnapshotsCollection = "db_table_size_snapshots";
+    public const string CandidateStockSnapshotsCollection = "candidate_stock_snapshots";
     public const string CrashesCollection = "crashes";
     public const string EffectiveConfigurationCollection = "effective_configuration";
 
@@ -74,6 +75,9 @@ public sealed class MongoFixture : IAsyncLifetime
         // unique index the storage-snapshot tests reconcile, so a leaked index would
         // make them pass or fail depending on run order.
         await db.DropCollectionAsync(DbTableSizeSnapshotsCollection);
+        // Same reason: the hourly candidate-stock snapshots (#1403) carry a unique
+        // (hour, platform, status) index the store creates on first write.
+        await db.DropCollectionAsync(CandidateStockSnapshotsCollection);
         // The crash reports the Crashes panel reads, and the per-process configuration
         // snapshots the configuration page reads. Both are upserted by the host itself
         // (CrashSentinel at boot, EffectiveConfigurationStore at boot), so a document

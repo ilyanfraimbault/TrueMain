@@ -38,5 +38,13 @@ public enum JobMode
     /// Everything that reads what the fetch lane wrote and turns it into aggregates, plus
     /// retention (#1362). Composite, like <see cref="Full"/>.
     /// </summary>
-    AggregateLane = 22
+    AggregateLane = 22,
+
+    /// <summary>
+    /// Records the candidate stock per status into Mongo (#1403). A leaf process like
+    /// the modes above, appended after the two composite ones rather than next to
+    /// <see cref="StorageSnapshotOnly"/>, because the values are stable identifiers and
+    /// inserting mid-enum would renumber them.
+    /// </summary>
+    CandidateStockSnapshotOnly = 23
 }

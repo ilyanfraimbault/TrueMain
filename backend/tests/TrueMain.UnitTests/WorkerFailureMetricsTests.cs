@@ -42,6 +42,7 @@ public sealed class WorkerFailureMetricsTests
         ("ChampionPowerspikeAggregation", JobMode.PowerspikeAggregationOnly),
         ("AccountRefresh", JobMode.AccountRefreshOnly),
         ("MatchDataRetention", JobMode.MatchDataRetentionOnly),
+        ("CandidateStockSnapshot", JobMode.CandidateStockSnapshotOnly),
         ("StorageSnapshot", JobMode.StorageSnapshotOnly)
     ];
 

@@ -108,6 +108,32 @@ shrinking. The snapshot is the honest version of what those columns can answer, 
 stated (pruning skews the survivors towards candidates that moved) and its sample count next to each percentile.
 It takes no window parameter, which is the API making the same point structurally: there is no period to select.
 
+**The candidate stock is snapshotted hourly, because it cannot be reconstructed afterwards.**
+The funnel (#1024) measures flow from the run summaries and the status list measures the stock, but only right
+now. The level over time is neither: a period that promotes everything it scores leaves the level flat, and so
+does a pipeline that has stopped. Deriving it from `main_candidates` after the fact is impossible in principle,
+not merely unimplemented — there is no `QueuedAtUtc`, so Scored and Queued are indistinguishable in the past,
+and pruning and the demotion drain delete rows, so every past level would be understated by whatever has since
+been removed. Hourly rather than daily because two of the six statuses are transient by construction: Scoring
+drains the whole `New` backlog each run and `Processing` is a claim held for one ingestion pass, so a daily
+reading shows both at 0 forever and can say nothing about scoring falling behind or leases not being reaped
+(#1344). The platform stays in the key though the panel sums it away — the per-region split is the subject of
+#1149/#1150, and a stock summed at write time could never be broken back down — #1403.
+
+**A recorded zero is a measurement; an unmeasured period is absent.**
+The candidate-stock snapshot writes every status for every observed platform, zeros included, because `New: 0`
+is the healthy state (scoring drained its backlog) and has to stay distinguishable from an hour nobody
+measured. On the read side the inverse holds: periods with no snapshot are left out of the payload entirely,
+and the chart expands them back onto the period grid with undefined values so an outage stays a gap in the
+curve. Joining across it would draw the one shape that reads as "nothing happened" over what was a stall —
+#1403, #924.
+
+**A stock is sampled across time and summed across platforms — never the other way round.**
+A period holding several hourly readings reports its last one; adding two readings of the same 419,000 queued
+candidates would report 838,000 of them. Within one reading the per-platform counts *are* summed, because those
+are disjoint populations at a single instant. The two reductions are not interchangeable, which is why the
+query service does them in that order and the tests pin it — #1403.
+
 **Daily storage snapshots go to Mongo and are keyed on the day, not the run.**
 Storage history is append-only, time-ordered, ops-only telemetry with no relational joins — the exact
 criteria that put logs and metrics in Mongo below — and a native TTL index prunes it for free instead of

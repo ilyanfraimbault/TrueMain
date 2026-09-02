@@ -78,6 +78,11 @@ public static class JobModeSequence
         JobMode.PowerspikeAggregationOnly,
         JobMode.AccountRefreshOnly,
         JobMode.MatchDataRetentionOnly,
+        // Reads the candidate stock per status (#1403) after retention, for the same
+        // reason the storage snapshot follows it: retention prunes stale candidates and
+        // demotes an over-full queue back to Scored, so a level measured before it is a
+        // peak the pipeline does not actually sit at.
+        JobMode.CandidateStockSnapshotOnly,
         // Records the day's storage footprint (#925). Deliberately last: it must
         // measure the steady-state size AFTER retention's deletions, not the peak
         // before them, or the forecast would predict an exhaustion retention is
@@ -123,6 +128,7 @@ public static class JobModeSequence
         JobMode.BanAggregationOnly,
         JobMode.PowerspikeAggregationOnly,
         JobMode.MatchDataRetentionOnly,
+        JobMode.CandidateStockSnapshotOnly,
         JobMode.StorageSnapshotOnly
     ]);
 

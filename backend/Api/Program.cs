@@ -355,6 +355,7 @@ builder.Services.AddScoped<IAccountFreshnessQueryService, AccountFreshnessQueryS
 builder.Services.AddScoped<IPatchCoverageQueryService, PatchCoverageQueryService>();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
 builder.Services.AddScoped<ICandidateFunnelQueryService, CandidateFunnelQueryService>();
+builder.Services.AddScoped<ICandidateStockQueryService, CandidateStockQueryService>();
 builder.Services.AddScoped<ICandidateQueueLatencyQueryService, CandidateQueueLatencyQueryService>();
 builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryService>();
 // AddTrueMainData registers the IDbContextFactory<TrueMainDbContext> — which
