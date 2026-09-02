@@ -38,3 +38,33 @@
 [id^="dashboard-panel-"] > [class~="overflow-y-auto"] > * {
   flex-shrink: 0;
 }
+
+/*
+ * Neutralise the Unovis tooltip container so the chart wrappers' `#tooltip`
+ * slot content owns the look (#1404). The library defaults paint a near-opaque
+ * white card with its own border and padding, which sits beneath our styled
+ * slot and produces a "white blob behind a dark card" on the portal's dark
+ * surfaces. Before this rule, `ChartTooltip` had to imitate that white card
+ * from the inside to stay coherent — the reason its markup used to be a wall of
+ * inline `--vis-tooltip-*` fallbacks.
+ *
+ * The override targets the tooltip element directly (Emotion suffixes the class
+ * with "-tooltip" — see `label: tooltip` in @unovis/ts
+ * `components/tooltip/style.js`) rather than `:root`, because Unovis re-injects
+ * its own `:root { --vis-tooltip-* }` block at chart-mount time, AFTER this
+ * stylesheet loads. Re-scoping the variables onto the tooltip element wins on
+ * CSS-variable proximity regardless of source order.
+ *
+ * Every chart in the portal goes through `<ChartsAreaChart>` or
+ * `<ChartsBarChart>`, and both render `<ChartsChartTooltip>` when the call site
+ * gives no slot of its own — so no chart is left drawing unstyled text on the
+ * transparent container this rule creates.
+ */
+[class*="-tooltip"] {
+  --vis-tooltip-background-color: transparent;
+  --vis-tooltip-border-color: transparent;
+  --vis-tooltip-text-color: inherit;
+  --vis-tooltip-padding: 0;
+  --vis-tooltip-border-radius: 0;
+  --vis-tooltip-box-shadow: none;
+}

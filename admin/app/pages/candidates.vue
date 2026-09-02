@@ -172,17 +172,18 @@ const outcomeChartData = computed(() => {
     }
   })
 })
-// Slot order is the colourblind-safety mechanism (`charts.ts`), so the series are
-// declared in funnel order and take the palette in order — never hand-picked per
-// series. At six series colour alone no longer separates every pair, which is why
-// the values are spelled out under the chart.
+// No explicit colours: <ChartsAreaChart> assigns `CHART_SERIES` by declaration
+// index, so funnel order IS slot order and the two cannot drift apart. That
+// matters more here than on a three-series chart — past slot three the palette's
+// "legible whatever the order" property is gone (`chart-palette.ts`), so adjacency
+// is load-bearing again, and the values under the chart are what carry identity.
 const outcomeChartCategories = {
-  new: { name: 'New', color: CHART_SERIES[0] },
-  scored: { name: 'Scored', color: CHART_SERIES[1] },
-  queued: { name: 'Queued', color: CHART_SERIES[2] },
-  processing: { name: 'Processing', color: CHART_SERIES[3] },
-  validated: { name: 'Validated', color: CHART_SERIES[4] },
-  demoted: { name: 'Demoted (cumulative)', color: CHART_SERIES[5] },
+  new: { name: 'New' },
+  scored: { name: 'Scored' },
+  queued: { name: 'Queued' },
+  processing: { name: 'Processing' },
+  validated: { name: 'Validated' },
+  demoted: { name: 'Demoted (cumulative)' },
 }
 
 const intakeXFormatter = computed(() =>
@@ -543,7 +544,7 @@ const pipelineStages = computed(() =>
               <p class="text-xs text-muted uppercase mb-1.5">
                 Candidates by state, over the window
               </p>
-              <NcAreaChart
+              <ChartsAreaChart
                 :data="outcomeChartData"
                 :height="240"
                 :categories="outcomeChartCategories"
@@ -551,7 +552,6 @@ const pipelineStages = computed(() =>
                 :x-num-ticks="Math.min(outcomeChartData.length, 8)"
                 :x-formatter="outcomeXFormatter"
                 :y-formatter="formatCount"
-                v-bind="multiAreaChartProps()"
               />
               <FetchErrorAlert
                 v-if="stockError"

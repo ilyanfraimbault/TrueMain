@@ -1,75 +1,37 @@
-import { CurveType, Orientation } from 'vue-chrts'
+import { Orientation } from 'vue-chrts'
+// Explicit rather than auto-imported: this module is loaded directly by the
+// unit tests, which run outside Nuxt and resolve no auto-imports.
+import { CHART_AXIS_TEXT_COLOR } from './chart-palette'
 
-// Chart palette + axis helpers for the admin dashboard.
-//
-// The admin portal is emerald-only on surfaces (see `app.config.ts` — the
-// public site moved to rosegold/ink in #1060 and the portal was deliberately
-// left behind), so every single-series chart picks up emerald-400. Callers
-// needing a contrasting second series pass `categories[key].color` explicitly
-// (amber-400 below).
-export const CHART_PRIMARY = '#34d399' // emerald-400
-export const CHART_ACCENT_AMBER = '#fbbf24' // amber-400
-export const CHART_ACCENT_SKY = '#38bdf8' // sky-400
+// Axis helpers shared by the admin charts. The colours themselves live in
+// `chart-palette.ts`, next to the reasoning for each one.
 
-// Categorical series colours for a multi-series chart, in FIXED slot order:
-// series 1 takes CHART_SERIES[0], series 2 CHART_SERIES[1], and so on. The order
-// is the colourblind-safety mechanism, not decoration — what it protects is the
-// ADJACENT pairs, and this ordering keeps every one of them apart (worst adjacent
-// CVD ΔE 11.1 under protanopia, normal-vision ΔE 21.2, OKLab ×100, measured
-// against the dark card surface #18181b). Putting emerald next to sky instead
-// collapses to ΔE 4.5 under tritanopia. Never cycle or reorder per chart.
-//
-// #1403 extended this from three slots to six, for the candidate-state chart that
-// draws five statuses plus the demotion curve on one axis. The last three were
-// chosen by search, not by eye: red/yellow/orange is the set that maximises the
-// worst pair over all four vision models. Two things about that are worth knowing
-// before adding a seventh:
-//   * adjacency did NOT degrade — the worst adjacent pair is still 11.1, the same
-//     emerald↔amber pair the trio already had, so slot order remains the guarantee;
-//   * separation over ALL pairs did — it drops to 5.8 (red↔orange), which is below
-//     what colour alone can carry. Six is therefore the ceiling, and only because
-//     of the mitigation below.
-// (`lime-400` looked like the obvious sixth and is disqualified outright: ΔE 1.4
-// against amber — the same colour, to a deuteranope.)
-//
-// All six are below 3:1 against the LIGHT surface, so any chart using them ships the
-// per-series values as visible text underneath — identity and magnitude are then
-// readable without relying on the fill at all. Past three series that text is not a
-// courtesy, it is what makes the chart legible.
-export const CHART_SERIES = [
-  CHART_PRIMARY,
-  CHART_ACCENT_AMBER,
-  CHART_ACCENT_SKY,
-  '#f87171', // red-400
-  '#fde047', // yellow-300
-  '#fb923c', // orange-400
-] as const
-
-// Axis tick text colour — zinc-400, matching `text-muted` so axis labels read
-// as quiet metadata rather than competing with the data.
-const CHART_AXIS_TEXT_COLOR = '#a1a1aa' // zinc-400
+// Axis tick text sizing; the colour comes from the palette.
 const CHART_AXIS_TEXT_SIZE = '11px'
 
-// --- Nuxt UI dashboard styling --------------------------------------------
+// --- Chart styling -------------------------------------------------------
 //
-// The admin charts follow the Nuxt UI dashboard template aesthetic: minimal
-// axes, no rotated labels, near-invisible gridlines, and a single emerald
-// accent. Three chart shapes cover everything, and which one a series gets is
-// decided by WHAT THE SERIES MEASURES, never by how it looks (#1218):
+// The portal's charts follow the public site's chart design system (#1404):
+// minimal axes, no rotated labels, no gridlines, rosegold as the single accent
+// and a neutral guide. Three chart shapes cover everything, and which one a
+// series gets is decided by WHAT THE SERIES MEASURES, never by how it looks
+// (#1218):
 //   * flow, counted per period  -> VERTICAL bar chart   (`timeBarProps`)
 //   * stock: a level at an instant, or a running total
-//                               -> AREA/line chart      (`areaChartProps`)
+//                               -> AREA/line chart      (`<ChartsAreaChart>`)
 //   * categorical top-N         -> HORIZONTAL bar chart (`horizontalBarProps`)
 // The distinction is not cosmetic. A line drawn through per-period counts reads
 // as a level that rose and fell, so a steady 350-a-day counter looks like a flat
 // line doing nothing — which is exactly how the candidate funnel's `validated`
 // series was misread. Bars say "this much moved, then this much"; a line says
 // "it stood here, then here". Match the mark to the claim.
-// The helpers below centralise that styling so every chart stays consistent;
-// callers only pass data, categories and the per-chart formatters.
 //
-// (Keys verified against vue-chrts@2.1.4 `AxisConfig` / `AreaChartProps` /
-// `BarChartProps`.)
+// The AREA styling is not here: it lives inside `<ChartsAreaChart>`, which every
+// area chart goes through, so it cannot be forgotten at a call site. The bar
+// helpers below stay props-shaped because a bar chart's styling depends on
+// arguments the wrapper does not have — the orientation and the widest label.
+//
+// (Keys verified against vue-chrts@2.2.1 `AxisConfig` / `BarChartProps`.)
 
 // Muted, small tick text shared by both axes of every chart.
 const AXIS_TEXT_CONFIG = {
@@ -89,72 +51,8 @@ function trimmedAxisConfig(width: number) {
   }
 }
 
-// Shared props for the "Matches over time" AREA chart. Emerald gradient fill
-// (the category colour drives the gradient), a smooth monotone line, minimal
-// axes with no gridlines, and a hover crosshair/tooltip. Spread onto
-// `<NcAreaChart>` alongside `:data`, `:categories`, `:x-formatter`,
-// `:y-formatter` and the per-chart x tick count. A function (not a const) so
-// each call yields fresh, mutable `gradientStops`/config objects that satisfy
-// the component's prop types.
-export function areaChartProps() {
-  return {
-    curveType: CurveType.MonotoneX,
-    lineWidth: 2,
-    // Emerald fill that fades to transparent — the Nuxt UI "revenue" look.
-    // Pin `stopColor` to emerald-400 explicitly: without it the gradient relies
-    // on NcAreaChart injecting the series colour into each stop, and if it ever
-    // doesn't, raw SVG defaults `stop-color` to black → a black→transparent fade.
-    gradientStops: [
-      { offset: '0%', stopColor: CHART_PRIMARY, stopOpacity: 0.4 },
-      { offset: '100%', stopColor: CHART_PRIMARY, stopOpacity: 0 },
-    ],
-    // Quiet axes: keep the labels, drop every line/grid so the area is the focus.
-    xGridLine: false,
-    yGridLine: false,
-    xDomainLine: false,
-    yDomainLine: false,
-    xTickLine: false,
-    yTickLine: false,
-    yNumTicks: 4,
-    xAxisConfig: { ...AXIS_TEXT_CONFIG },
-    yAxisConfig: { ...AXIS_TEXT_CONFIG },
-    crosshairConfig: { color: CHART_PRIMARY, strokeColor: CHART_PRIMARY, strokeWidth: 1 },
-    hideLegend: true,
-    padding: { top: 8, right: 8, bottom: 4, left: 8 },
-  }
-}
-
-// Shared props for a MULTI-SERIES area chart (candidate funnel #1024). Same
-// styling as `areaChartProps()` with three differences that all follow from having
-// more than one series:
-//   * the legend is shown — with several series, identity may never be carried by
-//     colour alone, so the legend is mandatory rather than optional chrome;
-//   * the crosshair goes neutral, because an emerald one belongs to a chart whose
-//     only series is emerald and would read as a fourth series here;
-//   * `gradientStops` drops the pinned emerald `stopColor`. NcAreaChart writes each
-//     stop's `stop-color` from the category's own colour and ignores the value we
-//     pass (verified in vue-chrts@2.1.4 AreaChart.js), so pinning it would only
-//     mislead the next reader into thinking every area is emerald.
-// Callers still pass `:categories` (drawing colours from CHART_SERIES in order),
-// and `:stacked` when the series sum to a meaningful whole.
-export function multiAreaChartProps() {
-  return {
-    ...areaChartProps(),
-    gradientStops: [
-      { offset: '0%', stopOpacity: 0.4 },
-      { offset: '100%', stopOpacity: 0 },
-    ],
-    hideLegend: false,
-    crosshairConfig: {
-      color: CHART_AXIS_TEXT_COLOR,
-      strokeColor: CHART_AXIS_TEXT_COLOR,
-      strokeWidth: 1,
-    },
-  }
-}
-
 // Shared props for a single-series VERTICAL time-series BAR chart (#1218). The
-// same quiet styling as `areaChartProps()` — no gridlines, no domain/tick lines,
+// same quiet styling as the area chart — no gridlines, no domain/tick lines,
 // muted tick text — with bars as the mark, because the series is a flow: a count
 // of what happened during each bucket, not a level the system sat at.
 //

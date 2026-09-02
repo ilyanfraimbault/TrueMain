@@ -112,12 +112,24 @@ Separate app with its own deployment and domain — **not** a `/admin` route of 
 **Auth & backend access.** Single-operator username/password → sealed httpOnly session (`nuxt-auth-utils`); no user store, no roles. `admin/server/api/auth/login.post.ts` does a constant-time compare with a per-IP throttle (5 attempts/60 s). Every route is gated by `admin/app/middleware/auth.global.ts`. That middleware only runs on navigation, so an **expiry while parked on a page** is caught instead by a global `$fetch` interceptor (`admin/app/plugins/session-expiry.client.ts`): a 401 from `/api/ops/*` or `/api/static/*` clears the session and redirects to `/login` once, however many panels were mid-flight — before #1225 the dashboard just turned red with "Failed to load" and read as a backend outage.
 **All backend traffic goes through one proxy**: `admin/server/api/ops/[...path].ts` requires the session, then forwards to `${opsApiBaseUrl}/ops{path}` injecting the secret `X-Ops-Key` **server-side** — the ops key never reaches the browser. Its containment guard (`server/utils/proxy-path.ts`, the same file in `web/`) rejects a path that could leave the backend, judged on the decoded path as well as the raw one. A boot plugin refuses to start outside dev with default credentials, short secrets, or an admin password under 12 characters.
 
-**Charts.** `nuxt-charts` (Unovis), referenced as `<Nc*Chart>` (`nuxtCharts.prefix`). Styling helpers live in
-`app/utils/charts.ts`, which also states the rule for picking a mark: a **flow** counted per period gets
-vertical bars, a **stock** (a level at an instant, or a running total) gets a line/area, a categorical top-N
-gets horizontal bars (#1218). Every bar chart goes through `components/charts/BarChart.vue`
-(`<ChartsBarChart>`), never `<NcBarChart>` directly — it repairs two upstream tooltip defects that otherwise
-render an empty box (#1220, see `decisions.md`).
+**Charts.** `nuxt-charts` (Unovis), referenced as `<Nc*Chart>` (`nuxtCharts.prefix`). The rule for picking a
+mark lives in `app/utils/charts.ts`: a **flow** counted per period gets vertical bars, a **stock** (a level at
+an instant, or a running total) gets a line/area, a categorical top-N gets horizontal bars (#1218). Since #1404
+the charts are on **the public site's chart design system** — rosegold accent, neutral guide, quiet axes, and
+tooltips drawn as real elevated cards — while the portal's chrome stays emerald on zinc (restyling it is still
+scoped out of #1059). The palette lives in `app/utils/chart-palette.ts`; its categorical triad is
+rosegold → sky → amber, which separates on **every** pair under colourblind simulation, not only on adjacent
+ones as the previous emerald → amber → sky did.
+
+Every chart goes through a wrapper, never `<Nc*Chart>` directly. `components/charts/BarChart.vue`
+(`<ChartsBarChart>`) repairs **three** upstream tooltip defects that otherwise render an empty box — a stacked
+chart showing no values, the first hover on any bar chart, and the copy into a stacked chart's tooltip never
+landing (#1220, #1404, see `decisions.md`). `components/charts/AreaChart.vue` (`<ChartsAreaChart>`) carries the
+area styling plus a fixed-height container, a loading skeleton, an empty state, `ClientOnly` and XML-escaped
+tick formatters (`app/utils/chart-text.ts`, #842) — a label carrying `&`, `<` or `>` otherwise breaks Unovis'
+hand-built SVG fragment. Both render `components/charts/ChartTooltip.vue` when the call site gives no
+`#tooltip` slot of its own: the Unovis tooltip container is neutralised in `main.css`, so the card is drawn
+with the app's own surface tokens rather than the library's light default.
 
 | Route | What it shows |
 |---|---|
