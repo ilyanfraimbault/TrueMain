@@ -2151,6 +2151,43 @@ lease is spent while the claim still considers it held. Measured on production: 
 candidate rows, served by the existing `(PlatformId, Status, Score)` and partial claim indexes — no new index
 (#1344).
 
+## Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02)
+
+**The server no longer runs on compiled defaults.** Until now the only setting either compose file overrode
+was `max_parallel_workers_per_gather=0`; everything else was stock `postgresql.conf`, sized for a 1 GB
+machine, on a host where Postgres is the dominant tenant (prod: 4 vCPU, 16 GB RAM, NVMe, a 38 GB database,
+8.8 GB RSS and ~13 GB of the host in page cache, measured 2026-09-02). `compose.prod.yaml` now passes a
+pgtune-style "mixed" set of `-c` flags and `compose.preprod.yaml` the same *settings* at roughly half the
+*values*, because preprod is a smaller host sharing its box with the whole preprod stack — same plans
+exercised first, smaller footprint (#1366, part A).
+
+**Why the risky ones.** `shared_buffers=4GB` is the conventional 25 % ceiling past which double buffering
+against the OS page cache costs more than it returns. `effective_cache_size=11GB` is a planner hint only, and
+it matches the cache actually observed — at the old 4 GB the planner under-priced index scans it should have
+preferred. `work_mem=32MB` with `hash_mem_multiplier=2` is per sort/hash *node*, so the real ceiling is
+several multiples of it per connection; it is affordable here only because pgbouncer caps the pool, and it is
+what stops the 2.7 M-row `match_participants` folds from spilling to disk at 4 MB. `random_page_cost=1.1` and
+`effective_io_concurrency=200` say the volume is flash, not a spinning disk. `jit=off` because JIT compilation
+is pure overhead on queries this short. The autovacuum scale factors drop to 0.05/0.02 because the largest
+tables bloat far faster than the stock 0.2 reacts.
+
+**`max_parallel_workers_per_gather=0` stays, permanently.** It is not a leftover to clean up while tuning the
+neighbouring settings: it is the fix for the /dev/shm exhaustion incident (#589), where parallel workers on
+the aggregate-pattern queries exhausted the shared-memory segment, Postgres raised 53100, and the API and
+ingestor crash-looped. Both compose files carry a comment saying so. `shm_size` went 256m → 1g as insurance
+now that the server is allowed real memory, but that does not make parallelism safe to re-enable.
+
+**`pg_stat_statements` is preloaded by compose and created by a migration, and the migration is tolerant.**
+`shared_preload_libraries` is a start-up setting, so `CREATE EXTENSION` fails on any server that does not
+carry it — a developer's local Postgres, the integration suite's throwaway container, a restored dump. The
+migration wraps the statement in a `DO` block that catches the failure and raises a `NOTICE`, so a database
+without the preload does not break the migration chain; the extension appears on its own the next time
+migrations run against a preloaded server.
+
+**Both changes only take effect on a Postgres restart.** `shared_buffers` and `shared_preload_libraries` are
+start-up settings. Preprod restarts on the next deploy from `develop`; prod moves only on a published
+release.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update
