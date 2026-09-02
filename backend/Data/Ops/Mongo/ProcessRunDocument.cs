@@ -48,6 +48,8 @@ public sealed class ProcessRunDocument
     /// of it, so without this a reader cannot tell a complete fetch-lane pass from a
     /// full pass that stopped halfway.
     /// </summary>
+    [BsonElement("jobMode")]
+    [BsonIgnoreIfNull]
     public string? JobMode { get; set; }
 
     /// <summary>When the run started. Also the TTL field.</summary>

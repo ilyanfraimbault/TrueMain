@@ -45,7 +45,7 @@ public sealed class ProcessRunsApiIntegrationTests
             .Should().BeEquivalentTo(
             [
                 "id", "processName", "startedAtUtc", "finishedAtUtc",
-                "durationMs", "status", "error", "host", "lastHeartbeatAtUtc", "summary"
+                "durationMs", "status", "error", "host", "jobMode", "lastHeartbeatAtUtc", "summary"
             ]);
 
         var firstRollup = document.RootElement.GetProperty("rollup")[0];
