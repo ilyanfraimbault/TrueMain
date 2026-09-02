@@ -185,12 +185,11 @@ internally consistent. Only calls to Riot are affected.
 1. Update the GitHub secret (`PROD_ENV_FILE` / `PREPROD_ENV_FILE`) — the whole
    file, with `RIOT_API_KEY=` carrying the new value.
 2. Update `/docker/truemain/.env` (or `/docker/truemain-preprod/.env`) to match.
-3. Restart the API so it picks up the new value, and keep the ingestor down for
-   now:
 
-```bash
-docker compose up -d --force-recreate api
-```
+Nothing is restarted at this point. `Riot__ApiKey: ${RIOT_API_KEY}` is declared
+by the **ingestor service only** — the Api never calls Riot — and the ingestor
+is deliberately still down from step 4. It comes back up in step 6, with the new
+key, doing exactly one job.
 
 ### 6. Re-resolve the PUUIDs
 
@@ -346,7 +345,8 @@ two rate-limit budgets one budget.
 Before step 6 has written anything (i.e. up to and including the swap):
 
 1. Restore the old `RIOT_API_KEY` in both the GitHub secret and the `.env`.
-2. `docker compose up -d --force-recreate api ingestor`.
+2. `docker compose up -d --force-recreate ingestor` (the Api holds no Riot key
+   and never went down).
 
 Nothing was lost — no PUUID was rewritten.
 
