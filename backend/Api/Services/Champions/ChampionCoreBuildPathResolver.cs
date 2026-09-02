@@ -1,6 +1,5 @@
 using Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace TrueMain.Services.Champions;
 
@@ -25,8 +24,6 @@ namespace TrueMain.Services.Champions;
 /// </summary>
 internal static class ChampionCoreBuildPathResolver
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
-
     /// <summary>
     /// Returns the core item ids in build order (index 0 is
     /// <paramref name="buildFirstItemId"/>), or an empty list when the slice has no
@@ -37,7 +34,7 @@ internal static class ChampionCoreBuildPathResolver
     /// </summary>
     public static async Task<IReadOnlyList<int>> ResolveAsync(
         TrueMainDbContext db,
-        IMemoryCache cache,
+        IChampionReadCache cache,
         int queueId,
         int championId,
         string position,
@@ -56,7 +53,7 @@ internal static class ChampionCoreBuildPathResolver
 
     private static async Task<IReadOnlyDictionary<(int FirstItemId, int KeystoneId), IReadOnlyList<int>>> ResolveAllAsync(
         TrueMainDbContext db,
-        IMemoryCache cache,
+        IChampionReadCache cache,
         int queueId,
         int championId,
         string position,
@@ -66,14 +63,11 @@ internal static class ChampionCoreBuildPathResolver
         CancellationToken ct)
     {
         var cacheKey = $"champions:corebuildpaths:{championId}:{position}:{patch ?? "all"}:{bracketToken}";
-        if (cache.TryGetValue<IReadOnlyDictionary<(int, int), IReadOnlyList<int>>>(cacheKey, out var cached)
-            && cached is not null)
-        {
-            return cached;
-        }
 
-        var resolved = await LoadAsync(db, queueId, championId, position, patch, bands, ct);
-        return cache.Store(cacheKey, resolved, CacheTtl);
+        return await cache.GetOrComputeAsync(
+            cacheKey,
+            token => LoadAsync(db, queueId, championId, position, patch, bands, token),
+            ct);
     }
 
     private static async Task<IReadOnlyDictionary<(int, int), IReadOnlyList<int>>> LoadAsync(

@@ -45,7 +45,23 @@ internal sealed class RequestCoalescer<TValue>
     /// cancellation token — see the type remarks.
     /// </param>
     /// <param name="ct">The calling request's token. Abandons the wait, not the work.</param>
-    public async Task<TValue> GetOrJoinAsync(string key, Func<Task<TValue>> factory, CancellationToken ct)
+    /// <param name="ownerAwaitsToCompletion">
+    /// When set, the caller that <em>started</em> the pass ignores its own token and
+    /// waits for the result; only the joiners can walk away. This is for work that
+    /// borrows something scoped to the owning request — a request-scoped
+    /// <c>DbContext</c>, say. There the owner abandoning its wait is not merely
+    /// wasteful, it is fatal to everyone else: its scope is disposed the moment its
+    /// request unwinds, and the shared pass then dies on a disposed context, failing
+    /// every joiner with it. Cost of holding on: one aborted request's async
+    /// continuation lives until the work finishes, bounded by the same command timeout
+    /// that bounds the work itself. Leave it off when the factory owns everything it
+    /// touches (the leaderboard's ranking creates its own context).
+    /// </param>
+    public async Task<TValue> GetOrJoinAsync(
+        string key,
+        Func<Task<TValue>> factory,
+        CancellationToken ct,
+        bool ownerAwaitsToCompletion = false)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(factory);
@@ -68,6 +84,11 @@ internal sealed class RequestCoalescer<TValue>
                 CancellationToken.None,
                 TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
+
+            if (ownerAwaitsToCompletion)
+            {
+                return await inFlight.Value;
+            }
         }
 
         return await inFlight.Value.WaitAsync(ct);

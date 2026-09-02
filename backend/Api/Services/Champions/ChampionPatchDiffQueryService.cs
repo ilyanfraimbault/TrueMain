@@ -20,10 +20,24 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionPatchDiffQueryService(
     TrueMainDbContext db,
     IChampionBuildsQueryService buildsQueryService,
-    IOptions<MainAnalysisOptions> options)
+    IOptions<MainAnalysisOptions> options,
+    IChampionReadCache cache)
     : IChampionPatchDiffQueryService
 {
-    public async Task<ChampionPatchDiffReadModel> GetDiffAsync(
+    public Task<ChampionPatchDiffReadModel> GetDiffAsync(
+        int championId,
+        string? fromPatch,
+        string? toPatch,
+        string? position,
+        CancellationToken ct)
+        // The controller has already normalised both patches and the position, so the
+        // key space is the set of real patches, not arbitrary caller text.
+        => cache.GetOrComputeAsync(
+            $"champions:patch-diff:{championId}:{fromPatch ?? "auto"}:{toPatch ?? "auto"}:{position ?? "auto"}",
+            token => ComputeDiffAsync(championId, fromPatch, toPatch, position, token),
+            ct);
+
+    private async Task<ChampionPatchDiffReadModel> ComputeDiffAsync(
         int championId,
         string? fromPatch,
         string? toPatch,

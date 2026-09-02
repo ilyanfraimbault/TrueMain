@@ -32,14 +32,28 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionSynergyQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
-    IOptions<ChampionsListOptions> championsOptions)
+    IOptions<ChampionsListOptions> championsOptions,
+    IChampionReadCache cache)
     : IChampionSynergyQueryService
 {
     // The five canonical lane positions — the same set the aggregation folds, so a
     // third teammate on a garbage TeamPosition is not offered as a trio completion.
     private static readonly string[] CanonicalPositions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
 
-    public async Task<ChampionSynergiesResponse> GetSynergiesAsync(
+    public Task<ChampionSynergiesResponse> GetSynergiesAsync(
+        int championId,
+        string position,
+        string? patch,
+        string? partnerPosition,
+        string? eloBracket,
+        CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"champions:synergies:{championId}:{position}:{PatchFilter.Normalize(patch) ?? "all"}"
+                + $":{partnerPosition ?? "any"}:{EloBracket.ResolveToken(eloBracket)}",
+            token => ComputeSynergiesAsync(championId, position, patch, partnerPosition, eloBracket, token),
+            ct);
+
+    private async Task<ChampionSynergiesResponse> ComputeSynergiesAsync(
         int championId,
         string position,
         string? patch,
@@ -172,7 +186,24 @@ public sealed class ChampionSynergyQueryService(
         };
     }
 
-    public async Task<ChampionTrioSynergiesResponse> GetTrioSynergiesAsync(
+    public Task<ChampionTrioSynergiesResponse> GetTrioSynergiesAsync(
+        int championId,
+        string position,
+        int partnerChampionId,
+        string partnerPosition,
+        string? patch,
+        string? eloBracket,
+        CancellationToken ct)
+        // The trio fold is a live three-way self-join over match_participants and had
+        // no cache of its own before #1368.
+        => cache.GetOrComputeAsync(
+            $"champions:synergies-trio:{championId}:{position}:{partnerChampionId}:{partnerPosition}"
+                + $":{PatchFilter.Normalize(patch) ?? "all"}:{EloBracket.ResolveToken(eloBracket)}",
+            token => ComputeTrioSynergiesAsync(
+                championId, position, partnerChampionId, partnerPosition, patch, eloBracket, token),
+            ct);
+
+    private async Task<ChampionTrioSynergiesResponse> ComputeTrioSynergiesAsync(
         int championId,
         string position,
         int partnerChampionId,

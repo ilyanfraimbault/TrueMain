@@ -2,7 +2,6 @@ using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
@@ -19,14 +18,12 @@ public sealed class ChampionScalingQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
     IOptions<ChampionsListOptions> championsOptions,
-    IMemoryCache cache)
+    IChampionReadCache cache)
     : IChampionScalingQueryService
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
-
     private static readonly string[] BucketLabels = ["<20m", "20-25m", "25-30m", "30-35m", "35m+"];
 
-    public async Task<ChampionScalingResponse> GetAsync(
+    public Task<ChampionScalingResponse> GetAsync(
         int championId,
         string position,
         string? patch,
@@ -35,16 +32,26 @@ public sealed class ChampionScalingQueryService(
     {
         var normalizedPatch = PatchFilter.Normalize(patch);
 
-        // Resolve the elo filter to its bands (null = ALL, no clause). The cache
-        // key carries the bracket so each band caches separately.
-        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
+        // The key carries the bracket so each band caches separately; the aggregation
+        // version is stamped on by the cache itself.
         var bracketToken = EloBracket.ResolveToken(eloBracket);
-
         var cacheKey = $"champions:scaling:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
-        if (cache.TryGetValue<ChampionScalingResponse>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
+
+        return cache.GetOrComputeAsync(
+            cacheKey,
+            token => ComputeAsync(championId, position, normalizedPatch, eloBracket, token),
+            ct);
+    }
+
+    private async Task<ChampionScalingResponse> ComputeAsync(
+        int championId,
+        string position,
+        string? normalizedPatch,
+        string? eloBracket,
+        CancellationToken ct)
+    {
+        // Resolve the elo filter to its bands (null = ALL, no clause).
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
 
         var queueId = (int)options.Value.QueueId;
 
@@ -109,6 +116,6 @@ public sealed class ChampionScalingQueryService(
             ScalingIndex = scalingIndex
         };
 
-        return cache.Store(cacheKey, response, CacheTtl);
+        return response;
     }
 }

@@ -41,10 +41,30 @@ namespace TrueMain.Services.Champions;
 public sealed class ChampionMatchupQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
-    IOptions<ChampionsListOptions> championsOptions)
+    IOptions<ChampionsListOptions> championsOptions,
+    IChampionReadCache cache)
     : IChampionMatchupQueryService
 {
-    public async Task<ChampionMatchupsResponse> GetAsync(
+    public Task<ChampionMatchupsResponse> GetAsync(
+        int championId,
+        string position,
+        string? patch,
+        Guid? riotAccountId,
+        int? opponentChampionId,
+        string? eloBracket,
+        CancellationToken ct)
+        // Covers both branches, the pre-aggregated one and the live self-join that
+        // ComputeLiveAsync runs for a player- or opponent-scoped request — the latter
+        // was the uncached one (#1368).
+        => cache.GetOrComputeAsync(
+            $"champions:matchups:{championId}:{position}:{PatchFilter.Normalize(patch) ?? "all"}"
+                + $":{riotAccountId?.ToString() ?? "pool"}:{opponentChampionId?.ToString() ?? "any"}"
+                + $":{EloBracket.ResolveToken(eloBracket)}",
+            token => ComputeAsync(
+                championId, position, patch, riotAccountId, opponentChampionId, eloBracket, token),
+            ct);
+
+    private async Task<ChampionMatchupsResponse> ComputeAsync(
         int championId,
         string position,
         string? patch,

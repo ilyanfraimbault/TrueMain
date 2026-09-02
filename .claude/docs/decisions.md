@@ -2191,6 +2191,76 @@ after the restart, documented in `docs/production-migrations.md`.
 start-up settings. Preprod restarts on the next deploy from `develop`; prod moves only on a published
 release.
 
+## The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02)
+
+Every champion read narrows to one patch, and until #1368 every one of them did it the same way:
+`EF.Functions.Like(m.GameVersion, '16.17.%')`. `PatchFilter`'s own comment said the quiet part out loud —
+that predicate is **never index-assisted**. There is no index on `GameVersion`, and Postgres only turns a
+`LIKE` prefix into a range scan for a *literal* pattern under a `text_pattern_ops` index, never for a
+parameter. With `max_parallel_workers_per_gather = 0` (#589, and it stays off), each champion read was a
+single-threaded scan of `matches` joined to `match_participants`. Measured cold on production on 2026-09-02:
+roam 3.4–5.1 s, synergies ~2 s, the directory 2.1 s.
+
+`matches."Patch"` is now a **stored generated column** holding the `major.minor` prefix, and the filter is a
+plain equality on an indexed column. Two indexes, because there are two access shapes: `(Patch, QueueId)` for
+the reads that filter one patch, and `(QueueId, Patch, PlatformId)` for the two writers that *enumerate*
+patches — retention's live window and the pattern aggregation's live-key `DISTINCT`.
+
+**Generated, not written by the ingestor.** The alternative was a plain column filled at insert time plus a
+backfill, and it loses on the thing that matters: a second writer (a repair job, a manual `UPDATE`, a restored
+dump) can put a row in `matches` whose `Patch` disagrees with its `GameVersion`, and the disagreement is
+invisible — the row simply vanishes from a patch's numbers. `GENERATED ALWAYS AS (...) STORED` makes that
+unrepresentable, and costs nothing at read time. Stored rather than virtual because Postgres cannot index a
+virtual generated column, which is the entire point.
+
+**The SQL expression is a transcription of `PatchVersion.TryParse(...).ToMajorMinor()`, deliberately.** Same
+answer for the awkward inputs — empty segments dropped, segments trimmed, `16.04.5` → `16.4` because each
+segment is re-rendered through `::int`, and **NULL** where the C# rule returns "not a patch". One divergence,
+on purpose: segments are capped at nine digits, so a ten-digit major that `int.TryParse` would still accept
+yields NULL here instead of an out-of-range cast that would fail the INSERT. The expression lives in
+`MatchConfiguration.PatchComputedColumnSql`, and `MatchPatchColumnIntegrationTests` runs the two
+implementations against each other on real Postgres — nothing else ties them together, and a column that
+quietly disagrees with the C# rule just drops rows out of every champion read.
+
+**Not a startup migration.** Adding a STORED column rewrites the table under `ACCESS EXCLUSIVE` and the two
+index builds follow it; at ~274 k rows that is seconds, but it goes out of band through the
+`migrate-preprod`/`migrate-prod` job like every other migration (`docs/production-migrations.md`, #598). The
+indexes are ordinary `CREATE INDEX`, not `CONCURRENTLY`: the rewrite already holds the strongest lock there
+is, so concurrency would buy nothing and cost the ability to run inside the script's transaction.
+
+## Champion reads are cached until the data changes, not for 60 seconds (2026-09-02)
+
+The champion reads were each caching themselves, with their own `TryGetValue`/`Store` pair and a 60 s TTL —
+and five of them (`ChampionBuildsQueryService`, the live matchup fold, `GetTrioSynergiesAsync`,
+`ChampionTrendQueryService`, `ChampionPatchDiffQueryService`) were not caching at all. `RequestCoalescer`
+existed but only the truemains leaderboard used it. With 173 champions × 5 lanes × rank brackets, a 60 s TTL
+means practically every visit to a non-top champion pays the cold price, and nothing stopped ten concurrent
+visitors from each paying it at once.
+
+**One entry point, because the two halves only work together.** `IChampionReadCache.GetOrComputeAsync` caches
+*and* single-flights *and* sizes the entry. A cache without single-flight turns each expiry into a stampede of
+identical multi-second scans; single-flight without a cache re-runs the pass for the next visitor; and an
+entry without a `Size` is silently dropped by the size-limited shared cache (see `ApiCache`). Leaving those
+three as three things a new service must remember is how you get a read that looks cached and is not.
+`ChampionReadCacheRegistrationTests` walks `ChampionsController`'s constructor — the DI surface of the
+champion reads — and fails if any service behind it takes a raw `IMemoryCache` or no cache at all.
+
+**Keyed by aggregation version, not by a clock.** These answers are folds over data the ingestor rewrites once
+per aggregation cycle and never in between, so a 60 s TTL was throwing away answers that were still exactly
+right. The key carries a token derived from `MAX("AggregatedAtUtc")` over `champion_aggregate_scopes`; a new
+cycle changes the token and retires every entry at once, with nothing to enumerate or evict. The token read is
+itself cached for 5 s and single-flighted, so it costs at most one `max()` every five seconds no matter how
+much traffic arrives — the one thing that must not happen is the version probe becoming the new hot query. A
+30-minute absolute expiry stays as a backstop: not for freshness, but so a token that somehow stops moving
+cannot pin a stale answer for ever. An empty database is just another version (`none`), so a first-ever fold
+invalidates the empty answers by moving the token.
+
+**The owner of a coalesced pass waits it out.** `RequestCoalescer` grew an `ownerAwaitsToCompletion` flag for
+this. The champion reads run on the caller's request-scoped `DbContext`, so if the caller that *started* the
+pass abandoned its wait, its scope would be disposed underneath the shared work and every joiner would fail on
+a disposed context. The leaderboard does not need the flag — it creates its own context — and it does not get
+it.
+
 ## Keeping these files current
 
 A PR that ships a user-facing feature, removes one, or reverses a decision here **must update

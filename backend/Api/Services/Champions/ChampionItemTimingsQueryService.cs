@@ -2,7 +2,6 @@ using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
@@ -14,18 +13,17 @@ namespace TrueMain.Services.Champions;
 /// "power spike" timeline. Unnests the participants' ITEM_PURCHASED events
 /// (stored as jsonb on match_participants), takes the first purchase of each item
 /// per game, and averages across games above the sample floor. Same queue / patch
-/// / tracked-account population as the sibling champion reads, cached 60s.
+/// / tracked-account population as the sibling champion reads; cached and
+/// coalesced by aggregation version like all of them.
 /// </summary>
 public sealed class ChampionItemTimingsQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
     IOptions<ChampionsListOptions> championsOptions,
-    IMemoryCache cache)
+    IChampionReadCache cache)
     : IChampionItemTimingsQueryService
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
-
-    public async Task<ChampionItemTimingsResponse> GetAsync(
+    public Task<ChampionItemTimingsResponse> GetAsync(
         int championId,
         string position,
         string? patch,
@@ -34,18 +32,28 @@ public sealed class ChampionItemTimingsQueryService(
     {
         var normalizedPatch = PatchFilter.Normalize(patch);
 
-        // Resolve the elo filter to its bands (null = ALL, no clause). A null
-        // array parameter short-circuits the WHERE via the `IS NULL OR` guard,
-        // mirroring the patch-prefix pattern below. The cache key carries the band.
+        // The key carries the band; the aggregation version is stamped on by the cache.
+        var bracketToken = EloBracket.ResolveToken(eloBracket);
+        var cacheKey = $"champions:item-timings:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
+
+        return cache.GetOrComputeAsync(
+            cacheKey,
+            token => ComputeAsync(championId, position, normalizedPatch, eloBracket, token),
+            ct);
+    }
+
+    private async Task<ChampionItemTimingsResponse> ComputeAsync(
+        int championId,
+        string position,
+        string? normalizedPatch,
+        string? eloBracket,
+        CancellationToken ct)
+    {
+        // Resolve the elo filter to its bands (null = ALL, no clause). A null array
+        // parameter short-circuits the WHERE via the `IS NULL OR` guard, the same way
+        // the patch parameter below does.
         var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         var bandsArray = bands?.ToArray();
-        var bracketToken = EloBracket.ResolveToken(eloBracket);
-
-        var cacheKey = $"champions:item-timings:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
-        if (cache.TryGetValue<ChampionItemTimingsResponse>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
 
         var queueId = (int)options.Value.QueueId;
         var minGames = championsOptions.Value.MinMatchupGames;
@@ -97,7 +105,7 @@ public sealed class ChampionItemTimingsQueryService(
             Items = items
         };
 
-        return cache.Store(cacheKey, response, CacheTtl);
+        return response;
     }
 
     private sealed record ItemTimingRow(int ItemId, int Games, double AvgSeconds);
