@@ -739,7 +739,7 @@ const pipelineStages = computed(() =>
               <p class="text-xs text-muted uppercase mb-1.5">
                 Pool, by stage
               </p>
-              <NcAreaChart
+              <ChartsAreaChart
                 :data="poolChartData"
                 :height="240"
                 :categories="poolChartCategories"
@@ -747,7 +747,6 @@ const pipelineStages = computed(() =>
                 :x-num-ticks="Math.min(poolChartData.length, 6)"
                 :x-formatter="poolXFormatter"
                 :y-formatter="formatCount"
-                v-bind="multiAreaChartProps()"
               />
               <p class="mt-3 text-xs text-dimmed tabular-nums">
                 {{ formatNumber(stockLatest.scored) }} scored ·
@@ -765,14 +764,13 @@ const pipelineStages = computed(() =>
               <p class="text-xs text-muted uppercase mb-1.5">
                 In flight
               </p>
-              <NcAreaChart
+              <ChartsAreaChart
                 :data="inFlightChartData"
                 :height="240"
                 :categories="inFlightChartCategories"
                 :x-num-ticks="Math.min(inFlightChartData.length, 6)"
                 :x-formatter="inFlightXFormatter"
                 :y-formatter="formatCount"
-                v-bind="multiAreaChartProps()"
               />
               <p class="mt-3 text-xs text-dimmed tabular-nums">
                 {{ formatNumber(stockLatest.new) }} awaiting scoring ·

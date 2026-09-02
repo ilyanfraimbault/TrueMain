@@ -1,6 +1,6 @@
 <script setup lang="ts" generic="TItem extends Record<string, unknown>">
 import { Orientation } from '@unovis/ts'
-import { computed, onBeforeUnmount } from 'vue'
+import { computed, nextTick, onBeforeUnmount, useTemplateRef } from 'vue'
 import type { BulletLegendItemInterface } from 'vue-chrts/types'
 // Imports below are explicit rather than auto-imported: this component is
 // mounted directly by the unit tests, which run outside Nuxt and resolve
@@ -27,13 +27,23 @@ import ChartTooltip from './ChartTooltip.vue'
 //      look intermittent rather than systematic. This one predates the bar
 //      conversion (#1218): the horizontal bar charts already had it.
 //
-// Repairing both here rather than at each call site: (1) by rendering the
+// Repairing all three here rather than at each call site: (1) by rendering the
 // tooltip ourselves through the `#tooltip` slot, which is handed the datum and
-// renders unconditionally, and (2) by replaying one mousemove on the next frame
-// so the trigger re-reads the wrapper after Vue has rendered it.
+// renders unconditionally, (2) by replaying one mousemove on the next frame so
+// the trigger re-reads the wrapper after Vue has rendered it, and (3) by copying
+// the wrapper into the tooltip container when upstream did not.
+//
+//   3. A STACKED bar chart still shows an EMPTY box even once (1) and (2) are
+//      handled, and this one is not about timing. Upstream's trigger returns the
+//      hidden slot wrapper's `innerHTML` for the tooltip to copy; on a stacked
+//      chart that copy never lands, while the wrapper itself holds exactly the
+//      right markup (verified in a browser on 2.2.1: wrapper 916 chars of the
+//      hovered bucket's three series, tooltip container 0). The same code path
+//      works on grouped and horizontal bars, so it is specific to the stacked
+//      trigger. Repaired by doing the copy ourselves once Vue has rendered.
 //
 // Every admin bar chart goes through this component — never <NcBarChart>
-// directly, or it gets both bugs back.
+// directly, or it gets all three bugs back.
 
 // Attrs are forwarded to <NcBarChart> explicitly below, so they must not also
 // land on the wrapping div.
@@ -81,6 +91,8 @@ const props = defineProps<{
 // still updates `pendingMove` instead of being swallowed. (`event.isTrusted`
 // would read as the obvious discriminator and is not one: every event a test
 // dispatches is untrusted too.)
+const chartRoot = useTemplateRef<HTMLElement>('chartRoot')
+
 let pendingMove: MouseEvent | null = null
 let frameHandle: number | null = null
 let dispatching = false
@@ -110,6 +122,9 @@ function replayMouseMove(event: MouseEvent) {
     finally {
       dispatching = false
     }
+    // After the dispatch: upstream has re-read the wrapper by now for the chart
+    // shapes where that works, so this only has anything to do on a stacked one.
+    nextTick(copySlotIntoTooltip)
   })
 }
 
@@ -135,6 +150,41 @@ function cancelReplay() {
 
 onBeforeUnmount(cancelReplay)
 
+/*
+ * See (3) above. Runs after the replay, on the tick where Vue has rendered the
+ * slot, and copies the wrapper's markup into the tooltip container whenever the
+ * two have diverged.
+ *
+ * Both elements are found by their upstream shapes: the container is the
+ * Emotion-suffixed "-tooltip" element (`label: tooltip` in @unovis/ts
+ * `components/tooltip/style.js`), the source is vue-chrts' `<div ref="slotWrapper"
+ * style="display: none">` — the only inline-hidden div this wrapper owns, since
+ * it wraps exactly one chart. If an upgrade renames or restyles either, the
+ * query returns null and this quietly does nothing: the tooltip goes back to
+ * whatever upstream renders, which is the behaviour without this repair, never
+ * a crash.
+ *
+ * Writing `innerHTML` from a sibling node in the same document is not an
+ * injection surface: the markup is what OUR `ChartTooltip` just rendered
+ * through Vue, already escaped, never a string built from data.
+ */
+function copySlotIntoTooltip() {
+  const root = chartRoot.value
+  if (!root) {
+    return
+  }
+  const tooltip = root.querySelector('[class*="-tooltip"]')
+  const slotWrapper = root.querySelector('div[style*="display: none"]')
+  if (!tooltip || !slotWrapper) {
+    return
+  }
+  // An empty wrapper means no bar is hovered; leaving the container alone lets
+  // upstream hide it on its own terms rather than blanking it from under it.
+  if (slotWrapper.innerHTML && tooltip.innerHTML !== slotWrapper.innerHTML) {
+    tooltip.innerHTML = slotWrapper.innerHTML
+  }
+}
+
 // Tick text is string-interpolated into an SVG fragment and parsed as strict
 // XML by @unovis/ts, so `&`/`<`/`>` in a label must be escaped before it reaches
 // an AXIS (#842) — champion names such as "Nunu & Willump" are the live case.
@@ -147,6 +197,7 @@ const safeYFormatter = computed(() => escapeTickFormatter(props.yFormatter))
 
 <template>
   <div
+    ref="chartRoot"
     @mousemove.capture="replayMouseMove"
     @mouseleave="cancelReplay"
   >
