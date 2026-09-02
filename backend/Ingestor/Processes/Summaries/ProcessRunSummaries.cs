@@ -60,7 +60,6 @@ public sealed record DiscoveryPlatformSummary(
 /// <summary>Discovery outcome, one entry per attempted platform.</summary>
 public sealed record DiscoverySummary(IReadOnlyList<DiscoveryPlatformSummary> Platforms) : IProcessRunSummary;
 
-/// <summary>Per-platform match ingestion outcome.</summary>
 /// <summary>
 /// Per-platform match ingestion outcome. <see cref="MatchesSkipped"/> is the healthy skip —
 /// ids we already had stored, which cost no per-match call — while

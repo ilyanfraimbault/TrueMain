@@ -314,6 +314,10 @@ public sealed class MatchSnapshotWriterIntegrationTests
         result.Inserted.Should().Be(0);
         result.NewMatchIds.Should().BeEmpty();
         result.AllMatchIds.Should().ContainSingle().Which.Should().Be("KR_100");
+        // A call that stored nothing, counted as such (#1358) rather than folded into
+        // Skipped, which means "already stored" and is normally large enough to hide it.
+        result.SkippedWrongQueue.Should().Be(1);
+        result.Skipped.Should().Be(0);
 
         await using var verifyDb = _fixture.CreateDbContext();
         verifyDb.Matches.Should().BeEmpty();
