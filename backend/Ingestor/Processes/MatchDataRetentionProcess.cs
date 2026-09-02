@@ -549,10 +549,14 @@ public sealed class MatchDataRetentionProcess(
 
             foreach (var retainedPatch in retainedPatches)
             {
-                var patchPrefix = $"{retainedPatch}.%";
-                platformQuery = platformQuery
-                    .Where(match => match.GameVersion != retainedPatch
-                        && !EF.Functions.Like(match.GameVersion, patchPrefix));
+                // matches."Patch" is the stored generated major.minor of GameVersion
+                // (#1368), so the live window is an indexed equality instead of the
+                // pair of unindexable predicates this used to be
+                // (GameVersion <> '16.4' AND GameVersion NOT LIKE '16.4.%'). Same
+                // answer, including for a match whose version does not parse: its
+                // Patch is NULL, and EF's null semantics keep it deletable exactly as
+                // the two string comparisons did.
+                platformQuery = platformQuery.Where(match => match.Patch != retainedPatch);
             }
 
             deletableMatchIds.AddRange(await platformQuery

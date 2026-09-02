@@ -48,7 +48,6 @@ public sealed class ChampionItemTimingsQueryService(
         }
 
         var queueId = (int)options.Value.QueueId;
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
         var minGames = championsOptions.Value.MinMatchupGames;
 
         // Per game, the first purchase time of each item (MIN over its purchases),
@@ -73,7 +72,7 @@ public sealed class ChampionItemTimingsQueryService(
               AND mp.""TeamPosition"" = {position}
               AND mp.""RiotAccountId"" IS NOT NULL
               AND m.""QueueId"" = {queueId}
-              AND ({patchPrefix}::text IS NULL OR m.""GameVersion"" LIKE {patchPrefix})
+              AND ({normalizedPatch}::text IS NULL OR m.""Patch"" = {normalizedPatch})
               AND ({bandsArray}::text[] IS NULL OR mp.""elo_bracket"" = ANY({bandsArray}::text[]))
             GROUP BY e.item_id
             HAVING COUNT(*) >= {minGames}

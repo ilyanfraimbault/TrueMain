@@ -190,10 +190,6 @@ public sealed class ChampionSynergyQueryService(
         // from the same population as the duo aggregate it extends.
         var queueId = (int)options.Value.QueueId;
 
-        // matches stores the full Riot GameVersion, so an exact compare would never
-        // hit; the LIKE prefix bridges the normalised input to it.
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
-
         // The champion side: tracked rows for this champion at this lane, on the
         // configured queue and patch, optionally narrowed to a set of elo bands.
         // IX_match_participants_champion_position_tracked serves this seek.
@@ -203,7 +199,7 @@ public sealed class ChampionSynergyQueryService(
             .Where(p1 => db.Matches.Any(m =>
                 m.Id == p1.MatchId
                 && m.QueueId == queueId
-                && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!))));
+                && (normalizedPatch == null || m.Patch == normalizedPatch)));
 
         if (bands is not null)
         {

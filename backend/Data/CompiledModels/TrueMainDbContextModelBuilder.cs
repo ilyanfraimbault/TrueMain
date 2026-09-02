@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("0a136151-335f-445d-827e-1243d0a4c5a1"), entityTypeCount: 31)
+            : base(skipDetectChanges: false, modelId: new Guid("51d7f690-7046-47c6-a9c7-efa23d4478d6"), entityTypeCount: 31)
         {
         }
 

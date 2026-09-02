@@ -92,15 +92,11 @@ public sealed class ChampionMainsComparisonQueryService(
         }
 
         var queueId = (int)options.Value.QueueId;
-        // The matches table stores the full Riot GameVersion, so an exact
-        // compare would never hit; the LIKE prefix bridges normalised input to it.
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
-
         var playerTotals = await AggregateAsync(
             championId,
             position,
             queueId,
-            patchPrefix,
+            normalizedPatch,
             p => p.RiotAccountId == playerAccount.Id,
             ct);
         var player = ToSide(playerTotals, Identity(playerAccount), minGames);
@@ -131,7 +127,7 @@ public sealed class ChampionMainsComparisonQueryService(
                 championId,
                 position,
                 queueId,
-                patchPrefix,
+                normalizedPatch,
                 p => p.RiotAccountId != playerAccount.Id
                      && db.RiotAccounts.Any(a =>
                          a.Id == p.RiotAccountId
@@ -146,7 +142,7 @@ public sealed class ChampionMainsComparisonQueryService(
                 championId,
                 position,
                 queueId,
-                patchPrefix,
+                normalizedPatch,
                 p => p.RiotAccountId == targetAccount.Id,
                 ct);
 
@@ -183,7 +179,7 @@ public sealed class ChampionMainsComparisonQueryService(
         int championId,
         string? position,
         int queueId,
-        string? patchPrefix,
+        string? normalizedPatch,
         Expression<Func<MatchParticipant, bool>> accountFilter,
         CancellationToken ct)
     {
@@ -203,7 +199,7 @@ public sealed class ChampionMainsComparisonQueryService(
             .Join(
                 db.Matches.Where(m =>
                     m.QueueId == queueId
-                    && (patchPrefix == null || EF.Functions.Like(m.GameVersion, patchPrefix))),
+                    && (normalizedPatch == null || m.Patch == normalizedPatch)),
                 participant => participant.MatchId,
                 match => match.Id,
                 (participant, match) => new

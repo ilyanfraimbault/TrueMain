@@ -1,5 +1,4 @@
 using Core.Lol.Map;
-using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Data;
 using Data.BuildFacts;
@@ -129,21 +128,35 @@ public sealed class ChampionPatternSourceRowReader(
         int queueId,
         CancellationToken ct)
     {
-        // matches.GameVersion is the raw Riot version (e.g. "16.5.2"); scopes
-        // store the normalised patch ("16.5"), so normalise before comparing.
-        // NormalizeGameVersion is C# (PatchVersion.Parse) that EF can't translate
-        // to SQL, hence the materialise-then-normalise in memory. The result set
-        // is the distinct (version, platform) pairs in `matches`, which retention
-        // keeps bounded to a handful of patches — small enough to fold client-side.
-        var rawPatchKeys = await db.Matches
+        // Scopes store the normalised patch ("16.5"), and since #1368 so does
+        // matches: "Patch" is a stored generated column carrying exactly what
+        // PatchVersion.TryParse(...).ToMajorMinor() would return. The DISTINCT is
+        // therefore served straight from IX_matches_queue_patch_platform instead of
+        // scanning the raw GameVersion of every retained match and normalising the
+        // result in memory.
+        var patchKeys = await db.Matches
             .AsNoTracking()
-            .Where(match => match.QueueId == queueId)
-            .Select(match => new { match.GameVersion, match.PlatformId })
+            .Where(match => match.QueueId == queueId && match.Patch != null)
+            .Select(match => new { Patch = match.Patch!, match.PlatformId })
             .Distinct()
             .ToListAsync(ct);
 
-        return rawPatchKeys
-            .Select(key => (NormalizeGameVersion(key.GameVersion), key.PlatformId))
+        // The unparseable tail, kept for parity: NormalizeGameVersion falls back to
+        // the raw string when the version does not parse, and the aggregate scopes
+        // written from such a row carry that raw string too — so the live key has to
+        // as well, or those scopes would silently be treated as frozen. Patch is NULL
+        // exactly when the parse fails, so the same index answers this as a NULL
+        // range, and in practice the range is empty.
+        var unparseableKeys = await db.Matches
+            .AsNoTracking()
+            .Where(match => match.QueueId == queueId && match.Patch == null)
+            .Select(match => new { Patch = match.GameVersion, match.PlatformId })
+            .Distinct()
+            .ToListAsync(ct);
+
+        return patchKeys
+            .Concat(unparseableKeys)
+            .Select(key => (key.Patch, key.PlatformId))
             .ToHashSet();
     }
 
@@ -177,7 +190,10 @@ public sealed class ChampionPatternSourceRowReader(
                 MatchId = match.Id,
                 ParticipantId = participant.ParticipantId,
                 ChampionId = participant.ChampionId,
-                GameVersion = NormalizeGameVersion(match.GameVersion),
+                // Same normalisation the live keys use, now read from the stored
+                // generated column instead of computed per row on the client; the
+                // raw-version fallback is the COALESCE (#1368).
+                GameVersion = match.Patch ?? match.GameVersion,
                 PlatformId = match.PlatformId,
                 QueueId = match.QueueId,
                 GameStartTimeUtc = match.GameStartTimeUtc,
@@ -269,9 +285,6 @@ public sealed class ChampionPatternSourceRowReader(
             row.EloBracket = EloBracketResolver.FromNearestSnapshot(accountSnapshots, row.GameStartTimeUtc);
         }
     }
-
-    private static string NormalizeGameVersion(string gameVersion)
-        => PatchVersion.TryParse(gameVersion, out var patch) ? patch.ToMajorMinor() : gameVersion;
 
     private static async Task HydratePerkSelectionsAsync(
         TrueMainDbContext db,

@@ -184,8 +184,6 @@ public sealed class ChampionMatchupBuildsQueryService(
         int queueId,
         string? patch)
     {
-        var patchPrefix = PatchFilter.Prefix(patch);
-
         return participants
             .Join(
                 db.MatchParticipants.AsNoTracking().Where(o =>
@@ -196,7 +194,7 @@ public sealed class ChampionMatchupBuildsQueryService(
             .Where(pair => pair.Opponent.TeamId != pair.Participant.TeamId)
             .Join(
                 db.Matches.AsNoTracking().Where(m => m.QueueId == queueId
-                    && (patchPrefix == null || EF.Functions.Like(m.GameVersion, patchPrefix))),
+                    && (patch == null || m.Patch == patch)),
                 pair => pair.Participant.MatchId,
                 m => m.Id,
                 (pair, m) => new MatchupMatchRow

@@ -47,7 +47,6 @@ public sealed class ChampionScalingQueryService(
         }
 
         var queueId = (int)options.Value.QueueId;
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
 
         // Shares the matchup sample floor: a scaling bucket needs enough games for
         // its win rate to mean anything, same threshold the sibling reads use.
@@ -71,7 +70,7 @@ public sealed class ChampionScalingQueryService(
             .Join(
                 db.Matches.Where(m =>
                     m.QueueId == queueId
-                    && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!))),
+                    && (normalizedPatch == null || m.Patch == normalizedPatch)),
                 participant => participant.MatchId,
                 match => match.Id,
                 (participant, match) => new { participant.Win, match.GameDurationSeconds })

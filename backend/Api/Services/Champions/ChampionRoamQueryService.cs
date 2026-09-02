@@ -68,7 +68,6 @@ public sealed class ChampionRoamQueryService(
         }
 
         var queueId = (int)options.Value.QueueId;
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
         var minGames = championsOptions.Value.MinMatchupGames;
 
         // Denominator: games the champion played in this lane that also have
@@ -83,7 +82,7 @@ public sealed class ChampionRoamQueryService(
                 && db.Matches.Any(m =>
                     m.Id == p.MatchId
                     && m.QueueId == queueId
-                    && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!)))
+                    && (normalizedPatch == null || m.Patch == normalizedPatch))
                 && db.MatchParticipantKillPositions.Any(k => k.MatchId == p.MatchId));
         if (bands is not null)
         {
@@ -111,7 +110,7 @@ public sealed class ChampionRoamQueryService(
                 && db.Matches.Any(m =>
                     m.Id == killPosition.MatchId
                     && m.QueueId == queueId
-                    && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!)))
+                    && (normalizedPatch == null || m.Patch == normalizedPatch))
             select new { killPosition.X, killPosition.Y, killPosition.TimestampMs, participant.TeamId, participant.EloBracket };
 
         // Narrow the champion side to the requested elo bands (null = every band).

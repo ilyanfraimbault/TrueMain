@@ -196,10 +196,6 @@ public sealed class ChampionMatchupQueryService(
         // is drawn from the same population as the build / summary pages.
         var queueId = (int)options.Value.QueueId;
 
-        // The matches table stores the full Riot GameVersion, so an exact compare
-        // would never hit; the LIKE prefix bridges normalised input to it.
-        var patchPrefix = PatchFilter.Prefix(normalizedPatch);
-
         // A deliberate opponent lookup shows the head-to-head from a single game up;
         // the player's own leaderboard keeps the lower per-player floor. The
         // share-based floor never applies here — one player's whole matchup history
@@ -219,8 +215,7 @@ public sealed class ChampionMatchupQueryService(
             .Where(p1 => db.Matches.Any(m =>
                 m.Id == p1.MatchId
                 && m.QueueId == queueId
-                && (normalizedPatch == null
-                    || EF.Functions.Like(m.GameVersion, patchPrefix!))));
+                && (normalizedPatch == null || m.Patch == normalizedPatch)));
 
         // Narrow to the requested elo bands (null = every band).
         if (bands is not null)
