@@ -19,6 +19,15 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db, IMemoryCache
     // for both halves of this read.
     internal static readonly TimeSpan ResponseCacheTtl = TimeSpan.FromMinutes(10);
 
+    // Single-flight for the miss path (#870): the unfiltered "games" CTE scans the
+    // full match_participants ⋈ matches join (~2.7M rows on production), so without
+    // this, every concurrent caller that misses together — the first request, or any
+    // request landing right after a TTL expiry — would each run that scan on their
+    // own. Static for the same reason as ChampionReadCache's coalescers: the point is
+    // to share across concurrent *requests*, which each get their own scoped service
+    // instance.
+    private static readonly RequestCoalescer<IReadOnlyList<ChampionStatRow>> ResponseCoalescer = new();
+
     public async Task<IReadOnlyList<ChampionStatRow>> GetAsync(
         string? region,
         string? patch,
@@ -40,6 +49,34 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db, IMemoryCache
             return cached;
         }
 
+        return await ResponseCoalescer.GetOrJoinAsync(
+            cacheKey,
+            async () =>
+            {
+                // Re-check under the coalescer: this caller may have queued behind a
+                // pass that has since finished and cached its answer.
+                if (cache.TryGetValue<IReadOnlyList<ChampionStatRow>>(cacheKey, out var justCached) && justCached is not null)
+                {
+                    return justCached;
+                }
+
+                var computed = await ComputeAsync(normalizedRegion, normalizedPatch, normalizedPosition, queue, CancellationToken.None);
+                return cache.Store(cacheKey, computed, ResponseCacheTtl);
+            },
+            ct,
+            // This factory reads through the request-scoped db above, so the shared
+            // pass must not outlive the request that started it — same reasoning as
+            // ChampionReadCache.GetOrComputeAsync.
+            ownerAwaitsToCompletion: true);
+    }
+
+    private async Task<IReadOnlyList<ChampionStatRow>> ComputeAsync(
+        string? normalizedRegion,
+        string? normalizedPatch,
+        string? normalizedPosition,
+        int? queue,
+        CancellationToken ct)
+    {
         // Two independent per-champion aggregations folded together with a FULL
         // OUTER JOIN so a champion that appears in only one source (e.g. has
         // games but no mains yet, or vice-versa) still yields a row. The games
@@ -101,7 +138,7 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db, IMemoryCache
 
         var rows = await db.Database.SqlQuery<ChampionStatRowResult>(sql).ToListAsync(ct);
 
-        var result = rows
+        return rows
             .Select(row => new ChampionStatRow
             {
                 ChampionId = row.ChampionId,
@@ -111,8 +148,6 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db, IMemoryCache
                 ExtendedSamples = row.ExtendedSamples
             })
             .ToList();
-
-        return cache.Store(cacheKey, (IReadOnlyList<ChampionStatRow>)result, ResponseCacheTtl);
     }
 
     /// <summary>
