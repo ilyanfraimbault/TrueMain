@@ -52,5 +52,11 @@ public enum JobMode
     /// <see cref="StorageSnapshotOnly"/>, because the values are stable identifiers and
     /// inserting mid-enum would renumber them.
     /// </summary>
-    CandidateStockSnapshotOnly = 23
+    CandidateStockSnapshotOnly = 23,
+
+    /// <summary>
+    /// Folds each match into the measured champion profiles (#1449). Appended for the
+    /// same reason as the value above: the numbers are stable identifiers.
+    /// </summary>
+    ChampionProfileAggregationOnly = 24
 }

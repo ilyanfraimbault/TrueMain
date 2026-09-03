@@ -100,5 +100,15 @@ public class Match
     /// </summary>
     public bool BansAggregated { get; set; }
 
+    /// <summary>
+    /// Whether this match has been folded into <c>champion_profile_stats</c> (#1449), the
+    /// same one-fold-per-match gate as <see cref="SynergyAggregated"/>. Ships
+    /// <c>false</c> everywhere like the synergy flag, not backfilled like
+    /// <see cref="BansAggregated"/>: the table is created empty, and a pre-#1448 match
+    /// simply contributes nothing when folded — its participants carry no context
+    /// fields — so folding the retained history once costs a scan and corrupts nothing.
+    /// </summary>
+    public bool ProfileAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

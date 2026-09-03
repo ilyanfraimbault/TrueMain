@@ -319,6 +319,7 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'MatchParticipantEloBracketEnrichment',
   'RunePageDeduplication',
   'ChampionPatternAggregation',
+  'ChampionProfileAggregation',
   'ChampionMatchupLeadAggregation',
   'ChampionSynergyAggregation',
   'ChampionBanAggregation',
@@ -385,6 +386,7 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'MatchParticipantEloBracketEnrichment',
       'RunePageDeduplication',
       'ChampionPatternAggregation',
+      'ChampionProfileAggregation',
       'ChampionMatchupLeadAggregation',
       'ChampionSynergyAggregation',
       'ChampionBanAggregation',
@@ -475,6 +477,11 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Builds & Runes',
     description:
       'Rebuilds the per-champion aggregates behind the build, rune, skill-order and summoner-spell panels.',
+  },
+  ChampionProfileAggregation: {
+    label: 'Champion Profiles',
+    description:
+      'Measures what each champion does in its games — damage split, healing, crowd control, damage taken, lane leads, item archetypes — the profiles that later qualify a draft as AP-heavy, tanky or sustain-heavy.',
   },
   ChampionMatchupLeadAggregation: {
     label: 'Matchups',

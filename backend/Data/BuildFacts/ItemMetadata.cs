@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Data.BuildFacts;
 
 public sealed record ItemMetadata(
@@ -48,4 +50,22 @@ public sealed record ItemMetadata(
     /// in the game they were purchased.
     /// </summary>
     public bool IsStarterClassItem { get; init; }
+
+    /// <summary>
+    /// CommunityDragon's semantic categories for the item, verbatim ("Armor",
+    /// "SpellBlock", "CriticalStrike", "ArmorPenetration", "OnHit", "SpellDamage",
+    /// "Tenacity", ...). The raw material of <see cref="ItemArchetypes"/> (#1449) and of
+    /// the situational whitelist (#1450), kept as the source publishes them rather than
+    /// pre-digested into booleans so a new consumer needs no provider change.
+    /// </summary>
+    public IReadOnlySet<string> Categories { get; init; } = FrozenSet<string>.Empty;
+
+    /// <summary>
+    /// True when the item's description mentions Grievous Wounds. Categories carry no
+    /// anti-heal marker, so this is the one attribute read from the tooltip text —
+    /// verified against the live catalogue to select exactly the anti-heal line
+    /// (Oblivion Orb, Morellonomicon, Executioner's Calling, Mortal Reminder,
+    /// Chempunk Chainsword, Thornmail and its component).
+    /// </summary>
+    public bool GrantsGrievousWounds { get; init; }
 }

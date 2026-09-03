@@ -1,4 +1,5 @@
 using Data.BuildFacts;
+using Data.Statics;
 using Data;
 using Data.Configuration;
 using Data.Logging.Crash;
@@ -93,6 +94,13 @@ builder.Services.AddScoped<IChampionCoverageProvider, ChampionCoverageProvider>(
 // total timeout — and the client timeout above it — are the only bounds on the call.
 builder.Services
     .AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>(ConfigureCommunityDragonClient)
+    .AddCommunityDragonResilienceHandler();
+// Data Dragon has the same profile as CommunityDragon for our purposes — a static-file
+// CDN fetched once per patch and cached in-process, with no Retry-After semantics — so
+// the champion-statics client (#1449, the profile fold's ranged flag) rides the same
+// options and resilience pipeline rather than a third tuning of the standard handler.
+builder.Services
+    .AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>(ConfigureCommunityDragonClient)
     .AddCommunityDragonResilienceHandler();
 builder.Services.AddScoped<ChampionPatternSourceRowReader>();
 builder.Services.AddScoped<ChampionPatternAggregateBuilder>();

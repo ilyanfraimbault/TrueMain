@@ -105,6 +105,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.ProfileAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.HasIndex(e => e.PlatformId);
 
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
@@ -159,6 +163,13 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         // tail awaiting its fold.
         entity.HasIndex(e => e.QueueId, "IX_matches_bans_pending")
             .HasFilter("\"BansAggregated\" = false");
+
+        // Same shape for the champion-profile fold (#1449). Like the synergy one it
+        // starts out covering every retained match and shrinks to the pending tail once
+        // the initial pass has drained; pre-#1448 matches fold to nothing but still
+        // have to be flagged.
+        entity.HasIndex(e => e.QueueId, "IX_matches_profile_pending")
+            .HasFilter("\"ProfileAggregated\" = false");
 
         // Deliberately Restrict, and the only child of matches that is — match_bans,
         // match_participant_kill_positions, match_participant_timeline_snapshots and

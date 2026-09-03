@@ -260,6 +260,13 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.MaxMatchesPerRun >= 0, "BanAggregation:MaxMatchesPerRun must be >= 0.")
             .ValidateOnStart();
 
+        services.AddOptions<ChampionProfileAggregationOptions>()
+            .Bind(configuration.GetSection(ChampionProfileAggregationOptions.SectionName))
+            .Validate(options => options.MatchBatchSize > 0, "ChampionProfileAggregation:MatchBatchSize must be greater than 0.")
+            .Validate(options => options.MaxMatchesPerRun >= 0, "ChampionProfileAggregation:MaxMatchesPerRun must be >= 0.")
+            .Validate(options => options.RangedAttackRangeThreshold > 0, "ChampionProfileAggregation:RangedAttackRangeThreshold must be greater than 0.")
+            .ValidateOnStart();
+
         services.AddOptions<JobOptions>()
             .Bind(configuration.GetSection(JobOptions.SectionName))
             .Validate(options => JobModeParser.TryParse(options.Mode, out _),

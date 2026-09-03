@@ -42,6 +42,13 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionBanStat> ChampionBanStats => Set<ChampionBanStat>();
     public DbSet<BanScopeTotal> BanScopeTotals => Set<BanScopeTotal>();
 
+    // Measured champion profiles (#1449): per (champion, position, patch) sums of what
+    // the champion did in its games — damage split, sustain, CC, damage taken, lane
+    // leads at 10/15, item archetypes — plus its ranged flag. Populated incrementally
+    // by ChampionProfileAggregationProcess over the full participant pool; read by the
+    // situational item fold (#1450) to qualify a draft.
+    public DbSet<ChampionProfileStat> ChampionProfileStats => Set<ChampionProfileStat>();
+
     // Pre-aggregated champion powerspikes (#694): the per-minute power curve, the
     // per-event slope-change spikes, and the global per-minute lead spread. Populated
     // incrementally by ChampionPowerspikeAggregationProcess so the dense per-minute
