@@ -1561,7 +1561,14 @@ export interface PatchCoverageRow {
   /** The bar `linesPastFloor` was judged against; null when the patch was not judged. */
   servableLinesBar: number | null
   servableLinesBarNote: string | null
+  /** Every line below the floor, whatever lane it sits on. */
   belowFloorCount: number
+  /**
+   * Of those, the ones on the champion's primary lane on this patch — the only ones
+   * `belowFloor` names (#1442). The rest is the off-role tail: short of games because
+   * nobody plays the champion there, not because the patch is short of matches.
+   */
+  belowFloorPrimaryLaneCount: number
   belowFloor: PatchThinLine[]
   folds: PatchFoldCoverage[]
 }

@@ -135,14 +135,26 @@ public sealed record PatchCoverageRowReadModel
     /// <summary>Where that bar came from, in words — a number with no provenance is not an answer.</summary>
     public string? ServableLinesBarNote { get; init; }
 
-    /// <summary>Total lines below the floor, whether or not they all fit in <see cref="BelowFloor"/>.</summary>
+    /// <summary>
+    /// Total lines below the floor — every lane, named or not. Stays the complement of
+    /// <see cref="LinesPastFloor"/> so the coverage share and this number reconcile.
+    /// </summary>
     public long BelowFloorCount { get; init; }
 
     /// <summary>
-    /// The below-floor lines, <b>closest to the floor first</b>, capped by
+    /// Of those, the ones on the champion's <b>primary lane on this patch</b> — the only
+    /// ones <see cref="BelowFloor"/> names (#1442). The difference against
+    /// <see cref="BelowFloorCount"/> is the off-role tail, which is short of games because
+    /// nobody plays the champion there rather than because the patch is short of matches.
+    /// </summary>
+    public long BelowFloorPrimaryLaneCount { get; init; }
+
+    /// <summary>
+    /// The primary-lane below-floor lines, <b>closest to the floor first</b>, capped by
     /// <c>PatchCoverage:ThinLineLimit</c>. Ordered that way because the question a thin
     /// patch raises is "how far off is it", and the lines about to clear answer it; the
-    /// long tail of one-game off-role picks never will.
+    /// long tail of one-game off-role picks never will, which is why it is counted in
+    /// <see cref="BelowFloorPrimaryLaneCount"/>'s shortfall rather than listed here.
     /// </summary>
     public IReadOnlyList<PatchThinLineReadModel> BelowFloor { get; init; } = [];
 
