@@ -34,6 +34,12 @@ watch(view, (value) => {
     query: { ...route.query, view: value === 'pipeline' ? undefined : value },
   })
 })
+// The ⌘K palette (#1415) links straight to a tab, and can do so while /accounts
+// is already open — the component is reused, so setup doesn't re-run and only
+// the query changes.
+watch(() => route.query.view, (raw) => {
+  view.value = parseView(raw)
+})
 
 // One ref for all three panels: only the open tab is rendered, so at most one is
 // ever bound. `defineExpose` hands back a proxy that unwraps refs, which is what

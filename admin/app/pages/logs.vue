@@ -25,10 +25,17 @@ watch(view, (v) => {
     query: { ...route.query, view: v === 'crashes' ? 'crashes' : undefined },
   })
 })
+// The ⌘K palette can navigate to `/logs?view=crashes` while already on /logs —
+// the component is reused, so setup doesn't re-run and only the query changes.
+watch(() => route.query.view, (v) => {
+  view.value = v === 'crashes' ? 'crashes' : 'logs'
+})
 
 // --- Filters -----------------------------------------------------------------
 // `level` is a MINIMUM threshold: Warning returns Warning + Error + Critical.
-const level = ref<'all' | LogLevel>(ALL)
+// It defaults to Warning (#1415) so the first paint is failures, not a wall of
+// `Information`; an explicit `?level=` (including `?level=all`) still wins.
+const level = ref<'all' | LogLevel>(parseLevelQuery(route.query.level))
 // Named ops event (exact match); the option list comes from the response's
 // static `eventTypes` catalog.
 const eventType = ref<string>(ALL)
@@ -49,13 +56,23 @@ const pageSize = 50
 
 const levelItems = [
   { label: 'All levels', value: ALL },
-  { label: 'Trace', value: 'Trace' },
-  { label: 'Debug', value: 'Debug' },
-  { label: 'Information', value: 'Information' },
-  { label: 'Warning', value: 'Warning' },
-  { label: 'Error', value: 'Error' },
-  { label: 'Critical', value: 'Critical' },
+  ...LOG_LEVELS.map(name => ({ label: name, value: name })),
 ]
+
+// Selecting a level rewrites `?level=` so the current view is always a shareable
+// link — and so a reload doesn't silently snap back to the default.
+watch(level, (value) => {
+  router.replace({
+    query: {
+      ...route.query,
+      level: value === DEFAULT_LOG_LEVEL ? undefined : value,
+    },
+  })
+})
+
+function showAllLevels() {
+  level.value = ALL
+}
 
 const filters = computed(() => ({
   level: level.value === ALL ? undefined : level.value,
@@ -73,7 +90,7 @@ const filters = computed(() => ({
 
 const hasActiveFilters = computed(() =>
   Boolean(
-    level.value !== ALL
+    level.value !== DEFAULT_LOG_LEVEL
     || eventType.value !== ALL
     || process.value !== ALL
     || exceptionsOnly.value
@@ -82,8 +99,10 @@ const hasActiveFilters = computed(() =>
     || searchInput.value.trim(),
   ),
 )
+// "Clear" returns to the page's default view (Warning and above), not to a
+// filterless one — the errors-first default is the resting state.
 function resetFilters() {
-  level.value = ALL
+  level.value = DEFAULT_LOG_LEVEL
   eventType.value = ALL
   process.value = ALL
   exceptionsOnly.value = false
@@ -409,8 +428,21 @@ function openDetail(entry: LogEntry) {
             </template>
 
             <template #empty>
-              <div class="py-10 text-center text-sm text-muted">
-                No log entries match these filters.
+              <div class="py-10 flex flex-col items-center gap-3">
+                <p class="text-sm text-muted">
+                  No log entries match these filters.
+                </p>
+                <!-- Nothing at this severity is good news, but the operator
+                     still has to be able to see the quiet rows in one click. -->
+                <UButton
+                  v-if="level !== ALL"
+                  icon="i-lucide-list"
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                  label="Show all levels"
+                  @click="showAllLevels"
+                />
               </div>
             </template>
           </UTable>
