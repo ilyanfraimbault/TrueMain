@@ -54,6 +54,20 @@ public sealed class MatchIngestionProcessIntegrationTests
         participants[0].SkillEvents.Should().ContainSingle(e => e.SkillSlot == 1);
         participants[1].ItemEvents.Should().ContainSingle(e => e.ItemId == 1055 && e.EventType == "ITEM_PURCHASED");
         participants[1].SkillEvents.Should().ContainSingle(e => e.SkillSlot == 2);
+        // #1448 context fields: the values persist, and a participant the payload
+        // did not measure stays NULL rather than reading as zero.
+        participants[0].PhysicalDamageDealtToChampions.Should().Be(18_200);
+        participants[0].MagicDamageDealtToChampions.Should().Be(2_400);
+        participants[0].TrueDamageDealtToChampions.Should().Be(600);
+        participants[0].TotalHeal.Should().Be(3_100);
+        participants[0].TimeCCingOthers.Should().Be(27);
+        participants[0].TotalTimeCCDealt.Should().Be(140);
+        participants[0].TotalDamageTaken.Should().Be(19_900);
+        participants[0].DamageSelfMitigated.Should().Be(12_300);
+        participants[1].PhysicalDamageDealtToChampions.Should().BeNull();
+        participants[1].MagicDamageDealtToChampions.Should().BeNull();
+        participants[1].TotalDamageTaken.Should().BeNull();
+        participants[1].DamageSelfMitigated.Should().BeNull();
         validationService.Validated.Should().ContainSingle(key => key == new Data.Repositories.AccountKey("KR", "puuid-claimed-1"));
         validationService.Reverted.Should().BeEmpty();
     }
@@ -203,6 +217,16 @@ public sealed class MatchIngestionProcessIntegrationTests
                 TotalMinionsKilled = participantId == 1 ? 220 : 156,
                 NeutralMinionsKilled = participantId == 1 ? 12 : 4,
                 ChampLevel = participantId == 1 ? 16 : 14,
+                PhysicalDamageDealtToChampions = participantId == 1 ? 18_200 : null,
+                MagicDamageDealtToChampions = participantId == 1 ? 2_400 : null,
+                TrueDamageDealtToChampions = participantId == 1 ? 600 : null,
+                TotalHeal = participantId == 1 ? 3_100 : null,
+                TotalHealsOnTeammates = participantId == 1 ? 0 : null,
+                TotalDamageShieldedOnTeammates = participantId == 1 ? 0 : null,
+                TimeCCingOthers = participantId == 1 ? 27 : null,
+                TotalTimeCCDealt = participantId == 1 ? 140 : null,
+                TotalDamageTaken = participantId == 1 ? 19_900 : null,
+                DamageSelfMitigated = participantId == 1 ? 12_300 : null,
                 Item0 = firstItem,
                 Item1 = participantId == 1 ? 3006 : 3047,
                 Item2 = participantId == 1 ? 3085 : 3158,

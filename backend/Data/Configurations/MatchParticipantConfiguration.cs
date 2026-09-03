@@ -78,6 +78,36 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
             .IsRequired()
             .HasDefaultValue(0);
 
+        entity.Property(e => e.PhysicalDamageDealtToChampions)
+            .IsRequired(false);
+
+        entity.Property(e => e.MagicDamageDealtToChampions)
+            .IsRequired(false);
+
+        entity.Property(e => e.TrueDamageDealtToChampions)
+            .IsRequired(false);
+
+        entity.Property(e => e.TotalHeal)
+            .IsRequired(false);
+
+        entity.Property(e => e.TotalHealsOnTeammates)
+            .IsRequired(false);
+
+        entity.Property(e => e.TotalDamageShieldedOnTeammates)
+            .IsRequired(false);
+
+        entity.Property(e => e.TimeCCingOthers)
+            .IsRequired(false);
+
+        entity.Property(e => e.TotalTimeCCDealt)
+            .IsRequired(false);
+
+        entity.Property(e => e.TotalDamageTaken)
+            .IsRequired(false);
+
+        entity.Property(e => e.DamageSelfMitigated)
+            .IsRequired(false);
+
         entity.Property(e => e.VisionScore)
             .IsRequired()
             .HasDefaultValue(0);
