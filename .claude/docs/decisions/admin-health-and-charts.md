@@ -169,6 +169,12 @@ of #1059, and the two are separable precisely because a chart is nothing but col
 button is not. The neutral stays zinc rather than the site's `ink`: guides have to sit on the surfaces the
 portal actually has.
 
+> ⚠️ **The "chrome does not" half was reversed six days later, by #1409** — the operator wanted the portal on
+> the brand after all. `app.config.ts` and `main.css` now carry `rosegold`/`ink`, the same foundations `web/`
+> uses. The chart palette's own reasoning above is unaffected: `CHART_GUIDE_COLOR`/`CHART_AXIS_TEXT_COLOR`
+> stay their own zinc literals rather than switching to `ink`, chosen for chart-guide contrast rather than
+> surface material — see `chart-palette.ts`.
+
 The categorical triad was replaced, not recoloured, and the replacement is measurably safer. As OKLab ΔE ×100
 under Machado severity-1.0 simulation (protanopia / deuteranopia / tritanopia):
 
@@ -192,9 +198,9 @@ Six presentation rules were coded twice or more across the portal, and two had a
 readings that contradicted each other. The failure mode is always the same, so the rule is now that
 `shared/utils/` — or `app/utils/` for the client-only ones — owns each of these outright.
 
-**A run status is `info` while it is running, never the emerald `primary`.** `/processes` painted from its
-own private table and `/health` from `pipeline-health.ts`, so the same in-flight run was emerald on one page
-and blue on the other. `info` wins: emerald is this portal's "this succeeded" colour, and a run still going
+**A run status is `info` while it is running, never `primary`.** `/processes` painted from its
+own private table and `/health` from `pipeline-health.ts`, so the same in-flight run was `primary` on one page
+and blue on the other. `info` wins: `primary` is this portal's "this succeeded" colour, and a run still going
 has not succeeded yet. Colour *and* icon now live together in `PROCESS_STATUS_META`, the way
 `DETECTOR_STATUS_META` already did — and the chain view's `notRun` is an adapter onto the cockpit's
 `Missing`, because "there is no run to report" is one claim, not two.
@@ -204,6 +210,25 @@ while `formatGapMagnitude` had a private ladder that reached days, so a three-da
 `/processes` and `3d` on `/health` — two pages that link to each other. There is now a single
 `formatElapsed(ms)` carrying the days tier, which `formatGapMagnitude` delegates to, keeping only the two
 things genuinely local to a gap: its "not measurable" wording and its minutes-to-ms conversion.
+
+## The portal's chrome moves onto rosegold/ink too, reversing the #1059 scoping (2026-09-03)
+
+The charts crossed over in #1404; the chrome — `app.config.ts`'s `primary`/`neutral`, the `.dark` surface
+tokens in `main.css` — stayed stock emerald/zinc, on the grounds (#1059) that the portal is an internal tool
+and a chrome restyle was separable from the charts one. The operator reversed that call: the portal should
+read as the same brand as the public site, not only chart the same way.
+
+`rosegold`/`ink` are copied into `admin/app/assets/css/main.css` under `@theme static` rather than imported
+from `web/` — the two are separate Nuxt apps with no shared build, so a copy is the only option, labelled the
+same way the two apps' Data Dragon helpers are (decisions index, 2026-08-26). The `.dark` surface tokens are
+rebuilt on `web/`'s four-step ladder (`--ui-bg`/`-muted`/`-elevated`/`-accented`, `--ui-border`) but stay
+scoped to `.dark` rather than promoted to `:root`: unlike `web/`, the portal keeps a light/dark toggle
+(`UserMenu.vue`), so a light theme still needs to exist.
+
+The status vocabulary (green/amber/red/unknown pass/warn/fail, `DETECTOR_STATUS_META`/`PROCESS_STATUS_META`)
+is untouched — a passing check stays green regardless of what the brand accent is, per the #924/#1024 rule
+above. `chart-palette.ts` is unaffected: it was already on `rosegold`, and its guide/axis literals stay their
+own values rather than switching to reference the `ink` ramp (see the reversal note above).
 
 It is also renamed. `formatDuration` meant humanised milliseconds in the admin and a `mm:ss` game clock in
 `web/app/utils/relativeTime.ts` — one name, two contracts, one repo. A copy-paste between the two apps

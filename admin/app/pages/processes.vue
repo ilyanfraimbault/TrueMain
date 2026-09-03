@@ -288,8 +288,9 @@ const columns: TableColumn<ProcessRun>[] = [
 const sorting = ref([{ id: 'startedAtUtc', desc: true }])
 
 // Tint rows by status: failed rows get an error tint, in-flight (Running) rows
-// a subtle emerald tint. Success and Skipped stay untinted — a skip is a settled,
-// healthy outcome that simply did nothing. `meta.class.tr` is evaluated per row.
+// a subtle primary (rosegold) tint. Success and Skipped stay untinted — a skip
+// is a settled, healthy outcome that simply did nothing. `meta.class.tr` is
+// evaluated per row.
 const tableMeta = {
   class: {
     tr: (row: { original: ProcessRun }) => {

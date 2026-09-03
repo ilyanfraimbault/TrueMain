@@ -107,9 +107,9 @@ describe('processStatusColor', () => {
     expect(processStatusColor('SomethingNew')).toBe('neutral')
   })
 
-  it('paints Running as info, never as the emerald primary', () => {
+  it('paints Running as info, never as primary', () => {
     // /processes used to paint it `primary` from its own private table, so the same
-    // in-flight run was emerald there and blue on /health. Emerald is this portal's
+    // in-flight run was one colour there and blue on /health. `primary` is this portal's
     // "this succeeded" colour, and a run still going has not succeeded yet.
     expect(processStatusColor('Running')).toBe('info')
     expect(processStatusColor('Running')).not.toBe('primary')
