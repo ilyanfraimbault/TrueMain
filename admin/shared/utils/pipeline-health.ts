@@ -22,9 +22,9 @@ export interface ProcessStatusMeta {
  * Colour *and* icon for a process's effective run status, in one table.
  *
  * Split across two private tables in `/processes` and `/health`, this had already
- * drifted: `Running` was the emerald `primary` on one page and `info` on the other, so
+ * drifted: `Running` was `primary` on one page and `info` on the other, so
  * the same in-flight run was a different colour depending on where you looked at it.
- * `info` wins because emerald is the portal's "this succeeded" colour and a run that is
+ * `info` wins because `primary` is the portal's "this succeeded" colour and a run that is
  * still going has not succeeded yet.
  *
  * `Missing` is neutral, not a warning: a process that has never recorded a run is
