@@ -153,10 +153,24 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db, IMemoryCache
     /// <summary>
     /// Cache key for the (region, patch, position, queue) filter tuple. Every
     /// slot is rendered explicitly — including the "unset" placeholder — so two
-    /// distinct filter combinations, unset or not, can never collide.
+    /// distinct filter combinations, unset or not, can never collide on slot
+    /// <em>count</em>. That alone is not enough: joining raw values with an
+    /// unescaped <c>:</c> lets the delimiter itself be forged — region "A:B" +
+    /// patch "C" and region "A" + patch "B:C" both render "A:B:C". Each string
+    /// slot is therefore backslash-escaped before joining, which makes the
+    /// delimiter unambiguous regardless of what a caller passes as a filter.
     /// </summary>
     internal static string BuildCacheKey(string? region, string? patch, string? position, int? queue)
-        => $"ops:champion-stats:{region ?? "_"}:{patch ?? "_"}:{position ?? "_"}:{queue?.ToString() ?? "_"}";
+        => $"ops:champion-stats:{EscapeKeySegment(region)}:{EscapeKeySegment(patch)}:{EscapeKeySegment(position)}:{queue?.ToString() ?? "_"}";
+
+    /// <summary>
+    /// Escapes <c>\</c> and <c>:</c> so the segment can be joined with <c>:</c>-delimited
+    /// neighbours without the delimiter being spoofable from inside a filter value. The
+    /// placeholder for "unset" (<c>_</c>) is applied after escaping — it contains neither
+    /// character, so the order does not matter, but escaping happens on every path.
+    /// </summary>
+    private static string EscapeKeySegment(string? value)
+        => value is null ? "_" : value.Replace("\\", "\\\\").Replace(":", "\\:");
 
     private static string? Trimmed(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
