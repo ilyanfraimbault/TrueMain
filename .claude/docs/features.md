@@ -112,6 +112,15 @@ Separate app with its own deployment and domain — **not** a `/admin` route of 
 **Auth & backend access.** Single-operator username/password → sealed httpOnly session (`nuxt-auth-utils`); no user store, no roles. `admin/server/api/auth/login.post.ts` does a constant-time compare with a per-IP throttle (5 attempts/60 s). Every route is gated by `admin/app/middleware/auth.global.ts`. That middleware only runs on navigation, so an **expiry while parked on a page** is caught instead by a global `$fetch` interceptor (`admin/app/plugins/session-expiry.client.ts`): a 401 from `/api/ops/*` or `/api/static/*` clears the session and redirects to `/login` once, however many panels were mid-flight — before #1225 the dashboard just turned red with "Failed to load" and read as a backend outage.
 **All backend traffic goes through one proxy**: `admin/server/api/ops/[...path].ts` requires the session, then forwards to `${opsApiBaseUrl}/ops{path}` injecting the secret `X-Ops-Key` **server-side** — the ops key never reaches the browser. Its containment guard (`server/utils/proxy-path.ts`, the same file in `web/`) rejects a path that could leave the backend, judged on the decoded path as well as the raw one. A boot plugin refuses to start outside dev with default credentials, short secrets, or an admin password under 12 characters.
 
+**Captions and info popovers.** Since #1414 every panel header goes through `components/PanelTitle.vue`: a
+title, at most **one line** of caption under it, and an `i-lucide-info` button opening a `UPopover` that holds
+everything longer — the method notes, the measurement caveats, the chart footnotes. Nothing was deleted, only
+relocated, so a caption that used to run four lines (Candidates throughput, the candidate-level curves, queue
+latency, the Trace page's score-components note, Patch Coverage's floor and source notes) is one click away
+instead of printed on every visit. The component has two shapes, `title` for a card header and `label` for a
+section label inside a card, and card padding matches `web/`'s. Verdict sentences stay on the page: Data
+Quality's detector rows and any `unknownReason` are the answer, not prose about it.
+
 **Charts.** `nuxt-charts` (Unovis), referenced as `<Nc*Chart>` (`nuxtCharts.prefix`). The rule for picking a
 mark lives in `app/utils/charts.ts`: a **flow** counted per period gets vertical bars, a **stock** (a level at
 an instant, or a running total) gets a line/area, a categorical top-N gets horizontal bars (#1218). Since #1404

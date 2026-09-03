@@ -338,14 +338,13 @@ const topChampionsLoading = computed(
       <UCard :ui="{ root: 'overflow-visible' }" class="mb-6">
         <template #header>
           <div class="flex items-start justify-between gap-4">
-            <div>
-              <p class="text-xs text-muted uppercase mb-1.5">
-                Matches over time
-              </p>
-              <p class="text-sm text-dimmed">
-                New matches by game <em>date</em> — when they were played, not when we ingested them.
-              </p>
-            </div>
+            <PanelTitle
+              variant="label"
+              title="Matches over time"
+              subtitle="New matches by game date."
+              info="By game date — when the matches were played, not when we ingested
+                them."
+            />
             <div class="flex items-center gap-2">
               <UBadge
                 v-if="!matchesPending && !matchesError && matchesChartData.length"
@@ -393,14 +392,13 @@ const topChampionsLoading = computed(
       <UCard :ui="{ root: 'overflow-visible' }" class="mb-6">
         <template #header>
           <div class="flex items-start justify-between gap-4">
-            <div>
-              <p class="text-xs text-muted uppercase mb-1.5">
-                Matches ingested
-              </p>
-              <p class="text-sm text-dimmed">
-                Pipeline throughput by <em>run</em> date — whether ingestion kept up.
-              </p>
-            </div>
+            <PanelTitle
+              variant="label"
+              title="Matches ingested"
+              subtitle="Pipeline throughput by run date."
+              info="By run date rather than game date, so the series answers whether
+                ingestion kept up."
+            />
             <div class="flex items-center gap-2">
               <UBadge
                 v-if="!ingestedPending && !ingestedError && ingestedChartData.length"
@@ -492,14 +490,11 @@ const topChampionsLoading = computed(
         <UCard :ui="{ root: 'overflow-visible' }">
           <template #header>
             <div class="flex items-center justify-between">
-              <div>
-                <p class="text-xs text-muted uppercase mb-1.5">
-                  Candidate pipeline
-                </p>
-                <p class="text-sm text-dimmed">
-                  Main candidates by status.
-                </p>
-              </div>
+              <PanelTitle
+                variant="label"
+                title="Candidate pipeline"
+                subtitle="Main candidates by status."
+              />
               <UBadge
                 v-if="!pending"
                 color="neutral"
@@ -544,14 +539,11 @@ const topChampionsLoading = computed(
         <!-- Top champions by games -->
         <UCard :ui="{ root: 'overflow-visible' }">
           <template #header>
-            <div>
-              <p class="text-xs text-muted uppercase mb-1.5">
-                Top champions by games
-              </p>
-              <p class="text-sm text-dimmed">
-                Most-played across all tracked data.
-              </p>
-            </div>
+            <PanelTitle
+              variant="label"
+              title="Top champions by games"
+              subtitle="Most-played across all tracked data."
+            />
           </template>
 
           <FetchErrorAlert

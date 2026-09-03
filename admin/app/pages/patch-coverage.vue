@@ -130,9 +130,14 @@ function dayScale(patch: PatchCoverageRow): number {
             />
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <p class="text-sm font-medium text-highlighted">
-                  {{ data.currentPatch ? `Patch ${data.currentPatch} is what the site serves` : 'No patch is being served' }}
-                </p>
+                <PanelTitle
+                  :title="data.currentPatch ? `Patch ${data.currentPatch} is what the site serves` : 'No patch is being served'"
+                >
+                  <template #info>
+                    <p>{{ data.floorNote }}</p>
+                    <p>{{ data.sourceNote }}</p>
+                  </template>
+                </PanelTitle>
                 <UBadge
                   size="sm"
                   variant="subtle"
@@ -147,9 +152,6 @@ function dayScale(patch: PatchCoverageRow): number {
                    the finding, and hiding it leaves a grey dot with no story. -->
               <p v-if="data.unknownReason" class="mt-1 text-xs text-dimmed italic">
                 {{ data.unknownReason }}
-              </p>
-              <p class="mt-2 text-xs text-dimmed">
-                {{ data.floorNote }}
               </p>
             </div>
           </div>
@@ -219,9 +221,7 @@ function dayScale(patch: PatchCoverageRow): number {
                   />
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-baseline gap-2">
-                      <p class="text-sm font-medium text-highlighted">
-                        Patch {{ patch.patch }}
-                      </p>
+                      <PanelTitle :title="`Patch ${patch.patch}`" />
                       <UBadge
                         v-if="patch.isCurrent"
                         size="sm"
@@ -288,9 +288,7 @@ function dayScale(patch: PatchCoverageRow): number {
                  one that is still climbing look identical in a total. -->
             <template v-if="patch.daily.length">
               <USeparator class="my-4" />
-              <p class="mb-2 text-xs text-muted uppercase">
-                Matches by game date
-              </p>
+              <PanelTitle variant="label" title="Matches by game date" class="mb-2" />
               <ul class="space-y-1">
                 <li
                   v-for="day in patch.daily"
@@ -313,9 +311,7 @@ function dayScale(patch: PatchCoverageRow): number {
 
             <!-- Per-fold coverage and freshness. -->
             <USeparator class="my-4" />
-            <p class="mb-2 text-xs text-muted uppercase">
-              Folds on this patch
-            </p>
+            <PanelTitle variant="label" title="Folds on this patch" class="mb-2" />
             <ul class="space-y-2">
               <li
                 v-for="fold in patch.folds"
@@ -395,8 +391,8 @@ function dayScale(patch: PatchCoverageRow): number {
           </UCard>
         </div>
 
-        <p class="mt-6 text-xs text-dimmed">
-          {{ data.sourceNote }} Evaluated {{ formatDateTime(data.evaluatedAtUtc) }}.
+        <p class="mt-6 text-xs text-dimmed tabular-nums">
+          Evaluated {{ formatDateTime(data.evaluatedAtUtc) }}.
         </p>
       </template>
     </template>
