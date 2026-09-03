@@ -119,7 +119,19 @@ internal sealed record ExpandedSourceRow(
     int Assists,
     DateTime GameStartTimeUtc)
 {
-    public string StarterItemsKey { get; } = string.Join("-", StarterItems);
+    /// <summary>
+    /// The basket's identity: item ids ascending, with multiplicity — the same value
+    /// Postgres generates into <c>champion_dim_starter_items."CanonicalKey"</c>, so the
+    /// in-memory grouping key and the database's uniqueness agree by construction.
+    ///
+    /// <para>
+    /// It used to be <see cref="StarterItems"/> joined as stored, i.e. in the analyser's
+    /// price-descending display order. That made identity depend on item prices, which
+    /// change with patches and read as 0 when an item's metadata is missing, so the same
+    /// basket keyed two ways and sat in the dimension twice (#1418).
+    /// </para>
+    /// </summary>
+    public string StarterItemsKey { get; } = string.Join("-", StarterItems.Order());
 }
 
 internal sealed record AggregateScopeKey(

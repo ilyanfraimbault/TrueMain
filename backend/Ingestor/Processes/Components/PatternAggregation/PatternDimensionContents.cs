@@ -26,11 +26,34 @@ public sealed record RunePageDimensionContent(
     int SecondaryPerk2Id,
     int StatOffense,
     int StatFlex,
-    int StatDefense);
+    int StatDefense)
+{
+    /// <summary>
+    /// The secondary pair, sorted — the same canonical form the dimension's UNIQUE index
+    /// and CHECK enforce (#911, #1418). Normalising in the content type rather than at the
+    /// call sites is what keeps the in-memory get-or-create key and the database's notion
+    /// of identity the same thing: a caller that passes the player's click order gets the
+    /// canonical row back instead of minting a second one the database would then reject.
+    /// </summary>
+    public int SecondaryPerk1Id { get; } = Math.Min(SecondaryPerk1Id, SecondaryPerk2Id);
+
+    /// <inheritdoc cref="SecondaryPerk1Id"/>
+    public int SecondaryPerk2Id { get; } = Math.Max(SecondaryPerk1Id, SecondaryPerk2Id);
+}
 
 public sealed record SpellPairDimensionContent(
     int Spell1Id,
-    int Spell2Id);
+    int Spell2Id)
+{
+    /// <summary>
+    /// The pair, sorted. A loadout is a set: Flash+Ignite and Ignite+Flash are one row,
+    /// and the dimension's CHECK now says so.
+    /// </summary>
+    public int Spell1Id { get; } = Math.Min(Spell1Id, Spell2Id);
+
+    /// <inheritdoc cref="Spell1Id"/>
+    public int Spell2Id { get; } = Math.Max(Spell1Id, Spell2Id);
+}
 
 /// <summary>
 /// One pattern observed inside a scope: the (scope, build, runes, skill,

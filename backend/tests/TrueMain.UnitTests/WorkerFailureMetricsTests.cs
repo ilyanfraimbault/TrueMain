@@ -33,7 +33,6 @@ public sealed class WorkerFailureMetricsTests
         ("MatchTeamPositionCorrection", JobMode.TeamPositionCorrectionOnly),
         ("MainAnalysis", JobMode.MainAnalysisOnly),
         ("MatchParticipantEloBracketEnrichment", JobMode.EloBracketEnrichmentOnly),
-        ("RunePageDeduplication", JobMode.RunePageDeduplicationOnly),
         ("ChampionPatternAggregation", JobMode.PatternAggregationOnly),
         ("ChampionMatchupLeadAggregation", JobMode.MatchupLeadAggregationOnly),
         ("ChampionLaneOutcomeAggregation", JobMode.LaneOutcomeAggregationOnly),

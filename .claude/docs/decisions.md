@@ -132,7 +132,7 @@ Last verified against `develop` on 2026-09-02.
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
 - No pick+ban "presence" figure, despite it being standard elsewhere — #920
-- Dimension rows must be stored in a canonical order, not the order Riot reported them — #911
+- A dimension's identity is enforced by the schema (canonical UNIQUE index, CHECK, generated key), not repaired afterwards (2026-09-03) — #1418, #911
 - Rank snapshots are capped at one row per account per UTC day (DB-level unique index) — #907
 - `(GameName, TagLine, PlatformId)` on `riot_accounts` is a plain, NON-unique index. PUUID is the only real identity — #901, #902
 - PUUID indexing is intentional — do not propose dropping it or migrating to `RiotAccountId`-only — #123, #124
@@ -224,7 +224,7 @@ Last verified against `develop` on 2026-09-02.
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
 - A health panel may not pass what it did not measure — #924
-- A detector shares the repair's definition of the bug it audits — #924, #911
+- A detector shares the constraint's definition of the bug it audits — #924, #911, #1418
 - Detector thresholds are configuration, not constants
 - A health panel answers before it reports — #992
 - The health cockpit (`/health`, #1031) holds no depth of its own — every tile is a link, and the verdict is judged server-side
