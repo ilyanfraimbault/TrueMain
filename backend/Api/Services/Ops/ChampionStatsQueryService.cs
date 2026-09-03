@@ -1,11 +1,33 @@
 using Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops;
 
-public sealed class ChampionStatsQueryService(TrueMainDbContext db) : IChampionStatsQueryService
+public sealed class ChampionStatsQueryService(TrueMainDbContext db, IMemoryCache cache) : IChampionStatsQueryService
 {
+    // Plain 10-minute TTL rather than IChampionReadCache's aggregation-version
+    // token (#1412). That token only advances when the pattern aggregation
+    // publishes new champion_aggregate_scopes rows (every ~1-2h), but this
+    // read's "games" side scans match_participants/matches live — the same
+    // tables ordinary ingestion keeps writing between aggregation cycles — so
+    // the token would leave this endpoint serving stale numbers for up to that
+    // whole window instead of the ten minutes an operator page actually needs.
+    // The "mains" side (main_champion_stats) moves on its own analysis cadence
+    // too, unrelated to the aggregation stamp. A flat TTL is the honest bound
+    // for both halves of this read.
+    internal static readonly TimeSpan ResponseCacheTtl = TimeSpan.FromMinutes(10);
+
+    // Single-flight for the miss path (#870): the unfiltered "games" CTE scans the
+    // full match_participants ⋈ matches join (~2.7M rows on production), so without
+    // this, every concurrent caller that misses together — the first request, or any
+    // request landing right after a TTL expiry — would each run that scan on their
+    // own. Static for the same reason as ChampionReadCache's coalescers: the point is
+    // to share across concurrent *requests*, which each get their own scoped service
+    // instance.
+    private static readonly RequestCoalescer<IReadOnlyList<ChampionStatRow>> ResponseCoalescer = new();
+
     public async Task<IReadOnlyList<ChampionStatRow>> GetAsync(
         string? region,
         string? patch,
@@ -17,6 +39,44 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db) : IChampionS
         var normalizedPatch = Trimmed(patch);
         var normalizedPosition = Trimmed(position);
 
+        // Cache key is the full filter tuple: a filtered call must never read
+        // (or overwrite) the unfiltered entry, so every one of the four
+        // independent filters — including the ones left unset — has to appear
+        // in the key (see CacheKeyDisciplineTests).
+        var cacheKey = BuildCacheKey(normalizedRegion, normalizedPatch, normalizedPosition, queue);
+        if (cache.TryGetValue<IReadOnlyList<ChampionStatRow>>(cacheKey, out var cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        return await ResponseCoalescer.GetOrJoinAsync(
+            cacheKey,
+            async () =>
+            {
+                // Re-check under the coalescer: this caller may have queued behind a
+                // pass that has since finished and cached its answer.
+                if (cache.TryGetValue<IReadOnlyList<ChampionStatRow>>(cacheKey, out var justCached) && justCached is not null)
+                {
+                    return justCached;
+                }
+
+                var computed = await ComputeAsync(normalizedRegion, normalizedPatch, normalizedPosition, queue, CancellationToken.None);
+                return cache.Store(cacheKey, computed, ResponseCacheTtl);
+            },
+            ct,
+            // This factory reads through the request-scoped db above, so the shared
+            // pass must not outlive the request that started it — same reasoning as
+            // ChampionReadCache.GetOrComputeAsync.
+            ownerAwaitsToCompletion: true);
+    }
+
+    private async Task<IReadOnlyList<ChampionStatRow>> ComputeAsync(
+        string? normalizedRegion,
+        string? normalizedPatch,
+        string? normalizedPosition,
+        int? queue,
+        CancellationToken ct)
+    {
         // Two independent per-champion aggregations folded together with a FULL
         // OUTER JOIN so a champion that appears in only one source (e.g. has
         // games but no mains yet, or vice-versa) still yields a row. The games
@@ -25,10 +85,22 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db) : IChampionS
         // position and queue have no meaning for main_champion_stats, which is
         // computed per account-champion rather than per match.
         //
-        // Patch is matched against the normalised "MAJOR.MINOR" form of the raw
-        // GameVersion via split_part, mirroring Core PatchVersion.Normalize.
+        // Patch is matched against the stored generated column matches."Patch"
+        // (#1368) rather than recomputed per row via split_part(GameVersion, ...):
+        // the column already carries the normalised "MAJOR.MINOR" form and is
+        // covered by IX_matches_patch_queue, so this filter is an index lookup
+        // instead of a function call evaluated over every scanned row.
         // Each nullable filter is guarded by an "{param}::type IS NULL OR ..."
         // clause so a null parameter means "no filter".
+        //
+        // The unfiltered "games" CTE still scans every match_participants row
+        // for the (region, queue, position) combination — champion_aggregate_scopes
+        // is not a substitute here: it only covers tracked accounts' own games
+        // (the main_champion_stats population, optionally widened to
+        // non-mains), never the untracked teammates/opponents sharing the same
+        // matches, so reading "Games" from it would silently undercount against
+        // this read's current population. Caching is what makes the unfiltered
+        // (Overview top-10) call cheap instead of touching the aggregate tables.
         FormattableString sql = $"""
             WITH games AS (
                 SELECT p."ChampionId" AS "ChampionId", COUNT(*) AS "Games"
@@ -37,8 +109,7 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db) : IChampionS
                 WHERE ({normalizedRegion}::text IS NULL OR m."PlatformId" = {normalizedRegion})
                   AND ({queue}::int IS NULL OR m."QueueId" = {queue})
                   AND ({normalizedPosition}::text IS NULL OR p."TeamPosition" = {normalizedPosition})
-                  AND ({normalizedPatch}::text IS NULL
-                       OR split_part(m."GameVersion", '.', 1) || '.' || split_part(m."GameVersion", '.', 2) = {normalizedPatch})
+                  AND ({normalizedPatch}::text IS NULL OR m."Patch" = {normalizedPatch})
                 GROUP BY p."ChampionId"
             ),
             mains AS (
@@ -78,6 +149,14 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db) : IChampionS
             })
             .ToList();
     }
+
+    /// <summary>
+    /// Cache key for the (region, patch, position, queue) filter tuple. Every
+    /// slot is rendered explicitly — including the "unset" placeholder — so two
+    /// distinct filter combinations, unset or not, can never collide.
+    /// </summary>
+    internal static string BuildCacheKey(string? region, string? patch, string? position, int? queue)
+        => $"ops:champion-stats:{region ?? "_"}:{patch ?? "_"}:{position ?? "_"}:{queue?.ToString() ?? "_"}";
 
     private static string? Trimmed(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
