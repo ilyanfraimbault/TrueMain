@@ -35,6 +35,12 @@ watch(view, (value) => {
     query: { ...route.query, view: value === 'riot-api' ? 'riot-api' : undefined },
   })
 })
+// The ⌘K palette (#1415) links straight to the Riot API tab, and can do so while
+// /processes is already open — the component is reused, so setup doesn't re-run
+// and only the query changes.
+watch(() => route.query.view, (raw) => {
+  view.value = raw === 'riot-api' ? 'riot-api' : 'runs'
+})
 
 // The Riot API tab owns its own fetch and filters, and exposes `refresh`/`pending`
 // so the single navbar button below drives whichever tab is open.

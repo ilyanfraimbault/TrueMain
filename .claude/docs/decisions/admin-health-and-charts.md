@@ -322,3 +322,21 @@ sentence *is* the finding — hiding it would leave a coloured dot with no story
 Card padding is web/'s in the same pass (`header: p-3 sm:px-4 sm:py-3.5`, `body: p-3 sm:p-4`): the portal packs
 far more panels per screen than the public site, and Nuxt UI's stock `p-4 sm:p-6` spent a sixth of every card
 on its own margins — #1414, #1416, #992.
+
+## Logs opens on Warning and above, and pages are reachable by name (2026-09-03)
+
+**The Logs page defaults to Warning and above, not to All levels.** The severity filter is a *minimum*
+threshold server-side, so one value asks for Warning + Error + Critical. Operators open `/logs` to see what
+failed; the old All-levels default made the first screen a wall of `Information` rows they had to filter away
+every single time, which is a default optimised for the rare case. The quiet rows stay one click away: the
+"All levels" option is untouched, an empty result offers a *Show all levels* chip, and an explicit `?level=`
+(including `?level=all`) beats the default so existing deep links keep meaning what they said. Changing the
+level rewrites the query, so the view on screen is always the view a shared link reproduces.
+
+**Jumping to a page is a ⌘K palette, not a longer sidebar.** With 15 destinations across four groups, naming
+the page beats hunting it, and Nuxt UI's `UDashboardSearch` gives that for the price of restating the sidebar's
+groups. The palette carries one thing the sidebar cannot: the destinations that have no route of their own —
+`Logs → Crashes`, the three `/accounts` tabs and `Processes → Riot API` — which is what keeps the #1410
+consolidation from hiding them. Consequence worth stating: a tabbed page reads its tab from `?view=` at setup,
+so each of those pages now *watches* the query — a palette jump from a page to one of its own tabs changes only
+the query, and the component is reused — #1415, #1416.
