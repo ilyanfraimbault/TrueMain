@@ -37,7 +37,7 @@ which downstream jobs are worth a runner:
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` / `admin` | `web/**` / `admin/**` | the frontend job for that app, its image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
-| `scripts` | `.github/scripts/**` | deploy-script tests |
+| `scripts` | `.github/scripts/**` | deploy-script tests, file sizes |
 | `ci` | `ci.yml`, `.github/actions/**` | everything |
 
 Pushes to `develop`/`master` and manual runs are always exhaustive: the push to
@@ -74,6 +74,28 @@ files are generated with (`npx npm@11.13.0 install` locally, see `CLAUDE.md`).
 
 `nuxt typecheck` can pass on stale `.nuxt` types while `nuxt build` fails, so
 the job runs typecheck, the vitest suite and a fresh build.
+
+### File sizes
+
+The frontends carry no linter and the backend analyzers have no file-length
+rule, so nothing stopped a controller from reaching 869 lines or an admin page
+from carrying a 700-line template (#1429). `check-file-size.sh` is a **ratchet**
+rather than a style rule: it lists every file over its limit — 500 lines for
+backend `.cs`, 400 for `.vue`, 300 for frontend `.ts` — and diffs that list
+against `.github/file-size-baseline.txt`. A new file over the limit or an
+already-oversized one that grew fails the job; a file that shrank or dropped off
+the list only prints a reminder to refresh the baseline with `--update`.
+
+A plain threshold was not an option: 41 files were already over it when the
+guardrail landed, so the check would have been red from the first run and
+switched off. The baseline makes the existing debt explicit and lets it only
+shrink, which is also how the epic that splits those files measures progress.
+
+Generated code (migrations, the compiled model, build output), every test tree
+and `web/server/utils/dev-api-mock.ts` are excluded — a long test file costs far
+less to read than a long production file. The job runs its own test suite
+(`check-file-size.test.sh`) first, because the check is shell walking a
+directory tree and its failure mode is silently passing.
 
 ### Migrations on a fresh database
 

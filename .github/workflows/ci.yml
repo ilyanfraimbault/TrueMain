@@ -259,6 +259,26 @@ jobs:
       - name: Rollout verification
         run: .github/scripts/verify-rollout.test.sh
 
+  file-size:
+    name: File sizes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: changes
+    if: >-
+      needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.frontend_apps != '[]' ||
+      needs.changes.outputs.scripts == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Guardrail self-test
+        run: .github/scripts/check-file-size.test.sh
+
+      - name: Check file sizes against the baseline
+        run: .github/scripts/check-file-size.sh
+
   compose-config:
     name: Compose config validation
     runs-on: ubuntu-24.04
