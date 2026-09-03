@@ -38,7 +38,7 @@ web/app/components/match/MatchRow.vue	612	400
 web/app/pages/champions/[slug].vue	722	400
 web/app/pages/champions/index.vue	484	400
 web/app/pages/dev/design-system.vue	616	400
-web/app/pages/truemains/[nameTag]/champions/[slug].vue	491	400
+web/app/pages/truemains/[nameTag]/champions/[slug].vue	468	400
 web/app/utils/favorites.ts	332	300
 web/shared/types/champions.ts	558	300
 web/shared/utils/champion-build-summary.ts	455	300
