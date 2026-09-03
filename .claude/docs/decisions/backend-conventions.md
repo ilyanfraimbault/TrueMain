@@ -92,10 +92,10 @@ list default deliberately lives in JSON — the binder *appends* to a non-empty 
 **`ChampionsList:MinSampleGames` (10) and `ChampionsList:MinBuildSampleGames` (20) are different questions.**
 The first decides whether a `(champion, lane)` line is listed and ranked at all; the second decides whether an
 item/rune distribution *inside* a line is a usable sample — it splits its games across several builds, so it
-needs more of them. The build floor used to be two hard-coded `20`s, in `ChampionBuildsQueryService` and
-`PlayerBuildDivergenceQueryService`, each documented as a mirror of the other with no code link between them,
-while an operator reading `MinSampleGames = 10` on `/configuration` or `/patch-coverage` would infer the wrong
-bar for the build panel. Both now read the new key, and the whole `ChampionsList` section is on the
+needs more of them. The build floor used to be two hard-coded `20`s, each documented as a mirror of the other
+with no code link between them, while an operator reading `MinSampleGames = 10` on `/configuration` or
+`/patch-coverage` would infer the wrong bar for the build panel. They now read the new key, and the whole
+`ChampionsList` section is on the
 configuration page. The existing key was **not** renamed: a config-facing section rename breaks deployment
 (#889).
 

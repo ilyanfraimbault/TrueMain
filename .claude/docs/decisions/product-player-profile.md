@@ -119,3 +119,45 @@ metacharacters in raw user input entirely, and it is the exact expression a func
 yet**, so this trades the index seek the nine `==` copies got for a sequential scan of `riot_accounts`. That
 was accepted knowingly for this PR: adding one is a schema change (compiled-model regeneration, migration) and
 belongs in its own, measured PR.
+
+## The "{player} vs mains" card is gone — one page, one definition of a core build (2026-09-03)
+
+The card (#529) and the build tabs above it read the same aggregate rows and disagreed on screen. Measured on
+prod, 튼튼짱짱만욱#튼튼짱짱 on Hwei, 16.17 middle, 7 games over 6 pattern rows: the card's "Core items" showed a
+**three**-item path while the Build path and the Build tree right above it showed **two** — same patch, same
+lane, same games.
+
+They were two algorithms, not one shared by two callers:
+
+- `ChampionBuildsQueryService` splits the slice into build **variants** keyed by `(first item, keystone)` and
+  walks `ChampionBuildPathAnalyzer` *inside one variant*, over a tree pruned at `BuildTreeMinGames = 2`
+  absolute support and `BuildTreeMinPickRate = 0.10` of the parent. The dominant variant held 5 of the 7 games;
+  every continuation past the second item had a single game and was pruned. Two items.
+- `BuildDivergenceAnalyzer.WalkCorePath` pooled **every** variant (all keystones, all first items) and walked
+  depth 0→2 gated on a parent-relative `MinPathStepRate = 0.20` and nothing else. Its last step passed at
+  exactly 1/5 = 0.20, so the card published a three-item "core build" **backed by one game** — and printed the
+  giveaway itself: "14.3% of their games, 100% win over 1 game".
+
+The 20%-only gate was the defect, but fixing it would have left two definitions of "the core build" one scroll
+apart, free to drift again on the next threshold change. The card was the weaker of the two — a personal slice
+is a median of 3 games (see below), which is thin enough that "how you differ from the mains" is mostly noise —
+so it was removed rather than realigned: component, composable, shared types, `PlayerBuildDivergenceQueryService`,
+`BuildDivergenceAnalyzer`, the `/divergence` endpoint, its tests and its dev-mock fixture.
+
+**A rebuilt version has to start from the build tabs' own path**, not a second walk of the same rows.
+
+## An empty slice keeps its filters (2026-09-03)
+
+Picking a lane the player never played 404s the player-scoped aggregate, and the page used to hide the whole
+header — champion, patch select and lane picker — behind the same `notEnoughData` flag as the notice. The lane
+picker renders with `hideAll`, so there was no "all lanes" button to undo the choice either: the only control
+left on the page was a link to the *global* champion build. A reader who narrowed to Jungle was, literally,
+stuck outside the player's page.
+
+**The controls that produced a state must survive it.** The header now renders over the empty slice, the stat
+line reads "no games on this slice" instead of a fabricated `0.0% WR`, the patch select keeps the last patch
+the API resolved (it has nothing to read it from while the aggregate is null), and the notice names the active
+filters and offers to clear them.
+
+This is the same class of defect as the thin-sample rule in `product-mains.md` (#762): the page degrades, it
+does not dead-end.

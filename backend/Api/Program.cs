@@ -328,7 +328,6 @@ builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
 builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuildsQueryService>();
 builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMatchupQueryService>();
 builder.Services.AddScoped<IPlayerChampionPerformanceQueryService, PlayerChampionPerformanceQueryService>();
-builder.Services.AddScoped<IPlayerBuildDivergenceQueryService, PlayerBuildDivergenceQueryService>();
 builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();

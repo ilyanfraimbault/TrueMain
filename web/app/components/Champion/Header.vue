@@ -97,7 +97,11 @@ const roam = computed(() => roamVerdict(props.roamKp15))
             />
           </UTooltip>
           <span v-else>—</span>
-          <span>· {{ totalGames }} games · {{ formatPercentage(winRate) }} WR</span>
+          <!-- A win rate over zero games is a fabricated 0.0%, not a
+               measurement: on an empty slice (a lane the player never played,
+               a patch with no game on record) the count stands alone. -->
+          <span v-if="totalGames === 0">· no games on this slice</span>
+          <span v-else>· {{ totalGames }} games · {{ formatPercentage(winRate) }} WR</span>
           <!-- Playstyle flag, not a stat: it only appears for champions that
                actually roam, so it never competes with the numbers it sits next
                to. The measurement behind it lives in the tooltip. -->
