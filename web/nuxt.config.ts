@@ -153,7 +153,7 @@ export default defineNuxtConfig({
       ],
     },
   },
-  css: ['./app/assets/css/main.css'],
+  css: ['~/assets/css/main.css'],
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
   // Dark-only: there is no colour-mode toggle in the header any more. The
