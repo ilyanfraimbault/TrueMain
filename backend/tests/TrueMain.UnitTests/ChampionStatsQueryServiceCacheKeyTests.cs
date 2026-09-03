@@ -65,4 +65,28 @@ public sealed class ChampionStatsQueryServiceCacheKeyTests
 
         second.Should().Be(first);
     }
+
+    [Fact]
+    public void BuildCacheKey_DoesNotLetTheDelimiterBeForgedFromInsideAFilterValue()
+    {
+        // The one way this goes wrong: an unescaped ':' join lets a value that itself
+        // contains ':' shift the field boundary. Region "A:B" + patch "C" and region "A"
+        // + patch "B:C" would render identically as "...A:B:C..." if the segments were
+        // not escaped first.
+        var shiftedIntoRegion = ChampionStatsQueryService.BuildCacheKey("A:B", "C", "D", null);
+        var shiftedIntoPatch = ChampionStatsQueryService.BuildCacheKey("A", "B:C", "D", null);
+
+        shiftedIntoRegion.Should().NotBe(shiftedIntoPatch);
+    }
+
+    [Fact]
+    public void BuildCacheKey_EscapesABackslashSoItCannotUnescapeTheNextDelimiter()
+    {
+        // A value ending in a literal backslash must not be able to "consume" the escape
+        // meant for the delimiter that follows it.
+        var literalBackslash = ChampionStatsQueryService.BuildCacheKey("A\\", "B", "C", null);
+        var escapedColon = ChampionStatsQueryService.BuildCacheKey("A", "B", "C", null);
+
+        literalBackslash.Should().NotBe(escapedColon);
+    }
 }
