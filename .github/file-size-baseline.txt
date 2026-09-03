@@ -22,7 +22,7 @@ backend/Api/Services/Champions/ChampionSynergyQueryService.cs	516	500
 backend/Api/Services/Ops/AccountExplorerQueryService.cs	629	500
 backend/Api/Services/Ops/DataQualityDetectorsQueryService.cs	998	500
 backend/Api/Services/Ops/DataQualityQueryService.cs	695	500
-backend/Api/Services/Ops/PatchCoverageQueryService.cs	804	500
+backend/Api/Services/Ops/PatchCoverageQueryService.cs	803	500
 backend/Api/Services/Truemains/MatchDetailQueryService.cs	580	500
 backend/Api/Services/Truemains/TruemainsLeaderboardQueryService.cs	1098	500
 backend/Data/Logging/Mongo/MongoLogContext.cs	658	500

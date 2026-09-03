@@ -23,10 +23,8 @@ import type {
 // the words differ on this page, so only the words are local.
 import { detectorStatusMeta } from '~~/shared/utils/detector-status'
 import { formatDateTime, formatNumber, formatPercent, formatTimeAgo } from '~~/shared/utils/format'
-import { POSITION_BY_VALUE } from '~/utils/positions'
 
 const { data, pending, error, refresh } = usePatchCoverage()
-const { nameFor, iconFor } = useChampionStatic()
 
 const patches = computed<PatchCoverageRow[]>(() => data.value?.patches ?? [])
 const current = computed<PatchCoverageRow | null>(
@@ -78,41 +76,6 @@ function foldValue(fold: PatchFoldCoverage): string {
     return 'unknown'
   }
   return `${formatNumber(fold.rows)} rows · ${formatNumber(fold.champions)} champions`
-}
-
-// --- Below the floor ---------------------------------------------------------
-// The named list is the champions' PRIMARY lanes only (#1442). An off-role line is
-// below the floor because nobody plays the champion there, and no amount of
-// ingestion will change that, so listing it answers a question nobody asked while
-// burying the lines that are genuinely a few games short. The backend still counts
-// every below-floor line in `belowFloorCount`, and the difference is printed rather
-// than dropped — a number that quietly stops adding up is how a page loses trust.
-
-function offRoleBelowFloor(patch: PatchCoverageRow): number {
-  return Math.max(0, patch.belowFloorCount - patch.belowFloorPrimaryLaneCount)
-}
-
-/** The header's suffix: how many lines the list is about, and how many of them it shows. */
-function belowFloorNote(patch: PatchCoverageRow): string {
-  const shown = patch.belowFloor.length < patch.belowFloorPrimaryLaneCount
-    ? `, showing ${formatNumber(patch.belowFloor.length)}`
-    : ''
-  return `— ${formatNumber(patch.belowFloorPrimaryLaneCount)} line(s) on the champion's own lane, closest first${shown}`
-}
-
-/**
- * The off-role tail in one sentence. Carries the whole section when nothing is left on a
- * champion's own lane: "146 lines below the floor" and an empty list would read as a bug,
- * and the answer — nobody is short of games where it matters — is the reassuring one.
- */
-function offRoleNote(patch: PatchCoverageRow): string {
-  const offRole = offRoleBelowFloor(patch)
-  if (patch.belowFloorPrimaryLaneCount === 0) {
-    return `All ${formatNumber(offRole)} line(s) below the floor are on a lane their champion is not played on. `
-      + 'No champion is short of games on its own lane.'
-  }
-  return `${formatNumber(offRole)} more line(s) sit below the floor on a lane their champion is not played on — `
-    + 'short of games because nobody picks it there, not because the patch is.'
 }
 
 // The daily bars are drawn by hand rather than with a chart component: the
@@ -390,57 +353,9 @@ function dayScale(patch: PatchCoverageRow): number {
               </li>
             </ul>
 
-            <!-- The named cause of a thin patch. -->
-            <template v-if="patch.belowFloorCount">
-              <USeparator class="my-4" />
-              <p class="mb-2 text-xs text-muted uppercase">
-                Still below the floor
-                <span v-if="patch.belowFloor.length" class="normal-case text-dimmed">
-                  {{ belowFloorNote(patch) }}
-                </span>
-              </p>
-              <ul v-if="patch.belowFloor.length" class="grid gap-1.5 sm:grid-cols-2">
-                <li
-                  v-for="line in patch.belowFloor"
-                  :key="`${line.championId}-${line.position}`"
-                  class="flex items-center justify-between gap-2 text-xs"
-                >
-                  <span class="flex min-w-0 items-center gap-2">
-                    <img
-                      v-if="iconFor(line.championId)"
-                      :src="iconFor(line.championId)!"
-                      :alt="nameFor(line.championId)"
-                      class="size-5 shrink-0 rounded"
-                      loading="lazy"
-                    >
-                    <span class="truncate text-highlighted">{{ nameFor(line.championId) }}</span>
-                    <!-- Lane as the icon the rest of the portal draws it with, the text kept
-                         beside it: the glyph alone is unreadable at 14px for anyone who does
-                         not already know the set, and an unknown lane has no glyph at all. -->
-                    <span class="flex shrink-0 items-center gap-1 text-dimmed">
-                      <img
-                        v-if="POSITION_BY_VALUE.has(line.position)"
-                        :src="POSITION_BY_VALUE.get(line.position)!.iconUrl"
-                        :alt="POSITION_BY_VALUE.get(line.position)!.label"
-                        class="size-3.5 shrink-0"
-                        loading="lazy"
-                      >
-                      {{ line.position }}
-                    </span>
-                  </span>
-                  <span class="shrink-0 tabular-nums text-muted">
-                    {{ line.games }} · {{ line.gamesToFloor }} short
-                  </span>
-                </li>
-              </ul>
-              <p
-                v-if="offRoleBelowFloor(patch)"
-                class="text-xs text-dimmed"
-                :class="patch.belowFloor.length ? 'mt-2' : ''"
-              >
-                {{ offRoleNote(patch) }}
-              </p>
-            </template>
+            <!-- The named cause of a thin patch — primary lanes only, off-role tail
+                 counted rather than listed (#1442). -->
+            <PatchBelowFloorLines :patch="patch" />
           </UCard>
         </div>
 

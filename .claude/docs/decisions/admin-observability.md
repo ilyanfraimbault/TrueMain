@@ -263,11 +263,16 @@ games because nobody plays the champion there, not because the patch is short of
 the lines that were genuinely two games off under a wall of picks no amount of ingestion will ever move. The
 primary lane is read off the patch's own lines (the lane holding the most of the champion's games there),
 never from a hard-coded role: the patch a champion is being flexed on is exactly the case a fixed role gets
-wrong. `belowFloorCount` keeps counting **every** below-floor line, so it stays the complement of
-`linesPastFloor`, and the difference is printed as its own sentence rather than silently dropped — a number
-that quietly stops adding up is how a page loses trust. When every below-floor line is off-role, that
-sentence *is* the section: an empty list under "146 lines below the floor" reads as a bug, and "no champion
-is short of games on its own lane" is the answer.
+wrong. It lives in `ChampionDirectoryLines` with the definition of a line itself, not in the query service —
+the same reason the line count does.
+
+`belowFloorCount` now counts what the list is drawn from rather than every line under the floor, and the tail
+is **derived** rather than carried in a second field: every below-floor line is `lines - linesPastFloor`, both
+of which the card already prints, so the off-role remainder is a subtraction the page states in its own
+sentence. Dropping the difference silently was the one option ruled out — a number that quietly stops adding
+up is how a page loses trust. When every below-floor line is off-role, that sentence *is* the section: an
+empty list under "146 lines below the floor" reads as a bug, and "no champion is short of games on its own
+lane" is the answer.
 
 `Ext. samples` counted the mains that only cleared the *relaxed* per-champion play-rate threshold (#407) —
 a diagnostic of the coverage relaxation, not a property of the champion. On production that is 111 rows out

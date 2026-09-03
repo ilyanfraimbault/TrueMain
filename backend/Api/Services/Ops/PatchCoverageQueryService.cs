@@ -255,7 +255,6 @@ public sealed class PatchCoverageQueryService(
             ServableLinesBar = verdict.Judged ? bar.Value : null,
             ServableLinesBarNote = verdict.Judged ? bar.Note : null,
             BelowFloorCount = coverage?.BelowFloorCount ?? 0,
-            BelowFloorPrimaryLaneCount = coverage?.BelowFloorPrimaryLaneCount ?? 0,
             BelowFloor = coverage?.BelowFloor ?? [],
             Folds = [.. folds.Select(fold => BuildFoldRow(fold, patch, ingestion, now))]
         };
@@ -492,21 +491,11 @@ public sealed class PatchCoverageQueryService(
                         new ChampionDirectoryLine(patchGroup.Key, row.ChampionId, row.Position, row.Games)));
 
                     var pastFloor = lines.Where(line => ChampionDirectoryLines.ClearsFloor(line, floor)).ToList();
-                    var below = lines.Where(line => !ChampionDirectoryLines.ClearsFloor(line, floor)).ToList();
 
-                    // Only the lines an operator can do something about are named (#1442).
-                    // A champion's off-role lane is below the floor because nobody plays it
-                    // there, not because the patch is short of matches: on the two patches
-                    // production has actually filled, every one of the 146 and 194
-                    // below-floor lines sat on a lane that was not the champion's most
-                    // played. Naming those turns the one list that is supposed to give a
-                    // thin patch a cause into a wall of one-game off-role picks. The count
-                    // of what was set aside is reported (BelowFloorCount stays the total),
-                    // so the two numbers reconcile instead of the difference vanishing.
-                    var primaryLanes = PrimaryLanesByChampion(lines);
-                    var belowOnPrimaryLane = below
-                        .Where(line => primaryLanes[line.ChampionId] == line.Position)
-                        .ToList();
+                    // Primary lanes only, closest to the floor first — the shared definition
+                    // says why the off-role tail is not named (#1442). The tail is still in
+                    // the coverage figures: it is Lines minus LinesPastFloor minus this.
+                    var below = ChampionDirectoryLines.BelowFloorOnPrimaryLane(lines, floor);
 
                     return new PatchCoverage(
                         lines.Count,
@@ -514,13 +503,7 @@ public sealed class PatchCoverageQueryService(
                         lines.Select(line => line.ChampionId).Distinct().Count(),
                         pastFloor.Select(line => line.ChampionId).Distinct().Count(),
                         below.Count,
-                        belowOnPrimaryLane.Count,
-                        [.. belowOnPrimaryLane
-                            // Closest to the floor first: a thin patch's real question is
-                            // "how far off is it", and the lines about to clear answer it.
-                            .OrderByDescending(line => line.Games)
-                            .ThenBy(line => line.ChampionId)
-                            .ThenBy(line => line.Position, StringComparer.Ordinal)
+                        [.. below
                             .Take(limit)
                             .Select(line => new PatchThinLineReadModel
                             {
@@ -535,28 +518,6 @@ public sealed class PatchCoverageQueryService(
                 },
                 StringComparer.Ordinal);
     }
-
-    /// <summary>
-    /// Each champion's primary lane on the patch: the lane holding the most of its games
-    /// there. Read off the patch's own lines rather than from a champion's global identity,
-    /// because the question this answers is lane-relative and patch-scoped — "is this line
-    /// the champion's role here" — and a patch that a champion is being flexed on is exactly
-    /// the case a hard-coded role would get wrong.
-    /// <para>
-    /// Ties break on the lane name so the choice is deterministic; every line of a champion
-    /// that holds a single lane is that champion's primary line by construction.
-    /// </para>
-    /// </summary>
-    private static Dictionary<int, string> PrimaryLanesByChampion(IEnumerable<ChampionDirectoryLine> lines)
-        => lines
-            .GroupBy(line => line.ChampionId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderByDescending(line => line.Games)
-                    .ThenBy(line => line.Position, StringComparer.Ordinal)
-                    .First()
-                    .Position);
 
     /// <summary>
     /// One grouped rollup per fold table, over every patch rather than only the covered
@@ -818,7 +779,6 @@ public sealed class PatchCoverageQueryService(
         long Champions,
         long ChampionsPastFloor,
         long BelowFloorCount,
-        long BelowFloorPrimaryLaneCount,
         IReadOnlyList<PatchThinLineReadModel> BelowFloor,
         long BuildRows,
         long BuildChampions,

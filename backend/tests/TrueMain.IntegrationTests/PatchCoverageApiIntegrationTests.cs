@@ -119,11 +119,9 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
 
         var current = payload.Patches.Single(patch => patch.Patch == "16.15");
 
-        // The total keeps every below-floor line, including the off-role one, so it stays
-        // the complement of LinesPastFloor and the coverage share reconciles.
-        current.BelowFloorCount.Should().Be(3);
-
-        current.BelowFloorPrimaryLaneCount.Should().Be(2);
+        // Two of the three below-floor lines are on their champion's own lane; the count is
+        // what the list is drawn from, not every line under the floor.
+        current.BelowFloorCount.Should().Be(2);
         current.BelowFloor.Should().HaveCount(2);
 
         // Closest to the floor first, and each line says how far it still has to go — a
@@ -152,7 +150,10 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
         current.BelowFloor.Should().NotContain(
             line => line.ChampionId == 266,
             "a champion's off-role lane is not a coverage gap");
-        (current.BelowFloorCount - current.BelowFloorPrimaryLaneCount).Should().Be(1);
+
+        // And it is not swept under the carpet either: the page reconciles the tail from the
+        // coverage figures, so lines - linesPastFloor - belowFloorCount has to be exactly it.
+        (current.Lines - current.LinesPastFloor - current.BelowFloorCount).Should().Be(1);
     }
 
     [Fact]
@@ -512,7 +513,6 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
         public double? ServableLinesBar { get; init; }
         public string? ServableLinesBarNote { get; init; }
         public long BelowFloorCount { get; init; }
-        public long BelowFloorPrimaryLaneCount { get; init; }
         public IReadOnlyList<ThinLineContract> BelowFloor { get; init; } = [];
         public IReadOnlyList<FoldContract> Folds { get; init; } = [];
     }

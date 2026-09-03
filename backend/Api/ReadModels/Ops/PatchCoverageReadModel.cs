@@ -136,25 +136,21 @@ public sealed record PatchCoverageRowReadModel
     public string? ServableLinesBarNote { get; init; }
 
     /// <summary>
-    /// Total lines below the floor — every lane, named or not. Stays the complement of
-    /// <see cref="LinesPastFloor"/> so the coverage share and this number reconcile.
+    /// Below-floor lines on their champion's <b>primary lane of this patch</b> — what
+    /// <see cref="BelowFloor"/> is drawn from, whether or not they all fit in it (#1442).
+    /// Deliberately not every below-floor line: the off-role tail is short of games because
+    /// nobody plays the champion there, not because the patch is short of matches, and it is
+    /// the bulk of the population (all 146 and 194 below-floor lines on the two patches
+    /// production had filled). That tail is still in the coverage figures — it is
+    /// <see cref="Lines"/> minus <see cref="LinesPastFloor"/> minus this — so a reader can
+    /// reconcile the two without the list naming lines nobody can act on.
     /// </summary>
     public long BelowFloorCount { get; init; }
 
     /// <summary>
-    /// Of those, the ones on the champion's <b>primary lane on this patch</b> — the only
-    /// ones <see cref="BelowFloor"/> names (#1442). The difference against
-    /// <see cref="BelowFloorCount"/> is the off-role tail, which is short of games because
-    /// nobody plays the champion there rather than because the patch is short of matches.
-    /// </summary>
-    public long BelowFloorPrimaryLaneCount { get; init; }
-
-    /// <summary>
-    /// The primary-lane below-floor lines, <b>closest to the floor first</b>, capped by
+    /// Those lines, <b>closest to the floor first</b>, capped by
     /// <c>PatchCoverage:ThinLineLimit</c>. Ordered that way because the question a thin
-    /// patch raises is "how far off is it", and the lines about to clear answer it; the
-    /// long tail of one-game off-role picks never will, which is why it is counted in
-    /// <see cref="BelowFloorPrimaryLaneCount"/>'s shortfall rather than listed here.
+    /// patch raises is "how far off is it", and the lines about to clear answer it.
     /// </summary>
     public IReadOnlyList<PatchThinLineReadModel> BelowFloor { get; init; } = [];
 
