@@ -12,7 +12,7 @@ admin/app/pages/database.vue	512	400
 admin/app/pages/index.vue	600	400
 admin/app/pages/logs.vue	568	400
 admin/app/pages/processes.vue	1197	400
-admin/shared/types/ops.ts	1919	300
+admin/shared/types/ops.ts	1912	300
 backend/Api/Controllers/Champions/ChampionsController.cs	823	500
 backend/Api/Controllers/Ops/OpsController.cs	869	500
 backend/Api/ReadModels/Ops/AccountExplorerReadModel.cs	547	500
@@ -20,9 +20,9 @@ backend/Api/Services/Champions/ChampionBuildsQueryService.cs	546	500
 backend/Api/Services/Champions/ChampionSummariesQueryService.cs	694	500
 backend/Api/Services/Champions/ChampionSynergyQueryService.cs	516	500
 backend/Api/Services/Ops/AccountExplorerQueryService.cs	629	500
-backend/Api/Services/Ops/DataQualityDetectorsQueryService.cs	998	500
+backend/Api/Services/Ops/DataQualityDetectorsQueryService.cs	997	500
 backend/Api/Services/Ops/DataQualityQueryService.cs	695	500
-backend/Api/Services/Ops/PatchCoverageQueryService.cs	803	500
+backend/Api/Services/Ops/PatchCoverageQueryService.cs	800	500
 backend/Api/Services/Truemains/MatchDetailQueryService.cs	580	500
 backend/Api/Services/Truemains/TruemainsLeaderboardQueryService.cs	1098	500
 backend/Data/Logging/Mongo/MongoLogContext.cs	658	500

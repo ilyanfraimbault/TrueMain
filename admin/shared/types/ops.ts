@@ -303,8 +303,8 @@ export interface ProcessRunsResponse {
  * Drift is quiet rather than broken: `buildChain` appends any process it sees but
  * does not know about, so a missing step still renders — at the end of the chain,
  * under its raw name, instead of in its real position. That is exactly how
- * `RunePageDeduplication` and `ChampionLaneOutcomeAggregation` came to be drawn
- * after `StorageSnapshot`, several steps away from where they actually run.
+ * `RunePageDeduplication` came to be drawn after `StorageSnapshot`, several steps
+ * away from where it actually runs.
  */
 export const PIPELINE_CHAIN: readonly string[] = [
   'LadderSync',
@@ -480,14 +480,6 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Matchups',
     description:
       'Folds each match into the champion-versus-champion matchup stats — who won the game, and who won lane at 15 minutes — counting only games where the champion side is one of its mains.',
-  },
-  // Retired in #1445: its fold moved into ChampionMatchupLeadAggregation. Kept out of
-  // the chain above so it is not drawn as a step that never runs, and kept here so the
-  // runs it left behind still render under a name a reader recognises.
-  ChampionLaneOutcomeAggregation: {
-    label: 'Lane Outcomes',
-    description:
-      'Judged who won lane from the 15-minute gold and XP gaps. Merged into Matchups, which now folds both in one pass.',
   },
   ChampionSynergyAggregation: {
     label: 'Synergies',
