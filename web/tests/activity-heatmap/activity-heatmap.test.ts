@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ACTIVITY_LOSS_RGB,
-  ACTIVITY_MAX_ALPHA,
-  ACTIVITY_MIN_ALPHA,
-  ACTIVITY_WIN_RGB,
+  ACTIVITY_EMPTY_FILL,
+  ACTIVITY_LEVELS,
+  ACTIVITY_RAMP,
+  activityBucketCaption,
   activityBucketLabel,
   activityBucketResult,
   activityCellFill,
+  activityCellLevel,
+  activityCoverageLabel,
   activityMaxGames,
 } from '~/utils/activity-heatmap'
 import type { ActivityBucket, ActivitySeries } from '~~/shared/types/activity'
@@ -16,8 +18,13 @@ import type { ActivityBucket, ActivitySeries } from '~~/shared/types/activity'
  *
  * The load-bearing property here is the one the API can only offer, not enforce:
  * a cell with `games: 0` and a cell with `winRate: 0` must not render alike. The
- * fill helper answers `null` for the first and a rose fill for the second, and
- * the tooltip says "No games" rather than printing an invented 0%.
+ * fill helper answers `null` for the first and a real ramp step for the second,
+ * and the tooltip says "No games" rather than printing an invented 0%.
+ *
+ * The second property is what the grid is *about*: intensity tracks games
+ * played, and nothing else. A losing day the player queued five times on has to
+ * come out brighter than a winning day they queued once on — the squares answer
+ * "was he playing", the tooltip answers "how did it go".
  */
 
 function bucket(partial: Partial<ActivityBucket> = {}): ActivityBucket {
@@ -49,76 +56,57 @@ function series(partial: Partial<ActivitySeries> = {}): ActivitySeries {
   }
 }
 
-/** `rgba(r, g, b, a)` → its alpha. */
-function alphaOf(fill: string): number {
-  const alpha = fill.slice(fill.lastIndexOf(',') + 1, fill.lastIndexOf(')'))
-  return Number.parseFloat(alpha)
-}
-
-/** `rgba(r, g, b, a)` → its `[r, g, b]` triple. */
-function rgbOf(fill: string): number[] {
-  return fill
-    .slice(fill.indexOf('(') + 1, fill.lastIndexOf(')'))
-    .split(',')
-    .slice(0, 3)
-    .map(part => Number.parseInt(part.trim(), 10))
-}
-
 describe('activityCellFill', () => {
-  it('gives an empty period no fill at all, so it cannot look like a loss', () => {
+  it('gives an empty period no fill at all, so it cannot look like a quiet one', () => {
     expect(activityCellFill(bucket({ games: 0, wins: 0, winRate: null }), 8)).toBeNull()
   })
 
-  it('gives a period that lost everything a real fill, on the loss hue', () => {
+  it('gives a period that lost everything a real step on the ramp', () => {
     const fill = activityCellFill(bucket({ games: 3, wins: 0, winRate: 0 }), 8)
     expect(fill).not.toBeNull()
-    expect(rgbOf(fill!)).toEqual([...ACTIVITY_LOSS_RGB])
+    expect(ACTIVITY_RAMP).toContain(fill)
+    expect(fill).not.toBe(ACTIVITY_EMPTY_FILL)
   })
 
-  it('picks the hue off the side of 50%, never blending through the middle', () => {
-    expect(rgbOf(activityCellFill(bucket({ games: 4, wins: 3, winRate: 0.75 }), 8)!))
-      .toEqual([...ACTIVITY_WIN_RGB])
-    expect(rgbOf(activityCellFill(bucket({ games: 4, wins: 1, winRate: 0.25 }), 8)!))
-      .toEqual([...ACTIVITY_LOSS_RGB])
-    // Exactly 50% counts as the win side — an arbitrary but fixed tiebreak, so a
-    // coin-flip period does not flicker between hues as the sample grows.
-    expect(rgbOf(activityCellFill(bucket({ games: 4, wins: 2, winRate: 0.5 }), 8)!))
-      .toEqual([...ACTIVITY_WIN_RGB])
+  it('paints on volume alone, so two periods of equal size match whatever the result', () => {
+    const swept = activityCellFill(bucket({ games: 4, wins: 4, winRate: 1 }), 8)
+    const lost = activityCellFill(bucket({ games: 4, wins: 0, winRate: 0 }), 8)
+    expect(swept).toBe(lost)
   })
 
-  it('stays inside the alpha band, so no populated cell is invisible or opaque', () => {
-    const weakest = activityCellFill(bucket({ games: 1, wins: 1, winRate: 0.5 }), 100)!
-    const strongest = activityCellFill(bucket({ games: 100, wins: 100, winRate: 1 }), 100)!
-
-    expect(alphaOf(weakest)).toBeGreaterThanOrEqual(ACTIVITY_MIN_ALPHA)
-    expect(alphaOf(strongest)).toBeLessThanOrEqual(ACTIVITY_MAX_ALPHA)
-    expect(alphaOf(weakest)).toBeLessThan(alphaOf(strongest))
+  it('reads a busier period as brighter than a quiet one', () => {
+    const thin = activityCellLevel(bucket({ games: 1, wins: 1, winRate: 1 }), 10)
+    const busy = activityCellLevel(bucket({ games: 10, wins: 10, winRate: 1 }), 10)
+    expect(busy).toBeGreaterThan(thin)
+    // …and it beats a winning day the player barely showed up for, which is the
+    // whole point of dropping the win rate out of the colour.
+    expect(activityCellLevel(bucket({ games: 10, wins: 0, winRate: 0 }), 10))
+      .toBeGreaterThan(thin)
   })
 
-  it('reads a busier period as stronger at the same win rate', () => {
-    const thin = activityCellFill(bucket({ games: 1, wins: 1, winRate: 1 }), 10)!
-    const busy = activityCellFill(bucket({ games: 10, wins: 10, winRate: 1 }), 10)!
-    expect(alphaOf(busy)).toBeGreaterThan(alphaOf(thin))
+  it('keeps every populated cell inside the ramp', () => {
+    expect(activityCellLevel(bucket({ games: 1, wins: 0, winRate: 0 }), 100)).toBe(1)
+    expect(activityCellLevel(bucket({ games: 100, wins: 50, winRate: 0.5 }), 100)).toBe(ACTIVITY_LEVELS)
+    // A bucket busier than the series maximum cannot happen off the wire, but it
+    // must clamp rather than index past the end of the ramp.
+    expect(activityCellFill(bucket({ games: 400, wins: 200, winRate: 0.5 }), 100))
+      .toBe(ACTIVITY_RAMP[ACTIVITY_RAMP.length - 1])
   })
 
-  it('reads a more decided period as stronger at the same volume', () => {
-    const flip = activityCellFill(bucket({ games: 10, wins: 5, winRate: 0.5 }), 10)!
-    const sweep = activityCellFill(bucket({ games: 10, wins: 10, winRate: 1 }), 10)!
-    expect(alphaOf(sweep)).toBeGreaterThan(alphaOf(flip))
+  it('falls back to the result in the per-game series, where volume says nothing', () => {
+    // Every cell there holds exactly one game: a flat strip would carry no shape
+    // at all, so the won games take the top step and the lost ones sit below.
+    const won = activityCellLevel(bucket({ games: 1, wins: 1, winRate: 1 }), 1)
+    const lost = activityCellLevel(bucket({ games: 1, wins: 0, winRate: 0 }), 1)
+    expect(won).toBe(ACTIVITY_LEVELS)
+    expect(lost).toBeLessThan(won)
+    expect(lost).toBeGreaterThan(0)
   })
 
-  it('pins the per-game series at full strength instead of dividing by one', () => {
-    // Every cell of the per-game series holds exactly one game, so volume carries
-    // no information there — it must not collapse the whole grid to the weakest
-    // alpha, nor divide by a degenerate denominator.
-    const fill = activityCellFill(bucket({ games: 1, wins: 1, winRate: 1 }), 1)!
-    expect(alphaOf(fill)).toBeCloseTo(ACTIVITY_MAX_ALPHA, 3)
-  })
-
-  it('treats a null win rate as empty even if games disagree', () => {
-    // Defensive: the wire contract ties the two together, but a fill built from a
-    // null rate would be NaN-coloured rather than obviously wrong.
-    expect(activityCellFill(bucket({ games: 3, wins: 0, winRate: null }), 8)).toBeNull()
+  it('treats a period with no games as empty however the rate reads', () => {
+    // Defensive: the wire contract ties the two together, but a cell with no
+    // games is an idle period whatever else the payload says.
+    expect(activityCellFill(bucket({ games: 0, wins: 0, winRate: 0 }), 8)).toBeNull()
   })
 })
 
@@ -177,5 +165,40 @@ describe('activityBucketLabel', () => {
   it('labels a game cell down to the hour, since a day can hold several', () => {
     expect(activityBucketLabel(bucket({ startUtc: '2026-07-29T18:05:00Z' }), 'game'))
       .toContain('Jul 29')
+  })
+})
+
+describe('activityBucketCaption', () => {
+  it('captions a patch tile with the patch itself', () => {
+    expect(activityBucketCaption(bucket({ key: '15.14', startUtc: null }), 'patch')).toBe('15.14')
+  })
+
+  it('captions a week tile with the UTC day it starts on', () => {
+    expect(activityBucketCaption(bucket({ startUtc: '2026-07-27T00:00:00Z' }), 'week')).toBe('Jul 27')
+  })
+})
+
+describe('activityCoverageLabel', () => {
+  it('reads the span off the buckets on screen', () => {
+    expect(activityCoverageLabel(series({
+      buckets: [
+        bucket({ startUtc: '2026-07-17T00:00:00Z' }),
+        bucket({ startUtc: '2026-08-13T00:00:00Z' }),
+      ],
+    }))).toBe('Jul 17 – Aug 13')
+  })
+
+  it('collapses a single-cell span instead of printing the same day twice', () => {
+    expect(activityCoverageLabel(series({
+      buckets: [bucket({ startUtc: '2026-07-17T00:00:00Z' })],
+    }))).toBe('Jul 17')
+  })
+
+  it('says nothing at all for a series that carries no dates', () => {
+    // The patch series keys on patch numbers, not on time.
+    expect(activityCoverageLabel(series({
+      mode: 'patch',
+      buckets: [bucket({ key: '15.14', startUtc: null })],
+    }))).toBeNull()
   })
 })
