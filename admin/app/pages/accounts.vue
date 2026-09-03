@@ -25,6 +25,7 @@ import type {
 } from '~~/shared/types/ops'
 import { formatDateTime, formatNumber, formatPercentOrDash, formatTimeAgo } from '~~/shared/utils/format'
 import { RIOT_ID_MAX_LENGTH, formatRiotId, isRiotIdOrSlug } from '~~/shared/utils/riot-id'
+import { POSITION_BY_VALUE } from '~/utils/positions'
 
 const route = useRoute()
 const router = useRouter()
@@ -210,6 +211,8 @@ function scoreInputsLabel(candidate: AccountExplorerCandidate): string {
   return parts.join(' · ')
 }
 
+// Text fallback (tooltip, and rows with no breakdown at all) — the table cell
+// itself renders an icon per position when the breakdown is available.
 function positionSummary(row: AccountExplorerMainRow): string {
   if (row.positionBreakdown.length === 0) {
     return row.primaryPosition || '—'
@@ -784,7 +787,22 @@ const rankEmptyNote = computed(() => {
               </div>
             </template>
             <template #primaryPosition-cell="{ row }">
-              <span class="text-xs text-muted">{{ positionSummary(row.original) }}</span>
+              <UTooltip :text="positionSummary(row.original)">
+                <div v-if="row.original.positionBreakdown.length > 0" class="flex items-center gap-1.5">
+                  <template v-for="stat in row.original.positionBreakdown" :key="stat.position">
+                    <NuxtImg
+                      v-if="POSITION_BY_VALUE.has(stat.position)"
+                      :src="POSITION_BY_VALUE.get(stat.position)!.iconUrl"
+                      :alt="POSITION_BY_VALUE.get(stat.position)!.label"
+                      width="16"
+                      height="16"
+                      class="size-4 shrink-0"
+                    />
+                    <span v-else class="text-xs text-muted uppercase">{{ stat.position }}</span>
+                  </template>
+                </div>
+                <span v-else class="text-xs text-muted">{{ positionSummary(row.original) }}</span>
+              </UTooltip>
             </template>
             <template #calculatedAtUtc-cell="{ row }">
               <span class="text-xs tabular-nums">{{ formatDateTime(row.original.calculatedAtUtc) }}</span>

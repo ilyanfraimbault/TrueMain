@@ -1,13 +1,16 @@
 <script setup lang="ts">
 // Champions panel — per-champion games/mains/otps from
-// `GET /api/ops/stats/champions`, filterable by region/patch/position/queue.
+// `GET /api/ops/stats/champions`, filterable by region/patch/position.
+// Ranked solo/duo (queue 420) only — the store keeps nothing else since #680,
+// so the page never sends `queue` (the backend still accepts it).
 // A sortable table plus two bar charts (top-N by games, top-N by mains).
 //
 // IMPORTANT data caveat surfaced in the UI: `games` honors every filter, but
 // `mains`/`otps`/`extendedSamples` honor the `region` filter ONLY — they ignore
-// patch/position/queue. The table header and a note make this explicit.
+// patch/position. The table header and a note make this explicit.
 import type { TableColumn } from '@nuxt/ui'
 import type { ChampionStatsRow } from '~~/shared/types/ops'
+import { ALL_POSITIONS_ICON_URL, POSITION_OPTIONS } from '~/utils/positions'
 import { formatNumber } from '~~/shared/utils/format'
 
 interface ChampionRowView extends ChampionStatsRow {
@@ -16,49 +19,30 @@ interface ChampionRowView extends ChampionStatsRow {
 }
 
 // --- Filters -----------------------------------------------------------------
+// Store keeps queue 420 (ranked solo/duo) only since #680 — every other queue
+// id returns an empty page, so the page no longer offers a queue filter and
+// never sends `queue` at all (the backend still accepts it).
 const region = ref<string>(ALL)
 const patch = ref<string>('')
 const position = ref<string>(ALL)
-const queue = ref<string>(ALL)
-
-const positionItems = [
-  { label: 'All positions', value: ALL },
-  { label: 'Top', value: 'TOP' },
-  { label: 'Jungle', value: 'JUNGLE' },
-  { label: 'Middle', value: 'MIDDLE' },
-  { label: 'Bottom', value: 'BOTTOM' },
-  { label: 'Support', value: 'UTILITY' },
-]
-// Common SR queues; "All" leaves the param off.
-const queueItems = [
-  { label: 'All queues', value: ALL },
-  { label: 'Ranked Solo (420)', value: '420' },
-  { label: 'Ranked Flex (440)', value: '440' },
-  { label: 'Normal Draft (400)', value: '400' },
-  { label: 'Normal Blind (430)', value: '430' },
-  { label: 'ARAM (450)', value: '450' },
-]
 
 const filters = computed(() => ({
   region: region.value === ALL ? undefined : region.value,
   patch: patch.value.trim() || undefined,
   position: position.value === ALL ? undefined : position.value,
-  queue: queue.value === ALL ? undefined : Number(queue.value),
 }))
 
 const hasActiveFilters = computed(() =>
   Boolean(
     region.value !== ALL
     || patch.value.trim()
-    || position.value !== ALL
-    || queue.value !== ALL,
+    || position.value !== ALL,
   ),
 )
 function resetFilters() {
   region.value = ALL
   patch.value = ''
   position.value = ALL
-  queue.value = ALL
 }
 
 const { data, pending, error, refresh } = useChampionStats(filters)
@@ -177,20 +161,30 @@ const mainsLabelFormatter = computed(() =>
             placeholder="Region"
             class="w-40"
           />
-          <USelect
-            v-model="position"
-            :items="positionItems"
-            icon="i-lucide-map-pin"
-            placeholder="Position"
-            class="w-44"
-          />
-          <USelect
-            v-model="queue"
-            :items="queueItems"
-            icon="i-lucide-list-filter"
-            placeholder="Queue"
-            class="w-52"
-          />
+          <UFieldGroup size="md" class="rounded-md bg-default ring ring-inset ring-accented">
+            <UTooltip text="All positions">
+              <UButton
+                :variant="position === ALL ? 'soft' : 'ghost'"
+                color="neutral"
+                square
+                aria-label="All positions"
+                @click="position = ALL"
+              >
+                <NuxtImg :src="ALL_POSITIONS_ICON_URL" alt="All positions" width="18" height="18" class="size-[18px]" />
+              </UButton>
+            </UTooltip>
+            <UTooltip v-for="option in POSITION_OPTIONS" :key="option.value" :text="option.label">
+              <UButton
+                :variant="position === option.value ? 'soft' : 'ghost'"
+                color="neutral"
+                square
+                :aria-label="option.label"
+                @click="position = option.value"
+              >
+                <NuxtImg :src="option.iconUrl" :alt="option.label" width="18" height="18" class="size-[18px]" />
+              </UButton>
+            </UTooltip>
+          </UFieldGroup>
           <UInput
             v-model="patch"
             icon="i-lucide-git-branch"
@@ -295,7 +289,7 @@ const mainsLabelFormatter = computed(() =>
               <p class="text-xs text-dimmed mt-0.5">
                 <span class="font-medium">Games</span> honor every filter ·
                 <span class="font-medium">Mains / OTPs / Ext. samples</span>
-                honor region only.
+                honor region only · ranked solo/duo only.
               </p>
             </div>
             <div class="flex items-center gap-3">
