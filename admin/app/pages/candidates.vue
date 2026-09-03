@@ -124,8 +124,11 @@ const intakeChartCategories = {
 // `validated` used to be a third series here; it lost that seat to the outcome
 // chart below. On a shared linear axis 10.5k validated against 147k scored is
 // squashed onto the baseline whatever the mark — the series was unreadable, not
-// the chart type. That split also keeps the palette rule in `charts.ts`: three
-// colours, and a fourth series gets its own chart.
+// the chart type. That split also keeps the palette rule in `chart-palette.ts`,
+// which still stands: a fourth series gets its own chart. The six-slot list there
+// is not a licence to widen this one — slots 4-6 exist for the state chart below,
+// where a single axis was the requirement, and they cost the palette its
+// "legible whatever the order" property to do it.
 const progressChartData = computed(() =>
   funnelBuckets.value.map(bucket => ({
     label: formatBucketLabel(bucket.bucket, funnelGranularity.value),
