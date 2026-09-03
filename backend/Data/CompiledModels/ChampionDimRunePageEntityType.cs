@@ -127,8 +127,7 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { primaryStyleId, primaryKeystoneId, primaryPerk1Id, primaryPerk2Id, primaryPerk3Id, secondaryStyleId, secondaryPerk1Id, secondaryPerk2Id, statOffense, statFlex, statDefense },
-                unique: true);
+                new[] { primaryKeystoneId });
 
             return runtimeEntityType;
         }

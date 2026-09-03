@@ -6,11 +6,12 @@ namespace TrueMain.Services.Ops;
 /// The automated anomaly detectors behind the admin data-quality panel (#924).
 ///
 /// <para>
-/// Read-only: every detector measures and judges, none of them repairs. The repairs
-/// live in the ingestor (e.g. <c>RunePageDeduplicationProcess</c> for the duplicate
-/// dimension rows this panel counts), which is why the canonical-key definitions the
-/// detector groups on are shared with it rather than restated here — see
-/// <c>Data.DataQuality.ChampionDimensionCanonicalKeys</c>.
+/// Read-only: every detector measures and judges, none of them repairs. The duplicate
+/// dimension rows it counts are not repairable here because they are no longer
+/// creatable: the schema enforces each dimension's canonical identity (#1418), and this
+/// card groups on the very expressions those constraints are built from — see
+/// <c>Data.DataQuality.ChampionDimensionCanonicalKeys</c> — so a non-zero count means a
+/// constraint went missing, not that a repair is owed.
 /// </para>
 /// </summary>
 public interface IDataQualityDetectorsQueryService

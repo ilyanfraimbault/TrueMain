@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Data;
+using Data.DataQuality;
 using Data.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -83,6 +84,59 @@ public sealed class PostgresFixture : IAsyncLifetime
         // comes from the EF model so new migrations are covered automatically.
         _truncateSql ??= BuildTruncateSql(db);
         await db.Database.ExecuteSqlRawAsync(_truncateSql);
+    }
+
+    /// <summary>
+    /// Drops the constraints that make a champion dimension's canonical identity
+    /// impossible to violate (#1418), so a test can seed the states the data-quality panel
+    /// exists to notice. Disposing restores them — and empties the three dimensions first,
+    /// because the rows the test just seeded are precisely the ones the guards refuse.
+    ///
+    /// <para>
+    /// It lives here rather than in a test because the schema is migrated once for the
+    /// whole container: a test that dropped a constraint and forgot to put it back would
+    /// silently disarm every later test in the collection.
+    /// </para>
+    /// </summary>
+    public async Task<IAsyncDisposable> SuspendChampionDimensionGuardsAsync()
+    {
+        await using var db = CreateDbContext();
+        await db.Database.ExecuteSqlRawAsync(
+            $"""
+            ALTER TABLE champion_dim_rune_pages
+                DROP CONSTRAINT "{ChampionDimensionCanonicalKeys.RunePageCanonicalCheckName}";
+            ALTER TABLE champion_dim_spell_pairs
+                DROP CONSTRAINT "{ChampionDimensionCanonicalKeys.SpellPairCanonicalCheckName}";
+            DROP INDEX "{ChampionDimensionCanonicalKeys.RunePageCanonicalIndexName}";
+            DROP INDEX "{ChampionDimensionCanonicalKeys.SpellPairCanonicalIndexName}";
+            DROP INDEX "IX_champion_dim_starter_items_CanonicalKey";
+            """);
+
+        return new ChampionDimensionGuards(this);
+    }
+
+    private sealed class ChampionDimensionGuards(PostgresFixture fixture) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await using var db = fixture.CreateDbContext();
+            await db.Database.ExecuteSqlRawAsync(
+                $"""
+                TRUNCATE champion_dim_rune_pages, champion_dim_spell_pairs, champion_dim_starter_items CASCADE;
+                ALTER TABLE champion_dim_rune_pages
+                    ADD CONSTRAINT "{ChampionDimensionCanonicalKeys.RunePageCanonicalCheckName}"
+                    CHECK ({ChampionDimensionCanonicalKeys.RunePageCanonicalCheck});
+                ALTER TABLE champion_dim_spell_pairs
+                    ADD CONSTRAINT "{ChampionDimensionCanonicalKeys.SpellPairCanonicalCheckName}"
+                    CHECK ({ChampionDimensionCanonicalKeys.SpellPairCanonicalCheck});
+                CREATE UNIQUE INDEX "{ChampionDimensionCanonicalKeys.RunePageCanonicalIndexName}"
+                    ON champion_dim_rune_pages ({ChampionDimensionCanonicalKeys.RunePageCanonicalKey});
+                CREATE UNIQUE INDEX "{ChampionDimensionCanonicalKeys.SpellPairCanonicalIndexName}"
+                    ON champion_dim_spell_pairs ({ChampionDimensionCanonicalKeys.SpellPairCanonicalKey});
+                CREATE UNIQUE INDEX "IX_champion_dim_starter_items_CanonicalKey"
+                    ON champion_dim_starter_items ("CanonicalKey");
+                """);
+        }
     }
 
     private static string BuildTruncateSql(TrueMainDbContext db)

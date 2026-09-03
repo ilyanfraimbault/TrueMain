@@ -153,9 +153,8 @@ public sealed class ChampionPowerspikeAggregationProcess(
     /// entirely on cleanup), then costs one scan per run: the
     /// predicate is <c>(EventType, RefId)</c>, the trailing pair of the natural-key
     /// index, so Postgres can serve the steady-state "nothing left" answer index-only
-    /// but cannot seek to it. That is the same bargain
-    /// <see cref="RunePageDeduplicationProcess"/> makes, and the reason no index was
-    /// added for it — a permanent write cost to speed up a cleanup that converges.
+    /// but cannot seek to it. No index was added for it: a permanent write cost to
+    /// speed up a cleanup that converges is a bad trade.
     /// </remarks>
     /// <remarks>
     /// Only ids the current patch's metadata <em>knows and rejects</em> are deleted.

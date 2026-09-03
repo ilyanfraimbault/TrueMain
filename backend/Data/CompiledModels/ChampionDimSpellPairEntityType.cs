@@ -21,7 +21,6 @@ namespace Data.CompiledModels
                 typeof(ChampionDimSpellPair),
                 baseEntityType,
                 propertyCount: 3,
-                unnamedIndexCount: 1,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -53,10 +52,6 @@ namespace Data.CompiledModels
             var key = runtimeEntityType.AddKey(
                 new[] { id });
             runtimeEntityType.SetPrimaryKey(key);
-
-            var index = runtimeEntityType.AddIndex(
-                new[] { spell1Id, spell2Id },
-                unique: true);
 
             return runtimeEntityType;
         }

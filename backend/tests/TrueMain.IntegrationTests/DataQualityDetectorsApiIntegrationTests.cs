@@ -14,10 +14,11 @@ namespace TrueMain.IntegrationTests;
 /// sample is a lateral whose whole point is to read an index range instead of the table.
 ///
 /// <para>
-/// The seed reproduces the #911 shape in all three audited dimensions — a rune page
-/// whose secondary perks are swapped, a spell pair stored in the player's order, and a
-/// starter basket holding the same items in another sequence. Each is a permutation the
-/// UNIQUE index accepts and the canonical key must collapse.
+/// The duplicate seeds have to drop the canonical guards first, and that is the point:
+/// since #1418 the schema refuses every one of these rows, so the only way the panel can
+/// ever show a duplicate again is a missing constraint. Dropping them here is how the
+/// test says what the card now means — a regression alarm, not a work queue — while still
+/// exercising the grouping SQL against a real Postgres.
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
@@ -30,7 +31,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     public async Task GetDetectors_CollapsesEveryPermutationOntoOneCanonicalKey()
     {
         await _fixture.ResetDatabaseAsync();
-        await SeedDuplicateDimensionsAsync();
+        await using var guards = await SeedDuplicateDimensionsAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
@@ -55,7 +56,9 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         // claimed for starter items, whose canonical order depends on patch prices.
         byTable["champion_dim_rune_pages"].Note.Should().Contain("1 row(s) stored outside canonical order");
         byTable["champion_dim_spell_pairs"].Note.Should().Contain("1 row(s) stored outside canonical order");
-        byTable["champion_dim_starter_items"].Note.Should().Contain("not checkable in SQL");
+        // Starter baskets have no "outside canonical order" to report: Postgres computes
+        // their key, so no stored order carries identity.
+        byTable["champion_dim_starter_items"].Note.Should().NotContain("stored outside canonical order");
     }
 
     [Fact]
@@ -78,7 +81,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     public async Task GetDetectors_WordsTheDuplicateHeadlineFromTheVerdict_NotFromTheDuplicateCount()
     {
         await _fixture.ResetDatabaseAsync();
-        await SeedNonCanonicalOnlyAsync();
+        await using var guards = await SeedNonCanonicalOnlyAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
@@ -252,12 +255,13 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
 
     // ---- seeds ---------------------------------------------------------------
 
-    private async Task SeedDuplicateDimensionsAsync()
+    private async Task<IAsyncDisposable> SeedDuplicateDimensionsAsync()
     {
+        var guards = await _fixture.SuspendChampionDimensionGuardsAsync();
         await using var db = _fixture.CreateDbContext();
 
-        // The #911 pair: identical pages whose two secondary perks are swapped. The
-        // UNIQUE index over the stored columns accepts both.
+        // The #911 pair: identical pages whose two secondary perks are swapped. Only
+        // reachable now that the canonical index and CHECK are gone.
         db.ChampionDimRunePages.Add(BuildRunePage(secondary1: 8444, secondary2: 8451));
         db.ChampionDimRunePages.Add(BuildRunePage(secondary1: 8451, secondary2: 8444));
 
@@ -265,22 +269,21 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         db.ChampionDimSpellPairs.Add(new ChampionDimSpellPair { Id = Guid.NewGuid(), Spell1Id = 4, Spell2Id = 14 });
         db.ChampionDimSpellPairs.Add(new ChampionDimSpellPair { Id = Guid.NewGuid(), Spell1Id = 14, Spell2Id = 4 });
 
-        // The same basket keyed two ways — what a Riot re-pricing does to the
-        // price-ordered StarterItemsKey.
+        // The same basket stored twice — what a Riot re-pricing used to do to the
+        // price-ordered key, back when the application computed it.
         db.ChampionDimStarterItems.Add(new ChampionDimStarterItems
         {
             Id = Guid.NewGuid(),
-            StarterItemsKey = "1055|2003",
             StarterItems = [1055, 2003]
         });
         db.ChampionDimStarterItems.Add(new ChampionDimStarterItems
         {
             Id = Guid.NewGuid(),
-            StarterItemsKey = "2003|1055",
             StarterItems = [2003, 1055]
         });
 
         await db.SaveChangesAsync();
+        return guards;
     }
 
     private async Task SeedCanonicalDimensionsAsync()
@@ -292,7 +295,6 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         db.ChampionDimStarterItems.Add(new ChampionDimStarterItems
         {
             Id = Guid.NewGuid(),
-            StarterItemsKey = "1055|2003",
             StarterItems = [1055, 2003]
         });
 
@@ -303,14 +305,16 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     /// One rune page and one spell pair stored in the player's order, each without a
     /// canonical twin: the leading indicator without any duplicate yet.
     /// </summary>
-    private async Task SeedNonCanonicalOnlyAsync()
+    private async Task<IAsyncDisposable> SeedNonCanonicalOnlyAsync()
     {
+        var guards = await _fixture.SuspendChampionDimensionGuardsAsync();
         await using var db = _fixture.CreateDbContext();
 
         db.ChampionDimRunePages.Add(BuildRunePage(secondary1: 8451, secondary2: 8444));
         db.ChampionDimSpellPairs.Add(new ChampionDimSpellPair { Id = Guid.NewGuid(), Spell1Id = 14, Spell2Id = 4 });
 
         await db.SaveChangesAsync();
+        return guards;
     }
 
     /// <summary>A scope row that was written with no games behind it.</summary>
