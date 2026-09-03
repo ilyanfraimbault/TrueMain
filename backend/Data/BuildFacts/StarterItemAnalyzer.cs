@@ -109,10 +109,15 @@ public static class StarterItemAnalyzer
         return new StarterItemsAnalysis(starterItems, reason, totalCost, earlyEvents);
     }
 
-    // Canonical order = most-expensive first, ties broken by item id ascending.
-    // Makes the StarterItemsKey order-independent so the dim table stores one
-    // row per item set (not one per purchase sequence), and matches how the UI
-    // expects to display starters (Doran's first, then potions).
+    // Display order = most-expensive first, ties broken by item id ascending: how the UI
+    // expects to show starters (Doran's first, then potions).
+    //
+    // It is *only* display order. It used to double as the dimension row's identity, and
+    // because it depends on patch-dependent prices — and on metadata being present at all,
+    // absent items pricing at 0 — the same basket keyed two ways across generations and sat
+    // in champion_dim_starter_items twice. Identity now lives in the generated CanonicalKey
+    // column, which Postgres derives from the basket itself (#1418). Reorder this freely;
+    // do not make anything depend on it.
     private static void SortStarterItemsCanonically(
         List<int> starterItems,
         IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
