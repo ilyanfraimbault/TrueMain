@@ -10,7 +10,7 @@
 // The verdict is computed server-side, not here: thresholds are a domain decision, and a
 // tile that judged a signal differently from the panel it links to would be lying.
 import { detectorStatusMeta } from '~~/shared/utils/detector-status'
-import { formatDateTime, formatElapsed, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
+import { formatDateTime, formatElapsed, formatNumber, formatPercent, formatTimeAgo } from '~~/shared/utils/format'
 import {
   championDataLagLabel,
   ingestionToAnalysisLabel,
@@ -18,6 +18,16 @@ import {
 } from '~~/shared/utils/pipeline-health'
 
 const { data, pending, error, refresh } = usePipelineHealth()
+
+// The cockpit is read as live — it is the "is it on fire right now" page — so it
+// re-evaluates itself on a 30 s timer instead of waiting for a reload (#1411).
+// The whole page is one payload, so one source covers the verdict and every tile.
+const {
+  lastUpdatedAt,
+  paused: livePaused,
+  toggle: toggleLive,
+  refreshNow,
+} = useLiveRefresh(refresh)
 
 const verdict = computed(() => detectorStatusMeta(data.value?.status))
 const signals = computed(() => data.value?.signals ?? [])
@@ -28,6 +38,22 @@ const gaps = computed(() => data.value?.gaps ?? null)
 // Processes worth reading without a click: anything whose latest run did not succeed. A
 // healthy pipeline collapses to a single line, so the section reads as a list of problems
 // rather than ten rows of green.
+// Riot API budget, informational (#1410). Read from the same `/ops/riot-usage`
+// endpoint the Processes page's Riot API tab draws, over a fixed 24 h window.
+//
+// It does NOT participate in the verdict above, deliberately: the verdict is
+// computed server-side by `PipelineHealthEvaluator`, and a tile that judged this
+// signal here would be a second threshold able to disagree with the panel it
+// links to. The #1031 rule stands — a tile links, it does not measure. Its own
+// fetch, too, so a failing riot-usage call costs the tile and nothing else.
+const { data: riotUsage, pending: riotPending } = useRiotUsage({ window: '24h' })
+const riotErrorRate = computed(() =>
+  riotUsage.value ? formatPercent(riotUsage.value.errorRate, 1) : null,
+)
+// The headroom estimate answers with `sufficientData: false` below 24 h of rollup
+// history — rendered as the sentence it is rather than as a zero.
+const riotHeadroom = computed(() => riotUsage.value?.headroom ?? null)
+
 const showAllProcesses = ref(false)
 const troubledProcesses = computed(() =>
   processes.value.filter(process => process.status !== 'Success'),
@@ -45,13 +71,18 @@ const visibleProcesses = computed(() =>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
+          <LiveRefreshIndicator
+            :last-updated-at="lastUpdatedAt"
+            :paused="livePaused"
+            @toggle="toggleLive"
+          />
           <UButton
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
             :loading="pending"
             aria-label="Refresh"
-            @click="refresh()"
+            @click="refreshNow()"
           />
         </template>
       </UDashboardNavbar>
@@ -130,6 +161,47 @@ const visibleProcesses = computed(() =>
           </UCard>
         </NuxtLink>
       </div>
+
+      <!-- Riot API budget — informational, and labelled as such: it is a link to the
+           Processes page's Riot API tab, not a signal the verdict above weighed. -->
+      <NuxtLink
+        to="/processes?view=riot-api"
+        class="group block rounded-lg mb-8 focus-visible:outline-2 focus-visible:outline-primary"
+      >
+        <UCard class="transition-colors group-hover:bg-elevated/50">
+          <div class="flex items-start gap-3">
+            <UIcon name="i-lucide-gauge" class="mt-0.5 size-5 shrink-0 text-muted" />
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-medium text-highlighted">
+                  Riot API budget
+                  <span class="ml-1 text-xs font-normal text-dimmed">· informational, not part of the verdict</span>
+                </p>
+                <UIcon
+                  name="i-lucide-arrow-up-right"
+                  class="size-4 shrink-0 text-dimmed group-hover:text-muted"
+                />
+              </div>
+              <USkeleton v-if="riotPending && !riotUsage" class="mt-2 h-5 w-64" />
+              <p v-else-if="riotUsage" class="mt-1 text-sm text-muted tabular-nums">
+                {{ riotErrorRate }} error rate over the last 24 h
+                ({{ formatNumber(riotUsage.totalErrors) }} of
+                {{ formatNumber(riotUsage.totalCalls) }} calls)
+                <span v-if="riotHeadroom?.sufficientData && riotHeadroom.spareCallsPerDay !== null">
+                  · {{ formatNumber(Math.round(riotHeadroom.spareCallsPerDay)) }} spare calls/day
+                  against the app limit
+                </span>
+                <span v-else class="text-dimmed italic">
+                  · headroom not measured yet
+                </span>
+              </p>
+              <p v-else class="mt-1 text-sm text-dimmed italic">
+                Riot usage could not be read.
+              </p>
+            </div>
+          </div>
+        </UCard>
+      </NuxtLink>
 
       <!-- Per-process rollup: last run, last success, current failure streak. -->
       <section v-if="data" class="mb-8">

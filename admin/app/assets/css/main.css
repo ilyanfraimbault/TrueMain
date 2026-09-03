@@ -2,23 +2,51 @@
 @import "@nuxt/ui";
 
 /*
- * Dark surface tokens: neutral-900 base with slightly lighter elevated/accented
- * layers and a low-contrast border.
- *
- * These used to be copied from `web/` so the two apps would read as one product.
- * That claim no longer holds: `web/` moved to an `ink` neutral with a four-step
- * opaque elevation ladder (#1060) while the admin is still stock emerald/zinc,
- * and the two have not looked alike for a while (`app.config.ts` says the same,
- * next to the palette itself). Bringing the portal onto the redesigned system
- * was scoped out of the epic (#1059), not forgotten; until then this block
- * stands on its own rather than pretending to mirror something it no longer
- * matches.
+ * ─── Brand palette ────────────────────────────────────────────────────────
+ * Copied from `web/app/assets/css/main.css` — same duplication convention as
+ * the two apps' Data Dragon helpers (decisions index, 2026-08-26): the portal
+ * is a standalone app and does not import `web/`'s assets, so the ramp lives
+ * here as its own copy rather than a cross-app dependency. Keep the two in
+ * sync by hand if the brand palette ever changes; see `web/`'s copy for the
+ * full reasoning behind the values.
+ */
+@theme static {
+  --color-rosegold-50: #fdf4f2;
+  --color-rosegold-100: #fbe7e2;
+  --color-rosegold-200: #f6cfc7;
+  --color-rosegold-300: #eeaea3;
+  --color-rosegold-400: #e58f83;
+  --color-rosegold-500: #d9736c;
+  --color-rosegold-600: #c25a58;
+  --color-rosegold-700: #a1454a;
+  --color-rosegold-800: #853c41;
+  --color-rosegold-900: #6f353b;
+  --color-rosegold-950: #3c191d;
+
+  --color-ink-50: #f7f7f8;
+  --color-ink-100: #eeeef0;
+  --color-ink-200: #d9d9dd;
+  --color-ink-300: #b7b7be;
+  --color-ink-400: #8b8b95;
+  --color-ink-500: #6a6a74;
+  --color-ink-600: #4e4e57;
+  --color-ink-700: #3a3a42;
+  --color-ink-800: #26262c;
+  --color-ink-900: #17171b;
+  --color-ink-950: #0b0b0d;
+}
+
+/*
+ * Dark surface tokens, on the same four-step opaque elevation ladder `web/`
+ * uses (#1060): page / recessed / raised / interactive, plus a low-contrast
+ * border. Unlike `web/`, the portal keeps a light/dark toggle (`UserMenu.vue`),
+ * so these stay scoped to `.dark` rather than promoted to `:root`.
  */
 .dark {
-  --ui-bg: var(--ui-color-neutral-900);
-  --ui-bg-muted: var(--ui-color-neutral-800);
-  --ui-bg-elevated: var(--ui-color-neutral-800);
-  --ui-bg-accented: var(--ui-color-neutral-700);
+  --ui-bg: var(--ui-color-neutral-950);
+  --ui-bg-muted: #131317;
+  --ui-bg-elevated: #1b1b20;
+  --ui-bg-accented: #24242a;
   --ui-border: var(--ui-color-neutral-800);
 }
 

@@ -35,6 +35,19 @@ namespace Data.CompiledModels
                 sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
             id.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var canonicalKey = runtimeEntityType.AddProperty(
+                "CanonicalKey",
+                typeof(string),
+                propertyInfo: typeof(ChampionDimStarterItems).GetProperty("CanonicalKey", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionDimStarterItems).GetField("<CanonicalKey>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAddOrUpdate,
+                beforeSaveBehavior: PropertySaveBehavior.Ignore,
+                afterSaveBehavior: PropertySaveBehavior.Ignore,
+                maxLength: 64);
+            canonicalKey.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            canonicalKey.AddAnnotation("Relational:ComputedColumnSql", "champion_dim_starter_items_canonical_key(\"StarterItems\")");
+            canonicalKey.AddAnnotation("Relational:IsStored", true);
+
             var starterItems = runtimeEntityType.AddProperty(
                 "StarterItems",
                 typeof(List<int>),
@@ -44,20 +57,12 @@ namespace Data.CompiledModels
             starterItems.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             starterItems.AddAnnotation("Relational:ColumnType", "jsonb");
 
-            var starterItemsKey = runtimeEntityType.AddProperty(
-                "StarterItemsKey",
-                typeof(string),
-                propertyInfo: typeof(ChampionDimStarterItems).GetProperty("StarterItemsKey", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ChampionDimStarterItems).GetField("<StarterItemsKey>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                maxLength: 64);
-            starterItemsKey.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-
             var key = runtimeEntityType.AddKey(
                 new[] { id });
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { starterItemsKey },
+                new[] { canonicalKey },
                 unique: true);
 
             return runtimeEntityType;

@@ -132,7 +132,7 @@ Last verified against `develop` on 2026-09-02.
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
 - No pick+ban "presence" figure, despite it being standard elsewhere — #920
-- Dimension rows must be stored in a canonical order, not the order Riot reported them — #911
+- A dimension's identity is enforced by the schema (canonical UNIQUE index, CHECK, generated key), not repaired afterwards (2026-09-03) — #1418, #911
 - Rank snapshots are capped at one row per account per UTC day (DB-level unique index) — #907
 - `(GameName, TagLine, PlatformId)` on `riot_accounts` is a plain, NON-unique index. PUUID is the only real identity — #901, #902
 - PUUID indexing is intentional — do not propose dropping it or migrating to `RiotAccountId`-only — #123, #124
@@ -224,7 +224,7 @@ Last verified against `develop` on 2026-09-02.
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
 - A health panel may not pass what it did not measure — #924
-- A detector shares the repair's definition of the bug it audits — #924, #911
+- A detector shares the constraint's definition of the bug it audits — #924, #911, #1418
 - Detector thresholds are configuration, not constants
 - A health panel answers before it reports — #992
 - The health cockpit (`/health`, #1031) holds no depth of its own — every tile is a link, and the verdict is judged server-side
@@ -232,7 +232,11 @@ Last verified against `develop` on 2026-09-02.
 - A chart's mark is chosen by what the series measures: flows are bars, stocks are lines (2026-08-25) — #924
 - Slots 4-6 of the chart palette are a measured downgrade, spent on one chart — #1403, #1404
 - Admin bar charts go through a wrapper, because vue-chrts' bar tooltip is broken three times (2026-08-25, extended 2026-09-03) — #1218, #1404
-- The portal's charts are on the public site's design system, while its chrome is not (2026-09-03) — #1404, #1059
+- The portal's charts are on the public site's design system, while its chrome is not — reversed 6 days later, see next line (2026-09-03) — #1404, #1059
+- The portal's chrome moves onto rosegold/ink too, reversing the #1059 scoping (2026-09-03) — #1409
+- The portal navigates by question, not by table: four sidebar groups, one Accounts hub, Riot API as a Processes tab (2026-09-03) — #1410, #1416
+- A panel answers in one line; the explanation lives behind an info control (2026-09-03) — #1414, #1416
+- Logs opens on Warning and above (an explicit `?level=` still wins), and pages are reachable by name through a ⌘K palette rather than a longer sidebar (2026-09-03) — #1415, #1416
 - The admin portal has one status vocabulary and one duration ladder (2026-08-28) — #924, #1024
 - The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28) — #1249
 

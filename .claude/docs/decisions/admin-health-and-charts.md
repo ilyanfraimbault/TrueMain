@@ -7,14 +7,17 @@ Part of the [decision log](../decisions.md). Format: **Decision** — why — `s
   unchecked platform must not let a card claim to be clean) but stays below red (it must not hide a real
   failure either). Headlines are worded from the verdict, not from the count, so a card can never read
   "everything completed" while its colour says "not measured". The mirror-image rule matters just as much: a
-  signal that is *deliberately* unavailable — a starter basket's canonical order (patch-dependent prices), a
+  signal that is *deliberately* unavailable — a starter basket's stored order (it carries no identity: Postgres
+  generates the key), a
   trend with no previous window, a patch too new or too old to compare — is shown as a row but **does not
   vote**, because a card pinned to unknown for ever teaches the operator to ignore its colour.
 
-- **A detector shares the repair's definition of the bug it audits** (#924). The canonical-key SQL lives once,
-  in `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, and is read by both the ingestor's
-  `RunePageDeduplicationProcess` and the admin duplicate detector. Two copies would eventually disagree, and a
-  detector that groups differently from the repair reports a clean bill of health for a live bug (#911).
+- **A detector shares the constraint's definition of the bug it audits** (#924, #1418). The canonical-key SQL
+  lives once, in `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, and the schema's UNIQUE indexes and
+  CHECKs are built from the same expressions the duplicate detector groups on. It was originally shared with a
+  repair process, on the same reasoning: two copies eventually disagree, and a detector that groups differently
+  from the thing it audits reports a clean bill of health for a live bug (#911). Now that the duplicates are
+  unreachable, the card is a regression alarm — a non-zero count means a constraint went missing.
 
 - **Detector thresholds are configuration, not constants** (`DataQualityDetectors:*`). The honest line differs
   between preprod and production, and an operator silencing a crying-wolf card must not need a redeploy. A
@@ -166,6 +169,12 @@ of #1059, and the two are separable precisely because a chart is nothing but col
 button is not. The neutral stays zinc rather than the site's `ink`: guides have to sit on the surfaces the
 portal actually has.
 
+> ⚠️ **The "chrome does not" half was reversed six days later, by #1409** — the operator wanted the portal on
+> the brand after all. `app.config.ts` and `main.css` now carry `rosegold`/`ink`, the same foundations `web/`
+> uses. The chart palette's own reasoning above is unaffected: `CHART_GUIDE_COLOR`/`CHART_AXIS_TEXT_COLOR`
+> stay their own zinc literals rather than switching to `ink`, chosen for chart-guide contrast rather than
+> surface material — see `chart-palette.ts`.
+
 The categorical triad was replaced, not recoloured, and the replacement is measurably safer. As OKLab ΔE ×100
 under Machado severity-1.0 simulation (protanopia / deuteranopia / tritanopia):
 
@@ -189,9 +198,9 @@ Six presentation rules were coded twice or more across the portal, and two had a
 readings that contradicted each other. The failure mode is always the same, so the rule is now that
 `shared/utils/` — or `app/utils/` for the client-only ones — owns each of these outright.
 
-**A run status is `info` while it is running, never the emerald `primary`.** `/processes` painted from its
-own private table and `/health` from `pipeline-health.ts`, so the same in-flight run was emerald on one page
-and blue on the other. `info` wins: emerald is this portal's "this succeeded" colour, and a run still going
+**A run status is `info` while it is running, never `primary`.** `/processes` painted from its
+own private table and `/health` from `pipeline-health.ts`, so the same in-flight run was `primary` on one page
+and blue on the other. `info` wins: `primary` is this portal's "this succeeded" colour, and a run still going
 has not succeeded yet. Colour *and* icon now live together in `PROCESS_STATUS_META`, the way
 `DETECTOR_STATUS_META` already did — and the chain view's `notRun` is an adapter onto the cockpit's
 `Missing`, because "there is no run to report" is one claim, not two.
@@ -201,6 +210,25 @@ while `formatGapMagnitude` had a private ladder that reached days, so a three-da
 `/processes` and `3d` on `/health` — two pages that link to each other. There is now a single
 `formatElapsed(ms)` carrying the days tier, which `formatGapMagnitude` delegates to, keeping only the two
 things genuinely local to a gap: its "not measurable" wording and its minutes-to-ms conversion.
+
+## The portal's chrome moves onto rosegold/ink too, reversing the #1059 scoping (2026-09-03)
+
+The charts crossed over in #1404; the chrome — `app.config.ts`'s `primary`/`neutral`, the `.dark` surface
+tokens in `main.css` — stayed stock emerald/zinc, on the grounds (#1059) that the portal is an internal tool
+and a chrome restyle was separable from the charts one. The operator reversed that call: the portal should
+read as the same brand as the public site, not only chart the same way.
+
+`rosegold`/`ink` are copied into `admin/app/assets/css/main.css` under `@theme static` rather than imported
+from `web/` — the two are separate Nuxt apps with no shared build, so a copy is the only option, labelled the
+same way the two apps' Data Dragon helpers are (decisions index, 2026-08-26). The `.dark` surface tokens are
+rebuilt on `web/`'s four-step ladder (`--ui-bg`/`-muted`/`-elevated`/`-accented`, `--ui-border`) but stay
+scoped to `.dark` rather than promoted to `:root`: unlike `web/`, the portal keeps a light/dark toggle
+(`UserMenu.vue`), so a light theme still needs to exist.
+
+The status vocabulary (green/amber/red/unknown pass/warn/fail, `DETECTOR_STATUS_META`/`PROCESS_STATUS_META`)
+is untouched — a passing check stays green regardless of what the brand accent is, per the #924/#1024 rule
+above. `chart-palette.ts` is unaffected: it was already on `rosegold`, and its guide/axis literals stay their
+own values rather than switching to reference the `ink` ramp (see the reversal note above).
 
 It is also renamed. `formatDuration` meant humanised milliseconds in the admin and a `mm:ss` game clock in
 `web/app/utils/relativeTime.ts` — one name, two contracts, one repo. A copy-paste between the two apps
@@ -248,3 +276,67 @@ The same change does **not** fold `web/shared/utils/region.ts` into any of this,
 them. That file maps ten platform ids onto the three public `europe/americas/korea` slugs and mirrors the
 backend `RegionFilterParser` — the *exposed* set, which is wider than and independent of the *tracked* set.
 Treating the two as one list would be the real bug.
+
+## The portal navigates by question, not by table (2026-09-03)
+
+**The sidebar is four labelled groups of eleven entries — Monitor, Data, Accounts, System — and the three
+panels about accounts entering the pipeline are one page with tabs.** The flat list of fifteen made the
+operator choose a page before knowing which one held the answer, and three of those entries (`/candidates`,
+`/accounts`, `/seed`) were the same subject seen from three angles: the funnel's state, one account's trace,
+and the manual intake that feeds both. They are now the *Pipeline* / *Trace* / *Add mains* tabs of `/accounts`,
+deep-linkable via `?view=` exactly as `/logs` already deep-links its Crashes tab.
+
+**`/riot-api` is a tab of `/processes`, not a page.** How the pipeline spends its Riot call budget is a signal
+about those same runs; as a sibling of Health and Processes it read as a fourth thing to check, and it was the
+entry operators opened last. `/health` gains one tile pointing at it — 24 h error rate and app-limit
+headroom — and that tile is **informational only**: it does not vote in the verdict. The #1031 rule stands
+unchanged, that a tile links rather than measures, because a threshold applied in the cockpit could disagree
+with the panel it links to, and the verdict is a server-side domain decision (`PipelineHealthEvaluator`).
+
+Three consequences worth stating. **The seed-request queue is rendered once**: it used to be drawn identically
+at the bottom of Candidates and of Add mains, two independent fetches of the same list that could show
+different pages of it side by side. **The four retired routes are redirect pages, not deletions**, and they
+carry their query along — `/candidates?candidate=<id>` still opens that slide-over, on the tab that now owns
+it. **Each tab is a component with its own fetches, filters and `defineExpose({ refresh, pending })`**, so the
+hub stays a header and a switch rather than a three-thousand-line page, and the one navbar refresh button
+drives whichever tab is open — #1410, #1416, #1031.
+
+## A panel answers in one line; the explanation lives behind an info control (2026-09-03)
+
+**Every admin card carries a title, at most one line under it, and an `i-lucide-info` button holding
+everything longer.** The explanations were not wrong — a candidate level *is* a level and *is* never
+backfilled, the queue latency *is* measured over retained candidates only — but printed on every visit they
+were read before the state. The Candidates throughput card alone opened on four lines of caption and closed
+with five sentences of chart footnotes, so the operator met the caveats before the numbers.
+
+Nothing is deleted, only relocated: one `PanelTitle` component (`admin/app/components/PanelTitle.vue`) renders
+the title, the optional one-line subtitle, and a `UPopover` holding the prose, keyboard-reachable through an
+`About <title>` button. It has two shapes — `title` for a card header, `label` for a section label inside a
+card — so a chart caption and a card header carry the same control instead of inventing one each.
+
+Two rules follow from it. **Numbers first**: where a card opened on a paragraph and ended on the figure, the
+figure moves up and the paragraph moves behind the control. **A verdict is not prose**: the Data Quality
+detector rows and Patch Coverage's `unknownReason` keep their one-sentence answer on the page, because that
+sentence *is* the finding — hiding it would leave a coloured dot with no story (the #992 rule, unchanged).
+
+Card padding is web/'s in the same pass (`header: p-3 sm:px-4 sm:py-3.5`, `body: p-3 sm:p-4`): the portal packs
+far more panels per screen than the public site, and Nuxt UI's stock `p-4 sm:p-6` spent a sixth of every card
+on its own margins — #1414, #1416, #992.
+
+## Logs opens on Warning and above, and pages are reachable by name (2026-09-03)
+
+**The Logs page defaults to Warning and above, not to All levels.** The severity filter is a *minimum*
+threshold server-side, so one value asks for Warning + Error + Critical. Operators open `/logs` to see what
+failed; the old All-levels default made the first screen a wall of `Information` rows they had to filter away
+every single time, which is a default optimised for the rare case. The quiet rows stay one click away: the
+"All levels" option is untouched, an empty result offers a *Show all levels* chip, and an explicit `?level=`
+(including `?level=all`) beats the default so existing deep links keep meaning what they said. Changing the
+level rewrites the query, so the view on screen is always the view a shared link reproduces.
+
+**Jumping to a page is a ⌘K palette, not a longer sidebar.** With 15 destinations across four groups, naming
+the page beats hunting it, and Nuxt UI's `UDashboardSearch` gives that for the price of restating the sidebar's
+groups. The palette carries one thing the sidebar cannot: the destinations that have no route of their own —
+`Logs → Crashes`, the three `/accounts` tabs and `Processes → Riot API` — which is what keeps the #1410
+consolidation from hiding them. Consequence worth stating: a tabbed page reads its tab from `?view=` at setup,
+so each of those pages now *watches* the query — a palette jump from a page to one of its own tabs changes only
+the query, and the component is reused — #1415, #1416.

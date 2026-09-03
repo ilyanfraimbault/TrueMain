@@ -317,10 +317,12 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PrimaryStyleId", "PrimaryKeystoneId", "PrimaryPerk1Id", "PrimaryPerk2Id", "PrimaryPerk3Id", "SecondaryStyleId", "SecondaryPerk1Id", "SecondaryPerk2Id", "StatOffense", "StatFlex", "StatDefense")
-                        .IsUnique();
+                    b.HasIndex("PrimaryKeystoneId");
 
-                    b.ToTable("champion_dim_rune_pages", (string)null);
+                    b.ToTable("champion_dim_rune_pages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_champion_dim_rune_pages_canonical_secondary_perks", "\"SecondaryPerk1Id\" <= \"SecondaryPerk2Id\"");
+                        });
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionDimSkillOrder", b =>
@@ -356,10 +358,10 @@ namespace Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Spell1Id", "Spell2Id")
-                        .IsUnique();
-
-                    b.ToTable("champion_dim_spell_pairs", (string)null);
+                    b.ToTable("champion_dim_spell_pairs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_champion_dim_spell_pairs_canonical_order", "\"Spell1Id\" <= \"Spell2Id\"");
+                        });
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionDimStarterItems", b =>
@@ -368,18 +370,20 @@ namespace Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CanonicalKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasComputedColumnSql("champion_dim_starter_items_canonical_key(\"StarterItems\")", true);
+
                     b.PrimitiveCollection<string>("StarterItems")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.Property<string>("StarterItemsKey")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("StarterItemsKey")
+                    b.HasIndex("CanonicalKey")
                         .IsUnique();
 
                     b.ToTable("champion_dim_starter_items", (string)null);

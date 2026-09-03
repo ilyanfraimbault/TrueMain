@@ -10,8 +10,11 @@
 > `migrationBuilder.Sql`, and the decision to let the aggregate refill from
 > re-ingestion instead is traced in `phase-6-pattern-junction-rfc.md`.
 > **The uniqueness rule changed**: instead of the 13-column unique described here,
-> the live design is a unique over the 11 perk ids plus permutation dedup in
-> `Ingestor/Processes/RunePageDeduplicationProcess.cs`.
+> the live design is a unique index over the page's *canonical* expression — the two
+> secondary perks sorted — plus a CHECK that keeps them stored that way, both added by
+> `Data/Migrations/20260903154909_EnforceChampionDimensionCanonicalIdentity.cs`. The
+> deduplication process this originally shipped with was deleted in #1418, once the
+> schema made the split unreachable.
 > The read models this RFC names (`ChampionRunePageOptionReadModel`,
 > `ChampionAdvancedDetailsReadModel.RunePageOptions`) no longer exist.
 

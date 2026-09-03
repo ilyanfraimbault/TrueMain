@@ -302,11 +302,17 @@ public sealed class ChampionAggregateSeeder
         return row;
     }
 
+    /// <summary>
+    /// Sorts the pair before storing it, the way the ingestor does and the way the
+    /// dimension's CHECK requires (#1418): a loadout is a set, so a test that passes
+    /// (Ignite, Flash) is asking for the same row as one that passes (Flash, Ignite).
+    /// </summary>
     private static ChampionDimSpellPair GetOrAddDimSpellPair(
         DbContext db,
         Dictionary<(int Spell1, int Spell2), ChampionDimSpellPair> cache,
-        (int Spell1, int Spell2) key)
+        (int Spell1, int Spell2) pair)
     {
+        var key = (Spell1: Math.Min(pair.Spell1, pair.Spell2), Spell2: Math.Max(pair.Spell1, pair.Spell2));
         if (cache.TryGetValue(key, out var existing))
         {
             return existing;
@@ -329,11 +335,10 @@ public sealed class ChampionAggregateSeeder
             return existing;
         }
 
-        var row = new ChampionDimStarterItems
-        {
-            StarterItemsKey = starterItemsKey,
-            StarterItems = items.ToList()
-        };
+        // No key to set: Postgres generates it from the basket (#1418). The cache key is
+        // still the caller's, so a seeder that hands out two spellings of one basket now
+        // hits the database's UNIQUE index — which is the point.
+        var row = new ChampionDimStarterItems { StarterItems = items.ToList() };
         db.Set<ChampionDimStarterItems>().Add(row);
         cache[starterItemsKey] = row;
         return row;

@@ -1,42 +1,49 @@
 namespace Data.DataQuality;
 
 /// <summary>
-/// What makes two <c>champion_dim_*</c> rows the same thing, spelled as SQL — the
-/// generalisation of #911.
+/// What makes two <c>champion_dim_*</c> rows the same thing, spelled as SQL — and, since
+/// #1418, spelled <em>once</em>: the schema objects that make a duplicate impossible are
+/// built from these same constants, so the constraint, the repair that no longer exists
+/// and the audit cannot disagree.
 ///
 /// <para>
 /// A dimension row's UNIQUE index is over the columns <em>as stored</em>. That is a
-/// complete guard only when the stored column order is itself the identity. Where a
-/// dimension holds an <b>order-insensitive</b> component, the index cannot see a
-/// permutation: <c>champion_dim_rune_pages</c> kept the two secondary perks in the
-/// player's click order, so one page existed as <c>(8451, 8444)</c> and
-/// <c>(8444, 8451)</c> and its games were split across both rows — 20 370 pairs, 48%
-/// of the dimension, before anyone noticed (#911).
+/// complete guard only when the stored order is itself the identity. Where a dimension
+/// holds an <b>order-insensitive</b> component, the index cannot see a permutation:
+/// <c>champion_dim_rune_pages</c> kept the two secondary perks in the player's click
+/// order, so one page existed as <c>(8451, 8444)</c> and <c>(8444, 8451)</c> and its
+/// games were split across both rows — 20 370 pairs, 48% of the dimension (#911).
+/// <c>champion_dim_starter_items</c> failed the same way one level up: its key was a
+/// string the application built by joining the basket in <em>price</em> order, so a
+/// re-priced starter — or an item whose metadata went missing, which prices it at 0 —
+/// re-keyed a basket it had already stored, and 17 baskets sat split in production.
 /// </para>
 ///
 /// <para>
-/// Both halves of the fix read from here, deliberately: the Ingestor's
-/// <c>RunePageDeduplicationProcess</c> merges rows on the canonical key, and the admin
-/// data-quality detector counts rows that still share one. Two copies of these
-/// expressions would eventually disagree, and a detector that disagrees with the
-/// repair it is auditing reports a clean bill of health for a live bug.
+/// <b>The fix is the schema, not a repair pass.</b> Each audited dimension now carries a
+/// UNIQUE index over its canonical expression, so a permutation is rejected at
+/// <c>INSERT</c>; the two column-order dimensions additionally carry a CHECK, so a writer
+/// that stops normalising fails loudly rather than quietly re-splitting the dimension;
+/// and the starter basket's key is a <b>stored generated column</b>, so no writer
+/// computes it at all. The detector below survives as a regression alarm — it should read
+/// zero for ever, and a non-zero means someone removed a constraint.
 /// </para>
 ///
 /// <para>
-/// <b>Deliberately not audited:</b> <c>champion_dim_builds</c> and
-/// <c>champion_dim_skill_orders</c>. In both, the order <em>is</em> the datum — the
-/// build path and the skill sequence — so two rows holding the same items or skills in
-/// a different order are two different things, and the UNIQUE index over the stored
-/// columns is a complete guard. Adding them here would cost a full scan per page load
-/// for a structurally guaranteed zero. See <see cref="ExemptTables"/>.
+/// <b>Deliberately not constrained beyond their column index:</b>
+/// <c>champion_dim_builds</c> and <c>champion_dim_skill_orders</c>. In both, the order
+/// <em>is</em> the datum — the build path and the levelling sequence — so two rows holding
+/// the same items in a different order are two different things. See
+/// <see cref="ExemptTables"/>.
 /// </para>
 /// </summary>
 public static class ChampionDimensionCanonicalKeys
 {
     /// <summary>
-    /// The canonical-key partition for <c>champion_dim_rune_pages</c>.
+    /// The canonical-key expression list for <c>champion_dim_rune_pages</c>: the UNIQUE
+    /// index is built over exactly this, and the audit groups by exactly this.
     /// <c>LEAST</c>/<c>GREATEST</c> on the secondary pair is what collapses the two
-    /// permutations onto one key without needing the pair sorted on disk yet.
+    /// permutations onto one key whatever order the row is stored in.
     /// </summary>
     public const string RunePageCanonicalKey = """
         "PrimaryStyleId", "PrimaryKeystoneId", "PrimaryPerk1Id",
@@ -48,19 +55,27 @@ public static class ChampionDimensionCanonicalKeys
 
     /// <summary>
     /// A rune page still holding its secondary perks in the player's order. Not a
-    /// duplicate on its own — but the reader's canonical lookup would miss it and mint
-    /// a second row, re-creating the split (#911), so it is the leading indicator.
+    /// duplicate on its own, which is why the UNIQUE index above does not catch it — but
+    /// the reader's canonical lookup would miss it and mint a second row, re-creating the
+    /// split (#911). Hence the CHECK, which makes the state unreachable.
     /// </summary>
     public const string RunePageNonCanonical = """
         "SecondaryPerk1Id" > "SecondaryPerk2Id"
         """;
 
+    /// <summary>The CHECK that keeps a rune page's secondary perks sorted on disk.</summary>
+    public const string RunePageCanonicalCheck = """
+        "SecondaryPerk1Id" <= "SecondaryPerk2Id"
+        """;
+
+    public const string RunePageCanonicalCheckName = "CK_champion_dim_rune_pages_canonical_secondary_perks";
+
+    /// <summary>Name of the UNIQUE index over <see cref="RunePageCanonicalKey"/>.</summary>
+    public const string RunePageCanonicalIndexName = "IX_champion_dim_rune_pages_canonical";
+
     /// <summary>
-    /// The canonical-key partition for <c>champion_dim_spell_pairs</c>. Flash+Ignite and
-    /// Ignite+Flash are one loadout, and the writer already stores the pair sorted
-    /// (<c>SummonerSpellPair.Canonical()</c>) — but nothing in the database enforces
-    /// that, and the two-column UNIQUE index treats the swap as a distinct row. Exactly
-    /// the #911 shape, one dimension over.
+    /// The canonical-key expression list for <c>champion_dim_spell_pairs</c>. Flash+Ignite
+    /// and Ignite+Flash are one loadout: exactly the #911 shape, one dimension over.
     /// </summary>
     public const string SpellPairCanonicalKey = """
         LEAST("Spell1Id", "Spell2Id"), GREATEST("Spell1Id", "Spell2Id")
@@ -71,39 +86,56 @@ public static class ChampionDimensionCanonicalKeys
         "Spell1Id" > "Spell2Id"
         """;
 
-    /// <summary>
-    /// Source of the canonical key for <c>champion_dim_starter_items</c>: the basket as a
-    /// sorted multiset, which is what the row actually identifies. Expressed as a lateral
-    /// rather than a scalar subquery in the <c>GROUP BY</c> so the grouping expression is
-    /// a plain column reference.
-    ///
-    /// <para>
-    /// The UNIQUE index is on <c>StarterItemsKey</c>, a string built by joining the items
-    /// in the analyser's canonical order — <em>most expensive first</em>. That order is
-    /// derived from patch-dependent item prices, so the same basket can key differently
-    /// once Riot re-prices a starter, splitting it into two rows. This is not
-    /// hypothetical: the <c>CanonicalizeStarterItemsKeys</c> migration already merged one
-    /// generation of split rows, and its own comment warns that an item missing from its
-    /// hard-coded price table "will produce a different canonical order than the ingestor
-    /// emits today, leaving fresh dim rows split from legacy ones". Grouping on the sorted
-    /// multiset is price-independent and therefore catches both generations.
-    /// </para>
-    /// </summary>
-    public const string StarterItemsFrom = """
-        champion_dim_starter_items dim
-        CROSS JOIN LATERAL (
-            SELECT array_agg(item ORDER BY item) AS canonical_key
-            FROM jsonb_array_elements_text(dim."StarterItems") AS item
-        ) canonical
+    /// <summary>The CHECK that keeps a spell pair sorted on disk.</summary>
+    public const string SpellPairCanonicalCheck = """
+        "Spell1Id" <= "Spell2Id"
         """;
 
-    /// <summary>The grouping expression produced by <see cref="StarterItemsFrom"/>.</summary>
-    public const string StarterItemsCanonicalKey = "canonical.canonical_key";
+    public const string SpellPairCanonicalCheckName = "CK_champion_dim_spell_pairs_canonical_order";
+
+    /// <summary>Name of the UNIQUE index over <see cref="SpellPairCanonicalKey"/>.</summary>
+    public const string SpellPairCanonicalIndexName = "IX_champion_dim_spell_pairs_canonical";
+
+    /// <summary>
+    /// The function behind <c>champion_dim_starter_items."CanonicalKey"</c>: the basket as
+    /// a sorted multiset, joined — which is what the row actually identifies.
+    ///
+    /// <para>
+    /// It has to be a function rather than an inline expression because a generated column
+    /// may not contain a subquery or an aggregate, and sorting a JSONB array in Postgres 17
+    /// needs both. <c>IMMUTABLE</c> is not a promise made lightly here — the result depends
+    /// on nothing but the argument, which is precisely what the old price-ordered key could
+    /// not claim, and why it drifted.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>coalesce(..., '')</c> is load-bearing: an empty basket aggregates to NULL, and a
+    /// UNIQUE index lets any number of NULLs through, so without it the one row every
+    /// no-starter game points at could silently become many.
+    /// </para>
+    /// </summary>
+    public const string StarterItemsCanonicalKeyFunction = """
+        CREATE OR REPLACE FUNCTION champion_dim_starter_items_canonical_key(items jsonb)
+        RETURNS text
+        LANGUAGE sql
+        IMMUTABLE
+        PARALLEL SAFE
+        STRICT
+        AS $function$
+            SELECT coalesce(string_agg(item, '-' ORDER BY item::int, item), '')
+            FROM jsonb_array_elements_text(items) AS item
+        $function$;
+        """;
+
+    public const string StarterItemsCanonicalKeyFunctionName = "champion_dim_starter_items_canonical_key";
+
+    /// <summary>The generated column's expression, as EF and the migration both spell it.</summary>
+    public const string StarterItemsCanonicalKeySql =
+        """champion_dim_starter_items_canonical_key("StarterItems")""";
 
     /// <summary>
     /// Dimensions whose stored column order <em>is</em> their identity, with the reason.
-    /// Surfaced to the panel so "not audited" reads as a decision rather than an
-    /// oversight.
+    /// Surfaced to the panel so "not audited" reads as a decision rather than an oversight.
     /// </summary>
     public static IReadOnlyList<ChampionDimensionExemption> ExemptTables { get; } =
     [
@@ -118,8 +150,9 @@ public static class ChampionDimensionCanonicalKeys
     ];
 
     /// <summary>
-    /// Every dimension with an order-insensitive component, i.e. every one where a
-    /// permutation can slip past the UNIQUE index.
+    /// Every dimension whose identity needs more than its raw columns. Each one is now
+    /// guarded by a constraint built from the same expression the audit groups on, so
+    /// these counts are a regression alarm rather than a work queue.
     /// </summary>
     public static IReadOnlyList<ChampionDimensionAudit> AuditedTables { get; } =
     [
@@ -128,23 +161,25 @@ public static class ChampionDimensionCanonicalKeys
             "champion_dim_rune_pages",
             RunePageCanonicalKey,
             RunePageNonCanonical,
-            "The two secondary perks are a set, not a sequence (#911)."),
+            "The two secondary perks are a set, not a sequence (#911). A UNIQUE index over "
+            + "the sorted pair and a CHECK on the stored order make both states unreachable."),
         new(
             "champion_dim_spell_pairs",
             "champion_dim_spell_pairs",
             SpellPairCanonicalKey,
             SpellPairNonCanonical,
-            "A summoner-spell pair is a set; the writer sorts it, the schema does not."),
+            "A summoner-spell pair is a set; a UNIQUE index over the sorted pair and a CHECK "
+            + "on the stored order make both states unreachable."),
         new(
             "champion_dim_starter_items",
-            StarterItemsFrom,
-            StarterItemsCanonicalKey,
-            // No non-canonical predicate: the canonical order is price-desc, and prices
-            // are not in the database. Reporting "unchecked" (null) beats reproducing the
-            // migration's hard-coded price table here, which is exactly the thing that
-            // drifts. Set-equal duplicates are still caught, which is the actionable half.
+            "champion_dim_starter_items",
+            """ "CanonicalKey" """,
+            // No non-canonical predicate, and this time because the state cannot exist:
+            // Postgres computes the key from the basket, so no stored order carries
+            // identity and there is nothing for a row to be out of order about.
             NonCanonicalPredicate: null,
-            "A starter basket is a set; its key is ordered by patch-dependent prices.")
+            "A starter basket is a set. Postgres generates its key from the basket itself, "
+            + "so the application can no longer key the same basket two ways (#1418).")
     ];
 }
 
@@ -152,20 +187,17 @@ public static class ChampionDimensionCanonicalKeys
 /// One dimension table the duplicate detector groups over.
 /// </summary>
 /// <param name="TableName">Postgres table name, used as the row label.</param>
-/// <param name="FromSql">
-/// The <c>FROM</c> clause the grouping runs over — the bare table for most dimensions, a
-/// lateral for the one whose key has to be derived from a JSONB array.
-/// </param>
+/// <param name="FromSql">The <c>FROM</c> clause the grouping runs over.</param>
 /// <param name="CanonicalKeyExpression">
-/// The <c>GROUP BY</c> expression list that collapses equivalent rows onto one key.
+/// The <c>GROUP BY</c> expression list that collapses equivalent rows onto one key — the
+/// same expression the table's UNIQUE index is built over.
 /// </param>
 /// <param name="NonCanonicalPredicate">
-/// A predicate matching rows stored outside canonical order — the leading indicator that
-/// duplicates are about to be minted again. <see langword="null"/> when the canonical
-/// order cannot be expressed in SQL, in which case the count is reported as unknown
-/// rather than as zero.
+/// A predicate matching rows stored outside canonical order. <see langword="null"/> where
+/// the notion does not apply because no stored order carries identity, in which case the
+/// count is reported as unknown rather than as zero.
 /// </param>
-/// <param name="Rationale">Why this table needs more than its UNIQUE index.</param>
+/// <param name="Rationale">Why this table needs more than a plain column index.</param>
 public sealed record ChampionDimensionAudit(
     string TableName,
     string FromSql,

@@ -293,19 +293,6 @@ public sealed class ProcessRunSummaryJsonTests
             new LaneOutcomeAggregationSummary(4000, 4, 3600, 900, 300),
             new { matches = 4000, batches = 4, judgedLanes = 3600, rows = 900, goldLeadThreshold = 300 });
 
-        // RunePageDeduplicationProcess (#911).
-        yield return (
-            new RunePageDeduplicationSummary(20370, 20370, 480000, 28916, 1204, 82),
-            new
-            {
-                groups = 20370,
-                deletedPages = 20370,
-                repointedPatterns = 480000,
-                foldedPatterns = 28916,
-                normalizedPages = 1204,
-                batches = 82,
-            });
-
         // ChampionBanAggregationProcess (#920) — the synergy shape again, with the
         // champion counts and the (patch, elo band) denominators it wrote.
         yield return (

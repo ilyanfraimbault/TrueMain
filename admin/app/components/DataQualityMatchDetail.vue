@@ -11,6 +11,7 @@ import type {
   MatchDataQualityDetail,
   MatchTeam,
 } from '~~/shared/types/ops'
+import { POSITION_BY_VALUE } from '~/utils/positions'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
 
 defineProps<{
@@ -196,12 +197,22 @@ function teamPlayersLabel(team: MatchTeam): string {
             class="flex items-center gap-3 px-3 py-2"
             :class="!slot.filled ? 'bg-error/5' : slot.duplicateChampion ? 'bg-warning/5' : ''"
           >
-            <!-- Position label (lane queues) -->
+            <!-- Position label (lane queues): icon when it's a known position,
+                 plain uppercase text (UNKNOWN or a value the icon set has no
+                 entry for) otherwise. -->
             <div
               v-if="detail.hasLanes"
-              class="w-20 shrink-0 text-xs font-medium uppercase"
+              class="w-20 shrink-0 flex items-center gap-1.5 text-xs font-medium uppercase"
               :class="slot.filled ? 'text-muted' : 'text-error'"
             >
+              <NuxtImg
+                v-if="slot.position && POSITION_BY_VALUE.has(slot.position)"
+                :src="POSITION_BY_VALUE.get(slot.position)!.iconUrl"
+                :alt="POSITION_BY_VALUE.get(slot.position)!.label"
+                width="16"
+                height="16"
+                class="size-4 shrink-0"
+              />
               {{ slot.position || 'UNKNOWN' }}
             </div>
 
