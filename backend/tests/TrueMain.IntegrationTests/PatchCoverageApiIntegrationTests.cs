@@ -426,8 +426,7 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
         PowerspikeAggregated = folded,
         SynergyAggregated = folded,
         MatchupLeadAggregated = folded,
-        BansAggregated = folded,
-        LaneOutcomeAggregated = folded
+        BansAggregated = folded
     };
 
     private static MatchParticipant BuildParticipant(string matchId, int participantId) => new()

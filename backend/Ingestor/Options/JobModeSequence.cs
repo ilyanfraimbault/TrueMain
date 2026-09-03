@@ -50,12 +50,10 @@ public static class JobModeSequence
         // filter by rank. Uses prior-cycle snapshots.
         JobMode.EloBracketEnrichmentOnly,
         JobMode.PatternAggregationOnly,
+        // Folds each match into champion_matchup_stats — game counters and the
+        // 15-minute lane verdict in the same pass, so a match's two halves can never
+        // land on two rows (#1445, #919).
         JobMode.MatchupLeadAggregationOnly,
-        // Judges each match's lane outcome from the 15-minute snapshots and folds it
-        // into the lane counters on the same champion_matchup_stats rows (#919).
-        // Immediately after the matchup fold, over the same matches, so the row its
-        // upsert targets already exists and both sides describe one cohort.
-        JobMode.LaneOutcomeAggregationOnly,
         // Same incremental one-fold-per-match shape as the matchup step, over the
         // same participant rows but pairing teammates instead of lane opponents
         // (#922). Independent of it — it has its own pending flag — so the order
@@ -117,7 +115,6 @@ public static class JobModeSequence
         JobMode.EloBracketEnrichmentOnly,
         JobMode.PatternAggregationOnly,
         JobMode.MatchupLeadAggregationOnly,
-        JobMode.LaneOutcomeAggregationOnly,
         JobMode.SynergyAggregationOnly,
         JobMode.BanAggregationOnly,
         JobMode.PowerspikeAggregationOnly,

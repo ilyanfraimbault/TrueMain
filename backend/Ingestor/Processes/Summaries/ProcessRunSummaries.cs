@@ -216,7 +216,7 @@ public sealed record EloBracketEnrichmentSummary(int Stamped, int Deferred, int 
 /// <summary>Team position correction outcome.</summary>
 public sealed record TeamPositionCorrectionSummary(int CorrectedParticipants, int InspectedTeams) : IProcessRunSummary;
 
-/// <summary>Batched match aggregation outcome (matchup/lead and powerspike).</summary>
+/// <summary>Batched match aggregation outcome (powerspike).</summary>
 public sealed record MatchAggregationSummary(int Matches, int Batches) : IProcessRunSummary;
 
 /// <summary>
@@ -279,13 +279,14 @@ public sealed record CandidateStockSnapshotSummary(
 
 
 /// <summary>
-/// Lane-outcome aggregation outcome (#919). <see cref="JudgedLanes"/> is the count of
-/// lanes that could actually be called — both participants had a 15-minute snapshot —
-/// so comparing it with <see cref="Matches"/> shows how much of the pool has no
-/// timeline. <see cref="GoldLeadThreshold"/> is recorded because it defines what the
-/// stored counters mean, and old rows keep the threshold in force when they were folded.
+/// Matchup aggregation outcome — game counters and lane verdicts, one fold since #1445.
+/// <see cref="JudgedLanes"/> is the count of lanes that could actually be called — both
+/// participants had a 15-minute snapshot — so comparing it with <see cref="Matches"/>
+/// shows how much of the pool has no timeline. <see cref="GoldLeadThreshold"/> is
+/// recorded because it defines what the stored counters mean, and old rows keep the
+/// threshold in force when they were folded.
 /// </summary>
-public sealed record LaneOutcomeAggregationSummary(
+public sealed record MatchupAggregationSummary(
     int Matches,
     int Batches,
     int JudgedLanes,

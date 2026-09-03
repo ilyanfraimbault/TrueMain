@@ -105,10 +105,6 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
-        entity.Property(e => e.LaneOutcomeAggregated)
-            .IsRequired()
-            .HasDefaultValue(false);
-
         entity.HasIndex(e => e.PlatformId);
 
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
@@ -163,13 +159,6 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         // tail awaiting its fold.
         entity.HasIndex(e => e.QueueId, "IX_matches_bans_pending")
             .HasFilter("\"BansAggregated\" = false");
-
-        // Same shape for the lane-outcome fold (#919). Ships covering every retained
-        // match — the flag is false everywhere on purpose, so the fold can pick up the
-        // history whose 15-minute snapshots are still present — and shrinks to the
-        // pending tail as that backlog drains.
-        entity.HasIndex(e => e.QueueId, "IX_matches_lane_outcome_pending")
-            .HasFilter("\"LaneOutcomeAggregated\" = false");
 
         // Deliberately Restrict, and the only child of matches that is — match_bans,
         // match_participant_kill_positions, match_participant_timeline_snapshots and

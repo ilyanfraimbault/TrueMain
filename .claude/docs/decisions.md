@@ -76,6 +76,7 @@ Last verified against `develop` on 2026-09-02.
 - Every champion-page fold takes its cohort from one place, and a remake is not a game — #1365, #1087, #922
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
+- A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
 - The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent — #939
 - The recommendation shows no situational-items row — #921, #939

@@ -320,7 +320,6 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'RunePageDeduplication',
   'ChampionPatternAggregation',
   'ChampionMatchupLeadAggregation',
-  'ChampionLaneOutcomeAggregation',
   'ChampionSynergyAggregation',
   'ChampionBanAggregation',
   'ChampionPowerspikeAggregation',
@@ -387,7 +386,6 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'RunePageDeduplication',
       'ChampionPatternAggregation',
       'ChampionMatchupLeadAggregation',
-      'ChampionLaneOutcomeAggregation',
       'ChampionSynergyAggregation',
       'ChampionBanAggregation',
       'ChampionPowerspikeAggregation',
@@ -481,12 +479,15 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
   ChampionMatchupLeadAggregation: {
     label: 'Matchups',
     description:
-      'Folds each match into the champion-versus-champion matchup stats, counting only games where the champion side is one of its mains.',
+      'Folds each match into the champion-versus-champion matchup stats — who won the game, and who won lane at 15 minutes — counting only games where the champion side is one of its mains.',
   },
+  // Retired in #1445: its fold moved into ChampionMatchupLeadAggregation. Kept out of
+  // the chain above so it is not drawn as a step that never runs, and kept here so the
+  // runs it left behind still render under a name a reader recognises.
   ChampionLaneOutcomeAggregation: {
     label: 'Lane Outcomes',
     description:
-      'Judges who won lane from the 15-minute gold and XP gaps, and folds that onto the matchup rows.',
+      'Judged who won lane from the 15-minute gold and XP gaps. Merged into Matchups, which now folds both in one pass.',
   },
   ChampionSynergyAggregation: {
     label: 'Synergies',

@@ -252,8 +252,6 @@ public static class OptionsConfigurationExtensions
         services.AddOptions<LaneOutcomeAggregationOptions>()
             .Bind(configuration.GetSection(LaneOutcomeAggregationOptions.SectionName))
             .Validate(options => options.GoldLeadThreshold >= 0, "LaneOutcomeAggregation:GoldLeadThreshold must be >= 0.")
-            .Validate(options => options.MatchBatchSize > 0, "LaneOutcomeAggregation:MatchBatchSize must be greater than 0.")
-            .Validate(options => options.MaxMatchesPerRun >= 0, "LaneOutcomeAggregation:MaxMatchesPerRun must be >= 0.")
             .ValidateOnStart();
 
         services.AddOptions<BanAggregationOptions>()
