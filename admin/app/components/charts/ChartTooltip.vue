@@ -3,14 +3,23 @@ import { Orientation } from '@unovis/ts'
 import { computed } from 'vue'
 import type { BulletLegendItemInterface } from 'vue-chrts/types'
 
-// The tooltip body for <ChartsBarChart>. Split out of the wrapper so the hovered
-// row and its series are resolved ONCE per render as computeds, rather than
-// recomputed by every expression that needs them in the template.
+// The tooltip body for every chart in the portal — <ChartsAreaChart> renders it
+// when the call site gives no `#tooltip` slot of its own, <ChartsBarChart>
+// always does (see that wrapper for why it cannot use upstream's).
 //
-// It renders into a hidden <div> whose `innerHTML` @unovis/ts copies into its
-// own tooltip container, so the styling below is deliberately inline and keyed
-// on upstream's CSS variables: this markup has to be indistinguishable from the
-// tooltip an area chart draws. See the wrapper for why it exists at all.
+// It replaces vue-chrts' built-in `Tooltip.vue`, and matches it where the
+// semantics matter — the title falls back to the hovered row's first property,
+// the rows are the categories the datum carries a value for — while dropping
+// the part that did not survive contact with a dark surface: the inline
+// `--vis-tooltip-*` fallbacks that painted a light card. The container those
+// variables style is neutralised in `main.css`, so the card is drawn here, with
+// the app's own tokens, and looks like every other elevated surface in the
+// portal (#1404).
+//
+// The markup is rendered into a hidden <div> whose `innerHTML` @unovis/ts
+// copies into its own tooltip container. Utility classes survive that copy —
+// the stylesheet is global — but scoped styles and Vue event listeners would
+// not, so this component stays presentational.
 
 const props = defineProps<{
   /** The hovered datum, exactly as vue-chrts hands it to the `#tooltip` slot. */
@@ -31,9 +40,10 @@ const props = defineProps<{
 
 /**
  * The hovered row. Stacked bars arrive wrapped by @unovis/ts as
- * `{ datum, index, stacked, stackIndex, isEnding }`; grouped and horizontal bars
- * arrive as the row itself. Keyed on the presence of `datum` rather than on the
- * chart's `stacked` prop, so it keeps working if upstream ever normalises the two.
+ * `{ datum, index, stacked, stackIndex, isEnding }`; grouped bars, horizontal
+ * bars and area series arrive as the row itself. Keyed on the presence of
+ * `datum` rather than on the chart's `stacked` prop, so it keeps working if
+ * upstream ever normalises the two.
  */
 const row = computed<Record<string, unknown> | null>(() => {
   const values = props.values
@@ -50,7 +60,7 @@ const row = computed<Record<string, unknown> | null>(() => {
  * when they run vertically, so the two orientations format a value with opposite
  * props — a horizontal chart's `yFormatter` is its index -> label lookup, not its
  * value formatter. Upstream makes the same swap; getting it wrong here prints a
- * bucket label where a count belongs.
+ * bucket label where a count belongs. Area charts are always vertical.
  */
 const valueFormatter = computed(() =>
   props.orientation === Orientation.Horizontal ? props.xFormatter : props.yFormatter,
@@ -89,52 +99,24 @@ const series = computed(() => {
 </script>
 
 <template>
-  <div v-if="row" style="display: flex; flex-direction: column;">
-    <div
-      :style="{
-        color: 'var(--vis-tooltip-title-color, #000)',
-        borderBottom: series.length
-          ? 'var(--vis-tooltip-title-border-bottom, 1px solid #e5e7eb)'
-          : 'none',
-        padding: 'var(--vis-tooltip-title-padding, 0.75rem 0.75rem 0.5rem 0.75rem)',
-        margin: series.length ? 'var(--vis-tooltip-title-margin, 0 0 0.25rem 0)' : '0',
-        fontSize: 'var(--vis-tooltip-title-font-size, 0.875rem)',
-        lineHeight: 'var(--vis-tooltip-title-line-height, 100%)',
-        fontWeight: 'var(--vis-tooltip-title-font-weight, 600)',
-      }"
-    >
+  <div
+    v-if="row"
+    class="rounded-md border border-default bg-elevated px-2.5 py-2 text-xs shadow-md"
+  >
+    <p class="font-semibold text-default">
       {{ title }}
-    </div>
+    </p>
     <div
       v-if="series.length"
-      style="display: grid; grid-template-columns: auto 1fr auto; align-items: center;
-             gap: var(--vis-tooltip-content-gap, 0.25rem 0.5rem);
-             padding: var(--vis-tooltip-content-padding, 0 0.75rem 0.5rem 0.75rem);"
+      class="mt-1.5 grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1"
     >
       <template v-for="entry in series" :key="entry.key">
         <span
-          :style="{
-            width: '8px',
-            height: '8px',
-            aspectRatio: '1',
-            borderRadius: 'var(--vis-tooltip-dot-border-radius, 4px)',
-            flexShrink: '0',
-            backgroundColor: entry.color,
-          }"
+          class="size-2 shrink-0 rounded-full"
+          :style="{ backgroundColor: entry.color }"
         />
-        <span
-          style="font-weight: var(--vis-tooltip-label-font-weight, 400);
-                 font-size: var(--vis-tooltip-label-font-size, 0.875rem);
-                 color: var(--vis-tooltip-label-color, inherit);
-                 margin: var(--vis-tooltip-label-margin, 0 1rem 0 0);
-                 white-space: nowrap;"
-        >{{ entry.name }}</span>
-        <span
-          style="font-size: var(--vis-tooltip-value-font-size, 0.875rem);
-                 font-weight: var(--vis-tooltip-value-font-weight, 600);
-                 color: var(--vis-tooltip-value-color, inherit);
-                 text-align: right; font-variant-numeric: tabular-nums;"
-        >{{ entry.text }}</span>
+        <span class="whitespace-nowrap text-muted">{{ entry.name }}</span>
+        <span class="text-right font-semibold tabular-nums text-default">{{ entry.text }}</span>
       </template>
     </div>
   </div>

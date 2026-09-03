@@ -9,6 +9,7 @@ import type {
   CandidateQueueLatency,
   CandidatesFilters,
   CandidatesResponse,
+  CandidateStock,
   ChampionStatsFilters,
   ChampionStatsRow,
   CrashesFilters,
@@ -362,6 +363,22 @@ export function useCandidateFunnel(
 ) {
   return useOps<CandidateFunnel>(
     '/candidates/funnel',
+    () => ({ granularity: toValue(granularity), windowDays: toValue(windowDays) }),
+  )
+}
+
+/**
+ * Candidate stock (#1403) — the funnel's level per period, from the hourly snapshots.
+ * The companion of `useCandidateFunnel`: that one says how much moved, this one says
+ * how much is waiting. Both are needed, because a period that promotes everything it
+ * scores leaves the level flat, and so does a pipeline that has stopped.
+ */
+export function useCandidateStock(
+  granularity: MaybeRefOrGetter<IngestionTimeGranularity>,
+  windowDays: MaybeRefOrGetter<number>,
+) {
+  return useOps<CandidateStock>(
+    '/candidates/stock',
     () => ({ granularity: toValue(granularity), windowDays: toValue(windowDays) }),
   )
 }

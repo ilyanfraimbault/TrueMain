@@ -3,7 +3,7 @@ import { Orientation } from '@unovis/ts'
 import { describe, expect, it } from 'vitest'
 import { h } from 'vue'
 import BarChart from '~/components/charts/BarChart.vue'
-import BarChartTooltip from '~/components/charts/BarChartTooltip.vue'
+import ChartTooltip from '~/components/charts/ChartTooltip.vue'
 
 // <ChartsBarChart> exists to repair two vue-chrts tooltip defects, both of which
 // typecheck, render, and are silently empty or silently WRONG in a browser. They
@@ -16,12 +16,12 @@ const CATEGORIES = {
 }
 
 function mountTooltip(values: unknown, props: Record<string, unknown> = {}) {
-  return mount(BarChartTooltip, {
+  return mount(ChartTooltip, {
     props: { values, categories: CATEGORIES, ...props },
   })
 }
 
-describe('ChartsBarChartTooltip', () => {
+describe('ChartsChartTooltip', () => {
   it('unwraps the datum @unovis/ts binds to a STACKED bar', () => {
     // The shape upstream's own tooltip fails on: the row is nested under
     // `datum`, so looking category keys up at the root finds nothing at all.
@@ -83,6 +83,72 @@ describe('ChartsBarChartTooltip', () => {
 
   it('renders nothing before the first hover, when no datum exists yet', () => {
     expect(mountTooltip(undefined).text()).toBe('')
+  })
+})
+
+describe('ChartsBarChart stacked tooltip copy', () => {
+  // Defect (3): on a STACKED bar chart upstream never copies the slot wrapper's
+  // markup into the tooltip container, so the box opens empty however many times
+  // the pointer moves — the wrapper holds the right markup the whole time. The
+  // component copies it across itself, one tick after the replay.
+  function mountChart(slotHtml: string, tooltipHtml: string) {
+    return mount(BarChart, {
+      props: { data: [{ ladder: 1 }], height: 100, yAxis: ['ladder'], categories: CATEGORIES },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          // Mirrors upstream's shape: the tooltip container Emotion suffixes with
+          // "-tooltip", and the inline-hidden slot wrapper it copies from.
+          NcBarChart: {
+            setup: () => () => h('div', [
+              h('span', { class: 'bar' }),
+              h('div', { class: 'css-abc123-tooltip', innerHTML: tooltipHtml }),
+              h('div', { style: 'display: none', innerHTML: slotHtml }),
+            ]),
+          },
+        },
+      },
+    })
+  }
+  const settle = () => new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)))
+
+  it('copies the rendered tooltip markup into the container upstream left empty', async () => {
+    const wrapper = mountChart('<p>Ladder 254</p>', '')
+    wrapper.get('.bar').element.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+    await settle()
+
+    expect(wrapper.get('.css-abc123-tooltip').element.innerHTML).toBe('<p>Ladder 254</p>')
+    wrapper.unmount()
+  })
+
+  it('leaves the container alone when no bar is hovered', async () => {
+    // An empty wrapper is "nothing hovered", not "content to copy": blanking the
+    // container from under upstream would fight its own hide.
+    const wrapper = mountChart('', '<p>stale</p>')
+    wrapper.get('.bar').element.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+    await settle()
+
+    expect(wrapper.get('.css-abc123-tooltip').element.innerHTML).toBe('<p>stale</p>')
+    wrapper.unmount()
+  })
+
+  it('does nothing when upstream renames the elements it reads', async () => {
+    // The two queries are coupled to upstream's class and inline style. If an
+    // upgrade moves either, the repair must no-op rather than throw.
+    const wrapper = mount(BarChart, {
+      props: { data: [{ ladder: 1 }], height: 100, yAxis: ['ladder'], categories: CATEGORIES },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          NcBarChart: {
+            setup: () => () => h('div', [h('span', { class: 'bar' })]),
+          },
+        },
+      },
+    })
+    wrapper.get('.bar').element.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+    await expect(settle()).resolves.toBeUndefined()
+    wrapper.unmount()
   })
 })
 

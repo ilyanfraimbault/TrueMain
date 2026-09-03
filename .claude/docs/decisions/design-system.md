@@ -107,3 +107,17 @@ and `tabular-nums` still aligns the columns. Geist Mono stays loaded for the few
 rather than a flourish: tier letters, the empty-slot glyph, hex codes on `/dev/design-system`. One edit in
 `main.css` reaches every stat on the site, which is why the family lives in the utility and not at the call
 sites — #1111.
+
+## A failed icon is hollow; a loading one is solid and moving (2026-09-02)
+
+**`SkeletonImage` backs every icon on the site, and its two placeholder states used to differ only by
+`animate-pulse`** — same `bg-ink-700` fill, one animated.
+That is not enough of a difference to read: when the `/_ipx` route broke in 1.20.0 and *every* icon on the
+site failed, the pages did not look broken, they looked slow. Failed now renders `bg-ink-800` inside an inset
+`ring-ink-700`, so a dead icon reads as an empty slot rather than as a slot still filling.
+Two constraints shaped the fix. The loading fill must stay whatever `ui.skeleton.base` is set to in
+`app.config.ts` (`bg-ink-700`), because this is the most numerous skeleton on the site and a drift there is
+what "loading" looks like everywhere. And the distinction has to be pure CSS on the element that already
+exists — a champion page carries ~470 of these, so a broken-image glyph or an extra element each is precisely
+the cost `SkeletonImage` exists to avoid. The rule lives in `app/utils/icon-placeholder.ts` so it is pinned by
+a test rather than by reading a template.

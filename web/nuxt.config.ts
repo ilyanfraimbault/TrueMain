@@ -1,7 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { fileURLToPath } from 'node:url'
 import { addServerHandler, defineNuxtModule } from '@nuxt/kit'
-import { IPX_CACHE_SECONDS } from './shared/utils/ipx'
+import { IPX_CACHE_SECONDS, IPX_ROUTE_BASE } from './shared/utils/ipx'
 
 // Claims `/_ipx/**` before @nuxt/image sets up its own handler. The module
 // checks `nuxt.options.serverHandlers` for the route and steps aside when it
@@ -14,7 +14,7 @@ const cachedIpxHandler = defineNuxtModule({
   meta: { name: 'truemain-cached-ipx' },
   setup() {
     addServerHandler({
-      route: '/_ipx/**',
+      route: `${IPX_ROUTE_BASE}/**`,
       handler: fileURLToPath(new URL('./server/handlers/ipx-cached.ts', import.meta.url)),
     })
   },
@@ -179,7 +179,7 @@ export default defineNuxtConfig({
     // IPX responses are deterministic per (source URL, modifiers) — safe to
     // mark immutable and cache for a week in shared/private caches. Note this
     // is the *browser* cache; the server-side one is in the handler.
-    '/_ipx/**': {
+    [`${IPX_ROUTE_BASE}/**`]: {
       headers: {
         'cache-control': `public, max-age=${IPX_CACHE_SECONDS}, immutable`,
       },

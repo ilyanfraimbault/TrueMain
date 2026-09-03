@@ -83,13 +83,33 @@ The split doubles as palette hygiene. `CHART_SERIES` holds three colours in a fi
 colourblind separation, and the file already said a fourth series "gets its own chart" — Progression was at
 three and the outcome series had nowhere to go.
 
+**#1403 raised the palette to six, and it is a downgrade paid for on purpose.** Asked for the candidate levels
+on the curve that was already there rather than in cards of their own, the outcome chart now draws five
+statuses plus the cumulative demotion. The three added hues were chosen by search over the same OKLab ΔE model
+#1404 used, and the number that matters is the one that got worse: the six-colour set holds at **8.2 adjacent /
+5.0 overall** (rosegold↔orange), against the triad's 17.0 / 9.4.
+
+That is not a smaller margin of the same guarantee, it is a different guarantee. #1404 replaced the old triad
+precisely to stop order from being load-bearing — "a chart that skips a slot or reorders is still legible" —
+and past slot three that property is gone: adjacency matters again, and 5.0 is below what colour alone
+separates in a six-entry legend. So the rule stands as #1404 wrote it — a fourth series folds into an "other"
+bucket or gets its own chart — and slots 4-6 exist for the case where a single axis is genuinely the
+requirement, with two obligations attached: series take the palette in declaration order (the area-chart
+wrapper assigns it by index, so call sites should pass no colour at all and let it), and every series' current
+value ships as visible text under the chart. Past three series that text is the identity mechanism, not a
+courtesy.
+
+The cumulative `validated` curve was dropped in the same move: the Validated *level* answers "how big is the
+roster" with the real figure instead of a running total that restarts at the window's left edge — 64,643
+against 17,506 for 30 days, measured on preprod.
+
 Grouped, not stacked, is a recurring call and it turns on nesting: stack only when the series sum to a real
 whole. The funnel's three intake sources do (they add up to "candidates that entered"). `promoted ⊂ scored` and
 `retries ⊂ calls` do not, so `/riot-api`'s call-volume chart is grouped bars — that one was safe to convert
 because its window fixes the bucket size server-side to land 12–28 buckets, wide enough to read as bars at
 every window.
 
-## Admin bar charts go through a wrapper, because vue-chrts' bar tooltip is broken twice (2026-08-25)
+## Admin bar charts go through a wrapper, because vue-chrts' bar tooltip is broken three times (2026-08-25, extended 2026-09-03)
 
 Hovering a bar on `/candidates` opened an empty white box. Reproduced in a headless browser against
 `vue-chrts` 2.1.4 — and the same code is still in 2.2.1, so the upgrade was checked and is not the fix. Two
@@ -107,18 +127,61 @@ the same bar fixes it, which is what made the bug look intermittent rather than 
 the bar conversion (#1218) — it already affected the horizontal bar charts on `/champions`, `/database`,
 `/riot-api` and `/`.
 
-Both are repaired in `admin/app/components/charts/BarChart.vue` (`<ChartsBarChart>`), which every admin bar
-chart now goes through: it renders the tooltip via the `#tooltip` slot — body in the sibling
-`BarChartTooltip.vue`, so the hovered row and its series resolve once per render as computeds instead of being
-recomputed by every expression that needs them — and replays one mousemove on the next frame. The replay listens in the **capture** phase — the upstream handler calls
-`stopPropagation()` as soon as a trigger matches, so a bubbling listener never runs at all. The markup mirrors
-upstream's own inline styles and CSS variables, because this is a repair and not a restyle: a bar tooltip and
-an area tooltip must stay identical to look at.
+**And the copy into a stacked chart's tooltip never lands** (found 2026-09-03, #1404). Rendering our own
+`#tooltip` slot fixed the *content*; the container stayed empty anyway. Upstream's trigger returns the hidden
+slot wrapper's `innerHTML` for the tooltip to copy, and on a stacked chart that copy does not happen — measured
+live on 2.2.1 with the wrapper holding 916 characters of the hovered bucket's three series and the tooltip
+container holding 0, across three different bars. Grouped and horizontal bars copy correctly, so it is the
+stacked trigger specifically.
+
+All three are repaired in `admin/app/components/charts/BarChart.vue` (`<ChartsBarChart>`), which every admin
+bar chart now goes through: it renders the tooltip via the `#tooltip` slot — body in the sibling
+`ChartTooltip.vue`, so the hovered row and its series resolve once per render as computeds instead of being
+recomputed by every expression that needs them — replays one mousemove on the next frame, and then copies the
+wrapper's markup into the container itself when the two have diverged. The replay listens in the **capture**
+phase — the upstream handler calls `stopPropagation()` as soon as a trigger matches, so a bubbling listener
+never runs at all. The copy is deliberately conservative: an empty wrapper means "nothing hovered" and is left
+alone, and if an upgrade renames the container class or restyles the wrapper, both queries return null and the
+repair no-ops back to upstream's behaviour rather than throwing. All three cases are pinned by tests.
+
+`ChartTooltip.vue` no longer imitates upstream's light card from the inside; since #1404 the Unovis tooltip
+container is neutralised in `main.css` and the card is drawn with the app's own surface tokens.
 
 The trap to remember when touching it: `@unovis/ts` maps the **value** to the bottom axis for horizontal bars,
 so a horizontal chart's `yFormatter` is its index → label lookup, not its value formatter. The wrapper makes
 the same swap upstream does. Get it wrong and the tooltip prints a bucket label where a count belongs — which
 typechecks, renders, and is wrong. That case is pinned by a test.
+
+## The portal's charts are on the public site's design system, while its chrome is not (2026-09-03)
+
+The two apps already shared `nuxt-charts`; what had diverged was the layer above it, and the portal came out
+worse on every axis a chart is judged by. The Unovis tooltip container was never neutralised there, so each
+hover painted the library's light card under our content on a dark surface. There was no area/line wrapper, so
+`/database` and `/candidates` reached for `<NcAreaChart>` directly and had no loading skeleton, no empty state,
+no `ClientOnly` and no XML-escaped tick formatters — the last a live Firefox console error on any label
+carrying `&`, `<` or `>` (#842). And the palette was emerald/amber/sky against the site's rosegold.
+
+Charts move onto the public site's system; the chrome does not. Restyling the portal itself is still scoped out
+of #1059, and the two are separable precisely because a chart is nothing but colour carrying meaning, where a
+button is not. The neutral stays zinc rather than the site's `ink`: guides have to sit on the surfaces the
+portal actually has.
+
+The categorical triad was replaced, not recoloured, and the replacement is measurably safer. As OKLab ΔE ×100
+under Machado severity-1.0 simulation (protanopia / deuteranopia / tritanopia):
+
+| triad | worst adjacent pair | worst pair overall |
+|---|---|---|
+| emerald → amber → sky (old) | 10.6 | **3.0** (emerald↔sky, tritanopia) |
+| rosegold → sky → amber (new) | **17.0** | **9.4** |
+
+The old triad held only on the pairs it placed side by side, which is why it carried a "never cycle or
+reorder" rule to stay safe. The new one holds on every pair, so that rule is no longer load-bearing — a fourth
+series still folds into an "other" bucket or gets its own chart.
+
+`<ChartsAreaChart>` derives "is this multi-series?" from the category count rather than taking a `multi` prop.
+An optional **boolean** prop cannot express "not specified" — Vue casts an absent one to `false` — so a
+fallback behind `??` never runs, and every multi-series chart silently loses its legend. Caught in the browser,
+not by the types.
 
 ## The admin portal has one status vocabulary and one duration ladder (2026-08-28)
 

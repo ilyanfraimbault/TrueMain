@@ -1,3 +1,4 @@
+using Ingestor.Options;
 using AwesomeAssertions;
 using Ingestor.Services;
 
@@ -19,7 +20,7 @@ public sealed class IterationContextTests
         var context = new IterationContext();
 
         Guid scopedId;
-        using (var scope = context.BeginIteration())
+        using (var scope = context.BeginIteration(JobMode.Full))
         {
             scopedId = scope.IterationId;
             scopedId.Should().NotBe(Guid.Empty);
@@ -36,12 +37,12 @@ public sealed class IterationContextTests
         var context = new IterationContext();
 
         Guid first;
-        using (var scope = context.BeginIteration())
+        using (var scope = context.BeginIteration(JobMode.Full))
         {
             first = scope.IterationId;
         }
 
-        using var second = context.BeginIteration();
+        using var second = context.BeginIteration(JobMode.Full);
         second.IterationId.Should().NotBe(first);
     }
 
@@ -50,7 +51,7 @@ public sealed class IterationContextTests
     {
         var context = new IterationContext();
 
-        using var scope = context.BeginIteration();
+        using var scope = context.BeginIteration(JobMode.Full);
 
         // The AsyncLocal value must be observable inside awaited continuations —
         // that is exactly how the recorder reads it from a process's RunCoreAsync.

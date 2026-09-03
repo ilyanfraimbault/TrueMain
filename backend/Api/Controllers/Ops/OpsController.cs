@@ -32,6 +32,7 @@ public sealed class OpsController(
     ISeedRequestQueryService seedRequestQueryService,
     ICandidateQueryService candidateQueryService,
     ICandidateFunnelQueryService candidateFunnelQueryService,
+    ICandidateStockQueryService candidateStockQueryService,
     ICandidateQueueLatencyQueryService candidateQueueLatencyQueryService,
     ICrashesQueryService crashesQueryService,
     IAccountExplorerQueryService accountExplorerQueryService,
@@ -692,6 +693,35 @@ public sealed class OpsController(
         }
 
         var readModel = await candidateFunnelQueryService.GetAsync(parsed, windowDays, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// The candidate funnel's level per period (#1403): how many candidates sat in each
+    /// status at the end of each period, from the hourly snapshots.
+    /// </summary>
+    /// <remarks>
+    /// The companion of <c>candidates/funnel</c>, which measures the same funnel's flow.
+    /// Forward-only and never backfilled: periods before the first snapshot are absent
+    /// from the series, never zero, because the level then was unmeasured rather than
+    /// empty — and unlike a counter, it cannot be reconstructed afterwards
+    /// (<c>main_candidates</c> has no <c>QueuedAtUtc</c>, and pruning deletes rows).
+    /// </remarks>
+    [HttpGet("candidates/stock")]
+    [ProducesResponseType(typeof(CandidateStockReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CandidateStockReadModel>> GetCandidateStockAsync(
+        [FromQuery] string? granularity,
+        [FromQuery] int? windowDays,
+        CancellationToken ct = default)
+    {
+        if (!TryParseGranularity<IngestionTimeGranularity>(granularity, out var parsed, out var problem))
+        {
+            return problem;
+        }
+
+        var readModel = await candidateStockQueryService.GetAsync(parsed, windowDays, ct);
         return Ok(readModel);
     }
 

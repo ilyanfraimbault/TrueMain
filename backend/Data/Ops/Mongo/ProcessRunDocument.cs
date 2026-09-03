@@ -42,6 +42,16 @@ public sealed class ProcessRunDocument
     [BsonElement("processName")]
     public string ProcessName { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The <c>JobMode</c> the pass was running, or null for runs recorded before this
+    /// was captured. Since #1362 a pass covers one lane of the pipeline rather than all
+    /// of it, so without this a reader cannot tell a complete fetch-lane pass from a
+    /// full pass that stopped halfway.
+    /// </summary>
+    [BsonElement("jobMode")]
+    [BsonIgnoreIfNull]
+    public string? JobMode { get; set; }
+
     /// <summary>When the run started. Also the TTL field.</summary>
     [BsonElement("startedAtUtc")]
     public DateTime StartedAtUtc { get; set; }
