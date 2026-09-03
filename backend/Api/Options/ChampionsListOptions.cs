@@ -26,9 +26,7 @@ public sealed class ChampionsListOptions
     /// sample (<c>ChampionResponse.MinSampleMet</c>). Below it the panel still renders
     /// every build it has, flagged low-confidence, and the build summary carries its
     /// caveat (#1123) — high elo brackets routinely sit under this bar, so it guards the
-    /// wording rather than hiding the data. It also gates the reference side of the
-    /// player-vs-mains build divergence: under this many games, "what mains build" is a
-    /// handful of games wearing a percentage sign.
+    /// wording rather than hiding the data.
     ///
     /// <para>
     /// Deliberately higher than <see cref="MinSampleGames"/> and a separate key, not a

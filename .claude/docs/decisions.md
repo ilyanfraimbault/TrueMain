@@ -90,6 +90,8 @@ Last verified against `develop` on 2026-09-02.
 - The player performance panel shows the score and its sample only — no per-component breakdown — #918
 - The rank chart is one area with a tier-gradient line, never one area per tier (2026-08-20)
 - A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
+- The "{player} vs mains" card is gone — one page, one definition of a core build (2026-09-03) — #529
+- An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
 
