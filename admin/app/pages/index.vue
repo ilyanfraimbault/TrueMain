@@ -205,7 +205,7 @@ const cards = computed<StatCard[]>(() => {
 })
 
 // Candidate pipeline buckets as ordered (label, count) pairs. The colors trace
-// the New -> Validated/Rejected flow while staying close to the emerald palette.
+// the New -> Validated/Rejected flow using the semantic status vocabulary.
 const candidateBuckets = computed(() => {
   const c = stats.value?.candidatesByStatus
   if (!c) {
@@ -225,7 +225,7 @@ const candidatesTotal = computed(() =>
   candidateBuckets.value.reduce((sum, b) => sum + (b.count ?? 0), 0),
 )
 
-// Horizontal-bar series for the candidate pipeline. Emerald single series.
+// Horizontal-bar series for the candidate pipeline. Single rosegold series.
 // Rendered horizontally, so the bucket label lives on the LEFT (category) axis:
 // `candidateLabelFormatter` looks the label up by bar index for that y-axis.
 const candidateChartData = computed(() =>

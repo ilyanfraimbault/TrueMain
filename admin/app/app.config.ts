@@ -1,16 +1,20 @@
 export default defineAppConfig({
   ui: {
-    // Emerald on zinc, and **not** what the public site uses any more. This
-    // note used to claim the two apps shared a primary "so they read as one
-    // product"; that stopped being true when `web/` moved to rosegold, and
-    // stopped being true twice over when #1060 rebuilt its whole surface system
-    // on a cool ink ramp. The admin portal is deliberately left behind for now
-    // — it is an internal tool, and restyling it was scoped out of the redesign
-    // epic (#1059) rather than forgotten. Don't "fix" the divergence by nudging
-    // one token; the portal needs the same foundations pass web/ got.
+    // Custom palettes defined in assets/css/main.css @theme (copied from
+    // `web/`, see the note there). `rosegold` is the brand accent, `ink` the
+    // near-neutral surface base — the portal now shares web/'s foundations
+    // (#1409), on top of the charts it already shared (#1404).
     colors: {
-      primary: 'emerald',
-      neutral: 'zinc',
+      primary: 'rosegold',
+      neutral: 'ink',
+    },
+    // Nuxt UI paints a skeleton `bg-elevated`, the same fill most cards in the
+    // portal use — same collision web/ hit, and the same fix: `ink-700` reads
+    // as contrast at the `animate-pulse` half-opacity a skeleton actually sits
+    // at, where the next ladder step (`bg-accented`) blends back to invisible.
+    // See web/app/app.config.ts for the full reasoning.
+    skeleton: {
+      base: 'bg-ink-700',
     },
     fonts: false,
   },

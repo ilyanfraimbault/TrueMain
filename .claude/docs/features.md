@@ -116,10 +116,10 @@ Separate app with its own deployment and domain — **not** a `/admin` route of 
 mark lives in `app/utils/charts.ts`: a **flow** counted per period gets vertical bars, a **stock** (a level at
 an instant, or a running total) gets a line/area, a categorical top-N gets horizontal bars (#1218). Since #1404
 the charts are on **the public site's chart design system** — rosegold accent, neutral guide, quiet axes, and
-tooltips drawn as real elevated cards — while the portal's chrome stays emerald on zinc (restyling it is still
-scoped out of #1059). The palette lives in `app/utils/chart-palette.ts`; its categorical triad is
-rosegold → sky → amber, which separates on **every** pair under colourblind simulation, not only on adjacent
-ones as the previous emerald → amber → sky did.
+tooltips drawn as real elevated cards. Since #1409 the portal's chrome (`app.config.ts`, `main.css`) shares
+the same `rosegold`/`ink` foundations as `web/`, so the whole app now reads as one product. The palette lives
+in `app/utils/chart-palette.ts`; its categorical triad is rosegold → sky → amber, which separates on **every**
+pair under colourblind simulation, not only on adjacent ones as the previous green → amber → sky did.
 
 Every chart goes through a wrapper, never `<Nc*Chart>` directly. `components/charts/BarChart.vue`
 (`<ChartsBarChart>`) repairs **three** upstream tooltip defects that otherwise render an empty box — a stacked
