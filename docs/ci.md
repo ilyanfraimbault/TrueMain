@@ -37,7 +37,7 @@ which downstream jobs are worth a runner:
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` / `admin` | `web/**` / `admin/**` | the frontend job for that app, its image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
-| `scripts` | `.github/scripts/**` | deploy-script tests, file sizes |
+| `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt` | deploy-script tests, file sizes |
 | `ci` | `ci.yml`, `.github/actions/**` | everything |
 
 Pushes to `develop`/`master` and manual runs are always exhaustive: the push to
@@ -90,6 +90,10 @@ A plain threshold was not an option: 41 files were already over it when the
 guardrail landed, so the check would have been red from the first run and
 switched off. The baseline makes the existing debt explicit and lets it only
 shrink, which is also how the epic that splits those files measures progress.
+
+The baseline is in the `scripts` path filter alongside the scripts themselves, so a PR that touches nothing but
+the baseline still runs the check — otherwise loosening an entry would be the one edit the guardrail never sees.
+It also runs `deploy-scripts` for eight seconds, which is cheaper than a second filter output.
 
 Generated code (migrations, the compiled model, build output), every test tree
 and `web/server/utils/dev-api-mock.ts` are excluded — a long test file costs far

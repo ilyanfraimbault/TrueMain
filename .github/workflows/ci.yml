@@ -61,6 +61,7 @@ jobs:
               - ".env*.example"
             scripts:
               - ".github/scripts/**"
+              - ".github/file-size-baseline.txt"
 
       - name: Plan the jobs
         id: plan
