@@ -101,6 +101,20 @@ but #889 dropped that aggregate with the "Lead vs role opponent" chart. What sur
 snapshot at the canonical marks, which is why the fold flag could ship `false` and pick up the whole retained
 window instead of starting at deploy like #920's bans — #919.
 
+**A match's game counters and its lane counters are folded in one pass, off one flag.** They were two
+processes — the matchup fold, then the lane fold a moment later — and that is representable only while nothing
+the row key depends on can change in between. `elo_bracket` can: it is part of the key and is stamped
+asynchronously by `MatchParticipantEloBracketEnrichment` once an account's first rank snapshot lands, and since
+#1362 the fetch lane ingests matches while the aggregate lane is mid-run. So a match could be counted as a game
+under one band and as a lane under another, splitting one match across two rows. Preprod showed the shape
+exactly: 10 rows with `LaneGames = Games + 1`, every one of them in the unstamped `''` band, against 45 775 rows
+where `Games >= LaneGames` held. The reader impact was small — the `''` band is only reachable through the
+default "all ranks" view — but the two counters on a row are meant to describe one cohort, and there they
+described two. One fold, one `MatchupLeadAggregated`, one read of the participants makes the split
+unrepresentable rather than rare; the flag the lane fold used is dropped, and the live patches were re-folded
+(#466 keeps the frozen ones as they were measured). The gold threshold keeps its own config section, because it
+is a product judgement shared with the API's live pass, not a pacing knob — #1445.
+
 **A matchup-scoped build page is folded live, not aggregated** (#923). `champion_matchup_stats` carries the
 opponent dimension but only games/wins; the pattern aggregates carry the build data but are grained on
 (account, champion, patch, platform, queue, position, elo) with no opponent — so a matchup build has no

@@ -28,7 +28,10 @@ public enum JobMode
     // 18 was RunePageDeduplicationOnly, retired with its process in #1418: the rune-page
     // dimension can no longer hold a permutation duplicate, so there is nothing to repair.
     // The value stays retired rather than reused — the modes are stable identifiers.
-    LaneOutcomeAggregationOnly = 19,
+    // 19 was LaneOutcomeAggregationOnly, retired with its process in #1445: the lane
+    // counters are folded by MatchupLeadAggregation, in the same pass as the game
+    // counters they sit beside. Retired rather than reused — the modes are stable
+    // identifiers.
     LadderSyncOnly = 20,
 
     /// <summary>

@@ -53,6 +53,33 @@ public class MatchParticipant
 
     public int TotalDamageDealtToChampions { get; set; }
 
+    /// <summary>
+    /// Context fields mapped since #1448 — damage split by type, healing and
+    /// shielding, crowd control, damage taken and mitigated — the raw material of
+    /// the measured champion profiles (#1449). <c>null</c> means the row predates
+    /// the mapping (or Riot omitted the field) and must be skipped by any fold,
+    /// never read as zero.
+    /// </summary>
+    public int? PhysicalDamageDealtToChampions { get; set; }
+
+    public int? MagicDamageDealtToChampions { get; set; }
+
+    public int? TrueDamageDealtToChampions { get; set; }
+
+    public int? TotalHeal { get; set; }
+
+    public int? TotalHealsOnTeammates { get; set; }
+
+    public int? TotalDamageShieldedOnTeammates { get; set; }
+
+    public int? TimeCCingOthers { get; set; }
+
+    public int? TotalTimeCCDealt { get; set; }
+
+    public int? TotalDamageTaken { get; set; }
+
+    public int? DamageSelfMitigated { get; set; }
+
     public int VisionScore { get; set; }
 
     public int GoldEarned { get; set; }

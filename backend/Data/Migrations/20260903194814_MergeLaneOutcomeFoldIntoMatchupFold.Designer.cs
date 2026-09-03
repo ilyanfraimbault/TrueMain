@@ -6,6 +6,7 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903194814_MergeLaneOutcomeFoldIntoMatchupFold")]
+    partial class MergeLaneOutcomeFoldIntoMatchupFold
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1048,9 +1051,6 @@ namespace Data.Migrations
                     b.Property<int>("ChampionId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("DamageSelfMitigated")
-                        .HasColumnType("integer");
-
                     b.Property<int>("Deaths")
                         .HasColumnType("integer");
 
@@ -1103,9 +1103,6 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<int?>("MagicDamageDealtToChampions")
-                        .HasColumnType("integer");
-
                     b.Property<string>("MatchId")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -1124,9 +1121,6 @@ namespace Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("PerksOffense")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("PhysicalDamageDealtToChampions")
                         .HasColumnType("integer");
 
                     b.Property<int>("PrimaryStyleId")
@@ -1174,36 +1168,15 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<int?>("TimeCCingOthers")
-                        .HasColumnType("integer");
-
                     b.Property<int>("TotalDamageDealtToChampions")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
 
-                    b.Property<int?>("TotalDamageShieldedOnTeammates")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("TotalDamageTaken")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("TotalHeal")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("TotalHealsOnTeammates")
-                        .HasColumnType("integer");
-
                     b.Property<int>("TotalMinionsKilled")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("TotalTimeCCDealt")
-                        .HasColumnType("integer");
-
                     b.Property<int>("TrinketItemId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("TrueDamageDealtToChampions")
                         .HasColumnType("integer");
 
                     b.Property<int>("VisionScore")

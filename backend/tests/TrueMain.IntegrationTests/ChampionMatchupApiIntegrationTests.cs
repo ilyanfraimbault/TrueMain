@@ -1144,6 +1144,7 @@ public sealed class ChampionMatchupApiIntegrationTests
             NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
             Microsoft.Extensions.Options.Options.Create(new MatchupLeadAggregationOptions()),
+            Microsoft.Extensions.Options.Options.Create(new LaneOutcomeAggregationOptions()),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
         await process.RunCoreAsync(CancellationToken.None);

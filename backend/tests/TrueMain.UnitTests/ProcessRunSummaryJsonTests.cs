@@ -288,9 +288,9 @@ public sealed class ProcessRunSummaryJsonTests
             new SynergyAggregationSummary(4000, 4, 15000, 900),
             new { matches = 4000, batches = 4, pairRows = 15000, baselineRows = 900 });
 
-        // ChampionLaneOutcomeAggregationProcess (#919).
+        // ChampionMatchupLeadAggregationProcess (#919, one fold since #1445).
         yield return (
-            new LaneOutcomeAggregationSummary(4000, 4, 3600, 900, 300),
+            new MatchupAggregationSummary(4000, 4, 3600, 900, 300),
             new { matches = 4000, batches = 4, judgedLanes = 3600, rows = 900, goldLeadThreshold = 300 });
 
         // ChampionBanAggregationProcess (#920) — the synergy shape again, with the

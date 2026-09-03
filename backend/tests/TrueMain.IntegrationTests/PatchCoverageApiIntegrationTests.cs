@@ -101,10 +101,11 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
 
         var current = payload.Patches.Single(patch => patch.Patch == "16.15");
 
-        // Five (champion, lane) lines were seeded on 16.15: three at 20 games, two at 4.
-        // The lane-less scope row is deliberately NOT among them — the ranked directory
-        // drops it, so counting it here would overstate what the site can serve.
-        current.Lines.Should().Be(5, "the lane-less scope row is not a line the directory can rank");
+        // Six (champion, lane) lines were seeded on 16.15: three past the floor and three
+        // under it, the last of those an off-role pick. The lane-less scope row is
+        // deliberately NOT among them — the ranked directory drops it, so counting it here
+        // would overstate what the site can serve.
+        current.Lines.Should().Be(6, "the lane-less scope row is not a line the directory can rank");
         current.LinesPastFloor.Should().Be(3);
         current.ChampionsPastFloor.Should().Be(3);
         current.ServableLinesBar.Should().NotBeNull("a judged patch must say which bar it was judged against");
@@ -118,6 +119,8 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
 
         var current = payload.Patches.Single(patch => patch.Patch == "16.15");
 
+        // Two of the three below-floor lines are on their champion's own lane; the count is
+        // what the list is drawn from, not every line under the floor.
         current.BelowFloorCount.Should().Be(2);
         current.BelowFloor.Should().HaveCount(2);
 
@@ -130,6 +133,27 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
             line.Position.Should().Be("MIDDLE");
             line.GamesToFloor.Should().Be(Floor - line.Games);
         });
+    }
+
+    [Fact]
+    public async Task GetPatchCoverage_LeavesAnOffRoleLineOutOfTheNamedList_ButKeepsItInTheTotal()
+    {
+        var payload = await LoadAsync();
+
+        var current = payload.Patches.Single(patch => patch.Patch == "16.15");
+
+        // 266 is 20 games on MIDDLE and 2 on UTILITY. Naming the UTILITY line would tell an
+        // operator to chase games that are never coming: the lane is short because nobody
+        // plays the champion there, not because the patch is short of matches (#1442). It
+        // still counts towards the total, so the two numbers differ by exactly the off-role
+        // tail rather than the difference disappearing.
+        current.BelowFloor.Should().NotContain(
+            line => line.ChampionId == 266,
+            "a champion's off-role lane is not a coverage gap");
+
+        // And it is not swept under the carpet either: the page reconciles the tail from the
+        // coverage figures, so lines - linesPastFloor - belowFloorCount has to be exactly it.
+        (current.Lines - current.LinesPastFloor - current.BelowFloorCount).Should().Be(1);
     }
 
     [Fact]
@@ -263,7 +287,7 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
             db.ChampionAggregateScopes.Add(BuildScope(account.Id, championId, "16.14", "MIDDLE", games: 20, now.AddHours(-2)));
         }
 
-        // 16.15 — the patch the site serves. Three lines clear the floor, two do not, and
+        // 16.15 — the patch the site serves. Three lines clear the floor, three do not, and
         // one scope row carries no lane at all (the non-nullable Position's "no lane"
         // sentinel), which the ranked directory drops and this page must drop with it.
         foreach (var championId in new[] { 266, 103, 84 })
@@ -273,6 +297,11 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
 
         db.ChampionAggregateScopes.Add(BuildScope(account.Id, championId: 64, "16.15", "MIDDLE", games: 7, now.AddHours(-1)));
         db.ChampionAggregateScopes.Add(BuildScope(account.Id, championId: 81, "16.15", "MIDDLE", games: 4, now.AddHours(-1)));
+
+        // 266 is played on MIDDLE here and picked twice on UTILITY. That second line is
+        // below the floor and always will be: it is short of games because nobody plays
+        // the champion there, which is the whole population the named list drops (#1442).
+        db.ChampionAggregateScopes.Add(BuildScope(account.Id, championId: 266, "16.15", "UTILITY", games: 2, now.AddHours(-1)));
         db.ChampionAggregateScopes.Add(BuildScope(account.Id, championId: 99, "16.15", position: string.Empty, games: 30, now.AddHours(-1)));
 
         // Matches: two game dates on 16.14, one on 16.15, and 16.16 ingested but unfolded.
@@ -397,8 +426,7 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
         PowerspikeAggregated = folded,
         SynergyAggregated = folded,
         MatchupLeadAggregated = folded,
-        BansAggregated = folded,
-        LaneOutcomeAggregated = folded
+        BansAggregated = folded
     };
 
     private static MatchParticipant BuildParticipant(string matchId, int participantId) => new()
