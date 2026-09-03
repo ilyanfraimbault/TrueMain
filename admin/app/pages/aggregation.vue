@@ -194,14 +194,10 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
             <div class="flex items-start justify-between gap-2">
               <div class="flex items-center gap-2">
                 <UIcon :name="familyMeta(family.key).icon" class="size-5 text-primary shrink-0" />
-                <div>
-                  <p class="text-sm font-medium text-highlighted">
-                    {{ familyMeta(family.key).title }}
-                  </p>
-                  <p class="text-xs text-muted">
-                    {{ familyMeta(family.key).hint }}
-                  </p>
-                </div>
+                <PanelTitle
+                  :title="familyMeta(family.key).title"
+                  :subtitle="familyMeta(family.key).hint"
+                />
               </div>
               <UBadge
                 :color="runStatusColor(family.lastRun?.status)"

@@ -235,6 +235,7 @@ Last verified against `develop` on 2026-09-02.
 - The portal's charts are on the public site's design system, while its chrome is not — reversed 6 days later, see next line (2026-09-03) — #1404, #1059
 - The portal's chrome moves onto rosegold/ink too, reversing the #1059 scoping (2026-09-03) — #1409
 - The portal navigates by question, not by table: four sidebar groups, one Accounts hub, Riot API as a Processes tab (2026-09-03) — #1410, #1416
+- A panel answers in one line; the explanation lives behind an info control (2026-09-03) — #1414, #1416
 - Logs opens on Warning and above (an explicit `?level=` still wins), and pages are reachable by name through a ⌘K palette rather than a longer sidebar (2026-09-03) — #1415, #1416
 - The admin portal has one status vocabulary and one duration ladder (2026-08-28) — #924, #1024
 - The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28) — #1249

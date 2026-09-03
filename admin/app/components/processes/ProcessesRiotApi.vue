@@ -340,9 +340,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
     <UCard>
       <template #header>
         <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-muted uppercase">
-            App rate limit
-          </p>
+          <PanelTitle variant="label" title="App rate limit" />
           <UBadge
             v-if="rateLimit?.observedAtUtc"
             color="neutral"
@@ -376,9 +374,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
 
     <UCard>
       <template #header>
-        <p class="text-xs text-muted uppercase">
-          Status codes
-        </p>
+        <PanelTitle variant="label" title="Status codes" />
       </template>
 
       <div v-if="statusCodes.length" class="flex flex-col gap-2">
@@ -416,9 +412,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
   <!-- Call volume over time -->
   <UCard class="mb-6" :ui="{ root: 'overflow-visible' }">
     <template #header>
-      <p class="text-xs text-muted uppercase">
-        Call volume over time
-      </p>
+      <PanelTitle variant="label" title="Call volume over time" />
     </template>
     <USkeleton v-if="pending" class="h-[260px] w-full" />
     <div
@@ -445,9 +439,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
   <div class="grid gap-6 lg:grid-cols-2 mb-6">
     <UCard>
       <template #header>
-        <p class="text-xs text-muted uppercase">
-          Consumption by caller
-        </p>
+        <PanelTitle variant="label" title="Consumption by caller" />
       </template>
 
       <USkeleton v-if="pending" :style="{ height: `${callerChartHeight}px` }" class="w-full" />
@@ -473,9 +465,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
 
     <UCard>
       <template #header>
-        <p class="text-xs text-muted uppercase">
-          Budget headroom
-        </p>
+        <PanelTitle variant="label" title="Budget headroom" />
       </template>
 
       <div v-if="headroom?.sufficientData" class="flex flex-col gap-4">
@@ -541,9 +531,7 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
   <UCard :ui="{ body: 'p-0 sm:p-0' }">
     <template #header>
       <div class="flex items-center justify-between gap-2">
-        <p class="text-sm font-medium text-highlighted">
-          Endpoints
-        </p>
+        <PanelTitle title="Endpoints" />
         <UBadge
           v-if="!pending"
           color="neutral"

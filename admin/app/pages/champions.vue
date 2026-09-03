@@ -217,9 +217,7 @@ const mainsLabelFormatter = computed(() =>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
         <UCard :ui="{ root: 'overflow-visible' }">
           <template #header>
-            <p class="text-xs text-muted uppercase">
-              Top {{ TOP_N }} by games
-            </p>
+            <PanelTitle variant="label" :title="`Top ${TOP_N} by games`" />
           </template>
           <USkeleton v-if="loading" class="h-[240px] w-full" />
           <div
@@ -245,9 +243,7 @@ const mainsLabelFormatter = computed(() =>
         <UCard :ui="{ root: 'overflow-visible' }">
           <template #header>
             <div class="flex items-center justify-between gap-2">
-              <p class="text-xs text-muted uppercase">
-                Top {{ TOP_N }} by mains
-              </p>
+              <PanelTitle variant="label" :title="`Top ${TOP_N} by mains`" />
               <UBadge
                 color="neutral"
                 variant="subtle"
@@ -282,16 +278,16 @@ const mainsLabelFormatter = computed(() =>
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
         <template #header>
           <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-medium text-highlighted">
-                Per-champion stats
-              </p>
-              <p class="text-xs text-dimmed mt-0.5">
-                <span class="font-medium">Games</span> honor every filter ·
-                <span class="font-medium">Mains / OTPs / Ext. samples</span>
-                honor region only · ranked solo/duo only.
-              </p>
-            </div>
+            <PanelTitle title="Per-champion stats" subtitle="Ranked solo/duo only.">
+              <template #info>
+                <p>
+                  <strong>Games</strong> honor every filter.
+                </p>
+                <p>
+                  <strong>Mains / OTPs / Ext. samples</strong> honor region only.
+                </p>
+              </template>
+            </PanelTitle>
             <div class="flex items-center gap-3">
               <UInput
                 v-model="search"

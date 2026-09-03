@@ -257,16 +257,18 @@ const rankEmptyNote = computed(() => {
   <!-- ============================= Search ============================ -->
   <UCard class="mb-8">
     <div class="flex flex-col gap-3">
-      <div>
-        <p class="text-sm font-medium text-highlighted">
-          Trace a Riot ID
-        </p>
-        <p class="text-xs text-dimmed mt-0.5">
-          Read-only. Every answer comes from the database — this page never calls
-          Riot, so it cannot tell an undiscovered account from a Riot ID that does
-          not exist.
-        </p>
-      </div>
+      <PanelTitle title="Trace a Riot ID" subtitle="Read-only — every answer comes from the database.">
+        <template #info>
+          <p>
+            This page never calls Riot, so it cannot tell an undiscovered account
+            from a Riot ID that does not exist.
+          </p>
+          <p>
+            A Riot ID is only unique within a routing region. Leave the region on
+            "All regions" to see every account carrying it.
+          </p>
+        </template>
+      </PanelTitle>
       <div class="flex flex-wrap items-center gap-2">
         <UInput
           v-model="riotIdInput"
@@ -295,10 +297,6 @@ const rankEmptyNote = computed(() => {
       </div>
       <p v-if="inputHint" class="text-xs text-error">
         {{ inputHint }}
-      </p>
-      <p class="text-xs text-dimmed">
-        A Riot ID is only unique within a routing region. Leave the region on
-        "All regions" to see every account carrying it.
       </p>
     </div>
   </UCard>
@@ -345,15 +343,15 @@ const rankEmptyNote = computed(() => {
       </div>
 
       <template v-if="result.otherAccountsWithSameRiotId.length > 0" #footer>
-        <p class="text-xs text-muted uppercase mb-2">
-          Other accounts with this Riot ID
-        </p>
-        <p class="text-xs text-dimmed mb-2">
-          The most recently active one is shown above. (gameName, tagLine,
-          platformId) is deliberately not unique — Riot IDs are recyclable and
-          collide across regions — so the others are listed rather than arbitrated
-          away.
-        </p>
+        <PanelTitle
+          variant="label"
+          title="Other accounts with this Riot ID"
+          subtitle="The most recently active one is shown above."
+          info="(gameName, tagLine, platformId) is deliberately not unique — Riot IDs
+            are recyclable and collide across regions — so the others are listed
+            rather than arbitrated away."
+          class="mb-2"
+        />
         <ul class="space-y-1">
           <li
             v-for="other in result.otherAccountsWithSameRiotId"
@@ -371,12 +369,10 @@ const rankEmptyNote = computed(() => {
     <!-- =========================== Identity ========================== -->
     <UCard v-if="identity" class="mb-8">
       <template #header>
-        <p class="text-sm font-medium text-highlighted">
-          Identity &amp; refresh
-        </p>
-        <p class="text-xs text-dimmed mt-0.5">
-          When each half of the pipeline last touched this account.
-        </p>
+        <PanelTitle
+          title="Identity &amp; refresh"
+          subtitle="When each half of the pipeline last touched this account."
+        />
       </template>
 
       <UAlert
@@ -466,13 +462,20 @@ const rankEmptyNote = computed(() => {
     <!-- ====================== Tracking & ingestion ==================== -->
     <UCard v-if="tracking && matches" class="mb-8">
       <template #header>
-        <p class="text-sm font-medium text-highlighted">
-          Tracking &amp; ingestion
-        </p>
-        <p class="text-xs text-dimmed mt-0.5">
-          There is no "tracked" column: membership is derived from the two arms of
-          the ingest claim, exactly as the Ingestor derives it.
-        </p>
+        <PanelTitle title="Tracking &amp; ingestion" subtitle="Membership is derived from the ingest claim, not stored.">
+          <template #info>
+            <p>
+              There is no "tracked" column: membership is derived from the two arms
+              of the ingest claim, exactly as the Ingestor derives it.
+            </p>
+            <p>
+              Compare the claim age against the Ingestor's
+              <code>MatchIngestion:ClaimLeaseMinutes</code> (30 by default) to judge
+              whether a run died holding the lease — the API cannot see that
+              setting, so it reports the age rather than a verdict.
+            </p>
+          </template>
+        </PanelTitle>
       </template>
 
       <div class="flex flex-wrap items-center gap-2 mb-4">
@@ -522,17 +525,28 @@ const rankEmptyNote = computed(() => {
         </div>
       </dl>
 
-      <p class="mt-3 text-xs text-dimmed">
-        Compare the claim age against the Ingestor's
-        <code>MatchIngestion:ClaimLeaseMinutes</code> (30 by default) to judge
-        whether a run died holding the lease — the API cannot see that setting, so
-        it reports the age rather than a verdict.
-      </p>
-
       <template #footer>
-        <p class="text-xs text-muted uppercase mb-3">
-          Games on record — three populations, not three views of one number
-        </p>
+        <PanelTitle
+          variant="label"
+          title="Games on record"
+          subtitle="Three populations, not three views of one number."
+          class="mb-3"
+        >
+          <template #info>
+            <p>
+              <strong>Participant rows</strong> — every champion, every queue, but
+              deleted by retention.
+            </p>
+            <p>
+              <strong>Career games</strong> — never deleted, but only ever folded
+              <strong>main champions</strong>.
+            </p>
+            <p>
+              <strong>Last analysis sample</strong> — what the last MainAnalysis
+              pass looked at, capped at 50. A ceiling, not a total.
+            </p>
+          </template>
+        </PanelTitle>
         <dl class="grid gap-4 sm:grid-cols-3">
           <div>
             <dt class="text-xs text-dimmed">
@@ -541,10 +555,9 @@ const rankEmptyNote = computed(() => {
             <dd class="text-lg text-highlighted tabular-nums">
               {{ formatNumber(matches.liveParticipantCount) }}
             </dd>
-            <p class="text-xs text-dimmed mt-0.5">
-              Every champion, every queue — but deleted by retention. Covers
+            <p class="text-xs text-dimmed mt-0.5 tabular-nums">
               {{ formatDateTime(matches.oldestRetainedGameStartUtc) }} →
-              {{ formatDateTime(matches.newestRetainedGameStartUtc) }}.
+              {{ formatDateTime(matches.newestRetainedGameStartUtc) }}
             </p>
           </div>
           <div>
@@ -554,9 +567,8 @@ const rankEmptyNote = computed(() => {
             <dd class="text-lg text-highlighted tabular-nums">
               {{ formatNumber(matches.careerGamesFromAggregates) }}
             </dd>
-            <p class="text-xs text-dimmed mt-0.5">
-              Never deleted, but only ever folded <strong>main champions</strong> —
-              over {{ formatNumber(matches.aggregatedPatchCount) }} patch(es).
+            <p class="text-xs text-dimmed mt-0.5 tabular-nums">
+              over {{ formatNumber(matches.aggregatedPatchCount) }} patch(es)
             </p>
           </div>
           <div>
@@ -567,8 +579,7 @@ const rankEmptyNote = computed(() => {
               {{ formatNumber(matches.lastAnalysisSampleSize) }}
             </dd>
             <p class="text-xs text-dimmed mt-0.5">
-              What the last MainAnalysis pass looked at, capped at 50. A ceiling,
-              not a total.
+              capped at 50
             </p>
           </div>
         </dl>
@@ -591,12 +602,26 @@ const rankEmptyNote = computed(() => {
     <!-- ========================= Candidate funnel ===================== -->
     <UCard v-if="identity" :ui="{ body: 'p-0 sm:p-0' }" class="mb-8">
       <template #header>
-        <p class="text-sm font-medium text-highlighted">
-          Candidate funnel
-        </p>
-        <p class="text-xs text-dimmed mt-0.5">
-          New → Scored → Queued → Processing → Validated (or Rejected).
-        </p>
+        <PanelTitle
+          title="Candidate funnel"
+          subtitle="New → Scored → Queued → Processing → Validated (or Rejected)."
+        >
+          <template #info>
+            <p>
+              The score's <strong>components are not persisted</strong> — only the
+              final blend is — so the inputs listed are what can be shown.
+              Recomputing recency / rank / points / scarcity here would fold today's
+              champion coverage into a number produced against an older snapshot,
+              and would silently disagree with the score beside it.
+            </p>
+            <p>
+              A source of <code>Ladder</code> does not rule out a manual seed:
+              ManualSeedProcess reuses the ladder upsert, so
+              <code>ManualSeed</code> is never assigned in production. The seed
+              request below is the reliable trail.
+            </p>
+          </template>
+        </PanelTitle>
       </template>
 
       <div
@@ -657,27 +682,10 @@ const rankEmptyNote = computed(() => {
           </template>
         </UTable>
 
-        <div class="border-t border-default px-4 py-3 space-y-1">
-          <p class="text-xs text-dimmed">
-            The score's <strong>components are not persisted</strong> — only the
-            final blend is — so the inputs above are what can be shown. Recomputing
-            recency / rank / points / scarcity here would fold today's champion
-            coverage into a number produced against an older snapshot, and would
-            silently disagree with the score beside it.
-          </p>
-          <p class="text-xs text-dimmed">
-            A source of <code>Ladder</code> does not rule out a manual seed:
-            ManualSeedProcess reuses the ladder upsert, so
-            <code>ManualSeed</code> is never assigned in production. The seed
-            request below is the reliable trail.
-          </p>
-        </div>
       </template>
 
       <template v-if="result.seedRequest" #footer>
-        <p class="text-xs text-muted uppercase mb-2">
-          Manual seed request
-        </p>
+        <PanelTitle variant="label" title="Manual seed request" class="mb-2" />
         <div class="flex flex-wrap items-center gap-2 mb-2">
           <UBadge
             :color="seedStatusColor(result.seedRequest.status)"
@@ -706,12 +714,27 @@ const rankEmptyNote = computed(() => {
     <!-- ============================= Mains =========================== -->
     <UCard v-if="identity" :ui="{ body: 'p-0 sm:p-0' }" class="mb-8">
       <template #header>
-        <p class="text-sm font-medium text-highlighted">
-          Main champions
-        </p>
-        <p class="text-xs text-dimmed mt-0.5">
-          What MainAnalysis computed, and what MainActivity did to it afterwards.
-        </p>
+        <PanelTitle
+          title="Main champions"
+          subtitle="What MainAnalysis computed, and what MainActivity did to it afterwards."
+        >
+          <template #info>
+            <p v-if="thresholds">
+              A champion is a main above a play rate somewhere between
+              {{ formatPercentOrDash(thresholds.playRateFloor, 0) }} and
+              {{ formatPercentOrDash(thresholds.playRateThreshold, 0) }}, and an OTP
+              above {{ formatPercentOrDash(thresholds.otpPlayRateThreshold, 0) }}.
+              {{ thresholds.effectiveThresholdNote }}
+            </p>
+            <p>
+              "Not re-analysed" means MainAnalysis ran on the account more recently
+              than it rewrote that row: its thin-sample guard declined to overwrite
+              an established main from fewer than
+              {{ formatNumber(thresholds?.minMatchesToEvaluate) }} matches. The row
+              is deliberately old, not stale by accident.
+            </p>
+          </template>
+        </PanelTitle>
       </template>
 
       <div v-if="mainRows.length === 0" class="px-4 py-8 text-sm text-muted">
@@ -810,14 +833,6 @@ const rankEmptyNote = computed(() => {
 
       <template #footer>
         <div class="space-y-2">
-          <p v-if="thresholds" class="text-xs text-dimmed">
-            A champion is a main above a play rate somewhere between
-            <span class="tabular-nums">{{ formatPercentOrDash(thresholds.playRateFloor, 0) }}</span> and
-            <span class="tabular-nums">{{ formatPercentOrDash(thresholds.playRateThreshold, 0) }}</span>,
-            and an OTP above
-            <span class="tabular-nums">{{ formatPercentOrDash(thresholds.otpPlayRateThreshold, 0) }}</span>.
-            {{ thresholds.effectiveThresholdNote }}
-          </p>
           <p
             v-for="row in mainRows.filter(candidateRow => candidateRow.deactivation)"
             :key="`deactivation-${row.championId}`"
@@ -831,13 +846,6 @@ const rankEmptyNote = computed(() => {
                 : 'No completed mastery check is on record for this account, so the retirement was never confirmed by one.'
             }}
           </p>
-          <p v-if="mainRows.some(row => row.analysisSkipped)" class="text-xs text-dimmed">
-            "Not re-analysed" means MainAnalysis ran on the account more recently
-            than it rewrote that row: its thin-sample guard declined to overwrite an
-            established main from fewer than
-            {{ formatNumber(thresholds?.minMatchesToEvaluate) }} matches. The row is
-            deliberately old, not stale by accident.
-          </p>
         </div>
       </template>
     </UCard>
@@ -845,13 +853,12 @@ const rankEmptyNote = computed(() => {
     <!-- ========================= Rank snapshots ======================= -->
     <UCard v-if="identity" :ui="{ body: 'p-0 sm:p-0' }" class="mb-8">
       <template #header>
-        <p class="text-sm font-medium text-highlighted">
-          Rank snapshots
-        </p>
-        <p class="text-xs text-dimmed mt-0.5">
-          Most recent first. Solo queue only, at most one row per UTC day, and never
-          pruned — so a gap here is a gap in play, not in storage.
-        </p>
+        <PanelTitle
+          title="Rank snapshots"
+          subtitle="Most recent first."
+          info="Solo queue only, at most one row per UTC day, and never pruned — so a
+            gap here is a gap in play, not in storage."
+        />
       </template>
 
       <div v-if="rankSnapshots.length === 0" class="px-4 py-8 text-sm text-muted">

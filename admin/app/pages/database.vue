@@ -276,19 +276,16 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
       <UCard class="mb-6">
         <template #header>
           <div class="flex items-center justify-between gap-2">
-            <div class="flex min-w-0 flex-col gap-0.5">
-              <p class="text-xs text-muted uppercase">
-                Disk forecast
-              </p>
+            <PanelTitle variant="label" title="Disk forecast">
               <!-- Never let the figures pass as "the disk" without saying what
                    they add up: Mongo is optional, and before its first snapshot
                    the totals are Postgres alone. -->
-              <p v-if="coverageLabel" class="text-xs text-dimmed">
+              <template v-if="coverageLabel" #subtitle>
                 Covering {{ coverageLabel }}<template v-if="latestPoint && latestPoint.mongoBytes > 0">
                   — {{ humanizeBytes(latestPoint.postgresBytes, 1) }} + {{ humanizeBytes(latestPoint.mongoBytes, 1) }}
                 </template>
-              </p>
-            </div>
+              </template>
+            </PanelTitle>
             <UBadge
               v-if="forecast"
               color="neutral"
@@ -325,9 +322,7 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
       <UCard class="mb-6" :ui="{ root: 'overflow-visible' }">
         <template #header>
           <div class="flex items-center justify-between gap-2">
-            <p class="text-xs text-muted uppercase">
-              Database size over time
-            </p>
+            <PanelTitle variant="label" title="Database size over time" />
             <USelect
               v-model="windowDays"
               :items="WINDOW_OPTIONS"
@@ -352,9 +347,12 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
       <!-- Rows added per day -->
       <UCard class="mb-6" :ui="{ root: 'overflow-visible' }">
         <template #header>
-          <p class="text-xs text-muted uppercase">
-            Rows added per day (estimated)
-          </p>
+          <PanelTitle
+            variant="label"
+            title="Rows added per day (estimated)"
+            info="Each point is the difference between two daily snapshots, so the
+              series needs at least three days before it can be drawn."
+          />
         </template>
         <USkeleton v-if="historyPending" class="h-[220px] w-full" />
         <div
@@ -380,9 +378,7 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
       <!-- Fastest-growing tables -->
       <UCard v-if="(history?.tables?.length ?? 0) > 0" class="mb-6" :ui="{ body: 'p-0 sm:p-0' }">
         <template #header>
-          <p class="text-sm font-medium text-highlighted">
-            Growth by table
-          </p>
+          <PanelTitle title="Growth by table" />
         </template>
         <div class="divide-y divide-default">
           <div
@@ -419,9 +415,7 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
       <!-- Top tables by size -->
       <UCard class="mb-6" :ui="{ root: 'overflow-visible' }">
         <template #header>
-          <p class="text-xs text-muted uppercase">
-            Top {{ TOP_N }} tables by total size
-          </p>
+          <PanelTitle variant="label" :title="`Top ${TOP_N} tables by total size`" />
         </template>
         <USkeleton
           v-if="pending"
@@ -453,9 +447,7 @@ function crossingColor(projectedAtUtc: string | null): 'error' | 'warning' | 'ne
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
         <template #header>
           <div class="flex items-center justify-between gap-2">
-            <p class="text-sm font-medium text-highlighted">
-              Tables
-            </p>
+            <PanelTitle title="Tables" />
             <UBadge
               v-if="!pending"
               color="neutral"

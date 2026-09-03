@@ -96,7 +96,27 @@ function resetFilters() {
 
 const { data, pending, error, refresh } = useProcessRuns(filters)
 
-const rollup = computed(() => data.value?.rollup ?? [])
+// The rollup gets its OWN request (#1411) even though the paged response above
+// already carries one. The rollup is live-refreshed and the runs table is not —
+// re-ordering a page under a reader's cursor is worse than showing it a page that
+// is thirty seconds old — and one fetch cannot be half-live. `pageSize: 1` keeps
+// the row payload to the minimum the endpoint will return; only `rollup` is read
+// from it. `status` is left out on purpose: the backend computes the rollup from
+// the process name and the window only, so sending it would refetch on a filter
+// that cannot change the answer.
+const rollupFilters = computed(() => ({
+  processName: processName.value.trim() || undefined,
+  since: sinceWindow.value === ALL ? undefined : sinceToIso(sinceWindow.value),
+  page: 1,
+  pageSize: 1,
+}))
+const {
+  data: rollupData,
+  pending: rollupPending,
+  refresh: refreshRollup,
+} = useProcessRuns(rollupFilters)
+
+const rollup = computed(() => rollupData.value?.rollup ?? [])
 const runs = computed(() => data.value?.runs ?? [])
 const total = computed(() => data.value?.total ?? 0)
 // The page the server actually served (its clamp wins over our optimistic ref).
@@ -151,7 +171,11 @@ const iterationsServerPage = computed(() => iterationsData.value?.page ?? iterat
 // small request; a lane that has not run within the window simply shows as
 // not-yet-run rather than being invented.
 const LATEST_ITERATION_PROBE = 6
-const { data: latestIterationData, error: latestIterationError } = useProcessIterations({
+const {
+  data: latestIterationData,
+  error: latestIterationError,
+  refresh: refreshLatestIterations,
+} = useProcessIterations({
   page: 1,
   pageSize: LATEST_ITERATION_PROBE,
 })
@@ -166,6 +190,25 @@ const latestIterations = computed<ProcessIteration[]>(
 // in the shared util, with the lanes themselves, so it is pinned by tests.
 const currentLanes = computed(() => pickCurrentLanes(latestIterations.value))
 const currentIterationRunning = computed(() => currentLanes.value.some(lane => lane.isRunning))
+
+// --- Live refresh (#1411) ----------------------------------------------------
+// The two blocks that claim to describe *now* — the lanes in flight and the
+// per-process rollup — re-fetch every 30 s while the tab is visible, so a lane
+// transition lands without a reload. The runs table and the iterations list are
+// deliberately excluded: both are paginated history, and moving rows under the
+// operator is the failure mode this page had to avoid.
+const {
+  lastUpdatedAt,
+  paused: livePaused,
+  toggle: toggleLive,
+  refreshNow,
+} = useLiveRefresh([refreshLatestIterations, refreshRollup])
+
+// The navbar button stays the manual, everything-now refresh — the paginated
+// table included — and restarts the live countdown.
+async function refreshRuns() {
+  await Promise.all([refresh(), refreshNow()])
+}
 
 // Precompute each finished iteration's branches once, so the recent-iterations
 // template shares one array between its v-for and its separator length check.
@@ -419,13 +462,19 @@ const selectedIterationTally = computed(() => {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
+          <LiveRefreshIndicator
+            v-if="view === 'runs'"
+            :last-updated-at="lastUpdatedAt"
+            :paused="livePaused"
+            @toggle="toggleLive"
+          />
           <UButton
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
             :loading="view === 'riot-api' ? (riotPanel?.pending ?? false) : pending"
             aria-label="Refresh"
-            @click="view === 'riot-api' ? riotPanel?.refresh() : refresh()"
+            @click="view === 'riot-api' ? riotPanel?.refresh() : refreshRuns()"
           />
         </template>
       </UDashboardNavbar>
@@ -507,9 +556,13 @@ const selectedIterationTally = computed(() => {
              same pass. -->
         <div class="mb-6">
           <div class="flex items-center justify-between gap-2 mb-3">
-            <p class="text-xs text-muted uppercase">
-              Pipeline chain
-            </p>
+            <PanelTitle
+              variant="label"
+              title="Pipeline chain"
+              info="One branch per lane, each at its own newest iteration, with the
+                running step highlighted. Two lanes run concurrently, so a Full
+                deployment lights up both branches of the same pass."
+            />
             <span
               v-if="currentIterationRunning"
               class="inline-flex items-center gap-1.5 text-xs text-primary font-medium"
@@ -608,9 +661,12 @@ const selectedIterationTally = computed(() => {
         <!-- Recent iterations: each iteration as the chain with per-process
              outcomes. Newest first. -->
         <div class="mb-6">
-          <p class="text-xs text-muted uppercase mb-3">
-            Recent iterations
-          </p>
+          <PanelTitle
+            variant="label"
+            title="Recent iterations"
+            subtitle="Newest first."
+            class="mb-3"
+          />
 
           <div
             v-if="iterationsError"
@@ -724,12 +780,10 @@ const selectedIterationTally = computed(() => {
 
         <!-- Rollup: one card per process -->
         <div class="mb-6">
-          <p class="text-xs text-muted uppercase mb-3">
-            Process health
-          </p>
+          <PanelTitle variant="label" title="Process health" class="mb-3" />
 
           <div
-            v-if="pending"
+            v-if="rollupPending && rollup.length === 0"
             class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
           >
             <USkeleton v-for="i in 3" :key="i" class="h-28 w-full rounded-lg" />

@@ -301,6 +301,28 @@ it. **Each tab is a component with its own fetches, filters and `defineExpose({ 
 hub stays a header and a switch rather than a three-thousand-line page, and the one navbar refresh button
 drives whichever tab is open — #1410, #1416, #1031.
 
+## A panel answers in one line; the explanation lives behind an info control (2026-09-03)
+
+**Every admin card carries a title, at most one line under it, and an `i-lucide-info` button holding
+everything longer.** The explanations were not wrong — a candidate level *is* a level and *is* never
+backfilled, the queue latency *is* measured over retained candidates only — but printed on every visit they
+were read before the state. The Candidates throughput card alone opened on four lines of caption and closed
+with five sentences of chart footnotes, so the operator met the caveats before the numbers.
+
+Nothing is deleted, only relocated: one `PanelTitle` component (`admin/app/components/PanelTitle.vue`) renders
+the title, the optional one-line subtitle, and a `UPopover` holding the prose, keyboard-reachable through an
+`About <title>` button. It has two shapes — `title` for a card header, `label` for a section label inside a
+card — so a chart caption and a card header carry the same control instead of inventing one each.
+
+Two rules follow from it. **Numbers first**: where a card opened on a paragraph and ended on the figure, the
+figure moves up and the paragraph moves behind the control. **A verdict is not prose**: the Data Quality
+detector rows and Patch Coverage's `unknownReason` keep their one-sentence answer on the page, because that
+sentence *is* the finding — hiding it would leave a coloured dot with no story (the #992 rule, unchanged).
+
+Card padding is web/'s in the same pass (`header: p-3 sm:px-4 sm:py-3.5`, `body: p-3 sm:p-4`): the portal packs
+far more panels per screen than the public site, and Nuxt UI's stock `p-4 sm:p-6` spent a sixth of every card
+on its own margins — #1414, #1416, #992.
+
 ## Logs opens on Warning and above, and pages are reachable by name (2026-09-03)
 
 **The Logs page defaults to Warning and above, not to All levels.** The severity filter is a *minimum*
