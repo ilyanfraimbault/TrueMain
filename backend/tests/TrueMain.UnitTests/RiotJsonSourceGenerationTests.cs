@@ -56,6 +56,16 @@ public sealed class RiotJsonSourceGenerationTests
             "deaths": 3,
             "assists": 7,
             "totalDamageDealtToChampions": 28450,
+            "physicalDamageDealtToChampions": 21000,
+            "magicDamageDealtToChampions": 6450,
+            "trueDamageDealtToChampions": 1000,
+            "totalHeal": 5200,
+            "totalHealsOnTeammates": 0,
+            "totalDamageShieldedOnTeammates": 0,
+            "timeCCingOthers": 24,
+            "totalTimeCCDealt": 180,
+            "totalDamageTaken": 24100,
+            "damageSelfMitigated": 19800,
             "visionScore": 21,
             "goldEarned": 15320,
             "totalMinionsKilled": 245,
@@ -170,6 +180,16 @@ public sealed class RiotJsonSourceGenerationTests
         participant.Lane.Should().Be("MIDDLE");
         participant.Role.Should().Be("SOLO");
         participant.Win.Should().BeTrue();
+        participant.PhysicalDamageDealtToChampions.Should().Be(21000);
+        participant.MagicDamageDealtToChampions.Should().Be(6450);
+        participant.TrueDamageDealtToChampions.Should().Be(1000);
+        participant.TotalHeal.Should().Be(5200);
+        participant.TotalHealsOnTeammates.Should().Be(0);
+        participant.TotalDamageShieldedOnTeammates.Should().Be(0);
+        participant.TimeCCingOthers.Should().Be(24);
+        participant.TotalTimeCCDealt.Should().Be(180);
+        participant.TotalDamageTaken.Should().Be(24100);
+        participant.DamageSelfMitigated.Should().Be(19800);
         participant.Kills.Should().Be(12);
         participant.Deaths.Should().Be(3);
         participant.Assists.Should().Be(7);
