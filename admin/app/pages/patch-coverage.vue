@@ -25,7 +25,6 @@ import { detectorStatusMeta } from '~~/shared/utils/detector-status'
 import { formatDateTime, formatNumber, formatPercent, formatTimeAgo } from '~~/shared/utils/format'
 
 const { data, pending, error, refresh } = usePatchCoverage()
-const { nameFor, iconFor } = useChampionStatic()
 
 const patches = computed<PatchCoverageRow[]>(() => data.value?.patches ?? [])
 const current = computed<PatchCoverageRow | null>(
@@ -354,40 +353,9 @@ function dayScale(patch: PatchCoverageRow): number {
               </li>
             </ul>
 
-            <!-- The named cause of a thin patch. -->
-            <template v-if="patch.belowFloor.length">
-              <USeparator class="my-4" />
-              <p class="mb-2 text-xs text-muted uppercase">
-                Still below the floor
-                <span class="normal-case text-dimmed">
-                  — {{ formatNumber(patch.belowFloorCount) }} line(s), closest first<template
-                    v-if="patch.belowFloorCount > patch.belowFloor.length"
-                  >, showing {{ patch.belowFloor.length }}</template>
-                </span>
-              </p>
-              <ul class="grid gap-1.5 sm:grid-cols-2">
-                <li
-                  v-for="line in patch.belowFloor"
-                  :key="`${line.championId}-${line.position}`"
-                  class="flex items-center justify-between gap-2 text-xs"
-                >
-                  <span class="flex min-w-0 items-center gap-2">
-                    <img
-                      v-if="iconFor(line.championId)"
-                      :src="iconFor(line.championId)!"
-                      :alt="nameFor(line.championId)"
-                      class="size-5 shrink-0 rounded"
-                      loading="lazy"
-                    >
-                    <span class="truncate text-highlighted">{{ nameFor(line.championId) }}</span>
-                    <span class="shrink-0 text-dimmed">{{ line.position }}</span>
-                  </span>
-                  <span class="shrink-0 tabular-nums text-muted">
-                    {{ line.games }} · {{ line.gamesToFloor }} short
-                  </span>
-                </li>
-              </ul>
-            </template>
+            <!-- The named cause of a thin patch — primary lanes only, off-role tail
+                 counted rather than listed (#1442). -->
+            <PatchBelowFloorLines :patch="patch" />
           </UCard>
         </div>
 

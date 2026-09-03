@@ -491,7 +491,11 @@ public sealed class PatchCoverageQueryService(
                         new ChampionDirectoryLine(patchGroup.Key, row.ChampionId, row.Position, row.Games)));
 
                     var pastFloor = lines.Where(line => ChampionDirectoryLines.ClearsFloor(line, floor)).ToList();
-                    var below = lines.Where(line => !ChampionDirectoryLines.ClearsFloor(line, floor)).ToList();
+
+                    // Primary lanes only, closest to the floor first — the shared definition
+                    // says why the off-role tail is not named (#1442). The tail is still in
+                    // the coverage figures: it is Lines minus LinesPastFloor minus this.
+                    var below = ChampionDirectoryLines.BelowFloorOnPrimaryLane(lines, floor);
 
                     return new PatchCoverage(
                         lines.Count,
@@ -500,11 +504,6 @@ public sealed class PatchCoverageQueryService(
                         pastFloor.Select(line => line.ChampionId).Distinct().Count(),
                         below.Count,
                         [.. below
-                            // Closest to the floor first: a thin patch's real question is
-                            // "how far off is it", and the lines about to clear answer it.
-                            .OrderByDescending(line => line.Games)
-                            .ThenBy(line => line.ChampionId)
-                            .ThenBy(line => line.Position, StringComparer.Ordinal)
                             .Take(limit)
                             .Select(line => new PatchThinLineReadModel
                             {
