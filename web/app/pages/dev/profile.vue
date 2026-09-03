@@ -138,14 +138,12 @@ const mockRankHistory: RankHistoryEntry[] = (() => {
 })()
 
 // Activity grid (#927). Built to show the retention asymmetry rather than a full
-// grid: the match-sourced series stop 18 days back (roughly what
+// grid: the match-sourced series stop 28 days back (roughly what
 // `match_participants` still holds in prod) while the patch series carries the
 // seven patches the dedication fixture above claims, so the two coverage notes
 // can be read side by side.
 const mockActivity = computed<TruemainActivityResponse>(() => {
   const day = 24 * 60 * 60 * 1000
-  // A full retention window's worth of days (~two patches), so the grid is
-  // exercised at the length the real card gets rather than at half a row.
   const retainedDays = 28
 
   const games = Array.from({ length: retainedDays }, (_, index) => {
