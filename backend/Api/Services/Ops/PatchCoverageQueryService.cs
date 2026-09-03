@@ -377,8 +377,7 @@ public sealed class PatchCoverageQueryService(
                 count(*) FILTER (WHERE m."TimelineIngested" AND NOT m."PowerspikeAggregated") AS "PendingPowerspike",
                 count(*) FILTER (WHERE NOT m."SynergyAggregated") AS "PendingSynergy",
                 count(*) FILTER (WHERE NOT m."MatchupLeadAggregated") AS "PendingMatchupLead",
-                count(*) FILTER (WHERE NOT m."BansAggregated") AS "PendingBans",
-                count(*) FILTER (WHERE NOT m."LaneOutcomeAggregated") AS "PendingLaneOutcome"
+                count(*) FILTER (WHERE NOT m."BansAggregated") AS "PendingBans"
             FROM matches m
             WHERE m."QueueId" = {queueId}
               AND split_part(m."GameVersion", '.', 1) || '.' || split_part(m."GameVersion", '.', 2) = ANY({patches})
@@ -419,7 +418,6 @@ public sealed class PatchCoverageQueryService(
                     group.Sum(row => row.PendingSynergy),
                     group.Sum(row => row.PendingMatchupLead),
                     group.Sum(row => row.PendingBans),
-                    group.Sum(row => row.PendingLaneOutcome),
                     [.. group
                         .OrderBy(row => row.Date, StringComparer.Ordinal)
                         .Select(row => new PatchCoverageDayReadModel
@@ -491,7 +489,11 @@ public sealed class PatchCoverageQueryService(
                         new ChampionDirectoryLine(patchGroup.Key, row.ChampionId, row.Position, row.Games)));
 
                     var pastFloor = lines.Where(line => ChampionDirectoryLines.ClearsFloor(line, floor)).ToList();
-                    var below = lines.Where(line => !ChampionDirectoryLines.ClearsFloor(line, floor)).ToList();
+
+                    // Primary lanes only, closest to the floor first — the shared definition
+                    // says why the off-role tail is not named (#1442). The tail is still in
+                    // the coverage figures: it is Lines minus LinesPastFloor minus this.
+                    var below = ChampionDirectoryLines.BelowFloorOnPrimaryLane(lines, floor);
 
                     return new PatchCoverage(
                         lines.Count,
@@ -500,11 +502,6 @@ public sealed class PatchCoverageQueryService(
                         pastFloor.Select(line => line.ChampionId).Distinct().Count(),
                         below.Count,
                         [.. below
-                            // Closest to the floor first: a thin patch's real question is
-                            // "how far off is it", and the lines about to clear answer it.
-                            .OrderByDescending(line => line.Games)
-                            .ThenBy(line => line.ChampionId)
-                            .ThenBy(line => line.Position, StringComparer.Ordinal)
                             .Take(limit)
                             .Select(line => new PatchThinLineReadModel
                             {
@@ -661,9 +658,10 @@ public sealed class PatchCoverageQueryService(
             new FoldSpec(
                 "laneOutcomes",
                 "Lane outcomes — champion_matchup_stats (LaneGames)",
-                "The 15-minute lane verdict folded onto the matchup rows (#919). Needs both lane participants to have "
-                    + "a timeline snapshot, so it necessarily trails the matchup counts above.",
-                ingestion => ingestion?.PendingLaneOutcome),
+                "The 15-minute lane verdict folded onto the matchup rows (#919), in the same pass as the counts "
+                    + "above (#1445) — hence the same pending column. It still lags them, because a lane is only "
+                    + "judged when both participants have a timeline snapshot.",
+                ingestion => ingestion?.PendingMatchupLead),
             """
             SELECT
                 "Patch" AS "Patch",
@@ -771,7 +769,6 @@ public sealed class PatchCoverageQueryService(
         long PendingSynergy,
         long PendingMatchupLead,
         long PendingBans,
-        long PendingLaneOutcome,
         IReadOnlyList<PatchCoverageDayReadModel> Daily);
 
     private sealed record PatchCoverage(
@@ -795,8 +792,7 @@ public sealed class PatchCoverageQueryService(
         long PendingPowerspike,
         long PendingSynergy,
         long PendingMatchupLead,
-        long PendingBans,
-        long PendingLaneOutcome);
+        long PendingBans);
 
     private sealed record PatchDayParticipantsSqlRow(string Patch, string Date, long Participants);
 

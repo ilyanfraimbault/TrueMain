@@ -76,6 +76,7 @@ Last verified against `develop` on 2026-09-02.
 - Every champion-page fold takes its cohort from one place, and a remake is not a game — #1365, #1087, #922
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
+- A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
 - The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent — #939
 - The recommendation shows no situational-items row — #921, #939
@@ -222,6 +223,7 @@ Last verified against `develop` on 2026-09-02.
 - The budget-headroom estimate (#1035) requires 24h of rollup history before it will extrapolate, and picks the app rate-limit window with the smallest daily ceiling as "binding"
 - The configuration viewer is an allow-list, and each host reports itself (2026-08-08) — #1034, #1033, #924
 - The pipeline chain is drawn per lane, not as one flat list (2026-09-02) — #1399, #1362
+- An admin number is either actionable or it is not printed: primary-lane below-floor lines, no `Ext. samples` column (2026-09-03) — #1442
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 

@@ -1,0 +1,44 @@
+# Files over the size limit, recorded so they can only shrink.
+# Regenerate with .github/scripts/check-file-size.sh --update
+# path<TAB>lines<TAB>limit
+admin/app/components/CrashesPanel.vue	578	400
+admin/app/components/accounts/AccountsPipeline.vue	902	400
+admin/app/components/accounts/AccountsSeed.vue	1096	400
+admin/app/components/accounts/AccountsTrace.vue	892	400
+admin/app/components/processes/ProcessesRiotApi.vue	611	400
+admin/app/composables/useOps.ts	444	300
+admin/app/pages/data-quality.vue	601	400
+admin/app/pages/database.vue	512	400
+admin/app/pages/index.vue	600	400
+admin/app/pages/logs.vue	568	400
+admin/app/pages/processes.vue	1197	400
+admin/shared/types/ops.ts	1912	300
+backend/Api/Controllers/Champions/ChampionsController.cs	823	500
+backend/Api/Controllers/Ops/OpsController.cs	869	500
+backend/Api/ReadModels/Ops/AccountExplorerReadModel.cs	547	500
+backend/Api/Services/Champions/ChampionBuildsQueryService.cs	546	500
+backend/Api/Services/Champions/ChampionSummariesQueryService.cs	694	500
+backend/Api/Services/Champions/ChampionSynergyQueryService.cs	516	500
+backend/Api/Services/Ops/AccountExplorerQueryService.cs	629	500
+backend/Api/Services/Ops/DataQualityDetectorsQueryService.cs	997	500
+backend/Api/Services/Ops/DataQualityQueryService.cs	695	500
+backend/Api/Services/Ops/PatchCoverageQueryService.cs	800	500
+backend/Api/Services/Truemains/MatchDetailQueryService.cs	580	500
+backend/Api/Services/Truemains/TruemainsLeaderboardQueryService.cs	1098	500
+backend/Data/Logging/Mongo/MongoLogContext.cs	658	500
+backend/Data/Ops/Mongo/ProcessRunStore.cs	508	500
+backend/Data/Repositories/RiotAccountRepository.cs	627	500
+backend/Ingestor/Processes/ChampionPowerspikeAggregationProcess.cs	872	500
+backend/Ingestor/Processes/MatchDataRetentionProcess.cs	805	500
+backend/Tools/DevSeed/SeedGenerator.cs	607	500
+web/app/components/AppBackdrop.vue	426	400
+web/app/components/AppSearch.vue	541	400
+web/app/components/leaderboard/LeaderboardRow.vue	482	400
+web/app/components/match/MatchRow.vue	612	400
+web/app/pages/champions/[slug].vue	722	400
+web/app/pages/champions/index.vue	484	400
+web/app/pages/dev/design-system.vue	616	400
+web/app/pages/truemains/[nameTag]/champions/[slug].vue	491	400
+web/app/utils/favorites.ts	332	300
+web/shared/types/champions.ts	558	300
+web/shared/utils/champion-build-summary.ts	455	300
