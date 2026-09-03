@@ -19,6 +19,16 @@ import {
 
 const { data, pending, error, refresh } = usePipelineHealth()
 
+// The cockpit is read as live — it is the "is it on fire right now" page — so it
+// re-evaluates itself on a 30 s timer instead of waiting for a reload (#1411).
+// The whole page is one payload, so one source covers the verdict and every tile.
+const {
+  lastUpdatedAt,
+  paused: livePaused,
+  toggle: toggleLive,
+  refreshNow,
+} = useLiveRefresh(refresh)
+
 const verdict = computed(() => detectorStatusMeta(data.value?.status))
 const signals = computed(() => data.value?.signals ?? [])
 const processes = computed(() => data.value?.processes ?? [])
@@ -61,13 +71,18 @@ const visibleProcesses = computed(() =>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
+          <LiveRefreshIndicator
+            :last-updated-at="lastUpdatedAt"
+            :paused="livePaused"
+            @toggle="toggleLive"
+          />
           <UButton
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
             :loading="pending"
             aria-label="Refresh"
-            @click="refresh()"
+            @click="refreshNow()"
           />
         </template>
       </UDashboardNavbar>

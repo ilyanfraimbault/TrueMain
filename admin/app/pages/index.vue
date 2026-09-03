@@ -18,7 +18,25 @@ const {
   data: health,
   pending: healthPending,
   error: healthError,
+  refresh: refreshHealth,
 } = usePipelineHealth()
+
+// The strip answers "is anything on fire?", so it keeps itself current on a 30 s
+// timer (#1411). Only the strip: the totals and histograms below move on a
+// pipeline cadence measured in hours, and re-drawing their charts every half
+// minute would be motion without information.
+const {
+  lastUpdatedAt,
+  paused: livePaused,
+  toggle: toggleLive,
+  refreshNow,
+} = useLiveRefresh(refreshHealth)
+
+// The manual button is the whole panel's refresh, verdict strip included, and it
+// restarts the live countdown so a click is never followed by an immediate tick.
+async function refreshAll() {
+  await Promise.all([refresh(), refreshNow()])
+}
 
 const healthVerdict = computed(() => detectorStatusMeta(health.value?.status))
 
@@ -279,13 +297,18 @@ const topChampionsLoading = computed(
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
+          <LiveRefreshIndicator
+            :last-updated-at="lastUpdatedAt"
+            :paused="livePaused"
+            @toggle="toggleLive"
+          />
           <UButton
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
             :loading="pending"
             aria-label="Refresh"
-            @click="refresh()"
+            @click="refreshAll()"
           />
         </template>
       </UDashboardNavbar>
