@@ -230,6 +230,7 @@ Last verified against `develop` on 2026-09-02.
 - The health cockpit (`/health`, #1031) holds no depth of its own — every tile is a link, and the verdict is judged server-side
 - A process that has never recorded a run is `unknown`, not amber; an abandoned run is a warning, not an error — #1031
 - A chart's mark is chosen by what the series measures: flows are bars, stocks are lines (2026-08-25) — #924
+- Slots 4-6 of the chart palette are a measured downgrade, spent on one chart — #1403, #1404
 - Admin bar charts go through a wrapper, because vue-chrts' bar tooltip is broken three times (2026-08-25, extended 2026-09-03) — #1218, #1404
 - The portal's charts are on the public site's design system, while its chrome is not (2026-09-03) — #1404, #1059
 - The admin portal has one status vocabulary and one duration ladder (2026-08-28) — #924, #1024

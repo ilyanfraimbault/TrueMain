@@ -83,6 +83,26 @@ The split doubles as palette hygiene. `CHART_SERIES` holds three colours in a fi
 colourblind separation, and the file already said a fourth series "gets its own chart" — Progression was at
 three and the outcome series had nowhere to go.
 
+**#1403 raised the palette to six, and it is a downgrade paid for on purpose.** Asked for the candidate levels
+on the curve that was already there rather than in cards of their own, the outcome chart now draws five
+statuses plus the cumulative demotion. The three added hues were chosen by search over the same OKLab ΔE model
+#1404 used, and the number that matters is the one that got worse: the six-colour set holds at **8.2 adjacent /
+5.0 overall** (rosegold↔orange), against the triad's 17.0 / 9.4.
+
+That is not a smaller margin of the same guarantee, it is a different guarantee. #1404 replaced the old triad
+precisely to stop order from being load-bearing — "a chart that skips a slot or reorders is still legible" —
+and past slot three that property is gone: adjacency matters again, and 5.0 is below what colour alone
+separates in a six-entry legend. So the rule stands as #1404 wrote it — a fourth series folds into an "other"
+bucket or gets its own chart — and slots 4-6 exist for the case where a single axis is genuinely the
+requirement, with two obligations attached: series take the palette in declaration order (the area-chart
+wrapper assigns it by index, so call sites should pass no colour at all and let it), and every series' current
+value ships as visible text under the chart. Past three series that text is the identity mechanism, not a
+courtesy.
+
+The cumulative `validated` curve was dropped in the same move: the Validated *level* answers "how big is the
+roster" with the real figure instead of a running total that restarts at the window's left edge — 64,643
+against 17,506 for 30 days, measured on preprod.
+
 Grouped, not stacked, is a recurring call and it turns on nesting: stack only when the series sum to a real
 whole. The funnel's three intake sources do (they add up to "candidates that entered"). `promoted ⊂ scored` and
 `retries ⊂ calls` do not, so `/riot-api`'s call-volume chart is grouped bars — that one was safe to convert
