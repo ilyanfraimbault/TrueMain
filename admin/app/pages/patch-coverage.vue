@@ -354,8 +354,12 @@ function dayScale(patch: PatchCoverageRow): number {
             </ul>
 
             <!-- The named cause of a thin patch — primary lanes only, off-role tail
-                 counted rather than listed (#1442). -->
-            <PatchBelowFloorLines :patch="patch" />
+                 counted rather than listed, and only on the patch the site serves (#1442). -->
+            <PatchBelowFloorLines
+              v-if="patch.isCurrent"
+              :patch="patch"
+              :floor="data.minSampleGames"
+            />
           </UCard>
         </div>
 

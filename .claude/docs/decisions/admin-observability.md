@@ -274,6 +274,13 @@ up is how a page loses trust. When every below-floor line is off-role, that sent
 empty list under "146 lines below the floor" reads as a bug, and "no champion is short of games on its own
 lane" is the answer.
 
+Two follow-ups from reading it in preprod. The list is drawn on **the current patch only**: it is a to-do,
+and the only patch anything can still be done about is the one the site serves. An abandoned patch has every
+champion a game or two short, so its card printed 51 names carrying one game each — and a reader who had
+scrolled past the card's heading took them for the served patch's, which is how a champion sitting on 738
+games of the live patch appeared to be nine short of the floor. And each line prints `3 / 10 games` rather
+than `3 · 7 short`: a shortfall against a bar the row does not state is not a number anyone can read.
+
 `Ext. samples` counted the mains that only cleared the *relaxed* per-champion play-rate threshold (#407) —
 a diagnostic of the coverage relaxation, not a property of the champion. On production that is 111 rows out
 of 68 056 mains, at most 5 for any one champion and exactly 0 for 123 of the 173, so as a sortable column it
