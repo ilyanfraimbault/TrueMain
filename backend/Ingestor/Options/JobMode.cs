@@ -24,7 +24,10 @@ public enum JobMode
     SynergyAggregationOnly = 15,
     BanAggregationOnly = 16,
     StorageSnapshotOnly = 17,
-    RunePageDeduplicationOnly = 18,
+
+    // 18 was RunePageDeduplicationOnly, retired with its process in #1418: the rune-page
+    // dimension can no longer hold a permutation duplicate, so there is nothing to repair.
+    // The value stays retired rather than reused — the modes are stable identifiers.
     LaneOutcomeAggregationOnly = 19,
     LadderSyncOnly = 20,
 

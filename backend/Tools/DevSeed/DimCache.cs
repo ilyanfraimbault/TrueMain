@@ -47,7 +47,7 @@ public sealed class DimCache(TrueMainDbContext db)
 
         foreach (var si in await db.ChampionDimStarterItems.AsNoTracking().ToListAsync())
         {
-            _starterItems[si.StarterItemsKey] = si.Id;
+            _starterItems[si.CanonicalKey] = si.Id;
         }
     }
 
@@ -139,13 +139,14 @@ public sealed class DimCache(TrueMainDbContext db)
 
     public Guid GetOrAddStarterItems(int[] items)
     {
-        var key = string.Join('-', items);
+        // The key Postgres generates for the row: item ids ascending (#1418).
+        var key = string.Join('-', items.Order());
         if (_starterItems.TryGetValue(key, out var id))
         {
             return id;
         }
 
-        var row = new ChampionDimStarterItems { Id = Guid.NewGuid(), StarterItemsKey = key, StarterItems = items.ToList() };
+        var row = new ChampionDimStarterItems { Id = Guid.NewGuid(), StarterItems = items.ToList() };
         db.ChampionDimStarterItems.Add(row);
         _starterItems[key] = row.Id;
         return row.Id;

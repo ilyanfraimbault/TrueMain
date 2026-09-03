@@ -7,14 +7,17 @@ Part of the [decision log](../decisions.md). Format: **Decision** — why — `s
   unchecked platform must not let a card claim to be clean) but stays below red (it must not hide a real
   failure either). Headlines are worded from the verdict, not from the count, so a card can never read
   "everything completed" while its colour says "not measured". The mirror-image rule matters just as much: a
-  signal that is *deliberately* unavailable — a starter basket's canonical order (patch-dependent prices), a
+  signal that is *deliberately* unavailable — a starter basket's stored order (it carries no identity: Postgres
+  generates the key), a
   trend with no previous window, a patch too new or too old to compare — is shown as a row but **does not
   vote**, because a card pinned to unknown for ever teaches the operator to ignore its colour.
 
-- **A detector shares the repair's definition of the bug it audits** (#924). The canonical-key SQL lives once,
-  in `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, and is read by both the ingestor's
-  `RunePageDeduplicationProcess` and the admin duplicate detector. Two copies would eventually disagree, and a
-  detector that groups differently from the repair reports a clean bill of health for a live bug (#911).
+- **A detector shares the constraint's definition of the bug it audits** (#924, #1418). The canonical-key SQL
+  lives once, in `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, and the schema's UNIQUE indexes and
+  CHECKs are built from the same expressions the duplicate detector groups on. It was originally shared with a
+  repair process, on the same reasoning: two copies eventually disagree, and a detector that groups differently
+  from the thing it audits reports a clean bill of health for a live bug (#911). Now that the duplicates are
+  unreachable, the card is a regression alarm — a non-zero count means a constraint went missing.
 
 - **Detector thresholds are configuration, not constants** (`DataQualityDetectors:*`). The honest line differs
   between preprod and production, and an operator silencing a crying-wolf card must not need a redeploy. A
