@@ -45,17 +45,26 @@ addable, and a presence number computed from them would be arithmetic without me
 pick rate purely to make them addable was rejected: it would put two different pick rates on the same page —
 #920.
 
-**Dimension rows must be stored in a canonical order, not the order Riot reported them.**
+**A dimension's identity is enforced by the schema, not repaired afterwards.**
 `champion_dim_rune_pages` kept the two secondary perks in the player's selection order, so one page existed
 as `(8451, 8444)` and `(8444, 8451)`. The 11-column unique index does not catch a permutation, so the page's
 games and wins were split across both rows — roughly halving its displayed pick rate and distorting the
 top-N. It reached 48% of the dimension (20 370 pairs) before anyone noticed, because the two rows render
-pixel-identically. The primary tree was unaffected: there the selection index *is* the tree row. Ordering is
-by perk id rather than tree row — the row is not stored backend-side and Riot assigns ids in row order
-anyway. The backfill runs as a pipeline step, not a startup migration, because it rewrites hundreds of
-thousands of pattern rows and prod migrates on startup. It also normalises pages that were never duplicated:
-left in click order, the new canonical lookup would miss them and mint a second row, re-creating the bug —
-#911.
+pixel-identically (#911). `champion_dim_starter_items` failed the same way one level up: its unique key was a
+string the application built by joining the basket in *price* order, so a re-priced starter — or an item
+whose metadata went missing, which prices it at 0 — re-keyed a basket already stored, and 17 baskets sat
+split in production. Both were first answered with a repair (a pipeline step, a data migration), and both
+came back, because a repair leaves the state reachable.
+
+Since #1418 the guarantee is in the schema: a UNIQUE index over each dimension's *canonical expression*
+(`LEAST`/`GREATEST` on an order-insensitive pair), a CHECK on the two dimensions whose canonical form is a
+column order so a writer regression fails loudly, and for starter baskets a **stored generated column** —
+Postgres derives the key from the basket itself, ids ascending, so no writer computes it. Identity may not
+depend on data that changes, and item prices change. `champion_dim_builds` and `champion_dim_skill_orders`
+stay on their plain column index: there the order *is* the datum. The ingestor's dimension resolver inserts
+with `ON CONFLICT DO NOTHING` and re-reads, so a disagreement between its normalisation and the schema's
+costs a re-read instead of a failed aggregation run; `RunePageDeduplicationProcess` was deleted with the
+merge folded into the same migration that adds the constraints — #1418, #911, #924.
 
 **Rank snapshots are capped at one row per account per UTC day (DB-level unique index).**
 Intra-day LP granularity has no consumer. Accepted: rank history, match detail and the "nearest snapshot" elo
