@@ -125,13 +125,16 @@ public sealed class DimCache(TrueMainDbContext db)
 
     public Guid GetOrAddSpellPair(int spell1, int spell2)
     {
-        var key = (spell1, spell2);
+        // Sorted, like the ingestor and like the dimension's CHECK requires (#1418): the
+        // archetypes happen to list the lower id first today, and an archetype that did
+        // not would fail the seed instead of being deduplicated.
+        var key = (Math.Min(spell1, spell2), Math.Max(spell1, spell2));
         if (_spellPairs.TryGetValue(key, out var id))
         {
             return id;
         }
 
-        var row = new ChampionDimSpellPair { Id = Guid.NewGuid(), Spell1Id = spell1, Spell2Id = spell2 };
+        var row = new ChampionDimSpellPair { Id = Guid.NewGuid(), Spell1Id = key.Item1, Spell2Id = key.Item2 };
         db.ChampionDimSpellPairs.Add(row);
         _spellPairs[key] = row.Id;
         return row.Id;

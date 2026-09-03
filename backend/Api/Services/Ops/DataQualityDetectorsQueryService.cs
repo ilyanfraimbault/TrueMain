@@ -273,13 +273,14 @@ public sealed class DataQualityDetectorsQueryService(
                 DetectorStatus.Unknown => "Part of the dimension audit could not be measured.",
                 _ when duplicateGroups > 0 => string.Create(
                     CultureInfo.InvariantCulture,
-                    $"{duplicateGroups} canonical-key group(s) hold more than one row — those games are split across rows, the #911 failure."),
+                    $"{duplicateGroups} canonical-key group(s) hold more than one row — those games are split across rows, the #911 failure. The schema forbids this, so a constraint is missing."),
                 _ => string.Create(
                     CultureInfo.InvariantCulture,
-                    $"{nonCanonicalRows} row(s) are stored outside canonical order — nothing is split yet, but the reader's canonical lookup will miss them and mint a second row (#911)."),
+                    $"{nonCanonicalRows} row(s) are stored outside canonical order — nothing is split yet, but the reader's canonical lookup will miss them and mint a second row (#911). The schema forbids this, so a constraint is missing."),
             },
-            SourceNote = "Groups each champion_dim_* table on the same canonical key the ingestor's "
-                + "repair merges on, so the audit can never disagree with the fix. Not audited — " + exempt,
+            SourceNote = "Groups each champion_dim_* table on the same canonical key its UNIQUE index and "
+                + "CHECK are built from (#1418), so a count above zero means a constraint went missing "
+                + "rather than a repair being owed. Not audited — " + exempt,
             Rows = rows,
             Thresholds =
             [
