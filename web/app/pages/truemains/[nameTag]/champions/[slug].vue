@@ -167,11 +167,6 @@ const activeFilterLabels = computed(() => {
   return labels
 })
 
-// Whether the empty state is the reader's own doing (a filter they set) or the
-// champion's (we hold no aggregate at all). The two need different exits: one
-// clears the filter, the other can only leave for the global build.
-const emptiedByFilters = computed(() => notEnoughData.value && activeFilterLabels.value.length > 0)
-
 // The patch the API last resolved for this champion. `selectedPatch` falls back
 // to the loaded aggregate's patch, which goes null the moment a filter empties
 // the slice — blanking the patch select right when it has to be usable. Reset
@@ -333,50 +328,14 @@ const performanceSnapshot = useLazyHydrationSnapshot(
       -->
       <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <div class="min-w-0 space-y-6">
-          <!-- Two empty states, one block: a slice the reader emptied with a
-               filter, and a champion we hold no aggregate for at all. They read
-               differently because they end differently — the first is undone by
-               clearing the filter, the second only by leaving for the global
-               build. The champion icon is gone from here: the header above now
-               carries it in both states, and twice is once too many. -->
-          <div
+          <ChampionPlayerBuildEmpty
             v-if="notEnoughData"
-            class="flex flex-col items-center gap-3 surface rounded-lg px-6 py-8 text-center"
-          >
-            <div class="space-y-1">
-              <p class="text-sm font-medium text-default">
-                {{ emptiedByFilters ? 'Nothing on these filters' : 'No personal build breakdown yet' }}
-              </p>
-              <p class="text-sm text-muted">
-                <template v-if="emptiedByFilters">
-                  {{ playerLabel }} has no game on record for {{ activeFilterLabels.join(' · ') }}.
-                  Pick another lane or patch, or clear the filters to go back to their main slice.
-                </template>
-                <template v-else>
-                  We don't have an aggregated build for {{ playerLabel }} on
-                  {{ displayName ?? 'this champion' }} yet. Their recent games are below.
-                </template>
-              </p>
-            </div>
-            <div class="flex flex-wrap items-center justify-center gap-4">
-              <UButton
-                v-if="emptiedByFilters"
-                size="sm"
-                color="neutral"
-                variant="subtle"
-                icon="i-lucide-filter-x"
-                @click="clearFilters"
-              >
-                Clear filters
-              </UButton>
-              <NuxtLink
-                :to="pathFor(championId)"
-                class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                See the global build for {{ displayName ?? `champion ${championId}` }}
-              </NuxtLink>
-            </div>
-          </div>
+            :player-label="playerLabel"
+            :champion-name="displayName"
+            :global-build-path="pathFor(championId)"
+            :filter-labels="activeFilterLabels"
+            @clear="clearFilters"
+          />
 
           <template v-else>
             <ChampionBuildTabs
