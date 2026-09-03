@@ -79,8 +79,9 @@ public static class IngestorEffectiveConfigurationCatalog
         OptionsType = typeof(LaneOutcomeAggregationOptions),
         Title = "Lane outcome aggregation",
         Description =
-            "Folds the 15-minute gold-lead snapshot into a won/lost/neutral lane outcome: "
-            + "the gold threshold that decides the verdict, and the per-run fold budget."
+            "The gold gap at 15 minutes above which a lane counts as won, and below whose "
+            + "negative it counts as lost. Read by the matchup fold and by the live pass "
+            + "behind the draft tool, so both call the same lanes won."
     };
 
     private static EffectiveConfigurationSectionDescriptor MatchDataRetention { get; } = new()

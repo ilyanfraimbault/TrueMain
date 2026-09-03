@@ -15,13 +15,13 @@ public sealed class ChampionCohortTests
     /// <summary>
     /// The folds that write the panels stacked on one champion page. They must express
     /// their cohort through <see cref="ChampionCohort"/> and nowhere else: #1087 fixed
-    /// the first two and #1365 the last two, each time because a fold had restated the
-    /// rule in its own words and drifted.
+    /// the matchup folds and #1365 the last two, each time because a fold had restated
+    /// the rule in its own words and drifted. The lane fold was a fourth file until
+    /// #1445 merged it into the matchup one.
     /// </summary>
     private static readonly string[] FoldSourceFiles =
     [
         "ChampionMatchupLeadAggregationProcess.cs",
-        "ChampionLaneOutcomeAggregationProcess.cs",
         "ChampionSynergyAggregationProcess.cs",
         "ChampionPowerspikeAggregationProcess.cs"
     ];

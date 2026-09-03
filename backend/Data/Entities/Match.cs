@@ -63,10 +63,14 @@ public class Match
     public bool TimelineSnapshotsPruned { get; set; }
 
     /// <summary>
-    /// Set once this match has been folded into the champion matchup/lead aggregates
-    /// (#811). Gates the incremental aggregation (each match is aggregated exactly
-    /// once) the same way <see cref="PowerspikeAggregated"/> does. Dies with the match
-    /// on retention, so an aged-out patch's aggregate rows simply freeze.
+    /// Set once this match has been folded into <see cref="ChampionMatchupStat"/>
+    /// (#811) — game counters and, since #1445, the 15-minute lane verdict in the same
+    /// pass. Gates the incremental aggregation (each match is aggregated exactly once)
+    /// the same way <see cref="PowerspikeAggregated"/> does. One flag rather than two:
+    /// the lane counters had their own until #1445, and a match folded on one side
+    /// before its elo bracket was stamped and on the other after it split its two halves
+    /// across two rows. Dies with the match on retention, so an aged-out patch's
+    /// aggregate rows simply freeze.
     /// </summary>
     public bool MatchupLeadAggregated { get; set; }
 
@@ -95,18 +99,6 @@ public class Match
     /// an aged-out patch's ban rows simply freeze.
     /// </summary>
     public bool BansAggregated { get; set; }
-
-    /// <summary>
-    /// Set once this match has been folded into the lane-outcome counters on
-    /// <see cref="ChampionMatchupStat"/> (#919). A flag of its own rather than reusing
-    /// <see cref="MatchupLeadAggregated"/>, which was backfilled to true in #811 and so
-    /// would have excluded every existing match. Shipping this one false lets the fold
-    /// drain the retained window immediately: unlike the bans of #920, the source data
-    /// (the 15-minute timeline snapshots) still exists for every retained match, since
-    /// snapshot pruning keeps the canonical marks. Dies with the match on retention, so
-    /// an aged-out patch's lane counters freeze like everything else.
-    /// </summary>
-    public bool LaneOutcomeAggregated { get; set; }
 
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

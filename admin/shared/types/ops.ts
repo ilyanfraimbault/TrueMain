@@ -303,8 +303,8 @@ export interface ProcessRunsResponse {
  * Drift is quiet rather than broken: `buildChain` appends any process it sees but
  * does not know about, so a missing step still renders — at the end of the chain,
  * under its raw name, instead of in its real position. That is exactly how
- * `RunePageDeduplication` and `ChampionLaneOutcomeAggregation` came to be drawn
- * after `StorageSnapshot`, several steps away from where they actually run.
+ * `RunePageDeduplication` came to be drawn after `StorageSnapshot`, several steps
+ * away from where it actually runs.
  */
 export const PIPELINE_CHAIN: readonly string[] = [
   'LadderSync',
@@ -320,7 +320,6 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'RunePageDeduplication',
   'ChampionPatternAggregation',
   'ChampionMatchupLeadAggregation',
-  'ChampionLaneOutcomeAggregation',
   'ChampionSynergyAggregation',
   'ChampionBanAggregation',
   'ChampionPowerspikeAggregation',
@@ -387,7 +386,6 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'RunePageDeduplication',
       'ChampionPatternAggregation',
       'ChampionMatchupLeadAggregation',
-      'ChampionLaneOutcomeAggregation',
       'ChampionSynergyAggregation',
       'ChampionBanAggregation',
       'ChampionPowerspikeAggregation',
@@ -481,12 +479,7 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
   ChampionMatchupLeadAggregation: {
     label: 'Matchups',
     description:
-      'Folds each match into the champion-versus-champion matchup stats, counting only games where the champion side is one of its mains.',
-  },
-  ChampionLaneOutcomeAggregation: {
-    label: 'Lane Outcomes',
-    description:
-      'Judges who won lane from the 15-minute gold and XP gaps, and folds that onto the matchup rows.',
+      'Folds each match into the champion-versus-champion matchup stats — who won the game, and who won lane at 15 minutes — counting only games where the champion side is one of its mains.',
   },
   ChampionSynergyAggregation: {
     label: 'Synergies',
