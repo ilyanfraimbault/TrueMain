@@ -6,6 +6,10 @@
 // `total`/`page`/`pageSize` (the rollup covers the full filtered set, not the
 // page). Failed runs are visually distinct (error tint) and each run's
 // `summary` JSON + error is inspectable in a slide-over.
+//
+// Two tabs since #1410, deep-linkable via `?view=runs|riot-api`: the Riot API
+// usage panel moved here from a page of its own, because how the pipeline spends
+// its call budget is a signal about these same runs, not a separate destination.
 import type { TableColumn } from '@nuxt/ui'
 import type { BadgeColor, ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import type { ChainLink, ChainOutcome, LaneBranch } from '~~/shared/utils/pipeline-lanes'
@@ -19,6 +23,23 @@ import { buildLaneBranches, pickCurrentLanes } from '~~/shared/utils/pipeline-la
 // health cockpit paint the same run identically — they used to disagree on `Running`.
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
 import { hasSummary } from '~~/shared/utils/process-summary'
+
+// --- Tabs (#1410) ------------------------------------------------------------
+// `runs` is the default and stays out of the URL; `/riot-api` redirects here with
+// `?view=riot-api`.
+const route = useRoute()
+const router = useRouter()
+const view = ref<'runs' | 'riot-api'>(route.query.view === 'riot-api' ? 'riot-api' : 'runs')
+watch(view, (value) => {
+  router.replace({
+    query: { ...route.query, view: value === 'riot-api' ? 'riot-api' : undefined },
+  })
+})
+
+// The Riot API tab owns its own fetch and filters, and exposes `refresh`/`pending`
+// so the single navbar button below drives whichever tab is open.
+interface RiotApiPanel { refresh: () => void, pending: boolean }
+const riotPanel = ref<RiotApiPanel | null>(null)
 
 // --- Filters -----------------------------------------------------------------
 const processName = ref('')
@@ -396,14 +417,37 @@ const selectedIterationTally = computed(() => {
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="view === 'riot-api' ? (riotPanel?.pending ?? false) : pending"
             aria-label="Refresh"
-            @click="refresh()"
+            @click="view === 'riot-api' ? riotPanel?.refresh() : refresh()"
           />
         </template>
       </UDashboardNavbar>
 
+      <!-- Tab switch: the runs table vs the Riot API usage panel (#1410). -->
       <UDashboardToolbar>
+        <template #left>
+          <div class="flex items-center gap-1">
+            <UButton
+              :color="view === 'runs' ? 'primary' : 'neutral'"
+              :variant="view === 'runs' ? 'solid' : 'ghost'"
+              icon="i-lucide-activity"
+              label="Runs"
+              @click="void (view = 'runs')"
+            />
+            <UButton
+              :color="view === 'riot-api' ? 'primary' : 'neutral'"
+              :variant="view === 'riot-api' ? 'solid' : 'ghost'"
+              icon="i-lucide-gauge"
+              label="Riot API"
+              @click="void (view = 'riot-api')"
+            />
+          </div>
+        </template>
+      </UDashboardToolbar>
+
+      <!-- Run filters only: the Riot API tab carries its own, in its body. -->
+      <UDashboardToolbar v-if="view === 'runs'">
         <template #left>
           <UInput
             v-model="processName"
@@ -440,650 +484,654 @@ const selectedIterationTally = computed(() => {
     </template>
 
     <template #body>
-      <FetchErrorAlert
-        v-if="error"
-        :error="error"
-        title="Failed to load process runs"
-        class="mb-6"
-      />
+      <ProcessesRiotApi v-if="view === 'riot-api'" ref="riotPanel" />
 
-      <!-- Pipeline chain: one branch per lane, each at its own newest iteration,
-           with the running step highlighted. Two lanes run concurrently since
-           #1362, so a flat chain would draw the idle lane's steps as phantom
-           "Not run" chips; a `Full` deployment lights up both branches of the
-           same pass. -->
-      <div class="mb-6">
-        <div class="flex items-center justify-between gap-2 mb-3">
-          <p class="text-xs text-muted uppercase">
-            Pipeline chain
-          </p>
-          <span
-            v-if="currentIterationRunning"
-            class="inline-flex items-center gap-1.5 text-xs text-primary font-medium"
-          >
-            <UIcon name="i-lucide-loader-circle" class="size-3.5 animate-spin" />
-            In progress
-          </span>
-        </div>
+      <template v-else>
+        <FetchErrorAlert
+          v-if="error"
+          :error="error"
+          title="Failed to load process runs"
+          class="mb-6"
+        />
 
-        <div
-          v-if="latestIterationError"
-          class="py-6 text-center text-sm text-muted border border-default rounded-lg"
-        >
-          Failed to load the pipeline chain.
-        </div>
-        <div
-          v-else
-          class="rounded-lg border border-default bg-elevated/25 p-4 space-y-4"
-        >
-          <div
-            v-for="lane in currentLanes"
-            :key="lane.branch.id"
-            class="relative border-l-2 pl-4"
-            :class="laneRailClass(lane.branch.outcome)"
-          >
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
-              <UTooltip :text="lane.branch.description" :ui="PROCESS_TOOLTIP_UI">
-                <span class="inline-flex items-center gap-1.5">
-                  <UIcon
-                    :name="outcomeIcon(lane.branch.outcome)"
-                    class="size-4 shrink-0"
-                    :class="outcomeTextClass(lane.branch.outcome)"
-                  />
-                  <span class="text-sm font-medium text-highlighted">{{ lane.branch.label }}</span>
-                </span>
-              </UTooltip>
-              <span v-if="lane.branch.startedAtUtc" class="text-xs text-dimmed">
-                {{ formatDateTime(lane.branch.startedAtUtc) }}
-              </span>
-              <span v-if="lane.branch.durationMs !== null" class="text-xs text-dimmed tabular-nums">
-                · {{ formatElapsed(lane.branch.durationMs) }}
-              </span>
-              <span
-                v-if="lane.isRunning"
-                class="inline-flex items-center gap-1 text-xs text-primary font-medium"
-              >
-                <UIcon name="i-lucide-loader-circle" class="size-3 animate-spin" />
-                In progress
-              </span>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-y-2">
-              <template v-for="(link, i) in lane.branch.links" :key="link.processName">
-                <UTooltip :ui="PROCESS_TOOLTIP_UI">
-                  <button
-                    type="button"
-                    class="group inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors"
-                    :class="{
-                      'border-primary/50 bg-primary/10': link.outcome === 'Running',
-                      'border-success/30 bg-success/5': link.outcome === 'Success',
-                      'border-error/40 bg-error/10': link.outcome === 'Failed',
-                      'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
-                      'border-default bg-default opacity-60': link.outcome === 'notRun',
-                      'cursor-default': !link.run,
-                    }"
-                    :disabled="!link.run"
-                    @click="link.run && openDetail(link.run)"
-                  >
-                    <UIcon
-                      :name="outcomeIcon(link.outcome)"
-                      class="size-4 shrink-0"
-                      :class="outcomeTextClass(link.outcome)"
-                    />
-                    <span
-                      class="text-xs font-medium whitespace-nowrap"
-                      :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-highlighted'"
-                    >
-                      {{ chainLabel(link.processName) }}
-                    </span>
-                  </button>
-                  <template #content>
-                    <ProcessTooltipContent :process-name="link.processName" :context="chainTooltipContext(link)" />
-                  </template>
-                </UTooltip>
-                <UIcon
-                  v-if="i < lane.branch.links.length - 1"
-                  name="i-lucide-chevron-right"
-                  class="size-4 text-dimmed shrink-0 mx-0.5"
-                />
-              </template>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent iterations: each iteration as the chain with per-process
-           outcomes. Newest first. -->
-      <div class="mb-6">
-        <p class="text-xs text-muted uppercase mb-3">
-          Recent iterations
-        </p>
-
-        <div
-          v-if="iterationsError"
-          class="py-8 text-center text-sm text-muted border border-default rounded-lg"
-        >
-          Failed to load recent iterations.
-        </div>
-        <div v-else-if="iterationsPending" class="space-y-3">
-          <USkeleton v-for="i in 3" :key="i" class="h-16 w-full rounded-lg" />
-        </div>
-        <div
-          v-else-if="finishedIterations.length === 0"
-          class="py-8 text-center text-sm text-muted border border-default rounded-lg"
-        >
-          No finished iterations yet.
-        </div>
-        <div v-else class="space-y-3">
-          <button
-            v-for="iteration in finishedIterations"
-            :key="iteration.iterationId"
-            type="button"
-            class="block w-full text-left rounded-lg border border-default p-4 bg-elevated/25 transition-colors hover:bg-elevated/50 hover:border-primary/40"
-            title="View iteration summary"
-            @click="openIterationDetail(iteration)"
-          >
-            <div class="flex items-center justify-between gap-2 mb-3">
-              <span class="text-sm text-muted">
-                {{ formatDateTime(iteration.startedAtUtc) }}
-              </span>
-              <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" />
-            </div>
-
-            <!-- One branch per lane the pass ran — normally exactly one, since a
-                 pass belongs to a lane; a `Full` deployment shows both. -->
-            <div
-              v-for="branch in iterationBranches.get(iteration.iterationId)"
-              :key="branch.id"
-              class="relative border-l-2 pl-3 not-first:mt-3"
-              :class="laneRailClass(branch.outcome)"
+        <!-- Pipeline chain: one branch per lane, each at its own newest iteration,
+             with the running step highlighted. Two lanes run concurrently since
+             #1362, so a flat chain would draw the idle lane's steps as phantom
+             "Not run" chips; a `Full` deployment lights up both branches of the
+             same pass. -->
+        <div class="mb-6">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <p class="text-xs text-muted uppercase">
+              Pipeline chain
+            </p>
+            <span
+              v-if="currentIterationRunning"
+              class="inline-flex items-center gap-1.5 text-xs text-primary font-medium"
             >
-              <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1.5">
-                <span class="text-xs font-medium text-muted">{{ branch.label }}</span>
-                <span v-if="branch.durationMs !== null" class="text-[11px] text-dimmed tabular-nums">
-                  · {{ formatElapsed(branch.durationMs) }}
+              <UIcon name="i-lucide-loader-circle" class="size-3.5 animate-spin" />
+              In progress
+            </span>
+          </div>
+
+          <div
+            v-if="latestIterationError"
+            class="py-6 text-center text-sm text-muted border border-default rounded-lg"
+          >
+            Failed to load the pipeline chain.
+          </div>
+          <div
+            v-else
+            class="rounded-lg border border-default bg-elevated/25 p-4 space-y-4"
+          >
+            <div
+              v-for="lane in currentLanes"
+              :key="lane.branch.id"
+              class="relative border-l-2 pl-4"
+              :class="laneRailClass(lane.branch.outcome)"
+            >
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+                <UTooltip :text="lane.branch.description" :ui="PROCESS_TOOLTIP_UI">
+                  <span class="inline-flex items-center gap-1.5">
+                    <UIcon
+                      :name="outcomeIcon(lane.branch.outcome)"
+                      class="size-4 shrink-0"
+                      :class="outcomeTextClass(lane.branch.outcome)"
+                    />
+                    <span class="text-sm font-medium text-highlighted">{{ lane.branch.label }}</span>
+                  </span>
+                </UTooltip>
+                <span v-if="lane.branch.startedAtUtc" class="text-xs text-dimmed">
+                  {{ formatDateTime(lane.branch.startedAtUtc) }}
+                </span>
+                <span v-if="lane.branch.durationMs !== null" class="text-xs text-dimmed tabular-nums">
+                  · {{ formatElapsed(lane.branch.durationMs) }}
+                </span>
+                <span
+                  v-if="lane.isRunning"
+                  class="inline-flex items-center gap-1 text-xs text-primary font-medium"
+                >
+                  <UIcon name="i-lucide-loader-circle" class="size-3 animate-spin" />
+                  In progress
                 </span>
               </div>
 
               <div class="flex flex-wrap items-center gap-y-2">
-                <template
-                  v-for="(link, i) in branch.links"
-                  :key="link.processName"
-                >
+                <template v-for="(link, i) in lane.branch.links" :key="link.processName">
                   <UTooltip :ui="PROCESS_TOOLTIP_UI">
-                    <span
-                      class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
+                    <button
+                      type="button"
+                      class="group inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors"
                       :class="{
                         'border-primary/50 bg-primary/10': link.outcome === 'Running',
                         'border-success/30 bg-success/5': link.outcome === 'Success',
                         'border-error/40 bg-error/10': link.outcome === 'Failed',
                         'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
-                        'border-default bg-default opacity-50': link.outcome === 'notRun',
+                        'border-default bg-default opacity-60': link.outcome === 'notRun',
+                        'cursor-default': !link.run,
                       }"
+                      :disabled="!link.run"
+                      @click="link.run && openDetail(link.run)"
                     >
                       <UIcon
                         :name="outcomeIcon(link.outcome)"
-                        class="size-3.5 shrink-0"
+                        class="size-4 shrink-0"
                         :class="outcomeTextClass(link.outcome)"
                       />
                       <span
-                        class="text-[11px] font-medium whitespace-nowrap"
-                        :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-default'"
+                        class="text-xs font-medium whitespace-nowrap"
+                        :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-highlighted'"
                       >
                         {{ chainLabel(link.processName) }}
                       </span>
-                    </span>
+                    </button>
                     <template #content>
-                      <ProcessTooltipContent :process-name="link.processName" :context="iterationChipContext(link)" />
+                      <ProcessTooltipContent :process-name="link.processName" :context="chainTooltipContext(link)" />
                     </template>
                   </UTooltip>
                   <UIcon
-                    v-if="i < branch.links.length - 1"
+                    v-if="i < lane.branch.links.length - 1"
                     name="i-lucide-chevron-right"
-                    class="size-3.5 text-dimmed shrink-0 mx-0.5"
+                    class="size-4 text-dimmed shrink-0 mx-0.5"
                   />
                 </template>
               </div>
             </div>
-          </button>
+          </div>
         </div>
 
-        <!-- Iteration pagination -->
+        <!-- Recent iterations: each iteration as the chain with per-process
+             outcomes. Newest first. -->
+        <div class="mb-6">
+          <p class="text-xs text-muted uppercase mb-3">
+            Recent iterations
+          </p>
+
+          <div
+            v-if="iterationsError"
+            class="py-8 text-center text-sm text-muted border border-default rounded-lg"
+          >
+            Failed to load recent iterations.
+          </div>
+          <div v-else-if="iterationsPending" class="space-y-3">
+            <USkeleton v-for="i in 3" :key="i" class="h-16 w-full rounded-lg" />
+          </div>
+          <div
+            v-else-if="finishedIterations.length === 0"
+            class="py-8 text-center text-sm text-muted border border-default rounded-lg"
+          >
+            No finished iterations yet.
+          </div>
+          <div v-else class="space-y-3">
+            <button
+              v-for="iteration in finishedIterations"
+              :key="iteration.iterationId"
+              type="button"
+              class="block w-full text-left rounded-lg border border-default p-4 bg-elevated/25 transition-colors hover:bg-elevated/50 hover:border-primary/40"
+              title="View iteration summary"
+              @click="openIterationDetail(iteration)"
+            >
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <span class="text-sm text-muted">
+                  {{ formatDateTime(iteration.startedAtUtc) }}
+                </span>
+                <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" />
+              </div>
+
+              <!-- One branch per lane the pass ran — normally exactly one, since a
+                   pass belongs to a lane; a `Full` deployment shows both. -->
+              <div
+                v-for="branch in iterationBranches.get(iteration.iterationId)"
+                :key="branch.id"
+                class="relative border-l-2 pl-3 not-first:mt-3"
+                :class="laneRailClass(branch.outcome)"
+              >
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1.5">
+                  <span class="text-xs font-medium text-muted">{{ branch.label }}</span>
+                  <span v-if="branch.durationMs !== null" class="text-[11px] text-dimmed tabular-nums">
+                    · {{ formatElapsed(branch.durationMs) }}
+                  </span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-y-2">
+                  <template
+                    v-for="(link, i) in branch.links"
+                    :key="link.processName"
+                  >
+                    <UTooltip :ui="PROCESS_TOOLTIP_UI">
+                      <span
+                        class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
+                        :class="{
+                          'border-primary/50 bg-primary/10': link.outcome === 'Running',
+                          'border-success/30 bg-success/5': link.outcome === 'Success',
+                          'border-error/40 bg-error/10': link.outcome === 'Failed',
+                          'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
+                          'border-default bg-default opacity-50': link.outcome === 'notRun',
+                        }"
+                      >
+                        <UIcon
+                          :name="outcomeIcon(link.outcome)"
+                          class="size-3.5 shrink-0"
+                          :class="outcomeTextClass(link.outcome)"
+                        />
+                        <span
+                          class="text-[11px] font-medium whitespace-nowrap"
+                          :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-default'"
+                        >
+                          {{ chainLabel(link.processName) }}
+                        </span>
+                      </span>
+                      <template #content>
+                        <ProcessTooltipContent :process-name="link.processName" :context="iterationChipContext(link)" />
+                      </template>
+                    </UTooltip>
+                    <UIcon
+                      v-if="i < branch.links.length - 1"
+                      name="i-lucide-chevron-right"
+                      class="size-3.5 text-dimmed shrink-0 mx-0.5"
+                    />
+                  </template>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <!-- Iteration pagination -->
+          <div
+            v-if="iterationsTotal > iterationsPageSize"
+            class="flex items-center justify-between gap-2 mt-4"
+          >
+            <p class="text-xs text-muted tabular-nums">
+              Page {{ iterationsServerPage.toLocaleString('en-US') }} of
+              {{ Math.max(1, Math.ceil(iterationsTotal / iterationsPageSize)).toLocaleString('en-US') }}
+            </p>
+            <UPagination
+              v-model:page="iterationsPage"
+              :total="iterationsTotal"
+              :items-per-page="iterationsPageSize"
+              :sibling-count="1"
+              active-color="primary"
+              variant="subtle"
+              :disabled="iterationsPending"
+            />
+          </div>
+        </div>
+
+        <!-- Rollup: one card per process -->
+        <div class="mb-6">
+          <p class="text-xs text-muted uppercase mb-3">
+            Process health
+          </p>
+
+          <div
+            v-if="pending"
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          >
+            <USkeleton v-for="i in 3" :key="i" class="h-28 w-full rounded-lg" />
+          </div>
+          <div
+            v-else-if="rollup.length === 0"
+            class="py-10 text-center text-sm text-muted border border-default rounded-lg"
+          >
+            No process runs recorded yet.
+          </div>
+          <div
+            v-else
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          >
+            <div
+              v-for="proc in rollup"
+              :key="proc.processName"
+              class="rounded-lg border p-4 bg-elevated/25"
+              :class="{
+                'border-error/30': proc.lastStatus === 'Failed',
+                'border-primary/40': proc.lastStatus === 'Running',
+                'border-default': proc.lastStatus !== 'Failed' && proc.lastStatus !== 'Running',
+              }"
+            >
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <p class="font-medium text-highlighted truncate">
+                  {{ proc.processName }}
+                </p>
+                <UBadge
+                  :color="processStatusColor(proc.lastStatus)"
+                  :icon="processStatusIcon(proc.lastStatus)"
+                  :ui="statusBadgeUi(proc.lastStatus)"
+                  variant="subtle"
+                  size="sm"
+                  :label="proc.lastStatus"
+                />
+              </div>
+              <dl class="space-y-1.5 text-sm">
+                <div class="flex justify-between gap-2">
+                  <dt class="text-muted">
+                    Last run
+                  </dt>
+                  <dd class="text-default text-right">
+                    {{ formatDateTime(proc.lastRunAtUtc) }}
+                  </dd>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <dt class="text-muted">
+                    Last success
+                  </dt>
+                  <dd class="text-default text-right">
+                    {{ formatDateTime(proc.lastSuccessAtUtc) }}
+                  </dd>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <dt class="text-muted">
+                    {{ sinceWindow === ALL ? 'Failures (all time)' : 'Failures (window)' }}
+                  </dt>
+                  <dd class="text-right">
+                    <span
+                      class="tabular-nums font-medium"
+                      :class="failureTextClass(proc)"
+                    >
+                      {{ formatNumber(proc.failureCountInWindow) }}
+                    </span>
+                    <span class="block text-xs text-dimmed tabular-nums">
+                      {{ failureRateLabel(proc) }}
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        <!-- Runs table -->
+        <UCard :ui="{ body: 'p-0 sm:p-0' }">
+          <template #header>
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <p class="text-sm font-medium text-highlighted">
+                  Recent runs
+                </p>
+                <p class="text-xs text-dimmed mt-0.5">
+                  {{ sinceWindow === ALL
+                    ? 'Newest first, across all time.'
+                    : 'Newest first, in the selected window.' }}
+                </p>
+              </div>
+              <UBadge
+                v-if="!pending"
+                color="neutral"
+                variant="subtle"
+                :label="`${formatNumber(total)} ${total === 1 ? 'run' : 'runs'}`"
+              />
+            </div>
+          </template>
+
+          <UTable
+            v-model:sorting="sorting"
+            :data="runs"
+            :columns="columns"
+            :meta="tableMeta"
+            :loading="pending"
+            loading-color="primary"
+            :ui="{ td: 'py-2' }"
+          >
+            <template #processName-cell="{ row }">
+              <span class="font-medium text-highlighted">
+                {{ row.original.processName }}
+              </span>
+            </template>
+            <template #status-cell="{ row }">
+              <UBadge
+                :color="processStatusColor(row.original.status)"
+                :icon="processStatusIcon(row.original.status)"
+                :ui="statusBadgeUi(row.original.status)"
+                variant="subtle"
+                size="sm"
+                :label="row.original.status"
+              />
+            </template>
+            <template #startedAtUtc-cell="{ row }">
+              <span class="text-muted whitespace-nowrap">
+                {{ formatDateTime(row.original.startedAtUtc) }}
+              </span>
+            </template>
+            <template #durationMs-cell="{ row }">
+              <div class="text-right tabular-nums whitespace-nowrap">
+                <span v-if="row.original.status === 'Running'" class="text-dimmed">
+                  —
+                </span>
+                <template v-else>
+                  {{ formatElapsed(row.original.durationMs) }}
+                </template>
+              </div>
+            </template>
+            <template #host-cell="{ row }">
+              <span class="text-muted font-mono text-xs">
+                {{ row.original.host ?? '—' }}
+              </span>
+            </template>
+            <template #error-cell="{ row }">
+              <span
+                v-if="row.original.error"
+                class="text-error text-xs line-clamp-1 max-w-xs"
+                :title="row.original.error"
+              >
+                {{ row.original.error }}
+              </span>
+              <span v-else class="text-dimmed">—</span>
+            </template>
+            <template #actions-cell="{ row }">
+              <UButton
+                icon="i-lucide-eye"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                aria-label="View run details"
+                @click="openDetail(row.original)"
+              />
+            </template>
+
+            <template #empty>
+              <div class="py-10 text-center text-sm text-muted">
+                {{ hasActiveFilters ? 'No runs match these filters.' : 'No runs recorded yet.' }}
+              </div>
+            </template>
+          </UTable>
+        </UCard>
+
+        <!-- Server-side pagination: total/page/pageSize come from the response. -->
         <div
-          v-if="iterationsTotal > iterationsPageSize"
+          v-if="total > serverPageSize"
           class="flex items-center justify-between gap-2 mt-4"
         >
           <p class="text-xs text-muted tabular-nums">
-            Page {{ iterationsServerPage.toLocaleString('en-US') }} of
-            {{ Math.max(1, Math.ceil(iterationsTotal / iterationsPageSize)).toLocaleString('en-US') }}
+            Page {{ serverPage.toLocaleString('en-US') }} of
+            {{ Math.max(1, Math.ceil(total / serverPageSize)).toLocaleString('en-US') }}
           </p>
           <UPagination
-            v-model:page="iterationsPage"
-            :total="iterationsTotal"
-            :items-per-page="iterationsPageSize"
+            v-model:page="page"
+            :total="total"
+            :items-per-page="serverPageSize"
             :sibling-count="1"
             active-color="primary"
             variant="subtle"
-            :disabled="iterationsPending"
+            :disabled="pending"
           />
         </div>
-      </div>
 
-      <!-- Rollup: one card per process -->
-      <div class="mb-6">
-        <p class="text-xs text-muted uppercase mb-3">
-          Process health
-        </p>
-
-        <div
-          v-if="pending"
-          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+        <!-- Run detail slide-over -->
+        <USlideover
+          v-model:open="detailOpen"
+          :title="selectedRun?.processName ?? 'Run details'"
+          :description="selectedRun
+            ? `${selectedRun.status} · ${formatDateTime(selectedRun.startedAtUtc)}`
+            : ''"
         >
-          <USkeleton v-for="i in 3" :key="i" class="h-28 w-full rounded-lg" />
-        </div>
-        <div
-          v-else-if="rollup.length === 0"
-          class="py-10 text-center text-sm text-muted border border-default rounded-lg"
-        >
-          No process runs recorded yet.
-        </div>
-        <div
-          v-else
-          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-        >
-          <div
-            v-for="proc in rollup"
-            :key="proc.processName"
-            class="rounded-lg border p-4 bg-elevated/25"
-            :class="{
-              'border-error/30': proc.lastStatus === 'Failed',
-              'border-primary/40': proc.lastStatus === 'Running',
-              'border-default': proc.lastStatus !== 'Failed' && proc.lastStatus !== 'Running',
-            }"
-          >
-            <div class="flex items-center justify-between gap-2 mb-3">
-              <p class="font-medium text-highlighted truncate">
-                {{ proc.processName }}
-              </p>
-              <UBadge
-                :color="processStatusColor(proc.lastStatus)"
-                :icon="processStatusIcon(proc.lastStatus)"
-                :ui="statusBadgeUi(proc.lastStatus)"
-                variant="subtle"
-                size="sm"
-                :label="proc.lastStatus"
-              />
-            </div>
-            <dl class="space-y-1.5 text-sm">
-              <div class="flex justify-between gap-2">
-                <dt class="text-muted">
-                  Last run
-                </dt>
-                <dd class="text-default text-right">
-                  {{ formatDateTime(proc.lastRunAtUtc) }}
-                </dd>
-              </div>
-              <div class="flex justify-between gap-2">
-                <dt class="text-muted">
-                  Last success
-                </dt>
-                <dd class="text-default text-right">
-                  {{ formatDateTime(proc.lastSuccessAtUtc) }}
-                </dd>
-              </div>
-              <div class="flex justify-between gap-2">
-                <dt class="text-muted">
-                  {{ sinceWindow === ALL ? 'Failures (all time)' : 'Failures (window)' }}
-                </dt>
-                <dd class="text-right">
-                  <span
-                    class="tabular-nums font-medium"
-                    :class="failureTextClass(proc)"
-                  >
-                    {{ formatNumber(proc.failureCountInWindow) }}
-                  </span>
-                  <span class="block text-xs text-dimmed tabular-nums">
-                    {{ failureRateLabel(proc) }}
-                  </span>
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-      </div>
-
-      <!-- Runs table -->
-      <UCard :ui="{ body: 'p-0 sm:p-0' }">
-        <template #header>
-          <div class="flex items-center justify-between gap-2">
-            <div>
-              <p class="text-sm font-medium text-highlighted">
-                Recent runs
-              </p>
-              <p class="text-xs text-dimmed mt-0.5">
-                {{ sinceWindow === ALL
-                  ? 'Newest first, across all time.'
-                  : 'Newest first, in the selected window.' }}
-              </p>
-            </div>
-            <UBadge
-              v-if="!pending"
-              color="neutral"
-              variant="subtle"
-              :label="`${formatNumber(total)} ${total === 1 ? 'run' : 'runs'}`"
-            />
-          </div>
-        </template>
-
-        <UTable
-          v-model:sorting="sorting"
-          :data="runs"
-          :columns="columns"
-          :meta="tableMeta"
-          :loading="pending"
-          loading-color="primary"
-          :ui="{ td: 'py-2' }"
-        >
-          <template #processName-cell="{ row }">
-            <span class="font-medium text-highlighted">
-              {{ row.original.processName }}
-            </span>
-          </template>
-          <template #status-cell="{ row }">
-            <UBadge
-              :color="processStatusColor(row.original.status)"
-              :icon="processStatusIcon(row.original.status)"
-              :ui="statusBadgeUi(row.original.status)"
-              variant="subtle"
-              size="sm"
-              :label="row.original.status"
-            />
-          </template>
-          <template #startedAtUtc-cell="{ row }">
-            <span class="text-muted whitespace-nowrap">
-              {{ formatDateTime(row.original.startedAtUtc) }}
-            </span>
-          </template>
-          <template #durationMs-cell="{ row }">
-            <div class="text-right tabular-nums whitespace-nowrap">
-              <span v-if="row.original.status === 'Running'" class="text-dimmed">
-                —
-              </span>
-              <template v-else>
-                {{ formatElapsed(row.original.durationMs) }}
-              </template>
-            </div>
-          </template>
-          <template #host-cell="{ row }">
-            <span class="text-muted font-mono text-xs">
-              {{ row.original.host ?? '—' }}
-            </span>
-          </template>
-          <template #error-cell="{ row }">
-            <span
-              v-if="row.original.error"
-              class="text-error text-xs line-clamp-1 max-w-xs"
-              :title="row.original.error"
-            >
-              {{ row.original.error }}
-            </span>
-            <span v-else class="text-dimmed">—</span>
-          </template>
-          <template #actions-cell="{ row }">
-            <UButton
-              icon="i-lucide-eye"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              aria-label="View run details"
-              @click="openDetail(row.original)"
-            />
-          </template>
-
-          <template #empty>
-            <div class="py-10 text-center text-sm text-muted">
-              {{ hasActiveFilters ? 'No runs match these filters.' : 'No runs recorded yet.' }}
-            </div>
-          </template>
-        </UTable>
-      </UCard>
-
-      <!-- Server-side pagination: total/page/pageSize come from the response. -->
-      <div
-        v-if="total > serverPageSize"
-        class="flex items-center justify-between gap-2 mt-4"
-      >
-        <p class="text-xs text-muted tabular-nums">
-          Page {{ serverPage.toLocaleString('en-US') }} of
-          {{ Math.max(1, Math.ceil(total / serverPageSize)).toLocaleString('en-US') }}
-        </p>
-        <UPagination
-          v-model:page="page"
-          :total="total"
-          :items-per-page="serverPageSize"
-          :sibling-count="1"
-          active-color="primary"
-          variant="subtle"
-          :disabled="pending"
-        />
-      </div>
-
-      <!-- Run detail slide-over -->
-      <USlideover
-        v-model:open="detailOpen"
-        :title="selectedRun?.processName ?? 'Run details'"
-        :description="selectedRun
-          ? `${selectedRun.status} · ${formatDateTime(selectedRun.startedAtUtc)}`
-          : ''"
-      >
-        <template #body>
-          <div v-if="selectedRun" class="space-y-5">
-            <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Status
-                </dt>
-                <dd>
-                  <UBadge
-                    :color="processStatusColor(selectedRun.status)"
-                    :icon="processStatusIcon(selectedRun.status)"
-                    :ui="statusBadgeUi(selectedRun.status)"
-                    variant="subtle"
-                    size="sm"
-                    :label="selectedRun.status"
-                  />
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Duration
-                </dt>
-                <dd class="tabular-nums">
-                  <span v-if="selectedRun.status === 'Running'" class="text-dimmed">
-                    In progress…
-                  </span>
-                  <template v-else>
-                    {{ formatElapsed(selectedRun.durationMs) }}
-                  </template>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Started
-                </dt>
-                <dd>{{ formatDateTime(selectedRun.startedAtUtc) }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Finished
-                </dt>
-                <dd>
-                  <span v-if="selectedRun.status === 'Running'" class="text-dimmed">
-                    —
-                  </span>
-                  <template v-else>
-                    {{ formatDateTime(selectedRun.finishedAtUtc) }}
-                  </template>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted text-xs uppercase mb-0.5">
-                  Host
-                </dt>
-                <dd class="font-mono text-xs">
-                  {{ selectedRun.host ?? '—' }}
-                </dd>
-              </div>
-            </dl>
-
-            <div v-if="selectedRun.error">
-              <p class="text-muted text-xs uppercase mb-1.5">
-                Error
-              </p>
-              <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedRun.error }}</pre>
-            </div>
-
-            <div>
-              <p class="text-muted text-xs uppercase mb-1.5">
-                Summary
-              </p>
-              <ProcessSummaryView
-                v-if="selectedSummaryHasContent"
-                :value="selectedRun.summary"
-              />
-              <p v-else class="text-sm text-dimmed">
-                No summary recorded for this run.
-              </p>
-
-              <!-- Raw payload stays available for exact values / debugging. -->
-              <details v-if="selectedSummaryHasContent && selectedSummaryJson" class="mt-2">
-                <summary class="text-xs text-muted cursor-pointer hover:text-default">
-                  Raw JSON
-                </summary>
-                <pre class="mt-1.5 text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto">{{ selectedSummaryJson }}</pre>
-              </details>
-            </div>
-          </div>
-        </template>
-      </USlideover>
-
-      <!-- Iteration detail slide-over: a formatted per-process breakdown of one
-           finished pass (outcome, duration, summary fields, error) instead of
-           raw JSON. -->
-      <USlideover
-        v-model:open="iterationDetailOpen"
-        :title="selectedIteration ? 'Iteration summary' : 'Iteration'"
-        :description="selectedIteration ? formatDateTime(selectedIteration.startedAtUtc) : ''"
-      >
-        <template #body>
-          <div v-if="selectedIteration" class="space-y-5">
-            <!-- Outcome tally -->
-            <div class="flex flex-wrap gap-2">
-              <UBadge
-                color="success"
-                variant="subtle"
-                size="sm"
-                :label="`${selectedIterationTally.success} ok`"
-              />
-              <UBadge
-                v-if="selectedIterationTally.skipped > 0"
-                color="neutral"
-                variant="subtle"
-                size="sm"
-                :label="`${selectedIterationTally.skipped} skipped`"
-              />
-              <UBadge
-                v-if="selectedIterationTally.failed > 0"
-                color="error"
-                variant="subtle"
-                size="sm"
-                :label="`${selectedIterationTally.failed} failed`"
-              />
-              <UBadge
-                v-if="selectedIterationTally.abandoned > 0"
-                color="warning"
-                variant="subtle"
-                size="sm"
-                :label="`${selectedIterationTally.abandoned} abandoned`"
-              />
-            </div>
-
-            <p
-              v-if="selectedIterationLinks.length === 0"
-              class="text-sm text-dimmed"
-            >
-              No processes ran in this iteration.
-            </p>
-
-            <!-- One collapsible entry per process that ran -->
-            <details
-              v-for="entry in selectedIterationEntries"
-              :key="entry.link.processName"
-              class="rounded-lg border border-default bg-elevated/25 overflow-hidden"
-            >
-              <summary class="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer hover:bg-elevated/40">
-                <span class="flex items-center gap-2 min-w-0">
-                  <UIcon
-                    :name="outcomeIcon(entry.link.outcome)"
-                    class="size-4 shrink-0"
-                    :class="{
-                      'text-primary': entry.link.outcome === 'Running',
-                      'text-success': entry.link.outcome === 'Success',
-                      'text-error': entry.link.outcome === 'Failed',
-                      'text-warning': entry.link.outcome === 'Abandoned',
-                    }"
-                  />
-                  <UTooltip :ui="PROCESS_TOOLTIP_UI">
-                    <span class="text-sm font-medium text-highlighted truncate">
-                      {{ chainLabel(entry.link.processName) }}
-                    </span>
-                    <template #content>
-                      <ProcessTooltipContent :process-name="entry.link.processName" :context="entry.link.processName" />
-                    </template>
-                  </UTooltip>
-                </span>
-                <span class="flex items-center gap-2 shrink-0">
-                  <span class="text-xs text-dimmed tabular-nums">
-                    {{ entry.link.run && entry.link.outcome !== 'Running' ? formatElapsed(entry.link.run.durationMs) : '—' }}
-                  </span>
-                  <UBadge
-                    v-if="entry.link.run"
-                    :color="processStatusColor(entry.link.run.status)"
-                    variant="subtle"
-                    size="sm"
-                    :label="entry.link.run.status"
-                  />
-                </span>
-              </summary>
-
-              <div v-if="entry.link.run" class="px-3 pb-3 pt-1 space-y-3 border-t border-default">
-                <div v-if="entry.link.run.error">
-                  <p class="text-muted text-xs uppercase mb-1.5">
-                    Error
-                  </p>
-                  <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-2.5 overflow-auto whitespace-pre-wrap">{{ entry.link.run.error }}</pre>
+          <template #body>
+            <div v-if="selectedRun" class="space-y-5">
+              <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Status
+                  </dt>
+                  <dd>
+                    <UBadge
+                      :color="processStatusColor(selectedRun.status)"
+                      :icon="processStatusIcon(selectedRun.status)"
+                      :ui="statusBadgeUi(selectedRun.status)"
+                      variant="subtle"
+                      size="sm"
+                      :label="selectedRun.status"
+                    />
+                  </dd>
                 </div>
+                <div>
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Duration
+                  </dt>
+                  <dd class="tabular-nums">
+                    <span v-if="selectedRun.status === 'Running'" class="text-dimmed">
+                      In progress…
+                    </span>
+                    <template v-else>
+                      {{ formatElapsed(selectedRun.durationMs) }}
+                    </template>
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Started
+                  </dt>
+                  <dd>{{ formatDateTime(selectedRun.startedAtUtc) }}</dd>
+                </div>
+                <div>
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Finished
+                  </dt>
+                  <dd>
+                    <span v-if="selectedRun.status === 'Running'" class="text-dimmed">
+                      —
+                    </span>
+                    <template v-else>
+                      {{ formatDateTime(selectedRun.finishedAtUtc) }}
+                    </template>
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-muted text-xs uppercase mb-0.5">
+                    Host
+                  </dt>
+                  <dd class="font-mono text-xs">
+                    {{ selectedRun.host ?? '—' }}
+                  </dd>
+                </div>
+              </dl>
 
+              <div v-if="selectedRun.error">
+                <p class="text-muted text-xs uppercase mb-1.5">
+                  Error
+                </p>
+                <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedRun.error }}</pre>
+              </div>
+
+              <div>
+                <p class="text-muted text-xs uppercase mb-1.5">
+                  Summary
+                </p>
                 <ProcessSummaryView
-                  v-if="entry.hasSummary"
-                  :value="entry.link.run?.summary"
+                  v-if="selectedSummaryHasContent"
+                  :value="selectedRun.summary"
                 />
-                <p v-else-if="!entry.link.run.error" class="text-sm text-dimmed">
-                  No summary recorded.
+                <p v-else class="text-sm text-dimmed">
+                  No summary recorded for this run.
                 </p>
 
                 <!-- Raw payload stays available for exact values / debugging. -->
-                <details v-if="entry.hasSummary && entry.json" class="mt-1">
+                <details v-if="selectedSummaryHasContent && selectedSummaryJson" class="mt-2">
                   <summary class="text-xs text-muted cursor-pointer hover:text-default">
                     Raw JSON
                   </summary>
-                  <pre class="mt-1.5 text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto">{{ entry.json }}</pre>
+                  <pre class="mt-1.5 text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto">{{ selectedSummaryJson }}</pre>
                 </details>
               </div>
-            </details>
-          </div>
-        </template>
-      </USlideover>
+            </div>
+          </template>
+        </USlideover>
+
+        <!-- Iteration detail slide-over: a formatted per-process breakdown of one
+             finished pass (outcome, duration, summary fields, error) instead of
+             raw JSON. -->
+        <USlideover
+          v-model:open="iterationDetailOpen"
+          :title="selectedIteration ? 'Iteration summary' : 'Iteration'"
+          :description="selectedIteration ? formatDateTime(selectedIteration.startedAtUtc) : ''"
+        >
+          <template #body>
+            <div v-if="selectedIteration" class="space-y-5">
+              <!-- Outcome tally -->
+              <div class="flex flex-wrap gap-2">
+                <UBadge
+                  color="success"
+                  variant="subtle"
+                  size="sm"
+                  :label="`${selectedIterationTally.success} ok`"
+                />
+                <UBadge
+                  v-if="selectedIterationTally.skipped > 0"
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                  :label="`${selectedIterationTally.skipped} skipped`"
+                />
+                <UBadge
+                  v-if="selectedIterationTally.failed > 0"
+                  color="error"
+                  variant="subtle"
+                  size="sm"
+                  :label="`${selectedIterationTally.failed} failed`"
+                />
+                <UBadge
+                  v-if="selectedIterationTally.abandoned > 0"
+                  color="warning"
+                  variant="subtle"
+                  size="sm"
+                  :label="`${selectedIterationTally.abandoned} abandoned`"
+                />
+              </div>
+
+              <p
+                v-if="selectedIterationLinks.length === 0"
+                class="text-sm text-dimmed"
+              >
+                No processes ran in this iteration.
+              </p>
+
+              <!-- One collapsible entry per process that ran -->
+              <details
+                v-for="entry in selectedIterationEntries"
+                :key="entry.link.processName"
+                class="rounded-lg border border-default bg-elevated/25 overflow-hidden"
+              >
+                <summary class="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer hover:bg-elevated/40">
+                  <span class="flex items-center gap-2 min-w-0">
+                    <UIcon
+                      :name="outcomeIcon(entry.link.outcome)"
+                      class="size-4 shrink-0"
+                      :class="{
+                        'text-primary': entry.link.outcome === 'Running',
+                        'text-success': entry.link.outcome === 'Success',
+                        'text-error': entry.link.outcome === 'Failed',
+                        'text-warning': entry.link.outcome === 'Abandoned',
+                      }"
+                    />
+                    <UTooltip :ui="PROCESS_TOOLTIP_UI">
+                      <span class="text-sm font-medium text-highlighted truncate">
+                        {{ chainLabel(entry.link.processName) }}
+                      </span>
+                      <template #content>
+                        <ProcessTooltipContent :process-name="entry.link.processName" :context="entry.link.processName" />
+                      </template>
+                    </UTooltip>
+                  </span>
+                  <span class="flex items-center gap-2 shrink-0">
+                    <span class="text-xs text-dimmed tabular-nums">
+                      {{ entry.link.run && entry.link.outcome !== 'Running' ? formatElapsed(entry.link.run.durationMs) : '—' }}
+                    </span>
+                    <UBadge
+                      v-if="entry.link.run"
+                      :color="processStatusColor(entry.link.run.status)"
+                      variant="subtle"
+                      size="sm"
+                      :label="entry.link.run.status"
+                    />
+                  </span>
+                </summary>
+
+                <div v-if="entry.link.run" class="px-3 pb-3 pt-1 space-y-3 border-t border-default">
+                  <div v-if="entry.link.run.error">
+                    <p class="text-muted text-xs uppercase mb-1.5">
+                      Error
+                    </p>
+                    <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-2.5 overflow-auto whitespace-pre-wrap">{{ entry.link.run.error }}</pre>
+                  </div>
+
+                  <ProcessSummaryView
+                    v-if="entry.hasSummary"
+                    :value="entry.link.run?.summary"
+                  />
+                  <p v-else-if="!entry.link.run.error" class="text-sm text-dimmed">
+                    No summary recorded.
+                  </p>
+
+                  <!-- Raw payload stays available for exact values / debugging. -->
+                  <details v-if="entry.hasSummary && entry.json" class="mt-1">
+                    <summary class="text-xs text-muted cursor-pointer hover:text-default">
+                      Raw JSON
+                    </summary>
+                    <pre class="mt-1.5 text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto">{{ entry.json }}</pre>
+                  </details>
+                </div>
+              </details>
+            </div>
+          </template>
+        </USlideover>
+      </template>
     </template>
   </UDashboardPanel>
 </template>

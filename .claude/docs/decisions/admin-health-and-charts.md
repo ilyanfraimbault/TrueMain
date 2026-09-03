@@ -273,3 +273,27 @@ The same change does **not** fold `web/shared/utils/region.ts` into any of this,
 them. That file maps ten platform ids onto the three public `europe/americas/korea` slugs and mirrors the
 backend `RegionFilterParser` — the *exposed* set, which is wider than and independent of the *tracked* set.
 Treating the two as one list would be the real bug.
+
+## The portal navigates by question, not by table (2026-09-03)
+
+**The sidebar is four labelled groups of eleven entries — Monitor, Data, Accounts, System — and the three
+panels about accounts entering the pipeline are one page with tabs.** The flat list of fifteen made the
+operator choose a page before knowing which one held the answer, and three of those entries (`/candidates`,
+`/accounts`, `/seed`) were the same subject seen from three angles: the funnel's state, one account's trace,
+and the manual intake that feeds both. They are now the *Pipeline* / *Trace* / *Add mains* tabs of `/accounts`,
+deep-linkable via `?view=` exactly as `/logs` already deep-links its Crashes tab.
+
+**`/riot-api` is a tab of `/processes`, not a page.** How the pipeline spends its Riot call budget is a signal
+about those same runs; as a sibling of Health and Processes it read as a fourth thing to check, and it was the
+entry operators opened last. `/health` gains one tile pointing at it — 24 h error rate and app-limit
+headroom — and that tile is **informational only**: it does not vote in the verdict. The #1031 rule stands
+unchanged, that a tile links rather than measures, because a threshold applied in the cockpit could disagree
+with the panel it links to, and the verdict is a server-side domain decision (`PipelineHealthEvaluator`).
+
+Three consequences worth stating. **The seed-request queue is rendered once**: it used to be drawn identically
+at the bottom of Candidates and of Add mains, two independent fetches of the same list that could show
+different pages of it side by side. **The four retired routes are redirect pages, not deletions**, and they
+carry their query along — `/candidates?candidate=<id>` still opens that slide-over, on the tab that now owns
+it. **Each tab is a component with its own fetches, filters and `defineExpose({ refresh, pending })`**, so the
+hub stays a header and a switch rather than a three-thousand-line page, and the one navbar refresh button
+drives whichever tab is open — #1410, #1416, #1031.

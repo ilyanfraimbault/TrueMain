@@ -234,6 +234,7 @@ Last verified against `develop` on 2026-09-02.
 - Admin bar charts go through a wrapper, because vue-chrts' bar tooltip is broken three times (2026-08-25, extended 2026-09-03) — #1218, #1404
 - The portal's charts are on the public site's design system, while its chrome is not — reversed 6 days later, see next line (2026-09-03) — #1404, #1059
 - The portal's chrome moves onto rosegold/ink too, reversing the #1059 scoping (2026-09-03) — #1409
+- The portal navigates by question, not by table: four sidebar groups, one Accounts hub, Riot API as a Processes tab (2026-09-03) — #1410, #1416
 - The admin portal has one status vocabulary and one duration ladder (2026-08-28) — #924, #1024
 - The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28) — #1249
 
