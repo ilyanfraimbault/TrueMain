@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '~/utils/positions'
+import { POSITION_BY_VALUE, type ChampionPosition } from '~/utils/positions'
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import { parseRouteParam } from '~/utils/route-params'
 import { ELO_BRACKET_ALL } from '~/utils/elo-brackets'
 import { groupMatchesByDay } from '~/utils/match-history'
-import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
+import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[slug].vue. The static-data fetches,
 // loading bar and build tabs are intentionally identical so the page looks
@@ -148,6 +148,45 @@ const lowSampleMessage = computed(() => {
     + 'so treat it as a rough signal rather than a reliable recommendation.'
 })
 
+// ─── Empty slice ───────────────────────────────────────────────────────────
+// The build filters keep working when the slice they select is empty. Picking a
+// lane the player never played 404s the aggregate (`notEnoughData`), and the
+// header used to be hidden along with the build — which took the pickers off
+// the page at the one moment the reader needs them, leaving "back to the global
+// build" as the only way out of a filter they set themselves. The header now
+// renders in that state too, over a zero-game slice.
+
+// Human-readable list of the filters currently narrowing the page, so the empty
+// notice can say what emptied it. Only the ones this page actually renders — it
+// has no rank or population control.
+const activeFilterLabels = computed(() => {
+  const labels: string[] = []
+  if (filters.value.patch) labels.push(filters.value.patch)
+  const position = filters.value.position
+  if (position) labels.push(POSITION_BY_VALUE.get(position)?.label ?? position)
+  return labels
+})
+
+// Whether the empty state is the reader's own doing (a filter they set) or the
+// champion's (we hold no aggregate at all). The two need different exits: one
+// clears the filter, the other can only leave for the global build.
+const emptiedByFilters = computed(() => notEnoughData.value && activeFilterLabels.value.length > 0)
+
+// The patch the API last resolved for this champion. `selectedPatch` falls back
+// to the loaded aggregate's patch, which goes null the moment a filter empties
+// the slice — blanking the patch select right when it has to be usable. Reset
+// on champion change so nothing leaks across a navigation on this same route.
+const lastResolvedPatch = ref('')
+watch(championId, () => { lastResolvedPatch.value = '' })
+watch(selectedPatch, (patch) => { if (patch) lastResolvedPatch.value = patch }, { immediate: true })
+const pickerPatch = computed(() => selectedPatch.value || lastResolvedPatch.value)
+
+// The position picker hides its "all positions" button (the API always answers
+// for one lane), so clearing is the only way back from an empty lane.
+function clearFilters() {
+  void setFilter({ patch: null, position: null })
+}
+
 // ─── Match history ─────────────────────────────────────────────────────────
 // This player's recent games on THIS champion. The champion is fixed to the
 // page; the lane filter is its OWN control, independent of the build's position
@@ -186,28 +225,6 @@ const staticBundleReady = computed(() =>
 const matchupsSnapshot = useLazyHydrationSnapshot(
   { champions: [] as ChampionStaticListItem[] },
   () => ({ champions: staticList.value ?? [] }),
-)
-
-// Same treatment for the "<player> vs mains" card (#529): `itemsMap`,
-// `staticData` and the profile-sourced `playerName` are all client-only, so
-// what the card renders has to stay at its SSR value until it mounts —
-// `playerName` included, now that the card prints it in its own title and
-// copy. `patch`/`position` are NOT in the bundle — they only feed the card's
-// fetch key, never its markup, so keeping them live can't desynchronise
-// hydration.
-const divergenceSnapshot = useLazyHydrationSnapshot(
-  {
-    playerName: nameTag.value,
-    itemsMap: {} as Record<number, StaticItemData>,
-    championStatic: null as ChampionStaticData | null,
-    championStaticPending: true,
-  },
-  () => ({
-    playerName: playerName.value,
-    itemsMap: itemsMap.value ?? {},
-    championStatic: staticData.value ?? null,
-    championStaticPending: isLoadingStatus(staticStatus.value),
-  }),
 )
 
 // And for the performance card (#918), whose only client-only inputs are the
@@ -267,16 +284,16 @@ const performanceSnapshot = useLazyHydrationSnapshot(
       source that has the raw matches even when the build aggregate doesn't).
     -->
     <template v-else>
-      <!-- Hidden in the degraded (no-build) state: with no aggregate there is
-           no slice for the pickers to switch between, and the notice below
-           carries the champion's icon and name itself. -->
-      <header
-        v-if="!notEnoughData"
-        class="flex flex-wrap items-center gap-4"
-      >
+      <!-- Rendered in the degraded (no-build) state too: the pickers are how the
+           reader got here and the only way back out, so taking them off the page
+           when their slice comes back empty strands them. The header
+           then stands over a zero-game slice, which the stat line says plainly
+           instead of inventing a 0.0% win rate. -->
+      <header class="flex flex-wrap items-center gap-4">
         <!-- `seoDisplayName` (SSR-resolved) rather than the client-only
              `displayName`, and skeletons instead of zeroes until the
-             player's aggregate lands — same as the global champion page. -->
+             player's aggregate lands — same as the global champion page. An
+             empty slice is settled, not pending, so it must not skeleton. -->
         <ChampionHeader
           :champion-name="seoDisplayName"
           :champion-icon-url="displayIconUrl"
@@ -285,10 +302,10 @@ const performanceSnapshot = useLazyHydrationSnapshot(
           :total-games="champion?.totalGames ?? 0"
           :total-wins="champion?.totalWins ?? 0"
           :low-sample-message="lowSampleMessage"
-          :loading="!champion"
+          :loading="!champion && !notEnoughData"
         />
         <ChampionFilters
-          :selected-patch="selectedPatch"
+          :selected-patch="pickerPatch"
           :selected-position="selectedPosition"
           :patch-options="patchOptions"
           @update:patch="value => setFilter({ patch: value })"
@@ -316,33 +333,49 @@ const performanceSnapshot = useLazyHydrationSnapshot(
       -->
       <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <div class="min-w-0 space-y-6">
+          <!-- Two empty states, one block: a slice the reader emptied with a
+               filter, and a champion we hold no aggregate for at all. They read
+               differently because they end differently — the first is undone by
+               clearing the filter, the second only by leaving for the global
+               build. The champion icon is gone from here: the header above now
+               carries it in both states, and twice is once too many. -->
           <div
             v-if="notEnoughData"
             class="flex flex-col items-center gap-3 surface rounded-lg px-6 py-8 text-center"
           >
-            <SkeletonImage
-              v-if="displayIconUrl"
-              :src="displayIconUrl"
-              :alt="displayName ?? ''"
-              width="64"
-              height="64"
-              class="size-16 rounded opacity-80"
-            />
             <div class="space-y-1">
               <p class="text-sm font-medium text-default">
-                No personal build breakdown yet
+                {{ emptiedByFilters ? 'Nothing on these filters' : 'No personal build breakdown yet' }}
               </p>
               <p class="text-sm text-muted">
-                We don't have an aggregated build for {{ playerLabel }} on
-                {{ displayName ?? 'this champion' }} yet. Their recent games are below.
+                <template v-if="emptiedByFilters">
+                  {{ playerLabel }} has no game on record for {{ activeFilterLabels.join(' · ') }}.
+                  Pick another lane or patch, or clear the filters to go back to their main slice.
+                </template>
+                <template v-else>
+                  We don't have an aggregated build for {{ playerLabel }} on
+                  {{ displayName ?? 'this champion' }} yet. Their recent games are below.
+                </template>
               </p>
             </div>
-            <NuxtLink
-              :to="pathFor(championId)"
-              class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              See the global build for {{ displayName ?? `champion ${championId}` }}
-            </NuxtLink>
+            <div class="flex flex-wrap items-center justify-center gap-4">
+              <UButton
+                v-if="emptiedByFilters"
+                size="sm"
+                color="neutral"
+                variant="subtle"
+                icon="i-lucide-filter-x"
+                @click="clearFilters"
+              >
+                Clear filters
+              </UButton>
+              <NuxtLink
+                :to="pathFor(championId)"
+                class="rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                See the global build for {{ displayName ?? `champion ${championId}` }}
+              </NuxtLink>
+            </div>
           </div>
 
           <template v-else>
@@ -362,21 +395,6 @@ const performanceSnapshot = useLazyHydrationSnapshot(
               :powerspikes="false"
             />
 
-            <!-- "<player> vs mains" (#529): the same aggregates the tabs above are
-                 built from, read a second time across every *other* main on
-                 this champion + patch + position, so the build the player
-                 actually runs can be put next to the one the mains run. Lazy +
-                 hydrate-on-visible like the sidebar, with the client-only
-                 static maps frozen until it mounts (#834/#837). -->
-            <LazyChampionMainsDivergence
-              hydrate-on-visible
-              :name-tag="nameTag"
-              :champion-id="championId"
-              :patch="selectedPatch"
-              :position="selectedPosition"
-              v-bind="divergenceSnapshot.value"
-              @vue:mounted="divergenceSnapshot.reveal"
-            />
           </template>
 
           <!-- This player's recent games on this champion — rendered even when the
