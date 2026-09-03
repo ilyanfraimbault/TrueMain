@@ -47,7 +47,7 @@ public sealed class DimCache(TrueMainDbContext db)
 
         foreach (var si in await db.ChampionDimStarterItems.AsNoTracking().ToListAsync())
         {
-            _starterItems[si.StarterItemsKey] = si.Id;
+            _starterItems[si.CanonicalKey] = si.Id;
         }
     }
 
@@ -83,7 +83,13 @@ public sealed class DimCache(TrueMainDbContext db)
         int secondaryStyleId, int secondaryPerk1, int secondaryPerk2,
         int statOffense, int statFlex, int statDefense)
     {
-        var key = new RunePageKey(primaryStyleId, primaryKeystoneId, perk1, perk2, perk3, secondaryStyleId, secondaryPerk1, secondaryPerk2, statOffense, statFlex, statDefense);
+        // Secondary perks sorted, like the ingestor and like the dimension's CHECK requires
+        // (#1418): the generator picks the two independently, so an unsorted pair would be
+        // refused by the database rather than deduplicated.
+        var key = new RunePageKey(
+            primaryStyleId, primaryKeystoneId, perk1, perk2, perk3, secondaryStyleId,
+            Math.Min(secondaryPerk1, secondaryPerk2), Math.Max(secondaryPerk1, secondaryPerk2),
+            statOffense, statFlex, statDefense);
         if (_runePages.TryGetValue(key, out var id))
         {
             return id;
@@ -125,13 +131,16 @@ public sealed class DimCache(TrueMainDbContext db)
 
     public Guid GetOrAddSpellPair(int spell1, int spell2)
     {
-        var key = (spell1, spell2);
+        // Sorted, like the ingestor and like the dimension's CHECK requires (#1418): the
+        // archetypes happen to list the lower id first today, and an archetype that did
+        // not would fail the seed instead of being deduplicated.
+        var key = (Math.Min(spell1, spell2), Math.Max(spell1, spell2));
         if (_spellPairs.TryGetValue(key, out var id))
         {
             return id;
         }
 
-        var row = new ChampionDimSpellPair { Id = Guid.NewGuid(), Spell1Id = spell1, Spell2Id = spell2 };
+        var row = new ChampionDimSpellPair { Id = Guid.NewGuid(), Spell1Id = key.Item1, Spell2Id = key.Item2 };
         db.ChampionDimSpellPairs.Add(row);
         _spellPairs[key] = row.Id;
         return row.Id;
@@ -139,13 +148,14 @@ public sealed class DimCache(TrueMainDbContext db)
 
     public Guid GetOrAddStarterItems(int[] items)
     {
-        var key = string.Join('-', items);
+        // The key Postgres generates for the row: item ids ascending (#1418).
+        var key = string.Join('-', items.Order());
         if (_starterItems.TryGetValue(key, out var id))
         {
             return id;
         }
 
-        var row = new ChampionDimStarterItems { Id = Guid.NewGuid(), StarterItemsKey = key, StarterItems = items.ToList() };
+        var row = new ChampionDimStarterItems { Id = Guid.NewGuid(), StarterItems = items.ToList() };
         db.ChampionDimStarterItems.Add(row);
         _starterItems[key] = row.Id;
         return row.Id;

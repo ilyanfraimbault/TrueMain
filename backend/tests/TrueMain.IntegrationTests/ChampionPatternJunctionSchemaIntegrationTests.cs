@@ -206,11 +206,7 @@ public sealed class ChampionPatternJunctionSchemaIntegrationTests
         var runes = BuildRunePage(keystoneId: 8005);
         var skill = new ChampionDimSkillOrder { SkillOrderKey = "Q-W-E" };
         var spells = new ChampionDimSpellPair { Spell1Id = 4, Spell2Id = 7 };
-        var starters = new ChampionDimStarterItems
-        {
-            StarterItemsKey = "1055-2003",
-            StarterItems = [1055, 2003]
-        };
+        var starters = new ChampionDimStarterItems { StarterItems = [1055, 2003] };
         db.ChampionDimBuilds.Add(build);
         db.ChampionDimRunePages.Add(runes);
         db.ChampionDimSkillOrders.Add(skill);

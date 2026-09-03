@@ -1,3 +1,4 @@
+using Data.DataQuality;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -8,7 +9,17 @@ public sealed class ChampionDimRunePageConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<ChampionDimRunePage> entity)
     {
-        entity.ToTable("champion_dim_rune_pages");
+        // The two secondary perks are a set, so the identity is the page with that pair
+        // sorted — not the eleven columns as stored, which is what let one page exist as
+        // two rows for 48% of the dimension (#911). The UNIQUE index over the canonical
+        // expression lives in the migration (EF cannot model an expression index); the
+        // CHECK keeps the stored pair sorted so the reader's lookup and the index agree.
+        entity.ToTable(
+            "champion_dim_rune_pages",
+            table => table.HasCheckConstraint(
+                ChampionDimensionCanonicalKeys.RunePageCanonicalCheckName,
+                ChampionDimensionCanonicalKeys.RunePageCanonicalCheck));
+
         entity.HasKey(e => e.Id);
         entity.Property(e => e.Id).ValueGeneratedOnAdd();
 
@@ -24,19 +35,8 @@ public sealed class ChampionDimRunePageConfiguration : IEntityTypeConfiguration<
         entity.Property(e => e.StatFlex).IsRequired();
         entity.Property(e => e.StatDefense).IsRequired();
 
-        entity.HasIndex(e => new
-        {
-            e.PrimaryStyleId,
-            e.PrimaryKeystoneId,
-            e.PrimaryPerk1Id,
-            e.PrimaryPerk2Id,
-            e.PrimaryPerk3Id,
-            e.SecondaryStyleId,
-            e.SecondaryPerk1Id,
-            e.SecondaryPerk2Id,
-            e.StatOffense,
-            e.StatFlex,
-            e.StatDefense
-        }).IsUnique();
+        // Kept non-unique: the canonical UNIQUE index cannot serve an equality lookup on
+        // the raw columns, and the resolver reads the dimension by keystone.
+        entity.HasIndex(e => e.PrimaryKeystoneId);
     }
 }
