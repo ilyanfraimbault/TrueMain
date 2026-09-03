@@ -83,7 +83,13 @@ public sealed class DimCache(TrueMainDbContext db)
         int secondaryStyleId, int secondaryPerk1, int secondaryPerk2,
         int statOffense, int statFlex, int statDefense)
     {
-        var key = new RunePageKey(primaryStyleId, primaryKeystoneId, perk1, perk2, perk3, secondaryStyleId, secondaryPerk1, secondaryPerk2, statOffense, statFlex, statDefense);
+        // Secondary perks sorted, like the ingestor and like the dimension's CHECK requires
+        // (#1418): the generator picks the two independently, so an unsorted pair would be
+        // refused by the database rather than deduplicated.
+        var key = new RunePageKey(
+            primaryStyleId, primaryKeystoneId, perk1, perk2, perk3, secondaryStyleId,
+            Math.Min(secondaryPerk1, secondaryPerk2), Math.Max(secondaryPerk1, secondaryPerk2),
+            statOffense, statFlex, statDefense);
         if (_runePages.TryGetValue(key, out var id))
         {
             return id;
