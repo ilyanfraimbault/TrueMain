@@ -5,7 +5,7 @@
 // interpolation at each of the three call sites (chain chip, iteration chip,
 // iteration detail row).
 import { computed } from 'vue'
-import { PROCESS_META } from '~~/shared/types/ops'
+import { PROCESS_META } from '~~/shared/types/pipeline-chain'
 
 const props = defineProps<{
   processName: string

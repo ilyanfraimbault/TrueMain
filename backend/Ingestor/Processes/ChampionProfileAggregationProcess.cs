@@ -6,10 +6,10 @@ using Data.BuildFacts;
 using Data.Entities;
 using Data.Statics;
 using Ingestor.Options;
+using Ingestor.Processes.Components.ProfileAggregation;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Npgsql;
 
 namespace Ingestor.Processes;
 
@@ -278,11 +278,11 @@ public sealed class ChampionProfileAggregationProcess(
                 acc.ItemGames++;
                 var archetypes = ItemArchetypes.ClassifyInventory(
                     [self.Item0, self.Item1, self.Item2, self.Item3, self.Item4, self.Item5], itemMetadata);
-                if (archetypes.HasFlag(ItemArchetype.Crit)) acc.CritGames++;
-                if (archetypes.HasFlag(ItemArchetype.ArmorPenetration)) acc.ArmorPenetrationGames++;
-                if (archetypes.HasFlag(ItemArchetype.OnHit)) acc.OnHitGames++;
-                if (archetypes.HasFlag(ItemArchetype.AbilityPower)) acc.AbilityPowerGames++;
-                if (archetypes.HasFlag(ItemArchetype.Tank)) acc.TankGames++;
+                acc.CritGames += archetypes.HasFlag(ItemArchetype.Crit) ? 1 : 0;
+                acc.ArmorPenetrationGames += archetypes.HasFlag(ItemArchetype.ArmorPenetration) ? 1 : 0;
+                acc.OnHitGames += archetypes.HasFlag(ItemArchetype.OnHit) ? 1 : 0;
+                acc.AbilityPowerGames += archetypes.HasFlag(ItemArchetype.AbilityPower) ? 1 : 0;
+                acc.TankGames += archetypes.HasFlag(ItemArchetype.Tank) ? 1 : 0;
 
                 if (ranged is not null && ranged.TryGetValue(self.ChampionId, out var isRanged))
                 {
@@ -293,7 +293,7 @@ public sealed class ChampionProfileAggregationProcess(
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        await UpsertProfilesAsync(db, profiles, aggregatedAtUtc, ct);
+        await ChampionProfileUpsert.WriteAsync(db, profiles, aggregatedAtUtc, ct);
 
         await db.Matches
             .Where(m => matchIds.Contains(m.Id))
@@ -349,100 +349,6 @@ public sealed class ChampionProfileAggregationProcess(
         return ranged;
     }
 
-    /// <summary>
-    /// The additive columns in upsert order. The SQL is generated from this list so the
-    /// INSERT column list, the unnest arrays and the <c>+ EXCLUDED</c> clauses cannot
-    /// drift from one another across thirty columns.
-    /// </summary>
-    private static readonly (string Column, string PgType, Func<ProfileAccumulator, object> Value)[] SumColumns =
-    [
-        ("Games", "integer", a => a.Games),
-        ("Wins", "integer", a => a.Wins),
-        ("GameDurationSecondsSum", "bigint", a => a.GameDurationSecondsSum),
-        ("PhysicalDamageToChampionsSum", "bigint", a => a.PhysicalDamageSum),
-        ("MagicDamageToChampionsSum", "bigint", a => a.MagicDamageSum),
-        ("TrueDamageToChampionsSum", "bigint", a => a.TrueDamageSum),
-        ("TotalHealSum", "bigint", a => a.TotalHealSum),
-        ("HealsOnTeammatesSum", "bigint", a => a.HealsOnTeammatesSum),
-        ("DamageShieldedOnTeammatesSum", "bigint", a => a.DamageShieldedSum),
-        ("TimeCCingOthersSum", "bigint", a => a.TimeCCingOthersSum),
-        ("TotalTimeCCDealtSum", "bigint", a => a.TotalTimeCCDealtSum),
-        ("DamageTakenSum", "bigint", a => a.DamageTakenSum),
-        ("DamageSelfMitigatedSum", "bigint", a => a.DamageSelfMitigatedSum),
-        ("TeamDamageTakenGames", "integer", a => a.TeamDamageTakenGames),
-        ("TeamDamageTakenSum", "bigint", a => a.TeamDamageTakenSum),
-        ("LaneGamesAt10", "integer", a => a.LaneGamesAt10),
-        ("GoldLeadAt10Sum", "bigint", a => a.GoldLeadAt10Sum),
-        ("XpLeadAt10Sum", "bigint", a => a.XpLeadAt10Sum),
-        ("KillsBy10Sum", "integer", a => a.KillsBy10Sum),
-        ("LaneGamesAt15", "integer", a => a.LaneGamesAt15),
-        ("GoldLeadAt15Sum", "bigint", a => a.GoldLeadAt15Sum),
-        ("XpLeadAt15Sum", "bigint", a => a.XpLeadAt15Sum),
-        ("ItemGames", "integer", a => a.ItemGames),
-        ("CritGames", "integer", a => a.CritGames),
-        ("ArmorPenetrationGames", "integer", a => a.ArmorPenetrationGames),
-        ("OnHitGames", "integer", a => a.OnHitGames),
-        ("AbilityPowerGames", "integer", a => a.AbilityPowerGames),
-        ("TankGames", "integer", a => a.TankGames),
-    ];
-
-    private static readonly string UpsertSql = BuildUpsertSql();
-
-    private static string BuildUpsertSql()
-    {
-        var sumNames = string.Join(", ", SumColumns.Select(c => $"\"{c.Column}\""));
-        var sumSelects = string.Join(", ", SumColumns.Select((c, i) => $"t.s{i}"));
-        var sumUnnest = string.Join(", ", SumColumns.Select((c, i) => $"@s{i}::{c.PgType}[]"));
-        var sumAliases = string.Join(", ", SumColumns.Select((c, i) => $"s{i}"));
-        var sumUpdates = string.Join(",\n                ",
-            SumColumns.Select(c => $"\"{c.Column}\" = champion_profile_stats.\"{c.Column}\" + EXCLUDED.\"{c.Column}\""));
-
-        return $"""
-            INSERT INTO champion_profile_stats
-                ("Id", "ChampionId", "Position", "Patch", {sumNames}, "IsRanged", "AggregatedAtUtc")
-            SELECT gen_random_uuid(), t.champ, t.position, t.patch, {sumSelects}, t.ranged, @aggAt
-            FROM unnest(@champs::integer[], @positions::text[], @patches::text[], {sumUnnest}, @ranged::boolean[])
-                AS t(champ, position, patch, {sumAliases}, ranged)
-            ON CONFLICT ("Patch", "ChampionId", "Position") DO UPDATE SET
-                {sumUpdates},
-                "IsRanged" = COALESCE(EXCLUDED."IsRanged", champion_profile_stats."IsRanged"),
-                "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
-            """;
-    }
-
-    private static async Task UpsertProfilesAsync(
-        TrueMainDbContext db,
-        IReadOnlyDictionary<ProfileKey, ProfileAccumulator> profiles,
-        DateTime aggregatedAtUtc,
-        CancellationToken ct)
-    {
-        if (profiles.Count == 0)
-        {
-            return;
-        }
-
-        var rows = profiles.ToList();
-        var parameters = new List<NpgsqlParameter>
-        {
-            new("aggAt", aggregatedAtUtc),
-            new("champs", rows.Select(r => r.Key.ChampionId).ToArray()),
-            new("positions", rows.Select(r => r.Key.Position).ToArray()),
-            new("patches", rows.Select(r => r.Key.Patch).ToArray()),
-            new("ranged", rows.Select(r => r.Value.IsRanged).ToArray()),
-        };
-
-        for (var i = 0; i < SumColumns.Length; i++)
-        {
-            var column = SumColumns[i];
-            object array = column.PgType == "bigint"
-                ? rows.Select(r => Convert.ToInt64(column.Value(r.Value))).ToArray()
-                : rows.Select(r => Convert.ToInt32(column.Value(r.Value))).ToArray();
-            parameters.Add(new NpgsqlParameter($"s{i}", array));
-        }
-
-        await db.Database.ExecuteSqlRawAsync(UpsertSql, parameters, ct);
-    }
-
     private sealed record ParticipantRow(
         string MatchId,
         int ParticipantId,
@@ -475,41 +381,6 @@ public sealed class ChampionProfileAggregationProcess(
     }
 
     private readonly record struct Reading(int TotalGold, int Xp, int Kills);
-
-    private readonly record struct ProfileKey(int ChampionId, string Position, string Patch);
-
-    private sealed class ProfileAccumulator
-    {
-        public int Games;
-        public int Wins;
-        public long GameDurationSecondsSum;
-        public long PhysicalDamageSum;
-        public long MagicDamageSum;
-        public long TrueDamageSum;
-        public long TotalHealSum;
-        public long HealsOnTeammatesSum;
-        public long DamageShieldedSum;
-        public long TimeCCingOthersSum;
-        public long TotalTimeCCDealtSum;
-        public long DamageTakenSum;
-        public long DamageSelfMitigatedSum;
-        public int TeamDamageTakenGames;
-        public long TeamDamageTakenSum;
-        public int LaneGamesAt10;
-        public long GoldLeadAt10Sum;
-        public long XpLeadAt10Sum;
-        public int KillsBy10Sum;
-        public int LaneGamesAt15;
-        public long GoldLeadAt15Sum;
-        public long XpLeadAt15Sum;
-        public int ItemGames;
-        public int CritGames;
-        public int ArmorPenetrationGames;
-        public int OnHitGames;
-        public int AbilityPowerGames;
-        public int TankGames;
-        public bool? IsRanged;
-    }
 
     private readonly record struct WrittenRows(int Participants, int Rows);
 }
