@@ -39,6 +39,22 @@ player), so it is counted once per band it touched **and** once in a stored `ALL
 summing them is not the match count. That is the one place `EloBracket.All` is persisted rather than being the
 read-time union it is everywhere else — #920.
 
+**Champion profiles are measured from the champion's own games, never labelled by hand.**
+`champion_profile_stats` (#1449) answers "what does this champion do" — how its damage splits by type, how much
+it heals, shields and CCs, how much of its team's damage it absorbs, how its lane goes at 10/15, which item
+archetypes it completes, whether it is ranged — as additive sums per `(champion, position, patch)` folded by
+`ChampionProfileAggregationProcess` from the #1448 context columns, the timeline snapshots and the final
+inventory. A hand-kept list ("Malphite is a tank", "Lux is AP") was rejected: it encodes one opinion, goes stale
+at every rework, and would have to be maintained for ~170 champions across five positions. The profiles are the
+dictionary the situational item fold (#1450) uses to qualify a draft, so their honesty is what the whole feature
+rests on. Three consequences: the fold takes the **full participant pool** (a profile describes the champion, not
+its mains — only remakes and non-canonical positions are excluded); **only participants carrying the context
+columns count**, so the flag ships `false` and the pre-#1448 history is flagged without diluting anything; and the
+**ranged flag is the one static attribute**, read from Data Dragon and `COALESCE`d on write so a CDN outage never
+blanks it, while an item-metadata outage aborts the run as it does for powerspikes — flagging a match without its
+archetypes would lose them for good. Shares, means and per-minute rates are read-time arithmetic over the sums;
+readers apply their own games floor — an additive fold cannot know a row's final count — #1449.
+
 **No pick+ban "presence" figure, despite it being standard elsewhere.**
 Pick rate's denominator is tracked mains' games at a lane; ban rate's is every observed match. The two are not
 addable, and a presence number computed from them would be arithmetic without meaning. Offering a meta-wide

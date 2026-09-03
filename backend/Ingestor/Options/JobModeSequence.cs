@@ -50,6 +50,11 @@ public static class JobModeSequence
         // filter by rank. Uses prior-cycle snapshots.
         JobMode.EloBracketEnrichmentOnly,
         JobMode.PatternAggregationOnly,
+        // Folds each match once into champion_profile_stats (#1449): what each champion
+        // did in the game, over the full participant pool. Sits with the other per-match
+        // folds; the situational item fold that reads these profiles (#1450) will follow
+        // it in this sequence.
+        JobMode.ChampionProfileAggregationOnly,
         // Folds each match into champion_matchup_stats — game counters and the
         // 15-minute lane verdict in the same pass, so a match's two halves can never
         // land on two rows (#1445, #919).
@@ -114,6 +119,7 @@ public static class JobModeSequence
         JobMode.MainAnalysisOnly,
         JobMode.EloBracketEnrichmentOnly,
         JobMode.PatternAggregationOnly,
+        JobMode.ChampionProfileAggregationOnly,
         JobMode.MatchupLeadAggregationOnly,
         JobMode.SynergyAggregationOnly,
         JobMode.BanAggregationOnly,

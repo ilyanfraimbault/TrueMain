@@ -244,6 +244,17 @@ public sealed record BanAggregationSummary(
     int ScopeRows) : IProcessRunSummary;
 
 /// <summary>
+/// Outcome of one <c>ChampionProfileAggregationProcess</c> run (#1449): matches
+/// flagged, participants that actually carried the context fields and were folded, and
+/// distinct (champion, position, patch) rows touched.
+/// </summary>
+public sealed record ChampionProfileAggregationSummary(
+    int Matches,
+    int Batches,
+    int Participants,
+    int Rows) : IProcessRunSummary;
+
+/// <summary>
 /// Daily storage snapshot outcome (#925). <see cref="Written"/> is 0 rather than
 /// <see cref="Tables"/> when Mongo is unconfigured, which is how an environment with
 /// no metrics store shows up on the admin process page — a completed run that

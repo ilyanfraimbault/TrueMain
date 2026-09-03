@@ -20,10 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 17,
+                propertyCount: 18,
                 navigationCount: 1,
                 unnamedIndexCount: 6,
-                namedIndexCount: 4,
+                namedIndexCount: 5,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -145,6 +145,16 @@ namespace Data.CompiledModels
             powerspikeAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             powerspikeAggregated.AddAnnotation("Relational:DefaultValue", false);
 
+            var profileAggregated = runtimeEntityType.AddProperty(
+                "ProfileAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("ProfileAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<ProfileAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            profileAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            profileAggregated.AddAnnotation("Relational:DefaultValue", false);
+
             var queueId = runtimeEntityType.AddProperty(
                 "QueueId",
                 typeof(int),
@@ -220,6 +230,11 @@ namespace Data.CompiledModels
                 new[] { queueId },
                 name: "IX_matches_matchup_lead_pending");
             iX_matches_matchup_lead_pending.AddAnnotation("Relational:Filter", "\"MatchupLeadAggregated\" = false");
+
+            var iX_matches_profile_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_profile_pending");
+            iX_matches_profile_pending.AddAnnotation("Relational:Filter", "\"ProfileAggregated\" = false");
 
             var iX_matches_snapshot_prune_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

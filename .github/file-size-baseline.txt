@@ -12,7 +12,7 @@ admin/app/pages/database.vue	512	400
 admin/app/pages/index.vue	600	400
 admin/app/pages/logs.vue	568	400
 admin/app/pages/processes.vue	1197	400
-admin/shared/types/ops.ts	1912	300
+admin/shared/types/ops.ts	1687	300
 backend/Api/Controllers/Champions/ChampionsController.cs	823	500
 backend/Api/Controllers/Ops/OpsController.cs	869	500
 backend/Api/ReadModels/Ops/AccountExplorerReadModel.cs	547	500

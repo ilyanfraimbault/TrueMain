@@ -135,6 +135,7 @@ Last verified against `develop` on 2026-09-02.
 - Timeline snapshots are pruned to the canonical marks {5, 10, 15, 20, 30} once a match is powerspike-aggregated — #772, #694
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
+- Champion profiles (`champion_profile_stats`) are measured from the champion's own games over the full pool, never labelled by hand; the ranged flag is the one static attribute — #1449
 - No pick+ban "presence" figure, despite it being standard elsewhere — #920
 - A dimension's identity is enforced by the schema (canonical UNIQUE index, CHECK, generated key), not repaired afterwards (2026-09-03) — #1418, #911
 - Rank snapshots are capped at one row per account per UTC day (DB-level unique index) — #907

@@ -33,6 +33,7 @@ public static class IngestorProcessServiceCollectionExtensions
         services.AddRecordedProcess<MainAnalysisProcess>(JobMode.MainAnalysisOnly);
         services.AddRecordedProcess<MatchParticipantEloBracketEnrichmentProcess>(JobMode.EloBracketEnrichmentOnly);
         services.AddRecordedProcess<ChampionPatternAggregationProcess>(JobMode.PatternAggregationOnly);
+        services.AddRecordedProcess<ChampionProfileAggregationProcess>(JobMode.ChampionProfileAggregationOnly);
         services.AddRecordedProcess<ChampionMatchupLeadAggregationProcess>(JobMode.MatchupLeadAggregationOnly);
         services.AddRecordedProcess<ChampionSynergyAggregationProcess>(JobMode.SynergyAggregationOnly);
         services.AddRecordedProcess<ChampionBanAggregationProcess>(JobMode.BanAggregationOnly);
