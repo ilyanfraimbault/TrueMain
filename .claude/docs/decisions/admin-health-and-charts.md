@@ -300,3 +300,21 @@ carry their query along — `/candidates?candidate=<id>` still opens that slide-
 it. **Each tab is a component with its own fetches, filters and `defineExpose({ refresh, pending })`**, so the
 hub stays a header and a switch rather than a three-thousand-line page, and the one navbar refresh button
 drives whichever tab is open — #1410, #1416, #1031.
+
+## Logs opens on Warning and above, and pages are reachable by name (2026-09-03)
+
+**The Logs page defaults to Warning and above, not to All levels.** The severity filter is a *minimum*
+threshold server-side, so one value asks for Warning + Error + Critical. Operators open `/logs` to see what
+failed; the old All-levels default made the first screen a wall of `Information` rows they had to filter away
+every single time, which is a default optimised for the rare case. The quiet rows stay one click away: the
+"All levels" option is untouched, an empty result offers a *Show all levels* chip, and an explicit `?level=`
+(including `?level=all`) beats the default so existing deep links keep meaning what they said. Changing the
+level rewrites the query, so the view on screen is always the view a shared link reproduces.
+
+**Jumping to a page is a ⌘K palette, not a longer sidebar.** With 15 destinations across four groups, naming
+the page beats hunting it, and Nuxt UI's `UDashboardSearch` gives that for the price of restating the sidebar's
+groups. The palette carries one thing the sidebar cannot: the destinations that have no route of their own —
+`Logs → Crashes`, the three `/accounts` tabs and `Processes → Riot API` — which is what keeps the #1410
+consolidation from hiding them. Consequence worth stating: a tabbed page reads its tab from `?view=` at setup,
+so each of those pages now *watches* the query — a palette jump from a page to one of its own tabs changes only
+the query, and the component is reused — #1415, #1416.
