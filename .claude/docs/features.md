@@ -172,7 +172,9 @@ own: the *Crashes* tab of `/logs`, the three `/accounts` tabs and the *Riot API*
 | `/logs` | Two tabs (deep-linkable `?view=crashes`). **Logs**: severity/category/event-type/process/window/text filters, detail slide-over with exception stack, multi-select copy as JSON. Opens on **Warning and above** (#1415) — the severity filter is a minimum threshold and the operator comes here to see what failed, not to read `Information`; the entry-count badge still counts the filtered set, an explicit `?level=` (including `?level=all`) wins over the default, and an empty page offers a one-click *Show all levels*. **Crashes**: full report per row — plain-language explanation, exception chain, environment + memory/GC snapshot, recent log tail |
 | `/analytics` | Iframe onto the self-hosted Umami, plus "Replays"/"Heatmaps" deep links into the **authenticated** Umami app (#1013) — those two views are absent from Umami's share-view nav by design (a share link is an unauthenticated public URL, a replay is a full DOM recording), so the iframe can never reach them. Links hide when `NUXT_PUBLIC_UMAMI_WEBSITE_ID` is unset. No backend call |
 
-Tests: `admin/tests/` covers only `process-summary`. No page-level or proxy tests.
+Tests: `admin/tests/` is unit-level — pure helpers (process summaries, pipeline lanes and health, chart text,
+Riot IDs, regions, session expiry, log-level defaults) plus the ops proxy's path handling and a couple of
+mounted components (`ProcessSummaryView`, `PanelTitle`). No page-level tests.
 
 ---
 
