@@ -144,7 +144,9 @@ const mockRankHistory: RankHistoryEntry[] = (() => {
 // can be read side by side.
 const mockActivity = computed<TruemainActivityResponse>(() => {
   const day = 24 * 60 * 60 * 1000
-  const retainedDays = 18
+  // A full retention window's worth of days (~two patches), so the grid is
+  // exercised at the length the real card gets rather than at half a row.
+  const retainedDays = 28
 
   const games = Array.from({ length: retainedDays }, (_, index) => {
     const daysAgo = retainedDays - 1 - index

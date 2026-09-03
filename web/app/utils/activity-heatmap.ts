@@ -2,78 +2,92 @@ import type { ActivityBucket, ActivityMode, ActivitySeries } from '~~/shared/typ
 
 /**
  * The activity heatmap's presentation rules (#927). Pure functions, kept out of
- * the component so the colour thresholds and the empty-vs-zero split are
- * testable without mounting anything.
+ * the component so the colour steps and the empty-vs-zero split are testable
+ * without mounting anything.
  */
 
 /**
- * Win end of the scale — `--color-data-good`, i.e. `rosegold-400` (see
- * `assets/css/main.css`). The grid is read the way GitHub's contribution grid
- * is: hue carries the sign, intensity carries the weight.
+ * How many populated steps the scale has. Four, and *discrete*: the first
+ * version of this grid faded a continuous alpha between 0.32 and 0.8 over a
+ * blend of two quantities at once, which is exactly the recipe for a card where
+ * every cell is a slightly different smudge and none of them means anything at a
+ * glance. A short ladder of named steps is what makes a contribution grid
+ * readable — the eye compares tiles to each other, not to a gradient.
+ */
+export const ACTIVITY_LEVELS = 4
+
+/**
+ * The tile of a period with no games. A real fill, one step above the card
+ * surface (`--ui-bg-elevated`, `#1b1b20`), not an outline and not a hole: an
+ * idle day is part of the shape of a player's month, and it has to sit in the
+ * grid as calmly as GitHub's does.
  *
- * #1060 briefly moved this to a teal, on the reasoning that measurements should
- * own a hue the brand does not. The product call reversed that: the accent
- * carries the winning side again.
+ * Neutral and unmistakably grey, because the ramp runs light-to-dark and the
+ * idle tile can therefore no longer be told apart by lightness alone — it is the
+ * *absence of hue* that marks it. Painted clearly above the card surface, too:
+ * an idle day that fades into the background reads as a hole in the grid, and a
+ * grid with holes in it has no shape to compare against.
  */
-export const ACTIVITY_WIN_RGB = [229, 143, 131] as const
+export const ACTIVITY_EMPTY_FILL = '#33333b'
 
 /**
- * Loss end of the scale — `--color-data-mid` (`ink-400`), not `--color-data-bad`
- * (`ink-500`), and that is on purpose: these cells are painted at low alpha, and
- * the darker stop disappears into the grid at the intensities most periods land
- * on. The neutral ramp rather than a second hue. With a one-sided axis the losing side is *not* flagged, it is
- * merely undecorated, so here the sign is carried by the split between "warm
- * accent" and "grey" rather than by two opposed hues. That puts more weight on
- * intensity than the two-hue version did: a single-game losing period is a
- * faint grey cell, which is the intended read — it is barely a signal.
+ * The one ramp the grid draws, ordered by step — `ACTIVITY_RAMP[0]` is the
+ * quietest period, `ACTIVITY_RAMP[3]` the busiest.
+ *
+ * It runs **light to dark**: a day with one game is a pale rose, a day the
+ * player queued all evening is a deep one. That is the reading the product owner
+ * has of it — density is weight, and weight is dark — and it is the opposite of
+ * GitHub's, which climbs towards a bright green. Worth stating plainly, because
+ * the reflex when extending this is to sort the stops the other way.
+ *
+ * The two middle steps are `rosegold-500` and `rosegold-700` straight off the
+ * palette; the ends deliberately overshoot it, one above `rosegold-400` and one
+ * below `rosegold-900`, because a contribution grid lives on the distance
+ * between its quietest and its loudest tile. Held inside the palette's own range
+ * the four steps were four shades of brick and the grid read as one flat block.
+ *
+ * One hue, and no grey: what the squares answer is *did this player queue, and
+ * how much* — not how the games went. An earlier version split the grid over two
+ * ramps (rose for a winning period, neutral for a losing one), which spent the
+ * loudest channel on the win rate and left half the card looking switched off.
+ * The result of a period is still one hover away, and the card's own summary
+ * line carries the total; the squares are about presence.
  */
-export const ACTIVITY_LOSS_RGB = [139, 139, 149] as const
+export const ACTIVITY_RAMP = ['#f0a293', '#d9736c', '#a1454a', '#6b2830'] as const
 
 /**
- * Alpha of the least emphatic populated cell — a coin-flip, single-game period.
- * Floored well above transparent on purpose: the empty cell is itself a faint
- * tile, so a played period fading below it would be read as "no games".
+ * Which step of the ramp a cell sits on: `0` for an empty period, `1`..`4` for a
+ * played one, scaled on games played against the busiest cell in the grid.
+ *
+ * `maxGames <= 1` means every cell in the series is a single game (the per-game
+ * view), where volume carries no information at all. That view is the one place
+ * the step falls back to the result — a won game on the deepest step, a lost one
+ * two steps lighter — so the strip still has a shape instead of being a flat
+ * rose bar.
  */
-export const ACTIVITY_MIN_ALPHA = 0.32
+export function activityCellLevel(bucket: ActivityBucket, maxGames: number): number {
+  if (bucket.games <= 0) return 0
+  if (maxGames <= 1) return bucket.wins > 0 ? ACTIVITY_LEVELS : ACTIVITY_LEVELS - 2
 
-/** Alpha of the most emphatic cell — the busiest period, fully decided. */
-export const ACTIVITY_MAX_ALPHA = 0.8
+  const share = Math.min(1, bucket.games / maxGames)
+  return Math.min(ACTIVITY_LEVELS, Math.max(1, Math.ceil(share * ACTIVITY_LEVELS)))
+}
 
 /**
  * Fill for one cell, or `null` when the cell has no games.
  *
- * Two channels, chosen so neither can mask the other:
- * - **hue** is which side of 50% the win rate sits on. A cell is rose or muted,
- *   never an interpolated mud in between, so the sign of the result is readable
- *   at 11 px.
- * - **alpha** is how much the cell is worth reading: half how decided the period
- *   was (distance from 50%), half how busy it was relative to the grid's
- *   heaviest cell. A single 100% day therefore stays visibly weaker than a
- *   ten-game 100% day without disappearing.
- *
- * A `null` return is the empty cell and the caller must render it as an outline,
- * not as a 0% fill — `games: 0` and `winRate: 0` are different facts.
+ * A `null` return is the empty cell, and the caller paints it
+ * {@link ACTIVITY_EMPTY_FILL} — `games: 0` and `winRate: 0` are different facts
+ * and must never render alike.
  */
 export function activityCellFill(bucket: ActivityBucket, maxGames: number): string | null {
-  if (bucket.games <= 0 || bucket.winRate === null) return null
+  if (bucket.games <= 0) return null
 
-  const [r, g, b] = bucket.winRate >= 0.5 ? ACTIVITY_WIN_RGB : ACTIVITY_LOSS_RGB
-
-  // 0 at a coin flip, 1 at a clean sweep either way.
-  const decisiveness = Math.abs(bucket.winRate - 0.5) * 2
-  // Relative volume. `maxGames <= 1` means every cell in the grid is a single
-  // game (the per-game series), so volume carries no information and is pinned
-  // at 1 rather than dividing by a degenerate denominator.
-  const volume = maxGames <= 1 ? 1 : Math.min(1, bucket.games / maxGames)
-
-  const weight = 0.5 * decisiveness + 0.5 * volume
-  const alpha = ACTIVITY_MIN_ALPHA + (ACTIVITY_MAX_ALPHA - ACTIVITY_MIN_ALPHA) * weight
-
-  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`
+  return ACTIVITY_RAMP[activityCellLevel(bucket, maxGames) - 1]!
 }
 
 /**
- * The busiest cell in the series — the denominator of the volume channel above.
+ * The busiest cell in the series — the denominator of the intensity scale above.
  * Returns 0 for an empty series.
  */
 export function activityMaxGames(series: ActivitySeries): number {
@@ -118,6 +132,22 @@ export function activityBucketLabel(bucket: ActivityBucket, mode: ActivityMode):
 }
 
 /**
+ * The short caption printed under a tile in the views that carry few enough
+ * cells to label them (week, patch). A patch is its own number; a week is the
+ * day it starts on.
+ */
+export function activityBucketCaption(bucket: ActivityBucket, mode: ActivityMode): string {
+  if (mode === 'patch') return bucket.key
+  if (!bucket.startUtc) return bucket.key
+
+  return new Date(bucket.startUtc).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+/**
  * Result line for a cell's tooltip: always wins over games played, whatever the
  * granularity. A single game used to print "Victory" / "Defeat", which made the
  * tooltip change shape between two neighbouring squares and forced the reader to
@@ -132,4 +162,22 @@ export function activityBucketResult(bucket: ActivityBucket): string {
 
   const rate = `${Math.round(bucket.winRate * 100)}%`
   return `${bucket.wins}/${bucket.games} · ${rate}`
+}
+
+/**
+ * The period a series speaks for, as one line — `Jul 17 – Aug 13`. Read off the
+ * buckets rather than the series' `coverage*` fields so it can never disagree
+ * with the squares actually on screen. `null` when the series carries no dates
+ * at all (the patch view keys on patch numbers, not on time).
+ */
+export function activityCoverageLabel(series: ActivitySeries): string | null {
+  const dated = series.buckets.filter(bucket => bucket.startUtc)
+  const first = dated[0]?.startUtc
+  const last = dated[dated.length - 1]?.startUtc
+  if (!first || !last) return null
+
+  const format = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+
+  return first === last ? format(first) : `${format(first)} – ${format(last)}`
 }
