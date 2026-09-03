@@ -550,9 +550,13 @@ const selectedIterationTally = computed(() => {
              same pass. -->
         <div class="mb-6">
           <div class="flex items-center justify-between gap-2 mb-3">
-            <p class="text-xs text-muted uppercase">
-              Pipeline chain
-            </p>
+            <PanelTitle
+              variant="label"
+              title="Pipeline chain"
+              info="One branch per lane, each at its own newest iteration, with the
+                running step highlighted. Two lanes run concurrently, so a Full
+                deployment lights up both branches of the same pass."
+            />
             <span
               v-if="currentIterationRunning"
               class="inline-flex items-center gap-1.5 text-xs text-primary font-medium"
@@ -651,9 +655,12 @@ const selectedIterationTally = computed(() => {
         <!-- Recent iterations: each iteration as the chain with per-process
              outcomes. Newest first. -->
         <div class="mb-6">
-          <p class="text-xs text-muted uppercase mb-3">
-            Recent iterations
-          </p>
+          <PanelTitle
+            variant="label"
+            title="Recent iterations"
+            subtitle="Newest first."
+            class="mb-3"
+          />
 
           <div
             v-if="iterationsError"
@@ -767,9 +774,7 @@ const selectedIterationTally = computed(() => {
 
         <!-- Rollup: one card per process -->
         <div class="mb-6">
-          <p class="text-xs text-muted uppercase mb-3">
-            Process health
-          </p>
+          <PanelTitle variant="label" title="Process health" class="mb-3" />
 
           <div
             v-if="rollupPending && rollup.length === 0"

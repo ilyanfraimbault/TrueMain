@@ -374,17 +374,17 @@ const pipelineStages = computed(() =>
   <UCard :ui="{ root: 'overflow-visible' }" class="mb-8">
     <template #header>
       <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-sm font-medium text-highlighted">
-            Throughput
-          </p>
-          <p class="text-xs text-dimmed mt-0.5">
-            How much moved and where the funnel stands, by <em>run</em> date — bars
-            are per-period flows, the curves below are levels. The list further down
-            shows only the current state, which looks the same whether the funnel is
-            flowing or stalled.
-          </p>
-        </div>
+        <PanelTitle title="Throughput" subtitle="How much moved and where the funnel stands, by run date.">
+          <template #info>
+            <p>
+              Bars are per-period flows, the curves below are levels.
+            </p>
+            <p>
+              The list further down shows only the current state, which looks the
+              same whether the funnel is flowing or stalled.
+            </p>
+          </template>
+        </PanelTitle>
         <div class="flex items-center gap-2">
           <USelect
             v-model="funnelGranularity"
@@ -417,9 +417,11 @@ const pipelineStages = computed(() =>
     <template v-else>
       <div class="grid gap-6 lg:grid-cols-2">
         <div>
-          <p class="text-xs text-muted uppercase mb-1.5">
-            Intake by source, per period
-          </p>
+          <PanelTitle
+            variant="label"
+            title="Intake by source, per period"
+            class="mb-1.5"
+          />
           <ChartsBarChart
             :data="intakeChartData"
             :height="240"
@@ -440,9 +442,12 @@ const pipelineStages = computed(() =>
         </div>
 
         <div>
-          <p class="text-xs text-muted uppercase mb-1.5">
-            Progression, per period
-          </p>
+          <PanelTitle
+            variant="label"
+            title="Progression, per period"
+            info="Grouped, not stacked — promoted is the top-N cut taken out of scored."
+            class="mb-1.5"
+          />
           <ChartsBarChart
             :data="progressChartData"
             :height="240"
@@ -458,15 +463,38 @@ const pipelineStages = computed(() =>
             {{ formatNumber(funnelTotals.scored) }} scored ·
             {{ formatNumber(funnelTotals.promoted) }} promoted
           </p>
-          <p class="mt-1 text-xs text-dimmed">
-            Grouped, not stacked — promoted is the top-N cut taken out of scored.
-          </p>
         </div>
 
         <div class="lg:col-span-2">
-          <p class="text-xs text-muted uppercase mb-1.5">
-            Candidates by state, over the window
-          </p>
+          <PanelTitle
+            variant="label"
+            title="Candidates by state, over the window"
+            class="mb-1.5"
+          >
+            <template #info>
+              <p>
+                The five statuses are levels — the last reading of each period,
+                summed across platforms, never the sum of a period's readings. A
+                period the ingestor did not run has no reading and breaks the curve
+                rather than dropping it to zero. <em>Demoted</em> is the odd one
+                out: a running total that restarts at the left edge of the window,
+                so switching 7/30/90 days rescales that curve alone.
+              </p>
+              <p>
+                New and Processing sit at 0 whenever the pipeline is healthy —
+                scoring drains its whole backlog each run, and a claim lasts one
+                ingestion pass. Read them in the figures above rather than in the
+                fills: at the queue's scale they hug the baseline, and sustained
+                above zero they mean one of two things — scoring is behind, or
+                leases are not being reaped.
+              </p>
+              <p>
+                A level is measured going forward from the first snapshot and never
+                backfilled, because it cannot be reconstructed from the candidates
+                that survive today.
+              </p>
+            </template>
+          </PanelTitle>
           <ChartsAreaChart
             :data="outcomeChartData"
             :height="240"
@@ -492,24 +520,7 @@ const pipelineStages = computed(() =>
             {{ formatNumber(funnelTotals.demoted) }} demoted over the window
           </p>
           <p v-else-if="!stockPending" class="mt-3 text-xs text-dimmed">
-            No candidate level on record in this window — it is measured going
-            forward from the first snapshot and never backfilled, because it cannot
-            be reconstructed from the candidates that survive today.
-          </p>
-          <p class="mt-1 text-xs text-dimmed">
-            The five statuses are levels — the last reading of each period, summed
-            across platforms, never the sum of a period's readings. A period the
-            ingestor did not run has no reading and breaks the curve rather than
-            dropping it to zero. <em>Demoted</em> is the odd one out: a running total
-            that restarts at the left edge of the window, so switching 7/30/90 days
-            rescales that curve alone.
-          </p>
-          <p class="mt-1 text-xs text-dimmed">
-            New and Processing sit at 0 whenever the pipeline is healthy — scoring
-            drains its whole backlog each run, and a claim lasts one ingestion pass.
-            Read them in the figures above rather than in the fills: at the queue's
-            scale they hug the baseline, and sustained above zero they mean one of
-            two things — scoring is behind, or leases are not being reaped.
+            No candidate level on record in this window.
           </p>
         </div>
       </div>
@@ -530,9 +541,14 @@ const pipelineStages = computed(() =>
       />
       <USkeleton v-else-if="latencyPending" class="h-16 w-full" />
       <div v-else-if="latency">
-        <p class="text-xs text-muted uppercase mb-2">
-          Queue latency — snapshot
-        </p>
+        <PanelTitle variant="label" title="Queue latency — snapshot" class="mb-2">
+          <template #info>
+            Measured over the {{ formatNumber(latency.retainedCandidates) }}
+            candidates retained right now, not over history: pruned candidates are
+            not in it, so this says how fast the queue serves what is in it — not
+            how long a candidate waits.
+          </template>
+        </PanelTitle>
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <p class="text-xs text-dimmed">
@@ -559,12 +575,6 @@ const pipelineStages = computed(() =>
             </p>
           </div>
         </div>
-        <p class="mt-2 text-xs text-dimmed">
-          Measured over the {{ formatNumber(latency.retainedCandidates) }} candidates
-          retained right now, not over history: pruned candidates are not in it, so
-          this says how fast the queue serves what is in it — not how long a
-          candidate waits.
-        </p>
       </div>
     </template>
   </UCard>
@@ -574,15 +584,10 @@ const pipelineStages = computed(() =>
     <template #header>
       <div class="flex flex-col gap-3">
         <div class="flex items-center justify-between gap-2">
-          <div>
-            <p class="text-sm font-medium text-highlighted">
-              Candidates
-            </p>
-            <p class="text-xs text-dimmed mt-0.5">
-              Main-candidate ingestion pipeline · New → Scored → Queued →
-              Processing → Validated.
-            </p>
-          </div>
+          <PanelTitle
+            title="Candidates"
+            subtitle="Main-candidate ingestion pipeline · New → Scored → Queued → Processing → Validated."
+          />
           <UBadge
             v-if="!candidatePending"
             color="neutral"
