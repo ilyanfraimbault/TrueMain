@@ -7,7 +7,7 @@ import type { TruemainActivityResponse } from '~~/shared/types/activity'
  * off <c>onMounted</c> inside <c>useTruemainFetch</c>, which is what makes that
  * true rather than merely intended (#862).
  *
- * There is no mode argument. All three windows come back in one response because
+ * There is no mode argument. Every window comes back in one response because
  * they are foldings of the same games, so switching window is a local toggle
  * rather than a refetch — and two of them can never end up describing two
  * different snapshots of the same afternoon.
@@ -22,11 +22,12 @@ export function useTruemainActivity(nameTag: MaybeRefOrGetter<string>) {
     ),
     // `ignoreResponseError` turns a 404 into a null body, so the shape check is
     // the only way to tell "not found" from "no data": a real payload always
-    // carries the three windows, each with a bucket array.
+    // carries every window, each with a bucket array.
     validate: (response): response is TruemainActivityResponse =>
       Boolean(
         response
         && typeof response === 'object'
+        && Array.isArray(response.month?.buckets)
         && Array.isArray(response.patch?.buckets)
         && Array.isArray(response.week?.buckets)
         && Array.isArray(response.day?.buckets),

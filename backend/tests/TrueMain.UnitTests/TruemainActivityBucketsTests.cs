@@ -188,8 +188,11 @@ public class TruemainActivityBucketsTests
     // ─── Window defaults ───────────────────────────────────────────────────
 
     [Fact]
-    public void The_week_window_is_a_week()
+    public void The_calendar_windows_are_the_spans_they_are_named_after()
     {
         TruemainActivityBuckets.WeekWindowDays.Should().Be(7);
+        // Thirty days, not a calendar month: every window ends on today and counts
+        // back, and a calendar month would open on days that have not happened yet.
+        TruemainActivityBuckets.MonthWindowDays.Should().Be(30);
     }
 }

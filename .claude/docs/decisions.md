@@ -100,6 +100,7 @@ Last verified against `develop` on 2026-09-02.
 
 - The activity grid has one unit — the UTC day — and the switch picks the window, not the unit — #1473, #927
 - The patch window is measured over everyone's matches, never over the profile's own history — #1473
+- The month window is clamped to the retention floor; the narrower ones need no clamp — #1483
 - The grid is squares and nothing else: no captions, no legend, no coverage line — #1479, #1473
 - An idle day is not a lost one, and every day of the window is drawn — #1473, #907, #927
 - The player performance panel shows the score and its sample only — no per-component breakdown — #918

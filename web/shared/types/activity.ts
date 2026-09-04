@@ -6,9 +6,11 @@
  * with it — every cell is a UTC day, except on `day`, the one window narrow
  * enough that there are no days left to draw and the cells become the games.
  */
-export type ActivityMode = 'patch' | 'week' | 'day'
+export type ActivityMode = 'month' | 'patch' | 'week' | 'day'
 
 export interface TruemainActivityResponse {
+  /** The last thirty UTC days, clamped to the oldest game retention still holds. */
+  month: ActivitySeries
   /** Every UTC day of the current patch. The default view. */
   patch: ActivitySeries
   /** The last seven UTC days, today included. */

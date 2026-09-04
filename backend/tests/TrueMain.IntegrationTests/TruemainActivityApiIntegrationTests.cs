@@ -121,6 +121,67 @@ public sealed class TruemainActivityApiIntegrationTests
     }
 
     [Fact]
+    public async Task Clamps_the_month_window_to_the_oldest_game_retention_still_holds()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var midday = Midday;
+
+        var account = Account("pruned-puuid", "Pruned");
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(account);
+            // Retention has left twelve days of history. The other eighteen days a
+            // thirty-day window asks for are not "days off" — nobody can tell whether
+            // they were played, so they must not be drawn at all.
+            AddGame(db, account, "EUW1_OLDEST", midday.AddDays(-11), win: true);
+            AddGame(db, account, "EUW1_RECENT", midday.AddDays(-1), win: false);
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
+            "/truemains/Pruned-EUW1/activity");
+
+        activity!.Month.Buckets.Should().HaveCount(12);
+        activity.Month.Buckets[0].Key.Should().Be(DayKey(midday.AddDays(-11)));
+        activity.Month.Buckets[^1].Key.Should().Be(DayKey(midday));
+        activity.Month.Games.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Draws_the_full_month_when_the_retained_history_reaches_back_far_enough()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var midday = Midday;
+
+        var account = Account("veteran-puuid", "Veteran");
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.RiotAccounts.Add(account);
+            // Somebody's game 40 days back puts the retention floor well outside the
+            // window, so the month gets all thirty of its days.
+            var stranger = Account("stranger-puuid", "Stranger");
+            db.RiotAccounts.Add(stranger);
+            AddGame(db, stranger, "EUW1_ANCIENT", midday.AddDays(-40), win: true, gameVersion: PreviousPatchVersion);
+            AddGame(db, account, "EUW1_RECENT", midday.AddDays(-3), win: true);
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
+            "/truemains/Veteran-EUW1/activity");
+
+        activity!.Month.Buckets.Should().HaveCount(30);
+        activity.Month.Buckets[0].Key.Should().Be(DayKey(midday.AddDays(-29)));
+        activity.Month.Buckets[^1].Key.Should().Be(DayKey(midday));
+        activity.Month.Games.Should().Be(1, "the stranger's game is 40 days back and not this player's anyway");
+    }
+
+    [Fact]
     public async Task Folds_the_same_games_three_ways_over_three_windows_of_one_unit()
     {
         await _fixture.ResetDatabaseAsync();
@@ -142,8 +203,12 @@ public sealed class TruemainActivityApiIntegrationTests
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
             "/truemains/ThreeWays-EUW1/activity");
 
+        // The month window carries the same games over a wider span.
+        activity!.Month.Games.Should().Be(3);
+        activity.Month.Buckets[^1].Key.Should().Be(DayKey(midday));
+
         // The week window is always a week — seven days, today last.
-        activity!.Week.Buckets.Should().HaveCount(7);
+        activity.Week.Buckets.Should().HaveCount(7);
         activity.Week.Buckets[^1].Key.Should().Be(DayKey(midday));
         activity.Week.Buckets[0].Key.Should().Be(DayKey(midday.AddDays(-6)));
         activity.Week.Games.Should().Be(3);
@@ -190,6 +255,7 @@ public sealed class TruemainActivityApiIntegrationTests
         activity.Day.CoverageFromUtc.Should().BeNull();
 
         // The calendar windows still draw their days, one of which is played.
+        activity.Month.Games.Should().Be(1);
         activity.Week.Buckets.Should().HaveCount(7);
         activity.Week.Games.Should().Be(1);
         activity.Patch.Games.Should().Be(1);
@@ -320,7 +386,10 @@ public sealed class TruemainActivityApiIntegrationTests
         activity.Patch.Buckets.Should().BeEmpty();
         activity.Patch.WinRate.Should().BeNull();
 
-        // The week window does not depend on a patch, so it still draws its days.
+        // The calendar windows do not depend on a patch, so they still draw their
+        // days. With no matches at all there is no retention floor to clamp to, so
+        // the month gets the full thirty it asked for.
+        activity.Month.Buckets.Should().HaveCount(30);
         activity.Week.Buckets.Should().HaveCount(7);
         activity.Week.Games.Should().Be(0);
         activity.Day.Buckets.Should().BeEmpty();

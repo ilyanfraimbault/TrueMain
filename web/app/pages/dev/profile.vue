@@ -137,21 +137,25 @@ const mockRankHistory: RankHistoryEntry[] = (() => {
   return entries
 })()
 
-// Activity grid (#927, reshaped in #1473). One unit — the day — over three
-// windows: the patch opened fourteen days ago and the player only joined it on
-// its fourth day, so the grid opens on a run of idle tiles; the week is the last
-// seven days; the day window is today's games.
+// Activity grid (#927, reshaped in #1473, month window in #1483). One unit — the
+// day — over four windows: the month is the last thirty days, the patch opened
+// fourteen days ago and the player only joined it on its fourth day so the patch
+// grid opens on a run of idle tiles, the week is the last seven days, and the day
+// window is today's games.
 const mockActivity = computed<TruemainActivityResponse>(() => {
   const day = 24 * 60 * 60 * 1000
   const patchDays = 14
-  const firstPlayedDay = 10
+  const firstPlayedDay = 26
 
   const games = Array.from({ length: firstPlayedDay + 1 }, (_, index) => {
     const daysAgo = firstPlayedDay - index
     // Every fourth day is a rest day, so the grid carries empty cells next to the
     // played ones — the distinction the card exists to make visible. Today is
-    // never one of them, or the day window would open on its empty state.
-    const count = daysAgo % 4 === 2 ? 0 : 1 + (daysAgo % 3)
+    // never one of them, or the day window would open on its empty state; days 11
+    // to 14 are all rest days so the patch window opens on a run of idle tiles,
+    // which is the case its measured (rather than per-player) span exists to draw.
+    const quiet = daysAgo >= 11 && daysAgo <= 14
+    const count = quiet || daysAgo % 4 === 2 ? 0 : 1 + (daysAgo % 3)
     return Array.from({ length: count }, (_, i) => ({
       startUtc: new Date(now.getTime() - daysAgo * day + i * 30 * 60 * 1000),
       // Deterministic alternating results, biased to wins, with one all-loss day
@@ -182,7 +186,7 @@ const mockActivity = computed<TruemainActivityResponse>(() => {
       }
     })
 
-  const series = (mode: 'patch' | 'week' | 'day', patch: string | null, buckets: ActivityBucket[]) => {
+  const series = (mode: 'month' | 'patch' | 'week' | 'day', patch: string | null, buckets: ActivityBucket[]) => {
     const total = buckets.reduce((sum, bucket) => sum + bucket.games, 0)
     const wins = buckets.reduce((sum, bucket) => sum + bucket.wins, 0)
     return {
@@ -209,6 +213,7 @@ const mockActivity = computed<TruemainActivityResponse>(() => {
     }))
 
   return {
+    month: series('month', null, byDay(29)),
     patch: series('patch', '15.12', byDay(patchDays)),
     week: series('week', null, byDay(6)),
     day: series('day', null, todayBuckets),
