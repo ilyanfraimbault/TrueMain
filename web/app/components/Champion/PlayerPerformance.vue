@@ -29,7 +29,7 @@ const { data, status, error } = usePlayerChampionPerformance(
 
 // `idle` counts as loading: with a lazy client-only fetch the SSR shell and the
 // first client tick sit in `idle`, and treating that as settled would flash the
-// empty state before the request even started. Same rationale as MainsDivergence.
+// empty state before the request even started.
 const isLoading = computed(() => isLoadingStatus(status.value) && !data.value)
 
 const hasSample = computed(() => data.value?.averageScore != null)

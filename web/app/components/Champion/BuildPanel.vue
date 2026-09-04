@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ItemContextCard } from '~~/shared/utils/item-context'
 import { isLoadingStatus } from '~/utils/async-data'
 import type { ChampionBuild } from '~~/shared/types/champions'
 import type {
@@ -25,6 +26,12 @@ const props = defineProps<{
   // Lane opponent selected in the filter bar (#957): the build this panel renders
   // is already the matchup's, so its spikes must come from the same games.
   opponentChampionId?: number | null
+  /**
+   * The situational build context (#1451), keyed by `itemContextKey(slot, itemId)` and
+   * fetched once by `ChampionBuildTabs`. Empty on the surfaces that do not have a
+   * population slice to read it for (the builder preview, the player-scoped page).
+   */
+  itemContext?: Map<string, ItemContextCard>
   /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
   pending?: boolean
 }>()
@@ -69,6 +76,7 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
         :rune-page="build.core.runePage"
         :champion-static="championStatic"
         :items-map="itemsMap"
+        :item-context="itemContext"
         :summoners-map="summonersMap"
         :summoners-pending="summonersPending"
         :rune-tree="runeTree"
@@ -83,11 +91,13 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       :first-item-id="build.firstItemId"
       :item-path="build.core.itemPath?.itemIds ?? []"
       :items-map="itemsMap"
+      :item-context="itemContext"
     />
 
     <!-- Section 3: Variations — only the categories that carry a choice -->
     <ChampionBuildPanelVariations
       :variations="build.variations"
+      :item-context="itemContext"
       :champion-static="championStatic"
       :items-map="itemsMap"
       :summoners-map="summonersMap"

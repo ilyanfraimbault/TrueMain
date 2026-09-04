@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PIPELINE_CHAIN, PROCESS_META } from '~~/shared/types/ops'
+import { PIPELINE_CHAIN, PROCESS_META } from '~~/shared/types/pipeline-chain'
 
 // PIPELINE_CHAIN is a hand-maintained copy of the ingestor's JobModeSequence, and
 // PROCESS_META names what is in it. Both drift silently — a missing chain entry is

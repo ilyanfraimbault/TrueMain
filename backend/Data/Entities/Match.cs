@@ -63,10 +63,14 @@ public class Match
     public bool TimelineSnapshotsPruned { get; set; }
 
     /// <summary>
-    /// Set once this match has been folded into the champion matchup/lead aggregates
-    /// (#811). Gates the incremental aggregation (each match is aggregated exactly
-    /// once) the same way <see cref="PowerspikeAggregated"/> does. Dies with the match
-    /// on retention, so an aged-out patch's aggregate rows simply freeze.
+    /// Set once this match has been folded into <see cref="ChampionMatchupStat"/>
+    /// (#811) — game counters and, since #1445, the 15-minute lane verdict in the same
+    /// pass. Gates the incremental aggregation (each match is aggregated exactly once)
+    /// the same way <see cref="PowerspikeAggregated"/> does. One flag rather than two:
+    /// the lane counters had their own until #1445, and a match folded on one side
+    /// before its elo bracket was stamped and on the other after it split its two halves
+    /// across two rows. Dies with the match on retention, so an aged-out patch's
+    /// aggregate rows simply freeze.
     /// </summary>
     public bool MatchupLeadAggregated { get; set; }
 
@@ -97,16 +101,25 @@ public class Match
     public bool BansAggregated { get; set; }
 
     /// <summary>
-    /// Set once this match has been folded into the lane-outcome counters on
-    /// <see cref="ChampionMatchupStat"/> (#919). A flag of its own rather than reusing
-    /// <see cref="MatchupLeadAggregated"/>, which was backfilled to true in #811 and so
-    /// would have excluded every existing match. Shipping this one false lets the fold
-    /// drain the retained window immediately: unlike the bans of #920, the source data
-    /// (the 15-minute timeline snapshots) still exists for every retained match, since
-    /// snapshot pruning keeps the canonical marks. Dies with the match on retention, so
-    /// an aged-out patch's lane counters freeze like everything else.
+    /// Whether this match has been folded into <c>champion_profile_stats</c> (#1449), the
+    /// same one-fold-per-match gate as <see cref="SynergyAggregated"/>. Ships
+    /// <c>false</c> everywhere like the synergy flag, not backfilled like
+    /// <see cref="BansAggregated"/>: the table is created empty, and a pre-#1448 match
+    /// simply contributes nothing when folded — its participants carry no context
+    /// fields — so folding the retained history once costs a scan and corrupts nothing.
     /// </summary>
-    public bool LaneOutcomeAggregated { get; set; }
+    public bool ProfileAggregated { get; set; }
+
+    /// <summary>
+    /// Whether this match has been folded into the situational item context (#1450), the
+    /// same one-fold-per-match gate as <see cref="ProfileAggregated"/> and shipped
+    /// <c>false</c> for the same reason: the tables are created empty and the retained
+    /// history has to pass through once. A match whose participants carry no #1448 context
+    /// still folds — the axes come from the <em>other</em> participants' profiles, not from
+    /// this match's own columns — so unlike the profile fold this one has real work to do
+    /// on the backlog.
+    /// </summary>
+    public bool ItemContextAggregated { get; set; }
 
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("8cb6424b-c2b9-46b8-8e4a-be1c5d4b2042"), entityTypeCount: 31)
+            : base(skipDetectChanges: false, modelId: new Guid("56e74573-2ced-46e4-bc93-308072b75f3c"), entityTypeCount: 35)
         {
         }
 
@@ -27,9 +27,13 @@ namespace Data.CompiledModels
             var championDimSkillOrder = ChampionDimSkillOrderEntityType.Create(this);
             var championDimSpellPair = ChampionDimSpellPairEntityType.Create(this);
             var championDimStarterItems = ChampionDimStarterItemsEntityType.Create(this);
+            var championItemContextStat = ChampionItemContextStatEntityType.Create(this);
+            var championItemContextTotal = ChampionItemContextTotalEntityType.Create(this);
+            var championItemContextVerdict = ChampionItemContextVerdictEntityType.Create(this);
             var championMatchupStat = ChampionMatchupStatEntityType.Create(this);
             var championPowerspikeCurveStat = ChampionPowerspikeCurveStatEntityType.Create(this);
             var championPowerspikeEventStat = ChampionPowerspikeEventStatEntityType.Create(this);
+            var championProfileStat = ChampionProfileStatEntityType.Create(this);
             var championSynergyBaselineStat = ChampionSynergyBaselineStatEntityType.Create(this);
             var championSynergyStat = ChampionSynergyStatEntityType.Create(this);
             var discoveryCursor = DiscoveryCursorEntityType.Create(this);
@@ -76,9 +80,13 @@ namespace Data.CompiledModels
             ChampionDimSkillOrderEntityType.CreateAnnotations(championDimSkillOrder);
             ChampionDimSpellPairEntityType.CreateAnnotations(championDimSpellPair);
             ChampionDimStarterItemsEntityType.CreateAnnotations(championDimStarterItems);
+            ChampionItemContextStatEntityType.CreateAnnotations(championItemContextStat);
+            ChampionItemContextTotalEntityType.CreateAnnotations(championItemContextTotal);
+            ChampionItemContextVerdictEntityType.CreateAnnotations(championItemContextVerdict);
             ChampionMatchupStatEntityType.CreateAnnotations(championMatchupStat);
             ChampionPowerspikeCurveStatEntityType.CreateAnnotations(championPowerspikeCurveStat);
             ChampionPowerspikeEventStatEntityType.CreateAnnotations(championPowerspikeEventStat);
+            ChampionProfileStatEntityType.CreateAnnotations(championProfileStat);
             ChampionSynergyBaselineStatEntityType.CreateAnnotations(championSynergyBaselineStat);
             ChampionSynergyStatEntityType.CreateAnnotations(championSynergyStat);
             DiscoveryCursorEntityType.CreateAnnotations(discoveryCursor);

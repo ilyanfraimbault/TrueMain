@@ -113,11 +113,15 @@ const populationLabel = computed(() => {
             />
           </UTooltip>
           <span v-else>—</span>
+          <!-- A win rate over zero games is a fabricated 0.0%, not a
+               measurement: on an empty slice (a lane the player never played,
+               a patch with no game on record) the count stands alone. -->
+          <span v-if="totalGames === 0">· no games on this slice</span>
           <!-- The population is interpolated with its own leading space rather
                than written as template whitespace: Vue condenses the whitespace
                between a text node and a `<template>`, which glued the label to
                the count ("115 gamesplayed by mains"). -->
-          <span>
+          <span v-else>
             · {{ totalGames }} games<template v-if="populationLabel">{{ ` ${populationLabel}` }}</template>
             · {{ formatPercentage(winRate) }} WR
           </span>

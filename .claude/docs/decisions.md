@@ -36,6 +36,11 @@ Last verified against `develop` on 2026-09-02.
 
 ## Champion page — builds, power spikes, SSR prose — [`decisions/product-champion-page.md`](decisions/product-champion-page.md)
 
+- The "why this item" card is a rate and a situation, nothing else: no contrast rate, no sample, no scope footnote — #1451, #1465
+- The card's key term uses the item tooltip's colour vocabulary (damage coloured by the resistance that blocks it); untinted where no stat answers it — #1465
+- A `Preference` verdict renders nothing on the card — #1465
+- An item-context axis the front end has no wording for is dropped, never printed raw; a test mirrors the backend's axis list — #1451
+- The build tree carries no situational mark: the ring competed with the main-path highlight — #1451, #1465
 - Champion timeline-leads ("Lead vs role opponent") was removed; matchups stayed — #889
 - Power spikes are per-core-build bars anchored on events, not a time curve; bar height is excess acceleration — #890, #775
 - Scoping the aggregate to a build scopes the games, not the items — the item set has to be intersected at read time — #1021, #1022
@@ -81,6 +86,7 @@ Last verified against `develop` on 2026-09-02.
 - Every champion-page fold takes its cohort from one place, and a remake is not a game — #1365, #1087, #922
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
+- A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
 - The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent — #939
 - The recommendation shows no situational-items row — #921, #939
@@ -95,6 +101,8 @@ Last verified against `develop` on 2026-09-02.
 - The player performance panel shows the score and its sample only — no per-component breakdown — #918
 - The rank chart is one area with a tier-gradient line, never one area per tier (2026-08-20)
 - A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
+- The "{player} vs mains" card is gone — one page, one definition of a core build (2026-09-03) — #529
+- An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
 
@@ -124,6 +132,7 @@ Last verified against `develop` on 2026-09-02.
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
 - A failed icon is hollow; a loading one is solid and moving (2026-09-02) — #1396
+- The activity grid answers presence, not win rate: one rose-gold ramp keyed on games played (2026-09-03) — #1452, #1096, #927
 
 - The rose-gold-only surface rule is reversed: neutral surfaces, a scarce accent, and a data axis of its own (2026-08-10) — #1060, #1059, #927
 - Measurements are rose gold again: the cold→warm data axis is withdrawn (2026-08-11) — #1096, #1060, #927
@@ -136,6 +145,12 @@ Last verified against `develop` on 2026-09-02.
 - Timeline snapshots are pruned to the canonical marks {5, 10, 15, 20, 30} once a match is powerspike-aggregated — #772, #694
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
+- Champion profiles (`champion_profile_stats`) are measured from the champion's own games over the full pool, never labelled by hand; the ranged flag is the one static attribute — #1449
+- A situation may only explain an item it could mechanically answer: the item-context whitelist is derived from the item's own categories, and three floors (bucket games, absolute lift, significance) decide a finding — #1450
+- Item-context verdicts are derived and rebuilt per run while the counters stay additive per match, so the API read carries no statistics — #1450
+- A thin item-context bucket widens backwards through patches, both ends together, and records the window it used — #1450
+- The item context carries no elo dimension: splitting by rank would starve the buckets the feature rests on — #1450
+- Known gap: an item-context axis does not hold the lane opponent out, because that needs an opponent dimension ~70x the counters — #1450, #1462
 - No pick+ban "presence" figure, despite it being standard elsewhere — #920
 - A dimension's identity is enforced by the schema (canonical UNIQUE index, CHECK, generated key), not repaired afterwards (2026-09-03) — #1418, #911
 - Rank snapshots are capped at one row per account per UTC day (DB-level unique index) — #907
@@ -225,6 +240,7 @@ Last verified against `develop` on 2026-09-02.
 - The budget-headroom estimate (#1035) requires 24h of rollup history before it will extrapolate, and picks the app rate-limit window with the smallest daily ceiling as "binding"
 - The configuration viewer is an allow-list, and each host reports itself (2026-08-08) — #1034, #1033, #924
 - The pipeline chain is drawn per lane, not as one flat list (2026-09-02) — #1399, #1362
+- An admin number is either actionable or it is not printed: primary-lane below-floor lines, no `Ext. samples` column (2026-09-03) — #1442
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 

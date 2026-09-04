@@ -252,14 +252,35 @@ public static class OptionsConfigurationExtensions
         services.AddOptions<LaneOutcomeAggregationOptions>()
             .Bind(configuration.GetSection(LaneOutcomeAggregationOptions.SectionName))
             .Validate(options => options.GoldLeadThreshold >= 0, "LaneOutcomeAggregation:GoldLeadThreshold must be >= 0.")
-            .Validate(options => options.MatchBatchSize > 0, "LaneOutcomeAggregation:MatchBatchSize must be greater than 0.")
-            .Validate(options => options.MaxMatchesPerRun >= 0, "LaneOutcomeAggregation:MaxMatchesPerRun must be >= 0.")
             .ValidateOnStart();
 
         services.AddOptions<BanAggregationOptions>()
             .Bind(configuration.GetSection(BanAggregationOptions.SectionName))
             .Validate(options => options.MatchBatchSize > 0, "BanAggregation:MatchBatchSize must be greater than 0.")
             .Validate(options => options.MaxMatchesPerRun >= 0, "BanAggregation:MaxMatchesPerRun must be >= 0.")
+            .ValidateOnStart();
+
+        services.AddOptions<ChampionProfileAggregationOptions>()
+            .Bind(configuration.GetSection(ChampionProfileAggregationOptions.SectionName))
+            .Validate(options => options.MatchBatchSize > 0, "ChampionProfileAggregation:MatchBatchSize must be greater than 0.")
+            .Validate(options => options.MaxMatchesPerRun >= 0, "ChampionProfileAggregation:MaxMatchesPerRun must be >= 0.")
+            .Validate(options => options.RangedAttackRangeThreshold > 0, "ChampionProfileAggregation:RangedAttackRangeThreshold must be greater than 0.")
+            .ValidateOnStart();
+
+        services.AddOptions<ItemContextAggregationOptions>()
+            .Bind(configuration.GetSection(ItemContextAggregationOptions.SectionName))
+            .Validate(options => options.MatchBatchSize > 0, "ItemContextAggregation:MatchBatchSize must be greater than 0.")
+            .Validate(options => options.MaxMatchesPerRun >= 0, "ItemContextAggregation:MaxMatchesPerRun must be >= 0.")
+            .Validate(options => options.MinProfileGames > 0, "ItemContextAggregation:MinProfileGames must be greater than 0.")
+            .Validate(options => options.ProfileLookbackPatches >= 0, "ItemContextAggregation:ProfileLookbackPatches must be >= 0.")
+            .Validate(options => options.CoreRate is > 0 and <= 1, "ItemContextAggregation:CoreRate must be in (0, 1].")
+            .Validate(options => options.MinPickRate is >= 0 and < 1, "ItemContextAggregation:MinPickRate must be in [0, 1).")
+            .Validate(options => options.MinPickRate < options.CoreRate, "ItemContextAggregation:MinPickRate must be below CoreRate.")
+            .Validate(options => options.MinBucketGames > 0, "ItemContextAggregation:MinBucketGames must be greater than 0.")
+            .Validate(options => options.MinAbsoluteLift is > 0 and < 1, "ItemContextAggregation:MinAbsoluteLift must be in (0, 1).")
+            .Validate(options => options.MinAbsoluteZ >= 0, "ItemContextAggregation:MinAbsoluteZ must be >= 0.")
+            .Validate(options => options.MaxPatchLookback >= 0, "ItemContextAggregation:MaxPatchLookback must be >= 0.")
+            .Validate(options => options.MaxAxesPerVerdict > 0, "ItemContextAggregation:MaxAxesPerVerdict must be greater than 0.")
             .ValidateOnStart();
 
         services.AddOptions<JobOptions>()

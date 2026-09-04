@@ -8,6 +8,7 @@ using Ingestor.Riot.Dto;
 using Core.Lol.Identifiers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using TrueMain.TestKit;
 
 namespace TrueMain.IntegrationTests;
 
@@ -63,7 +64,9 @@ public sealed class AccountRefreshSliceIntegrationTests(PostgresFixture fixture)
                 {
                     Id = Guid.NewGuid(),
                     RiotAccountId = account.Id,
-                    CapturedAtUtc = nowUtc.AddHours(-1),
+                    // Clamped into today: see TestInstants — an hour before 00:36 UTC is
+                    // yesterday, and a snapshot on another day is appended, not updated.
+                    CapturedAtUtc = TestInstants.EarlierSameUtcDay(TimeSpan.FromHours(1)),
                     Tier = "GOLD",
                     Division = "IV",
                     LeaguePoints = 10,

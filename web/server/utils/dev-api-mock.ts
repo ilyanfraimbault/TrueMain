@@ -47,11 +47,6 @@ import type {
 import type { CompositionBuildGamesResponse, CompositionBuildResponse, CompositionGame } from '~~/shared/types/composition'
 import type { TruemainDedication } from '~~/shared/types/dedication'
 import type {
-  BuildChoice,
-  BuildDivergence,
-  PlayerBuildDivergenceResponse,
-} from '~~/shared/types/divergence'
-import type {
   MatchDetailItemEvent,
   MatchDetailParticipant,
   MatchDetailResponse,
@@ -1061,24 +1056,6 @@ async function mockTrioSynergies(
   }
 }
 
-// Dev-only pools used to push the mocked player's opening choices off the
-// mains': variants 0 and 1 of `makeBuild` differ on their first item and skill
-// order but happen to share a starter and boots, which would leave the card
-// with a single diverging row and most of its copy unexercised.
-const MOCK_ALT_STARTERS = [1055, 1054, 1056, 1082]
-const MOCK_ALT_BOOTS = [3006, 3047, 3020, 3111, 3158]
-
-function mockDifferentFrom(pool: number[], taken: number | undefined): number {
-  return pool.find(candidate => candidate !== taken) ?? pool[0]!
-}
-
-/**
- * "<player> vs mains" for the player-scoped champion page. Built from the two build
- * variants `makeBuild` already produces — variant 1 stands in for the player's
- * habits, variant 0 for the mains' — with the starter and boots nudged apart so
- * the fixture shows both diverging and matching rows. Nothing here reaches
- * production (dev mock only).
- */
 /**
  * Player-scoped performance score (#918). Mirrors the real payload's shape and
  * its two honest states: a champion the fixture treats as thinly played comes
@@ -1154,92 +1131,6 @@ function mockPlayerPerformance(
     worstScore: Math.max(0, Math.round(averageScore - 12 - rng() * 15)),
     topOfTeamRate: round3(0.1 + rng() * 0.35),
     components,
-  }
-}
-
-async function mockPlayerDivergence(id: number): Promise<PlayerBuildDivergenceResponse | null> {
-  const s = seedsById.get(id)
-  if (!s) return null
-
-  const mainsGames = Math.max(120, Math.round(s.pr * POOL_GAMES))
-  const playerGames = 24
-  const playerBuild = makeBuild(s, 1, playerGames)
-  const mainsBuild = makeBuild(s, 0, mainsGames)
-
-  const mainsStarter = mainsBuild.core.starterItems?.itemIds ?? []
-  const mainsBoots = mainsBuild.core.boots?.itemIds ?? []
-  const playerStarter = [mockDifferentFrom(MOCK_ALT_STARTERS, mainsStarter[0]), 2003]
-  const playerBoots = [mockDifferentFrom(MOCK_ALT_BOOTS, mainsBoots[0])]
-
-  const choice = (
-    itemIds: number[],
-    skills: string[],
-    games: number,
-    pickRate: number,
-    winRate: number,
-  ): BuildChoice => ({ itemIds, skills, games, pickRate: round3(pickRate), winRate: round3(winRate) })
-
-  const row = (
-    dimension: BuildDivergence['dimension'],
-    playerChoice: BuildChoice,
-    mainsChoice: BuildChoice,
-  ): BuildDivergence => {
-    const diverges = playerChoice.itemIds.join() !== mainsChoice.itemIds.join()
-      || playerChoice.skills.join() !== mainsChoice.skills.join()
-    const rateOnPlayerChoice = diverges ? 0.09 : mainsChoice.pickRate
-    const gamesOnPlayerChoice = Math.round(mainsGames * rateOnPlayerChoice)
-    return {
-      dimension,
-      diverges,
-      player: playerChoice,
-      mains: mainsChoice,
-      mainsGamesOnPlayerChoice: gamesOnPlayerChoice,
-      mainsRateOnPlayerChoice: round3(rateOnPlayerChoice),
-      // Mirror the backend contract exactly: no games on the player's choice
-      // means there is no win rate to report. A mock that invented one here
-      // would let the card ship copy the real API can never produce.
-      mainsWinRateOnPlayerChoice: gamesOnPlayerChoice === 0 ? null : round3(s.wr - 0.03),
-    }
-  }
-
-  const dimensions: BuildDivergence[] = [
-    row(
-      'starterItems',
-      choice(playerStarter, [], 17, 0.71, s.wr - 0.02),
-      choice(mainsStarter, [], Math.round(mainsGames * 0.68), 0.68, s.wr),
-    ),
-    row(
-      'boots',
-      choice(playerBoots, [], 14, 0.58, s.wr - 0.01),
-      choice(mainsBoots, [], Math.round(mainsGames * 0.61), 0.61, s.wr),
-    ),
-    row(
-      'itemPath',
-      choice((playerBuild.core.itemPath?.itemIds ?? []).slice(0, 3), [], 11, 0.46, s.wr - 0.04),
-      choice((mainsBuild.core.itemPath?.itemIds ?? []).slice(0, 3), [], Math.round(mainsGames * 0.52), 0.52, s.wr),
-    ),
-    row(
-      'skillOrder',
-      choice([], playerBuild.core.skillOrder?.sequence ?? [], 20, 0.83, s.wr),
-      choice([], mainsBuild.core.skillOrder?.sequence ?? [], Math.round(mainsGames * 0.88), 0.88, s.wr),
-    ),
-  ]
-
-  return {
-    championId: s.id,
-    patch: await latestShortPatch(),
-    position: s.position,
-    playerGames,
-    mainsGames,
-    mainsPlayers: Math.max(1, Math.round(mainsGames / 9)),
-    minPlayerGames: 5,
-    minMainsGames: 20,
-    minSampleMet: true,
-    referenceSampleMet: true,
-    // Same ordering rule as the backend: what differs first, then by how
-    // strongly the mains agree on their own pick.
-    dimensions: dimensions.sort((a, b) =>
-      Number(b.diverges) - Number(a.diverges) || b.mains.pickRate - a.mains.pickRate),
   }
 }
 
@@ -2402,6 +2293,98 @@ async function mockCompositionBuildGames(id: number, body: unknown, query: Recor
   }
 }
 
+
+/**
+ * Situational build context (#1451): one verdict of each class, so the hover card can be
+ * eyeballed in every state without a backend — core (no lines), situational with one axis,
+ * situational with two, and a preference. The item ids are pulled from the same archetype
+ * `mockChampionDetail` builds its tree, boots and starter rows from, so the cards attach to
+ * what is actually on screen instead of to ids nothing renders.
+ */
+function mockItemContext(championId: number, position: string | undefined) {
+  const s = seedsById.get(championId)
+  if (!s) return null
+
+  const archetype = ARCHETYPES[s.archetype]
+  const rng = mulberry32(championId * 17 + (position?.length ?? 0))
+  const slotGames = 400 + Math.floor(rng() * 2000)
+
+  const axis = (
+    name: string,
+    bucket: 'High' | 'Low',
+    rateIn: number,
+    rateOut: number,
+    draftTime = true,
+  ) => {
+    const half = Math.round(slotGames / 2)
+    return {
+      axis: name,
+      bucket,
+      draftTime,
+      gamesIn: Math.round(rateIn * half),
+      totalIn: half,
+      gamesOut: Math.round(rateOut * half),
+      totalOut: half,
+      rateIn,
+      rateOut,
+      lift: round3(rateIn - rateOut),
+      patchWindow: 1,
+    }
+  }
+
+  const item = (
+    slot: 'Build' | 'Boots' | 'Starter',
+    itemId: number,
+    itemClass: 'Core' | 'Situational' | 'Preference',
+    pickRate: number,
+    axes: ReturnType<typeof axis>[],
+    patchWindow = 1,
+  ) => ({
+    slot,
+    itemId,
+    class: itemClass,
+    games: Math.round(pickRate * slotGames),
+    slotGames,
+    pickRate,
+    winRate: round3(0.48 + rng() * 0.08),
+    patchWindow,
+    axes,
+  })
+
+  const items = archetype.items
+
+  return {
+    championId,
+    position: position ?? s.position,
+    patch: null,
+    allRanks: true,
+    items: [
+      item('Build', items[0]!, 'Core', 0.93, []),
+      item('Build', items[1]!, 'Situational', 0.42, [
+        axis('EnemyMagicDamage', 'High', 0.62, 0.18),
+      ]),
+      item('Build', items[2]!, 'Situational', 0.31, [
+        axis('EnemyCrowdControl', 'High', 0.55, 0.21),
+        axis('EnemySustain', 'High', 0.44, 0.19),
+      ], 2),
+      item('Build', items[3]!, 'Preference', 0.27, []),
+      item('Boots', archetype.boots[0]!, 'Situational', 0.38, [
+        axis('EnemyPhysicalDamage', 'High', 0.61, 0.12),
+      ]),
+      item('Boots', archetype.boots[1]!, 'Situational', 0.34, [
+        axis('EnemyCrowdControl', 'High', 0.58, 0.15),
+      ]),
+      item('Starter', archetype.starterItems[0]!, 'Situational', 0.52, [
+        axis('OpponentRanged', 'Low', 0.66, 0.24),
+      ]),
+      item('Starter', archetype.starterItems[1]!, 'Situational', 0.41, [
+        axis('OpponentLanePressure', 'High', 0.57, 0.22),
+        axis('OwnGoldLeadAt15', 'Low', 0.49, 0.31, false),
+      ]),
+    ],
+  }
+}
+
 export async function resolveDevApiMock(
   path: string,
   query: Record<string, unknown>,
@@ -2444,6 +2427,7 @@ export async function resolveDevApiMock(
           Number(query.buildFirstItemId) || 0,
           Number(query.opponentChampionId) || 0,
         )
+      : sub === 'item-context' ? mockItemContext(id, position)
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
       : sub === 'synergies' ? mockSynergies(
@@ -2493,13 +2477,12 @@ export async function resolveDevApiMock(
 
   // Player-scoped champion aggregate: reuse the global build payload so the
   // page renders; the numbers just read as the player's sample.
-  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/(matchups|divergence|performance))?$/)
+  const playerChampionMatch = path.match(/^\/truemains\/[^/]+\/champions\/(\d+)(?:\/(matchups|performance))?$/)
   if (playerChampionMatch) {
     const id = Number(playerChampionMatch[1])
     const sub = playerChampionMatch[2]
     let payload: unknown = null
     if (sub === 'matchups') payload = await mockMatchups(id)
-    else if (sub === 'divergence') payload = await mockPlayerDivergence(id)
     else if (sub === 'performance') {
       payload = mockPlayerPerformance(
         id,

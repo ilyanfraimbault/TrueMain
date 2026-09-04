@@ -41,6 +41,48 @@ public static class ChampionDirectoryLines
     public static bool ClearsFloor(ChampionDirectoryLine line, int floor) => line.Games >= floor;
 
     /// <summary>
+    /// The below-floor lines worth naming, <b>closest to the floor first</b>: the ones on
+    /// their champion's <b>primary lane</b> among <paramref name="lines"/> — the lane holding
+    /// the most of its games there.
+    /// <para>
+    /// The primary lane is read off the lines themselves rather than from a champion's global
+    /// identity, because the question is patch-relative — "is this line the champion's role
+    /// <em>here</em>" — and a patch a champion is being flexed on is exactly what a hard-coded
+    /// role gets wrong. A champion holding one lane has it as its primary by construction, and
+    /// ties break on the lane name so the answer is deterministic.
+    /// </para>
+    /// <para>
+    /// Everything else is the off-role tail (#1442): short of games because nobody plays the
+    /// champion there, not because the patch is short of matches. Listing it turns the one
+    /// list that gives a thin patch a cause into a wall of one-game picks — on the two patches
+    /// production had actually filled, all 146 and 194 below-floor lines were off-role. It is
+    /// left out of this list, never out of the count of lines below the floor.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<ChampionDirectoryLine> BelowFloorOnPrimaryLane(
+        IReadOnlyCollection<ChampionDirectoryLine> lines,
+        int floor)
+    {
+        var primaryLanes = lines
+            .GroupBy(line => line.ChampionId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(line => line.Games)
+                    .ThenBy(line => line.Position, StringComparer.Ordinal)
+                    .First()
+                    .Position);
+
+        return [.. lines
+            .Where(line => !ClearsFloor(line, floor) && primaryLanes[line.ChampionId] == line.Position)
+            // Closest to the floor first: a thin patch's real question is "how far off is it",
+            // and the lines about to clear answer it.
+            .OrderByDescending(line => line.Games)
+            .ThenBy(line => line.ChampionId)
+            .ThenBy(line => line.Position, StringComparer.Ordinal)];
+    }
+
+    /// <summary>
     /// Folds per-scope game sums into one line per <c>(patch, champion, lane)</c>,
     /// dropping the lane-less rows. Callers hand over rows already grouped in SQL;
     /// this collapses whatever grouping remains — including two <c>GameVersion</c>

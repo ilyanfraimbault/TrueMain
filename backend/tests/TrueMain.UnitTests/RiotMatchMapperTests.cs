@@ -251,6 +251,59 @@ public sealed class RiotMatchMapperTests
         };
     }
 
+    [Fact]
+    public void Map_CarriesParticipantContextFields()
+    {
+        var dto = BuildMatch();
+        var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
+        participantDto.PhysicalDamageDealtToChampions = 12_000;
+        participantDto.MagicDamageDealtToChampions = 3_000;
+        participantDto.TrueDamageDealtToChampions = 500;
+        participantDto.TotalHeal = 4_200;
+        participantDto.TotalHealsOnTeammates = 1_100;
+        participantDto.TotalDamageShieldedOnTeammates = 900;
+        participantDto.TimeCCingOthers = 38;
+        participantDto.TotalTimeCCDealt = 210;
+        participantDto.TotalDamageTaken = 21_000;
+        participantDto.DamageSelfMitigated = 15_500;
+        dto.Info.Participants.Add(participantDto);
+
+        var participant = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow).Participants[0];
+
+        participant.PhysicalDamageDealtToChampions.Should().Be(12_000);
+        participant.MagicDamageDealtToChampions.Should().Be(3_000);
+        participant.TrueDamageDealtToChampions.Should().Be(500);
+        participant.TotalHeal.Should().Be(4_200);
+        participant.TotalHealsOnTeammates.Should().Be(1_100);
+        participant.TotalDamageShieldedOnTeammates.Should().Be(900);
+        participant.TimeCCingOthers.Should().Be(38);
+        participant.TotalTimeCCDealt.Should().Be(210);
+        participant.TotalDamageTaken.Should().Be(21_000);
+        participant.DamageSelfMitigated.Should().Be(15_500);
+    }
+
+    [Fact]
+    public void Map_LeavesContextFieldsNull_WhenPayloadOmitsThem()
+    {
+        // "Not measured" must survive the mapping as null: a zero here would be
+        // folded into the champion profiles as a real measurement.
+        var dto = BuildMatch();
+        dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
+
+        var participant = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow).Participants[0];
+
+        participant.PhysicalDamageDealtToChampions.Should().BeNull();
+        participant.MagicDamageDealtToChampions.Should().BeNull();
+        participant.TrueDamageDealtToChampions.Should().BeNull();
+        participant.TotalHeal.Should().BeNull();
+        participant.TotalHealsOnTeammates.Should().BeNull();
+        participant.TotalDamageShieldedOnTeammates.Should().BeNull();
+        participant.TimeCCingOthers.Should().BeNull();
+        participant.TotalTimeCCDealt.Should().BeNull();
+        participant.TotalDamageTaken.Should().BeNull();
+        participant.DamageSelfMitigated.Should().BeNull();
+    }
+
     private static RiotParticipantDto BuildParticipant(
         int participantId,
         string puuid,

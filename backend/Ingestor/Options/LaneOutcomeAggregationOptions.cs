@@ -2,8 +2,17 @@ using Core.Lol.Lane;
 namespace Ingestor.Options;
 
 /// <summary>
-/// Knobs for <c>ChampionLaneOutcomeAggregationProcess</c> (#919), the fold behind the
-/// lane win rate shown beside the matchup game win rate.
+/// The one knob behind the lane win rate shown beside the matchup game win rate (#919).
+///
+/// <para>
+/// It keeps its own section although the fold that reads it now lives inside
+/// <c>ChampionMatchupLeadAggregationProcess</c> (#1445): the threshold is a product
+/// judgement about what "won the lane" means — shared verbatim with the API's live pass
+/// over a composition's games — not a pacing knob for a process, and moving the key
+/// would rename it on every deployed host for no gain. The batching knobs that used to
+/// sit beside it went with the process; the merged fold paces off
+/// <see cref="MatchupLeadAggregationOptions"/>.
+/// </para>
 /// </summary>
 public class LaneOutcomeAggregationOptions
 {
@@ -26,19 +35,4 @@ public class LaneOutcomeAggregationOptions
     /// </para>
     /// </summary>
     public int GoldLeadThreshold { get; set; } = LaneOutcomeRules.DefaultGoldLeadThreshold;
-
-    /// <summary>
-    /// Pending matches folded per transaction. Mirrors the sibling folds; the working set
-    /// per match is the participant rows plus their 15-minute snapshots, so the same
-    /// order of magnitude applies.
-    /// </summary>
-    public int MatchBatchSize { get; set; } = 500;
-
-    /// <summary>
-    /// Upper bound on matches folded per run. The flag ships false for every retained
-    /// match — the 15-minute snapshots are still there, so unlike #920's bans there is
-    /// real history to pick up — and this spreads that initial drain across runs.
-    /// 0 means no cap.
-    /// </summary>
-    public int MaxMatchesPerRun { get; set; } = 20000;
 }

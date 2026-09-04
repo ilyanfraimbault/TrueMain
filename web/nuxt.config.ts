@@ -153,6 +153,10 @@ export default defineNuxtConfig({
       ],
     },
   },
+  // `~/…`, not a root-relative `./app/…`: since the Nuxt 4.5 / Vite 8.2 bump
+  // the relative form is resolved against the build dir (`.nuxt/`) in dev, so
+  // `nuxt dev` failed to resolve the stylesheet at all on a clean install and
+  // the client bundle never booted. The alias resolves off srcDir in both.
   css: ['~/assets/css/main.css'],
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },

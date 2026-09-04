@@ -293,6 +293,7 @@ builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryS
 builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
+builder.Services.AddScoped<IChampionItemContextQueryService, ChampionItemContextQueryService>();
 builder.Services.AddScoped<IChampionSynergyQueryService, ChampionSynergyQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
 // Shared by the composition recommendation (#921) and the matchup-scoped champion page
@@ -328,7 +329,6 @@ builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
 builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuildsQueryService>();
 builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMatchupQueryService>();
 builder.Services.AddScoped<IPlayerChampionPerformanceQueryService, PlayerChampionPerformanceQueryService>();
-builder.Services.AddScoped<IPlayerBuildDivergenceQueryService, PlayerBuildDivergenceQueryService>();
 builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();

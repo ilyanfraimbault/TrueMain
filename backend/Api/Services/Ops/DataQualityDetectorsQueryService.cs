@@ -53,8 +53,7 @@ public sealed class DataQualityDetectorsQueryService(
         "ChampionMatchupLeadAggregation",
         "ChampionPowerspikeAggregation",
         "ChampionBanAggregation",
-        "ChampionSynergyAggregation",
-        "ChampionLaneOutcomeAggregation"
+        "ChampionSynergyAggregation", "ChampionProfileAggregation", "ChampionItemContextAggregation"
     ];
 
     private const string HarvestProcessName = "Harvest";

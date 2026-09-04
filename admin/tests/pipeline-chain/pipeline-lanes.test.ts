@@ -1,6 +1,6 @@
 import type { ProcessRun } from '~~/shared/types/ops'
 import { describe, expect, it } from 'vitest'
-import { PIPELINE_CHAIN, PIPELINE_LANES } from '~~/shared/types/ops'
+import { PIPELINE_CHAIN, PIPELINE_LANES } from '~~/shared/types/pipeline-chain'
 import { buildLaneBranches, laneForProcess, pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
 
 // PIPELINE_LANES is a hand-maintained copy of the ingestor's FetchLanePipeline /

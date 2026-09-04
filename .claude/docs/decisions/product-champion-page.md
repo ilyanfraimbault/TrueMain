@@ -50,6 +50,40 @@ window: without that, a 500-game build shredded into 40 opponent rows of ~12 wou
 too. The baseline curve stays champion-wide on purpose — it corrects the global concavity of lead curves, and
 recomputing it on a 4-game matchup would swap that correction for noise and subtract the signal from itself — #957.
 
+**The "why this item" card is a rate and a situation, and nothing else.**
+It shipped with the contrast rate, the sample size and a scope footnote on every line — *"62% against a
+magic-damage team · 18% otherwise · 1,106 games / across all ranks"* — and read as a paragraph where a glance was
+wanted. #1465 cut all three. The contrast is what makes 62% mean something, so dropping it is a real trade: what
+carries the meaning instead is the `Situational` class above the lines, which by construction only appears when an
+axis moved the pick by at least ten points *and* cleared significance. The scope footnote went with it, including
+the `all matchups` clause shown when `?vs=` was pinned — worth knowing, and worth restoring if a reader is ever
+seen to misread a pinned matchup, but not worth a permanent line on every card — #1451, #1465.
+
+**The key term is coloured with the item tooltip's vocabulary, not a new one.**
+The card sits directly under an item description where magic damage is already cyan and physical damage already
+orange; a second colour system on one surface would read as a bug. So the tones map onto the same
+`--color-stat-*` tokens `tooltip-parser/tag-classes.ts` uses, and inherit its rule — Riot colours damage by the
+**resistance that blocks it**, which is why magic damage is the magic-resist cyan and not the ability-power
+violet. Terms with no stat behind them (melee, ranged, a strong laner) stay uncoloured: the colour marks an
+answerable threat, it does not decorate the sentence — #1465.
+
+**A `Preference` renders nothing.**
+"No draft situation moves this pick" is a true and even useful sentence, and it was on three quarters of all
+items, which turned the section into noise on most hovers. Silence is the honest rendering of "nothing to say
+here"; the class still exists in the API for anything that wants it — #1465.
+
+**An axis the front end has no wording for is dropped, never printed raw.**
+The API sends axis identifiers and the client owns the prose, so a deployed front end older than the backend can
+receive an axis it does not know. It renders one line fewer rather than showing `EnemyArmorPenetration` to a
+player. A vitest suite mirrors the backend's axis list and fails when the fold gains an axis with no copy, so the
+gap is caught at build time rather than in production — #1451.
+
+**The build tree carries no situational mark.**
+#1451 ringed situational nodes in rose gold to say "there is a reason here, hover me". Removed in #1465: the tree
+is already dense with edges, icons and a highlighted main path, and a ring on a third of the nodes competed with
+the path highlight that tells a reader what the build actually is. The card is one hover away and says it
+better — #1451, #1465.
+
 **Champion URLs are bare slugs, and the slug map is app state rather than per-page async data.**
 Two calls, one visible and one not. The visible one: `/champions/ahri`, not `/champions/103-ahri`. The
 id-prefixed form was genuinely tempting — the champion id parses straight out of the segment, so the page

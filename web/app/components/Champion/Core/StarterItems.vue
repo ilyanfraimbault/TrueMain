@@ -2,11 +2,20 @@
 import type { BuildItemSet } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
 import { itemSlots } from '~~/shared/utils/build'
+import type { ItemContextCard } from '~~/shared/utils/item-context'
+import { itemContextKey } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   starter: BuildItemSet | null
   itemsMap: Record<number, StaticItemData>
+  /** Situational verdicts (#1451), keyed by slot + item. Absent where the surface has no slice for them. */
+  itemContext?: Map<string, ItemContextCard>
 }>()
+
+/** This block only ever asks about the `Starter` slot — the same id answers a different question in each. */
+function contextFor(itemId: number): ItemContextCard | undefined {
+  return props.itemContext?.get(itemContextKey('Starter', itemId))
+}
 
 // One slot per id in the build, resolved or not — see `itemSlots`. Keying the
 // no-data state off the resolved list instead made a loaded build claim it had
@@ -29,6 +38,7 @@ const items = computed(() => itemSlots(props.starter?.itemIds, props.itemsMap))
         v-for="(slot, index) in items"
         :key="`starter-${slot.id}-${index}`"
         :item="slot.item"
+        :context="contextFor(slot.id)"
         :width="36"
         :height="36"
         class="size-9 shrink-0 rounded"

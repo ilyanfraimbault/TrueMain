@@ -249,3 +249,41 @@ one of `FullPipeline`, and pinned by the same kind of test — a partition of th
 The drift is worse than the flat chain's was: a step in neither lane is not misplaced, it stops being drawn
 at all. A run whose process no lane declares therefore still renders, in a trailing branch under its raw
 name — #1399, #1362, #1314.
+
+## An admin number is either actionable or it is not printed (2026-09-03)
+
+**The below-floor list on `/patch-coverage` names a champion's primary lane only, and `/champions` has no
+`Ext. samples` column.** Both were true numbers that answered nothing, and they failed in the same way: a
+figure that is 0 (or noise) on every row trains an operator to skip the panel it lives in.
+
+The below-floor list exists to give a thin patch a **cause** — "16.17 is four lines short, here is which
+ones". Measured on production, of the 146 below-floor lines on 16.16 and the 194 on 16.17, **not one** was on
+the champion's most-played lane of that patch: they are one-game Kai'Sa TOPs and Riven UTILITYs, short of
+games because nobody plays the champion there, not because the patch is short of matches. Naming them buried
+the lines that were genuinely two games off under a wall of picks no amount of ingestion will ever move. The
+primary lane is read off the patch's own lines (the lane holding the most of the champion's games there),
+never from a hard-coded role: the patch a champion is being flexed on is exactly the case a fixed role gets
+wrong. It lives in `ChampionDirectoryLines` with the definition of a line itself, not in the query service —
+the same reason the line count does.
+
+`belowFloorCount` now counts what the list is drawn from rather than every line under the floor, and the tail
+is **derived** rather than carried in a second field: every below-floor line is `lines - linesPastFloor`, both
+of which the card already prints, so the off-role remainder is a subtraction the page states in its own
+sentence. Dropping the difference silently was the one option ruled out — a number that quietly stops adding
+up is how a page loses trust. When every below-floor line is off-role, that sentence *is* the section: an
+empty list under "146 lines below the floor" reads as a bug, and "no champion is short of games on its own
+lane" is the answer.
+
+Two follow-ups from reading it in preprod. The list is drawn on **the current patch only**: it is a to-do,
+and the only patch anything can still be done about is the one the site serves. An abandoned patch has every
+champion a game or two short, so its card printed 51 names carrying one game each — and a reader who had
+scrolled past the card's heading took them for the served patch's, which is how a champion sitting on 738
+games of the live patch appeared to be nine short of the floor. And each line prints `3 / 10 games` rather
+than `3 · 7 short`: a shortfall against a bar the row does not state is not a number anyone can read.
+
+`Ext. samples` counted the mains that only cleared the *relaxed* per-champion play-rate threshold (#407) —
+a diagnostic of the coverage relaxation, not a property of the champion. On production that is 111 rows out
+of 68 056 mains, at most 5 for any one champion and exactly 0 for 123 of the 173, so as a sortable column it
+was a column of zeros with no label saying what it measured. It now rides under the **Mains** figure it
+qualifies, as "N relaxed", rendered only when non-zero and explained in the panel's info popover. The
+`/ops/stats/champions` payload is unchanged: the field was never the problem — #1442, #1033, #407.

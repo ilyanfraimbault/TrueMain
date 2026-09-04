@@ -1,5 +1,6 @@
-import type { PipelineLaneId, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
-import { PIPELINE_LANES } from '~~/shared/types/ops'
+import type { ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
+import { PIPELINE_LANES } from '~~/shared/types/pipeline-chain'
 
 /**
  * Grouping an iteration's runs into the lanes that produced them.

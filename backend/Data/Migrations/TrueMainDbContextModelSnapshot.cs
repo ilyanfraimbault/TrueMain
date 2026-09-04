@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using Data;
 using Data.Entities;
+using Data.ItemContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -389,6 +390,179 @@ namespace Data.Migrations
                     b.ToTable("champion_dim_starter_items", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionItemContextStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Axis")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Bucket")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Slot")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Patch", "ChampionId", "Position", "Slot", "ItemId", "Axis", "Bucket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_item_context_stats_grain");
+
+                    b.ToTable("champion_item_context_stats", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionItemContextTotal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Axis")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Bucket")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Slot")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Patch", "ChampionId", "Position", "Slot", "Axis", "Bucket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_item_context_totals_grain");
+
+                    b.ToTable("champion_item_context_totals", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionItemContextVerdict", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<List<ItemContextAxisFinding>>("Axes")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Class")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("PatchWindow")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<double>("PickRate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Slot")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("SlotGames")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Patch", "ChampionId", "Position", "Slot", "ItemId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_item_context_verdicts_grain");
+
+                    b.ToTable("champion_item_context_verdicts", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.ChampionMatchupStat", b =>
                 {
                     b.Property<Guid>("Id")
@@ -591,6 +765,124 @@ namespace Data.Migrations
                         .IsUnique();
 
                     b.ToTable("champion_powerspike_event_stats", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionProfileStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AbilityPowerGames")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ArmorPenetrationGames")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CritGames")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("DamageSelfMitigatedSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("DamageShieldedOnTeammatesSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("DamageTakenSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("GameDurationSecondsSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("GoldLeadAt10Sum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("GoldLeadAt15Sum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("HealsOnTeammatesSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool?>("IsRanged")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ItemGames")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("KillsBy10Sum")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LaneGamesAt10")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LaneGamesAt15")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("MagicDamageToChampionsSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("OnHitGames")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<long>("PhysicalDamageToChampionsSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("TankGames")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TeamDamageTakenGames")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("TeamDamageTakenSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TimeCCingOthersSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TotalHealSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TotalTimeCCDealtSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TrueDamageToChampionsSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("XpLeadAt10Sum")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("XpLeadAt15Sum")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Patch", "ChampionId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_profile_stats_grain");
+
+                    b.ToTable("champion_profile_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionSynergyBaselineStat", b =>
@@ -936,7 +1228,7 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<bool>("LaneOutcomeAggregated")
+                    b.Property<bool>("ItemContextAggregated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
@@ -961,6 +1253,11 @@ namespace Data.Migrations
                         .HasColumnType("character varying(8)");
 
                     b.Property<bool>("PowerspikeAggregated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("ProfileAggregated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
@@ -1006,11 +1303,14 @@ namespace Data.Migrations
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_bans_pending")
                         .HasFilter("\"BansAggregated\" = false");
 
-                    b.HasIndex(new[] { "QueueId" }, "IX_matches_lane_outcome_pending")
-                        .HasFilter("\"LaneOutcomeAggregated\" = false");
+                    b.HasIndex(new[] { "QueueId" }, "IX_matches_item_context_pending")
+                        .HasFilter("\"ItemContextAggregated\" = false");
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_matchup_lead_pending")
                         .HasFilter("\"MatchupLeadAggregated\" = false");
+
+                    b.HasIndex(new[] { "QueueId" }, "IX_matches_profile_pending")
+                        .HasFilter("\"ProfileAggregated\" = false");
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_snapshot_prune_pending")
                         .HasFilter("\"PowerspikeAggregated\" = true AND \"TimelineSnapshotsPruned\" = false");
@@ -1054,6 +1354,9 @@ namespace Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DamageSelfMitigated")
                         .HasColumnType("integer");
 
                     b.Property<int>("Deaths")
@@ -1108,6 +1411,9 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<int?>("MagicDamageDealtToChampions")
+                        .HasColumnType("integer");
+
                     b.Property<string>("MatchId")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -1126,6 +1432,9 @@ namespace Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("PerksOffense")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PhysicalDamageDealtToChampions")
                         .HasColumnType("integer");
 
                     b.Property<int>("PrimaryStyleId")
@@ -1173,15 +1482,36 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<int?>("TimeCCingOthers")
+                        .HasColumnType("integer");
+
                     b.Property<int>("TotalDamageDealtToChampions")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
 
+                    b.Property<int?>("TotalDamageShieldedOnTeammates")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TotalDamageTaken")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TotalHeal")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TotalHealsOnTeammates")
+                        .HasColumnType("integer");
+
                     b.Property<int>("TotalMinionsKilled")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("TotalTimeCCDealt")
+                        .HasColumnType("integer");
+
                     b.Property<int>("TrinketItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TrueDamageDealtToChampions")
                         .HasColumnType("integer");
 
                     b.Property<int>("VisionScore")
