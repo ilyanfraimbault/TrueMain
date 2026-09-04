@@ -1,6 +1,7 @@
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Logging;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
@@ -27,6 +28,7 @@ public sealed class MainActivityProcess(
     ILogger<MainActivityProcess> logger,
     IRiotPlatformClient riotPlatformClient,
     IDataSessionFactory sessionFactory,
+    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
     IOptions<MainActivityOptions> activityOptions) : IIngestorProcess
 {
@@ -36,6 +38,23 @@ public sealed class MainActivityProcess(
     {
         var options = activityOptions.Value;
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+
+        // Same guard as Discovery's (#487, #1149): measured from the last run that did its
+        // work, so a skip can never re-arm itself. RecheckAfterHours throttles one account,
+        // not the process — with a pool far larger than a day's worth of batches, every
+        // account is always due and only this interval bounds the lane time spent (#1474).
+        if (options.MinRunInterval > TimeSpan.Zero)
+        {
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
+            if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
+            {
+                logger.LogInformation(
+                    "Main activity skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
+                    lastRunUtc,
+                    options.MinRunInterval);
+                return new SkippedSummary("Within MinRunInterval; main activity skipped this iteration.", true);
+            }
+        }
 
         var accounts = await LoadAccountsDueForCheckAsync(options, nowUtc, ct);
         if (accounts.Count == 0)

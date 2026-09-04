@@ -2,42 +2,51 @@
 
 Part of the [decision log](../decisions.md). Format: **Decision** — why — `source`.
 
-**The activity grid's four modes read two different tables, and the response says so rather than reconciling them.**
-`match_participants` carries a game's date but is hard-deleted past `RetainedPatchCount` (~2 patches);
-`champion_aggregate_scopes` is frozen forever (#466) but its grain is (account, champion, patch). So the
-game / day / week modes physically cannot show last season and the patch mode physically cannot show a day —
-the modes are not four views of one dataset. Every series therefore ships its own `source`, `scope`,
-`retentionBounded` and coverage range, and the patch series is champion-scoped to the signature champion.
-Originally the UI printed a standing coverage line built from those fields; #959 replaced it with a per-cell
-hover tooltip and dropped the line, on the reasoning that the grid itself (an empty period clamped to where
-the data stops, see the next entry) already carries the retention story visually, and a permanent paragraph
-under a hover surface was reading as clutter rather than as a needed disclosure. The payload fields are
-unchanged and still drive the day/week window clamp below — only the standing prose describing `source`/
-`scope` was cut. Three options were rejected for the underlying multi-table split: scoping *every* mode to one
-champion (throws away the "how much did you play" answer the grid is for), splitting the aggregate by day
-(it has no day), and quietly labelling all four "activity" (that is the silent disagreement the metadata
-exists to prevent). Two consequences kept on purpose: the patch total is a *different population* from the
-day total over the same patch, and all four granularities ship in **one** request — three of them are
-foldings of the same rows, so one snapshot is both cheaper and the only way two modes cannot describe two
-different afternoons — #927.
+**The activity grid has one unit — the UTC day — and the switch picks the window, not the unit.**
+Patch draws every day of the current patch, week the last seven, and day the one window narrow enough that
+there are no days left to draw and the cells become that day's games. It replaces a four-way switch whose
+tabs each changed what a square *meant* (a game, a day, an ISO week, a whole patch), so the control that was
+meant to zoom also silently re-labelled the grid. The patch tab was the worst of it: it answered "how did
+each patch go" for the signature champion, read from the frozen `champion_aggregate_scopes` (#466), and could
+never answer the question the view is for — *which days of this patch did I play*. Two things were given up
+knowingly: that per-patch career history is gone from this card (the aggregates cannot be split by day, and
+the profile's other panels already carry the career), and with every window now reading live
+`match_participants` for all champions there is exactly one source and one scope, so the per-series `source`
+/ `scope` / `championId` / `retentionBounded` discriminators came off the payload — they existed to describe
+a split that no longer exists. All three windows still ship in **one** request, foldings of one snapshot of
+the same rows, which is what keeps two of them from describing the same afternoon differently — #1473, #927.
 
-**An erased period is not an idle one: the calendar grids stop where the data stops.**
-The day / week series clamp their window to the oldest game still on disk and emit **no cell** before it,
-rather than drawing 30 empty squares over a month retention deleted. Inside the covered range an empty cell
-*is* emitted, with `games: 0` and a **null** win rate — a 0% period is a measurement and an idle one is not,
-so the fill helper returns no colour at all for the second and the tooltip reads "No games". A player whose
-whole retained window has been pruned gets three empty series and a populated patch series, with copy pointing
-at it. Days and weeks are UTC (Monday 00:00 for weeks), matching the pipeline's existing UTC-day rule (#907):
-a viewer-local grid would need a timezone parameter on a public read or client-side re-bucketing of raw games.
-Accepted: a late-night game can land on the next day's cell far from UTC — #927.
+**The patch window is measured over everyone's matches, never over the profile's own history.**
+The schema has no patch calendar: a patch's start date is nowhere stored. So the current patch is the one
+whose first tracked game is the most recent (no version parsing, and a straggler ingested for an older patch
+cannot fool it), and its span is that first game through its last, over `matches` for the tracked queue.
+Bounding it on the *player's* first game of the patch would have cost nothing and been wrong: the days a
+player sat out at the start of a patch are exactly the days the grid exists to draw. The group-by is
+prod-measured at ~250 ms over the retained window (two patches, ~320k rows) and cached for 15 minutes — one
+global fact that turns over once a fortnight, asked once rather than once per page view; the visible
+consequence is that for up to that long after a new patch's first game the grid still draws the previous one
+— #1473.
 
-**Patch mode is wired to the dedication card's own numbers, not to a parallel query.**
-It resolves the signature champion through `MainDedication` — the single place that decides what one is — and
-groups the exact scope rows that helper's career lateral sums (account + champion + ranked queue, no platform /
-position / bracket narrowing). That makes `patch.games == dedication.careerGames` and
-`patch.buckets.length == dedication.patchSpan` invariants a reader can check by eye, since the two panels sit
-centimetres apart. A narrower filter (per platform, per lane) would have been defensible on its own and would
-have made the grid disagree with the card above it — #927.
+**The grid is squares and nothing else: no captions, no legend, no coverage line.**
+Fixed 14 px tiles packed from the left, identical in every window. #1473 had stretched them to span the card
+and captioned each one with its date, which the product owner rejected on sight: at a fortnight's width a
+stretched tile is a fat lozenge, and eleven of them read as a row of buttons rather than as a contribution
+grid, whose whole point is that the density of small identical squares *is* the shape of the period. The
+three things printed around the grid went with the stretch — the date under every tile, the ramp legend, and
+the "which patch · first day – last day" line — because each was either the window's own definition read back
+to the reader or a fact the cell's own hover panel already carries. What is left on the card is the window's
+total and the tiles — #1479, #1473.
+
+**An idle day is not a lost one, and every day of the window is drawn.**
+A day with no games carries `games: 0` and a **null** win rate, and gets its own tile: a 0% day is a
+measurement and an idle one is not, so the fill helper returns no colour at all for the second and the
+tooltip reads "No games". No day inside a window is ever skipped — the run of idle tiles between two
+sessions is what makes a busy stretch legible. Retention (~2 patches) cannot turn that into a lie about an
+erased day, because both calendar windows are bounded by matches that are by definition still on disk: seven
+days for the week, and for the patch a span read off the patch's own retained rows. Days are UTC, matching
+the pipeline's existing UTC-day rule (#907): a viewer-local grid would need a timezone parameter on a public
+read or client-side re-bucketing of raw games. Accepted: a late-night game can land on the next day's cell
+far from UTC — #1473, #927.
 
 **The player performance panel shows the score and its sample only — no per-component breakdown.**
 The #918 panel stacked nine component bars under the average, each with a midpoint tick nobody could read

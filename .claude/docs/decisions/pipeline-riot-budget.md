@@ -163,6 +163,36 @@ skipped nothing. Deliberately **not** done here: recording discarded match ids i
 the ids call there is nothing left to record — and the ManualSeed pacing change, which interacts with the
 candidate-funnel backlog (#1361) and belongs with it.
 
+## A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04)
+
+`LadderSync:MaxRequestsPerRun` (#1313) and `MainActivity:BatchSize` (#900) bounded a *run*. Nothing bounded
+how many runs a day the fetch lane would make, so each process's daily cost was `budget × iterations` — a
+number nobody chose, and one that scaled with loop speed: preprod, whose fetch lane runs back-to-back,
+spent several times prod's calls on the same ladder. Measured after the 1.20.x deploy, the two processes
+had crowded `MatchIngestion` down to a small fraction of the lane, while ~95 % of the ladder accounts they
+re-read came back `rankUnchanged` (#1474, epic #1460).
+
+The rule this settles: **a process with a per-run budget also carries a cadence** (`MinRunInterval`, the
+`Discovery` pattern from #487/#1151), and a budget that describes a rate is expressed per day
+(`LadderSync:MaxRequestsPerDay`), so the cost stops depending on how fast the loop happens to spin.
+
+- The cadence is measured from the last run that **did its work**, read through
+  `IProcessRunStore.GetLastCompletedRunStartAsync`, which excludes `Skipped` rows — a skip that counted as
+  its own predecessor would re-arm forever (#1149).
+- The daily ceiling and the apex cadence are read back from the process's own run summaries
+  (`GetRunSummariesAsync` since UTC midnight): the summaries are the only record of what earlier runs spent,
+  and one indexed range scan answers both questions. A run without a summary is charged nothing.
+- The apex tiers get their own interval (`ApexRefreshInterval`): nine calls is negligible Riot cost, but
+  Master alone is tens of thousands of entries joined against `riot_accounts` per run, for a few hundred
+  changes.
+- Both processes stay in the fetch lane and keep their per-run caps; this bounds their share of the lane, it
+  does not move them out of it. Moving match fetching to permanent workers is #1457.
+
+What this does **not** do: fix `MainActivity`'s pool. At its batch size a full cycle over every active main
+takes far longer than `InactiveAfterDays`, so `RecheckAfterHours` never binds and the process cannot reach
+the state it maintains. That is #1475 — match participation as the primary activity signal — and the
+cadence here only bounds the damage until it lands.
+
 ## The intake is sized by the claim, not by the ladder (2026-09-02)
 
 **Every stage before the match-ingest claim used to carry its own absolute budget, and none of them was
