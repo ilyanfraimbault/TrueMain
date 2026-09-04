@@ -85,8 +85,14 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       />
     </div>
 
-    <!-- Section 2: Build tree, directly under the core it illustrates -->
+    <!-- Section 2: Build tree, directly under the core it illustrates. Padding
+         rather than a margin, because the panel's `space-y-6` already owns the
+         children's top margin and would win: the tree's first node is drawn
+         flush against the top of its box, so without this it sits nearly
+         against the core block now that the card that used to stand it off is
+         gone. -->
     <ChampionBuildPanelBuildTree
+      class="pt-6"
       :tree="build.buildTree"
       :first-item-id="build.firstItemId"
       :item-path="build.core.itemPath?.itemIds ?? []"
