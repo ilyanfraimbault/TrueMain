@@ -269,3 +269,15 @@ the three badges are booleans about a build they are not looking at. #1466 remov
 composable, the `/champions/{id}/patch-diff` endpoint, its query service and read model, and its integration
 suite — the endpoint had exactly one consumer. Patch-over-patch movement is still on the page, as the trend
 chart, which shows the shape of the change rather than asserting a binary about it.
+
+**No orphan card in the variations row, and the runes fill the height they are given.** Two layout calls from
+the same review pass. The variation cards were a two-column grid, so an odd count stranded the last card at
+half width on a row of its own — read as a layout accident rather than as a card. They are a `flex-wrap` row
+now: each card sits at `basis-[calc(50%-0.5rem)]` but may `grow`, so a lone last card fills its row, and
+`min-w-72` collapses to one column before a card gets too narrow for an icon row plus its badges. Separately,
+the core block's rune column was drawn at a 35 px keystone inside a track sized for it, leaving ~24 px of the
+column empty under the shards while the block beside it ran to 148 px. The rune sizes (36 px base, 39 px
+keystone) now live as defaults on `BuildPanel/Core.vue` instead of being restated at each of its three call
+sites, and the column widened from 240 px to 268 px to hold them — measured, the block and the block beside it
+both come out at 148 px. Sized to just under the row rather than over: past that the runes drive the row
+height and the *left* side carries the dead space, which is the same complaint mirrored.

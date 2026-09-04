@@ -68,14 +68,22 @@ function spellByKey(key: string) {
 </script>
 
 <template>
+  <!-- Flex, not a two-column grid: a grid leaves the last card of an odd count
+       stranded at half width on a row of its own, which reads as a layout
+       accident rather than as a card. Here every card is half-width-ish
+       (`basis` + the gap) but allowed to `grow`, so a lone last card fills its
+       row instead of orphaning, and `min-w-72` drops the whole thing to one
+       column before a card gets too narrow to hold an icon row and its
+       badges. -->
   <div
     v-if="hasVariations"
-    class="grid gap-4 sm:grid-cols-2"
+    class="flex flex-wrap gap-4"
   >
     <SectionCard
       v-if="summonerSpells.length"
       :level="2"
       title="Summoner spells"
+      class="grow basis-[calc(50%-0.5rem)] min-w-72"
     >
       <ul class="space-y-2">
         <li
@@ -109,6 +117,7 @@ function spellByKey(key: string) {
       v-if="skillOrder.length"
       :level="2"
       title="Skill order"
+      class="grow basis-[calc(50%-0.5rem)] min-w-72"
     >
       <ul class="space-y-2">
         <li
@@ -153,6 +162,7 @@ function spellByKey(key: string) {
       v-if="boots.length"
       :level="2"
       title="Boots"
+      class="grow basis-[calc(50%-0.5rem)] min-w-72"
     >
       <ul class="space-y-2">
         <li
@@ -185,6 +195,7 @@ function spellByKey(key: string) {
       v-if="starterItems.length"
       :level="2"
       title="Starter"
+      class="grow basis-[calc(50%-0.5rem)] min-w-72"
     >
       <ul class="space-y-2">
         <li

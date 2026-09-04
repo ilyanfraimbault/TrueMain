@@ -80,7 +80,6 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
         :summoners-map="summonersMap"
         :summoners-pending="summonersPending"
         :rune-tree="runeTree"
-        :keystone-size="35"
         :pending="pending"
       />
     </div>
