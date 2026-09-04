@@ -1,12 +1,14 @@
 <script setup lang="ts">
 // Mirrors the row layout in pages/champions/index.vue so placeholder rows keep
 // the same column widths, gaps and heights as the real rows and the data
-// swaps in without any layout shift. Same modelling as LeaderboardRowSkeleton.
+// swaps in without any layout shift. Same modelling as LeaderboardRowSkeleton:
+// the real row is `dense`, i.e. it has no vertical padding left and is sized by
+// its 36px champion icon, so the placeholder takes that height explicitly.
 </script>
 
 <template>
   <div
-    class="surface flex items-center gap-4 rounded-lg px-3 py-2.5"
+    class="surface flex h-9 items-center gap-4 rounded-lg px-1.5"
     aria-hidden="true"
   >
     <!-- Champion -->
@@ -34,7 +36,7 @@
     <!-- Rates: WR + PR + BR -->
     <div class="flex shrink-0 items-center gap-5">
       <div v-for="i in 3" :key="`rate-${i}`" class="flex min-w-[3rem] flex-col items-center gap-1">
-        <USkeleton class="h-5 w-8" />
+        <USkeleton class="h-4 w-8" />
         <USkeleton class="h-3 w-6" />
       </div>
     </div>

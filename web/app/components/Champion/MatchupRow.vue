@@ -87,7 +87,7 @@ const gamesTooltip = computed(() => {
     :is="to ? NuxtLinkComponent : 'div'"
     :to="to"
     :aria-label="to && opponent ? `Build against ${opponent.name}` : undefined"
-    class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated/40"
+    class="flex items-center gap-3 rounded-md px-1.5 py-0 transition-colors hover:bg-elevated/40"
     :class="to ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary' : undefined"
   >
     <SkeletonImage

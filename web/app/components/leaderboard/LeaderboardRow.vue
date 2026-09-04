@@ -209,6 +209,7 @@ const positionIcons = computed(() => {
        column below reserves its sub-slots too, and a figure the aggregate
        can't supply renders as an em dash rather than as nothing. -->
   <ListRowSurface
+    dense
     class="group @container relative gap-1.5"
   >
     <!-- Stretched profile link: a sibling overlay (not a wrapper) so the
@@ -273,7 +274,13 @@ const positionIcons = computed(() => {
           OTP
         </span>
       </div>
-      <LeaderboardRegionFlag :region="row.region" :width="18" class="mt-0.5" />
+      <!-- Flag wrapped in a flex line rather than dropped in as an inline
+           element: inline layout reserves a full line box (descender included)
+           around the 12px flag, which added 10px of dead height to a row that
+           is now sized by its avatar alone. -->
+      <div class="mt-0.5 flex">
+        <LeaderboardRegionFlag :region="row.region" :width="18" />
+      </div>
     </div>
 
     <!-- Primary / secondary lane. Same 22px icon as the champion list's
