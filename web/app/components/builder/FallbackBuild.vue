@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ChampionResponse } from '~~/shared/types/champions'
+import { indexItemContext } from '~~/shared/utils/item-context'
 import { isLoadingStatus } from '~/utils/async-data'
 import { describeFetchError, fetchErrorStatus } from '~/utils/errors'
 
@@ -54,6 +55,17 @@ const { data: championStatic } = useChampionStatic(
   () => props.championId,
   () => assetsPatch.value,
 )
+
+// Same situational context as the recommendation panel (#1451). This fallback renders the
+// champion's standard build, so the cards describe exactly the scope it came from — which
+// is also why they are safe here: the fallback is shown precisely when the matchup has no
+// games, and a verdict measured on the champion at large is then the honest answer.
+const { data: itemContext } = useChampionItemContext(
+  () => props.championId,
+  () => props.position,
+  () => assetsPatch.value,
+)
+const itemContextIndex = computed(() => indexItemContext(itemContext.value?.items))
 </script>
 
 <template>
@@ -98,6 +110,7 @@ const { data: championStatic } = useChampionStatic(
       class="space-y-6"
     >
       <ChampionBuildPanelCore
+        :item-context="itemContextIndex"
         :summoner-spells="build.core.summonerSpells"
         :starter-items="build.core.starterItems"
         :skill-order="build.core.skillOrder"
@@ -112,6 +125,7 @@ const { data: championStatic } = useChampionStatic(
         :keystone-size="35"
       />
       <ChampionBuildPanelBuildTree
+        :item-context="itemContextIndex"
         v-if="build.buildTree.length > 0"
         :tree="build.buildTree"
         :first-item-id="build.firstItemId"

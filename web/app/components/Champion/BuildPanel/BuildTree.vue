@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { BuildTreeNode } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
+import type { ItemContextCard } from '~~/shared/utils/item-context'
+import { itemContextKey } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   tree: BuildTreeNode[]
@@ -10,7 +12,32 @@ const props = defineProps<{
    * path stops rather than running to the deepest leaf. */
   itemPath: number[]
   itemsMap: Record<number, StaticItemData>
+  /** Situational verdicts (#1451), keyed by slot + item. Absent where the page has no slice for them. */
+  itemContext?: Map<string, ItemContextCard>
 }>()
+
+/**
+ * The verdict for a node, or undefined. Every node here is a completed legendary, so the
+ * lookup is always on the `Build` slot — the boots and starter verdicts belong to the
+ * variation rows, which ask different questions of the same hover card.
+ */
+function contextFor(itemId: number): ItemContextCard | undefined {
+  return props.itemContext?.get(itemContextKey('Build', itemId))
+}
+
+/**
+ * The ring that says "there is a reason here, hover me".
+ *
+ * Only situational items are marked. Core is the norm — ringing every core item would put
+ * an accent on most of the tree and stop the mark meaning anything — and a preference has
+ * nothing to reveal beyond what the card already says. So the mark is the exception, which
+ * is what makes it worth looking at.
+ */
+function nodeMarkClass(itemId: number): string {
+  return contextFor(itemId)?.class === 'Situational'
+    ? 'ring-2 ring-primary/70'
+    : ''
+}
 
 interface LaidOutNode {
   itemId: number
@@ -176,9 +203,10 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
           :key="`node-${index}`"
           :item="itemsMap[node.itemId] ?? null"
           :pick-rate="node.pickRate"
+          :context="contextFor(node.itemId)"
           :width="ITEM_SIZE"
           :height="ITEM_SIZE"
-          class="absolute rounded"
+          :class="['absolute rounded', nodeMarkClass(node.itemId)]"
           :style="{
             left: `${node.x - ITEM_SIZE / 2}px`,
             top: `${node.y - ITEM_SIZE / 2}px`,

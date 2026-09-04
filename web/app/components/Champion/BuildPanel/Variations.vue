@@ -6,6 +6,8 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { filterByPickRate, itemSlots } from '~~/shared/utils/build'
+import type { ItemContextCard } from '~~/shared/utils/item-context'
+import { itemContextKey } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   variations: BuildVariations
@@ -14,9 +16,20 @@ const props = defineProps<{
   summonersMap: Record<number, StaticSummonerSpellData>
   /** True while the summoner-spell static map is still loading — see `ChampionCoreSpells`. */
   summonersPending?: boolean
+  /** Situational verdicts (#1451), keyed by slot + item. Absent where the page has no slice for them. */
+  itemContext?: Map<string, ItemContextCard>
   /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
   pending?: boolean
 }>()
+
+/**
+ * The verdict for one row of a variation list. The slot is part of the key because the
+ * same id answers a different question in each: Mercury's Treads as *the boots choice* is
+ * not Mercury's Treads as a build item, and only the first has a boots verdict.
+ */
+function contextFor(slot: 'Boots' | 'Starter', itemId: number): ItemContextCard | undefined {
+  return props.itemContext?.get(itemContextKey(slot, itemId))
+}
 
 // Hide long-tail alternatives below the shared pickrate floor; the empty-state
 // placeholder below keys off these filtered lists rather than the raw props.
@@ -136,6 +149,7 @@ function spellByKey(key: string) {
               v-for="(slot, index) in itemsByIds(option.itemIds)"
               :key="`boots-item-${optionIndex}-${slot.id}-${index}`"
               :item="slot.item"
+              :context="contextFor('Boots', slot.id)"
               :width="32"
               :height="32"
               class="size-8 rounded"
@@ -169,6 +183,7 @@ function spellByKey(key: string) {
               v-for="(slot, index) in itemsByIds(option.itemIds)"
               :key="`starter-item-${optionIndex}-${slot.id}-${index}`"
               :item="slot.item"
+              :context="contextFor('Starter', slot.id)"
               :width="32"
               :height="32"
               class="size-8 rounded"
