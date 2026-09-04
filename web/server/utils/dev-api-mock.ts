@@ -522,11 +522,30 @@ function makeBuild(s: ChampionSeed, variant: 0 | 1, totalGames: number): Champio
       skillOrder: skillSet(archetype.skillOrders[0]!, 0.76, 0.004),
       runePage: runePage(s, keystone, Math.round(games * 0.55), 0.55, wr + 0.005, mulberry32(s.id * 7 + variant)),
     },
+    // The dominant option first, then its alternatives — the shape the API
+    // actually returns (a variations list opens on the same option the core
+    // block shows, at its own pickrate). The mock listed only the alternatives,
+    // which meant no fixture could ever reach the multi-option branch the
+    // panel renders (#1466). Summoner spells are left with one option clearing
+    // the 10% floor on purpose: that is the settled category whose card the
+    // panel is supposed to drop.
     variations: {
-      boots: [itemSet([archetype.boots[1]!], 0.22, -0.008)],
-      starterItems: [itemSet([archetype.starterItems[0]!], 0.11, -0.004)],
-      summonerSpells: [spellSet(archetype.altSpells, 0.09, -0.006)],
-      skillOrder: [skillSet(archetype.skillOrders[1]!, 0.18, -0.005)],
+      boots: [
+        itemSet([archetype.boots[0]!], 0.71, 0.003),
+        itemSet([archetype.boots[1]!], 0.22, -0.008),
+      ],
+      starterItems: [
+        itemSet(archetype.starterItems, 0.83, 0),
+        itemSet([archetype.starterItems[0]!], 0.11, -0.004),
+      ],
+      summonerSpells: [
+        spellSet(archetype.spells, 0.88, 0.002),
+        spellSet(archetype.altSpells, 0.09, -0.006),
+      ],
+      skillOrder: [
+        skillSet(archetype.skillOrders[0]!, 0.76, 0.004),
+        skillSet(archetype.skillOrders[1]!, 0.18, -0.005),
+      ],
     },
     buildTree: [
       {

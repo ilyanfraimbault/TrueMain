@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { BuildRunePage } from '~~/shared/types/champions'
 import type { RuneTreeResponse } from '~~/shared/types/static-data'
-import { filterByPickRate } from '~~/shared/utils/build'
+import { variationOptions } from '~~/shared/utils/build'
 
 const props = defineProps<{
   runePages: BuildRunePage[]
@@ -10,16 +10,19 @@ const props = defineProps<{
   pending?: boolean
 }>()
 
-// Same pickrate floor as the other variation panels.
-const visiblePages = computed(() => filterByPickRate(props.runePages))
+// Same rule as the other variation panels (#1466): the floor, the cap, and
+// nothing at all when a single page dominates — the core block already draws
+// that page, in full, above.
+const visiblePages = computed(() => variationOptions(props.runePages))
 </script>
 
 <template>
-  <SectionCard :level="2" title="Rune variations">
-    <div
-      v-if="visiblePages.length"
-      class="flex flex-wrap items-start justify-around gap-y-4"
-    >
+  <SectionCard
+    v-if="visiblePages.length"
+    :level="2"
+    title="Rune variations"
+  >
+    <div class="flex flex-wrap items-start justify-around gap-y-4">
       <div
         v-for="(page, index) in visiblePages"
         :key="`rune-${index}`"
@@ -39,11 +42,5 @@ const visiblePages = computed(() => filterByPickRate(props.runePages))
         />
       </div>
     </div>
-    <p
-      v-else
-      class="text-sm text-muted"
-    >
-      No rune data
-    </p>
   </SectionCard>
 </template>
