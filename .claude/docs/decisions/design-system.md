@@ -143,7 +143,9 @@ steps, keyed on games played against the busiest cell in the series. No grey and
 Tuesday and a winning Tuesday of the same size are the same tile, and the tooltip is where the difference
 lives. The one exception is the per-game view, where every cell holds exactly one game and volume therefore
 says nothing at all: there the step falls back to the result, so the strip keeps a shape instead of being a
-flat rose bar.
+flat rose bar. (#1473 later made that fallback explicit — it is chosen by the window, not inferred from
+`maxGames <= 1`, which mislabelled a patch the player never queued twice a day on. The four tabs also became
+three *windows* over one unit there; see `decisions/product-player-profile.md`.)
 
 Two rules survive the change untouched: **an idle period is not a lost one** (`games: 0` keeps its own tile,
 visibly clear of the bottom of the ramp — it is the one thing the payload can offer but not enforce), and

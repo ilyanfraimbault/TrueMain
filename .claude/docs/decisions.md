@@ -98,9 +98,9 @@ Last verified against `develop` on 2026-09-02.
 
 ## Player profile — [`decisions/product-player-profile.md`](decisions/product-player-profile.md)
 
-- The activity grid's four modes read two different tables, and the response says so rather than reconciling them — #466, #959, #927
-- An erased period is not an idle one: the calendar grids stop where the data stops — #907, #927
-- Patch mode is wired to the dedication card's own numbers, not to a parallel query — #927
+- The activity grid has one unit — the UTC day — and the switch picks the window, not the unit — #1473, #927
+- The patch window is measured over everyone's matches, never over the profile's own history — #1473
+- An idle day is not a lost one, and every day of the window is drawn — #1473, #907, #927
 - The player performance panel shows the score and its sample only — no per-component breakdown — #918
 - The rank chart is one area with a tier-gradient line, never one area per tier (2026-08-20)
 - A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
