@@ -7,15 +7,20 @@ import {
   activityBucketLabel,
   activityBucketResult,
   activityCellFill,
+  activityCellsAreGames,
   activityCoverageLabel,
   activityMaxGames,
 } from '~/utils/activity-heatmap'
 
 /**
- * dpm.lol-style activity grid under the LP curve (#927). Four granularities over
- * one payload: the mode switch is purely local, because the response already
- * carries all four series (three of them folded from the same games) — so
- * flipping it can never show two different answers for the same afternoon.
+ * dpm.lol-style activity grid under the LP curve (#927, reshaped in #1473).
+ *
+ * **The unit is the day; the switch picks the window.** Every square is one UTC
+ * day — of the current patch, or of the last seven — and the only exception is
+ * the narrowest window of all, where a single day has no days left to draw and
+ * the squares become that day's games. The earlier version changed unit with
+ * every tab (a game, a day, a week, a whole patch), so the same switch that was
+ * meant to zoom also silently changed what a square meant.
  *
  * Three rules the data cannot enforce on its own.
  *
@@ -25,16 +30,17 @@ import {
  * a third time is what made half of a normal month render as switched off
  * (#1452 — see `decisions/design-system.md`).
  *
- * **Every period in the window is drawn, played or not.** A day with no games
- * gets its own tile, painted clearly above the card surface. Skipping it — or
- * fading it into the background — leaves a hole where a fact should be, and the
- * run of idle tiles between two sessions is exactly what makes a busy stretch
- * legible.
+ * **Every day of the window is drawn, played or not.** A day with no games gets
+ * its own tile, painted clearly above the card surface. Skipping it — or fading
+ * it into the background — leaves a hole where a fact should be, and the run of
+ * idle tiles between two sessions is exactly what makes a busy stretch legible.
+ * That is why the patch window is measured over everyone's matches server-side:
+ * the days before this player's first game of the patch are days they sat out.
  *
  * **The card is a wide band, not a block.** It spans the profile column, so the
- * grid runs along it: one tile per period, stretched to use the width and
- * wrapping only when the row is genuinely full. A seven-row calendar was tried
- * and dropped — these series are a month long at most, so it stood as a narrow
+ * grid runs along it: one tile per day, stretched to use the width and wrapping
+ * only when the row is genuinely full. A seven-row calendar was tried and
+ * dropped — these windows are a fortnight long at most, so it stood as a narrow
  * tower in a wide card.
  */
 const props = withDefaults(defineProps<{
@@ -45,29 +51,28 @@ const props = withDefaults(defineProps<{
 })
 
 const MODES: { key: ActivityMode, label: string }[] = [
-  { key: 'game', label: 'Game' },
-  { key: 'day', label: 'Day' },
-  { key: 'week', label: 'Week' },
   { key: 'patch', label: 'Patch' },
+  { key: 'week', label: 'Week' },
+  { key: 'day', label: 'Day' },
 ]
 
 /**
- * Per-view tile geometry, in pixels. `min` is the width below which the row
- * wraps, `max` the width a square may grow to once `auto-fit` shares the row out
- * — small enough that a month of days stays a band of tiles rather than a row of
- * buttons. The two coarse views carry few enough cells to caption each one, so
- * they drop the square (`max: null`) for a band that spans the card.
+ * Per-window tile geometry, in pixels. `min` is the width below which the row
+ * wraps, `max` the width a tile may grow to once `auto-fit` shares the row out.
+ * The two calendar windows carry few enough cells to caption every one, so they
+ * drop the square (`max: null`) for a band that spans the card; a day's games
+ * are an uncaptioned strip of squares, capped so a two-game evening does not
+ * render as two billboards.
  */
-const GEOMETRY: Record<ActivityMode, { min: number, max: number | null, gap: number, captioned: boolean }> = {
-  game: { min: 12, max: 22, gap: 3, captioned: false },
-  day: { min: 14, max: 26, gap: 3, captioned: false },
-  week: { min: 44, max: null, gap: 8, captioned: true },
-  patch: { min: 44, max: null, gap: 8, captioned: true },
+const GEOMETRY: Record<ActivityMode, { min: number, max: number | null, gap: number }> = {
+  patch: { min: 30, max: null, gap: 6 },
+  week: { min: 44, max: null, gap: 8 },
+  day: { min: 14, max: 26, gap: 3 },
 }
 
-// Day is the default: it is the granularity the grid is shaped for and the one
-// where an idle cell carries the most meaning.
-const mode = ref<ActivityMode>('day')
+// Patch is the default: it is the widest window the retained data can back, and
+// the one an idle cell carries the most meaning in.
+const mode = ref<ActivityMode>('patch')
 
 const series = computed(() => props.data?.[mode.value] ?? null)
 
@@ -79,16 +84,21 @@ interface Cell {
   bucket: ActivityBucket
   fill: string
   label: string
-  caption: string
+  caption: string | null
   result: string
   empty: boolean
 }
+
+// Whether this window's cells are games rather than days. Read off the mode, not
+// guessed from the busiest cell: a patch on which the player never queued twice
+// in a day is still made of days.
+const perGame = computed(() => activityCellsAreGames(mode.value))
 
 const cells = computed<Cell[]>(() => {
   const current = series.value
   if (!current) return []
   return current.buckets.map((bucket) => {
-    const fill = activityCellFill(bucket, maxGames.value)
+    const fill = activityCellFill(bucket, maxGames.value, perGame.value)
     return {
       bucket,
       fill: fill ?? ACTIVITY_EMPTY_FILL,
@@ -100,11 +110,13 @@ const cells = computed<Cell[]>(() => {
   })
 })
 
+const captioned = computed(() => cells.value.some(cell => cell.caption !== null))
+
 /**
  * The grid track definition. `auto-fit` collapses the tracks no cell landed in,
  * so the tiles share the whole width instead of hugging the left edge, and
- * `max-width` caps how large that can make them — a four-patch view is a row of
- * bands, not four billboards.
+ * `max-width` caps how large that can make them — a two-game evening is a pair
+ * of squares, not two billboards.
  */
 const gridStyle = computed(() => {
   const { min, max, gap } = geometry.value
@@ -181,20 +193,21 @@ const summary = computed(() => {
   return {
     rate: current.winRate === null ? null : `${Math.round(current.winRate * 100)}%`,
     record: `${current.wins}W – ${current.games - current.wins}L`,
-    games: `${current.games} games`,
+    // Singular matters here now that the day window routinely holds one game.
+    games: `${current.games} ${current.games === 1 ? 'game' : 'games'}`,
   }
 })
 
 const coverage = computed(() => (series.value ? activityCoverageLabel(series.value) : null))
 
 /**
- * The legend's steps, in the order the ramp draws them: pale for a quiet period,
- * deep for a busy one. The per-game view is the one place the ramp does not mean
- * volume — every cell there is a single game — so it names the two steps that
- * view actually draws instead of a four-step scale it never uses.
+ * The legend's steps, in the order the ramp draws them: pale for a quiet day,
+ * deep for a busy one. The per-game window is the one place the ramp does not
+ * mean volume — every cell there is a single game — so it names the two steps
+ * that window actually draws instead of a four-step scale it never uses.
  */
 const legend = computed(() => {
-  if (mode.value === 'game') {
+  if (perGame.value) {
     return {
       steps: [ACTIVITY_RAMP[1]!, ACTIVITY_RAMP[3]!],
       from: 'Lost',
@@ -240,8 +253,11 @@ const isEmpty = computed(() => cells.value.length === 0)
         Activity is unavailable right now.
       </p>
 
+      <!-- The only window that can come back with nothing is the day one: a rest
+           day has no games to draw, and there is no such thing as an idle game.
+           The calendar windows always carry their days. -->
       <p v-else-if="isEmpty" class="py-2 text-sm text-muted">
-        Nothing to plot for this view.
+        {{ mode === 'day' ? 'No games today.' : 'Nothing to plot for this view.' }}
       </p>
 
       <template v-else>
@@ -258,8 +274,12 @@ const isEmpty = computed(() => cells.value.length === 0)
           <p v-else class="text-xs text-muted">
             No games in this view.
           </p>
-          <p v-if="coverage" class="text-xs text-dimmed tabular-nums">
-            {{ coverage }}
+          <p class="text-xs text-dimmed tabular-nums">
+            <!-- Which patch, when the window is one: the days on screen are its
+                 days, and the number is the only thing that says so. -->
+            <span v-if="series?.patch" class="text-muted">Patch {{ series.patch }}</span>
+            <span v-if="series?.patch && coverage"> · </span>
+            <span v-if="coverage">{{ coverage }}</span>
           </p>
         </div>
 
@@ -276,15 +296,15 @@ const isEmpty = computed(() => cells.value.length === 0)
             >
               <div
                 class="w-full rounded-[3px] transition-[filter,box-shadow] duration-100 hover:shadow-[0_0_0_2px_var(--ui-bg-elevated),0_0_0_3px_rgba(255,255,255,0.35)] hover:brightness-110"
-                :class="geometry.captioned ? 'h-10 rounded' : 'aspect-square'"
+                :class="captioned ? 'h-10 rounded' : 'aspect-square'"
                 :style="{ backgroundColor: cell.fill }"
                 :aria-label="`${cell.label} — ${cell.result}`"
                 @mouseenter="showTooltip(cell, $event)"
               />
-              <!-- Only the banded views get captions; the day and game grids
-                   carry far too many cells for a legible date under each. -->
+              <!-- Only the calendar windows get captions; a day's games are read
+                   as a strip, and a time under each turns it into a table. -->
               <span
-                v-if="geometry.captioned"
+                v-if="cell.caption"
                 class="truncate text-center text-[10px] leading-none text-dimmed tabular-nums"
               >
                 {{ cell.caption }}

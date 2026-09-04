@@ -1,9 +1,9 @@
 import type { ActivityBucket, ActivityMode, ActivitySeries } from '~~/shared/types/activity'
 
 /**
- * The activity heatmap's presentation rules (#927). Pure functions, kept out of
- * the component so the colour steps and the empty-vs-zero split are testable
- * without mounting anything.
+ * The activity heatmap's presentation rules (#927, reshaped in #1473). Pure
+ * functions, kept out of the component so the colour steps and the empty-vs-zero
+ * split are testable without mounting anything.
  */
 
 /**
@@ -17,10 +17,10 @@ import type { ActivityBucket, ActivityMode, ActivitySeries } from '~~/shared/typ
 export const ACTIVITY_LEVELS = 4
 
 /**
- * The tile of a period with no games. A real fill, one step above the card
+ * The tile of a day with no games. A real fill, one step above the card
  * surface (`--ui-bg-elevated`, `#1b1b20`), not an outline and not a hole: an
- * idle day is part of the shape of a player's month, and it has to sit in the
- * grid as calmly as GitHub's does.
+ * idle day is part of the shape of a patch, and it has to sit in the grid as
+ * calmly as GitHub's does.
  *
  * Neutral and unmistakably grey, because the ramp runs light-to-dark and the
  * idle tile can therefore no longer be told apart by lightness alone — it is the
@@ -32,7 +32,7 @@ export const ACTIVITY_EMPTY_FILL = '#33333b'
 
 /**
  * The one ramp the grid draws, ordered by step — `ACTIVITY_RAMP[0]` is the
- * quietest period, `ACTIVITY_RAMP[3]` the busiest.
+ * quietest day, `ACTIVITY_RAMP[3]` the busiest.
  *
  * It runs **light to dark**: a day with one game is a pale rose, a day the
  * player queued all evening is a deep one. That is the reading the product owner
@@ -50,26 +50,39 @@ export const ACTIVITY_EMPTY_FILL = '#33333b'
  * how much* — not how the games went. An earlier version split the grid over two
  * ramps (rose for a winning period, neutral for a losing one), which spent the
  * loudest channel on the win rate and left half the card looking switched off.
- * The result of a period is still one hover away, and the card's own summary
- * line carries the total; the squares are about presence.
+ * The result of a day is still one hover away, and the card's own summary line
+ * carries the total; the squares are about presence.
  */
 export const ACTIVITY_RAMP = ['#f0a293', '#d9736c', '#a1454a', '#6b2830'] as const
 
 /**
- * Which step of the ramp a cell sits on: `0` for an empty period, `1`..`4` for a
- * played one, scaled on games played against the busiest cell in the grid.
+ * True when a series' cells are single games rather than days — the `day`
+ * window, which is narrow enough that there are no days left to draw.
  *
- * `maxGames <= 1` means every cell in the series is a single game (the per-game
- * view), where volume carries no information at all. That view is the one place
- * the step falls back to the result — a won game on the deepest step, a lost one
- * two steps lighter — so the strip still has a shape instead of being a flat
- * rose bar.
+ * This is what the colour scale branches on, and it is deliberately read off the
+ * mode rather than inferred from the data. Inferring it (`maxGames <= 1`) is
+ * what the first version did, and it mislabels the honest case of a patch where
+ * the player never queued twice on the same day: those are days, they carry
+ * volume information, and they must not silently start being coloured by result.
  */
-export function activityCellLevel(bucket: ActivityBucket, maxGames: number): number {
-  if (bucket.games <= 0) return 0
-  if (maxGames <= 1) return bucket.wins > 0 ? ACTIVITY_LEVELS : ACTIVITY_LEVELS - 2
+export function activityCellsAreGames(mode: ActivityMode): boolean {
+  return mode === 'day'
+}
 
-  const share = Math.min(1, bucket.games / maxGames)
+/**
+ * Which step of the ramp a cell sits on: `0` for a day with no games, `1`..`4`
+ * for a played one, scaled on games played against the busiest cell in the grid.
+ *
+ * On the per-game window volume carries no information at all — every cell is
+ * one game — so that window is the one place the step falls back to the result:
+ * a won game on the deepest step, a lost one two steps lighter, so the strip
+ * still has a shape instead of being a flat rose bar.
+ */
+export function activityCellLevel(bucket: ActivityBucket, maxGames: number, perGame = false): number {
+  if (bucket.games <= 0) return 0
+  if (perGame) return bucket.wins > 0 ? ACTIVITY_LEVELS : ACTIVITY_LEVELS - 2
+
+  const share = maxGames <= 0 ? 1 : Math.min(1, bucket.games / maxGames)
   return Math.min(ACTIVITY_LEVELS, Math.max(1, Math.ceil(share * ACTIVITY_LEVELS)))
 }
 
@@ -80,10 +93,10 @@ export function activityCellLevel(bucket: ActivityBucket, maxGames: number): num
  * {@link ACTIVITY_EMPTY_FILL} — `games: 0` and `winRate: 0` are different facts
  * and must never render alike.
  */
-export function activityCellFill(bucket: ActivityBucket, maxGames: number): string | null {
+export function activityCellFill(bucket: ActivityBucket, maxGames: number, perGame = false): string | null {
   if (bucket.games <= 0) return null
 
-  return ACTIVITY_RAMP[activityCellLevel(bucket, maxGames) - 1]!
+  return ACTIVITY_RAMP[activityCellLevel(bucket, maxGames, perGame) - 1]!
 }
 
 /**
@@ -99,27 +112,17 @@ export function activityMaxGames(series: ActivitySeries): number {
 }
 
 /**
- * Human label for a cell, used as the tooltip heading.
+ * Human label for a cell, used as the tooltip heading: the UTC day on a calendar
+ * window, the day and time on the per-game one, where several cells share a day.
  *
- * The patch series keys on the patch itself, so it is already the label. The
- * others key on a date and get an explicit `en-US` format — the app has no i18n
- * and pins the locale everywhere to keep server and client renders identical.
+ * The locale is pinned to `en-US` everywhere — the app has no i18n, and an
+ * implicit locale is what makes a server render disagree with the client one.
  */
 export function activityBucketLabel(bucket: ActivityBucket, mode: ActivityMode): string {
-  if (mode === 'patch') return `Patch ${bucket.key}`
-  if (!bucket.startUtc) return bucket.key
-
   const start = new Date(bucket.startUtc)
-  const day = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 
-  if (mode === 'week') {
-    const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000)
-    const endDay = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
-    return `${day} – ${endDay}`
-  }
-
-  if (mode === 'game') {
-    return start.toLocaleDateString('en-US', {
+  if (activityCellsAreGames(mode)) {
+    return start.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
@@ -128,19 +131,8 @@ export function activityBucketLabel(bucket: ActivityBucket, mode: ActivityMode):
     })
   }
 
-  return day
-}
-
-/**
- * The short caption printed under a tile in the views that carry few enough
- * cells to label them (week, patch). A patch is its own number; a week is the
- * day it starts on.
- */
-export function activityBucketCaption(bucket: ActivityBucket, mode: ActivityMode): string {
-  if (mode === 'patch') return bucket.key
-  if (!bucket.startUtc) return bucket.key
-
-  return new Date(bucket.startUtc).toLocaleDateString('en-US', {
+  return start.toLocaleDateString('en-US', {
+    weekday: 'short',
     month: 'short',
     day: 'numeric',
     timeZone: 'UTC',
@@ -148,13 +140,37 @@ export function activityBucketCaption(bucket: ActivityBucket, mode: ActivityMode
 }
 
 /**
+ * The short caption printed under a tile, or `null` for a window whose cells are
+ * too many (or too undated) to label.
+ *
+ * A week is seven days, so the weekday is the useful handle — `Mon`, `Tue`. A
+ * patch is a fortnight or so, where the weekday repeats and the date does not,
+ * so it captions the day of the month instead. The per-game window captions
+ * nothing: a run of games is read as a strip, and stamping a time under each one
+ * turns it into a table.
+ */
+export function activityBucketCaption(bucket: ActivityBucket, mode: ActivityMode): string | null {
+  const start = new Date(bucket.startUtc)
+
+  if (mode === 'week') {
+    return start.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
+  }
+
+  if (mode === 'patch') {
+    return start.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' })
+  }
+
+  return null
+}
+
+/**
  * Result line for a cell's tooltip: always wins over games played, whatever the
- * granularity. A single game used to print "Victory" / "Defeat", which made the
+ * window. A single game used to print "Victory" / "Defeat", which made the
  * tooltip change shape between two neighbouring squares and forced the reader to
  * re-parse it; `1/1 · 100%` says the same thing in the format every other cell
  * already uses.
  *
- * An empty period says so in words instead of printing "0/0 · 0%" — a fabricated
+ * An empty day says so in words instead of printing "0/0 · 0%" — a fabricated
  * rate is exactly what the empty state exists to avoid.
  */
 export function activityBucketResult(bucket: ActivityBucket): string {
@@ -165,19 +181,17 @@ export function activityBucketResult(bucket: ActivityBucket): string {
 }
 
 /**
- * The period a series speaks for, as one line — `Jul 17 – Aug 13`. Read off the
+ * The span a series speaks for, as one line — `Jul 17 – Aug 13`. Read off the
  * buckets rather than the series' `coverage*` fields so it can never disagree
- * with the squares actually on screen. `null` when the series carries no dates
- * at all (the patch view keys on patch numbers, not on time).
+ * with the squares actually on screen. `null` when the series carries no cells.
  */
 export function activityCoverageLabel(series: ActivitySeries): string | null {
-  const dated = series.buckets.filter(bucket => bucket.startUtc)
-  const first = dated[0]?.startUtc
-  const last = dated[dated.length - 1]?.startUtc
+  const first = series.buckets[0]?.startUtc
+  const last = series.buckets[series.buckets.length - 1]?.startUtc
   if (!first || !last) return null
 
   const format = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 
-  return first === last ? format(first) : `${format(first)} – ${format(last)}`
+  return format(first) === format(last) ? format(first) : `${format(first)} – ${format(last)}`
 }

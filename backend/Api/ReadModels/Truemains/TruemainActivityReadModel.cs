@@ -1,143 +1,118 @@
 namespace TrueMain.ReadModels.Truemains;
 
 /// <summary>
-/// Activity-grid payload behind <c>GET /truemains/{nameTag}/activity</c> (#927):
-/// the four granularities the profile heatmap can switch between, resolved in a
-/// single request.
+/// Activity-grid payload behind <c>GET /truemains/{nameTag}/activity</c>
+/// (#927, reshaped in #1473).
 /// </summary>
 /// <remarks>
-/// All four series ship together on purpose. Three of them
-/// (<see cref="Game"/> / <see cref="Day"/> / <see cref="Week"/>) are three
-/// foldings of the *same* participant rows, so computing them from one snapshot
-/// is both cheaper than four round trips and the only way to guarantee that
-/// flipping the mode switch cannot show two different answers for the same
-/// afternoon. <see cref="Patch"/> reads a different table with different
-/// retention — see <see cref="TruemainActivitySeriesReadModel.Source"/> — which
-/// is exactly why every series carries its own scope, source and coverage
-/// instead of the client assuming they are comparable.
+/// <para>
+/// <b>The grid's unit is the day.</b> The three series are not three units — they
+/// are three <em>windows</em> over the same participant rows, and two of them
+/// (<see cref="Patch"/> and <see cref="Week"/>) draw exactly one cell per UTC
+/// calendar day inside their window, played or not. Only <see cref="Day"/>, the
+/// narrowest window, falls back to one cell per game: a single day has no days to
+/// draw.
+/// </para>
+/// <para>
+/// The earlier shape had four series with four different units — per game, per
+/// day, per ISO week, per patch — which meant the patch view answered "how did
+/// each patch go" and could never answer "which days of this patch did I play".
+/// It also read a second table (the frozen per-champion aggregates) to do it, so
+/// its total was a different population from the one directly above it.
+/// Everything here now reads live <c>match_participants</c> for every champion,
+/// which is why the series no longer carry a per-series <c>source</c> /
+/// <c>scope</c> discriminator: there is only one of each.
+/// </para>
+/// <para>
+/// All three still ship in a single response — they are foldings of one snapshot
+/// of the same rows, so flipping the window cannot show two different answers for
+/// the same afternoon.
+/// </para>
 /// </remarks>
 public sealed class TruemainActivityReadModel
 {
-    /// <summary>One cell per game over the most recent retained games.</summary>
-    public required TruemainActivitySeriesReadModel Game { get; init; }
+    /// <summary>
+    /// One cell per UTC day of the current patch, from the day the patch's first
+    /// game was played through today. The default view.
+    /// </summary>
+    public required TruemainActivitySeriesReadModel Patch { get; init; }
 
-    /// <summary>One cell per UTC calendar day.</summary>
-    public required TruemainActivitySeriesReadModel Day { get; init; }
-
-    /// <summary>One cell per ISO week (Monday 00:00 UTC).</summary>
+    /// <summary>One cell per UTC day over the last seven days, today included.</summary>
     public required TruemainActivitySeriesReadModel Week { get; init; }
 
-    /// <summary>One cell per patch, on the player's signature champion only.</summary>
-    public required TruemainActivitySeriesReadModel Patch { get; init; }
+    /// <summary>One cell per game played on the current UTC day; empty on a rest day.</summary>
+    public required TruemainActivitySeriesReadModel Day { get; init; }
 }
 
 /// <summary>
-/// One granularity of the activity grid, with everything the UI needs to state
-/// what it is looking at. The metadata is not decoration: the modes read
-/// different tables with different retention and different scopes, so a client
-/// that rendered four grids as if they were the same measurement would be
-/// silently wrong.
+/// One window of the activity grid.
 /// </summary>
 public sealed class TruemainActivitySeriesReadModel
 {
     /// <summary>
-    /// Granularity id — one of <see cref="TruemainActivityKinds.GameMode"/>,
-    /// <see cref="TruemainActivityKinds.DayMode"/>,
+    /// Window id — one of <see cref="TruemainActivityKinds.PatchMode"/>,
     /// <see cref="TruemainActivityKinds.WeekMode"/>,
-    /// <see cref="TruemainActivityKinds.PatchMode"/>.
+    /// <see cref="TruemainActivityKinds.DayMode"/>.
     /// </summary>
     public required string Mode { get; init; }
 
     /// <summary>
-    /// Where the numbers come from:
-    /// <see cref="TruemainActivityKinds.MatchesSource"/> (live
-    /// <c>match_participants</c>, deleted by retention past the last couple of
-    /// patches) or <see cref="TruemainActivityKinds.AggregatesSource"/>
-    /// (<c>champion_aggregate_scopes</c>, frozen forever — #466).
+    /// The <c>major.minor</c> patch the window covers, on the patch series only;
+    /// <see langword="null"/> elsewhere, and also on the patch series when no
+    /// tracked match has a parseable patch yet (a fresh database).
     /// </summary>
-    public required string Source { get; init; }
+    public string? Patch { get; init; }
 
     /// <summary>
-    /// Which games are counted:
-    /// <see cref="TruemainActivityKinds.AllChampionsScope"/> or
-    /// <see cref="TruemainActivityKinds.ChampionScope"/> (then
-    /// <see cref="ChampionId"/> says which). The patch series is champion-scoped
-    /// because the per-account, per-champion aggregate is the only place a full
-    /// patch history survives — so its totals are deliberately *not* the same
-    /// population as the other three, and the UI has to say so.
-    /// </summary>
-    public required string Scope { get; init; }
-
-    /// <summary>
-    /// The champion the series is scoped to, or <see langword="null"/> for an
-    /// all-champions series. Also <see langword="null"/> on a champion-scoped
-    /// series when the player has no classified main to scope to — the series is
-    /// then empty rather than silently widened to every champion.
-    /// </summary>
-    public int? ChampionId { get; init; }
-
-    /// <summary>
-    /// <see langword="true"/> when this series can only ever see the retained
-    /// match window (<c>MatchDataRetention:RetainedPatchCount</c>, ~2 patches),
-    /// so an absent period may mean "deleted", not "not played". The patch series
-    /// is the one that reads <see langword="false"/>.
-    /// </summary>
-    public required bool RetentionBounded { get; init; }
-
-    /// <summary>
-    /// Start of the period the series actually speaks for, or
-    /// <see langword="null"/> when it holds no data. For the match-sourced series
-    /// this is the later of "the requested window" and "the oldest game still on
-    /// disk": periods before it are dropped rather than rendered as empty, because
-    /// an erased period is not an idle one. <see langword="null"/> on the patch
-    /// series, whose extent is a patch list rather than a date range.
+    /// Start of the window the series speaks for, or <see langword="null"/> when
+    /// it holds no cell at all. Read off the emitted cells rather than computed a
+    /// second time, so the claim and the squares behind it cannot drift.
     /// </summary>
     public DateTime? CoverageFromUtc { get; init; }
 
-    /// <summary>End of the period the series speaks for; see <see cref="CoverageFromUtc"/>.</summary>
+    /// <summary>End of the window the series speaks for; see <see cref="CoverageFromUtc"/>.</summary>
     public DateTime? CoverageToUtc { get; init; }
 
     /// <summary>
-    /// The cells, oldest first. Within <see cref="CoverageFromUtc"/> ..
-    /// <see cref="CoverageToUtc"/> the calendar series emit a cell per period
-    /// including the empty ones — an idle day is a fact worth drawing — while the
-    /// game and patch series only emit cells that have data by construction.
+    /// The cells, oldest first. The two calendar windows emit a cell for
+    /// <em>every</em> day they span, including the days with no games — an idle
+    /// day is a fact worth drawing, and the run of them between two sessions is
+    /// what makes a busy stretch legible.
     /// </summary>
     public required IReadOnlyList<TruemainActivityBucketReadModel> Buckets { get; init; }
 
-    /// <summary>Games across the whole series.</summary>
+    /// <summary>Games across the whole window.</summary>
     public required int Games { get; init; }
 
-    /// <summary>Wins across the whole series.</summary>
+    /// <summary>Wins across the whole window.</summary>
     public required int Wins { get; init; }
 
     /// <summary>
-    /// Win rate across the series, or <see langword="null"/> when
-    /// <see cref="Games"/> is 0. Never 0 for an empty series — "measured at 0%"
+    /// Win rate across the window, or <see langword="null"/> when
+    /// <see cref="Games"/> is 0. Never 0 for an empty window — "measured at 0%"
     /// and "nothing measured" are different facts.
     /// </summary>
     public double? WinRate { get; init; }
 }
 
 /// <summary>
-/// One cell of the activity grid.
+/// One cell of the activity grid: a UTC day on the patch and week windows, a
+/// single game on the day window.
 /// </summary>
 public sealed class TruemainActivityBucketReadModel
 {
     /// <summary>
-    /// Stable cell identity: a match id (game series), <c>yyyy-MM-dd</c> of the
-    /// UTC day (day series), <c>yyyy-MM-dd</c> of the ISO week's Monday (week
-    /// series), or the <c>major.minor</c> patch (patch series). Unique within the
-    /// series, so the client can key on it.
+    /// Stable cell identity: <c>yyyy-MM-dd</c> of the UTC day on a calendar
+    /// window, the match id on the day window. Unique within the series, so the
+    /// client can key on it.
     /// </summary>
     public required string Key { get; init; }
 
     /// <summary>
-    /// Start of the period the cell covers, or <see langword="null"/> for the
-    /// patch series (a patch has no stored start date — only its scopes' last
-    /// game is recorded).
+    /// Start of what the cell covers: 00:00 UTC of its day, or the game's start
+    /// instant. Never null — every window this endpoint emits is dated.
     /// </summary>
-    public DateTime? StartUtc { get; init; }
+    public required DateTime StartUtc { get; init; }
 
     /// <summary>Games in the cell. <c>0</c> is a real answer: an idle day.</summary>
     public required int Games { get; init; }
@@ -153,43 +128,26 @@ public sealed class TruemainActivityBucketReadModel
     public double? WinRate { get; init; }
 
     /// <summary>
-    /// Champion played, on the game series only — a per-game cell is one game, so
-    /// it has exactly one. <see langword="null"/> on every aggregated series,
-    /// where a cell can span several champions (or, on the patch series, is
-    /// already scoped to one by
-    /// <see cref="TruemainActivitySeriesReadModel.ChampionId"/>).
+    /// Champion played, on the day window only — a per-game cell is one game, so
+    /// it has exactly one. <see langword="null"/> on a calendar cell, which can
+    /// span several champions.
     /// </summary>
     public int? ChampionId { get; init; }
 }
 
 /// <summary>
-/// Wire values for the activity series' <c>mode</c> / <c>source</c> / <c>scope</c>
-/// discriminators. Named constants rather than enums so the JSON stays the plain
-/// lowercase strings the rest of the API uses, with no converter to keep in sync.
+/// Wire values for the activity series' <c>mode</c> discriminator. Named
+/// constants rather than an enum so the JSON stays the plain lowercase strings
+/// the rest of the API uses, with no converter to keep in sync.
 /// </summary>
 public static class TruemainActivityKinds
 {
-    /// <summary>One cell per game.</summary>
-    public const string GameMode = "game";
-
-    /// <summary>One cell per UTC calendar day.</summary>
-    public const string DayMode = "day";
-
-    /// <summary>One cell per ISO week.</summary>
-    public const string WeekMode = "week";
-
-    /// <summary>One cell per patch.</summary>
+    /// <summary>Every UTC day of the current patch.</summary>
     public const string PatchMode = "patch";
 
-    /// <summary>Live <c>match_participants</c> rows; bounded by match retention.</summary>
-    public const string MatchesSource = "matches";
+    /// <summary>The last seven UTC days.</summary>
+    public const string WeekMode = "week";
 
-    /// <summary>Frozen <c>champion_aggregate_scopes</c> rows; unbounded history.</summary>
-    public const string AggregatesSource = "aggregates";
-
-    /// <summary>Every champion the player played.</summary>
-    public const string AllChampionsScope = "allChampions";
-
-    /// <summary>A single champion (see <c>championId</c>).</summary>
-    public const string ChampionScope = "champion";
+    /// <summary>Today's games, one cell each.</summary>
+    public const string DayMode = "day";
 }

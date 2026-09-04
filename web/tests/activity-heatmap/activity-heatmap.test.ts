@@ -8,13 +8,14 @@ import {
   activityBucketResult,
   activityCellFill,
   activityCellLevel,
+  activityCellsAreGames,
   activityCoverageLabel,
   activityMaxGames,
 } from '~/utils/activity-heatmap'
 import type { ActivityBucket, ActivitySeries } from '~~/shared/types/activity'
 
 /**
- * The activity heatmap's colour scale and copy (#927).
+ * The activity heatmap's colour scale and copy (#927, reshaped in #1473).
  *
  * The load-bearing property here is the one the API can only offer, not enforce:
  * a cell with `games: 0` and a cell with `winRate: 0` must not render alike. The
@@ -25,6 +26,10 @@ import type { ActivityBucket, ActivitySeries } from '~~/shared/types/activity'
  * played, and nothing else. A losing day the player queued five times on has to
  * come out brighter than a winning day they queued once on — the squares answer
  * "was he playing", the tooltip answers "how did it go".
+ *
+ * The third is the one #1473 turns on: the *unit* is the day in every window but
+ * `day`, so the result-coloured fallback has to be chosen by the window and
+ * never inferred from the data.
  */
 
 function bucket(partial: Partial<ActivityBucket> = {}): ActivityBucket {
@@ -41,11 +46,8 @@ function bucket(partial: Partial<ActivityBucket> = {}): ActivityBucket {
 
 function series(partial: Partial<ActivitySeries> = {}): ActivitySeries {
   return {
-    mode: 'day',
-    source: 'matches',
-    scope: 'allChampions',
-    championId: null,
-    retentionBounded: true,
+    mode: 'patch',
+    patch: '16.6',
     coverageFromUtc: '2026-07-03T00:00:00Z',
     coverageToUtc: '2026-07-29T00:00:00Z',
     buckets: [bucket()],
@@ -93,14 +95,23 @@ describe('activityCellFill', () => {
       .toBe(ACTIVITY_RAMP[ACTIVITY_RAMP.length - 1])
   })
 
-  it('falls back to the result in the per-game series, where volume says nothing', () => {
+  it('falls back to the result in the per-game window, where volume says nothing', () => {
     // Every cell there holds exactly one game: a flat strip would carry no shape
     // at all, so the won games take the top step and the lost ones sit below.
-    const won = activityCellLevel(bucket({ games: 1, wins: 1, winRate: 1 }), 1)
-    const lost = activityCellLevel(bucket({ games: 1, wins: 0, winRate: 0 }), 1)
+    const won = activityCellLevel(bucket({ games: 1, wins: 1, winRate: 1 }), 1, true)
+    const lost = activityCellLevel(bucket({ games: 1, wins: 0, winRate: 0 }), 1, true)
     expect(won).toBe(ACTIVITY_LEVELS)
     expect(lost).toBeLessThan(won)
     expect(lost).toBeGreaterThan(0)
+  })
+
+  it('keeps colouring on volume when a calendar window happens to top out at one game', () => {
+    // A patch the player never queued twice in a day on is still made of days.
+    // Inferring the per-game fallback from `maxGames <= 1` would start colouring
+    // those days by result, which is the read #1452 removed from the grid.
+    const won = activityCellLevel(bucket({ games: 1, wins: 1, winRate: 1 }), 1)
+    const lost = activityCellLevel(bucket({ games: 1, wins: 0, winRate: 0 }), 1)
+    expect(won).toBe(lost)
   })
 
   it('treats a period with no games as empty however the rate reads', () => {
@@ -121,7 +132,7 @@ describe('activityMaxGames', () => {
     }))).toBe(7)
   })
 
-  it('reports 0 for a series retention left empty', () => {
+  it('reports 0 for a series with no cells', () => {
     expect(activityMaxGames(series({ buckets: [] }))).toBe(0)
   })
 })
@@ -145,36 +156,41 @@ describe('activityBucketResult', () => {
   })
 })
 
+describe('activityCellsAreGames', () => {
+  it('is true for the day window only', () => {
+    expect(activityCellsAreGames('day')).toBe(true)
+    expect(activityCellsAreGames('week')).toBe(false)
+    expect(activityCellsAreGames('patch')).toBe(false)
+  })
+})
+
 describe('activityBucketLabel', () => {
-  it('labels a patch cell by its patch', () => {
-    expect(activityBucketLabel(bucket({ key: '15.14', startUtc: null }), 'patch'))
-      .toBe('Patch 15.14')
-  })
-
-  it('labels a day cell with the UTC day, not the viewer local one', () => {
+  it('labels a calendar cell with the UTC day, not the viewer local one', () => {
     // 23:30Z belongs to the 29th; a local-timezone format would drift it.
-    expect(activityBucketLabel(bucket({ startUtc: '2026-07-29T23:30:00Z' }), 'day'))
-      .toBe('Jul 29')
+    expect(activityBucketLabel(bucket({ startUtc: '2026-07-29T23:30:00Z' }), 'patch'))
+      .toBe('Wed, Jul 29')
+    expect(activityBucketLabel(bucket({ startUtc: '2026-07-27T00:00:00Z' }), 'week'))
+      .toBe('Mon, Jul 27')
   })
 
-  it('labels a week cell as the Monday-to-Sunday span it covers', () => {
-    expect(activityBucketLabel(bucket({ key: '2026-07-27', startUtc: '2026-07-27T00:00:00Z' }), 'week'))
-      .toBe('Jul 27 – Aug 2')
-  })
-
-  it('labels a game cell down to the hour, since a day can hold several', () => {
-    expect(activityBucketLabel(bucket({ startUtc: '2026-07-29T18:05:00Z' }), 'game'))
-      .toContain('Jul 29')
+  it('labels a game cell down to the minute, since a day holds several', () => {
+    const label = activityBucketLabel(bucket({ startUtc: '2026-07-29T18:05:00Z' }), 'day')
+    expect(label).toContain('Jul 29')
+    expect(label).toContain('6:05')
   })
 })
 
 describe('activityBucketCaption', () => {
-  it('captions a patch tile with the patch itself', () => {
-    expect(activityBucketCaption(bucket({ key: '15.14', startUtc: null }), 'patch')).toBe('15.14')
+  it('captions a week tile with its weekday, the useful handle over seven days', () => {
+    expect(activityBucketCaption(bucket({ startUtc: '2026-07-27T00:00:00Z' }), 'week')).toBe('Mon')
   })
 
-  it('captions a week tile with the UTC day it starts on', () => {
-    expect(activityBucketCaption(bucket({ startUtc: '2026-07-27T00:00:00Z' }), 'week')).toBe('Jul 27')
+  it('captions a patch tile with the day of the month, since weekdays repeat', () => {
+    expect(activityBucketCaption(bucket({ startUtc: '2026-07-27T00:00:00Z' }), 'patch')).toBe('27')
+  })
+
+  it('captions nothing in the per-game window', () => {
+    expect(activityBucketCaption(bucket({ startUtc: '2026-07-29T18:05:00Z' }), 'day')).toBeNull()
   })
 })
 
@@ -194,11 +210,8 @@ describe('activityCoverageLabel', () => {
     }))).toBe('Jul 17')
   })
 
-  it('says nothing at all for a series that carries no dates', () => {
-    // The patch series keys on patch numbers, not on time.
-    expect(activityCoverageLabel(series({
-      mode: 'patch',
-      buckets: [bucket({ key: '15.14', startUtc: null })],
-    }))).toBeNull()
+  it('says nothing at all for a series with no cells', () => {
+    // The day window on a rest day: no games, and therefore no span to state.
+    expect(activityCoverageLabel(series({ mode: 'day', buckets: [] }))).toBeNull()
   })
 })

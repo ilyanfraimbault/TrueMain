@@ -137,20 +137,21 @@ const mockRankHistory: RankHistoryEntry[] = (() => {
   return entries
 })()
 
-// Activity grid (#927). Built to show the retention asymmetry rather than a full
-// grid: the match-sourced series stop 28 days back (roughly what
-// `match_participants` still holds in prod) while the patch series carries the
-// seven patches the dedication fixture above claims, so the two coverage notes
-// can be read side by side.
+// Activity grid (#927, reshaped in #1473). One unit — the day — over three
+// windows: the patch opened fourteen days ago and the player only joined it on
+// its fourth day, so the grid opens on a run of idle tiles; the week is the last
+// seven days; the day window is today's games.
 const mockActivity = computed<TruemainActivityResponse>(() => {
   const day = 24 * 60 * 60 * 1000
-  const retainedDays = 28
+  const patchDays = 14
+  const firstPlayedDay = 10
 
-  const games = Array.from({ length: retainedDays }, (_, index) => {
-    const daysAgo = retainedDays - 1 - index
+  const games = Array.from({ length: firstPlayedDay + 1 }, (_, index) => {
+    const daysAgo = firstPlayedDay - index
     // Every fourth day is a rest day, so the grid carries empty cells next to the
-    // played ones — the distinction the card exists to make visible.
-    const count = daysAgo % 4 === 0 ? 0 : 1 + (daysAgo % 3)
+    // played ones — the distinction the card exists to make visible. Today is
+    // never one of them, or the day window would open on its empty state.
+    const count = daysAgo % 4 === 2 ? 0 : 1 + (daysAgo % 3)
     return Array.from({ length: count }, (_, i) => ({
       startUtc: new Date(now.getTime() - daysAgo * day + i * 30 * 60 * 1000),
       // Deterministic alternating results, biased to wins, with one all-loss day
@@ -160,35 +161,33 @@ const mockActivity = computed<TruemainActivityResponse>(() => {
   }).flat()
 
   const isoDay = (date: Date) => date.toISOString().slice(0, 10)
-  const dayBuckets = Array.from({ length: retainedDays }, (_, index) => {
-    const slot = new Date(`${isoDay(new Date(now.getTime() - (retainedDays - 1 - index) * day))}T00:00:00.000Z`)
-    const inSlot = games.filter(game => isoDay(game.startUtc) === isoDay(slot))
-    const wins = inSlot.filter(game => game.win).length
-    return {
-      key: isoDay(slot),
-      startUtc: slot.toISOString(),
-      games: inSlot.length,
-      wins,
-      // Null, never 0, on an untouched day.
-      winRate: inSlot.length === 0 ? null : wins / inSlot.length,
-      championId: null,
-    }
-  })
 
-  // Typed against the shared ActivityBucket contract rather than `typeof dayBuckets`:
-  // the latter infers a *structural* type off one literal, so the per-game buckets
-  // (which carry a real championId and a non-null winRate) stopped being assignable
-  // to the per-day ones (championId: null). The shared interface is what the endpoint
-  // actually promises, and it is what the component consumes.
-  const matchSeries = (mode: 'game' | 'day' | 'week', buckets: ActivityBucket[]) => {
+  // Typed against the shared ActivityBucket contract rather than inferred off one
+  // literal: the per-game buckets carry a real championId and a non-null winRate,
+  // which a structural type taken from the per-day ones would reject. The shared
+  // interface is what the endpoint promises and what the component consumes.
+  const byDay = (daysBack: number): ActivityBucket[] =>
+    Array.from({ length: daysBack + 1 }, (_, index) => {
+      const slot = new Date(`${isoDay(new Date(now.getTime() - (daysBack - index) * day))}T00:00:00.000Z`)
+      const inSlot = games.filter(game => isoDay(game.startUtc) === isoDay(slot))
+      const wins = inSlot.filter(game => game.win).length
+      return {
+        key: isoDay(slot),
+        startUtc: slot.toISOString(),
+        games: inSlot.length,
+        wins,
+        // Null, never 0, on an untouched day.
+        winRate: inSlot.length === 0 ? null : wins / inSlot.length,
+        championId: null,
+      }
+    })
+
+  const series = (mode: 'patch' | 'week' | 'day', patch: string | null, buckets: ActivityBucket[]) => {
     const total = buckets.reduce((sum, bucket) => sum + bucket.games, 0)
     const wins = buckets.reduce((sum, bucket) => sum + bucket.wins, 0)
     return {
       mode,
-      source: 'matches' as const,
-      scope: 'allChampions' as const,
-      championId: null,
-      retentionBounded: true,
+      patch,
       coverageFromUtc: buckets[0]?.startUtc ?? null,
       coverageToUtc: buckets[buckets.length - 1]?.startUtc ?? null,
       buckets,
@@ -198,66 +197,21 @@ const mockActivity = computed<TruemainActivityResponse>(() => {
     }
   }
 
-  const weekBuckets = [0, 1, 2].map((weeksAgo) => {
-    const slot = new Date(now.getTime() - (2 - weeksAgo) * 7 * day)
-    const key = isoDay(slot)
-    const inSlot = games.filter(game =>
-      game.startUtc >= new Date(slot.getTime() - 3.5 * day)
-      && game.startUtc < new Date(slot.getTime() + 3.5 * day))
-    const wins = inSlot.filter(game => game.win).length
-    return {
-      key,
-      startUtc: slot.toISOString(),
-      games: inSlot.length,
-      wins,
-      winRate: inSlot.length === 0 ? null : wins / inSlot.length,
-      championId: null,
-    }
-  })
-
-  const gameBuckets = games.map(game => ({
-    key: `MOCK_${game.startUtc.getTime()}`,
-    startUtc: game.startUtc.toISOString(),
-    games: 1,
-    wins: game.win ? 1 : 0,
-    winRate: game.win ? 1 : 0,
-    championId: 157,
-  }))
-
-  // Four patches summing to the dedication fixture's 80 career games / span of 4,
-  // matching the invariant the real endpoint guarantees (it reads the very rows
-  // that card sums).
-  const patchBuckets = [18, 22, 20, 20].map((count, index) => {
-    const wins = Math.round(count * (0.48 + index * 0.03))
-    return {
-      key: `15.${index + 9}`,
-      startUtc: null,
-      games: count,
-      wins,
-      winRate: wins / count,
-      championId: null,
-    }
-  })
-  const patchGames = patchBuckets.reduce((sum, bucket) => sum + bucket.games, 0)
-  const patchWins = patchBuckets.reduce((sum, bucket) => sum + bucket.wins, 0)
+  const todayBuckets: ActivityBucket[] = games
+    .filter(game => isoDay(game.startUtc) === isoDay(now))
+    .map(game => ({
+      key: `MOCK_${game.startUtc.getTime()}`,
+      startUtc: game.startUtc.toISOString(),
+      games: 1,
+      wins: game.win ? 1 : 0,
+      winRate: game.win ? 1 : 0,
+      championId: 157,
+    }))
 
   return {
-    game: matchSeries('game', gameBuckets),
-    day: matchSeries('day', dayBuckets),
-    week: matchSeries('week', weekBuckets),
-    patch: {
-      mode: 'patch',
-      source: 'aggregates',
-      scope: 'champion',
-      championId: mockProfile.dedication?.championId ?? null,
-      retentionBounded: false,
-      coverageFromUtc: null,
-      coverageToUtc: null,
-      buckets: patchBuckets,
-      games: patchGames,
-      wins: patchWins,
-      winRate: patchWins / patchGames,
-    },
+    patch: series('patch', '15.12', byDay(patchDays)),
+    week: series('week', null, byDay(6)),
+    day: series('day', null, todayBuckets),
   }
 })
 
