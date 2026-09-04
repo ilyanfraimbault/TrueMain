@@ -45,10 +45,24 @@ public sealed class DraftAxisThresholds
     /// Healing plus shielding per minute at or above which a champion counts as a sustain
     /// champion, for the enemy-team count and for the lane-opponent flag alike.
     /// </summary>
-    public double SustainChampionPerMinute { get; set; } = 120d;
+    /// <remarks>
+    /// The upper quartile of the measured distribution: across the 173 champion profiles
+    /// clearing the games floor, healing+shielding per minute runs 262 at the median, 451 at
+    /// p75, 663 at p90 and 1 859 at the maximum. This shipped at 120 — <em>below the
+    /// median</em> — which made four enemies out of five a "sustain champion" and left the
+    /// axis unable to separate anything.
+    /// </remarks>
+    public double SustainChampionPerMinute { get; set; } = 450d;
 
     /// <summary>Seconds of crowd control per minute at or above which a champion counts as a CC champion.</summary>
-    public double CrowdControlChampionPerMinute { get; set; } = 2.5d;
+    /// <remarks>
+    /// The upper quartile again: 0.81 at the median, 1.17 at p75, 1.50 at p90, 6.25 at the
+    /// maximum. This shipped at 2.5 — <em>above p90</em> — so barely any champion qualified,
+    /// every game fell into the Low bucket, and no item could ever be explained by enemy
+    /// crowd control. It is why Mercury's Treads was only ever explained by the enemy's
+    /// damage type and never by what its tenacity actually answers.
+    /// </remarks>
+    public double CrowdControlChampionPerMinute { get; set; } = 1.2d;
 
     /// <summary>Share of games completing a purely defensive item at or above which a champion counts as frontline.</summary>
     public double FrontlineChampionRate { get; set; } = 0.50;

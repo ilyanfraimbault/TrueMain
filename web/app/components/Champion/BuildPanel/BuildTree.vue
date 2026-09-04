@@ -25,20 +25,6 @@ function contextFor(itemId: number): ItemContextCard | undefined {
   return props.itemContext?.get(itemContextKey('Build', itemId))
 }
 
-/**
- * The ring that says "there is a reason here, hover me".
- *
- * Only situational items are marked. Core is the norm — ringing every core item would put
- * an accent on most of the tree and stop the mark meaning anything — and a preference has
- * nothing to reveal beyond what the card already says. So the mark is the exception, which
- * is what makes it worth looking at.
- */
-function nodeMarkClass(itemId: number): string {
-  return contextFor(itemId)?.class === 'Situational'
-    ? 'ring-2 ring-primary/70'
-    : ''
-}
-
 interface LaidOutNode {
   itemId: number
   games: number
@@ -206,7 +192,7 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
           :context="contextFor(node.itemId)"
           :width="ITEM_SIZE"
           :height="ITEM_SIZE"
-          :class="['absolute rounded', nodeMarkClass(node.itemId)]"
+          class="absolute rounded"
           :style="{
             left: `${node.x - ITEM_SIZE / 2}px`,
             top: `${node.y - ITEM_SIZE / 2}px`,
