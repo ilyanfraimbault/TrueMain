@@ -50,6 +50,25 @@ window: without that, a 500-game build shredded into 40 opponent rows of ~12 wou
 too. The baseline curve stays champion-wide on purpose — it corrects the global concavity of lead curves, and
 recomputing it on a 4-game matchup would swap that correction for noise and subtract the signal from itself — #957.
 
+**The "why this item" card states the scope it was measured on, every time.**
+The situational context (#1450) carries no rank dimension and is not folded per opponent, while the panels
+around the card are filtered by both. A card that said only *"62% against a magic-damage team"* would be read as
+a figure inside the pinned matchup at the reader's rank — it is neither. So the footnote is not decoration: it
+prints `across all ranks` always, adds `all matchups` when `?vs=` is pinned, and adds `last N patches` when a
+thin bucket made the fold widen its window. This is the same rule #1087 and #1111 arrived at from the other
+direction — two populations must never sit under one label — applied before the mismatch can happen — #1451.
+
+**An axis the front end has no wording for is dropped, never printed raw.**
+The API sends axis identifiers and the client owns the prose, so a deployed front end older than the backend can
+receive an axis it does not know. It renders one line fewer rather than showing `EnemyArmorPenetration` to a
+player. A vitest suite mirrors the backend's axis list and fails when the fold gains an axis with no copy, so the
+gap is caught at build time rather than in production — #1451.
+
+**Only situational items are marked on the build tree.**
+The ring says "there is a reason here, hover me". Marking core items too — which is most of the tree — would put
+an accent on the majority and stop the mark meaning anything, and a preference has nothing to reveal beyond what
+the card already says. The mark is the exception, which is what makes it worth looking at — #1451.
+
 **Champion URLs are bare slugs, and the slug map is app state rather than per-page async data.**
 Two calls, one visible and one not. The visible one: `/champions/ahri`, not `/champions/103-ahri`. The
 id-prefixed form was genuinely tempting — the champion id parses straight out of the segment, so the page

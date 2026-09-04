@@ -7,6 +7,8 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import type { ItemContextCard } from '~~/shared/utils/item-context'
+import { indexItemContext } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   builds: ChampionBuild[]
@@ -38,6 +40,28 @@ const props = defineProps<{
    */
   pending?: boolean
 }>()
+
+// The situational build context (#1451), fetched once for the whole tab set rather than
+// per panel: the verdicts are keyed on (champion, position, patch) and every tab renders
+// the same slice of them, so a per-tab fetch would repeat one request four times for one
+// answer. Not scoped by rank or by the matchup filter — the verdicts carry neither
+// dimension, and `ItemBody` says so on the card instead of implying otherwise.
+const { data: itemContext } = useChampionItemContext(
+  () => props.championId ?? 0,
+  () => props.position,
+  () => props.patch,
+)
+
+const itemContextIndex = computed<Map<string, ItemContextCard>>(() =>
+  // Withheld while scaffolding for the same reason every number is: the placeholder
+  // aggregate's item ids are invented, and they would collide with real verdicts.
+  props.pending
+    ? new Map()
+    // `allMatchups` when the page pins an opponent: every panel around the card is
+    // re-sliced to that matchup and the verdicts are not, so the card has to say which
+    // games its percentages came from rather than let the filter above speak for it.
+    : indexItemContext(itemContext.value?.items, { allMatchups: Boolean(props.opponentChampionId) }),
+)
 
 const items = computed(() =>
   props.builds.map((build, index) => ({
@@ -145,6 +169,7 @@ const items = computed(() =>
           :patch="patch"
           :elo-bracket="eloBracket"
           :opponent-champion-id="opponentChampionId"
+          :item-context="itemContextIndex"
           :pending="pending"
         />
       </template>

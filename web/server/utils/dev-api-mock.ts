@@ -2274,6 +2274,98 @@ async function mockCompositionBuildGames(id: number, body: unknown, query: Recor
   }
 }
 
+
+/**
+ * Situational build context (#1451): one verdict of each class, so the hover card can be
+ * eyeballed in every state without a backend — core (no lines), situational with one axis,
+ * situational with two, and a preference. The item ids are pulled from the same archetype
+ * `mockChampionDetail` builds its tree, boots and starter rows from, so the cards attach to
+ * what is actually on screen instead of to ids nothing renders.
+ */
+function mockItemContext(championId: number, position: string | undefined) {
+  const s = seedsById.get(championId)
+  if (!s) return null
+
+  const archetype = ARCHETYPES[s.archetype]
+  const rng = mulberry32(championId * 17 + (position?.length ?? 0))
+  const slotGames = 400 + Math.floor(rng() * 2000)
+
+  const axis = (
+    name: string,
+    bucket: 'High' | 'Low',
+    rateIn: number,
+    rateOut: number,
+    draftTime = true,
+  ) => {
+    const half = Math.round(slotGames / 2)
+    return {
+      axis: name,
+      bucket,
+      draftTime,
+      gamesIn: Math.round(rateIn * half),
+      totalIn: half,
+      gamesOut: Math.round(rateOut * half),
+      totalOut: half,
+      rateIn,
+      rateOut,
+      lift: round3(rateIn - rateOut),
+      patchWindow: 1,
+    }
+  }
+
+  const item = (
+    slot: 'Build' | 'Boots' | 'Starter',
+    itemId: number,
+    itemClass: 'Core' | 'Situational' | 'Preference',
+    pickRate: number,
+    axes: ReturnType<typeof axis>[],
+    patchWindow = 1,
+  ) => ({
+    slot,
+    itemId,
+    class: itemClass,
+    games: Math.round(pickRate * slotGames),
+    slotGames,
+    pickRate,
+    winRate: round3(0.48 + rng() * 0.08),
+    patchWindow,
+    axes,
+  })
+
+  const items = archetype.items
+
+  return {
+    championId,
+    position: position ?? s.position,
+    patch: null,
+    allRanks: true,
+    items: [
+      item('Build', items[0]!, 'Core', 0.93, []),
+      item('Build', items[1]!, 'Situational', 0.42, [
+        axis('EnemyMagicDamage', 'High', 0.62, 0.18),
+      ]),
+      item('Build', items[2]!, 'Situational', 0.31, [
+        axis('EnemyCrowdControl', 'High', 0.55, 0.21),
+        axis('EnemySustain', 'High', 0.44, 0.19),
+      ], 2),
+      item('Build', items[3]!, 'Preference', 0.27, []),
+      item('Boots', archetype.boots[0]!, 'Situational', 0.38, [
+        axis('EnemyPhysicalDamage', 'High', 0.61, 0.12),
+      ]),
+      item('Boots', archetype.boots[1]!, 'Situational', 0.34, [
+        axis('EnemyCrowdControl', 'High', 0.58, 0.15),
+      ]),
+      item('Starter', archetype.starterItems[0]!, 'Situational', 0.52, [
+        axis('OpponentRanged', 'Low', 0.66, 0.24),
+      ]),
+      item('Starter', archetype.starterItems[1]!, 'Situational', 0.41, [
+        axis('OpponentLanePressure', 'High', 0.57, 0.22),
+        axis('OwnGoldLeadAt15', 'Low', 0.49, 0.31, false),
+      ]),
+    ],
+  }
+}
+
 export async function resolveDevApiMock(
   path: string,
   query: Record<string, unknown>,
@@ -2316,6 +2408,7 @@ export async function resolveDevApiMock(
           Number(query.buildFirstItemId) || 0,
           Number(query.opponentChampionId) || 0,
         )
+      : sub === 'item-context' ? mockItemContext(id, position)
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
       : sub === 'synergies' ? mockSynergies(

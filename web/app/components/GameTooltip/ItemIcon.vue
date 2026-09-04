@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ItemContextCard } from '~~/shared/utils/item-context'
 import { computed } from 'vue'
 import type { StaticItemData } from '~~/shared/types/static-data'
 
@@ -12,12 +13,19 @@ const props = withDefaults(defineProps<{
   loading?: 'lazy' | 'eager'
   /** Optional pickrate (0..1) — only set by BuildTree call sites; renders next to the item name. */
   pickRate?: number
+  /**
+   * The situational verdict for this item (#1451). Set by the build-tree and variation
+   * call sites, which know which slot they are asking about; absent everywhere else, and
+   * the card then renders exactly as it did before.
+   */
+  context?: ItemContextCard
 }>(), {
   item: null,
   width: 36,
   height: 36,
   loading: undefined,
   pickRate: undefined,
+  context: undefined,
 })
 
 const hasItem = computed(() => Boolean(props.item))
@@ -45,6 +53,7 @@ const hasItem = computed(() => Boolean(props.item))
         <GameTooltipItemBody
           :item="item"
           :pick-rate="pickRate"
+          :context="context"
         />
       </GameTooltipSurface>
     </template>

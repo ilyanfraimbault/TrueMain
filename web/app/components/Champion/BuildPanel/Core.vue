@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ItemContextCard } from '~~/shared/utils/item-context'
 import type {
   BuildItemPath,
   BuildItemSet,
@@ -36,6 +37,12 @@ withDefaults(defineProps<{
    */
   championStatic: ChampionStaticData | null
   itemsMap: Record<number, StaticItemData>
+  /**
+   * Situational verdicts (#1451) for the three item blocks below. Optional because the
+   * surfaces that reuse this core view — the matchup recommendation and its standard-build
+   * fallback — pass whatever slice they have, or none at all.
+   */
+  itemContext?: Map<string, ItemContextCard>
   summonersMap: Record<number, StaticSummonerSpellData>
   /** True while `summonersMap` is still loading — see `ChampionCoreSpells`. */
   summonersPending?: boolean
@@ -83,6 +90,7 @@ withDefaults(defineProps<{
         <ChampionCoreStarterItems
           :starter="starterItems"
           :items-map="itemsMap"
+          :item-context="itemContext"
         />
       </div>
       <!-- A2: Skill order + Boots side-by-side, Build path below.
@@ -100,6 +108,7 @@ withDefaults(defineProps<{
           <ChampionCoreBoots
             :boots="boots"
             :items-map="itemsMap"
+            :item-context="itemContext"
           />
         </div>
         <!-- A2b: Build path (336 px from sm) centered in A2 -->
@@ -107,6 +116,7 @@ withDefaults(defineProps<{
           <ChampionCoreBuildPath
             :path="itemPath"
             :items-map="itemsMap"
+            :item-context="itemContext"
           />
         </div>
       </div>

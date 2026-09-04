@@ -293,6 +293,7 @@ builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryS
 builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
+builder.Services.AddScoped<IChampionItemContextQueryService, ChampionItemContextQueryService>();
 builder.Services.AddScoped<IChampionSynergyQueryService, ChampionSynergyQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
 // Shared by the composition recommendation (#921) and the matchup-scoped champion page
