@@ -306,9 +306,7 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
             :key="`${row.championId}-${row.position}`"
           >
             <ListRowSurface
-              dense
-              role="button"
-              tabindex="0"
+              dense role="button" tabindex="0"
               :aria-label="`View ${row.name} builds`"
               class="cursor-pointer gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
               @click="onRowActivate(row)"
@@ -399,10 +397,8 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
               <!-- Rates as `StatBlock`s: Geist Mono value over a 10px micro-label,
                    which is the whole point — the hand-written pair this replaced
                    put the two one step apart (`text-lg` over `text-xs`, same
-                   family) and a 50-row list read as noise. `sm` rather than the
-                   default display step: the row is now as tall as its champion
-                   icon, and a `text-lg` figure was the one thing in it still
-                   asking to be read before the champion's name.
+                   family) and a 50-row list read as noise; `sm` here for the same reason —
+                   the row is icon-height now, `text-lg` was the one thing still shouting.
                    Colours come from `utils/rate-tone`, the same helper the tier
                    list's chip uses, so a champion's win rate cannot be one colour
                    here and another there. An older comment here said colour was
@@ -419,8 +415,7 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
                   <StatBlock
                     :value="formatPercentage(row.winRate, 0)"
                     label="WR"
-                    size="sm"
-                    align="center"
+                    size="sm" align="center"
                     :value-class="winRateTone(row.winRate)"
                   />
                 </div>
@@ -428,8 +423,7 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
                   <StatBlock
                     :value="formatPercentage(row.pickRate, 0)"
                     label="PR"
-                    size="sm"
-                    align="center"
+                    size="sm" align="center"
                     :value-class="pickRateTone(row.pickRate)"
                   />
                 </div>
@@ -441,8 +435,7 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
                   <StatBlock
                     :value="formatPercentageOrDash(row.banRate, 0)"
                     label="BR"
-                    size="sm"
-                    align="center"
+                    size="sm" align="center"
                     :value-class="banRateTone(row.banRate)"
                   />
                 </div>
