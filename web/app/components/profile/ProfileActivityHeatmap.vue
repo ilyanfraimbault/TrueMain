@@ -51,12 +51,17 @@ const props = withDefaults(defineProps<{
   loading: false,
 })
 
-// Widest window first, narrowing left to right — the order the switch is read in.
+/**
+ * The switch, narrowest window first — a day, then a week, then a month. Patch
+ * closes the row rather than sorting by width: it is the only window whose span
+ * is not a fixed number of days, so it sits at the end of the calendar ladder
+ * instead of interrupting it between week and month.
+ */
 const MODES: { key: ActivityMode, label: string }[] = [
+  { key: 'day', label: 'Day' },
+  { key: 'week', label: 'Week' },
   { key: 'month', label: 'Month' },
   { key: 'patch', label: 'Patch' },
-  { key: 'week', label: 'Week' },
-  { key: 'day', label: 'Day' },
 ]
 
 /**
