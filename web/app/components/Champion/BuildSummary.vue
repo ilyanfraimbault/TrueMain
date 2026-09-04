@@ -21,6 +21,19 @@ import { championBuildSentenceTokens, lanePhrase } from '~~/shared/utils/champio
  * and it would also waste the honest half of this: a reader landing cold on a
  * champion wants the one-paragraph version before the icon grid.
  *
+ * Collapsed by default since #1466, and moved to the foot of the sidebar. The
+ * feedback was that it restates data the page already shows — true for a reader
+ * who has the icon grid right there, and the reason it now opens on demand
+ * rather than occupying the top of the column. `championBuildSentenceTokens`
+ * dropped the three sentences that were pure icon repetition (runes, skill
+ * order, summoners) in the same change; what is left are the claims the grid
+ * does not make in words.
+ *
+ * A native `<details>`, deliberately, and not `UAccordion`: Reka's accordion
+ * unmounts closed content, which would take the paragraph out of the server
+ * HTML and undo the whole point of #1123. `<details>` keeps it in the DOM —
+ * collapsed content is still indexed, unlike `sr-only`, which is cloaking.
+ *
  * #1143 gave that paragraph relief. Shipped flat and monochrome, it was a wall
  * of grey naming twenty entities a player normally reads as *pictures* — so
  * every named entity now carries its icon inline and a tone, and every
@@ -53,6 +66,9 @@ const sentences = computed(() =>
   props.summary ? championBuildSentenceTokens(props.summary) : [],
 )
 
+// Names the <section> region through the heading that lives inside the summary.
+const headingId = useId()
+
 const heading = computed(() => {
   const name = props.summary?.championName
   if (!name) return null
@@ -63,39 +79,62 @@ const heading = computed(() => {
 </script>
 
 <template>
-  <!-- h2, not h3: this is a top-level section of the page, and the only heading
-       that carries the champion's name next to the word "build". -->
-  <SectionCard
+  <!-- UCard directly rather than SectionCard: the heading has to live inside the
+       <summary> to be the thing you click, and SectionCard puts its title in a
+       header row above the body. Dropping the header slot also drops the divider
+       that would otherwise cut the card in two above a collapsed body. -->
+  <UCard
     v-if="heading && sentences.length"
-    :level="2"
-    :title="heading"
-    :ui="{ header: 'p-2 sm:px-2.5 sm:py-3', body: 'p-2 sm:p-2.5' }"
+    as="section"
+    :aria-labelledby="headingId"
+    :ui="{ body: 'p-0 sm:p-0' }"
   >
-    <div class="space-y-2.5">
-      <p
-        v-for="(sentence, index) in sentences"
-        :key="index"
-        class="text-sm leading-relaxed text-muted"
+    <details class="group">
+      <summary
+        class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl
+               p-3 sm:px-4 sm:py-3.5 hover:text-highlighted"
       >
-        <template
-          v-for="(token, tokenIndex) in sentence"
-          :key="tokenIndex"
+        <!-- h2, not h3: this is a top-level section of the page, and the only
+             heading that carries the champion's name next to the word "build".
+             Inside the summary, so collapsing changes nothing in the outline. -->
+        <h2
+          :id="headingId"
+          class="text-sm font-medium text-default"
         >
-          <strong
-            v-if="token.kind === 'value'"
-            class="font-semibold tabular-nums text-highlighted"
-          >{{ token.text }}</strong>
-          <ChampionBuildSummaryMark
-            v-else-if="token.kind === 'entity'"
-            :token="token"
-            :items-map="itemsMap"
-            :perks="runeTree?.perks"
-            :summoners-map="summonersMap"
-            :champion-spells="championStatic?.championSpells"
-          />
-          <template v-else>{{ token.text }}</template>
-        </template>
-      </p>
-    </div>
-  </SectionCard>
+          {{ heading }}
+        </h2>
+        <UIcon
+          name="i-lucide-chevron-down"
+          class="size-4 shrink-0 text-dimmed transition-transform group-open:rotate-180"
+        />
+      </summary>
+
+      <div class="space-y-2.5 px-3 pb-3 sm:px-4 sm:pb-4">
+        <p
+          v-for="(sentence, index) in sentences"
+          :key="index"
+          class="text-sm leading-relaxed text-muted"
+        >
+          <template
+            v-for="(token, tokenIndex) in sentence"
+            :key="tokenIndex"
+          >
+            <strong
+              v-if="token.kind === 'value'"
+              class="font-semibold tabular-nums text-highlighted"
+            >{{ token.text }}</strong>
+            <ChampionBuildSummaryMark
+              v-else-if="token.kind === 'entity'"
+              :token="token"
+              :items-map="itemsMap"
+              :perks="runeTree?.perks"
+              :summoners-map="summonersMap"
+              :champion-spells="championStatic?.championSpells"
+            />
+            <template v-else>{{ token.text }}</template>
+          </template>
+        </p>
+      </div>
+    </details>
+  </UCard>
 </template>

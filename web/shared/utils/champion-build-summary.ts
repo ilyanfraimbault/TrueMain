@@ -229,24 +229,6 @@ export function resolveChampionBuildSummary(
  * filler too.
  */
 
-/**
- * Rune style id → tone. Riot's five trees, and the reason the tones exist at
- * all: a player reads "Domination" off the red before the word, exactly as they
- * read Gold off the rank colour (`utils/tiers.ts`). An id outside this map is
- * still named — it simply isn't attributed to a colour.
- */
-const STYLE_TONES: Readonly<Record<number, BuildSummaryTone>> = {
-  8000: 'precision',
-  8100: 'domination',
-  8200: 'sorcery',
-  8300: 'inspiration',
-  8400: 'resolve',
-}
-
-function styleTone(style: SummaryEntity | null | undefined): BuildSummaryTone {
-  return (style ? STYLE_TONES[style.id] : undefined) ?? 'rune'
-}
-
 /** Connective prose. Every space in a sentence belongs to one of these. */
 function plain(text: string): BuildSummaryToken {
   return { kind: 'text', text }
@@ -380,54 +362,17 @@ export function championBuildSentenceTokens(summary: ChampionBuildSummary): Buil
     sentences.push([plain('It '), ...joinTokens(itemClauses, ', and '), plain('.')])
   }
 
-  if (build.keystone) {
-    // Built as two clauses joined by a comma rather than one chain of `and`s:
-    // the primary tree already needs an `and` inside its own rune list, so
-    // appending the secondary with another one produced "… and Treasure Hunter
-    // and Sorcery secondary …", which reads as a single four-item list.
-    const primaryTone = styleTone(build.primaryStyle)
-    const tokens: BuildSummaryToken[] = [plain('It runs '), mark(build.keystone, primaryTone, 'perk')]
-    if (build.primaryStyle) tokens.push(plain(' out of '), mark(build.primaryStyle, primaryTone, 'perkStyle'))
-    if (build.primaryRunes.length) tokens.push(plain(' with '), ...marks(build.primaryRunes, primaryTone, 'perk'))
-    if (build.secondaryStyle) {
-      const secondaryTone = styleTone(build.secondaryStyle)
-      tokens.push(plain(', and '), mark(build.secondaryStyle, secondaryTone, 'perkStyle'), plain(' secondary'))
-      if (build.secondaryRunes.length) {
-        tokens.push(plain(' for '), ...marks(build.secondaryRunes, secondaryTone, 'perk'))
-      }
-    }
-    tokens.push(plain('.'))
-    sentences.push(tokens)
-  }
-
-  if (build.skills.length) {
-    const chain = build.skills.map((skill): BuildSummaryEntityToken => ({
-      kind: 'entity',
-      text: skill.name ? `${skill.key} (${skill.name})` : skill.key,
-      iconUrl: skill.iconUrl,
-      tone: 'ability',
-      source: 'ability',
-      id: skill.key,
-    }))
-    const [first, ...rest] = chain
-    if (rest.length) {
-      const tokens: BuildSummaryToken[] = [plain('Abilities are levelled '), first!, plain(' first')]
-      for (const token of rest) tokens.push(plain(', then '), token)
-      tokens.push(plain('.'))
-      sentences.push(tokens)
-    }
-    else {
-      sentences.push([first!, plain(' is levelled first.')])
-    }
-  }
-
-  if (build.summonerSpells.length) {
-    sentences.push([
-      plain('Summoner spells are '),
-      ...marks(build.summonerSpells, 'spell', 'summoner'),
-      plain('.'),
-    ])
-  }
+  // Runes, skill order and summoner spells used to get a sentence each. They are
+  // gone (#1466): every one of them named, in words, a row of icons sitting a few
+  // hundred pixels away — the reader's own complaint, and the reason the whole
+  // paragraph now opens on demand rather than leading the sidebar. What is left
+  // is what the icon grid does not say: the scope of the sample, how much of it
+  // this build is, and the item progression as an ordered claim.
+  //
+  // This is a deliberate trade against #1123: the paragraph is still the only
+  // build content in the server HTML, so shortening it costs indexable text. It
+  // keeps the substantive claims — champion, patch, bracket, lane, win rate,
+  // build share, items — which is what the page's own title promises.
 
   const others = summary.buildCount - 1
   if (others > 0) {
