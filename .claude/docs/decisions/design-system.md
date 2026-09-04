@@ -153,9 +153,15 @@ visibly clear of the bottom of the ramp — it is the one thing the payload can 
 measuring one any more.
 
 The same issue fixed the layout the two-ramp read was hiding behind. The tiles were a fixed 11 px on an
-`auto-fill` grid, packed left — a confetti strip floating in a card several times its own width. They stretch
-now (`auto-fit` + `minmax`, capped per view) so the grid is a **band that spans the card**, and the week and
-patch views drop the square entirely for full-width captioned bands.
+`auto-fill` grid, packed left — a confetti strip floating in a card several times its own width — and #1452
+stretched them (`auto-fit` + `minmax`, capped per view) into a band spanning the card, the week and patch
+views dropping the square entirely for full-width captioned bands.
+
+> ⚠️ **The stretch was withdrawn in #1479.** Once #1473 made every window a run of *days*, a stretched tile
+> was a fat lozenge and eleven of them read as a row of buttons, not as a grid. The tiles are back to a fixed
+> 14 px square packed from the left, identical in every window, and the captions, the legend and the coverage
+> line went with the stretch: the shape of a patch is carried by the density of small squares, and everything
+> that was printed around them is on the hover panel of the cell it belongs to.
 
 A seven-row weekday calendar (columns as weeks, GitHub's own shape) was built first and **rejected by the
 product owner**: these series are a month long at most, so the block stood as a narrow tower in a wide card

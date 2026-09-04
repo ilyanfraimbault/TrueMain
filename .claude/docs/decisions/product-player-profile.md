@@ -27,6 +27,16 @@ global fact that turns over once a fortnight, asked once rather than once per pa
 consequence is that for up to that long after a new patch's first game the grid still draws the previous one
 — #1473.
 
+**The grid is squares and nothing else: no captions, no legend, no coverage line.**
+Fixed 14 px tiles packed from the left, identical in every window. #1473 had stretched them to span the card
+and captioned each one with its date, which the product owner rejected on sight: at a fortnight's width a
+stretched tile is a fat lozenge, and eleven of them read as a row of buttons rather than as a contribution
+grid, whose whole point is that the density of small identical squares *is* the shape of the period. The
+three things printed around the grid went with the stretch — the date under every tile, the ramp legend, and
+the "which patch · first day – last day" line — because each was either the window's own definition read back
+to the reader or a fact the cell's own hover panel already carries. What is left on the card is the window's
+total and the tiles — #1479, #1473.
+
 **An idle day is not a lost one, and every day of the window is drawn.**
 A day with no games carries `games: 0` and a **null** win rate, and gets its own tile: a 0% day is a
 measurement and an idle one is not, so the fill helper returns no colour at all for the second and the

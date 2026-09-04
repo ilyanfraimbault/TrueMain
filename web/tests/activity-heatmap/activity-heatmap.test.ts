@@ -3,13 +3,11 @@ import {
   ACTIVITY_EMPTY_FILL,
   ACTIVITY_LEVELS,
   ACTIVITY_RAMP,
-  activityBucketCaption,
   activityBucketLabel,
   activityBucketResult,
   activityCellFill,
   activityCellLevel,
   activityCellsAreGames,
-  activityCoverageLabel,
   activityMaxGames,
 } from '~/utils/activity-heatmap'
 import type { ActivityBucket, ActivitySeries } from '~~/shared/types/activity'
@@ -177,41 +175,5 @@ describe('activityBucketLabel', () => {
     const label = activityBucketLabel(bucket({ startUtc: '2026-07-29T18:05:00Z' }), 'day')
     expect(label).toContain('Jul 29')
     expect(label).toContain('6:05')
-  })
-})
-
-describe('activityBucketCaption', () => {
-  it('captions a week tile with its weekday, the useful handle over seven days', () => {
-    expect(activityBucketCaption(bucket({ startUtc: '2026-07-27T00:00:00Z' }), 'week')).toBe('Mon')
-  })
-
-  it('captions a patch tile with the day of the month, since weekdays repeat', () => {
-    expect(activityBucketCaption(bucket({ startUtc: '2026-07-27T00:00:00Z' }), 'patch')).toBe('27')
-  })
-
-  it('captions nothing in the per-game window', () => {
-    expect(activityBucketCaption(bucket({ startUtc: '2026-07-29T18:05:00Z' }), 'day')).toBeNull()
-  })
-})
-
-describe('activityCoverageLabel', () => {
-  it('reads the span off the buckets on screen', () => {
-    expect(activityCoverageLabel(series({
-      buckets: [
-        bucket({ startUtc: '2026-07-17T00:00:00Z' }),
-        bucket({ startUtc: '2026-08-13T00:00:00Z' }),
-      ],
-    }))).toBe('Jul 17 – Aug 13')
-  })
-
-  it('collapses a single-cell span instead of printing the same day twice', () => {
-    expect(activityCoverageLabel(series({
-      buckets: [bucket({ startUtc: '2026-07-17T00:00:00Z' })],
-    }))).toBe('Jul 17')
-  })
-
-  it('says nothing at all for a series with no cells', () => {
-    // The day window on a rest day: no games, and therefore no span to state.
-    expect(activityCoverageLabel(series({ mode: 'day', buckets: [] }))).toBeNull()
   })
 })
