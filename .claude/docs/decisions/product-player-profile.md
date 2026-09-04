@@ -3,8 +3,10 @@
 Part of the [decision log](../decisions.md). Format: **Decision** — why — `source`.
 
 **The activity grid has one unit — the UTC day — and the switch picks the window, not the unit.**
-Patch draws every day of the current patch, week the last seven, and day the one window narrow enough that
-there are no days left to draw and the cells become that day's games. It replaces a four-way switch whose
+Month draws the last thirty days, patch every day of the current patch, week the last seven, and day the one
+window narrow enough that there are no days left to draw and the cells become that day's games. Thirty days
+and not a calendar month (#1483): every window ends on today and counts back, so a calendar one would open on
+days that have not happened yet for the first three weeks of one. It replaces a four-way switch whose
 tabs each changed what a square *meant* (a game, a day, an ISO week, a whole patch), so the control that was
 meant to zoom also silently re-labelled the grid. The patch tab was the worst of it: it answered "how did
 each patch go" for the signature champion, read from the frozen `champion_aggregate_scopes` (#466), and could
@@ -36,6 +38,16 @@ three things printed around the grid went with the stretch — the date under ev
 the "which patch · first day – last day" line — because each was either the window's own definition read back
 to the reader or a fact the cell's own hover panel already carries. What is left on the card is the window's
 total and the tiles — #1479, #1473.
+
+**The month window is clamped to the retention floor; the narrower ones need no clamp.**
+It is the first window wide enough for retention to bite — `match_participants` is hard-deleted past
+`RetainedPatchCount` patches (~2), which is roughly a month — so thirty days back can reach a day where "did
+not queue" and "no longer stored" are indistinguishable. Drawing that as an idle tile would be a fabricated
+claim about the player, so the window's first day is the later of "thirty days back" and "the oldest game
+anyone still has": the grid starts later and says nothing it cannot back. The week and patch windows need
+nothing of the sort, being seven days and a span read off matches that are by definition still on disk. The
+floor costs no extra query — the cached group-by that measures the current patch already returns a row per
+retained patch, so it is the earliest first-game across them — #1483.
 
 **An idle day is not a lost one, and every day of the window is drawn.**
 A day with no games carries `games: 0` and a **null** win rate, and gets its own tile: a 0% day is a

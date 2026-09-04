@@ -36,14 +36,23 @@ internal sealed record ActivityGameRow(string MatchId, DateTime StartUtc, bool W
 /// <para>
 /// <b>Retention cannot make a calendar window lie.</b> <c>match_participants</c>
 /// is hard-deleted past <c>MatchDataRetention:RetainedPatchCount</c> patches
-/// (~2), so a day before that could be "erased" rather than "idle". Both windows
-/// here sit comfortably inside it by construction: the week window is seven days,
-/// and the patch window's own start is read off matches that are, by definition,
-/// still on disk.
+/// (~2), so a day before that could be "erased" rather than "idle". The week and
+/// patch windows sit inside it by construction — seven days, and a span read off
+/// matches that are by definition still on disk. The month window is the one that
+/// can reach the edge, since ~2 patches is roughly a month, so its caller clamps
+/// its first day to the oldest retained game rather than drawing days nobody can
+/// speak for.
 /// </para>
 /// </remarks>
 internal static class TruemainActivityBuckets
 {
+    /// <summary>
+    /// Days in the month window, today included. Thirty, not a calendar month:
+    /// every window here ends on today and counts back, and a calendar month would
+    /// open on days that have not happened yet for the first three weeks of one.
+    /// </summary>
+    public const int MonthWindowDays = 30;
+
     /// <summary>Days in the week window, today included.</summary>
     public const int WeekWindowDays = 7;
 

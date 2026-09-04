@@ -6,12 +6,12 @@ namespace TrueMain.ReadModels.Truemains;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>The grid's unit is the day.</b> The three series are not three units — they
-/// are three <em>windows</em> over the same participant rows, and two of them
-/// (<see cref="Patch"/> and <see cref="Week"/>) draw exactly one cell per UTC
-/// calendar day inside their window, played or not. Only <see cref="Day"/>, the
-/// narrowest window, falls back to one cell per game: a single day has no days to
-/// draw.
+/// <b>The grid's unit is the day.</b> The series are not different units — they
+/// are <em>windows</em> over the same participant rows, and all of them
+/// (<see cref="Month"/>, <see cref="Patch"/>, <see cref="Week"/>) draw exactly
+/// one cell per UTC calendar day inside their window, played or not. Only
+/// <see cref="Day"/>, the narrowest window, falls back to one cell per game: a
+/// single day has no days to draw.
 /// </para>
 /// <para>
 /// The earlier shape had four series with four different units — per game, per
@@ -24,13 +24,19 @@ namespace TrueMain.ReadModels.Truemains;
 /// <c>scope</c> discriminator: there is only one of each.
 /// </para>
 /// <para>
-/// All three still ship in a single response — they are foldings of one snapshot
+/// They all still ship in a single response — they are foldings of one snapshot
 /// of the same rows, so flipping the window cannot show two different answers for
 /// the same afternoon.
 /// </para>
 /// </remarks>
 public sealed class TruemainActivityReadModel
 {
+    /// <summary>
+    /// One cell per UTC day over the last thirty days, clamped to the oldest game
+    /// retention still holds.
+    /// </summary>
+    public required TruemainActivitySeriesReadModel Month { get; init; }
+
     /// <summary>
     /// One cell per UTC day of the current patch, from the day the patch's first
     /// game was played through today. The default view.
@@ -142,6 +148,9 @@ public sealed class TruemainActivityBucketReadModel
 /// </summary>
 public static class TruemainActivityKinds
 {
+    /// <summary>The last thirty UTC days.</summary>
+    public const string MonthMode = "month";
+
     /// <summary>Every UTC day of the current patch.</summary>
     public const string PatchMode = "patch";
 

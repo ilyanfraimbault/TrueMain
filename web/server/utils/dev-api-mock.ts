@@ -1389,11 +1389,12 @@ function mockRankHistory(player: MockPlayer): RankHistoryResponse {
 }
 
 /**
- * Activity grid (#927, reshaped in #1473). One unit — the UTC day — over three
- * windows, the same shape the endpoint serves: the patch window opens on the
- * patch's first day (measured server-side over everyone's matches, so it starts
- * before this player's own first game of it), the week window is the last seven
- * days, and the day window is whatever was played today.
+ * Activity grid (#927, reshaped in #1473, month window in #1483). One unit — the
+ * UTC day — over four windows, the same shape the endpoint serves: the month is
+ * the last thirty days, the patch window opens on the patch's first day (measured
+ * server-side over everyone's matches, so it starts before this player's own
+ * first game of it), the week window is the last seven days, and the day window
+ * is whatever was played today.
  */
 function mockActivity(player: MockPlayer): TruemainActivityResponse {
   const rng = mulberry32(player.row.rank * 4409)
@@ -1402,7 +1403,7 @@ function mockActivity(player: MockPlayer): TruemainActivityResponse {
   // day, so the grid opens on a run of idle tiles — the case the measured window
   // exists to draw, and the one a per-player bound would silently hide.
   const patchDays = 13
-  const firstPlayedDay = 10
+  const firstPlayedDay = 24
   const winRate = player.row.stats.winRate ?? 0.5
 
   interface Game { startUtc: number, win: boolean, championId: number }
@@ -1410,8 +1411,10 @@ function mockActivity(player: MockPlayer): TruemainActivityResponse {
   const pool = player.row.topChampions.map(champion => champion.championId)
   for (let day = firstPlayedDay; day >= 0; day--) {
     // A rest day every so often, so the grid carries genuinely empty cells next
-    // to the played ones. Never today, or the day window opens on its empty state.
-    const perDay = day > 0 && rng() < 0.22 ? 0 : 1 + Math.floor(rng() * 4)
+    // to the played ones. Never today, or the day window opens on its empty state;
+    // always on days 11-13, so the patch window opens on a run of idle tiles.
+    const quiet = day >= 11 && day <= 13
+    const perDay = quiet || (day > 0 && rng() < 0.22) ? 0 : 1 + Math.floor(rng() * 4)
     for (let i = 0; i < perDay; i++) {
       games.push({
         startUtc: now - day * DAY_MS + i * 40 * 60 * 1000,
@@ -1480,6 +1483,7 @@ function mockActivity(player: MockPlayer): TruemainActivityResponse {
     }))
 
   return {
+    month: series('month', null, byDay(today - 29 * DAY_MS, today)),
     patch: series('patch', '15.14', byDay(today - patchDays * DAY_MS, today)),
     week: series('week', null, byDay(today - 6 * DAY_MS, today)),
     day: series('day', null, dayBuckets),

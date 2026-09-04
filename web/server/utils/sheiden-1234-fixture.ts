@@ -128,11 +128,11 @@ export const SHEIDEN_EMPTY_MATCHES: MatchSummariesResponse = {
 }
 
 /**
- * Activity grid fixture (#927, reshaped in #1473). One unit — the day — over
- * three windows, the same shape the endpoint serves: the patch window opens
- * twelve days back (the patch's first day, measured server-side over everyone's
- * matches), the week window is the last seven days, and the day window is
- * whatever was played today.
+ * Activity grid fixture (#927, reshaped in #1473, month window in #1483). One
+ * unit — the day — over four windows, the same shape the endpoint serves: the
+ * month is the last thirty days, the patch window opens twelve days back (the
+ * patch's first day, measured server-side over everyone's matches), the week
+ * window is the last seven days, and the day window is whatever was played today.
  */
 export function buildSheidenActivityResponse(now: Date = new Date()): TruemainActivityResponse {
   // Deterministic pseudo-random so the grid looks lived-in but never flickers
@@ -147,7 +147,7 @@ export function buildSheidenActivityResponse(now: Date = new Date()): TruemainAc
   // it, so the grid opens on a run of idle tiles — the case the window exists to
   // draw, and the one a per-player bound would silently hide.
   const patchDays = 12
-  const firstPlayedDay = 9
+  const firstPlayedDay = 25
 
   interface Game { matchId: string, startUtc: Date, win: boolean, championId: number }
   const games: Game[] = []
@@ -155,8 +155,10 @@ export function buildSheidenActivityResponse(now: Date = new Date()): TruemainAc
   for (let day = firstPlayedDay; day >= 0; day--) {
     // A rest day every so often, so the grid has genuine empty cells to
     // distinguish from the 0%-winrate ones. Never today, or the day window would
-    // open on its empty state.
-    const perDay = day > 0 && rand() < 0.2 ? 0 : 1 + Math.floor(rand() * 4)
+    // open on its empty state; always on days 10-12, so the patch window opens on
+    // a run of idle tiles — the case its measured span exists to draw.
+    const quiet = day >= 10 && day <= 12
+    const perDay = quiet || (day > 0 && rand() < 0.2) ? 0 : 1 + Math.floor(rand() * 4)
     for (let i = 0; i < perDay; i++) {
       const startUtc = new Date(now.getTime() - day * DAY_MS + i * 45 * 60 * 1000)
       games.push({
@@ -197,7 +199,7 @@ export function buildSheidenActivityResponse(now: Date = new Date()): TruemainAc
   }
 
   const series = (
-    mode: 'patch' | 'week' | 'day',
+    mode: 'month' | 'patch' | 'week' | 'day',
     patch: string | null,
     buckets: TruemainActivityResponse['day']['buckets'],
   ) => {
@@ -228,6 +230,7 @@ export function buildSheidenActivityResponse(now: Date = new Date()): TruemainAc
     }))
 
   return {
+    month: series('month', null, byDay(new Date(today.getTime() - 29 * DAY_MS), today)),
     patch: series('patch', '15.14', byDay(new Date(today.getTime() - patchDays * DAY_MS), today)),
     week: series('week', null, byDay(new Date(today.getTime() - 6 * DAY_MS), today)),
     day: series('day', null, dayBuckets),

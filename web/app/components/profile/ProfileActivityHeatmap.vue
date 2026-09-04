@@ -13,9 +13,9 @@ import {
  * dpm.lol-style activity grid under the LP curve (#927, reshaped in #1473).
  *
  * **The unit is the day; the switch picks the window.** Every square is one UTC
- * day — of the current patch, or of the last seven — and the only exception is
- * the narrowest window of all, where a single day has no days left to draw and
- * the squares become that day's games. The earlier version changed unit with
+ * day — of the last thirty, of the current patch, or of the last seven — and the
+ * only exception is the narrowest window of all, where a single day has no days
+ * left to draw and the squares become that day's games. The earlier version changed unit with
  * every tab (a game, a day, a week, a whole patch), so the same switch that was
  * meant to zoom also silently changed what a square meant.
  *
@@ -51,7 +51,9 @@ const props = withDefaults(defineProps<{
   loading: false,
 })
 
+// Widest window first, narrowing left to right — the order the switch is read in.
 const MODES: { key: ActivityMode, label: string }[] = [
+  { key: 'month', label: 'Month' },
   { key: 'patch', label: 'Patch' },
   { key: 'week', label: 'Week' },
   { key: 'day', label: 'Day' },
