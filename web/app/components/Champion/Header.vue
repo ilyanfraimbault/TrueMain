@@ -123,7 +123,10 @@ const populationLabel = computed(() => {
                the count ("115 gamesplayed by mains"). -->
           <span v-else>
             · {{ totalGames }} games<template v-if="populationLabel">{{ ` ${populationLabel}` }}</template>
-            · {{ formatPercentage(winRate) }} WR
+            <!-- Whole percent (#1469): the decimal in "52.2% WR" is precision
+                 nobody acts on next to a raw game count, and the same rounding
+                 now applies to the build panel's chips. -->
+            · {{ formatPercentage(winRate, 0) }} WR
           </span>
           <!-- Playstyle flag, not a stat: it only appears for champions that
                actually roam, so it never competes with the numbers it sits next

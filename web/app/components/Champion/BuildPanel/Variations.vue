@@ -68,13 +68,22 @@ function spellByKey(key: string) {
 </script>
 
 <template>
-  <!-- Flex, not a two-column grid: a grid leaves the last card of an odd count
-       stranded at half width on a row of its own, which reads as a layout
-       accident rather than as a card. Here every card is half-width-ish
-       (`basis` + the gap) but allowed to `grow`, so a lone last card fills its
-       row instead of orphaning, and `min-w-72` drops the whole thing to one
-       column before a card gets too narrow to hold an icon row and its
-       badges. -->
+  <!-- One row for every surviving category, not a two-column grid (#1469). The
+       grid paired them off, so three categories laid out 2 + 1 with Starter
+       alone underneath — and there was width for all three, once the badge
+       stopped spending it on the word "pick" and a second chip.
+
+       `basis-64` is the width below which a card can no longer hold its icon
+       row and its chip, so up to four categories share a row on a desktop
+       column and it wraps only when they genuinely no longer fit. `grow` keeps
+       the #1466 rule after a wrap: a card that ends up alone on a row fills it
+       rather than sitting stranded at a fraction of the width. `shrink` and
+       `min-w-0` are what let the last row's cards give ground instead of
+       overflowing the panel.
+
+       `grow shrink basis-64` rather than `flex-1 basis-64`: `flex-1` is the
+       shorthand, so it sets a basis of its own and which one wins depends on
+       stylesheet order, not on the class list. -->
   <div
     v-if="hasVariations"
     class="flex flex-wrap gap-4"
@@ -83,7 +92,7 @@ function spellByKey(key: string) {
       v-if="summonerSpells.length"
       :level="2"
       title="Summoner spells"
-      class="grow basis-[calc(50%-0.5rem)] min-w-72"
+      class="grow shrink basis-64 min-w-0"
     >
       <ul class="space-y-2">
         <li
@@ -117,7 +126,7 @@ function spellByKey(key: string) {
       v-if="skillOrder.length"
       :level="2"
       title="Skill order"
-      class="grow basis-[calc(50%-0.5rem)] min-w-72"
+      class="grow shrink basis-64 min-w-0"
     >
       <ul class="space-y-2">
         <li
@@ -162,7 +171,7 @@ function spellByKey(key: string) {
       v-if="boots.length"
       :level="2"
       title="Boots"
-      class="grow basis-[calc(50%-0.5rem)] min-w-72"
+      class="grow shrink basis-64 min-w-0"
     >
       <ul class="space-y-2">
         <li
@@ -195,7 +204,7 @@ function spellByKey(key: string) {
       v-if="starterItems.length"
       :level="2"
       title="Starter"
-      class="grow basis-[calc(50%-0.5rem)] min-w-72"
+      class="grow shrink basis-64 min-w-0"
     >
       <ul class="space-y-2">
         <li
