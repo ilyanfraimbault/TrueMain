@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("3828d631-7281-4d20-96ac-1ad4cf93a941"), entityTypeCount: 32)
+            : base(skipDetectChanges: false, modelId: new Guid("6a014a57-ec05-478b-ae8b-f303a3bf8c0f"), entityTypeCount: 35)
         {
         }
 
@@ -27,6 +27,9 @@ namespace Data.CompiledModels
             var championDimSkillOrder = ChampionDimSkillOrderEntityType.Create(this);
             var championDimSpellPair = ChampionDimSpellPairEntityType.Create(this);
             var championDimStarterItems = ChampionDimStarterItemsEntityType.Create(this);
+            var championItemContextStat = ChampionItemContextStatEntityType.Create(this);
+            var championItemContextTotal = ChampionItemContextTotalEntityType.Create(this);
+            var championItemContextVerdict = ChampionItemContextVerdictEntityType.Create(this);
             var championMatchupStat = ChampionMatchupStatEntityType.Create(this);
             var championPowerspikeCurveStat = ChampionPowerspikeCurveStatEntityType.Create(this);
             var championPowerspikeEventStat = ChampionPowerspikeEventStatEntityType.Create(this);
@@ -77,6 +80,9 @@ namespace Data.CompiledModels
             ChampionDimSkillOrderEntityType.CreateAnnotations(championDimSkillOrder);
             ChampionDimSpellPairEntityType.CreateAnnotations(championDimSpellPair);
             ChampionDimStarterItemsEntityType.CreateAnnotations(championDimStarterItems);
+            ChampionItemContextStatEntityType.CreateAnnotations(championItemContextStat);
+            ChampionItemContextTotalEntityType.CreateAnnotations(championItemContextTotal);
+            ChampionItemContextVerdictEntityType.CreateAnnotations(championItemContextVerdict);
             ChampionMatchupStatEntityType.CreateAnnotations(championMatchupStat);
             ChampionPowerspikeCurveStatEntityType.CreateAnnotations(championPowerspikeCurveStat);
             ChampionPowerspikeEventStatEntityType.CreateAnnotations(championPowerspikeEventStat);

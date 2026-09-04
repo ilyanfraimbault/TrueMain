@@ -58,5 +58,11 @@ public enum JobMode
     /// Folds each match into the measured champion profiles (#1449). Appended for the
     /// same reason as the value above: the numbers are stable identifiers.
     /// </summary>
-    ChampionProfileAggregationOnly = 24
+    ChampionProfileAggregationOnly = 24,
+
+    /// <summary>
+    /// Folds each match into the situational item context and rebuilds its verdicts
+    /// (#1450). Appended for the same reason as the values above.
+    /// </summary>
+    ChampionItemContextAggregationOnly = 25
 }

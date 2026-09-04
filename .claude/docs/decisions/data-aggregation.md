@@ -55,6 +55,43 @@ blanks it, while an item-metadata outage aborts the run as it does for powerspik
 archetypes would lose them for good. Shares, means and per-minute rates are read-time arithmetic over the sums;
 readers apply their own games floor — an additive fold cannot know a row's final count — #1449.
 
+**A situation is only allowed to explain an item it could mechanically answer — the whitelist is the feature.**
+`champion_item_context_stats` (#1450) measures an item's pick rate at each end of fifteen draft axes and keeps the
+axes that move it. Over a patch's games plenty of unrelated draft features correlate with an item's pick rate, so
+"significant" alone would eventually surface *"Zhonya's Hourglass, built against AD-heavy teams"* with a perfectly
+good p-value, and one sentence like that costs more credibility than ten correct ones earn. Eligibility is
+therefore **derived from the item's own CommunityDragon categories**, not from a maintained list: magic resistance
+may answer magic damage, armour may answer physical damage / crit / lethality / melee, tenacity may answer crowd
+control, Grievous Wounds may answer sustain, penetration may answer a frontline, health *with no resistance behind
+it* may answer either damage type. Non-eligible pairs are not merely hidden — they are never counted, which is
+also what keeps the table at the scale of the matchup pre-aggregation. Three floors together decide a finding
+(games in both buckets, absolute lift, two-proportion significance): a large sample makes a two-point gap
+significant and a spectacular gap over ten games is noise, so no single floor is enough — #1450.
+
+**Verdicts are derived and rebuilt; the counters are additive and folded once per match.**
+The same process does both, and the split is the point. The counters follow the house rule (one fold per match,
+flagged on `matches`, frozen patches freeze). The verdicts are recomputed wholesale for the scopes a run touched,
+which is what makes the API read a lookup with no statistics in it — the requirement the table exists for — and
+means a re-tuned threshold costs a verdict rebuild rather than a re-fold of the retained history — #1450.
+
+**A thin bucket widens backwards through patches, both ends together, and says so.**
+A situation is much rarer than a champion, so a bucket can be thin on a patch the champion itself is well covered
+on; a per-patch floor alone would starve exactly the axes that matter most. The builder folds previous patches
+into **both** ends of an axis until the floor is met (never one — two rates read off different windows are not
+comparable), up to `MaxPatchLookback`, and records the window per finding so the sentence can say "over the last
+three patches". The class and the pick rate are never widened: those describe the served patch alone — #1450.
+
+**The item context carries no elo dimension, unlike every sibling aggregate.**
+Splitting by rank multiplies the rows by eleven *and* divides every bucket's sample by the same factor, which
+starves the buckets the feature rests on. The verdicts therefore describe every rank together and the read says
+so, rather than letting a card look rank-scoped beside panels that are — #1450.
+
+**Known gap: the lane opponent is not held out of a team-level axis.**
+An axis could in principle be carried by one recurring lane opponent rather than by the situation. Testing it needs
+the opponent as a dimension of the counters, which multiplies them by the number of opponents a champion meets
+(~70 measured on production) — prohibitive at this grain, so it is deliberately not done and tracked in #1462.
+What blocks the absurd cases meanwhile is the mechanical whitelist above — #1450.
+
 **No pick+ban "presence" figure, despite it being standard elsewhere.**
 Pick rate's denominator is tracked mains' games at a lane; ban rate's is every observed match. The two are not
 addable, and a presence number computed from them would be arithmetic without meaning. Offering a meta-wide

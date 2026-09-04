@@ -55,6 +55,10 @@ public static class JobModeSequence
         // folds; the situational item fold that reads these profiles (#1450) will follow
         // it in this sequence.
         JobMode.ChampionProfileAggregationOnly,
+        // Folds each match into the situational item context (#1450) and rebuilds the
+        // verdicts the champion page reads. Must run AFTER the profile fold: the axes a
+        // draft is placed on are read from the profiles it writes.
+        JobMode.ChampionItemContextAggregationOnly,
         // Folds each match into champion_matchup_stats — game counters and the
         // 15-minute lane verdict in the same pass, so a match's two halves can never
         // land on two rows (#1445, #919).
@@ -120,6 +124,7 @@ public static class JobModeSequence
         JobMode.EloBracketEnrichmentOnly,
         JobMode.PatternAggregationOnly,
         JobMode.ChampionProfileAggregationOnly,
+        JobMode.ChampionItemContextAggregationOnly,
         JobMode.MatchupLeadAggregationOnly,
         JobMode.SynergyAggregationOnly,
         JobMode.BanAggregationOnly,
