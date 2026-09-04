@@ -3,8 +3,11 @@
 Part of the [decision log](../decisions.md). Format: **Decision** — why — `source`.
 
 **The activity grid has one unit — the UTC day — and the switch picks the window, not the unit.**
-Month draws the last thirty days, patch every day of the current patch, week the last seven, and day the one
-window narrow enough that there are no days left to draw and the cells become that day's games. Thirty days
+Day is the one window narrow enough that there are no days left to draw and the cells become that day's
+games, week is the last seven days, month the last thirty, and patch every day of the current patch. The
+switch is ordered narrowest first, with patch closing the row rather than sorting by width: it is the only
+window whose span is not a fixed number of days, so it sits at the end of the calendar ladder instead of
+interrupting it between week and month (#1486). Thirty days
 and not a calendar month (#1483): every window ends on today and counts back, so a calendar one would open on
 days that have not happened yet for the first three weeks of one. It replaces a four-way switch whose
 tabs each changed what a square *meant* (a game, a day, an ISO week, a whole patch), so the control that was
