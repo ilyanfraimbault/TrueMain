@@ -42,6 +42,23 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionBanStat> ChampionBanStats => Set<ChampionBanStat>();
     public DbSet<BanScopeTotal> BanScopeTotals => Set<BanScopeTotal>();
 
+    // Measured champion profiles (#1449): per (champion, position, patch) sums of what
+    // the champion did in its games — damage split, sustain, CC, damage taken, lane
+    // leads at 10/15, item archetypes — plus its ranged flag. Populated incrementally
+    // by ChampionProfileAggregationProcess over the full participant pool; read by the
+    // situational item fold (#1450) to qualify a draft.
+    public DbSet<ChampionProfileStat> ChampionProfileStats => Set<ChampionProfileStat>();
+
+    // Situational item context (#1450): how often a champion builds each item in games
+    // sitting at one end of a draft axis (stats), how many games each bucket held
+    // (totals), and the precomputed Core / Situational / Preference verdict the page
+    // reads (verdicts). Stats and totals are folded additively per match by
+    // ChampionItemContextAggregationProcess; the verdicts are rebuilt from them at the
+    // end of the same run, so the read carries no statistics at all.
+    public DbSet<ChampionItemContextStat> ChampionItemContextStats => Set<ChampionItemContextStat>();
+    public DbSet<ChampionItemContextTotal> ChampionItemContextTotals => Set<ChampionItemContextTotal>();
+    public DbSet<ChampionItemContextVerdict> ChampionItemContextVerdicts => Set<ChampionItemContextVerdict>();
+
     // Pre-aggregated champion powerspikes (#694): the per-minute power curve, the
     // per-event slope-change spikes, and the global per-minute lead spread. Populated
     // incrementally by ChampionPowerspikeAggregationProcess so the dense per-minute

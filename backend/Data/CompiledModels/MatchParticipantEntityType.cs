@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 "Data.Entities.MatchParticipant",
                 typeof(MatchParticipant),
                 baseEntityType,
-                propertyCount: 41,
+                propertyCount: 51,
                 navigationCount: 2,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 3,
@@ -62,6 +62,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MatchParticipant).GetField("<ChampionId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             championId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var damageSelfMitigated = runtimeEntityType.AddProperty(
+                "DamageSelfMitigated",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("DamageSelfMitigated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<DamageSelfMitigated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            damageSelfMitigated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var deaths = runtimeEntityType.AddProperty(
                 "Deaths",
@@ -178,6 +186,14 @@ namespace Data.CompiledModels
                 maxLength: 32);
             lane.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var magicDamageDealtToChampions = runtimeEntityType.AddProperty(
+                "MagicDamageDealtToChampions",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("MagicDamageDealtToChampions", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<MagicDamageDealtToChampions>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            magicDamageDealtToChampions.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var matchId = runtimeEntityType.AddProperty(
                 "MatchId",
                 typeof(string),
@@ -225,6 +241,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MatchParticipant).GetField("<PerksOffense>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             perksOffense.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var physicalDamageDealtToChampions = runtimeEntityType.AddProperty(
+                "PhysicalDamageDealtToChampions",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("PhysicalDamageDealtToChampions", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<PhysicalDamageDealtToChampions>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            physicalDamageDealtToChampions.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var primaryStyleId = runtimeEntityType.AddProperty(
                 "PrimaryStyleId",
@@ -322,6 +346,14 @@ namespace Data.CompiledModels
                 maxLength: 32);
             teamPosition.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var timeCCingOthers = runtimeEntityType.AddProperty(
+                "TimeCCingOthers",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("TimeCCingOthers", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<TimeCCingOthers>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            timeCCingOthers.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var totalDamageDealtToChampions = runtimeEntityType.AddProperty(
                 "TotalDamageDealtToChampions",
                 typeof(int),
@@ -332,6 +364,38 @@ namespace Data.CompiledModels
             totalDamageDealtToChampions.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             totalDamageDealtToChampions.AddAnnotation("Relational:DefaultValue", 0);
 
+            var totalDamageShieldedOnTeammates = runtimeEntityType.AddProperty(
+                "TotalDamageShieldedOnTeammates",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("TotalDamageShieldedOnTeammates", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<TotalDamageShieldedOnTeammates>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            totalDamageShieldedOnTeammates.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var totalDamageTaken = runtimeEntityType.AddProperty(
+                "TotalDamageTaken",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("TotalDamageTaken", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<TotalDamageTaken>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            totalDamageTaken.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var totalHeal = runtimeEntityType.AddProperty(
+                "TotalHeal",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("TotalHeal", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<TotalHeal>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            totalHeal.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var totalHealsOnTeammates = runtimeEntityType.AddProperty(
+                "TotalHealsOnTeammates",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("TotalHealsOnTeammates", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<TotalHealsOnTeammates>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            totalHealsOnTeammates.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var totalMinionsKilled = runtimeEntityType.AddProperty(
                 "TotalMinionsKilled",
                 typeof(int),
@@ -340,6 +404,14 @@ namespace Data.CompiledModels
                 sentinel: 0);
             totalMinionsKilled.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var totalTimeCCDealt = runtimeEntityType.AddProperty(
+                "TotalTimeCCDealt",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("TotalTimeCCDealt", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<TotalTimeCCDealt>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            totalTimeCCDealt.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var trinketItemId = runtimeEntityType.AddProperty(
                 "TrinketItemId",
                 typeof(int),
@@ -347,6 +419,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MatchParticipant).GetField("<TrinketItemId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             trinketItemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var trueDamageDealtToChampions = runtimeEntityType.AddProperty(
+                "TrueDamageDealtToChampions",
+                typeof(int?),
+                propertyInfo: typeof(MatchParticipant).GetProperty("TrueDamageDealtToChampions", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<TrueDamageDealtToChampions>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            trueDamageDealtToChampions.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var visionScore = runtimeEntityType.AddProperty(
                 "VisionScore",

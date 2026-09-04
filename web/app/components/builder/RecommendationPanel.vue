@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CompositionBuildRequest, CompositionBuildResponse } from '~~/shared/types/composition'
+import { indexItemContext } from '~~/shared/utils/item-context'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { isLoadingStatus } from '~/utils/async-data'
 
@@ -54,6 +55,18 @@ const { data: championStatic } = useChampionStatic(
   () => props.recommendation.championId,
   () => assetsPatch.value,
 )
+
+// The situational build context (#1451) of the champion at this role, from its aggregate
+// scope. Deliberately NOT re-sliced by the draft on screen: the verdicts are not folded
+// per opponent, so a matchup answers a different question from a situation, and the card
+// carries the scope it was measured on. Highlighting the axes the entered draft actually
+// matches is the epic's follow-up, not this.
+const { data: itemContext } = useChampionItemContext(
+  () => props.recommendation.championId,
+  () => props.recommendation.position,
+  assetsPatch,
+)
+const itemContextIndex = computed(() => indexItemContext(itemContext.value?.items))
 
 // The matchup is the headline when it is pinned: the card answers "what do I
 // build into this opponent", not "what does this champion build".
@@ -150,6 +163,7 @@ const gamesDrawerOpen = computed({
         :summoners-map="summonersMap ?? {}"
         :summoners-pending="isLoadingStatus(summonersStatus)"
         :rune-tree="runeTree"
+        :item-context="itemContextIndex"
         no-runes-message="No rune data in the sampled games."
       />
 
@@ -161,6 +175,7 @@ const gamesDrawerOpen = computed({
         :first-item-id="build.firstItemId"
         :item-path="build.corePath?.itemIds ?? []"
         :items-map="itemsMap"
+        :item-context="itemContextIndex"
       />
     </div>
 

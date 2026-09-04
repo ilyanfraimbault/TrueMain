@@ -5,7 +5,9 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import { filterByPickRate, itemSlots } from '~~/shared/utils/build'
+import { itemSlots, variationOptions } from '~~/shared/utils/build'
+import type { ItemContextCard } from '~~/shared/utils/item-context'
+import { itemContextKey } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   variations: BuildVariations
@@ -14,16 +16,40 @@ const props = defineProps<{
   summonersMap: Record<number, StaticSummonerSpellData>
   /** True while the summoner-spell static map is still loading — see `ChampionCoreSpells`. */
   summonersPending?: boolean
+  /** Situational verdicts (#1451), keyed by slot + item. Absent where the page has no slice for them. */
+  itemContext?: Map<string, ItemContextCard>
   /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
   pending?: boolean
 }>()
 
-// Hide long-tail alternatives below the shared pickrate floor; the empty-state
-// placeholder below keys off these filtered lists rather than the raw props.
-const summonerSpells = computed(() => filterByPickRate(props.variations.summonerSpells))
-const skillOrder = computed(() => filterByPickRate(props.variations.skillOrder))
-const boots = computed(() => filterByPickRate(props.variations.boots))
-const starterItems = computed(() => filterByPickRate(props.variations.starterItems))
+/**
+ * The verdict for one row of a variation list. The slot is part of the key because the
+ * same id answers a different question in each: Mercury's Treads as *the boots choice* is
+ * not Mercury's Treads as a build item, and only the first has a boots verdict.
+ */
+function contextFor(slot: 'Boots' | 'Starter', itemId: number): ItemContextCard | undefined {
+  return props.itemContext?.get(itemContextKey(slot, itemId))
+}
+
+// Only the categories that carry an actual choice (#1466): `variationOptions`
+// drops the long tail below the pickrate floor, caps what is left, and returns
+// nothing at all when one option dominates — see its own comment for why a lone
+// alternative is worse than no card. Each card is then rendered on its list
+// being non-empty, so a settled category disappears rather than restating the
+// core block under a heading that promises alternatives.
+const summonerSpells = computed(() => variationOptions(props.variations.summonerSpells))
+const skillOrder = computed(() => variationOptions(props.variations.skillOrder))
+const boots = computed(() => variationOptions(props.variations.boots))
+const starterItems = computed(() => variationOptions(props.variations.starterItems))
+
+// Nothing to arbitrate anywhere: the section itself goes, rather than leaving a
+// gap in the panel's rhythm where four cards used to be.
+const hasVariations = computed(() => Boolean(
+  summonerSpells.value.length
+  || skillOrder.value.length
+  || boots.value.length
+  || starterItems.value.length,
+))
 
 function summonerName(id: number): string {
   return props.summonersMap[id]?.name ?? `Spell ${id}`
@@ -42,8 +68,32 @@ function spellByKey(key: string) {
 </script>
 
 <template>
-  <div class="grid gap-4 sm:grid-cols-2">
-    <SectionCard :level="2" title="Summoner spells">
+  <!-- One row for every surviving category, not a two-column grid (#1469). The
+       grid paired them off, so three categories laid out 2 + 1 with Starter
+       alone underneath — and there was width for all three, once the badge
+       stopped spending it on the word "pick" and a second chip.
+
+       `basis-64` is the width below which a card can no longer hold its icon
+       row and its chip, so up to four categories share a row on a desktop
+       column and it wraps only when they genuinely no longer fit. `grow` keeps
+       the #1466 rule after a wrap: a card that ends up alone on a row fills it
+       rather than sitting stranded at a fraction of the width. `shrink` and
+       `min-w-0` are what let the last row's cards give ground instead of
+       overflowing the panel.
+
+       `grow shrink basis-64` rather than `flex-1 basis-64`: `flex-1` is the
+       shorthand, so it sets a basis of its own and which one wins depends on
+       stylesheet order, not on the class list. -->
+  <div
+    v-if="hasVariations"
+    class="flex flex-wrap gap-4"
+  >
+    <SectionCard
+      v-if="summonerSpells.length"
+      :level="2"
+      title="Summoner spells"
+      class="grow shrink basis-64 min-w-0"
+    >
       <ul class="space-y-2">
         <li
           v-for="option in summonerSpells"
@@ -69,16 +119,15 @@ function spellByKey(key: string) {
             :pending="pending"
           />
         </li>
-        <li
-          v-if="!summonerSpells.length"
-          class="text-sm text-muted"
-        >
-          No data
-        </li>
       </ul>
     </SectionCard>
 
-    <SectionCard :level="2" title="Skill order">
+    <SectionCard
+      v-if="skillOrder.length"
+      :level="2"
+      title="Skill order"
+      class="grow shrink basis-64 min-w-0"
+    >
       <ul class="space-y-2">
         <li
           v-for="(option, optionIndex) in skillOrder"
@@ -115,16 +164,15 @@ function spellByKey(key: string) {
             :pending="pending"
           />
         </li>
-        <li
-          v-if="!skillOrder.length"
-          class="text-sm text-muted"
-        >
-          No data
-        </li>
       </ul>
     </SectionCard>
 
-    <SectionCard :level="2" title="Boots">
+    <SectionCard
+      v-if="boots.length"
+      :level="2"
+      title="Boots"
+      class="grow shrink basis-64 min-w-0"
+    >
       <ul class="space-y-2">
         <li
           v-for="(option, optionIndex) in boots"
@@ -136,6 +184,7 @@ function spellByKey(key: string) {
               v-for="(slot, index) in itemsByIds(option.itemIds)"
               :key="`boots-item-${optionIndex}-${slot.id}-${index}`"
               :item="slot.item"
+              :context="contextFor('Boots', slot.id)"
               :width="32"
               :height="32"
               class="size-8 rounded"
@@ -148,16 +197,15 @@ function spellByKey(key: string) {
             :pending="pending"
           />
         </li>
-        <li
-          v-if="!boots.length"
-          class="text-sm text-muted"
-        >
-          No data
-        </li>
       </ul>
     </SectionCard>
 
-    <SectionCard :level="2" title="Starter">
+    <SectionCard
+      v-if="starterItems.length"
+      :level="2"
+      title="Starter"
+      class="grow shrink basis-64 min-w-0"
+    >
       <ul class="space-y-2">
         <li
           v-for="(option, optionIndex) in starterItems"
@@ -169,6 +217,7 @@ function spellByKey(key: string) {
               v-for="(slot, index) in itemsByIds(option.itemIds)"
               :key="`starter-item-${optionIndex}-${slot.id}-${index}`"
               :item="slot.item"
+              :context="contextFor('Starter', slot.id)"
               :width="32"
               :height="32"
               class="size-8 rounded"
@@ -180,12 +229,6 @@ function spellByKey(key: string) {
             :win-rate="option.winRate"
             :pending="pending"
           />
-        </li>
-        <li
-          v-if="!starterItems.length"
-          class="text-sm text-muted"
-        >
-          No data
         </li>
       </ul>
     </SectionCard>

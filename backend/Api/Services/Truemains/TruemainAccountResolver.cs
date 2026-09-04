@@ -6,8 +6,8 @@ namespace TrueMain.Services.Truemains;
 /// <summary>
 /// The one place a public Riot ID becomes an account row. Every route that
 /// takes a player identifier — the truemain profile, its match feed and match
-/// detail, the player-scoped builds / matchups / performance / build-divergence
-/// panels, the rank history, the activity grid, and the champion mains
+/// detail, the player-scoped builds / matchups / performance panels, the rank
+/// history, the activity grid, and the champion mains
 /// comparison — resolves through here, so they can never disagree about which
 /// account a given name tag means (#1230).
 ///

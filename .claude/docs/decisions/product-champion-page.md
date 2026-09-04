@@ -50,6 +50,40 @@ window: without that, a 500-game build shredded into 40 opponent rows of ~12 wou
 too. The baseline curve stays champion-wide on purpose — it corrects the global concavity of lead curves, and
 recomputing it on a 4-game matchup would swap that correction for noise and subtract the signal from itself — #957.
 
+**The "why this item" card is a rate and a situation, and nothing else.**
+It shipped with the contrast rate, the sample size and a scope footnote on every line — *"62% against a
+magic-damage team · 18% otherwise · 1,106 games / across all ranks"* — and read as a paragraph where a glance was
+wanted. #1465 cut all three. The contrast is what makes 62% mean something, so dropping it is a real trade: what
+carries the meaning instead is the `Situational` class above the lines, which by construction only appears when an
+axis moved the pick by at least ten points *and* cleared significance. The scope footnote went with it, including
+the `all matchups` clause shown when `?vs=` was pinned — worth knowing, and worth restoring if a reader is ever
+seen to misread a pinned matchup, but not worth a permanent line on every card — #1451, #1465.
+
+**The key term is coloured with the item tooltip's vocabulary, not a new one.**
+The card sits directly under an item description where magic damage is already cyan and physical damage already
+orange; a second colour system on one surface would read as a bug. So the tones map onto the same
+`--color-stat-*` tokens `tooltip-parser/tag-classes.ts` uses, and inherit its rule — Riot colours damage by the
+**resistance that blocks it**, which is why magic damage is the magic-resist cyan and not the ability-power
+violet. Terms with no stat behind them (melee, ranged, a strong laner) stay uncoloured: the colour marks an
+answerable threat, it does not decorate the sentence — #1465.
+
+**A `Preference` renders nothing.**
+"No draft situation moves this pick" is a true and even useful sentence, and it was on three quarters of all
+items, which turned the section into noise on most hovers. Silence is the honest rendering of "nothing to say
+here"; the class still exists in the API for anything that wants it — #1465.
+
+**An axis the front end has no wording for is dropped, never printed raw.**
+The API sends axis identifiers and the client owns the prose, so a deployed front end older than the backend can
+receive an axis it does not know. It renders one line fewer rather than showing `EnemyArmorPenetration` to a
+player. A vitest suite mirrors the backend's axis list and fails when the fold gains an axis with no copy, so the
+gap is caught at build time rather than in production — #1451.
+
+**The build tree carries no situational mark.**
+#1451 ringed situational nodes in rose gold to say "there is a reason here, hover me". Removed in #1465: the tree
+is already dense with edges, icons and a highlighted main path, and a ring on a third of the nodes competed with
+the path highlight that tells a reader what the build actually is. The card is one hover away and says it
+better — #1451, #1465.
+
 **Champion URLs are bare slugs, and the slug map is app state rather than per-page async data.**
 Two calls, one visible and one not. The visible one: `/champions/ahri`, not `/champions/103-ahri`. The
 id-prefixed form was genuinely tempting — the champion id parses straight out of the segment, so the page
@@ -186,3 +220,75 @@ a roamer is the default the rest of the page already implies, and an unmeasured 
 sample floor, or `JUNGLE`) is silent for the same reason it must not read as either. Nothing changed behind it:
 `/champions/{id}/roam` still computes and returns @5/@10/@15, the page still fetches all three, and reviving a
 curve means writing a component, not a backend.
+
+**A variation card only exists when there is a variation; a settled build says so by being short.** The panel
+listed four alternatives cards unconditionally, above a 5% floor. On a champion whose build is not up for
+debate that produced a "Summoner spells" card holding one row at 100% pick rate and a "Skill order" card
+holding one row at 99.3% — two headings promising alternatives over a restatement of the core block six inches
+above them, which is what a reader reported as the page showing too much. #1466 raised the floor to 10% and
+made `variationOptions` (`web/shared/utils/build.ts`) return **nothing** when a single option survives, so the
+card unmounts; when every category is settled the whole section goes with it. Nothing is lost by the
+disappearance: the core block always shows the dominant option of every category, which is exactly why the
+card was redundant. The build *tree* stays exempt from the floor — it is the long tail, drawn.
+
+**The panel answers before it nuances, and the build tree is a picture, not a card.** #1466 reordered the
+build panel to core → build tree → variations → runes → power spikes, so nothing sits between the two blocks
+that together are the whole answer, and stripped the tree of its `SectionCard`. The tree's icons and edges say
+"build tree" without a heading; framed, it made the panel read as a stack of boxes of equal weight, which is
+the opposite of what the order is for. The build *path* inside the core block stays alongside it — the path is
+the ordered claim, the tree is the map of what branches off it, and they answer different questions.
+
+**The build paragraph is collapsed, moved to the foot of the sidebar, and no longer restates the icon grid.**
+#1143 put the prose beside the icon grid as its caption; the feedback was that it reads as the same build said
+twice, because for a reader with the grid in view it is. #1466 keeps it — removing it would return the page to
+the thin content #1123 fixed, since it is still the only build content in the server HTML — but as a native
+`<details>`, closed, last in the right column. Native and not `UAccordion`: Reka unmounts closed content, which
+would take the paragraph out of the SSR HTML; `<details>` keeps it in the DOM, and collapsed content is
+indexed, unlike `sr-only`, which is cloaking. `championBuildSentenceTokens` also dropped the runes, skill-order
+and summoner-spell sentences — each named, in words, a row of icons a few hundred pixels away. That is a real
+cost against #1123 (less indexable text) and it retires the rune-tone machinery #1143 built for those
+sentences; what is kept is what the grid does not say in words — the scope of the sample, the build's share of
+it, and the item progression as an ordered claim.
+
+**A verdict chip inside its own dead zone says nothing, so it says nothing.** The scaling header rendered
+`−2.7% Even`: a signed percentage to one decimal on a measurement the word beside it had just declared
+insignificant, which invites the reader to take seriously the number the threshold exists to dismiss. #1466
+renders no chip at all inside `SCALING_THRESHOLD`, and outside it renders the label alone — "Scales late" is
+the answer, and the curve underneath already carries the magnitude.
+
+**The population the numbers come from is stated, not hovered.** The truemains toggle (#1346) explained itself
+only in a tooltip, so readers filtered the whole page without ever learning what they had filtered. #1466 says
+it in the header stat line ("824 games played by mains" / "across all tracked players"), which makes the
+control legible without a hover and without adding a paragraph. Phrased as a description of the games rather
+than the name of the control — next to a raw count, "truemains only" would read as a filter chip.
+
+**The patch diff is gone, front and API.** #534 gave the page a section comparing two patches — a signed
+win-rate swing plus three "changed / unchanged" badges for the first item, the keystone and the skill order.
+It answered a question nobody was asking on a build page: a reader is there to learn what to build *now*, and
+the three badges are booleans about a build they are not looking at. #1466 removed the component, the
+composable, the `/champions/{id}/patch-diff` endpoint, its query service and read model, and its integration
+suite — the endpoint had exactly one consumer. Patch-over-patch movement is still on the page, as the trend
+chart, which shows the shape of the change rather than asserting a binary about it.
+
+**No orphan card in the variations row, and the runes fill the height they are given.** Two layout calls from
+the same review pass. The variation cards were a two-column grid, so an odd count stranded the last card at
+half width on a row of its own — read as a layout accident rather than as a card. They are a `flex-wrap` row
+now: each card sits at `basis-64` but may `grow`, so every surviving category shares one row (three of them
+laid out 2 + 1 while the basis was half-width, #1469) and a card that does wrap fills its row rather than
+sitting stranded. Separately,
+the core block's rune column was drawn at a 35 px keystone inside a track sized for it, leaving ~24 px of the
+column empty under the shards while the block beside it ran to 148 px. The rune sizes (36 px base, 39 px
+keystone) now live as defaults on `BuildPanel/Core.vue` instead of being restated at each of its three call
+sites, and the column widened from 240 px to 268 px to hold them — measured, the block and the block beside it
+both come out at 148 px. Sized to just under the row rather than over: past that the runes drive the row
+height and the *left* side carries the dead space, which is the same complaint mirrored.
+
+**A variation's badge is one number, and the precision is in the tooltip.** Each row ended in two chips —
+`76.0% pick` and `53.4% win` — which spent most of a card's width restating their own labels, and were the
+reason three categories could not share a row. #1469 cut it to the pick rate alone, no suffix, rounded to a
+whole percent; the win rate joins the game count in the hover tooltip, which keeps its decimal. The rounding
+is only defensible because the precision stays one gesture away, and the small chip is what makes that gesture
+worth making. The champion header's win rate rounds the same way, for the same reason: a decimal next to a raw
+game count is precision nobody acts on. `formatPercentage`'s site-wide default is deliberately untouched —
+callers that want whole numbers pass `0`, because sweeping every percentage on the site (tier list, matchups,
+synergies, trend charts) is a wider call than this one.

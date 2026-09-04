@@ -13,7 +13,7 @@
 import type { TableColumn } from '@nuxt/ui'
 import type { BadgeColor, ProcessIteration, ProcessRollup, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import type { ChainLink, ChainOutcome, LaneBranch } from '~~/shared/utils/pipeline-lanes'
-import { PROCESS_META } from '~~/shared/types/ops'
+import { PROCESS_META } from '~~/shared/types/pipeline-chain'
 import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 // The chain is grouped by lane, not flat: since #1362 an iteration belongs to one
 // lane, and drawing the canonical 20 steps every time painted the other lane's

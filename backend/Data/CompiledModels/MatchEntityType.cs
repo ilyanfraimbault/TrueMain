@@ -20,10 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 18,
+                propertyCount: 19,
                 navigationCount: 1,
                 unnamedIndexCount: 6,
-                namedIndexCount: 5,
+                namedIndexCount: 6,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -95,15 +95,15 @@ namespace Data.CompiledModels
                 maxLength: 32);
             gameVersion.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
-            var laneOutcomeAggregated = runtimeEntityType.AddProperty(
-                "LaneOutcomeAggregated",
+            var itemContextAggregated = runtimeEntityType.AddProperty(
+                "ItemContextAggregated",
                 typeof(bool),
-                propertyInfo: typeof(Match).GetProperty("LaneOutcomeAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(Match).GetField("<LaneOutcomeAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                propertyInfo: typeof(Match).GetProperty("ItemContextAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<ItemContextAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 valueGenerated: ValueGenerated.OnAdd,
                 sentinel: false);
-            laneOutcomeAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-            laneOutcomeAggregated.AddAnnotation("Relational:DefaultValue", false);
+            itemContextAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            itemContextAggregated.AddAnnotation("Relational:DefaultValue", false);
 
             var mapId = runtimeEntityType.AddProperty(
                 "MapId",
@@ -154,6 +154,16 @@ namespace Data.CompiledModels
                 sentinel: false);
             powerspikeAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             powerspikeAggregated.AddAnnotation("Relational:DefaultValue", false);
+
+            var profileAggregated = runtimeEntityType.AddProperty(
+                "ProfileAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("ProfileAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<ProfileAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            profileAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            profileAggregated.AddAnnotation("Relational:DefaultValue", false);
 
             var queueId = runtimeEntityType.AddProperty(
                 "QueueId",
@@ -226,15 +236,20 @@ namespace Data.CompiledModels
                 name: "IX_matches_bans_pending");
             iX_matches_bans_pending.AddAnnotation("Relational:Filter", "\"BansAggregated\" = false");
 
-            var iX_matches_lane_outcome_pending = runtimeEntityType.AddIndex(
+            var iX_matches_item_context_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },
-                name: "IX_matches_lane_outcome_pending");
-            iX_matches_lane_outcome_pending.AddAnnotation("Relational:Filter", "\"LaneOutcomeAggregated\" = false");
+                name: "IX_matches_item_context_pending");
+            iX_matches_item_context_pending.AddAnnotation("Relational:Filter", "\"ItemContextAggregated\" = false");
 
             var iX_matches_matchup_lead_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },
                 name: "IX_matches_matchup_lead_pending");
             iX_matches_matchup_lead_pending.AddAnnotation("Relational:Filter", "\"MatchupLeadAggregated\" = false");
+
+            var iX_matches_profile_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_profile_pending");
+            iX_matches_profile_pending.AddAnnotation("Relational:Filter", "\"ProfileAggregated\" = false");
 
             var iX_matches_snapshot_prune_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

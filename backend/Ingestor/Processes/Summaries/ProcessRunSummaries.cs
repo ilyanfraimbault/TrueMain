@@ -216,7 +216,7 @@ public sealed record EloBracketEnrichmentSummary(int Stamped, int Deferred, int 
 /// <summary>Team position correction outcome.</summary>
 public sealed record TeamPositionCorrectionSummary(int CorrectedParticipants, int InspectedTeams) : IProcessRunSummary;
 
-/// <summary>Batched match aggregation outcome (matchup/lead and powerspike).</summary>
+/// <summary>Batched match aggregation outcome (powerspike).</summary>
 public sealed record MatchAggregationSummary(int Matches, int Batches) : IProcessRunSummary;
 
 /// <summary>
@@ -242,6 +242,29 @@ public sealed record BanAggregationSummary(
     int Batches,
     int BanRows,
     int ScopeRows) : IProcessRunSummary;
+
+/// <summary>
+/// Outcome of one <c>ChampionProfileAggregationProcess</c> run (#1449): matches
+/// flagged, participants that actually carried the context fields and were folded, and
+/// distinct (champion, position, patch) rows touched.
+/// </summary>
+public sealed record ChampionProfileAggregationSummary(
+    int Matches,
+    int Batches,
+    int Participants,
+    int Rows) : IProcessRunSummary;
+
+/// <summary>
+/// Outcome of one <c>ChampionItemContextAggregationProcess</c> run (#1450): matches
+/// flagged, participants whose build was folded, champion slices touched, and verdicts
+/// rebuilt from them.
+/// </summary>
+public sealed record ChampionItemContextAggregationSummary(
+    int Matches,
+    int Batches,
+    int Participants,
+    int Scopes,
+    int Verdicts) : IProcessRunSummary;
 
 /// <summary>
 /// Daily storage snapshot outcome (#925). <see cref="Written"/> is 0 rather than
@@ -279,13 +302,14 @@ public sealed record CandidateStockSnapshotSummary(
 
 
 /// <summary>
-/// Lane-outcome aggregation outcome (#919). <see cref="JudgedLanes"/> is the count of
-/// lanes that could actually be called — both participants had a 15-minute snapshot —
-/// so comparing it with <see cref="Matches"/> shows how much of the pool has no
-/// timeline. <see cref="GoldLeadThreshold"/> is recorded because it defines what the
-/// stored counters mean, and old rows keep the threshold in force when they were folded.
+/// Matchup aggregation outcome — game counters and lane verdicts, one fold since #1445.
+/// <see cref="JudgedLanes"/> is the count of lanes that could actually be called — both
+/// participants had a 15-minute snapshot — so comparing it with <see cref="Matches"/>
+/// shows how much of the pool has no timeline. <see cref="GoldLeadThreshold"/> is
+/// recorded because it defines what the stored counters mean, and old rows keep the
+/// threshold in force when they were folded.
 /// </summary>
-public sealed record LaneOutcomeAggregationSummary(
+public sealed record MatchupAggregationSummary(
     int Matches,
     int Batches,
     int JudgedLanes,

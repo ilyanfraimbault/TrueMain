@@ -123,6 +123,42 @@ public class RiotParticipantDto
     [JsonPropertyName("totalDamageDealtToChampions")]
     public int TotalDamageDealtToChampions { get; set; }
 
+    /// <summary>
+    /// Per-participant context Riot reports alongside the totals (#1448): the
+    /// damage split by type, healing and shielding, crowd control and damage
+    /// taken. Nullable so a payload that omits one reads as "not measured"
+    /// downstream instead of a zero.
+    /// </summary>
+    [JsonPropertyName("physicalDamageDealtToChampions")]
+    public int? PhysicalDamageDealtToChampions { get; set; }
+
+    [JsonPropertyName("magicDamageDealtToChampions")]
+    public int? MagicDamageDealtToChampions { get; set; }
+
+    [JsonPropertyName("trueDamageDealtToChampions")]
+    public int? TrueDamageDealtToChampions { get; set; }
+
+    [JsonPropertyName("totalHeal")]
+    public int? TotalHeal { get; set; }
+
+    [JsonPropertyName("totalHealsOnTeammates")]
+    public int? TotalHealsOnTeammates { get; set; }
+
+    [JsonPropertyName("totalDamageShieldedOnTeammates")]
+    public int? TotalDamageShieldedOnTeammates { get; set; }
+
+    [JsonPropertyName("timeCCingOthers")]
+    public int? TimeCCingOthers { get; set; }
+
+    [JsonPropertyName("totalTimeCCDealt")]
+    public int? TotalTimeCCDealt { get; set; }
+
+    [JsonPropertyName("totalDamageTaken")]
+    public int? TotalDamageTaken { get; set; }
+
+    [JsonPropertyName("damageSelfMitigated")]
+    public int? DamageSelfMitigated { get; set; }
+
     [JsonPropertyName("visionScore")]
     public int VisionScore { get; set; }
 

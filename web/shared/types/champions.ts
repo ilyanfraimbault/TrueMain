@@ -154,43 +154,6 @@ export interface ChampionTrendPoint {
 }
 
 /**
- * What changed for a champion between two patches (issue #534): the win-rate
- * swing plus whether the dominant first item, keystone and skill order moved,
- * at a single position. Either side is null when the champion has no data on
- * that patch; `delta` is null unless both sides are present.
- */
-export interface ChampionPatchDiffResponse {
-  championId: number
-  position: string
-  /** Distinct patches with data for this champion/position; the section hides below 2. */
-  availablePatchCount: number
-  from: ChampionPatchDiffSide | null
-  to: ChampionPatchDiffSide | null
-  delta: ChampionPatchDiffDelta | null
-}
-
-export interface ChampionPatchDiffSide {
-  patch: string
-  games: number
-  wins: number
-  winRate: number
-  /** Top build's completed core item order on the patch; null when none qualifies. */
-  itemPath: BuildItemPath | null
-  /** Top build's full rune page on the patch; null when unavailable. */
-  runePage: BuildRunePage | null
-  /** Top build's dominant skill-order sequence; null when unavailable. */
-  skillOrder: BuildSkillOrder | null
-}
-
-export interface ChampionPatchDiffDelta {
-  /** Win-rate change, to.winRate - from.winRate (signed fraction). */
-  winRateChange: number
-  firstItemChanged: boolean
-  keystoneChanged: boolean
-  skillOrderChanged: boolean
-}
-
-/**
  * How a champion's win rate changes with game length, at a position. Win rate is
  * bucketed by game duration; `scalingIndex` is the win-rate gap between the
  * longest and shortest qualifying bucket (positive = scales into the late game).

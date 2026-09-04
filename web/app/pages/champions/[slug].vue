@@ -4,7 +4,6 @@ import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/e
 import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import type {
-  ChampionPatchDiffResponse,
   ChampionScalingBucket,
   ChampionTrendPoint,
 } from '~~/shared/types/champions'
@@ -315,51 +314,6 @@ const { data: championRoam } = useChampionRoam(
   eloBracketParam,
 )
 
-// Per-champion patch diff (issue #534): what changed for the champion between
-// two patches — win-rate swing, build/rune/skill shifts. Follows the resolved
-// lane like the trend chart but is deliberately cross-patch (it picks its own
-// two patches), so the active patch filter never scopes it. The two selectors
-// hold null until the user picks, letting the backend default to the two most
-// recent patches with data; gated on the champion fetch like the other stats.
-const patchDiffFrom = ref<string | null>(null)
-const patchDiffTo = ref<string | null>(null)
-// Reset the manual selection when the champion or lane changes so a patch that
-// has no data on the new champion/lane can't linger in the pickers — the backend
-// re-defaults. Watching championId too matters when navigating between champions
-// that share a dominant lane (e.g. two ADCs on BOTTOM): trendPosition stays put,
-// so without it the previous champion's picked patches would silently carry over.
-watch([championId, trendPosition], () => {
-  patchDiffFrom.value = null
-  patchDiffTo.value = null
-})
-const { data: championPatchDiff, pending: patchDiffPending } = useChampionPatchDiff(
-  championId,
-  trendPosition,
-  patchDiffFrom,
-  patchDiffTo,
-  trendReady,
-)
-// The patch-diff selectors draw from the page-wide recent-patch list, but the
-// backend resolves the diff against the champion's actual data patches — which
-// can be older than the 12 newest ddragon versions for a sparsely-played
-// champion. Union the resolved from/to in (newest first) so a selector never
-// shows blank for a value that isn't in the recent list.
-const patchDiffOptions = computed(() => {
-  const seen = new Map(patchOptions.value.map(option => [option.value, option]))
-  for (const patch of [championPatchDiff.value?.from?.patch, championPatchDiff.value?.to?.patch]) {
-    if (patch && !seen.has(patch)) seen.set(patch, { label: patch, value: patch })
-  }
-  return [...seen.values()].sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }))
-})
-// Hide the whole section when the champion/lane has fewer than two patches of
-// data: a single-patch diff can only compare a patch against itself (flat,
-// meaningless). Kept visible while loading so the skeleton stays mounted and
-// the layout below never shifts.
-const showPatchDiff = computed(() =>
-  patchDiffPending.value
-  || (championPatchDiff.value?.availablePatchCount ?? 0) >= 2,
-)
-
 // When useChampion's 404 fallback drops the URL filters (no data for the
 // champion on that patch/position) the API returns the default slice, but the
 // dead patch/position query param lingers in the URL. Once the fetch resolves,
@@ -400,22 +354,6 @@ watch(champion, (data) => {
 const trendSnapshot = useLazyHydrationSnapshot(
   { points: [] as ChampionTrendPoint[], loading: true },
   () => ({ points: championTrend.value?.points ?? [], loading: trendPending.value }),
-)
-const patchDiffSnapshot = useLazyHydrationSnapshot(
-  {
-    diff: null as ChampionPatchDiffResponse | null,
-    itemsMap: {} as Record<number, StaticItemData>,
-    championStatic: null as ChampionStaticData | null,
-    patchOptions: [] as Array<{ label: string, value: string }>,
-    loading: true,
-  },
-  () => ({
-    diff: championPatchDiff.value ?? null,
-    itemsMap: itemsMap.value ?? {},
-    championStatic: staticData.value ?? null,
-    patchOptions: patchDiffOptions.value,
-    loading: patchDiffPending.value,
-  }),
 )
 const scalingSnapshot = useLazyHydrationSnapshot(
   { buckets: [] as ChampionScalingBucket[], scalingIndex: null as number | null, loading: true },
@@ -565,6 +503,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :total-wins="champion?.totalWins ?? 0"
           :roam-kp15="championRoam?.roamKp15 ?? null"
           :low-sample-message="bracketNoticeText"
+          :truemains-only="filters.truemainsOnly"
           :loading="!champion"
         />
         <ChampionFilters
@@ -630,18 +569,6 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
             @vue:mounted="trendSnapshot.reveal"
           />
 
-          <LazyChampionPatchDiff
-            v-if="showPatchDiff"
-            hydrate-on-visible
-            v-bind="patchDiffSnapshot.value"
-            :rune-tree="runeTree ?? null"
-            :from-patch="patchDiffFrom"
-            :to-patch="patchDiffTo"
-            @vue:mounted="patchDiffSnapshot.reveal"
-            @update:from-patch="value => { patchDiffFrom = value }"
-            @update:to-patch="value => { patchDiffTo = value }"
-          />
-
           <LazyChampionScalingChart
             hydrate-on-visible
             v-bind="scalingSnapshot.value"
@@ -665,28 +592,6 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         </div>
 
         <aside class="min-w-0 space-y-6">
-          <!--
-            The build in words (#1123). Rendered plainly — not `Lazy`, not
-            `hydrate-on-visible` — because being present in the server HTML is
-            the entire point; a lazy wrapper would put it back behind the same
-            JS gate as everything else.
-
-            In the sidebar, beside the icon grid rather than under it (#1143):
-            it is the same build said twice, and stacking the prose below the
-            panels made the second telling read as a footnote nobody scrolls to.
-            Next to them it is the caption for what the reader is already
-            looking at, and it is the one card in this column that needs no JS.
-            DOM order still puts it after the tabs, so the crawler and the
-            keyboard both meet the page's own build content first.
-          -->
-          <ChampionBuildSummary
-            :summary="buildSummary"
-            :items-map="itemsMap"
-            :rune-tree="runeTree ?? null"
-            :summoners-map="summonersMap"
-            :champion-static="staticData ?? null"
-          />
-
           <LazyChampionTruemains
             hydrate-on-visible
             :champion-id="championId"
@@ -714,6 +619,27 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           <ChampionMainsComparison
             :champion-id="championId"
             :position="selectedPosition"
+          />
+
+          <!--
+            The build in words (#1123). Rendered plainly — not `Lazy`, not
+            `hydrate-on-visible` — because being present in the server HTML is
+            the entire point; a lazy wrapper would put it back behind the same
+            JS gate as everything else.
+
+            Last in the column and collapsed (#1466). #1143 put it at the top as
+            the caption for the icon grid beside it; the feedback was that it
+            reads as the same build said a second time, which is exactly what it
+            is. At the foot of the sidebar it is still in the server HTML and
+            still one click from a reader who wants the prose version, without
+            spending the top of the column on a restatement.
+          -->
+          <ChampionBuildSummary
+            :summary="buildSummary"
+            :items-map="itemsMap"
+            :rune-tree="runeTree ?? null"
+            :summoners-map="summonersMap"
+            :champion-static="staticData ?? null"
           />
         </aside>
       </div>

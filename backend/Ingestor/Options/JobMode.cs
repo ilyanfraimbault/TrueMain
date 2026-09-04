@@ -28,7 +28,10 @@ public enum JobMode
     // 18 was RunePageDeduplicationOnly, retired with its process in #1418: the rune-page
     // dimension can no longer hold a permutation duplicate, so there is nothing to repair.
     // The value stays retired rather than reused — the modes are stable identifiers.
-    LaneOutcomeAggregationOnly = 19,
+    // 19 was LaneOutcomeAggregationOnly, retired with its process in #1445: the lane
+    // counters are folded by MatchupLeadAggregation, in the same pass as the game
+    // counters they sit beside. Retired rather than reused — the modes are stable
+    // identifiers.
     LadderSyncOnly = 20,
 
     /// <summary>
@@ -49,5 +52,17 @@ public enum JobMode
     /// <see cref="StorageSnapshotOnly"/>, because the values are stable identifiers and
     /// inserting mid-enum would renumber them.
     /// </summary>
-    CandidateStockSnapshotOnly = 23
+    CandidateStockSnapshotOnly = 23,
+
+    /// <summary>
+    /// Folds each match into the measured champion profiles (#1449). Appended for the
+    /// same reason as the value above: the numbers are stable identifiers.
+    /// </summary>
+    ChampionProfileAggregationOnly = 24,
+
+    /// <summary>
+    /// Folds each match into the situational item context and rebuilds its verdicts
+    /// (#1450). Appended for the same reason as the values above.
+    /// </summary>
+    ChampionItemContextAggregationOnly = 25
 }

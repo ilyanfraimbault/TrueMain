@@ -64,6 +64,8 @@ the site should read as rose gold and should not carry a cyan it never wanted. R
 - **The activity heatmap returns to rose gold / neutral**, which is where #927 had it. The sign of a period is
   now carried by *accent vs grey* rather than by two opposed hues, which puts more weight on intensity: a
   one-game losing period is a faint grey cell. That is the intended read — it is barely a signal.
+  > ⚠️ **Withdrawn on 2026-09-03 — see "The activity grid answers presence" below.** The grid no longer
+  > carries the win rate in its colour at all; the rest of this entry stands.
 - **The top of the axis has a second step — written down in #1237, months after it shipped.** `--color-gold`
   sits above `--color-data-good` for a *standout* value: a Perfect KDA, a 75+ performance score
   (`MatchRow.vue`). It arrived with the match history and was never documented, so `DESIGN_SYSTEM.md`,
@@ -121,3 +123,55 @@ what "loading" looks like everywhere. And the distinction has to be pure CSS on 
 exists — a champion page carries ~470 of these, so a broken-image glyph or an extra element each is precisely
 the cost `SkeletonImage` exists to avoid. The rule lives in `app/utils/icon-placeholder.ts` so it is pinned by
 a test rather than by reading a template.
+
+## The activity grid answers presence, not win rate (2026-09-03)
+
+**Decided in #1452, withdrawing the heatmap bullet of the #1096 entry above (and, behind it, the two-hue read
+#927 shipped).** The grid used to spend its loudest channel on how the games went: rose for a period above
+50%, the neutral ramp below it, with alpha blending decisiveness and volume. Three consequences, all of them
+visible on the profile:
+
+- Two quantities fought over one channel, so nearly every cell was a slightly different smudge and none of
+  them was comparable to its neighbour at a glance.
+- The card's own summary line *already* states the record and the rate, and every cell states them again on
+  hover. The squares were the third telling of a fact the reader had twice, and the only telling of nothing.
+- Half of a normal month rendered on the grey ramp, so the card read as switched off — for a player who had
+  in fact been queueing every day.
+
+**What the squares say now is `did this player queue, and how much`:** one rose-gold ramp, four discrete
+steps, keyed on games played against the busiest cell in the series. No grey and no second hue — a losing
+Tuesday and a winning Tuesday of the same size are the same tile, and the tooltip is where the difference
+lives. The one exception is the per-game view, where every cell holds exactly one game and volume therefore
+says nothing at all: there the step falls back to the result, so the strip keeps a shape instead of being a
+flat rose bar.
+
+Two rules survive the change untouched: **an idle period is not a lost one** (`games: 0` keeps its own tile,
+visibly clear of the bottom of the ramp — it is the one thing the payload can offer but not enforce), and
+**the accent still means "above average"** where the axis is used for a measurement; the grid simply is not
+measuring one any more.
+
+The same issue fixed the layout the two-ramp read was hiding behind. The tiles were a fixed 11 px on an
+`auto-fill` grid, packed left — a confetti strip floating in a card several times its own width. They stretch
+now (`auto-fit` + `minmax`, capped per view) so the grid is a **band that spans the card**, and the week and
+patch views drop the square entirely for full-width captioned bands.
+
+A seven-row weekday calendar (columns as weeks, GitHub's own shape) was built first and **rejected by the
+product owner**: these series are a month long at most, so the block stood as a narrow tower in a wide card
+and forced the readout to sit beside it. The reference it was copied from works because it holds a year. The
+rule that came out of it: *the shape follows the card, not the reference* — this card is a wide band, so the
+grid runs along it.
+
+The palette moved with the layout. The ramp deliberately **overshoots the rose-gold stops at both ends** —
+lighter than `rosegold-400`, darker than `rosegold-900` — because a contribution grid lives on the distance
+between its quietest and its loudest tile, and held inside the palette's own range the four steps were four
+shades of brick.
+
+**It runs light to dark, not dark to light.** A one-game day is a pale rose and an all-evening one is a deep
+one. That is the product owner's reading of the scale — density is weight, and weight is dark — and it is
+the opposite of the GitHub grid the layout was compared against, so the direction is worth stating: the
+reflex when extending this is to sort the stops the other way. Its consequence is the idle tile, which can no
+longer be told from the ramp by lightness alone and is therefore marked by the *absence of hue* — an
+unmistakable neutral grey, still painted clearly above the card surface. It went through two rounds of being
+too dark, where it read as a hole in the grid rather than as a day off, and a grid with holes in it has no
+shape to compare against.
+

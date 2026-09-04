@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ItemContextCard } from '~~/shared/utils/item-context'
 import { isLoadingStatus } from '~/utils/async-data'
 import type { ChampionBuild } from '~~/shared/types/champions'
 import type {
@@ -25,6 +26,12 @@ const props = defineProps<{
   // Lane opponent selected in the filter bar (#957): the build this panel renders
   // is already the matchup's, so its spikes must come from the same games.
   opponentChampionId?: number | null
+  /**
+   * The situational build context (#1451), keyed by `itemContextKey(slot, itemId)` and
+   * fetched once by `ChampionBuildTabs`. Empty on the surfaces that do not have a
+   * population slice to read it for (the builder preview, the player-scoped page).
+   */
+  itemContext?: Map<string, ItemContextCard>
   /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
   pending?: boolean
 }>()
@@ -49,6 +56,12 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
 </script>
 
 <template>
+  <!--
+    The panel answers first and nuances after (#1466). Core plus the build tree
+    is the whole answer — what to buy, and the shape of the path that gets there
+    — so nothing sits between them. Everything below is the alternatives, in
+    descending order of how often a reader is actually arbitrating them.
+  -->
   <div class="space-y-6">
     <!-- Section 1: Core view. Flattened to a bare block (no UCard) — the whole
          panel now lives inside the single enveloping card from BuildTabs, so a
@@ -63,30 +76,38 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
         :rune-page="build.core.runePage"
         :champion-static="championStatic"
         :items-map="itemsMap"
+        :item-context="itemContext"
         :summoners-map="summonersMap"
         :summoners-pending="summonersPending"
         :rune-tree="runeTree"
-        :keystone-size="35"
         :pending="pending"
       />
     </div>
 
-    <!-- Section 2: Variations -->
+    <!-- Section 2: Build tree, directly under the core it illustrates. Padding
+         rather than a margin, because the panel's `space-y-6` already owns the
+         children's top margin and would win: the tree's first node is drawn
+         flush against the top of its box, so without this it sits nearly
+         against the core block now that the card that used to stand it off is
+         gone. -->
+    <ChampionBuildPanelBuildTree
+      class="pt-6"
+      :tree="build.buildTree"
+      :first-item-id="build.firstItemId"
+      :item-path="build.core.itemPath?.itemIds ?? []"
+      :items-map="itemsMap"
+      :item-context="itemContext"
+    />
+
+    <!-- Section 3: Variations — only the categories that carry a choice -->
     <ChampionBuildPanelVariations
       :variations="build.variations"
+      :item-context="itemContext"
       :champion-static="championStatic"
       :items-map="itemsMap"
       :summoners-map="summonersMap"
       :summoners-pending="summonersPending"
       :pending="pending"
-    />
-
-    <!-- Section 3: Build tree -->
-    <ChampionBuildPanelBuildTree
-      :tree="build.buildTree"
-      :first-item-id="build.firstItemId"
-      :item-path="build.core.itemPath?.itemIds ?? []"
-      :items-map="itemsMap"
     />
 
     <!-- Section 4: Rune pages variations -->

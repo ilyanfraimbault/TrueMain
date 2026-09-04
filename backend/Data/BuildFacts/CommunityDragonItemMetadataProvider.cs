@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -115,7 +116,9 @@ public sealed class CommunityDragonItemMetadataProvider(
                     IsSupportQuestStarter = supportFamily.IsRoot(item.Id),
                     IsSupportQuestIntermediate = supportFamily.IsIntermediate(item.Id),
                     IsSupportQuestCompletion = supportFamily.IsCompletion(item.Id),
-                    IsStarterClassItem = IsStarterClassItem(item, isBootsItem)
+                    IsStarterClassItem = IsStarterClassItem(item, isBootsItem),
+                    Categories = categories.ToFrozenSet(StringComparer.Ordinal),
+                    GrantsGrievousWounds = item.Description.Contains("Grievous Wounds", StringComparison.OrdinalIgnoreCase)
                 };
             });
 

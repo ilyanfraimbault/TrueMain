@@ -8,6 +8,13 @@
 // IMPORTANT data caveat surfaced in the UI: `games` honors every filter, but
 // `mains`/`otps`/`extendedSamples` honor the `region` filter ONLY — they ignore
 // patch/position. The table header and a note make this explicit.
+//
+// `extendedSamples` has no column of its own (#1442). It counts the mains that only
+// cleared the *relaxed* per-champion play-rate threshold — a tuning diagnostic of the
+// coverage relaxation, not a property of the champion — and on production that is 111
+// rows out of 68k mains, at most 5 on any one champion and 0 on 123 of the 173. As a
+// sortable column it was a column of zeros; it rides under the Mains figure it
+// qualifies instead, and only when there is something to say.
 import type { TableColumn } from '@nuxt/ui'
 import type { ChampionStatsRow } from '~~/shared/types/ops'
 import { ALL_POSITIONS_ICON_URL, POSITION_OPTIONS } from '~/utils/positions'
@@ -87,10 +94,6 @@ const columns: TableColumn<ChampionRowView>[] = [
   {
     accessorKey: 'otps',
     header: ({ column }) => sortableHeader(column, 'OTPs', 'right'),
-  },
-  {
-    accessorKey: 'extendedSamples',
-    header: ({ column }) => sortableHeader(column, 'Ext. samples', 'right'),
   },
 ]
 
@@ -284,7 +287,13 @@ const mainsLabelFormatter = computed(() =>
                   <strong>Games</strong> honor every filter.
                 </p>
                 <p>
-                  <strong>Mains / OTPs / Ext. samples</strong> honor region only.
+                  <strong>Mains / OTPs</strong> honor region only.
+                </p>
+                <p>
+                  <strong>N relaxed</strong>, under a Mains figure, counts the mains that
+                  only cleared the relaxed play-rate threshold the pipeline applies to
+                  under-covered champions — the ones a champion would lose if the
+                  relaxation went away.
                 </p>
               </template>
             </PanelTitle>
@@ -353,16 +362,19 @@ const mainsLabelFormatter = computed(() =>
           <template #mains-cell="{ row }">
             <div class="text-right tabular-nums">
               {{ formatNumber(row.original.mains) }}
+              <UTooltip
+                v-if="row.original.extendedSamples > 0"
+                :text="`${formatNumber(row.original.extendedSamples)} of these mains only cleared the relaxed play-rate threshold applied to under-covered champions (MainAnalysis:PlayRateFloor).`"
+              >
+                <span class="block text-xs font-normal text-dimmed">
+                  {{ formatNumber(row.original.extendedSamples) }} relaxed
+                </span>
+              </UTooltip>
             </div>
           </template>
           <template #otps-cell="{ row }">
             <div class="text-right tabular-nums">
               {{ formatNumber(row.original.otps) }}
-            </div>
-          </template>
-          <template #extendedSamples-cell="{ row }">
-            <div class="text-right tabular-nums text-muted">
-              {{ formatNumber(row.original.extendedSamples) }}
             </div>
           </template>
 

@@ -142,7 +142,7 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
             .Should().Be(RemakeGames);
         (await db.Matches.CountAsync(m => m.Id.StartsWith("KR_REMAKE")
             && m.SynergyAggregated && m.PowerspikeAggregated
-            && m.MatchupLeadAggregated && m.LaneOutcomeAggregated))
+            && m.MatchupLeadAggregated))
             .Should().Be(RemakeGames, "an unproductive match is still flagged, or it is re-read forever");
 
         // …and contributed nothing. MainGames alone would also hold if remakes were
@@ -161,12 +161,6 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
             NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new MatchupLeadAggregationOptions()),
-            factory,
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
-
-        await new ChampionLaneOutcomeAggregationProcess(
-            NullLogger<ChampionLaneOutcomeAggregationProcess>.Instance,
-            Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new LaneOutcomeAggregationOptions()),
             factory,
             TimeProvider.System).RunCoreAsync(CancellationToken.None);

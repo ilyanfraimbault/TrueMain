@@ -194,7 +194,7 @@ describe('resolveChampionBuildSummary', () => {
 })
 
 describe('championBuildSentences', () => {
-  it('states the sample, the build, the runes, the skills and the spells', () => {
+  it('states the sample, the build and the items', () => {
     const sentences = championBuildSentences(resolve())
     const text = sentences.join(' ')
 
@@ -203,20 +203,16 @@ describe('championBuildSentences', () => {
     expect(text).toContain('completes Luden\'s Companion, Shadowflame and Zhonya\'s Hourglass in that order')
     expect(text).toContain('starts Doran\'s Ring')
     expect(text).toContain('takes Sorcerer\'s Shoes')
-    expect(text).toContain('It runs Electrocute out of Domination')
-    expect(text).toContain('and Sorcery secondary for Transcendence and Scorch')
-    expect(text).toContain('Abilities are levelled Q (Orb of Deception) first, then W (Fox-Fire), then E (Charm).')
-    expect(text).toContain('Summoner spells are Flash and Ignite.')
   })
 
-  it('separates the secondary tree with a comma, not a second bare and', () => {
-    // A first cut chained every clause with `and`, producing "…Eyeball
-    // Collection and Treasure Hunter and Sorcery secondary…" — which reads as
-    // one four-item list of primary runes and silently reassigns the tree. The
-    // comma before `and` is the whole fix, so pin it both ways.
+  it('says nothing the icon grid already says in pictures (#1466)', () => {
+    // Runes, skill order and summoner spells each had a sentence naming, in
+    // words, a row of icons a few hundred pixels away. They are the reason the
+    // paragraph read as the build said twice, and they are gone.
     const text = championBuildSentences(resolve()).join(' ')
-    expect(text).toContain('Treasure Hunter, and Sorcery secondary')
-    expect(text).not.toMatch(/[^,] and \S+ secondary/)
+    expect(text).not.toContain('It runs Electrocute')
+    expect(text).not.toContain('Abilities are levelled')
+    expect(text).not.toContain('Summoner spells are')
   })
 
   it('names the rank only when the slice is scoped to one', () => {
@@ -235,7 +231,10 @@ describe('championBuildSentences', () => {
     const two = championBuildSentences(resolve({ builds: [first, first] }))
     expect(two.at(-1)).toBe('One other build is played often enough in the mid lane to be measured on its own.')
 
-    expect(championBuildSentences(resolve()).at(-1)).toBe('Summoner spells are Flash and Ignite.')
+    // A single build carries no count sentence at all — the item clause is the
+    // last thing said.
+    expect(championBuildSentences(resolve()).at(-1))
+      .toBe('It starts Doran\'s Ring, completes Luden\'s Companion, Shadowflame and Zhonya\'s Hourglass in that order, and takes Sorcerer\'s Shoes.')
   })
 
   it('names the pinned lane opponent the slice was computed against', () => {
@@ -324,35 +323,19 @@ describe('championBuildSentenceTokens', () => {
     const named = entities(championBuildSentenceTokens(resolve())).map(token => token.text)
     expect(named).toContain('Doran\'s Ring')
     expect(named).toContain('Sorcerer\'s Shoes')
-    expect(named).toContain('Electrocute')
-    expect(named).toContain('Q (Orb of Deception)')
-    expect(named).toContain('Flash')
-    // "in that order", "out of", "secondary for" are prose, not entities.
+    expect(named).toContain('Luden\'s Companion')
+    // "in that order", "starts", "takes" are prose, not entities.
     expect(named.some(text => text.includes('in that order'))).toBe(false)
-  })
-
-  it('colours a rune by the tree it was taken from, not by its slot', () => {
-    // The one thing the tones exist for: a paragraph naming five runes from two
-    // trees is unreadable if a Sorcery rune is painted with the primary tree's
-    // colour because it happened to be listed after it.
-    const byName = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.tone]))
-    expect(byName.get('Electrocute')).toBe('domination')
-    expect(byName.get('Domination')).toBe('domination')
-    expect(byName.get('Treasure Hunter')).toBe('domination')
-    expect(byName.get('Sorcery')).toBe('sorcery')
-    expect(byName.get('Transcendence')).toBe('sorcery')
-    expect(byName.get('Doran\'s Ring')).toBe('item')
-    expect(byName.get('Flash')).toBe('spell')
   })
 
   it('carries each entity\'s own icon, and none for the ones DDragon left empty', () => {
     const byName = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.iconUrl]))
     expect(byName.get('Doran\'s Ring')).toBe('https://cdn/item/1056.png')
-    expect(byName.get('Electrocute')).toBe('https://cdn/perk/8112.png')
-    expect(byName.get('Q (Orb of Deception)')).toBe('https://cdn/spell/Q.png')
+
     // An entity DDragon named but shipped no artwork for is still named: the
     // alternative is a build path that silently loses an item to a missing PNG.
     expect(byName.get('Shadowflame')).toBeNull()
+    expect(byName.get('Sorcerer\'s Shoes')).toBeNull()
   })
 
   it('keeps a collapsed run of one item as a single mark', () => {
@@ -372,28 +355,20 @@ describe('championBuildSentenceTokens', () => {
   })
 
   it('routes each mark to the static map its record actually lives in', () => {
-    // The tone cannot answer this: a Domination rune and the Domination tree
-    // share a tone, and looking the tree up in `perks` (or the rune in
-    // `perkStyles`) silently yields no hover card at all — a failure that is
-    // invisible until someone hovers the one word that has no tooltip.
+    // The tone cannot answer this on its own, and a mark pointed at the wrong
+    // map silently yields no hover card at all — a failure that is invisible
+    // until someone hovers the one word that has no tooltip.
     const bySource = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.source]))
     expect(bySource.get('Doran\'s Ring')).toBe('item')
     expect(bySource.get('Sorcerer\'s Shoes')).toBe('item')
-    expect(bySource.get('Electrocute')).toBe('perk')
-    expect(bySource.get('Transcendence')).toBe('perk')
-    expect(bySource.get('Domination')).toBe('perkStyle')
-    expect(bySource.get('Sorcery')).toBe('perkStyle')
-    expect(bySource.get('Flash')).toBe('summoner')
-    expect(bySource.get('Q (Orb of Deception)')).toBe('ability')
+    expect(bySource.get('Zhonya\'s Hourglass')).toBe('item')
   })
 
   it('keys an entity by what its map is keyed by', () => {
-    // `id` is the lookup key, not just a `:key` — an ability is keyed by its
-    // slot letter because `championSpells` is, and everything else by its id.
+    // `id` is the lookup key, not just a `:key`.
     const byName = new Map(entities(championBuildSentenceTokens(resolve())).map(t => [t.text, t.id]))
     expect(byName.get('Doran\'s Ring')).toBe(1056)
-    expect(byName.get('Electrocute')).toBe(8112)
-    expect(byName.get('Q (Orb of Deception)')).toBe('Q')
+    expect(byName.get('Sorcerer\'s Shoes')).toBe(3020)
   })
 
   it('marks the pinned opponent as a champion', () => {
