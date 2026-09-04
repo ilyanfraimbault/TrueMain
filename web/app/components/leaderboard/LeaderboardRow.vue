@@ -208,9 +208,7 @@ const positionIcons = computed(() => {
        re-split it and drag every column between them off the grid. So each
        column below reserves its sub-slots too, and a figure the aggregate
        can't supply renders as an em dash rather than as nothing. -->
-  <ListRowSurface
-    class="group @container relative gap-1.5"
-  >
+  <ListRowSurface dense class="group @container relative gap-1.5">
     <!-- Stretched profile link: a sibling overlay (not a wrapper) so the
          champion icons can be their own links without nesting <a> in <a>.
          Static content falls through to it; the top-champion links opt out
@@ -273,7 +271,8 @@ const positionIcons = computed(() => {
           OTP
         </span>
       </div>
-      <LeaderboardRegionFlag :region="row.region" :width="18" class="mt-0.5" />
+      <!-- A flex line, not inline: inline reserved a descender-height line box around the flag. -->
+      <div class="mt-0.5 flex"><LeaderboardRegionFlag :region="row.region" :width="18" /></div>
     </div>
 
     <!-- Primary / secondary lane. Same 22px icon as the champion list's
