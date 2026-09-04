@@ -5,7 +5,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import { filterByPickRate, itemSlots } from '~~/shared/utils/build'
+import { itemSlots, variationOptions } from '~~/shared/utils/build'
 import type { ItemContextCard } from '~~/shared/utils/item-context'
 import { itemContextKey } from '~~/shared/utils/item-context'
 
@@ -31,12 +31,25 @@ function contextFor(slot: 'Boots' | 'Starter', itemId: number): ItemContextCard 
   return props.itemContext?.get(itemContextKey(slot, itemId))
 }
 
-// Hide long-tail alternatives below the shared pickrate floor; the empty-state
-// placeholder below keys off these filtered lists rather than the raw props.
-const summonerSpells = computed(() => filterByPickRate(props.variations.summonerSpells))
-const skillOrder = computed(() => filterByPickRate(props.variations.skillOrder))
-const boots = computed(() => filterByPickRate(props.variations.boots))
-const starterItems = computed(() => filterByPickRate(props.variations.starterItems))
+// Only the categories that carry an actual choice (#1466): `variationOptions`
+// drops the long tail below the pickrate floor, caps what is left, and returns
+// nothing at all when one option dominates — see its own comment for why a lone
+// alternative is worse than no card. Each card is then rendered on its list
+// being non-empty, so a settled category disappears rather than restating the
+// core block under a heading that promises alternatives.
+const summonerSpells = computed(() => variationOptions(props.variations.summonerSpells))
+const skillOrder = computed(() => variationOptions(props.variations.skillOrder))
+const boots = computed(() => variationOptions(props.variations.boots))
+const starterItems = computed(() => variationOptions(props.variations.starterItems))
+
+// Nothing to arbitrate anywhere: the section itself goes, rather than leaving a
+// gap in the panel's rhythm where four cards used to be.
+const hasVariations = computed(() => Boolean(
+  summonerSpells.value.length
+  || skillOrder.value.length
+  || boots.value.length
+  || starterItems.value.length,
+))
 
 function summonerName(id: number): string {
   return props.summonersMap[id]?.name ?? `Spell ${id}`
@@ -55,8 +68,23 @@ function spellByKey(key: string) {
 </script>
 
 <template>
-  <div class="grid gap-4 sm:grid-cols-2">
-    <SectionCard :level="2" title="Summoner spells">
+  <!-- Flex, not a two-column grid: a grid leaves the last card of an odd count
+       stranded at half width on a row of its own, which reads as a layout
+       accident rather than as a card. Here every card is half-width-ish
+       (`basis` + the gap) but allowed to `grow`, so a lone last card fills its
+       row instead of orphaning, and `min-w-72` drops the whole thing to one
+       column before a card gets too narrow to hold an icon row and its
+       badges. -->
+  <div
+    v-if="hasVariations"
+    class="flex flex-wrap gap-4"
+  >
+    <SectionCard
+      v-if="summonerSpells.length"
+      :level="2"
+      title="Summoner spells"
+      class="grow basis-[calc(50%-0.5rem)] min-w-72"
+    >
       <ul class="space-y-2">
         <li
           v-for="option in summonerSpells"
@@ -82,16 +110,15 @@ function spellByKey(key: string) {
             :pending="pending"
           />
         </li>
-        <li
-          v-if="!summonerSpells.length"
-          class="text-sm text-muted"
-        >
-          No data
-        </li>
       </ul>
     </SectionCard>
 
-    <SectionCard :level="2" title="Skill order">
+    <SectionCard
+      v-if="skillOrder.length"
+      :level="2"
+      title="Skill order"
+      class="grow basis-[calc(50%-0.5rem)] min-w-72"
+    >
       <ul class="space-y-2">
         <li
           v-for="(option, optionIndex) in skillOrder"
@@ -128,16 +155,15 @@ function spellByKey(key: string) {
             :pending="pending"
           />
         </li>
-        <li
-          v-if="!skillOrder.length"
-          class="text-sm text-muted"
-        >
-          No data
-        </li>
       </ul>
     </SectionCard>
 
-    <SectionCard :level="2" title="Boots">
+    <SectionCard
+      v-if="boots.length"
+      :level="2"
+      title="Boots"
+      class="grow basis-[calc(50%-0.5rem)] min-w-72"
+    >
       <ul class="space-y-2">
         <li
           v-for="(option, optionIndex) in boots"
@@ -162,16 +188,15 @@ function spellByKey(key: string) {
             :pending="pending"
           />
         </li>
-        <li
-          v-if="!boots.length"
-          class="text-sm text-muted"
-        >
-          No data
-        </li>
       </ul>
     </SectionCard>
 
-    <SectionCard :level="2" title="Starter">
+    <SectionCard
+      v-if="starterItems.length"
+      :level="2"
+      title="Starter"
+      class="grow basis-[calc(50%-0.5rem)] min-w-72"
+    >
       <ul class="space-y-2">
         <li
           v-for="(option, optionIndex) in starterItems"
@@ -195,12 +220,6 @@ function spellByKey(key: string) {
             :win-rate="option.winRate"
             :pending="pending"
           />
-        </li>
-        <li
-          v-if="!starterItems.length"
-          class="text-sm text-muted"
-        >
-          No data
         </li>
       </ul>
     </SectionCard>

@@ -25,7 +25,7 @@ day one is pointed at the server-rendered build summary or the leaderboard, wher
 serialises into the payload and pops up unprompted for every visitor served that render — #1234.
 
 **A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own
-`pending`.** `createChampionPatchSlice`, `useChampionTrend` and `useChampionPatchDiff` hold their request
+`pending`.** `createChampionPatchSlice` and `useChampionTrend` hold their request
 until the champion's lane lands, and while held they resolve the empty read-model — which reaches
 `status: "success"` with nothing loaded. A consumer driving a skeleton off `status` therefore renders its
 "no data" state for the whole (client-only) champion fetch and only then fills in. Each composable now

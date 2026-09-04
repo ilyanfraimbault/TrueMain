@@ -35,7 +35,6 @@ const placeholder = PLACEHOLDER_BUILDS[0]!
       :items-map="PLACEHOLDER_ITEMS_MAP"
       :summoners-map="PLACEHOLDER_SUMMONERS_MAP"
       :rune-tree="PLACEHOLDER_RUNE_TREE"
-      :keystone-size="35"
     />
     <ChampionBuildPanelBuildTree
       :tree="placeholder.buildTree"

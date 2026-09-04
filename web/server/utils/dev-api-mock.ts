@@ -24,8 +24,6 @@ import type {
   ChampionMatchupEntry,
   ChampionMatchups,
   ChampionOverviewResponse,
-  ChampionPatchDiffResponse,
-  ChampionPatchDiffSide,
   ChampionPowerspikeEvent,
   ChampionPowerspikesResponse,
   ChampionResponse,
@@ -517,11 +515,30 @@ function makeBuild(s: ChampionSeed, variant: 0 | 1, totalGames: number): Champio
       skillOrder: skillSet(archetype.skillOrders[0]!, 0.76, 0.004),
       runePage: runePage(s, keystone, Math.round(games * 0.55), 0.55, wr + 0.005, mulberry32(s.id * 7 + variant)),
     },
+    // The dominant option first, then its alternatives — the shape the API
+    // actually returns (a variations list opens on the same option the core
+    // block shows, at its own pickrate). The mock listed only the alternatives,
+    // which meant no fixture could ever reach the multi-option branch the
+    // panel renders (#1466). Summoner spells are left with one option clearing
+    // the 10% floor on purpose: that is the settled category whose card the
+    // panel is supposed to drop.
     variations: {
-      boots: [itemSet([archetype.boots[1]!], 0.22, -0.008)],
-      starterItems: [itemSet([archetype.starterItems[0]!], 0.11, -0.004)],
-      summonerSpells: [spellSet(archetype.altSpells, 0.09, -0.006)],
-      skillOrder: [skillSet(archetype.skillOrders[1]!, 0.18, -0.005)],
+      boots: [
+        itemSet([archetype.boots[0]!], 0.71, 0.003),
+        itemSet([archetype.boots[1]!], 0.22, -0.008),
+      ],
+      starterItems: [
+        itemSet(archetype.starterItems, 0.83, 0),
+        itemSet([archetype.starterItems[0]!], 0.11, -0.004),
+      ],
+      summonerSpells: [
+        spellSet(archetype.spells, 0.88, 0.002),
+        spellSet(archetype.altSpells, 0.09, -0.006),
+      ],
+      skillOrder: [
+        skillSet(archetype.skillOrders[0]!, 0.76, 0.004),
+        skillSet(archetype.skillOrders[1]!, 0.18, -0.005),
+      ],
     },
     buildTree: [
       {
@@ -619,53 +636,6 @@ async function mockChampionDetail(
 }
 
 // ─── Champion insight endpoints ──────────────────────────────────────────────
-
-// Two-patch diff for the champion detail page. Uses the champion's dominant
-// build on the newer patch and its alternate on the older one so first item /
-// keystone / skill order visibly move (variants 0 and 1 of makeBuild differ),
-// exercising the delta badges. availablePatchCount is 2, so the section renders;
-// a real single-patch champion returns 1 and the page hides the whole section.
-async function mockPatchDiff(
-  id: number,
-  fromQuery: string | undefined,
-  toQuery: string | undefined,
-): Promise<ChampionPatchDiffResponse | null> {
-  const s = seedsById.get(id)
-  if (!s) return null
-  const latest = await latestShortPatch()
-  const [olderPatch, newerPatch] = trendPatches(latest, 2)
-  const totalGames = Math.max(120, Math.round(s.pr * POOL_GAMES))
-
-  const side = (patch: string, variant: 0 | 1): ChampionPatchDiffSide => {
-    const build = makeBuild(s, variant, totalGames)
-    return {
-      patch,
-      games: build.games,
-      wins: Math.round(build.games * build.winRate),
-      winRate: build.winRate,
-      itemPath: build.core.itemPath,
-      runePage: build.core.runePage,
-      skillOrder: build.core.skillOrder,
-    }
-  }
-
-  const from = side(fromQuery || olderPatch!, 1)
-  const to = side(toQuery || newerPatch!, 0)
-  const firstItem = (s: ChampionPatchDiffSide) => s.itemPath?.itemIds[0] ?? 0
-  return {
-    championId: id,
-    position: s.position,
-    availablePatchCount: 2,
-    from,
-    to,
-    delta: {
-      winRateChange: round3(to.winRate - from.winRate),
-      firstItemChanged: firstItem(from) !== firstItem(to),
-      keystoneChanged: (from.runePage?.primaryKeystoneId ?? 0) !== (to.runePage?.primaryKeystoneId ?? 0),
-      skillOrderChanged: (from.skillOrder?.sequence ?? []).join() !== (to.skillOrder?.sequence ?? []).join(),
-    },
-  }
-}
 
 async function mockTrend(id: number): Promise<ChampionTrendResponse | null> {
   const s = seedsById.get(id)
@@ -2401,7 +2371,6 @@ export async function resolveDevApiMock(
     const payload = await (
       sub === undefined ? mockChampionDetail(id, position, eloBracket, truemainsOnly)
       : sub === 'trend' ? mockTrend(id)
-      : sub === 'patch-diff' ? mockPatchDiff(id, typeof query.from === 'string' ? query.from : undefined, typeof query.to === 'string' ? query.to : undefined)
       : sub === 'scaling' ? mockScaling(id)
       : sub === 'powerspikes' ? mockPowerspikes(
           id,

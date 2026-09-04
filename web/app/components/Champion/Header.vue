@@ -10,6 +10,15 @@ const props = defineProps<{
   position: string
   totalGames: number
   totalWins: number
+  /**
+   * Which population the counts come from (#1466). The Truemains toggle sat in
+   * the filter bar with its meaning available only on hover, so readers filtered
+   * the whole page without ever learning what they had filtered. Saying it in
+   * the stat line makes the toggle legible without a tooltip and without a
+   * paragraph. Undefined where the page renders no toggle (the player-scoped
+   * champion page), and the line then falls back to the bare count.
+   */
+  truemainsOnly?: boolean
   // Average out-of-lane kills + assists by 15 min (#536). Only ever surfaces as
   // a "Roamer" badge next to the win rate, and only for champions that clear the
   // threshold — see `roamVerdict`. Undefined where the page doesn't fetch it.
@@ -35,6 +44,13 @@ const winRate = computed(() => (props.totalGames === 0 ? 0 : props.totalWins / p
 const positionOption = computed(() => POSITION_BY_VALUE.get(props.position) ?? null)
 
 const roam = computed(() => roamVerdict(props.roamKp15))
+
+// "played by mains" rather than "truemains only": next to a raw count the phrase
+// has to read as a description of the games, not as the name of a control.
+const populationLabel = computed(() => {
+  if (props.truemainsOnly === undefined) return null
+  return props.truemainsOnly ? 'played by mains' : 'across all tracked players'
+})
 </script>
 
 <template>
@@ -101,7 +117,14 @@ const roam = computed(() => roamVerdict(props.roamKp15))
                measurement: on an empty slice (a lane the player never played,
                a patch with no game on record) the count stands alone. -->
           <span v-if="totalGames === 0">· no games on this slice</span>
-          <span v-else>· {{ totalGames }} games · {{ formatPercentage(winRate) }} WR</span>
+          <!-- The population is interpolated with its own leading space rather
+               than written as template whitespace: Vue condenses the whitespace
+               between a text node and a `<template>`, which glued the label to
+               the count ("115 gamesplayed by mains"). -->
+          <span v-else>
+            · {{ totalGames }} games<template v-if="populationLabel">{{ ` ${populationLabel}` }}</template>
+            · {{ formatPercentage(winRate) }} WR
+          </span>
           <!-- Playstyle flag, not a stat: it only appears for champions that
                actually roam, so it never competes with the numbers it sits next
                to. The measurement behind it lives in the tooltip. -->

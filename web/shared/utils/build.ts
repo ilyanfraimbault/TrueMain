@@ -97,7 +97,14 @@ export function isBuildOrderEvent(ev: MatchDetailItemEvent, items: Record<number
  * below this is statistical noise that clutters the panel without informing the
  * choice. The build *tree* is intentionally exempt — it shows the full path.
  */
-export const MIN_VARIATION_PICKRATE = 0.05
+export const MIN_VARIATION_PICKRATE = 0.1
+
+/**
+ * Most alternatives a variation panel shows for one category. Past the third the
+ * options are no longer a decision the reader makes, they are the shape of the
+ * long tail — which the build tree already draws.
+ */
+export const MAX_VARIATION_OPTIONS = 3
 
 /**
  * Drop variation options whose pickrate falls below {@link MIN_VARIATION_PICKRATE}.
@@ -106,4 +113,27 @@ export const MIN_VARIATION_PICKRATE = 0.05
  */
 export function filterByPickRate<T extends { pickRate: number }>(options: T[]): T[] {
   return options.filter(option => option.pickRate >= MIN_VARIATION_PICKRATE)
+}
+
+/**
+ * The options a variation panel should render for one category, or none at all
+ * (#1466).
+ *
+ * A category with a single surviving option is not a choice: the core block
+ * above already shows that option, so the card would restate it under a heading
+ * promising alternatives — which is exactly what a 100%-pickrate "Summoner
+ * spells" card did. Returning an empty list lets the caller drop the whole card
+ * and, when every category is settled, the whole section: a champion whose build
+ * is not up for debate should say so by being short, not by listing one row four
+ * times.
+ *
+ * Sorted before capping rather than trusting serialization order, so the three
+ * that survive are the three most played.
+ */
+export function variationOptions<T extends { pickRate: number }>(options: T[]): T[] {
+  const kept = filterByPickRate(options)
+    .slice()
+    .sort((a, b) => b.pickRate - a.pickRate)
+    .slice(0, MAX_VARIATION_OPTIONS)
+  return kept.length > 1 ? kept : []
 }

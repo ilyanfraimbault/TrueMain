@@ -315,7 +315,6 @@ builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimings
 builder.Services.AddScoped<IChampionRoamQueryService, ChampionRoamQueryService>();
 builder.Services.AddScoped<IChampionPowerspikesQueryService, ChampionPowerspikesQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
-builder.Services.AddScoped<IChampionPatchDiffQueryService, ChampionPatchDiffQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
 // The single name-tag -> account lookup shared by every player-scoped route
 // (#1230), so they cannot disagree on which account a Riot ID means.

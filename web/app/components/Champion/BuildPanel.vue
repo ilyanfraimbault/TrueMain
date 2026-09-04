@@ -56,6 +56,12 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
 </script>
 
 <template>
+  <!--
+    The panel answers first and nuances after (#1466). Core plus the build tree
+    is the whole answer — what to buy, and the shape of the path that gets there
+    — so nothing sits between them. Everything below is the alternatives, in
+    descending order of how often a reader is actually arbitrating them.
+  -->
   <div class="space-y-6">
     <!-- Section 1: Core view. Flattened to a bare block (no UCard) — the whole
          panel now lives inside the single enveloping card from BuildTabs, so a
@@ -74,12 +80,26 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
         :summoners-map="summonersMap"
         :summoners-pending="summonersPending"
         :rune-tree="runeTree"
-        :keystone-size="35"
         :pending="pending"
       />
     </div>
 
-    <!-- Section 2: Variations -->
+    <!-- Section 2: Build tree, directly under the core it illustrates. Padding
+         rather than a margin, because the panel's `space-y-6` already owns the
+         children's top margin and would win: the tree's first node is drawn
+         flush against the top of its box, so without this it sits nearly
+         against the core block now that the card that used to stand it off is
+         gone. -->
+    <ChampionBuildPanelBuildTree
+      class="pt-6"
+      :tree="build.buildTree"
+      :first-item-id="build.firstItemId"
+      :item-path="build.core.itemPath?.itemIds ?? []"
+      :items-map="itemsMap"
+      :item-context="itemContext"
+    />
+
+    <!-- Section 3: Variations — only the categories that carry a choice -->
     <ChampionBuildPanelVariations
       :variations="build.variations"
       :item-context="itemContext"
@@ -88,15 +108,6 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       :summoners-map="summonersMap"
       :summoners-pending="summonersPending"
       :pending="pending"
-    />
-
-    <!-- Section 3: Build tree -->
-    <ChampionBuildPanelBuildTree
-      :tree="build.buildTree"
-      :first-item-id="build.firstItemId"
-      :item-path="build.core.itemPath?.itemIds ?? []"
-      :items-map="itemsMap"
-      :item-context="itemContext"
     />
 
     <!-- Section 4: Rune pages variations -->

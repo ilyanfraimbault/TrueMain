@@ -122,7 +122,6 @@ const itemContextIndex = computed(() => indexItemContext(itemContext.value?.item
         :summoners-map="summonersMap ?? {}"
         :summoners-pending="isLoadingStatus(summonersStatus)"
         :rune-tree="runeTree"
-        :keystone-size="35"
       />
       <ChampionBuildPanelBuildTree
         :item-context="itemContextIndex"

@@ -220,3 +220,64 @@ a roamer is the default the rest of the page already implies, and an unmeasured 
 sample floor, or `JUNGLE`) is silent for the same reason it must not read as either. Nothing changed behind it:
 `/champions/{id}/roam` still computes and returns @5/@10/@15, the page still fetches all three, and reviving a
 curve means writing a component, not a backend.
+
+**A variation card only exists when there is a variation; a settled build says so by being short.** The panel
+listed four alternatives cards unconditionally, above a 5% floor. On a champion whose build is not up for
+debate that produced a "Summoner spells" card holding one row at 100% pick rate and a "Skill order" card
+holding one row at 99.3% — two headings promising alternatives over a restatement of the core block six inches
+above them, which is what a reader reported as the page showing too much. #1466 raised the floor to 10% and
+made `variationOptions` (`web/shared/utils/build.ts`) return **nothing** when a single option survives, so the
+card unmounts; when every category is settled the whole section goes with it. Nothing is lost by the
+disappearance: the core block always shows the dominant option of every category, which is exactly why the
+card was redundant. The build *tree* stays exempt from the floor — it is the long tail, drawn.
+
+**The panel answers before it nuances, and the build tree is a picture, not a card.** #1466 reordered the
+build panel to core → build tree → variations → runes → power spikes, so nothing sits between the two blocks
+that together are the whole answer, and stripped the tree of its `SectionCard`. The tree's icons and edges say
+"build tree" without a heading; framed, it made the panel read as a stack of boxes of equal weight, which is
+the opposite of what the order is for. The build *path* inside the core block stays alongside it — the path is
+the ordered claim, the tree is the map of what branches off it, and they answer different questions.
+
+**The build paragraph is collapsed, moved to the foot of the sidebar, and no longer restates the icon grid.**
+#1143 put the prose beside the icon grid as its caption; the feedback was that it reads as the same build said
+twice, because for a reader with the grid in view it is. #1466 keeps it — removing it would return the page to
+the thin content #1123 fixed, since it is still the only build content in the server HTML — but as a native
+`<details>`, closed, last in the right column. Native and not `UAccordion`: Reka unmounts closed content, which
+would take the paragraph out of the SSR HTML; `<details>` keeps it in the DOM, and collapsed content is
+indexed, unlike `sr-only`, which is cloaking. `championBuildSentenceTokens` also dropped the runes, skill-order
+and summoner-spell sentences — each named, in words, a row of icons a few hundred pixels away. That is a real
+cost against #1123 (less indexable text) and it retires the rune-tone machinery #1143 built for those
+sentences; what is kept is what the grid does not say in words — the scope of the sample, the build's share of
+it, and the item progression as an ordered claim.
+
+**A verdict chip inside its own dead zone says nothing, so it says nothing.** The scaling header rendered
+`−2.7% Even`: a signed percentage to one decimal on a measurement the word beside it had just declared
+insignificant, which invites the reader to take seriously the number the threshold exists to dismiss. #1466
+renders no chip at all inside `SCALING_THRESHOLD`, and outside it renders the label alone — "Scales late" is
+the answer, and the curve underneath already carries the magnitude.
+
+**The population the numbers come from is stated, not hovered.** The truemains toggle (#1346) explained itself
+only in a tooltip, so readers filtered the whole page without ever learning what they had filtered. #1466 says
+it in the header stat line ("824 games played by mains" / "across all tracked players"), which makes the
+control legible without a hover and without adding a paragraph. Phrased as a description of the games rather
+than the name of the control — next to a raw count, "truemains only" would read as a filter chip.
+
+**The patch diff is gone, front and API.** #534 gave the page a section comparing two patches — a signed
+win-rate swing plus three "changed / unchanged" badges for the first item, the keystone and the skill order.
+It answered a question nobody was asking on a build page: a reader is there to learn what to build *now*, and
+the three badges are booleans about a build they are not looking at. #1466 removed the component, the
+composable, the `/champions/{id}/patch-diff` endpoint, its query service and read model, and its integration
+suite — the endpoint had exactly one consumer. Patch-over-patch movement is still on the page, as the trend
+chart, which shows the shape of the change rather than asserting a binary about it.
+
+**No orphan card in the variations row, and the runes fill the height they are given.** Two layout calls from
+the same review pass. The variation cards were a two-column grid, so an odd count stranded the last card at
+half width on a row of its own — read as a layout accident rather than as a card. They are a `flex-wrap` row
+now: each card sits at `basis-[calc(50%-0.5rem)]` but may `grow`, so a lone last card fills its row, and
+`min-w-72` collapses to one column before a card gets too narrow for an icon row plus its badges. Separately,
+the core block's rune column was drawn at a 35 px keystone inside a track sized for it, leaving ~24 px of the
+column empty under the shards while the block beside it ran to 148 px. The rune sizes (36 px base, 39 px
+keystone) now live as defaults on `BuildPanel/Core.vue` instead of being restated at each of its three call
+sites, and the column widened from 240 px to 268 px to hold them — measured, the block and the block beside it
+both come out at 148 px. Sized to just under the row rather than over: past that the runes drive the row
+height and the *left* side carries the dead space, which is the same complaint mirrored.
