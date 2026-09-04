@@ -49,6 +49,12 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
 </script>
 
 <template>
+  <!--
+    The panel answers first and nuances after (#1466). Core plus the build tree
+    is the whole answer — what to buy, and the shape of the path that gets there
+    — so nothing sits between them. Everything below is the alternatives, in
+    descending order of how often a reader is actually arbitrating them.
+  -->
   <div class="space-y-6">
     <!-- Section 1: Core view. Flattened to a bare block (no UCard) — the whole
          panel now lives inside the single enveloping card from BuildTabs, so a
@@ -71,7 +77,15 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       />
     </div>
 
-    <!-- Section 2: Variations -->
+    <!-- Section 2: Build tree, directly under the core it illustrates -->
+    <ChampionBuildPanelBuildTree
+      :tree="build.buildTree"
+      :first-item-id="build.firstItemId"
+      :item-path="build.core.itemPath?.itemIds ?? []"
+      :items-map="itemsMap"
+    />
+
+    <!-- Section 3: Variations — only the categories that carry a choice -->
     <ChampionBuildPanelVariations
       :variations="build.variations"
       :champion-static="championStatic"
@@ -79,14 +93,6 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       :summoners-map="summonersMap"
       :summoners-pending="summonersPending"
       :pending="pending"
-    />
-
-    <!-- Section 3: Build tree -->
-    <ChampionBuildPanelBuildTree
-      :tree="build.buildTree"
-      :first-item-id="build.firstItemId"
-      :item-path="build.core.itemPath?.itemIds ?? []"
-      :items-map="itemsMap"
     />
 
     <!-- Section 4: Rune pages variations -->

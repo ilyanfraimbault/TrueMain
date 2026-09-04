@@ -141,58 +141,55 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
 </script>
 
 <template>
-  <SectionCard :level="2" title="Build tree">
+  <!-- No SectionCard (#1466): the tree carries its own visual language — the
+       item icons and the edges between them say "build tree" without a heading,
+       and a card around it made the panel read as four framed boxes stacked on
+       each other. It sits directly under the core block, as the picture of the
+       path the core block states in words. -->
+  <div
+    v-if="hasNodes"
+    class="overflow-x-auto"
+  >
     <div
-      v-if="hasNodes"
-      class="overflow-x-auto"
+      class="relative mx-auto"
+      :style="{ width: `${layout.width}px`, height: `${layout.height}px` }"
     >
-      <div
-        class="relative mx-auto"
-        :style="{ width: `${layout.width}px`, height: `${layout.height}px` }"
+      <!-- Decorative: the edges only trace the spatial relationship between
+           the items already rendered (with accessible names) below. The
+           main-path sequence they highlight is separately available as an
+           ordered, accessible list via BuildPath. -->
+      <svg
+        class="absolute inset-0 overflow-visible"
+        aria-hidden="true"
+        :width="layout.width"
+        :height="layout.height"
       >
-        <!-- Decorative: the edges only trace the spatial relationship between
-             the items already rendered (with accessible names) below. The
-             main-path sequence they highlight is separately available as an
-             ordered, accessible list via BuildPath. -->
-        <svg
-          class="absolute inset-0 overflow-visible"
-          aria-hidden="true"
-          :width="layout.width"
-          :height="layout.height"
-        >
-          <path
-            v-for="(edge, edgeIndex) in layout.edges"
-            :key="`edge-${edgeIndex}`"
-            :d="`M ${edge.parent.x} ${edge.parent.y + ITEM_SIZE / 2} V ${edge.parent.y + ITEM_SIZE / 2 + V_GAP / 2} H ${edge.child.x} V ${edge.child.y - ITEM_SIZE / 2}`"
-            fill="none"
-            stroke="currentColor"
-            :stroke-width="1.5"
-            :class="edge.child.isMainEdge ? 'text-default' : 'text-muted/60'"
-            :stroke-dasharray="edge.child.isMainEdge ? undefined : '4 4'"
-          />
-        </svg>
-        <GameTooltipItemIcon
-          v-for="(node, index) in layout.flat"
-          :key="`node-${index}`"
-          :item="itemsMap[node.itemId] ?? null"
-          :pick-rate="node.pickRate"
-          :width="ITEM_SIZE"
-          :height="ITEM_SIZE"
-          class="absolute rounded"
-          :style="{
-            left: `${node.x - ITEM_SIZE / 2}px`,
-            top: `${node.y - ITEM_SIZE / 2}px`,
-            width: `${ITEM_SIZE}px`,
-            height: `${ITEM_SIZE}px`,
-          }"
+        <path
+          v-for="(edge, edgeIndex) in layout.edges"
+          :key="`edge-${edgeIndex}`"
+          :d="`M ${edge.parent.x} ${edge.parent.y + ITEM_SIZE / 2} V ${edge.parent.y + ITEM_SIZE / 2 + V_GAP / 2} H ${edge.child.x} V ${edge.child.y - ITEM_SIZE / 2}`"
+          fill="none"
+          stroke="currentColor"
+          :stroke-width="1.5"
+          :class="edge.child.isMainEdge ? 'text-default' : 'text-muted/60'"
+          :stroke-dasharray="edge.child.isMainEdge ? undefined : '4 4'"
         />
-      </div>
+      </svg>
+      <GameTooltipItemIcon
+        v-for="(node, index) in layout.flat"
+        :key="`node-${index}`"
+        :item="itemsMap[node.itemId] ?? null"
+        :pick-rate="node.pickRate"
+        :width="ITEM_SIZE"
+        :height="ITEM_SIZE"
+        class="absolute rounded"
+        :style="{
+          left: `${node.x - ITEM_SIZE / 2}px`,
+          top: `${node.y - ITEM_SIZE / 2}px`,
+          width: `${ITEM_SIZE}px`,
+          height: `${ITEM_SIZE}px`,
+        }"
+      />
     </div>
-    <p
-      v-else
-      class="text-sm text-muted"
-    >
-      No build data
-    </p>
-  </SectionCard>
+  </div>
 </template>
