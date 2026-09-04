@@ -1,12 +1,14 @@
 using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Ingestor.Options;
-using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
-using Ingestor.Riot;
+using Ingestor.Processes;
 using Ingestor.Riot.Dto;
+using Ingestor.Riot;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 
 namespace TrueMain.IntegrationTests;
 
@@ -139,6 +141,7 @@ public sealed class MainActivityProcessIntegrationTests
             NullLogger<MainActivityProcess>.Instance,
             platformClient,
             _fixture.CreateSessionFactory(),
+            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new MainActivityOptions
             {

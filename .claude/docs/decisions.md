@@ -178,6 +178,7 @@ Last verified against `develop` on 2026-09-02.
 - The lane is derived from the process name; the mode it ran under is recorded (2026-09-02) — #1362
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
+- A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04) — #1474, #1460, #1313, #900
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150
 - Region balance is a target, not a quota: coverage deficit allocates every budget (2026-08-19) — #1149, #495, #900
 
