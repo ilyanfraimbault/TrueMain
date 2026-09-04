@@ -2,13 +2,10 @@
 import type { ActivityBucket, ActivityMode, TruemainActivityResponse } from '~~/shared/types/activity'
 import {
   ACTIVITY_EMPTY_FILL,
-  ACTIVITY_RAMP,
-  activityBucketCaption,
   activityBucketLabel,
   activityBucketResult,
   activityCellFill,
   activityCellsAreGames,
-  activityCoverageLabel,
   activityMaxGames,
 } from '~/utils/activity-heatmap'
 
@@ -37,11 +34,15 @@ import {
  * That is why the patch window is measured over everyone's matches server-side:
  * the days before this player's first game of the patch are days they sat out.
  *
- * **The card is a wide band, not a block.** It spans the profile column, so the
- * grid runs along it: one tile per day, stretched to use the width and wrapping
- * only when the row is genuinely full. A seven-row calendar was tried and
- * dropped — these windows are a fortnight long at most, so it stood as a narrow
- * tower in a wide card.
+ * **The grid is squares and nothing else.** Small, fixed, identical tiles packed
+ * from the left — never stretched to fill the card. Stretching them was tried
+ * (#1473) and rejected by the product owner: an eleven-day patch became eleven
+ * fat lozenges, which reads as a row of buttons rather than as a contribution
+ * grid, and the shape of a month is carried by the *density* of small tiles.
+ * With it went everything printed around them — a date under every tile, a
+ * ramp legend, and a "from – to" line repeating dates the tooltip already
+ * gives. What is left on the card is the summary and the squares; per-cell
+ * facts live one hover away.
  */
 const props = withDefaults(defineProps<{
   data: TruemainActivityResponse | null
@@ -57,18 +58,13 @@ const MODES: { key: ActivityMode, label: string }[] = [
 ]
 
 /**
- * Per-window tile geometry, in pixels. `min` is the width below which the row
- * wraps, `max` the width a tile may grow to once `auto-fit` shares the row out.
- * The two calendar windows carry few enough cells to caption every one, so they
- * drop the square (`max: null`) for a band that spans the card; a day's games
- * are an uncaptioned strip of squares, capped so a two-game evening does not
- * render as two billboards.
+ * Tile geometry, in pixels — one size for every window, because a square that
+ * changed size with the switch would be one more thing the control silently
+ * re-labels. `auto-fill` at a *fixed* track width (not `minmax(_, 1fr)`) is what
+ * keeps them square and packed left instead of stretching to share the row.
  */
-const GEOMETRY: Record<ActivityMode, { min: number, max: number | null, gap: number }> = {
-  patch: { min: 30, max: null, gap: 6 },
-  week: { min: 44, max: null, gap: 8 },
-  day: { min: 14, max: 26, gap: 3 },
-}
+const TILE = 14
+const GAP = 4
 
 // Patch is the default: it is the widest window the retained data can back, and
 // the one an idle cell carries the most meaning in.
@@ -78,15 +74,11 @@ const series = computed(() => props.data?.[mode.value] ?? null)
 
 const maxGames = computed(() => (series.value ? activityMaxGames(series.value) : 0))
 
-const geometry = computed(() => GEOMETRY[mode.value])
-
 interface Cell {
   bucket: ActivityBucket
   fill: string
   label: string
-  caption: string | null
   result: string
-  empty: boolean
 }
 
 // Whether this window's cells are games rather than days. Read off the mode, not
@@ -103,29 +95,15 @@ const cells = computed<Cell[]>(() => {
       bucket,
       fill: fill ?? ACTIVITY_EMPTY_FILL,
       label: activityBucketLabel(bucket, current.mode),
-      caption: activityBucketCaption(bucket, current.mode),
       result: activityBucketResult(bucket),
-      empty: fill === null,
     }
   })
 })
 
-const captioned = computed(() => cells.value.some(cell => cell.caption !== null))
-
-/**
- * The grid track definition. `auto-fit` collapses the tracks no cell landed in,
- * so the tiles share the whole width instead of hugging the left edge, and
- * `max-width` caps how large that can make them — a two-game evening is a pair
- * of squares, not two billboards.
- */
-const gridStyle = computed(() => {
-  const { min, max, gap } = geometry.value
-  return {
-    gap: `${gap}px`,
-    gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))`,
-    maxWidth: max === null ? undefined : `${cells.value.length * (max + gap) - gap}px`,
-  }
-})
+const gridStyle = {
+  gap: `${GAP}px`,
+  gridTemplateColumns: `repeat(auto-fill, ${TILE}px)`,
+}
 
 /*
  * Hover tooltip. A `UTooltip` per cell would mount sixty poppers for one grid,
@@ -198,27 +176,6 @@ const summary = computed(() => {
   }
 })
 
-const coverage = computed(() => (series.value ? activityCoverageLabel(series.value) : null))
-
-/**
- * The legend's steps, in the order the ramp draws them: pale for a quiet day,
- * deep for a busy one. The per-game window is the one place the ramp does not
- * mean volume — every cell there is a single game — so it names the two steps
- * that window actually draws instead of a four-step scale it never uses.
- */
-const legend = computed(() => {
-  if (perGame.value) {
-    return {
-      steps: [ACTIVITY_RAMP[1]!, ACTIVITY_RAMP[3]!],
-      from: 'Lost',
-      to: 'Won',
-    }
-  }
-  return { steps: [...ACTIVITY_RAMP], from: 'Less', to: 'More' }
-})
-
-const showsEmptyCells = computed(() => cells.value.some(cell => cell.empty))
-
 const isEmpty = computed(() => cells.value.length === 0)
 </script>
 
@@ -261,55 +218,34 @@ const isEmpty = computed(() => cells.value.length === 0)
       </p>
 
       <template v-else>
-        <!-- Series total on the left, the period it speaks for on the right.
-             Per-cell figures live in the hover panel, so this line stays put
-             instead of flickering as the pointer crosses the grid. -->
-        <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p v-if="summary" class="flex items-baseline gap-2 tabular-nums">
-            <span v-if="summary.rate" class="text-lg font-semibold leading-none text-highlighted">
-              {{ summary.rate }}
-            </span>
-            <span class="text-xs text-muted">{{ summary.record }} · {{ summary.games }}</span>
-          </p>
-          <p v-else class="text-xs text-muted">
-            No games in this view.
-          </p>
-          <p class="text-xs text-dimmed tabular-nums">
-            <!-- Which patch, when the window is one: the days on screen are its
-                 days, and the number is the only thing that says so. -->
-            <span v-if="series?.patch" class="text-muted">Patch {{ series.patch }}</span>
-            <span v-if="series?.patch && coverage"> · </span>
-            <span v-if="coverage">{{ coverage }}</span>
-          </p>
-        </div>
+        <!-- The window's total, and nothing else. The dates that used to sit
+             opposite it (which patch, first day – last day) were the window's own
+             definition read back to the reader, and every one of them is on the
+             tooltip of the cell they belong to. -->
+        <p v-if="summary" class="flex items-baseline gap-2 tabular-nums">
+          <span v-if="summary.rate" class="text-lg font-semibold leading-none text-highlighted">
+            {{ summary.rate }}
+          </span>
+          <span class="text-xs text-muted">{{ summary.record }} · {{ summary.games }}</span>
+        </p>
+        <p v-else class="text-xs text-muted">
+          No games in this view.
+        </p>
 
         <!-- The bottom padding is the room the hover panel needs: cells in the
              first row have nothing above them to sit over (the summary line is
-             right there), so their panel flips below the tile. Reserving the
-             space here is what keeps it off the legend. -->
+             right there), so their panel flips below the tile. -->
         <div ref="gridWrapper" class="relative pb-6" @mouseleave="hideTooltip">
+          <!-- One element per cell: a square, and nothing under it. -->
           <ul class="grid" :style="gridStyle">
             <li
               v-for="cell in cells"
               :key="cell.bucket.key"
-              class="flex flex-col gap-1"
-            >
-              <div
-                class="w-full rounded-[3px] transition-[filter,box-shadow] duration-100 hover:shadow-[0_0_0_2px_var(--ui-bg-elevated),0_0_0_3px_rgba(255,255,255,0.35)] hover:brightness-110"
-                :class="captioned ? 'h-10 rounded' : 'aspect-square'"
-                :style="{ backgroundColor: cell.fill }"
-                :aria-label="`${cell.label} — ${cell.result}`"
-                @mouseenter="showTooltip(cell, $event)"
-              />
-              <!-- Only the calendar windows get captions; a day's games are read
-                   as a strip, and a time under each turns it into a table. -->
-              <span
-                v-if="cell.caption"
-                class="truncate text-center text-[10px] leading-none text-dimmed tabular-nums"
-              >
-                {{ cell.caption }}
-              </span>
-            </li>
+              class="aspect-square rounded-[3px] transition-[filter,box-shadow] duration-100 hover:shadow-[0_0_0_2px_var(--ui-bg-elevated),0_0_0_3px_rgba(255,255,255,0.35)] hover:brightness-110"
+              :style="{ backgroundColor: cell.fill }"
+              :aria-label="`${cell.label} — ${cell.result}`"
+              @mouseenter="showTooltip(cell, $event)"
+            />
           </ul>
 
           <!-- Flipped below the tile for the first row, above it for any row
@@ -330,28 +266,6 @@ const isEmpty = computed(() => cells.value.length === 0)
             <span class="font-medium text-default">{{ hovered.result }}</span>
             <span class="text-muted"> · {{ hovered.label }}</span>
           </div>
-        </div>
-
-        <!-- Legend. One ramp, one meaning: how much was played. The idle tile is
-             named too — it is the tile the reader has to be able to tell from
-             the faintest played one. -->
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] uppercase tracking-wide text-dimmed">
-          <span v-if="showsEmptyCells" class="flex items-center gap-1.5">
-            <span class="size-2.5 rounded-[2px]" :style="{ backgroundColor: ACTIVITY_EMPTY_FILL }" />
-            No games
-          </span>
-          <span class="ml-auto flex items-center gap-1.5">
-            {{ legend.from }}
-            <span class="flex gap-0.5">
-              <span
-                v-for="step in legend.steps"
-                :key="step"
-                class="size-2.5 rounded-[2px]"
-                :style="{ backgroundColor: step }"
-              />
-            </span>
-            {{ legend.to }}
-          </span>
         </div>
       </template>
     </div>

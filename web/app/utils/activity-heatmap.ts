@@ -140,30 +140,6 @@ export function activityBucketLabel(bucket: ActivityBucket, mode: ActivityMode):
 }
 
 /**
- * The short caption printed under a tile, or `null` for a window whose cells are
- * too many (or too undated) to label.
- *
- * A week is seven days, so the weekday is the useful handle — `Mon`, `Tue`. A
- * patch is a fortnight or so, where the weekday repeats and the date does not,
- * so it captions the day of the month instead. The per-game window captions
- * nothing: a run of games is read as a strip, and stamping a time under each one
- * turns it into a table.
- */
-export function activityBucketCaption(bucket: ActivityBucket, mode: ActivityMode): string | null {
-  const start = new Date(bucket.startUtc)
-
-  if (mode === 'week') {
-    return start.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
-  }
-
-  if (mode === 'patch') {
-    return start.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' })
-  }
-
-  return null
-}
-
-/**
  * Result line for a cell's tooltip: always wins over games played, whatever the
  * window. A single game used to print "Victory" / "Defeat", which made the
  * tooltip change shape between two neighbouring squares and forced the reader to
@@ -178,20 +154,4 @@ export function activityBucketResult(bucket: ActivityBucket): string {
 
   const rate = `${Math.round(bucket.winRate * 100)}%`
   return `${bucket.wins}/${bucket.games} · ${rate}`
-}
-
-/**
- * The span a series speaks for, as one line — `Jul 17 – Aug 13`. Read off the
- * buckets rather than the series' `coverage*` fields so it can never disagree
- * with the squares actually on screen. `null` when the series carries no cells.
- */
-export function activityCoverageLabel(series: ActivitySeries): string | null {
-  const first = series.buckets[0]?.startUtc
-  const last = series.buckets[series.buckets.length - 1]?.startUtc
-  if (!first || !last) return null
-
-  const format = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
-
-  return format(first) === format(last) ? format(first) : `${format(first)} – ${format(last)}`
 }
