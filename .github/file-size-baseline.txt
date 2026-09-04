@@ -29,7 +29,7 @@ backend/Data/Logging/Mongo/MongoLogContext.cs	658	500
 backend/Data/Ops/Mongo/ProcessRunStore.cs	508	500
 backend/Data/Repositories/RiotAccountRepository.cs	627	500
 backend/Ingestor/Processes/ChampionPowerspikeAggregationProcess.cs	872	500
-backend/Ingestor/Processes/MatchDataRetentionProcess.cs	805	500
+backend/Ingestor/Processes/MatchDataRetentionProcess.cs	665	500
 backend/Tools/DevSeed/SeedGenerator.cs	607	500
 web/app/components/AppBackdrop.vue	426	400
 web/app/components/AppSearch.vue	541	400

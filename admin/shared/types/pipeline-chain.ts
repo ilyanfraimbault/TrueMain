@@ -31,6 +31,7 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'RunePageDeduplication',
   'ChampionPatternAggregation',
   'ChampionProfileAggregation',
+  'ChampionItemContextAggregation',
   'ChampionMatchupLeadAggregation',
   'ChampionSynergyAggregation',
   'ChampionBanAggregation',
@@ -98,6 +99,7 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'RunePageDeduplication',
       'ChampionPatternAggregation',
       'ChampionProfileAggregation',
+      'ChampionItemContextAggregation',
       'ChampionMatchupLeadAggregation',
       'ChampionSynergyAggregation',
       'ChampionBanAggregation',
@@ -193,6 +195,11 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Champion Profiles',
     description:
       'Measures what each champion does in its games — damage split, healing, crowd control, damage taken, lane leads, item archetypes — the profiles that later qualify a draft as AP-heavy, tanky or sustain-heavy.',
+  },
+  ChampionItemContextAggregation: {
+    label: 'Item Context',
+    description:
+      'Counts how often each item is built in games against each kind of draft, then works out which situations actually move that choice — the "why this item" behind the build tree.',
   },
   ChampionMatchupLeadAggregation: {
     label: 'Matchups',

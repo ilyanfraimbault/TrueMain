@@ -35,6 +35,7 @@ public sealed class WorkerFailureMetricsTests
         ("MatchParticipantEloBracketEnrichment", JobMode.EloBracketEnrichmentOnly),
         ("ChampionPatternAggregation", JobMode.PatternAggregationOnly),
         ("ChampionProfileAggregation", JobMode.ChampionProfileAggregationOnly),
+        ("ChampionItemContextAggregation", JobMode.ChampionItemContextAggregationOnly),
         ("ChampionMatchupLeadAggregation", JobMode.MatchupLeadAggregationOnly),
         ("ChampionSynergyAggregation", JobMode.SynergyAggregationOnly),
         ("ChampionBanAggregation", JobMode.BanAggregationOnly),

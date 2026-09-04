@@ -109,6 +109,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.ItemContextAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.HasIndex(e => e.PlatformId);
 
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
@@ -170,6 +174,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         // have to be flagged.
         entity.HasIndex(e => e.QueueId, "IX_matches_profile_pending")
             .HasFilter("\"ProfileAggregated\" = false");
+
+        // Same shape for the item-context fold (#1450).
+        entity.HasIndex(e => e.QueueId, "IX_matches_item_context_pending")
+            .HasFilter("\"ItemContextAggregated\" = false");
 
         // Deliberately Restrict, and the only child of matches that is — match_bans,
         // match_participant_kill_positions, match_participant_timeline_snapshots and

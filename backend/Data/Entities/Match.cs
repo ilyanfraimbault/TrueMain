@@ -110,5 +110,16 @@ public class Match
     /// </summary>
     public bool ProfileAggregated { get; set; }
 
+    /// <summary>
+    /// Whether this match has been folded into the situational item context (#1450), the
+    /// same one-fold-per-match gate as <see cref="ProfileAggregated"/> and shipped
+    /// <c>false</c> for the same reason: the tables are created empty and the retained
+    /// history has to pass through once. A match whose participants carry no #1448 context
+    /// still folds — the axes come from the <em>other</em> participants' profiles, not from
+    /// this match's own columns — so unlike the profile fold this one has real work to do
+    /// on the backlog.
+    /// </summary>
+    public bool ItemContextAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

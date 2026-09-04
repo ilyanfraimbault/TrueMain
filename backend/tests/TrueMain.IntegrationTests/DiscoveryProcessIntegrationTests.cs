@@ -9,6 +9,7 @@ using Ingestor.Riot;
 using Ingestor.Riot.Dto;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using TrueMain.TestKit;
 
 namespace TrueMain.IntegrationTests;
 
@@ -288,7 +289,10 @@ public sealed class DiscoveryProcessIntegrationTests
         await _fixture.ResetDatabaseAsync();
 
         // Two accounts, each with a same-day snapshot the ladder rank will change —
-        // the update-in-place branch of RankSnapshotWriter, not the insert branch.
+        // the update-in-place branch of RankSnapshotWriter, not the insert branch. The
+        // capture time is clamped into today (TestInstants): "an hour ago" is yesterday
+        // for the first hour after midnight UTC, which took the insert branch instead and
+        // failed this test with a duplicate row.
         // With SaveBatchSize = 1 these land in two different save slices, so the
         // second slice's preload runs after the first slice's SaveChanges +
         // ClearTracking. #1229 moved that preload inside the slice specifically so
@@ -317,7 +321,7 @@ public sealed class DiscoveryProcessIntegrationTests
                 {
                     Id = Guid.NewGuid(),
                     RiotAccountId = existing.Id,
-                    CapturedAtUtc = DateTime.UtcNow.AddHours(-1),
+                    CapturedAtUtc = TestInstants.EarlierSameUtcDay(TimeSpan.FromHours(1)),
                     Tier = "GOLD",
                     Division = "IV",
                     LeaguePoints = 10,
