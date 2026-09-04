@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -26,9 +28,13 @@ namespace Ingestor.Processes;
 /// see is zero.
 /// </para>
 /// <para>
-/// The three apex tiers are re-read on every run — nine calls covers Master+ across three
-/// platforms — while everything below Master is walked incrementally under
-/// <see cref="LadderSyncOptions.MaxRequestsPerRun"/>, resuming from a persisted cursor.
+/// The three apex tiers are re-read whole — nine calls covers Master+ across three platforms —
+/// on the cadence of <see cref="LadderSyncOptions.ApexRefreshInterval"/>, while everything below
+/// Master is walked incrementally under <see cref="LadderSyncOptions.MaxRequestsPerRun"/> and
+/// <see cref="LadderSyncOptions.MaxRequestsPerDay"/>, resuming from a persisted cursor. The whole
+/// process runs no more often than <see cref="LadderSyncOptions.MinRunInterval"/> (#1474): a
+/// ladder moves slowly, and every iteration spent re-reading it is fetch-lane time taken from
+/// match ingestion.
 /// </para>
 /// <para>
 /// This process <em>never inserts accounts</em>. Seeding every player of every swept division
@@ -46,6 +52,7 @@ public sealed class LadderSyncProcess(
     IRiotPlatformClient riotPlatformClient,
     IDataSessionFactory sessionFactory,
     IRankSnapshotWriter rankSnapshotWriter,
+    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
     IOptions<LadderSyncOptions> ladderSyncOptions) : IIngestorProcess
 {
@@ -64,14 +71,49 @@ public sealed class LadderSyncProcess(
             return new NoWorkSummary("No platforms configured.", 0);
         }
 
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+
+        // Same guard as Discovery's (#487, #1149): measured from the last run that did its
+        // work, so a skip can never re-arm itself. The current run is recorded as Running and
+        // is therefore excluded from the answer.
+        if (options.MinRunInterval > TimeSpan.Zero)
+        {
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
+            if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
+            {
+                logger.LogInformation(
+                    "Ladder sync skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
+                    lastRunUtc,
+                    options.MinRunInterval);
+                return new SkippedSummary("Within MinRunInterval; ladder sync skipped this iteration.", true);
+            }
+        }
+
+        var ledger = await ReadLedgerAsync(options, nowUtc, ct);
+        var apexDue = ledger.IsApexDue(options.ApexRefreshInterval, nowUtc);
+        var budget = ledger.RemainingBudget(options);
+
         var apexTiers = LadderSweepPlan.ApexTiersInScope(options.TierScope);
         var slots = LadderSweepPlan.BuildSlots(options.TierScope);
+
+        if (!apexDue && (budget == 0 || slots.Count == 0))
+        {
+            logger.LogInformation(
+                "Ladder sync skipped: daily budget spent ({SpentToday}/{MaxRequestsPerDay}) and the apex refresh is not due.",
+                ledger.PagedCallsToday,
+                options.MaxRequestsPerDay);
+            return new SkippedSummary("Daily request budget spent and apex refresh not due; ladder sync skipped this iteration.", true);
+        }
 
         var stats = new SweepStats();
         var buffer = new EntryBuffer(Math.Max(1, options.SaveBatchSize));
 
-        await SyncApexTiersAsync(platforms, apexTiers, buffer, stats, ct);
-        await SweepDivisionsAsync(platforms, slots, options, buffer, stats, ct);
+        if (apexDue)
+        {
+            await SyncApexTiersAsync(platforms, apexTiers, buffer, stats, ct);
+        }
+
+        await SweepDivisionsAsync(platforms, slots, budget, buffer, stats, ct);
         await buffer.FlushAsync(this, stats, ct);
 
         var summary = stats.ToSummary();
@@ -90,10 +132,110 @@ public sealed class LadderSyncProcess(
     }
 
     /// <summary>
+    /// What this process has already spent and refreshed recently, read back from its own run
+    /// summaries (#1474). The daily ceiling and the apex cadence both need to know about runs
+    /// other than this one, and the summaries are the only record of them.
+    /// </summary>
+    /// <remarks>
+    /// One indexed range scan serves both questions: the window starts at UTC midnight for the
+    /// budget, and reaches further back when the apex interval is longer than the day so far.
+    /// Runs whose summary is missing (failed before summarising, still running) count for
+    /// nothing — a call that was never recorded cannot be charged.
+    /// </remarks>
+    private async Task<RunLedger> ReadLedgerAsync(LadderSyncOptions options, DateTime nowUtc, CancellationToken ct)
+    {
+        var needsBudget = options.MaxRequestsPerDay > 0;
+        var needsApex = options.ApexRefreshInterval > TimeSpan.Zero;
+        if (!needsBudget && !needsApex)
+        {
+            return RunLedger.Empty;
+        }
+
+        var midnightUtc = nowUtc.Date;
+        var since = needsApex && nowUtc - options.ApexRefreshInterval < midnightUtc
+            ? nowUtc - options.ApexRefreshInterval
+            : midnightUtc;
+
+        var pagedCallsToday = 0;
+        DateTime? lastApexRunUtc = null;
+
+        foreach (var run in await processRunStore.GetRunSummariesAsync([Name], since, ct))
+        {
+            if (run.SummaryJson is null)
+            {
+                continue;
+            }
+
+            var (pagedCalls, apexCalls) = ReadCounters(run.SummaryJson);
+
+            if (run.StartedAtUtc >= midnightUtc)
+            {
+                pagedCallsToday += pagedCalls;
+            }
+
+            if (apexCalls > 0 && (lastApexRunUtc is null || run.StartedAtUtc > lastApexRunUtc))
+            {
+                lastApexRunUtc = run.StartedAtUtc;
+            }
+        }
+
+        return new RunLedger(pagedCallsToday, lastApexRunUtc);
+    }
+
+    /// <summary>
+    /// Reads the two counters the ledger needs out of a persisted summary. A summary that is
+    /// not a <see cref="LadderSyncSummary"/> (a skip, a no-work row) simply has neither.
+    /// </summary>
+    private static (int PagedCalls, int ApexCalls) ReadCounters(string summaryJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(summaryJson);
+            var root = document.RootElement;
+            return (ReadInt(root, "pagedCalls"), ReadInt(root, "apexCalls"));
+        }
+        catch (JsonException)
+        {
+            return (0, 0);
+        }
+
+        static int ReadInt(JsonElement element, string name)
+            => element.ValueKind == JsonValueKind.Object
+               && element.TryGetProperty(name, out var value)
+               && value.ValueKind == JsonValueKind.Number
+               && value.TryGetInt32(out var parsed)
+                ? Math.Max(0, parsed)
+                : 0;
+    }
+
+    private sealed record RunLedger(int PagedCallsToday, DateTime? LastApexRunUtc)
+    {
+        public static RunLedger Empty { get; } = new(0, null);
+
+        public bool IsApexDue(TimeSpan interval, DateTime nowUtc)
+            => interval <= TimeSpan.Zero
+               || LastApexRunUtc is null
+               || nowUtc - LastApexRunUtc.Value >= interval;
+
+        /// <summary>
+        /// The paginated calls this run may spend: the per-run cap, further bounded by what is
+        /// left of the day when a daily ceiling is configured.
+        /// </summary>
+        public int RemainingBudget(LadderSyncOptions options)
+        {
+            var perRun = Math.Max(0, options.MaxRequestsPerRun);
+            return options.MaxRequestsPerDay > 0
+                ? Math.Min(perRun, Math.Max(0, options.MaxRequestsPerDay - PagedCallsToday))
+                : perRun;
+        }
+    }
+
+    /// <summary>
     /// Re-reads every configured apex ladder in full. One call per (platform, tier), outside the
-    /// paginated budget: at nine calls for three platforms this is cheap enough to pay every run,
-    /// and it is what keeps Master+ — where nearly all tracked accounts live — fresh at pipeline
-    /// cadence rather than at the multi-day cadence of a windowed crawl.
+    /// paginated budget: at nine calls for three platforms the Riot cost is negligible. What is
+    /// not negligible is joining tens of thousands of Master entries against the account table,
+    /// which is why it runs on <see cref="LadderSyncOptions.ApexRefreshInterval"/> rather than
+    /// on every run.
     /// </summary>
     private async Task SyncApexTiersAsync(
         IReadOnlyList<string> platforms,
@@ -172,13 +314,12 @@ public sealed class LadderSyncProcess(
     private async Task SweepDivisionsAsync(
         IReadOnlyList<string> platforms,
         IReadOnlyList<LadderSweepSlot> slots,
-        LadderSyncOptions options,
+        int budget,
         EntryBuffer buffer,
         SweepStats stats,
         CancellationToken ct)
     {
-        var budget = Math.Max(0, options.MaxRequestsPerRun);
-        if (budget == 0 || slots.Count == 0)
+        if (budget <= 0 || slots.Count == 0)
         {
             return;
         }

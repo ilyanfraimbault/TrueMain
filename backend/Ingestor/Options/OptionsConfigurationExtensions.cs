@@ -102,6 +102,9 @@ public static class OptionsConfigurationExtensions
             .Validate(options => HasOnlyKnownLadderTiers(options.TierScope), KnownLadderTierScopeMessage)
             .Validate(options => options.MaxRequestsPerRun >= 0, "LadderSync:MaxRequestsPerRun must be >= 0 (0 disables the paginated sweep).")
             .Validate(options => options.SaveBatchSize > 0, "LadderSync:SaveBatchSize must be greater than 0.")
+            .Validate(options => options.MaxRequestsPerDay >= 0, "LadderSync:MaxRequestsPerDay must be >= 0 (0 disables the daily ceiling).")
+            .Validate(options => options.MinRunInterval >= TimeSpan.Zero, "LadderSync:MinRunInterval must be >= 00:00:00 (zero runs every iteration).")
+            .Validate(options => options.ApexRefreshInterval >= TimeSpan.Zero, "LadderSync:ApexRefreshInterval must be >= 00:00:00 (zero refreshes every run).")
             .ValidateOnStart();
 
         services.AddOptions<ManualSeedOptions>()
@@ -171,6 +174,7 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.BatchSize > 0, "MainActivity:BatchSize must be greater than 0.")
             .Validate(options => options.InactiveAfterDays > 0, "MainActivity:InactiveAfterDays must be greater than 0.")
             .Validate(options => options.RecheckAfterHours >= 0, "MainActivity:RecheckAfterHours must be >= 0.")
+            .Validate(options => options.MinRunInterval >= TimeSpan.Zero, "MainActivity:MinRunInterval must be >= 00:00:00 (zero runs every iteration).")
             .ValidateOnStart();
 
         services.AddOptions<MainAnalysisOptions>()
