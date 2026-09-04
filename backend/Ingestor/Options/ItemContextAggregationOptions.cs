@@ -24,7 +24,17 @@ public class ItemContextAggregationOptions
     /// Below this the classification is noise, and a wrong classification does not make a
     /// weaker axis — it makes a wrong one.
     /// </summary>
-    public int MinProfileGames { get; set; } = 200;
+    /// <remarks>
+    /// Measured rather than guessed. On production, patch 16.16 held 858
+    /// <c>(champion, position)</c> lines, of which 544 clear 100 games and 459 clear 200 —
+    /// and the lines below the floor are overwhelmingly off-role noise a champion's own
+    /// fallback position covers anyway. On preprod, whose whole corpus is ~140x smaller,
+    /// only 34 of 1 002 lines clear 100 and 7 clear 200: a floor of 200 leaves the feature
+    /// dark on the environment ingestor changes are verified on. 100 is where both hold —
+    /// a damage share, a sustain rate or a CC rate is stable well before it, since the
+    /// floor's real job is excluding the three-game line, not sharpening a mean.
+    /// </remarks>
+    public int MinProfileGames { get; set; } = 100;
 
     /// <summary>
     /// How many patches back the profile snapshot may reach for a champion the served
