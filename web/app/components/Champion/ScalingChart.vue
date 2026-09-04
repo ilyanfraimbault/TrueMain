@@ -46,16 +46,20 @@ const yDomain = computed<[number, number] | undefined>(() => {
 
 // Qualitative read of the index (a win-rate gap, e.g. 0.04 = +4 points). Three
 // points either way is the "meaningfully scales / fades" line; inside it is flat.
+//
+// Inside that band the chip renders nothing at all (#1466). It used to say
+// "−2.7% Even", which prints a decimal on a measurement the same line has just
+// declared insignificant — and a reader who takes the number seriously has been
+// told the opposite of what the threshold means. Outside the band the label is
+// the answer and the curve carries the magnitude, so the percentage is dropped
+// there too.
 const SCALING_THRESHOLD = 0.03
 const verdict = computed<{ label: string, tone: string } | null>(() => {
   if (props.scalingIndex === null) return null
   if (props.scalingIndex >= SCALING_THRESHOLD) return { label: 'Scales late', tone: 'text-primary' }
   if (props.scalingIndex <= -SCALING_THRESHOLD) return { label: 'Early game', tone: 'text-warning' }
-  return { label: 'Even', tone: 'text-muted' }
+  return null
 })
-
-const formatSignedPercent = (value: number): string =>
-  `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatPercentage(Math.abs(value), 1)}`
 
 const PRIMARY = defaultSeriesColor(0) // app primary (rosegold-400)
 const categories = { winRate: { name: 'Win rate', color: PRIMARY } }
@@ -76,12 +80,7 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
     subtitle="Win rate by game length. A rising line means the champion scales into the late game."
   >
     <template v-if="verdict" #actions>
-      <div class="flex items-baseline gap-1.5 text-xs">
-        <span class="font-semibold tabular-nums" :class="verdict.tone">
-          {{ formatSignedPercent(scalingIndex ?? 0) }}
-        </span>
-        <span :class="verdict.tone">{{ verdict.label }}</span>
-      </div>
+      <span class="text-xs font-medium" :class="verdict.tone">{{ verdict.label }}</span>
     </template>
 
     <USkeleton
