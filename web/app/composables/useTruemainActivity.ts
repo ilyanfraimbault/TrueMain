@@ -7,10 +7,10 @@ import type { TruemainActivityResponse } from '~~/shared/types/activity'
  * off <c>onMounted</c> inside <c>useTruemainFetch</c>, which is what makes that
  * true rather than merely intended (#862).
  *
- * There is no mode argument. All four granularities come back in one response
- * because three of them are foldings of the same games, so switching modes is a
- * local toggle rather than a refetch — and two modes can never end up describing
- * two different snapshots of the same afternoon.
+ * There is no mode argument. All three windows come back in one response because
+ * they are foldings of the same games, so switching window is a local toggle
+ * rather than a refetch — and two of them can never end up describing two
+ * different snapshots of the same afternoon.
  */
 export function useTruemainActivity(nameTag: MaybeRefOrGetter<string>) {
   const data = ref<TruemainActivityResponse | null>(null)
@@ -22,15 +22,14 @@ export function useTruemainActivity(nameTag: MaybeRefOrGetter<string>) {
     ),
     // `ignoreResponseError` turns a 404 into a null body, so the shape check is
     // the only way to tell "not found" from "no data": a real payload always
-    // carries the four series, each with a bucket array.
+    // carries the three windows, each with a bucket array.
     validate: (response): response is TruemainActivityResponse =>
       Boolean(
         response
         && typeof response === 'object'
-        && Array.isArray(response.game?.buckets)
-        && Array.isArray(response.day?.buckets)
+        && Array.isArray(response.patch?.buckets)
         && Array.isArray(response.week?.buckets)
-        && Array.isArray(response.patch?.buckets),
+        && Array.isArray(response.day?.buckets),
       ),
     onResponse: (response) => { data.value = response },
     onClear: () => { data.value = null },
