@@ -5,7 +5,7 @@ import { parseItemDescription } from '~~/shared/utils/tooltip-parser'
 import { formatCount } from '~~/shared/utils/counts'
 import { formatPercentageAdaptive } from '~~/shared/utils/ddragon'
 import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { itemContextAxisPhrase, wordableAxes } from '~~/shared/utils/item-context'
+import { ITEM_CONTEXT_TONE_CLASS, itemContextAxisPhrase, wordableAxes } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   item: StaticItemData
@@ -31,44 +31,24 @@ const contextLines = computed(() =>
   props.context
     ? wordableAxes(props.context).map(axis => ({
         key: `${axis.axis}-${axis.bucket}`,
+        rate: formatPercentageAdaptive(axis.rateIn),
         phrase: itemContextAxisPhrase(axis)!,
-        rateIn: formatPercentageAdaptive(axis.rateIn),
-        rateOut: formatPercentageAdaptive(axis.rateOut),
-        games: formatCount(axis.totalIn + axis.totalOut),
-        inGame: !axis.draftTime,
       }))
     : [],
 )
 
-/** The class as a short label. `Core` and `Preference` are answers in themselves. */
+/**
+ * The class as a short label — and only where it says something. A `Preference` renders
+ * nothing at all: "no situation moves this" is true but it is not worth a line on a card
+ * a reader opens to learn something, and printing it on three quarters of all items made
+ * the section read as noise rather than as an answer.
+ */
 const contextClassLabel = computed(() => {
   switch (props.context?.class) {
     case 'Core': return 'Core item'
     case 'Situational': return 'Situational'
-    case 'Preference': return 'Preference'
     default: return null
   }
-})
-
-/**
- * The one sentence a `Preference` gets. Saying "no situation moves this" is a result, not
- * an empty state: it tells a reader the choice is theirs rather than leaving them to
- * wonder what the card failed to load.
- */
-const showsPreferenceNote = computed(() =>
-  props.context?.class === 'Preference' && contextLines.value.length === 0)
-
-/**
- * The scope the verdict was measured on. Always worth saying: these numbers carry no rank
- * dimension while the panels around them do, and a patch window wider than one is a
- * different claim from "this patch".
- */
-const contextFootnote = computed(() => {
-  if (!props.context) return null
-  const parts = ['across all ranks']
-  if (props.context.scopeNote) parts.push(props.context.scopeNote)
-  if (props.context.patchWindow > 1) parts.push(`last ${props.context.patchWindow} patches`)
-  return parts.join(' · ')
 })
 
 const parsed = computed(() => props.item.description ? parseItemDescription(props.item.description) : [])
@@ -122,55 +102,35 @@ const pickRateLabel = computed(() =>
       </p>
     </div>
 
-    <!-- Why this item (#1451): the situations that measurably move this pick, each with
-         its two rates and its sample. Rendered only when the fold had something to say —
-         a card with nothing measured looks exactly as it did before this section
-         existed. -->
+    <!-- Why this item (#1451): the situations that measurably move this pick. One line
+         each, the rate and the situation and nothing else — the contrast rate, the sample
+         and the scope footnote were all cut, because the class above already says the pick
+         is situational and the card is read in a hover, not studied. The key term carries
+         the item tooltip's own colour vocabulary (see `ITEM_CONTEXT_TONE_CLASS`), so magic
+         damage is the same cyan here as in the description right above it. -->
     <div
       v-if="contextClassLabel"
       class="mt-2 border-t border-default/40 pt-2"
     >
-      <div class="mb-1 flex items-center gap-2">
-        <span class="text-xs font-semibold uppercase tracking-wide text-muted">
-          {{ contextClassLabel }}
-        </span>
-      </div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-muted">
+        {{ contextClassLabel }}
+      </p>
 
       <ul
         v-if="contextLines.length"
-        class="space-y-1 text-sm"
+        class="mt-1 space-y-1 text-sm"
       >
         <li
           v-for="line in contextLines"
           :key="line.key"
           class="text-toned"
         >
-          <span class="font-semibold tabular-nums text-default">{{ line.rateIn }}</span>
-          {{ line.phrase }}
-          <span class="text-muted">·</span>
-          <span class="font-semibold tabular-nums text-default">{{ line.rateOut }}</span>
-          <span class="text-muted">otherwise</span>
-          <span class="text-muted">· {{ line.games }} games</span>
-          <span
-            v-if="line.inGame"
-            class="text-muted italic"
-          >· in game</span>
+          <span class="font-semibold tabular-nums text-default">{{ line.rate }}</span>{{ ' ' }}<template
+            v-for="(token, index) in line.phrase"
+            :key="`${line.key}-${index}`"
+          ><span :class="token.tone ? ITEM_CONTEXT_TONE_CLASS[token.tone] : undefined">{{ token.text }}</span></template>
         </li>
       </ul>
-
-      <p
-        v-else-if="showsPreferenceNote"
-        class="text-sm text-muted"
-      >
-        No draft situation moves this pick.
-      </p>
-
-      <p
-        v-if="contextFootnote"
-        class="mt-1 text-xs text-dimmed"
-      >
-        {{ contextFootnote }}
-      </p>
     </div>
   </div>
 </template>

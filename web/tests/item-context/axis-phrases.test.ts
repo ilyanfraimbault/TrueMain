@@ -2,7 +2,9 @@ import type { ChampionItemContextAxis, ChampionItemContextItem } from '~~/shared
 import { describe, expect, it } from 'vitest'
 import {
   indexItemContext,
+  ITEM_CONTEXT_TONE_CLASS,
   itemContextAxisPhrase,
+  itemContextAxisText,
   itemContextKey,
   KNOWN_ITEM_CONTEXT_AXES,
   wordableAxes,
@@ -49,8 +51,43 @@ function axis(partial: Partial<ChampionItemContextAxis> & { axis: string }): Cha
 describe('itemContextAxisPhrase', () => {
   it('words every axis the backend can send, at both ends', () => {
     for (const name of BACKEND_AXES) {
-      expect(itemContextAxisPhrase(axis({ axis: name, bucket: 'High' })), `${name} High`).toBeTruthy()
-      expect(itemContextAxisPhrase(axis({ axis: name, bucket: 'Low' })), `${name} Low`).toBeTruthy()
+      for (const bucket of ['High', 'Low'] as const) {
+        const text = itemContextAxisText(axis({ axis: name, bucket }))
+        expect(text, `${name} ${bucket}`).toBeTruthy()
+        expect(text, `${name} ${bucket}`).not.toMatch(/undefined|\[object/)
+      }
+    }
+  })
+
+  it('gives every coloured term a class the stylesheet knows', () => {
+    for (const name of BACKEND_AXES) {
+      for (const bucket of ['High', 'Low'] as const) {
+        for (const token of itemContextAxisPhrase(axis({ axis: name, bucket })) ?? []) {
+          if (token.tone) expect(ITEM_CONTEXT_TONE_CLASS[token.tone], `${name} ${token.text}`).toBeTruthy()
+        }
+      }
+    }
+  })
+
+  it('colours magic damage with the magic-resist cyan, not the ability-power violet', () => {
+    // Riot colours damage by the resistance that blocks it, which is the convention the
+    // item description directly above this card already follows.
+    const tokens = itemContextAxisPhrase(axis({ axis: 'EnemyMagicDamage', bucket: 'High' }))!
+    const marked = tokens.find(token => token.tone)!
+    expect(marked.text).toBe('magic-damage')
+    expect(ITEM_CONTEXT_TONE_CLASS[marked.tone!]).toBe('text-stat-mr')
+
+    const physical = itemContextAxisPhrase(axis({ axis: 'EnemyPhysicalDamage', bucket: 'High' }))!
+      .find(token => token.tone)!
+    expect(ITEM_CONTEXT_TONE_CLASS[physical.tone!]).toBe('text-stat-ad')
+  })
+
+  it('leaves terms with no stat behind them uncoloured', () => {
+    // Melee, ranged, a strong laner: real situations, but nothing in the stat vocabulary
+    // answers them, and a card where every other word is tinted says nothing.
+    for (const name of ['EnemyMelee', 'OpponentRanged', 'OpponentLanePressure']) {
+      const tokens = itemContextAxisPhrase(axis({ axis: name, bucket: 'High' }))!
+      expect(tokens.some(token => token.tone), name).toBe(false)
     }
   })
 
@@ -59,9 +96,9 @@ describe('itemContextAxisPhrase', () => {
   })
 
   it('words the low end as its own situation, never as a negation', () => {
-    expect(itemContextAxisPhrase(axis({ axis: 'EnemyMelee', bucket: 'Low' })))
+    expect(itemContextAxisText(axis({ axis: 'EnemyMelee', bucket: 'Low' })))
       .toBe('against a mostly ranged team')
-    expect(itemContextAxisPhrase(axis({ axis: 'OpponentRanged', bucket: 'Low' })))
+    expect(itemContextAxisText(axis({ axis: 'OpponentRanged', bucket: 'Low' })))
       .toBe('against a melee lane opponent')
   })
 
@@ -96,30 +133,5 @@ describe('indexItemContext', () => {
   it('tolerates a missing payload', () => {
     expect(indexItemContext(null).size).toBe(0)
     expect(indexItemContext(undefined).size).toBe(0)
-  })
-})
-
-describe('indexItemContext scope note', () => {
-  it('attaches the all-matchups clause when a matchup is pinned', () => {
-    const item = { slot: 'Build', itemId: 3065 } as ChampionItemContextItem
-
-    const pinned = indexItemContext([item], { allMatchups: true })
-    expect(pinned.get(itemContextKey('Build', 3065))?.scopeNote).toBe('all matchups')
-  })
-
-  it('says nothing extra when no matchup is pinned', () => {
-    const item = { slot: 'Build', itemId: 3065 } as ChampionItemContextItem
-
-    expect(indexItemContext([item]).get(itemContextKey('Build', 3065))?.scopeNote).toBeUndefined()
-    expect(indexItemContext([item], { allMatchups: false })
-      .get(itemContextKey('Build', 3065))?.scopeNote).toBeUndefined()
-  })
-
-  it('does not mutate the payload it was handed', () => {
-    const item = { slot: 'Build', itemId: 3065 } as ChampionItemContextItem
-
-    indexItemContext([item], { allMatchups: true })
-
-    expect('scopeNote' in item).toBe(false)
   })
 })

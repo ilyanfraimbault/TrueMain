@@ -11,6 +11,13 @@ public sealed class DraftAxisEvaluatorTests
 {
     private static readonly DraftAxisThresholds Thresholds = new();
 
+    // Fixture values are expressed relative to the thresholds rather than as magic numbers:
+    // the thresholds are calibration, and recalibrating them (as #1465 did, when crowd
+    // control turned out to sit above the 90th percentile and sustain below the median)
+    // must not silently invert what these tests assert.
+    private static readonly double Sustains = Thresholds.SustainChampionPerMinute * 2;
+    private static readonly double NoSustain = Thresholds.SustainChampionPerMinute / 4;
+
     [Fact]
     public void TheTeamDamageShareIsWeightedByWhoActuallyDealsTheDamage()
     {
@@ -36,8 +43,8 @@ public sealed class DraftAxisEvaluatorTests
     {
         var enemies = new List<ChampionProfileFacts>
         {
-            Facts(1, sustainPerMinute: 300),
-            Facts(2, sustainPerMinute: 300),
+            Facts(1, sustainPerMinute: Sustains),
+            Facts(2, sustainPerMinute: Sustains),
             Facts(3, sustainPerMinute: 0),
             Facts(4, sustainPerMinute: 0),
             Facts(5, sustainPerMinute: 0),
@@ -89,7 +96,7 @@ public sealed class DraftAxisEvaluatorTests
         {
             IsRanged = true,
             GoldLeadAt10 = 400d,
-            SustainPerMinute = 500d,
+            SustainPerMinute = Sustains,
         };
 
         var axes = Evaluate(opponent: opponent);
@@ -103,7 +110,7 @@ public sealed class DraftAxisEvaluatorTests
     [Fact]
     public void BinaryAxesHaveNoMiddle()
     {
-        var melee = Facts(88) with { IsRanged = false, SustainPerMinute = 0d };
+        var melee = Facts(88) with { IsRanged = false, SustainPerMinute = NoSustain };
 
         var axes = Evaluate(opponent: melee);
 

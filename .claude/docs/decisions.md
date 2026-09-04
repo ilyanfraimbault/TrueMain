@@ -36,9 +36,11 @@ Last verified against `develop` on 2026-09-02.
 
 ## Champion page — builds, power spikes, SSR prose — [`decisions/product-champion-page.md`](decisions/product-champion-page.md)
 
-- The "why this item" card states the scope it was measured on (all ranks, all matchups when `?vs=` is pinned, the patch window) — #1451
+- The "why this item" card is a rate and a situation, nothing else: no contrast rate, no sample, no scope footnote — #1451, #1465
+- The card's key term uses the item tooltip's colour vocabulary (damage coloured by the resistance that blocks it); untinted where no stat answers it — #1465
+- A `Preference` verdict renders nothing on the card — #1465
 - An item-context axis the front end has no wording for is dropped, never printed raw; a test mirrors the backend's axis list — #1451
-- Only situational items are ringed on the build tree: marking core too would make the mark meaningless — #1451
+- The build tree carries no situational mark: the ring competed with the main-path highlight — #1451, #1465
 - Champion timeline-leads ("Lead vs role opponent") was removed; matchups stayed — #889
 - Power spikes are per-core-build bars anchored on events, not a time curve; bar height is excess acceleration — #890, #775
 - Scoping the aggregate to a build scopes the games, not the items — the item set has to be intersected at read time — #1021, #1022

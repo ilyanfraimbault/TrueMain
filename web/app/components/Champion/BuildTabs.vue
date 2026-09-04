@@ -55,12 +55,7 @@ const { data: itemContext } = useChampionItemContext(
 const itemContextIndex = computed<Map<string, ItemContextCard>>(() =>
   // Withheld while scaffolding for the same reason every number is: the placeholder
   // aggregate's item ids are invented, and they would collide with real verdicts.
-  props.pending
-    ? new Map()
-    // `allMatchups` when the page pins an opponent: every panel around the card is
-    // re-sliced to that matchup and the verdicts are not, so the card has to say which
-    // games its percentages came from rather than let the filter above speak for it.
-    : indexItemContext(itemContext.value?.items, { allMatchups: Boolean(props.opponentChampionId) }),
+  props.pending ? new Map() : indexItemContext(itemContext.value?.items),
 )
 
 const items = computed(() =>
