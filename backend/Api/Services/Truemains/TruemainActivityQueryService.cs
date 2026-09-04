@@ -59,14 +59,14 @@ public sealed class TruemainActivityQueryService(
     private const int MaxGamesScanned = 1500;
 
     /// <summary>
-    /// How long the measured patch span is held. A patch turns over roughly every
+    /// How long the measured calendar bounds are held. A patch turns over roughly every
     /// two weeks and the value is global, so this is not a freshness trade-off so
     /// much as a way of asking the question once an hour instead of once a page
     /// view. The visible consequence is bounded and harmless: for up to this long
     /// after the first game of a new patch is ingested, the grid still draws the
     /// previous patch.
     /// </summary>
-    private static readonly TimeSpan PatchWindowTtl = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan TrackedBoundsTtl = TimeSpan.FromMinutes(15);
 
     public async Task<TruemainActivityReadModel?> GetAsync(string nameTag, CancellationToken ct)
     {
@@ -78,18 +78,20 @@ public sealed class TruemainActivityQueryService(
 
         var queueId = (int)mainAnalysisOptions.Value.QueueId;
         var todayUtc = TruemainActivityBuckets.FloorToDayUtc(DateTime.UtcNow);
-        var weekFirstDay = todayUtc.AddDays(-(TruemainActivityBuckets.WeekWindowDays - 1));
 
-        var patchWindow = await GetPatchWindowAsync(queueId, ct);
-        var patchFirstDay = patchWindow is null
+        var bounds = await GetTrackedBoundsAsync(queueId, ct);
+        var patchFirstDay = bounds is null
             ? (DateTime?)null
-            : TruemainActivityBuckets.FloorToDayUtc(patchWindow.FirstGameUtc);
+            : TruemainActivityBuckets.FloorToDayUtc(bounds.PatchFirstGameUtc);
 
-        // Only the games either window can actually draw. The week window normally
-        // sits inside the patch one, but on the first days of a new patch it reaches
-        // back into the previous one.
-        var since = patchFirstDay is null || patchFirstDay > weekFirstDay ? weekFirstDay : patchFirstDay.Value;
-        var games = await LoadGamesSinceAsync(account.Puuid, queueId, since, ct);
+        // The earliest day any window could ask for. Loading from here rather than
+        // per window keeps this one query: the month reaches furthest back except in
+        // the first days of a patch that opened before it, which cannot happen (a
+        // patch is a fortnight), so the min is what the read actually needs.
+        var earliestRequested = Earlier(
+            todayUtc.AddDays(-(TruemainActivityBuckets.MonthWindowDays - 1)),
+            patchFirstDay ?? todayUtc);
+        var games = await LoadGamesSinceAsync(account.Puuid, queueId, earliestRequested, ct);
 
         // A game must never be dropped for being newer than the clock: ingestion
         // timestamps come from Riot, and a few seconds of skew (or a test pinning the
@@ -100,18 +102,25 @@ public sealed class TruemainActivityQueryService(
 
         return new TruemainActivityReadModel
         {
-            Patch = patchWindow is null || patchFirstDay is null
+            Month = Series(
+                TruemainActivityKinds.MonthMode,
+                patch: null,
+                TruemainActivityBuckets.ByDay(
+                    games,
+                    MonthFirstDay(bounds, lastDay),
+                    lastDay)),
+            Patch = bounds is null || patchFirstDay is null
                 // A database with no parseable patch yet: there is no window to draw,
                 // and inventing one from this player's games would answer a different
                 // question. The UI states the empty series.
                 ? EmptySeries(TruemainActivityKinds.PatchMode, patch: null)
                 : Series(
                     TruemainActivityKinds.PatchMode,
-                    patchWindow.Patch,
+                    bounds.Patch,
                     TruemainActivityBuckets.ByDay(
                         games,
                         patchFirstDay.Value,
-                        Later(TruemainActivityBuckets.FloorToDayUtc(patchWindow.LastGameUtc), lastDay))),
+                        Later(TruemainActivityBuckets.FloorToDayUtc(bounds.PatchLastGameUtc), lastDay))),
             Week = Series(
                 TruemainActivityKinds.WeekMode,
                 patch: null,
@@ -121,6 +130,30 @@ public sealed class TruemainActivityQueryService(
                 patch: null,
                 TruemainActivityBuckets.ByGame(games, lastDay)),
         };
+    }
+
+    /// <summary>
+    /// First day of the month window: thirty days back, but never past the oldest
+    /// day anyone still has data for.
+    /// </summary>
+    /// <remarks>
+    /// This is the one window wide enough for retention to bite. Match rows are
+    /// hard-deleted past <c>MatchDataRetention:RetainedPatchCount</c> patches, which
+    /// is roughly a month — so a thirty-day window can reach a day where "did not
+    /// queue" and "no longer stored" are indistinguishable, and drawing it as an
+    /// idle tile would be a fabricated claim about the player. Clamped to the oldest
+    /// retained game *anyone* has, the same global measurement the patch window is
+    /// bounded by; the grid then simply starts later and says nothing it cannot back.
+    /// </remarks>
+    private static DateTime MonthFirstDay(TrackedBounds? bounds, DateTime lastDay)
+    {
+        var requested = lastDay.AddDays(-(TruemainActivityBuckets.MonthWindowDays - 1));
+        if (bounds is null)
+        {
+            return requested;
+        }
+
+        return Later(requested, TruemainActivityBuckets.FloorToDayUtc(bounds.OldestGameUtc));
     }
 
     /// <summary>
@@ -157,21 +190,23 @@ public sealed class TruemainActivityQueryService(
             .ToListAsync(ct);
 
     /// <summary>
-    /// The current patch and the span of tracked games played on it, measured over
-    /// every player's matches. <see langword="null"/> when no tracked match carries
-    /// a parseable patch.
+    /// The calendar facts the windows are bounded by, measured over every player's
+    /// matches: the current patch with the span of games played on it, and the
+    /// oldest game retention still holds. <see langword="null"/> when no tracked
+    /// match carries a parseable patch.
     /// </summary>
     /// <remarks>
-    /// "Current" is the patch whose <em>first</em> game is the most recent, which
-    /// needs no version parsing and cannot be fooled by a stale straggler being
-    /// ingested for an older patch. The group-by runs over the retained window only
-    /// (retention holds ~2 patches), and the result is cached — see
-    /// <see cref="PatchWindowTtl"/>.
+    /// One group-by answers both. It returns a row per retained patch — retention
+    /// holds ~2, so this is a two-row result, not a scan the API pages through —
+    /// from which "current" is the patch whose <em>first</em> game is the most
+    /// recent (no version parsing, and a stale straggler ingested for an older patch
+    /// cannot fool it) and the retention floor is the earliest first-game across all
+    /// of them. Cached — see <see cref="TrackedBoundsTtl"/>.
     /// </remarks>
-    private async Task<PatchWindow?> GetPatchWindowAsync(int queueId, CancellationToken ct)
+    private async Task<TrackedBounds?> GetTrackedBoundsAsync(int queueId, CancellationToken ct)
     {
-        var key = (nameof(TruemainActivityQueryService), nameof(GetPatchWindowAsync), queueId);
-        if (cache.TryGetValue(key, out PatchWindow? cached))
+        var key = (nameof(TruemainActivityQueryService), nameof(GetTrackedBoundsAsync), queueId);
+        if (cache.TryGetValue(key, out TrackedBounds? cached))
         {
             return cached;
         }
@@ -179,7 +214,7 @@ public sealed class TruemainActivityQueryService(
         // Projected into an anonymous type, not straight into the record: EF cannot
         // translate a grouping aggregate into a user type's constructor and throws
         // at query time rather than at build time.
-        var row = await db.Matches
+        var rows = await db.Matches
             .AsNoTracking()
             .Where(match => match.QueueId == queueId && match.Patch != null)
             .GroupBy(match => match.Patch!)
@@ -189,14 +224,20 @@ public sealed class TruemainActivityQueryService(
                 FirstGameUtc = group.Min(match => match.GameStartTimeUtc),
                 LastGameUtc = group.Max(match => match.GameStartTimeUtc),
             })
-            .OrderByDescending(patch => patch.FirstGameUtc)
-            .FirstOrDefaultAsync(ct);
+            .ToListAsync(ct);
 
-        var window = row is null ? null : new PatchWindow(row.Patch, row.FirstGameUtc, row.LastGameUtc);
+        var current = rows.MaxBy(patch => patch.FirstGameUtc);
+        var bounds = current is null
+            ? null
+            : new TrackedBounds(
+                current.Patch,
+                current.FirstGameUtc,
+                current.LastGameUtc,
+                rows.Min(patch => patch.FirstGameUtc));
 
         // Cached even when null, so a fresh database does not re-run the group-by on
         // every profile view.
-        return cache.Store(key, window, PatchWindowTtl);
+        return cache.Store(key, bounds, TrackedBoundsTtl);
     }
 
     private static TruemainActivitySeriesReadModel Series(
@@ -228,8 +269,15 @@ public sealed class TruemainActivityQueryService(
 
     private static DateTime Later(DateTime left, DateTime right) => left > right ? left : right;
 
+    private static DateTime Earlier(DateTime left, DateTime right) => left < right ? left : right;
+
     /// <summary>
-    /// A patch and the span of tracked games played on it.
+    /// The current patch with the span of tracked games played on it, plus the
+    /// oldest tracked game still on disk — the floor no window may reach past.
     /// </summary>
-    private sealed record PatchWindow(string Patch, DateTime FirstGameUtc, DateTime LastGameUtc);
+    private sealed record TrackedBounds(
+        string Patch,
+        DateTime PatchFirstGameUtc,
+        DateTime PatchLastGameUtc,
+        DateTime OldestGameUtc);
 }
