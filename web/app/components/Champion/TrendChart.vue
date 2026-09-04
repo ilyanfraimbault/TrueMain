@@ -73,6 +73,26 @@ const gradientStops = [
 const xFormatter = (tick: number): string => rows.value[tick]?.patch ?? ''
 // The ban series is filtered, so its tick indices are its own.
 const banXFormatter = (tick: number): string => banRows.value[tick]?.patch ?? ''
+
+// Without explicit ticks the axis scale places ticks at fractional positions
+// (0, 0.5, 1, ...), and the formatter — which indexes the row array — returns an
+// empty string for every one of them but the first: the axis ended up labelled
+// with a single patch. Pin the ticks to data points instead, at most five so a
+// narrow column stays readable, always keeping the first and the last patch so
+// the range the chart covers is obvious.
+const MAX_X_TICKS = 5
+
+function patchTicks(count: number): number[] {
+  if (count <= MAX_X_TICKS) {
+    return Array.from({ length: count }, (_, i) => i)
+  }
+  const step = (count - 1) / (MAX_X_TICKS - 1)
+  const ticks = Array.from({ length: MAX_X_TICKS }, (_, i) => Math.round(i * step))
+  return [...new Set(ticks)]
+}
+
+const xTicks = computed(() => patchTicks(rows.value.length))
+const banXTicks = computed(() => patchTicks(banRows.value.length))
 const winRateFormatter = (value: number): string => formatPercentage(value, 0)
 const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 const banRateFormatter = (value: number): string => formatPercentage(value, 1)
@@ -118,6 +138,7 @@ const chartGridClass = computed(() =>
           :categories="winRateCategories"
           :height="220"
           :x-formatter="xFormatter"
+          :x-explicit-ticks="xTicks"
           :y-formatter="winRateFormatter"
           :gradient-stops="gradientStops"
           :y-grid-line="false"
@@ -147,6 +168,7 @@ const chartGridClass = computed(() =>
           :categories="pickRateCategories"
           :height="220"
           :x-formatter="xFormatter"
+          :x-explicit-ticks="xTicks"
           :y-formatter="pickRateFormatter"
           :gradient-stops="gradientStops"
           :y-grid-line="false"
@@ -178,6 +200,7 @@ const chartGridClass = computed(() =>
           :categories="banRateCategories"
           :height="220"
           :x-formatter="banXFormatter"
+          :x-explicit-ticks="banXTicks"
           :y-formatter="banRateFormatter"
           :gradient-stops="gradientStops"
           :y-grid-line="false"
