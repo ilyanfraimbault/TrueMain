@@ -261,3 +261,11 @@ only in a tooltip, so readers filtered the whole page without ever learning what
 it in the header stat line ("824 games played by mains" / "across all tracked players"), which makes the
 control legible without a hover and without adding a paragraph. Phrased as a description of the games rather
 than the name of the control — next to a raw count, "truemains only" would read as a filter chip.
+
+**The patch diff is gone, front and API.** #534 gave the page a section comparing two patches — a signed
+win-rate swing plus three "changed / unchanged" badges for the first item, the keystone and the skill order.
+It answered a question nobody was asking on a build page: a reader is there to learn what to build *now*, and
+the three badges are booleans about a build they are not looking at. #1466 removed the component, the
+composable, the `/champions/{id}/patch-diff` endpoint, its query service and read model, and its integration
+suite — the endpoint had exactly one consumer. Patch-over-patch movement is still on the page, as the trend
+chart, which shows the shape of the change rather than asserting a binary about it.

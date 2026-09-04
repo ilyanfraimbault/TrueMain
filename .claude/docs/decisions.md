@@ -58,6 +58,7 @@ Last verified against `develop` on 2026-09-02.
 - The build paragraph is collapsed, moved to the foot of the sidebar, and no longer restates the icon grid — #1466, #1123, #1143
 - A verdict chip inside its own dead zone says nothing, so it says nothing — #1466
 - The population the numbers come from is stated in the header, not hovered — #1466, #1346
+- The patch diff is gone, front and API — the trend chart already shows patch-over-patch movement — #1466, #534
 
 ## Champion directory, tier list and served patch — [`decisions/product-directory-and-tiers.md`](decisions/product-directory-and-tiers.md)
 

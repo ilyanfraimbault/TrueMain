@@ -100,7 +100,7 @@ release.
 
 The champion reads were each caching themselves, with their own `TryGetValue`/`Store` pair and a 60 s TTL —
 and five of them (`ChampionBuildsQueryService`, the live matchup fold, `GetTrioSynergiesAsync`,
-`ChampionTrendQueryService`, `ChampionPatchDiffQueryService`) were not caching at all. `RequestCoalescer`
+`ChampionTrendQueryService`, and the since-removed `ChampionPatchDiffQueryService`) were not caching at all. `RequestCoalescer`
 existed but only the truemains leaderboard used it. With 173 champions × 5 lanes × rank brackets, a 60 s TTL
 means practically every visit to a non-top champion pays the cold price, and nothing stopped ten concurrent
 visitors from each paying it at once.
