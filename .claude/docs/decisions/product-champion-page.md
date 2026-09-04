@@ -273,11 +273,22 @@ chart, which shows the shape of the change rather than asserting a binary about 
 **No orphan card in the variations row, and the runes fill the height they are given.** Two layout calls from
 the same review pass. The variation cards were a two-column grid, so an odd count stranded the last card at
 half width on a row of its own — read as a layout accident rather than as a card. They are a `flex-wrap` row
-now: each card sits at `basis-[calc(50%-0.5rem)]` but may `grow`, so a lone last card fills its row, and
-`min-w-72` collapses to one column before a card gets too narrow for an icon row plus its badges. Separately,
+now: each card sits at `basis-64` but may `grow`, so every surviving category shares one row (three of them
+laid out 2 + 1 while the basis was half-width, #1469) and a card that does wrap fills its row rather than
+sitting stranded. Separately,
 the core block's rune column was drawn at a 35 px keystone inside a track sized for it, leaving ~24 px of the
 column empty under the shards while the block beside it ran to 148 px. The rune sizes (36 px base, 39 px
 keystone) now live as defaults on `BuildPanel/Core.vue` instead of being restated at each of its three call
 sites, and the column widened from 240 px to 268 px to hold them — measured, the block and the block beside it
 both come out at 148 px. Sized to just under the row rather than over: past that the runes drive the row
 height and the *left* side carries the dead space, which is the same complaint mirrored.
+
+**A variation's badge is one number, and the precision is in the tooltip.** Each row ended in two chips —
+`76.0% pick` and `53.4% win` — which spent most of a card's width restating their own labels, and were the
+reason three categories could not share a row. #1469 cut it to the pick rate alone, no suffix, rounded to a
+whole percent; the win rate joins the game count in the hover tooltip, which keeps its decimal. The rounding
+is only defensible because the precision stays one gesture away, and the small chip is what makes that gesture
+worth making. The champion header's win rate rounds the same way, for the same reason: a decimal next to a raw
+game count is precision nobody acts on. `formatPercentage`'s site-wide default is deliberately untouched —
+callers that want whole numbers pass `0`, because sweeping every percentage on the site (tier list, matchups,
+synergies, trend charts) is a wider call than this one.
