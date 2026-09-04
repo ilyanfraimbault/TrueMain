@@ -565,6 +565,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :total-wins="champion?.totalWins ?? 0"
           :roam-kp15="championRoam?.roamKp15 ?? null"
           :low-sample-message="bracketNoticeText"
+          :truemains-only="filters.truemainsOnly"
           :loading="!champion"
         />
         <ChampionFilters
@@ -665,28 +666,6 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         </div>
 
         <aside class="min-w-0 space-y-6">
-          <!--
-            The build in words (#1123). Rendered plainly — not `Lazy`, not
-            `hydrate-on-visible` — because being present in the server HTML is
-            the entire point; a lazy wrapper would put it back behind the same
-            JS gate as everything else.
-
-            In the sidebar, beside the icon grid rather than under it (#1143):
-            it is the same build said twice, and stacking the prose below the
-            panels made the second telling read as a footnote nobody scrolls to.
-            Next to them it is the caption for what the reader is already
-            looking at, and it is the one card in this column that needs no JS.
-            DOM order still puts it after the tabs, so the crawler and the
-            keyboard both meet the page's own build content first.
-          -->
-          <ChampionBuildSummary
-            :summary="buildSummary"
-            :items-map="itemsMap"
-            :rune-tree="runeTree ?? null"
-            :summoners-map="summonersMap"
-            :champion-static="staticData ?? null"
-          />
-
           <LazyChampionTruemains
             hydrate-on-visible
             :champion-id="championId"
@@ -714,6 +693,27 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           <ChampionMainsComparison
             :champion-id="championId"
             :position="selectedPosition"
+          />
+
+          <!--
+            The build in words (#1123). Rendered plainly — not `Lazy`, not
+            `hydrate-on-visible` — because being present in the server HTML is
+            the entire point; a lazy wrapper would put it back behind the same
+            JS gate as everything else.
+
+            Last in the column and collapsed (#1466). #1143 put it at the top as
+            the caption for the icon grid beside it; the feedback was that it
+            reads as the same build said a second time, which is exactly what it
+            is. At the foot of the sidebar it is still in the server HTML and
+            still one click from a reader who wants the prose version, without
+            spending the top of the column on a restatement.
+          -->
+          <ChampionBuildSummary
+            :summary="buildSummary"
+            :items-map="itemsMap"
+            :rune-tree="runeTree ?? null"
+            :summoners-map="summonersMap"
+            :champion-static="staticData ?? null"
           />
         </aside>
       </div>
