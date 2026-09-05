@@ -110,9 +110,9 @@ watch(() => [props.championId, props.position], () => {
       />
     </template>
 
-    <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-2">
       <template v-if="isLoading">
-        <USkeleton v-for="i in 6" :key="`syn-skel-${i}`" class="h-11 w-full rounded-md" />
+        <USkeleton v-for="i in 6" :key="`syn-skel-${i}`" class="h-8 w-full rounded-md" />
       </template>
 
       <p v-else-if="error" class="py-6 text-center text-sm text-muted">
@@ -132,7 +132,7 @@ watch(() => [props.championId, props.position], () => {
       <template v-else>
         <!-- Column key. "Synergy" is points of win rate above expectation, so it
              needs naming — a bare signed number would read as a win-rate delta. -->
-        <div class="flex items-center gap-3 px-2 text-[0.65rem] font-semibold uppercase tracking-wide text-dimmed">
+        <div class="flex items-center gap-3 px-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-dimmed">
           <span class="size-8 shrink-0" aria-hidden="true" />
           <span class="size-4 shrink-0" aria-hidden="true" />
           <span class="min-w-0 flex-1">Partner</span>
@@ -173,7 +173,7 @@ watch(() => [props.championId, props.position], () => {
         </p>
 
         <template v-if="isTrioLoading">
-          <USkeleton v-for="i in 3" :key="`trio-skel-${i}`" class="h-11 w-full rounded-md" />
+          <USkeleton v-for="i in 3" :key="`trio-skel-${i}`" class="h-8 w-full rounded-md" />
         </template>
 
         <p v-else-if="trioError" class="py-4 text-center text-sm text-muted">

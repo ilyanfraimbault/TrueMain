@@ -64,8 +64,8 @@ reads `GET /vps/v1/virtual-machines/{id}/docker` instead, which needs no new sec
 container list rather than what the compose file intends.
 Three choices inside it. The expected images are **read from the compose file**, so a new service is covered
 without editing the check and a compose naming none of our images is an error rather than a vacuous pass.
-The grain is the **image reference, not the service name** — preprod runs two ingestor lanes from one image
-(#1374), and rolling one of them is a partial deploy a per-service check would bless. And **health counts as
+The grain is the **image reference, not the service name** — both environments run two ingestor lanes from
+one image (#1374, #1490), and rolling one of them is a partial deploy a per-service check would bless. And **health counts as
 much as the tag**, since a container that starts on the right image and crash-loops has not deployed either;
 a container with no healthcheck reports empty health and is not read as unhealthy, while `starting` is
 polled through, which is what lets a slow roll pass. An API error is fatal rather than an empty container

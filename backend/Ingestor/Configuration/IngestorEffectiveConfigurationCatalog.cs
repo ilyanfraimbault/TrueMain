@@ -37,8 +37,21 @@ public static class IngestorEffectiveConfigurationCatalog
         Title = "Ladder sync",
         Description =
             "Keeps stored ranks in step with the live ladder by reading the ladder instead of "
-            + "one account at a time: which tiers are swept, and the per-run request budget the "
-            + "paginated tiers below Master share."
+            + "one account at a time: which tiers are swept, the per-run and per-day request "
+            + "budgets the paginated tiers below Master share, and the cadences that keep the "
+            + "sweep and the apex re-read from running on every iteration."
+    };
+
+    private static EffectiveConfigurationSectionDescriptor MainActivity { get; } = new()
+    {
+        SectionName = MainActivityOptions.SectionName,
+        OptionsType = typeof(MainActivityOptions),
+        Title = "Main activity",
+        Description =
+            "Retires mains whose player stopped playing, from one champion-mastery call per "
+            + "account: the batch checked per run, the inactivity threshold, how long one "
+            + "account is left alone between checks, and the cadence that bounds the process's "
+            + "share of the fetch lane."
     };
 
     private static EffectiveConfigurationSectionDescriptor Scoring { get; } = new()
@@ -131,6 +144,7 @@ public static class IngestorEffectiveConfigurationCatalog
             Discovery,
             Scoring,
             Harvest,
+            MainActivity,
             MatchIngestion,
             Intake,
             LaneOutcomeAggregation,

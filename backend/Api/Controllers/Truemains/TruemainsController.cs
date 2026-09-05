@@ -235,21 +235,18 @@ public sealed class TruemainsController(
     }
 
     /// <summary>
-    /// Activity grid under the profile's LP curve (#927): the player's ranked
-    /// games folded per game, per UTC day and per ISO week, plus the per-patch
-    /// history of their signature champion. 404 only when the name tag is
-    /// malformed or the account is unknown.
+    /// Activity grid under the profile's LP curve (#927, reshaped in #1473): the
+    /// player's ranked games drawn one square per UTC day, in three windows — every
+    /// day of the current patch, the last seven days, and today's games one square
+    /// each. 404 only when the name tag is malformed or the account is unknown.
     /// </summary>
     /// <remarks>
-    /// The four series ship in one response because three of them are foldings of
-    /// the same participant rows, and because they are <em>not</em> interchangeable:
-    /// each carries its own <c>source</c>, <c>scope</c>, <c>retentionBounded</c> flag
-    /// and coverage range. The match-sourced ones stop at the retention window
-    /// (~2 patches); the patch one reads the frozen per-champion aggregate and so
-    /// covers the whole tracked career, for one champion. There is no mode
-    /// parameter: switching granularity is a client-side toggle over a payload that
-    /// was resolved from a single snapshot, which is what keeps two modes from
-    /// disagreeing about the same afternoon.
+    /// The three windows ship in one response because they are foldings of the same
+    /// participant rows, read once: switching window is a client-side toggle, which
+    /// is what keeps two of them from disagreeing about the same afternoon. Every
+    /// day inside a calendar window is emitted, played or not — an idle day carries
+    /// <c>games: 0</c> and a <b>null</b> win rate, which is the wire-level
+    /// difference between "did not queue" and "lost everything".
     /// </remarks>
     [HttpGet("{nameTag}/activity")]
     [ProducesResponseType(typeof(TruemainActivityReadModel), StatusCodes.Status200OK)]

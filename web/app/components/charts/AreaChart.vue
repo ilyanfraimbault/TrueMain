@@ -20,6 +20,7 @@ interface Props {
   yLabel?: string
   xFormatter?: axisFormatter
   yFormatter?: axisFormatter
+  xExplicitTicks?: (number | string | Date)[]
   curveType?: CurveType
   lineWidth?: number
   yGridLine?: boolean
@@ -84,6 +85,7 @@ const crosshairConfig = { color: CHART_GUIDE_COLOR }
         :x-label="xLabel"
         :y-label="yLabel"
         :x-formatter="safeXFormatter"
+        :x-explicit-ticks="xExplicitTicks"
         :y-formatter="safeYFormatter"
         :curve-type="curveType"
         :line-width="lineWidth"

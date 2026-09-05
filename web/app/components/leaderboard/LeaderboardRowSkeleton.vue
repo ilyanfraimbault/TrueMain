@@ -5,12 +5,14 @@
 // ListRowSurface: a translucent stand-in reads as a *dimmer* row, so the whole
 // list brightened when the data landed. Radius, padding and gap were drifting
 // from ListRowSurface too (rounded-md/py-2/gap-3 against rounded-lg/py-2.5/
-// gap-2), which is a 4px height shift per row — realigned here.
+// gap-2), which is a 4px height shift per row — realigned here. The real row
+// is `dense`, i.e. exactly as tall as its 40px avatar with no vertical
+// padding, so the placeholder takes that height explicitly (`h-10`).
 </script>
 
 <template>
   <div
-    class="surface @container flex items-center gap-1.5 rounded-lg px-3 py-2.5"
+    class="surface @container flex h-10 items-center gap-1.5 rounded-lg px-1.5"
     aria-hidden="true"
   >
     <USkeleton class="h-4 w-6 @xl:w-8" />

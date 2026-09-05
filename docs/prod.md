@@ -162,22 +162,26 @@ before prod does; revisit with a real measurement if preprod has headroom.
 ## Ingestor tuning knobs
 
 `compose.prod.yaml` overrides the ingestor's app settings for full-volume
-ingestion. Two of them deserve a note because their unit is easy to misread:
+ingestion. The knobs are shared by both lanes (`ingestor` on `FetchLane`,
+`ingestor-aggregate` on `AggregateLane`, #1490) through one YAML anchor, and
+every step below runs on the fetch lane. Two of them deserve a note because
+their unit is easy to misread:
 
 - **`ManualSeed__BatchSize` (750).** Manual-seed intake is FIFO and strictly
   batched, so a large backlog drains at a fixed rate rather than being spent
   at once. The unit is **one batch per full pipeline cycle**: `ManualSeed` is a
-  step in `JobModeSequence`, and the worker sleeps `Job:IntervalMinutes`
-  (unset here, so 60 min) *after* the whole sequence finishes. A cycle is
-  therefore pipeline duration + 60 min, call it 12–24 cycles a day, not 24.
+  step in the fetch lane's sequence, which runs once per container pass. The
+  measured cadence is what to size against, not a nominal interval: prod ran
+  55 fetch passes on 2026-09-05, and the lane split raises that by taking
+  aggregation out of the same queue.
   That unit made the previous value of 200 look four times stronger than it
   was: 200/cycle is ~2.5–4.8k seeds a day, and the per-champion dpm sweep puts
   tens of thousands in the queue in one run, two to three weeks of drain.
-  750 is ~9–18k a day. A resolved request costs three Riot calls (account-v1,
+  At 55 passes a day, 750 is ~41k seeds a day. A resolved request costs three Riot calls (account-v1,
   summoner-v4, champion mastery, see `ManualSeedProcess.ProcessRequestAsync`);
-  one whose Riot ID no longer exists stops after the first, so ~27–54k
-  calls/day is the ceiling and the real figure is lower by whatever share of
-  the queue has gone stale. This is a knob for a backlog, not a steady state:
+  one whose Riot ID no longer exists stops after the first, so that is the
+  ceiling on paper — the real figure is bounded by the Riot budget the lane
+  actually has, and lower again by whatever share of the queue has gone stale. This is a knob for a backlog, not a steady state:
   turn it back down once the queue is drained.
 - **`MatchIngestion__BatchSize`** is the next bottleneck: seeding faster gets
   accounts registered faster, their matches still ingest at that many per

@@ -1,5 +1,6 @@
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -26,9 +27,13 @@ namespace Ingestor.Processes;
 /// see is zero.
 /// </para>
 /// <para>
-/// The three apex tiers are re-read on every run — nine calls covers Master+ across three
-/// platforms — while everything below Master is walked incrementally under
-/// <see cref="LadderSyncOptions.MaxRequestsPerRun"/>, resuming from a persisted cursor.
+/// The three apex tiers are re-read whole — nine calls covers Master+ across three platforms —
+/// on the cadence of <see cref="LadderSyncOptions.ApexRefreshInterval"/>, while everything below
+/// Master is walked incrementally under <see cref="LadderSyncOptions.MaxRequestsPerRun"/> and
+/// <see cref="LadderSyncOptions.MaxRequestsPerDay"/>, resuming from a persisted cursor. The whole
+/// process runs no more often than <see cref="LadderSyncOptions.MinRunInterval"/> (#1474): a
+/// ladder moves slowly, and every iteration spent re-reading it is fetch-lane time taken from
+/// match ingestion.
 /// </para>
 /// <para>
 /// This process <em>never inserts accounts</em>. Seeding every player of every swept division
@@ -46,6 +51,7 @@ public sealed class LadderSyncProcess(
     IRiotPlatformClient riotPlatformClient,
     IDataSessionFactory sessionFactory,
     IRankSnapshotWriter rankSnapshotWriter,
+    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
     IOptions<LadderSyncOptions> ladderSyncOptions) : IIngestorProcess
 {
@@ -64,14 +70,49 @@ public sealed class LadderSyncProcess(
             return new NoWorkSummary("No platforms configured.", 0);
         }
 
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+
+        // Same guard as Discovery's (#487, #1149): measured from the last run that did its
+        // work, so a skip can never re-arm itself. The current run is recorded as Running and
+        // is therefore excluded from the answer.
+        if (options.MinRunInterval > TimeSpan.Zero)
+        {
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
+            if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
+            {
+                logger.LogInformation(
+                    "Ladder sync skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
+                    lastRunUtc,
+                    options.MinRunInterval);
+                return new SkippedSummary("Within MinRunInterval; ladder sync skipped this iteration.", true);
+            }
+        }
+
+        var ledger = await LadderSyncRunLedger.ReadAsync(processRunStore, Name, options, nowUtc, ct);
+        var apexDue = ledger.IsApexDue(options.ApexRefreshInterval, nowUtc);
+        var budget = ledger.RemainingBudget(options);
+
         var apexTiers = LadderSweepPlan.ApexTiersInScope(options.TierScope);
         var slots = LadderSweepPlan.BuildSlots(options.TierScope);
 
-        var stats = new SweepStats();
+        if (!apexDue && (budget == 0 || slots.Count == 0))
+        {
+            logger.LogInformation(
+                "Ladder sync skipped: daily budget spent ({SpentToday}/{MaxRequestsPerDay}) and the apex refresh is not due.",
+                ledger.PagedCallsToday,
+                options.MaxRequestsPerDay);
+            return new SkippedSummary("Daily request budget spent and apex refresh not due; ladder sync skipped this iteration.", true);
+        }
+
+        var stats = new LadderSweepStats();
         var buffer = new EntryBuffer(Math.Max(1, options.SaveBatchSize));
 
-        await SyncApexTiersAsync(platforms, apexTiers, buffer, stats, ct);
-        await SweepDivisionsAsync(platforms, slots, options, buffer, stats, ct);
+        if (apexDue)
+        {
+            await SyncApexTiersAsync(platforms, apexTiers, buffer, stats, ct);
+        }
+
+        await SweepDivisionsAsync(platforms, slots, budget, buffer, stats, ct);
         await buffer.FlushAsync(this, stats, ct);
 
         var summary = stats.ToSummary();
@@ -91,15 +132,16 @@ public sealed class LadderSyncProcess(
 
     /// <summary>
     /// Re-reads every configured apex ladder in full. One call per (platform, tier), outside the
-    /// paginated budget: at nine calls for three platforms this is cheap enough to pay every run,
-    /// and it is what keeps Master+ — where nearly all tracked accounts live — fresh at pipeline
-    /// cadence rather than at the multi-day cadence of a windowed crawl.
+    /// paginated budget: at nine calls for three platforms the Riot cost is negligible. What is
+    /// not negligible is joining tens of thousands of Master entries against the account table,
+    /// which is why it runs on <see cref="LadderSyncOptions.ApexRefreshInterval"/> rather than
+    /// on every run.
     /// </summary>
     private async Task SyncApexTiersAsync(
         IReadOnlyList<string> platforms,
         IReadOnlyList<string> apexTiers,
         EntryBuffer buffer,
-        SweepStats stats,
+        LadderSweepStats stats,
         CancellationToken ct)
     {
         foreach (var platformString in platforms)
@@ -172,13 +214,12 @@ public sealed class LadderSyncProcess(
     private async Task SweepDivisionsAsync(
         IReadOnlyList<string> platforms,
         IReadOnlyList<LadderSweepSlot> slots,
-        LadderSyncOptions options,
+        int budget,
         EntryBuffer buffer,
-        SweepStats stats,
+        LadderSweepStats stats,
         CancellationToken ct)
     {
-        var budget = Math.Max(0, options.MaxRequestsPerRun);
-        if (budget == 0 || slots.Count == 0)
+        if (budget <= 0 || slots.Count == 0)
         {
             return;
         }
@@ -400,10 +441,10 @@ public sealed class LadderSyncProcess(
                 new BufferedEntry(platformId, puuid, tier, division, leaguePoints, wins, losses);
         }
 
-        public Task FlushIfFullAsync(LadderSyncProcess owner, SweepStats stats, CancellationToken ct)
+        public Task FlushIfFullAsync(LadderSyncProcess owner, LadderSweepStats stats, CancellationToken ct)
             => _entries.Count >= capacity ? FlushAsync(owner, stats, ct) : Task.CompletedTask;
 
-        public async Task FlushAsync(LadderSyncProcess owner, SweepStats stats, CancellationToken ct)
+        public async Task FlushAsync(LadderSyncProcess owner, LadderSweepStats stats, CancellationToken ct)
         {
             if (_entries.Count == 0)
             {
@@ -418,48 +459,6 @@ public sealed class LadderSyncProcess(
             stats.RankInserted += outcome.Inserted;
             stats.RankUpdated += outcome.Updated;
             stats.RankUnchanged += outcome.Unchanged;
-        }
-    }
-
-    private sealed class SweepStats
-    {
-        private readonly Dictionary<string, int> _entriesByTier = new(StringComparer.Ordinal);
-
-        public int ApexCalls { get; set; }
-        public int PagedCalls { get; set; }
-        public int FailedCalls { get; set; }
-        public int EntriesFetched { get; private set; }
-        public int AccountsMatched { get; set; }
-        public int RankInserted { get; set; }
-        public int RankUpdated { get; set; }
-        public int RankUnchanged { get; set; }
-
-        public void Count(string tier)
-        {
-            EntriesFetched++;
-            _entriesByTier[tier] = _entriesByTier.GetValueOrDefault(tier) + 1;
-        }
-
-        public LadderSyncSummary ToSummary()
-        {
-            // Per-tier entry counts are what make the sweep depth a measurable decision rather
-            // than a guess: a tier whose entries barely intersect our account pool is paying full
-            // page cost for nothing and should be dropped from the scope.
-            var tiers = _entriesByTier
-                .OrderByDescending(pair => pair.Value)
-                .Select(pair => new LadderSyncTierSummary(pair.Key, pair.Value))
-                .ToList();
-
-            return new LadderSyncSummary(
-                ApexCalls,
-                PagedCalls,
-                FailedCalls,
-                EntriesFetched,
-                AccountsMatched,
-                RankInserted,
-                RankUpdated,
-                RankUnchanged,
-                tiers);
         }
     }
 }

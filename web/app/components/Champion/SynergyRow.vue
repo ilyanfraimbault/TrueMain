@@ -51,7 +51,7 @@ const synergyLabel = computed(() => {
     :is="selectable ? 'button' : 'div'"
     :type="selectable ? 'button' : undefined"
     :aria-pressed="selectable ? selected : undefined"
-    class="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors"
+    class="flex w-full items-center gap-3 rounded-md px-1.5 py-0 text-left transition-colors"
     :class="[
       selectable ? 'surface-hover cursor-pointer' : 'hover:bg-elevated/40',
       selected ? 'bg-elevated/60 ring-1 ring-inset ring-primary/40' : '',

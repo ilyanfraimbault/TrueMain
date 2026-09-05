@@ -29,7 +29,8 @@ internal static class MatchParticipantSeed
         Guid? riotAccountId = null,
         int? participantId = null,
         int gameDurationSeconds = 1800,
-        string teamPosition = "BOTTOM")
+        string teamPosition = "BOTTOM",
+        string gameVersion = "16.6.1")
     {
         // Default to a process-unique id so two participants seeded into the same match never
         // collide on the (MatchId, ParticipantId) unique index, even if a caller forgets to
@@ -46,7 +47,7 @@ internal static class MatchParticipantSeed
             GameType = "MATCHED_GAME",
             GameStartTimeUtc = gameStartTimeUtc,
             GameDurationSeconds = gameDurationSeconds,
-            GameVersion = "16.6.1",
+            GameVersion = gameVersion,
             CreatedAtUtc = gameStartTimeUtc,
             TimelineIngested = true
         });

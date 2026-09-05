@@ -43,6 +43,39 @@ public class LadderSyncOptions
     public int MaxRequestsPerRun { get; set; } = 300;
 
     /// <summary>
+    /// Ceiling on the paginated calls spent per UTC day, across every run (#1474).
+    /// <para>
+    /// <see cref="MaxRequestsPerRun"/> alone bounds a run, not a day: the process runs on every
+    /// pipeline iteration, so its daily cost was <c>budget × iterations</c> — a number nobody
+    /// chose, and one that grew with loop speed. Measured against a ladder where ~95 % of the
+    /// accounts matched come back unchanged, the extra sweeps bought nothing. A run takes the
+    /// smaller of the per-run cap and what is left of the day; 0 disables the daily ceiling.
+    /// </para>
+    /// </summary>
+    public int MaxRequestsPerDay { get; set; }
+
+    /// <summary>
+    /// Minimum interval between two ladder syncs (#1474), with the same contract as
+    /// <see cref="DiscoveryOptions.MinRunInterval"/>: measured from the last run that actually
+    /// did its work, and <see cref="TimeSpan.Zero"/> (default) runs it every iteration.
+    /// <para>
+    /// A ladder moves slowly; re-reading it on every iteration serialises the process against a
+    /// single platform host's rate limit for wall-clock time the fetch lane would otherwise
+    /// spend ingesting matches.
+    /// </para>
+    /// </summary>
+    public TimeSpan MinRunInterval { get; set; } = TimeSpan.Zero;
+
+    /// <summary>
+    /// Minimum interval between two full re-reads of the apex ladders (#1474). One call returns a
+    /// whole tier, so the Riot cost is negligible — but Master alone is tens of thousands of
+    /// entries to join against <c>riot_accounts</c> on every run, for a few hundred changes.
+    /// Measured from the last run that refreshed them; <see cref="TimeSpan.Zero"/> (default)
+    /// refreshes them on every run.
+    /// </summary>
+    public TimeSpan ApexRefreshInterval { get; set; } = TimeSpan.Zero;
+
+    /// <summary>
     /// How many ladder entries to buffer before joining them against <c>riot_accounts</c> and
     /// writing the snapshots. A page holds ~205 entries, so the default is ~10 pages per join
     /// instead of one query per page.

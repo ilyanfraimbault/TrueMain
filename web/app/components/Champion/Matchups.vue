@@ -114,10 +114,14 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
 </script>
 
 <template>
+  <!-- Same tightened padding as the Truemains card above it (`p-3 sm:p-4` is
+       the app default): both sit in the champion page's narrow sidebar, where
+       the card's own padding was costing more width than the rows it holds. -->
   <SectionCard
     :level="2"
     title="Matchups"
     :subtitle="subtitle"
+    :ui="{ header: 'p-2 sm:px-2.5 sm:py-2', body: 'p-1.5 sm:p-2' }"
   >
     <template #actions>
       <ChampionPicker
@@ -129,9 +133,9 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
       />
     </template>
 
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-2">
       <template v-if="isLoading">
-        <USkeleton v-for="i in 6" :key="`mu-skel-${i}`" class="h-11 w-full rounded-md" />
+        <USkeleton v-for="i in 6" :key="`mu-skel-${i}`" class="h-8 w-full rounded-md" />
       </template>
 
       <p
@@ -170,9 +174,9 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
           <!-- Column captions: two bare percentages side by side are unreadable
                without them, and "lane" vs "game" is exactly the distinction the
                panel exists to make (#919). Mirrors the row's trailing structure —
-               same px-2 and two w-12 columns — so the captions sit over their
+               same px-1.5 and two w-12 columns — so the captions sit over their
                values. -->
-          <div class="flex items-center gap-3 px-2">
+          <div class="flex items-center gap-3 px-1.5">
             <p class="flex-1 text-xs font-semibold uppercase tracking-wide text-data-good">
               Best matchups
             </p>
@@ -191,9 +195,9 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
           <!-- Column captions: two bare percentages side by side are unreadable
                without them, and "lane" vs "game" is exactly the distinction the
                panel exists to make (#919). Mirrors the row's trailing structure —
-               same px-2 and two w-12 columns — so the captions sit over their
+               same px-1.5 and two w-12 columns — so the captions sit over their
                values. -->
-          <div class="flex items-center gap-3 px-2">
+          <div class="flex items-center gap-3 px-1.5">
             <p class="flex-1 text-xs font-semibold uppercase tracking-wide text-data-bad">
               Worst matchups
             </p>

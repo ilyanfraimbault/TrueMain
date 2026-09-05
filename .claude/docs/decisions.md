@@ -98,9 +98,11 @@ Last verified against `develop` on 2026-09-02.
 
 ## Player profile — [`decisions/product-player-profile.md`](decisions/product-player-profile.md)
 
-- The activity grid's four modes read two different tables, and the response says so rather than reconciling them — #466, #959, #927
-- An erased period is not an idle one: the calendar grids stop where the data stops — #907, #927
-- Patch mode is wired to the dedication card's own numbers, not to a parallel query — #927
+- The activity grid has one unit — the UTC day — and the switch picks the window, not the unit — #1486, #1473, #927
+- The patch window is measured over everyone's matches, never over the profile's own history — #1473
+- The month window is clamped to the retention floor; the narrower ones need no clamp — #1483
+- The grid is squares and nothing else: no captions, no legend, no coverage line — #1479, #1473
+- An idle day is not a lost one, and every day of the window is drawn — #1473, #907, #927
 - The player performance panel shows the score and its sample only — no per-component breakdown — #918
 - The rank chart is one area with a tier-gradient line, never one area per tier (2026-08-20)
 - A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
@@ -174,10 +176,11 @@ Last verified against `develop` on 2026-09-02.
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
 - Riot calls are paced by a limiter keyed on the routing value, because that is the grain Riot enforces — #1359, #855
-- The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks — #1362, #1360
+- The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks, in both environments — #1362, #1490, #1360
 - The lane is derived from the process name; the mode it ran under is recorded (2026-09-02) — #1362
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
+- A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04) — #1474, #1460, #1313, #900
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150
 - Region balance is a target, not a quota: coverage deficit allocates every budget (2026-08-19) — #1149, #495, #900
 

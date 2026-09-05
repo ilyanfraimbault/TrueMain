@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -21,7 +22,9 @@ namespace TrueMain.UnitTests;
 /// </summary>
 public sealed class LadderSyncProcessTests
 {
-    private static readonly DateTime NowUtc = new(2026, 8, 30, 12, 0, 0, DateTimeKind.Utc);
+    // The harness and the recording client are shared with LadderSyncCadenceTests (#1474).
+
+    internal static readonly DateTime NowUtc = new(2026, 8, 30, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public async Task RunCoreAsync_ReadsEveryApexLadderWithoutSpendingThePaginatedBudget()
@@ -145,7 +148,7 @@ public sealed class LadderSyncProcessTests
             UpdatedAtUtc = NowUtc.AddDays(-1)
         };
 
-    private sealed class Harness
+    internal sealed class Harness
     {
         private readonly RecordingPlatformClient _client;
         private readonly IReadOnlyList<RiotAccount> _accounts;
@@ -158,7 +161,19 @@ public sealed class LadderSyncProcessTests
 
         public (string Platform, string Tier, string Division, int Page)? LastCursor { get; private set; }
 
+        /// <summary>Start of the last run that did its work, as the cadence guard reads it.</summary>
+        public DateTime? LastCompletedRunUtc { get; init; }
+
+        /// <summary>Earlier runs, as the daily budget and the apex cadence read them.</summary>
+        public List<ProcessRunSummarySample> EarlierRuns { get; } = [];
+
         public async Task<LadderSyncSummary> RunAsync(LadderSyncOptions options)
+        {
+            var summary = await RunRawAsync(options);
+            return summary.Should().BeOfType<LadderSyncSummary>().Subject;
+        }
+
+        public async Task<IProcessRunSummary?> RunRawAsync(LadderSyncOptions options)
         {
             var riotAccounts = Substitute.For<IRiotAccountRepository>();
             riotAccounts.GetByKeysAsync(Arg.Any<IReadOnlyCollection<AccountKey>>(), Arg.Any<CancellationToken>())
@@ -201,16 +216,31 @@ public sealed class LadderSyncProcessTests
                     Arg.Any<RankSnapshot?>(), Arg.Any<DateTime>())
                 .Returns(RankSnapshotOutcome.Inserted);
 
+            var runStore = Substitute.For<IProcessRunStore>();
+            runStore.GetLastCompletedRunStartAsync("LadderSync", Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(LastCompletedRunUtc));
+            runStore.GetRunSummariesAsync(
+                    Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+                .Returns(call =>
+                {
+                    var since = call.ArgAt<DateTime>(1);
+                    IReadOnlyList<ProcessRunSummarySample> runs = EarlierRuns
+                        .Where(run => run.StartedAtUtc >= since)
+                        .OrderBy(run => run.StartedAtUtc)
+                        .ToList();
+                    return Task.FromResult(runs);
+                });
+
             var process = new LadderSyncProcess(
                 NullLogger<LadderSyncProcess>.Instance,
                 _client,
                 sessionFactory,
                 writer,
+                runStore,
                 new FixedTimeProvider(NowUtc),
                 Microsoft.Extensions.Options.Options.Create(options));
 
-            var summary = await process.RunCoreAsync(CancellationToken.None);
-            return summary.Should().BeOfType<LadderSyncSummary>().Subject;
+            return await process.RunCoreAsync(CancellationToken.None);
         }
     }
 
@@ -218,7 +248,7 @@ public sealed class LadderSyncProcessTests
     /// A ladder that answers every request, recording what was asked. <see cref="PagesPerDivision"/>
     /// bounds each division so the empty-page stop condition can be exercised.
     /// </summary>
-    private sealed class RecordingPlatformClient : IRiotPlatformClient
+    internal sealed class RecordingPlatformClient : IRiotPlatformClient
     {
         public List<string> ApexCalls { get; } = [];
 

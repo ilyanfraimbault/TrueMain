@@ -74,9 +74,20 @@ has only reached its first step contain exactly the same thing. So `IIterationCo
 recorder stamps it on every `process_runs` document, and the panel narrows a single-process pass to the step
 that ran rather than surrounding it with skipped chips — #1362.
 
-**Preprod runs the two lanes; prod stays on `Full` until preprod has.** Nothing about the code forces a
-topology — a single container on `Full` still runs everything in order — so the split is a deployment
-decision, and it is the kind that is cheap to validate on preprod and expensive to get wrong on prod (#1362).
+**Both environments run the two lanes; the topology is a deployment decision, not a code one.** Nothing about
+the code forces a topology — a single container on `Full` still runs everything in order — so the split was
+introduced on preprod alone, as the kind of change that is cheap to validate there and expensive to get wrong
+on prod (#1362). Prod followed once preprod had proven it (#1490).
+What `Full` cost prod is measurable: on 2026-09-05 its single serial loop spent 38 % of the day in
+`ChampionPatternAggregation` against 22 % in `MatchIngestion`, with no idle time to reclaim — aggregation was
+outbidding ingestion for the same wall clock. The per-iteration work had already got smaller on prod (1.20.4
+shipped #1375/#1378/#1382, and the average `MatchIngestion` run fell from 2450 s to 348 s), but daily inserted
+matches did not follow, because the freed time went to the other steps queued behind it rather than to more
+ingestion passes. Splitting the lanes is what turns a shorter step into a faster pipeline.
+Prod's lanes carry prod's volume knobs, not preprod's: the topology is shared, `Discovery`, `Scoring`,
+`Harvest`, `MatchIngestion` and `ManualSeed` batch sizes stay per-environment, and the two settings that are
+policy rather than volume — `MatchDataRetention__RetainedPatchCount` and
+`MainAnalysis__AggregateNonMainPopulation` (#1354) — stay preprod-only.
 **The claim orders by games played since the last visit, not by how long ago that visit was.**
 Ordering by `LastMatchIngestAtUtc` alone spent the batch on whoever had waited longest, whether or not they
 had played. On production that meant a **27-day median revisit** against a 20-game fetch window, so any main
@@ -162,6 +173,36 @@ the existing keys, so a run recorded before the deploy reads as "not measured" r
 skipped nothing. Deliberately **not** done here: recording discarded match ids in a table — with `queue` on
 the ids call there is nothing left to record — and the ManualSeed pacing change, which interacts with the
 candidate-funnel backlog (#1361) and belongs with it.
+
+## A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04)
+
+`LadderSync:MaxRequestsPerRun` (#1313) and `MainActivity:BatchSize` (#900) bounded a *run*. Nothing bounded
+how many runs a day the fetch lane would make, so each process's daily cost was `budget × iterations` — a
+number nobody chose, and one that scaled with loop speed: preprod, whose fetch lane runs back-to-back,
+spent several times prod's calls on the same ladder. Measured after the 1.20.x deploy, the two processes
+had crowded `MatchIngestion` down to a small fraction of the lane, while ~95 % of the ladder accounts they
+re-read came back `rankUnchanged` (#1474, epic #1460).
+
+The rule this settles: **a process with a per-run budget also carries a cadence** (`MinRunInterval`, the
+`Discovery` pattern from #487/#1151), and a budget that describes a rate is expressed per day
+(`LadderSync:MaxRequestsPerDay`), so the cost stops depending on how fast the loop happens to spin.
+
+- The cadence is measured from the last run that **did its work**, read through
+  `IProcessRunStore.GetLastCompletedRunStartAsync`, which excludes `Skipped` rows — a skip that counted as
+  its own predecessor would re-arm forever (#1149).
+- The daily ceiling and the apex cadence are read back from the process's own run summaries
+  (`GetRunSummariesAsync` since UTC midnight): the summaries are the only record of what earlier runs spent,
+  and one indexed range scan answers both questions. A run without a summary is charged nothing.
+- The apex tiers get their own interval (`ApexRefreshInterval`): nine calls is negligible Riot cost, but
+  Master alone is tens of thousands of entries joined against `riot_accounts` per run, for a few hundred
+  changes.
+- Both processes stay in the fetch lane and keep their per-run caps; this bounds their share of the lane, it
+  does not move them out of it. Moving match fetching to permanent workers is #1457.
+
+What this does **not** do: fix `MainActivity`'s pool. At its batch size a full cycle over every active main
+takes far longer than `InactiveAfterDays`, so `RecheckAfterHours` never binds and the process cannot reach
+the state it maintains. That is #1475 — match participation as the primary activity signal — and the
+cadence here only bounds the damage until it lands.
 
 ## The intake is sized by the claim, not by the ladder (2026-09-02)
 

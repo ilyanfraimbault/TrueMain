@@ -28,4 +28,18 @@ public class MainActivityOptions
     /// account on every run, which only makes sense with a small pool.
     /// </summary>
     public int RecheckAfterHours { get; set; } = 24;
+
+    /// <summary>
+    /// Minimum interval between two activity passes (#1474), with the same contract as
+    /// <see cref="DiscoveryOptions.MinRunInterval"/>: measured from the last run that actually
+    /// did its work, and <see cref="TimeSpan.Zero"/> (default) runs it every iteration.
+    /// <para>
+    /// <see cref="RecheckAfterHours"/> throttles how often one <em>account</em> is re-checked,
+    /// not how often the process runs: with a pool far larger than <see cref="BatchSize"/>
+    /// times the iterations in a day, every account is always due and the process spends a
+    /// batch of single-host calls on every iteration. This is the knob that bounds its share
+    /// of the fetch lane.
+    /// </para>
+    /// </summary>
+    public TimeSpan MinRunInterval { get; set; } = TimeSpan.Zero;
 }
