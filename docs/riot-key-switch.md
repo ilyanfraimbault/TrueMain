@@ -168,14 +168,18 @@ region sets the total duration.
 
 ### 4. Freeze ingestion
 
-Nothing may write a PUUID while the key is in flux. Stop the ingestor — there is
-no "off" `JobMode`, so stopping the container is the freeze:
+Nothing may write a PUUID while the key is in flux. Stop the fetch lane — there
+is no "off" `JobMode`, so stopping the container is the freeze:
 
 ```bash
 cd /docker/truemain
 docker compose stop ingestor
 docker compose ps
 ```
+
+Only `ingestor` needs stopping. `ingestor-aggregate` runs the aggregate lane
+(#1490), which makes no Riot calls and writes no PUUID, so leave it up — the
+folds keep catching up on matches already stored.
 
 Leave the Api up: reads keep serving from the database, which is still
 internally consistent. Only calls to Riot are affected.
@@ -308,7 +312,7 @@ to let them be recomputed rather than repaired.
 
 ```bash
 cd /docker/truemain
-docker compose up -d --force-recreate ingestor   # back to INGESTOR_JOB_MODE=Full
+docker compose up -d --force-recreate ingestor   # back to INGESTOR_JOB_MODE=FetchLane
 ```
 
 Then watch, in the admin portal: the Riot API usage panel (429 rate, calls per

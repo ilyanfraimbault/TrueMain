@@ -202,9 +202,9 @@ intends.
 The expected images are **read from the compose file** rather than listed in
 the workflow, so adding a service extends the check for free, and a compose
 file naming none of our images is a hard error instead of a vacuous pass. The
-grain is the **image reference**, not the service name: preprod runs two
-ingestor lanes from one image (#1374), and rolling only one of them is a
-partial deploy no service-name check would catch. Health is required as well as
+grain is the **image reference**, not the service name: both environments run
+two ingestor lanes from one image (#1374, #1490), and rolling only one of them
+is a partial deploy no service-name check would catch. Health is required as well as
 the tag, because a container that starts on the right image and crash-loops has
 not deployed either; a container with no healthcheck of its own reports an
 empty health and is not read as unhealthy, while `starting` is treated as
