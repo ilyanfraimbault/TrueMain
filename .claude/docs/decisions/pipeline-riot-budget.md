@@ -74,9 +74,20 @@ has only reached its first step contain exactly the same thing. So `IIterationCo
 recorder stamps it on every `process_runs` document, and the panel narrows a single-process pass to the step
 that ran rather than surrounding it with skipped chips — #1362.
 
-**Preprod runs the two lanes; prod stays on `Full` until preprod has.** Nothing about the code forces a
-topology — a single container on `Full` still runs everything in order — so the split is a deployment
-decision, and it is the kind that is cheap to validate on preprod and expensive to get wrong on prod (#1362).
+**Both environments run the two lanes; the topology is a deployment decision, not a code one.** Nothing about
+the code forces a topology — a single container on `Full` still runs everything in order — so the split was
+introduced on preprod alone, as the kind of change that is cheap to validate there and expensive to get wrong
+on prod (#1362). Prod followed once preprod had proven it (#1490).
+What `Full` cost prod is measurable: on 2026-09-05 its single serial loop spent 38 % of the day in
+`ChampionPatternAggregation` against 22 % in `MatchIngestion`, with no idle time to reclaim — aggregation was
+outbidding ingestion for the same wall clock. The per-iteration work had already got smaller on prod (1.20.4
+shipped #1375/#1378/#1382, and the average `MatchIngestion` run fell from 2450 s to 348 s), but daily inserted
+matches did not follow, because the freed time went to the other steps queued behind it rather than to more
+ingestion passes. Splitting the lanes is what turns a shorter step into a faster pipeline.
+Prod's lanes carry prod's volume knobs, not preprod's: the topology is shared, `Discovery`, `Scoring`,
+`Harvest`, `MatchIngestion` and `ManualSeed` batch sizes stay per-environment, and the two settings that are
+policy rather than volume — `MatchDataRetention__RetainedPatchCount` and
+`MainAnalysis__AggregateNonMainPopulation` (#1354) — stay preprod-only.
 **The claim orders by games played since the last visit, not by how long ago that visit was.**
 Ordering by `LastMatchIngestAtUtc` alone spent the batch on whoever had waited longest, whether or not they
 had played. On production that meant a **27-day median revisit** against a 20-game fetch window, so any main

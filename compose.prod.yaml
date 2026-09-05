@@ -1,3 +1,16 @@
+x-ingestor-environment: &ingestor-environment
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
+      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
+      Riot__ApiKey: ${RIOT_API_KEY}
+      MongoLogging__CrashFilePath: /home/app/crashes
+      Discovery__MaxAccountsPerPlatformPerRun: "750"
+      Discovery__NewAccountsTarget: "75"
+      Scoring__TopNPerPlatform: "300"
+      Harvest__MaxCandidatesPerRun: "7500"
+      MatchIngestion__BatchSize: "75"
+      ManualSeed__BatchSize: "750"
+
 services:
   postgres:
     image: postgres:17.2
@@ -259,20 +272,33 @@ services:
     container_name: truemain-ingestor
     restart: unless-stopped
     environment:
-      DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
-      MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
-      Riot__ApiKey: ${RIOT_API_KEY}
-      Job__Mode: ${INGESTOR_JOB_MODE:-Full}
-      MongoLogging__CrashFilePath: /home/app/crashes
-      Discovery__MaxAccountsPerPlatformPerRun: "750"
-      Discovery__NewAccountsTarget: "75"
-      Scoring__TopNPerPlatform: "300"
-      Harvest__MaxCandidatesPerRun: "7500"
-      MatchIngestion__BatchSize: "75"
-      ManualSeed__BatchSize: "750"
+      <<: *ingestor-environment
+      Job__Mode: ${INGESTOR_JOB_MODE:-FetchLane}
     volumes:
       - truemain_ingestor_crashes:/home/app/crashes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    networks:
+      - truemain_internal
+
+  ingestor-aggregate:
+    image: ghcr.io/ilyanfraimbault/truemain-ingestor:${IMAGE_TAG:-latest}
+    pull_policy: always
+    container_name: truemain-ingestor-aggregate
+    restart: unless-stopped
+    environment:
+      <<: *ingestor-environment
+      Job__Mode: ${INGESTOR_AGGREGATE_JOB_MODE:-AggregateLane}
+      Job__RunOnce: "false"
+      Job__IntervalMinutes: "${INGESTOR_AGGREGATE_INTERVAL_MINUTES:-20}"
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor-aggregate
+    volumes:
+      - truemain_ingestor_aggregate_crashes:/home/app/crashes
     depends_on:
       postgres:
         condition: service_healthy
@@ -305,6 +331,7 @@ volumes:
   truemain_caddy_config:
   truemain_api_crashes:
   truemain_ingestor_crashes:
+  truemain_ingestor_aggregate_crashes:
   truemain_umami_db_data:
 
 networks:
