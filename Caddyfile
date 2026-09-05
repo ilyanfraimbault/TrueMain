@@ -13,9 +13,19 @@
 #
 # This file must sit next to compose.prod.yaml on the server (it is bind-mounted
 # read-only into the caddy container).
+#
+# Access logs: Caddy writes NO access log unless a site block asks for one, so
+# `log` is opted into per site below. Output goes to stderr, which Docker's
+# json-file driver already caps at 3 x 10 MB per container (daemon.json), so the
+# logs cannot fill the disk and `docker logs truemain-caddy` shows them. That
+# budget is shared, which is why only the two sites worth auditing enable it:
+# the public site (bot crawls, 404s, upstream errors) and the admin portal
+# (authentication attempts). The analytics vhost is deliberately left out — the
+# Umami tracker fires on every page view and would evict everything else.
 
 # Public site
 truemain.lol {
+	log
 	reverse_proxy web:3000
 }
 
@@ -26,6 +36,8 @@ www.truemain.lol {
 
 # Admin dashboard
 admin.truemain.lol {
+	log
+
 	# Force X-Forwarded-For to the real peer IP, dropping any client-supplied
 	# value. Caddy already does this by default (the browser is an untrusted
 	# peer), but setting it explicitly documents the invariant the admin's
