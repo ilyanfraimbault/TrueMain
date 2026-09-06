@@ -147,12 +147,14 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
 
       <!-- Opponent search: just the picked champion's row (or a games-floor note). -->
       <template v-else-if="selectedOpponentId !== null">
-        <ChampionMatchupRow
-          v-if="searched"
-          :entry="searched"
-          :opponent="searchedOpponent"
-          :to="matchupToolLink(searched.opponentChampionId)"
-        />
+        <div v-if="searched" class="flex flex-col gap-1">
+          <ChampionMatchupColumns label="Matchup" />
+          <ChampionMatchupRow
+            :entry="searched"
+            :opponent="searchedOpponent"
+            :to="matchupToolLink(searched.opponentChampionId)"
+          />
+        </div>
         <p
           v-else
           class="py-6 text-center text-sm text-muted"
@@ -171,18 +173,7 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
       <!-- Default: best / worst leaderboard. -->
       <template v-else>
         <div class="flex flex-col gap-1">
-          <!-- Column captions: two bare percentages side by side are unreadable
-               without them, and "lane" vs "game" is exactly the distinction the
-               panel exists to make (#919). Mirrors the row's trailing structure —
-               same px-1.5 and two w-12 columns — so the captions sit over their
-               values. -->
-          <div class="flex items-center gap-3 px-1.5">
-            <p class="flex-1 text-xs font-semibold uppercase tracking-wide text-data-good">
-              Best matchups
-            </p>
-            <span class="w-12 shrink-0 text-right text-[10px] uppercase tracking-wide text-dimmed">Lane</span>
-            <span class="w-12 shrink-0 text-right text-[10px] uppercase tracking-wide text-dimmed">Game</span>
-          </div>
+          <ChampionMatchupColumns label="Best matchups" label-class="text-data-good" />
           <ChampionMatchupRow
             v-for="m in best"
             :key="`best-${m.opponentChampionId}`"
@@ -192,18 +183,7 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
           />
         </div>
         <div v-if="worst.length" class="flex flex-col gap-1">
-          <!-- Column captions: two bare percentages side by side are unreadable
-               without them, and "lane" vs "game" is exactly the distinction the
-               panel exists to make (#919). Mirrors the row's trailing structure —
-               same px-1.5 and two w-12 columns — so the captions sit over their
-               values. -->
-          <div class="flex items-center gap-3 px-1.5">
-            <p class="flex-1 text-xs font-semibold uppercase tracking-wide text-data-bad">
-              Worst matchups
-            </p>
-            <span class="w-12 shrink-0 text-right text-[10px] uppercase tracking-wide text-dimmed">Lane</span>
-            <span class="w-12 shrink-0 text-right text-[10px] uppercase tracking-wide text-dimmed">Game</span>
-          </div>
+          <ChampionMatchupColumns label="Worst matchups" label-class="text-data-bad" />
           <ChampionMatchupRow
             v-for="m in worst"
             :key="`worst-${m.opponentChampionId}`"
