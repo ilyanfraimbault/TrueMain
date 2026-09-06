@@ -14,9 +14,10 @@ using Microsoft.Extensions.Options;
 namespace Ingestor.Processes;
 
 /// <summary>
-/// Folds each match into the situational item context (#1450): for every item a champion
-/// completed, how often it was built in games sitting at one end of a draft axis, against
-/// how many games that end held. Then, at the end of the run, rebuilds the verdicts the
+/// Folds each match into the situational item context (#1450): for every step a champion's
+/// build took — the item it completed and the item it completed it after — how often that
+/// step was taken in games sitting at one end of a draft axis, against how many games of
+/// that branch that end held (#1496). Then, at the end of the run, rebuilds the verdicts the
 /// page reads from those counters.
 ///
 /// <para>
@@ -228,9 +229,9 @@ public sealed class ChampionItemContextAggregationProcess(
                     settings.Axes);
 
                 var scope = new ItemContextScope(self.ChampionId, self.TeamPosition, patch);
-                foreach (var (slot, items) in ItemContextSlotResolver.Resolve(build.ItemEvents, build.FinalItems, metadata))
+                foreach (var (slot, edges) in ItemContextSlotResolver.Resolve(build.ItemEvents, build.FinalItems, metadata))
                 {
-                    accumulator.Add(scope, slot, items, axes, self.Win);
+                    accumulator.Add(scope, slot, edges, axes, self.Win);
                 }
 
                 folded++;

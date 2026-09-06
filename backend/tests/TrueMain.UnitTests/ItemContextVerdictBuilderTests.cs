@@ -7,9 +7,10 @@ using Ingestor.Processes.Components.ItemContextAggregation;
 namespace TrueMain.UnitTests;
 
 /// <summary>
-/// The verdict rule of #1450, one clause at a time: what makes an item Core, Situational or
-/// a Preference, the three floors an axis has to clear together, how a thin bucket widens
-/// backwards, and which end of an axis a finding points at.
+/// The verdict rule of #1450 as #1496 rewrote it, one clause at a time: a verdict is about a
+/// step of the build, a step nothing competes with is not a decision, and on a real branch
+/// the three floors an axis has to clear together, how a thin bucket widens backwards, and
+/// which end of an axis a finding points at.
 /// </summary>
 public sealed class ItemContextVerdictBuilderTests
 {
@@ -17,31 +18,76 @@ public sealed class ItemContextVerdictBuilderTests
     private const string Position = "TOP";
     private const string Patch = "16.4";
     private const string Previous = "16.3";
+
+    /// <summary>The branch every build starts from.</summary>
+    private const int Root = 0;
+
     private const int Item = 3068;
+
+    /// <summary>The sibling that makes the branch a choice — its counts are all this test needs.</summary>
+    private const int Rival = 3153;
 
     private static readonly DateTime Now = new(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void AnItemBuiltInNearlyEveryGameIsCore_AndNoSituationIsLookedFor()
+    public void AStepNoSiblingCompetesWithIsCore_HoweverStronglyAnAxisWouldMoveIt()
     {
+        // The Irelia case (#1496): 70% of the games that reach the parent continue into this
+        // item and nothing else on the branch clears the alternative floor. There is no
+        // decision to explain, so no situation is looked for — even though the magic-damage
+        // gap below would qualify on its own.
         var verdict = Single(
             options: Options(),
-            stats: [Overall(940), Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 500),
-                    Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 440)],
-            totals: [OverallTotal(1000), Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 500),
-                     Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 500)]);
+            stats:
+            [
+                Overall(700),
+                Overall(60, item: Rival),
+                Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 420),
+                Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 280),
+            ],
+            totals:
+            [
+                OverallTotal(1000),
+                Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 500),
+                Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 500),
+            ]);
 
         verdict.Class.Should().Be(ItemContextClass.Core);
-        verdict.PickRate.Should().BeApproximately(0.94, 1e-9);
+        verdict.PickRate.Should().BeApproximately(0.70, 1e-9);
         verdict.Axes.Should().BeEmpty();
     }
 
     [Fact]
-    public void AnAxisThatMovesThePickRateMakesTheItemSituational()
+    public void AStepTakenByNearlyEveryGameOfItsBranchIsCore_AndNoSituationIsLookedFor()
     {
         var verdict = Single(
             options: Options(),
-            stats: [Overall(400), Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 310),
+            stats:
+            [
+                Overall(880),
+                Overall(120, item: Rival),
+                Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 480),
+                Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 400),
+            ],
+            totals:
+            [
+                OverallTotal(1000),
+                Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 500),
+                Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 500),
+            ]);
+
+        verdict.Class.Should().Be(ItemContextClass.Core);
+        verdict.PickRate.Should().BeApproximately(0.88, 1e-9);
+        verdict.Axes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnAxisThatMovesAStepOfARealBranchMakesItSituational()
+    {
+        var verdict = Single(
+            options: Options(),
+            stats: [Overall(400), Overall(600, item: Rival),
+                    Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 310),
                     Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 90)],
             totals: [OverallTotal(1000), Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 500),
                      Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 500)]);
@@ -57,12 +103,37 @@ public sealed class ItemContextVerdictBuilderTests
     }
 
     [Fact]
-    public void TheFindingPointsAtWhicheverEndBuildsItMore()
+    public void EachBranchIsJudgedOverItsOwnGames()
+    {
+        // The same item after two different parents is two decisions, and each is measured
+        // against the games of its own branch — never against the champion's whole corpus.
+        var verdicts = Build(
+            Options(),
+            [
+                Overall(400), Overall(600, item: Rival),
+                Overall(150, parent: Rival), Overall(50, item: Rival + 1, parent: Rival),
+            ],
+            [OverallTotal(1000), OverallTotal(200, parent: Rival)],
+            [Patch]);
+
+        verdicts.Should().HaveCount(4);
+        var root = verdicts.Single(v => v.ParentItemId == Root && v.ItemId == Item);
+        var deep = verdicts.Single(v => v.ParentItemId == Rival && v.ItemId == Item);
+
+        root.PickRate.Should().BeApproximately(0.40, 1e-9);
+        root.BranchGames.Should().Be(1000);
+        deep.PickRate.Should().BeApproximately(0.75, 1e-9);
+        deep.BranchGames.Should().Be(200);
+    }
+
+    [Fact]
+    public void TheFindingPointsAtWhicheverEndTakesTheStepMore()
     {
         // Built against ranged lanes, i.e. at the Low end of the melee-count axis.
         var verdict = Single(
             options: Options(),
-            stats: [Overall(400), Stat(ItemContextAxis.EnemyMelee, ItemContextBucket.High, 90),
+            stats: [Overall(400), Overall(600, item: Rival),
+                    Stat(ItemContextAxis.EnemyMelee, ItemContextBucket.High, 90),
                     Stat(ItemContextAxis.EnemyMelee, ItemContextBucket.Low, 310)],
             totals: [OverallTotal(1000), Total(ItemContextAxis.EnemyMelee, ItemContextBucket.High, 500),
                      Total(ItemContextAxis.EnemyMelee, ItemContextBucket.Low, 500)]);
@@ -73,11 +144,12 @@ public sealed class ItemContextVerdictBuilderTests
     }
 
     [Fact]
-    public void AnItemNoAxisMovesIsAPreference()
+    public void AStepNoAxisMovesIsAPreference()
     {
         var verdict = Single(
             options: Options(),
-            stats: [Overall(400), Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 205),
+            stats: [Overall(400), Overall(600, item: Rival),
+                    Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 205),
                     Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 195)],
             totals: [OverallTotal(1000), Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 500),
                      Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 500)]);
@@ -93,7 +165,8 @@ public sealed class ItemContextVerdictBuilderTests
         // points is not a reason to build something.
         var verdict = Single(
             options: Options(),
-            stats: [Overall(25_000), Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 13_000),
+            stats: [Overall(25_000), Overall(25_000, item: Rival),
+                    Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 13_000),
                     Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 12_000)],
             totals: [OverallTotal(50_000), Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 25_000),
                      Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 25_000)]);
@@ -109,7 +182,8 @@ public sealed class ItemContextVerdictBuilderTests
         // both needed, and this is the case only the second one catches.
         var verdict = Single(
             options: Options(),
-            stats: [Overall(132), Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 72),
+            stats: [Overall(132), Overall(400, item: Rival),
+                    Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 72),
                     Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 60)],
             totals: [OverallTotal(1000), Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 120),
                      Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 120)]);
@@ -126,6 +200,7 @@ public sealed class ItemContextVerdictBuilderTests
             stats:
             [
                 Overall(80),
+                Overall(120, item: Rival),
                 Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 62),
                 Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 18),
                 Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 248, Previous),
@@ -145,7 +220,7 @@ public sealed class ItemContextVerdictBuilderTests
         finding.TotalIn.Should().Be(300, "both ends widen together or the two rates are not comparable");
         finding.TotalOut.Should().Be(300);
         verdict.PatchWindow.Should().Be(2);
-        verdict.SlotGames.Should().Be(200, "the class and the pick rate still describe the served patch alone");
+        verdict.BranchGames.Should().Be(200, "the class and the pick rate still describe the served patch alone");
     }
 
     [Fact]
@@ -154,7 +229,8 @@ public sealed class ItemContextVerdictBuilderTests
         var verdict = Single(
             options: Options(),
             patchWindow: [Patch, Previous],
-            stats: [Overall(80), Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 40),
+            stats: [Overall(80), Overall(120, item: Rival),
+                    Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 40),
                     Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 5)],
             totals: [OverallTotal(200), Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 50),
                      Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 50)]);
@@ -164,15 +240,47 @@ public sealed class ItemContextVerdictBuilderTests
     }
 
     [Fact]
-    public void AnItemTheSliceBarelyEverBuildsGetsNoVerdictAtAll()
+    public void AStepTheBranchBarelyEverTakesGetsNoVerdictAtAll()
     {
         var verdicts = Build(
             Options(),
-            [Overall(20)],
+            [Overall(20), Overall(900, item: Rival)],
             [OverallTotal(1000)],
             [Patch]);
 
-        verdicts.Should().BeEmpty("2% is not a decision worth a card");
+        verdicts.Should().ContainSingle(because: "2% of a branch is not a decision worth a card")
+            .Which.ItemId.Should().Be(Rival);
+    }
+
+    [Fact]
+    public void DraftTimeSituationsOutrankTheGoldLeadWhateverTheirLifts()
+    {
+        // The feature answers a champion-select question, so a stronger in-game finding must
+        // not take the first line from one the reader can act on before the game starts
+        // (#1496).
+        var options = Options();
+        options.MaxAxesPerVerdict = 1;
+
+        var verdict = Single(
+            options: options,
+            stats:
+            [
+                Overall(400), Overall(600, item: Rival),
+                Stat(ItemContextAxis.OwnGoldLeadAt15, ItemContextBucket.High, 350),
+                Stat(ItemContextAxis.OwnGoldLeadAt15, ItemContextBucket.Low, 50),
+                Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 260),
+                Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 140),
+            ],
+            totals:
+            [
+                OverallTotal(1000),
+                Total(ItemContextAxis.OwnGoldLeadAt15, ItemContextBucket.High, 500),
+                Total(ItemContextAxis.OwnGoldLeadAt15, ItemContextBucket.Low, 500),
+                Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 500),
+                Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 500),
+            ]);
+
+        verdict.Axes.Should().ContainSingle().Which.Axis.Should().Be(ItemContextAxis.EnemyMagicDamage);
     }
 
     [Fact]
@@ -186,6 +294,7 @@ public sealed class ItemContextVerdictBuilderTests
             stats:
             [
                 Overall(400),
+                Overall(600, item: Rival),
                 Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 300),
                 Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 100),
                 Stat(ItemContextAxis.EnemyCrowdControl, ItemContextBucket.High, 250),
@@ -213,6 +322,7 @@ public sealed class ItemContextVerdictBuilderTests
     {
         MinBucketGames = 100,
         MinPickRate = 0.05,
+        MinAlternativeShare = 0.10,
         CoreRate = 0.85,
         MinAbsoluteLift = 0.10,
         MinAbsoluteZ = 1.96,
@@ -225,7 +335,8 @@ public sealed class ItemContextVerdictBuilderTests
         IReadOnlyList<ChampionItemContextStat> stats,
         IReadOnlyList<ChampionItemContextTotal> totals,
         IReadOnlyList<string>? patchWindow = null)
-        => Build(options, stats, totals, patchWindow ?? [Patch]).Should().ContainSingle().Subject;
+        => Build(options, stats, totals, patchWindow ?? [Patch])
+            .Single(verdict => verdict.ParentItemId == Root && verdict.ItemId == Item);
 
     private static IReadOnlyList<ChampionItemContextVerdict> Build(
         ItemContextAggregationOptions options,
@@ -235,35 +346,46 @@ public sealed class ItemContextVerdictBuilderTests
         => ItemContextVerdictBuilder.Build(
             new ItemContextScope(Champion, Position, Patch), stats, totals, patchWindow, options, Now);
 
-    private static ChampionItemContextStat Overall(int games)
-        => Stat(ItemContextAxis.Overall, ItemContextBucket.All, games);
+    private static ChampionItemContextStat Overall(int games, int item = Item, int parent = Root)
+        => Stat(ItemContextAxis.Overall, ItemContextBucket.All, games, item: item, parent: parent);
 
     private static ChampionItemContextStat Stat(
-        ItemContextAxis axis, ItemContextBucket bucket, int games, string patch = Patch)
+        ItemContextAxis axis,
+        ItemContextBucket bucket,
+        int games,
+        string patch = Patch,
+        int item = Item,
+        int parent = Root)
         => new()
         {
             ChampionId = Champion,
             Position = Position,
             Patch = patch,
             Slot = ItemContextSlot.Build,
-            ItemId = Item,
+            ParentItemId = parent,
+            ItemId = item,
             Axis = axis,
             Bucket = bucket,
             Games = games,
             Wins = games / 2,
         };
 
-    private static ChampionItemContextTotal OverallTotal(int games)
-        => Total(ItemContextAxis.Overall, ItemContextBucket.All, games);
+    private static ChampionItemContextTotal OverallTotal(int games, int parent = Root)
+        => Total(ItemContextAxis.Overall, ItemContextBucket.All, games, parent: parent);
 
     private static ChampionItemContextTotal Total(
-        ItemContextAxis axis, ItemContextBucket bucket, int games, string patch = Patch)
+        ItemContextAxis axis,
+        ItemContextBucket bucket,
+        int games,
+        string patch = Patch,
+        int parent = Root)
         => new()
         {
             ChampionId = Champion,
             Position = Position,
             Patch = patch,
             Slot = ItemContextSlot.Build,
+            ParentItemId = parent,
             Axis = axis,
             Bucket = bucket,
             Games = games,

@@ -18,18 +18,27 @@ export interface ChampionItemContextResponse {
 export type ItemContextSlot = 'Build' | 'Boots' | 'Starter'
 
 /**
- * `Core` — built whatever the draft, so no situation explains it.
- * `Situational` — at least one situation measurably moves it.
- * `Preference` — built often enough to matter, and no situation moves it.
+ * `Core` — taken whatever the draft, or the only step its branch ever takes, so no situation
+ * explains it.
+ * `Situational` — its branch offers a real alternative and at least one situation measurably
+ * moves the choice.
+ * `Preference` — the branch offers a choice, and no situation moves it.
  */
 export type ItemContextClass = 'Core' | 'Situational' | 'Preference'
 
 export interface ChampionItemContextItem {
   slot: ItemContextSlot
+  /**
+   * The item this step followed — the branch of the build tree it belongs to (#1496). 0 on
+   * the branch every build starts from, and on every boots and starter verdict, which are
+   * decided before any item exists.
+   */
+  parentItemId: number
   itemId: number
   class: ItemContextClass
   games: number
-  slotGames: number
+  /** Games of the branch the rate is over: those that reached the parent and completed a further item. */
+  branchGames: number
   pickRate: number
   winRate: number | null
   /** Widest patch window behind the findings — 1 when this patch carried them alone. */

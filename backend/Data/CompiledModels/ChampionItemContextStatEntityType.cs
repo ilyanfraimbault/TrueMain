@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionItemContextStat",
                 typeof(ChampionItemContextStat),
                 baseEntityType,
-                propertyCount: 11,
+                propertyCount: 12,
                 unnamedIndexCount: 1,
                 keyCount: 1);
 
@@ -87,6 +87,14 @@ namespace Data.CompiledModels
                 sentinel: 0);
             itemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var parentItemId = runtimeEntityType.AddProperty(
+                "ParentItemId",
+                typeof(int),
+                propertyInfo: typeof(ChampionItemContextStat).GetProperty("ParentItemId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionItemContextStat).GetField("<ParentItemId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: 0);
+            parentItemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var patch = runtimeEntityType.AddProperty(
                 "Patch",
                 typeof(string),
@@ -126,7 +134,7 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { patch, championId, position, slot, itemId, axis, bucket },
+                new[] { patch, championId, position, slot, parentItemId, itemId, axis, bucket },
                 unique: true);
             index.AddAnnotation("Relational:Name", "IX_champion_item_context_stats_grain");
 

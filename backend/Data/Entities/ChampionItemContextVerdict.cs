@@ -3,9 +3,18 @@ using Data.ItemContext;
 namespace Data.Entities;
 
 /// <summary>
-/// The answer the page reads (#1450): for one item of one slot, whether it is core,
-/// situational or a preference, and — when situational — the situations that measurably
-/// move it, each with its rates and its sample.
+/// The answer the page reads (#1450): for one step of one build — one edge of the build
+/// tree — whether the item is core, situational or a preference, and — when situational —
+/// the situations that measurably move it, each with its rates and its sample.
+///
+/// <para>
+/// <b>One branch, one decision (#1496).</b> A verdict is scoped to the games that reached
+/// <see cref="ParentItemId"/> and went on to complete something, so the siblings of a branch
+/// share one denominator and a class is a statement about a <em>choice</em>. A branch whose
+/// games only ever continue into one item has no choice in it, and every item on it is
+/// <see cref="ItemContextClass.Core"/> whatever its rate: an item with no alternative cannot
+/// be explained by a situation, and saying otherwise is what the flat grain used to do.
+/// </para>
 ///
 /// <para>
 /// <b>Derived, and rebuilt rather than accumulated.</b> Everything here is computed from
@@ -29,17 +38,29 @@ public class ChampionItemContextVerdict
 
     public ItemContextSlot Slot { get; set; }
 
+    /// <summary>
+    /// The branch of the build tree this verdict answers for (#1496): the item the decision
+    /// was made after, 0 for the branch every game starts on. A verdict is about an
+    /// <em>edge</em>, never about an item on its own — the same item is a different decision
+    /// after a different parent, and a reader hovering it in the tree is asking about the
+    /// step it is looking at.
+    /// </summary>
+    public int ParentItemId { get; set; }
+
     public int ItemId { get; set; }
 
-    /// <summary>Games on the served patch where the champion built the item.</summary>
+    /// <summary>Games on the served patch that took this branch to this item.</summary>
     public int Games { get; set; }
 
     public int Wins { get; set; }
 
-    /// <summary>Games of the slot on the served patch — the denominator of <see cref="PickRate"/>.</summary>
-    public int SlotGames { get; set; }
+    /// <summary>
+    /// Games of the branch on the served patch — the games that reached the parent and
+    /// completed a further item, i.e. the denominator of <see cref="PickRate"/>.
+    /// </summary>
+    public int BranchGames { get; set; }
 
-    /// <summary>Share of the slot's games that built this item, on the served patch alone.</summary>
+    /// <summary>Share of the branch's games that continued into this item, on the served patch alone.</summary>
     public double PickRate { get; set; }
 
     public ItemContextClass Class { get; set; }

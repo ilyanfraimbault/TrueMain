@@ -34,6 +34,20 @@ public class ChampionItemContextTotal
 
     public ItemContextSlot Slot { get; set; }
 
+    /// <summary>
+    /// The branch of the build tree this denominator counts (#1496) — the item the decision
+    /// was made after, 0 for the branch every game starts on. See
+    /// <see cref="ChampionItemContextStat.ParentItemId"/>.
+    /// </summary>
+    /// <remarks>
+    /// A game is counted here <b>only if it actually made a decision on this branch</b>,
+    /// i.e. it completed a further item after the parent. A game that reached the parent and
+    /// then ended contributes to no branch total, so the siblings' rates share one
+    /// denominator and add up to the branch: an axis can no longer lift every sibling at
+    /// once, which is exactly what "ahead at 15 minutes" used to do.
+    /// </remarks>
+    public int ParentItemId { get; set; }
+
     public ItemContextAxis Axis { get; set; }
 
     public ItemContextBucket Bucket { get; set; }

@@ -159,21 +159,29 @@ export function wordableAxes(item: ChampionItemContextItem): ChampionItemContext
  */
 export type ItemContextCard = ChampionItemContextItem
 
-/** The key an item's verdict is looked up by: a slot and an item, since the two answer different questions. */
-export function itemContextKey(slot: ItemContextSlot, itemId: number): string {
-  return `${slot}:${itemId}`
+/**
+ * The key a verdict is looked up by: a slot, the branch, and the item.
+ *
+ * All three, because all three change the question (#1496). The slot separates Mercury's
+ * Treads *as the boots choice* from Mercury's Treads as a build item, and the parent
+ * separates "which item follows Sterak's" from the same item taken two steps earlier — a
+ * verdict is about a step of a build, never about an item on its own. Boots and starters are
+ * decided before any item exists and all hang off branch 0.
+ */
+export function itemContextKey(slot: ItemContextSlot, itemId: number, parentItemId = 0): string {
+  return `${slot}:${parentItemId}:${itemId}`
 }
 
 /**
  * Index a response for the O(1) lookups the build panels do while rendering, keyed by
- * slot and item id.
+ * slot, branch and item id.
  */
 export function indexItemContext(
   items: readonly ChampionItemContextItem[] | null | undefined,
 ): Map<string, ItemContextCard> {
   const index = new Map<string, ItemContextCard>()
   for (const item of items ?? []) {
-    index.set(itemContextKey(item.slot, item.itemId), item)
+    index.set(itemContextKey(item.slot, item.itemId, item.parentItemId), item)
   }
   return index
 }

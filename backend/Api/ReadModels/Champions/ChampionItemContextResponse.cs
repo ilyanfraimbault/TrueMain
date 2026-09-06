@@ -2,7 +2,7 @@ namespace TrueMain.ReadModels.Champions;
 
 /// <summary>
 /// The situational build context of one champion slice (#1450, read surface #1451): for
-/// each item the slice's builds actually reach, whether it is core, situational or a
+/// each step the slice's builds actually take, whether the item is core, situational or a
 /// preference, and — when situational — the draft situations that measurably move it.
 /// </summary>
 /// <remarks>
@@ -34,22 +34,30 @@ public sealed record ChampionItemContextResponse
     public IReadOnlyList<ChampionItemContextItemReadModel> Items { get; init; } = [];
 }
 
-/// <summary>One item's verdict.</summary>
+/// <summary>One step's verdict — one edge of the build tree (#1496).</summary>
 public sealed record ChampionItemContextItemReadModel
 {
     /// <summary><c>Build</c>, <c>Boots</c> or <c>Starter</c> — the decision this verdict is about.</summary>
     public string Slot { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The item this step followed, 0 on the branch every build starts from (and on every
+    /// boots and starter verdict, which are decided before any item exists). A client looks a
+    /// verdict up by slot <em>and</em> parent <em>and</em> item: the same item after a
+    /// different parent is a different decision.
+    /// </summary>
+    public int ParentItemId { get; init; }
 
     public int ItemId { get; init; }
 
     /// <summary><c>Core</c>, <c>Situational</c> or <c>Preference</c>.</summary>
     public string Class { get; init; } = string.Empty;
 
-    /// <summary>Games of the slice that built this item.</summary>
+    /// <summary>Games of the slice that took this branch to this item.</summary>
     public int Games { get; init; }
 
-    /// <summary>Games of the slot the pick rate is over.</summary>
-    public int SlotGames { get; init; }
+    /// <summary>Games of the branch the pick rate is over: those that reached the parent and completed a further item.</summary>
+    public int BranchGames { get; init; }
 
     public double PickRate { get; init; }
 

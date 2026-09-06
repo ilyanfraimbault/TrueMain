@@ -92,10 +92,11 @@ public sealed class ChampionItemContextQueryService(
         => new()
         {
             Slot = verdict.Slot.ToString(),
+            ParentItemId = verdict.ParentItemId,
             ItemId = verdict.ItemId,
             Class = verdict.Class.ToString(),
             Games = verdict.Games,
-            SlotGames = verdict.SlotGames,
+            BranchGames = verdict.BranchGames,
             PickRate = verdict.PickRate,
             WinRate = verdict.Games > 0 ? verdict.Wins / (double)verdict.Games : null,
             PatchWindow = verdict.PatchWindow,

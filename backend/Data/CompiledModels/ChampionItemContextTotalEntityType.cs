@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionItemContextTotal",
                 typeof(ChampionItemContextTotal),
                 baseEntityType,
-                propertyCount: 10,
+                propertyCount: 11,
                 unnamedIndexCount: 1,
                 keyCount: 1);
 
@@ -79,6 +79,14 @@ namespace Data.CompiledModels
                 sentinel: 0);
             games.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var parentItemId = runtimeEntityType.AddProperty(
+                "ParentItemId",
+                typeof(int),
+                propertyInfo: typeof(ChampionItemContextTotal).GetProperty("ParentItemId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionItemContextTotal).GetField("<ParentItemId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: 0);
+            parentItemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var patch = runtimeEntityType.AddProperty(
                 "Patch",
                 typeof(string),
@@ -118,7 +126,7 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { patch, championId, position, slot, axis, bucket },
+                new[] { patch, championId, position, slot, parentItemId, axis, bucket },
                 unique: true);
             index.AddAnnotation("Relational:Name", "IX_champion_item_context_totals_grain");
 

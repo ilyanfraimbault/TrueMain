@@ -50,6 +50,21 @@ public class ChampionItemContextStat
     /// <summary>Which decision this row is about: a build item, the boots, or a starter.</summary>
     public ItemContextSlot Slot { get; set; }
 
+    /// <summary>
+    /// The item this decision was made <em>after</em> — the branch of the build tree this
+    /// row belongs to (#1496). 0 is the branch every game starts on: the first legendary,
+    /// the boots and the starter basket are all decided before any completed item exists.
+    /// </summary>
+    /// <remarks>
+    /// This is what makes a rate here the answer to "of the games that reached this item,
+    /// how many went on to that one" rather than "of all games, how many ever finished that
+    /// one". The second question cannot be asked of a draft: an item late in the build is
+    /// completed mostly in the games that lasted long enough to buy it, which is why the
+    /// flat grain this replaced explained nine findings in ten by the player's own gold
+    /// lead at 15 minutes.
+    /// </remarks>
+    public int ParentItemId { get; set; }
+
     public int ItemId { get; set; }
 
     public ItemContextAxis Axis { get; set; }
