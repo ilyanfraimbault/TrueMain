@@ -6,22 +6,22 @@ namespace Ingestor.Processes.Components.ItemContextAggregation;
 
 /// <summary>
 /// The two additive <c>ON CONFLICT ... + EXCLUDED</c> upserts behind the item-context fold
-/// (#1450): the per-item numerators and the per-slot denominators, written in the caller's
+/// (#1450): the per-step numerators and the per-branch denominators, written in the caller's
 /// transaction so a batch can never leave one without the other.
 /// </summary>
 public static class ItemContextUpsert
 {
     private const string StatsSql = """
         INSERT INTO champion_item_context_stats
-            ("Id", "ChampionId", "Position", "Patch", "Slot", "ItemId", "Axis", "Bucket",
+            ("Id", "ChampionId", "Position", "Patch", "Slot", "ParentItemId", "ItemId", "Axis", "Bucket",
              "Games", "Wins", "AggregatedAtUtc")
-        SELECT gen_random_uuid(), t.champ, t.position, t.patch, t.slot, t.item, t.axis, t.bucket,
+        SELECT gen_random_uuid(), t.champ, t.position, t.patch, t.slot, t.parent, t.item, t.axis, t.bucket,
                t.games, t.wins, @aggAt
         FROM unnest(@champs::integer[], @positions::text[], @patches::text[], @slots::text[],
-                    @items::integer[], @axes::text[], @buckets::text[],
+                    @parents::integer[], @items::integer[], @axes::text[], @buckets::text[],
                     @games::integer[], @wins::integer[])
-            AS t(champ, position, patch, slot, item, axis, bucket, games, wins)
-        ON CONFLICT ("Patch", "ChampionId", "Position", "Slot", "ItemId", "Axis", "Bucket") DO UPDATE SET
+            AS t(champ, position, patch, slot, parent, item, axis, bucket, games, wins)
+        ON CONFLICT ("Patch", "ChampionId", "Position", "Slot", "ParentItemId", "ItemId", "Axis", "Bucket") DO UPDATE SET
             "Games" = champion_item_context_stats."Games" + EXCLUDED."Games",
             "Wins" = champion_item_context_stats."Wins" + EXCLUDED."Wins",
             "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
@@ -29,14 +29,14 @@ public static class ItemContextUpsert
 
     private const string TotalsSql = """
         INSERT INTO champion_item_context_totals
-            ("Id", "ChampionId", "Position", "Patch", "Slot", "Axis", "Bucket",
+            ("Id", "ChampionId", "Position", "Patch", "Slot", "ParentItemId", "Axis", "Bucket",
              "Games", "Wins", "AggregatedAtUtc")
-        SELECT gen_random_uuid(), t.champ, t.position, t.patch, t.slot, t.axis, t.bucket,
+        SELECT gen_random_uuid(), t.champ, t.position, t.patch, t.slot, t.parent, t.axis, t.bucket,
                t.games, t.wins, @aggAt
         FROM unnest(@champs::integer[], @positions::text[], @patches::text[], @slots::text[],
-                    @axes::text[], @buckets::text[], @games::integer[], @wins::integer[])
-            AS t(champ, position, patch, slot, axis, bucket, games, wins)
-        ON CONFLICT ("Patch", "ChampionId", "Position", "Slot", "Axis", "Bucket") DO UPDATE SET
+                    @parents::integer[], @axes::text[], @buckets::text[], @games::integer[], @wins::integer[])
+            AS t(champ, position, patch, slot, parent, axis, bucket, games, wins)
+        ON CONFLICT ("Patch", "ChampionId", "Position", "Slot", "ParentItemId", "Axis", "Bucket") DO UPDATE SET
             "Games" = champion_item_context_totals."Games" + EXCLUDED."Games",
             "Wins" = champion_item_context_totals."Wins" + EXCLUDED."Wins",
             "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
@@ -62,6 +62,7 @@ public static class ItemContextUpsert
                     new NpgsqlParameter("positions", rows.Select(r => r.Key.Position).ToArray()),
                     new NpgsqlParameter("patches", rows.Select(r => r.Key.Patch).ToArray()),
                     new NpgsqlParameter("slots", rows.Select(r => r.Key.Slot.ToString()).ToArray()),
+                    new NpgsqlParameter("parents", rows.Select(r => r.Key.ParentItemId).ToArray()),
                     new NpgsqlParameter("items", rows.Select(r => r.Key.ItemId).ToArray()),
                     new NpgsqlParameter("axes", rows.Select(r => r.Key.Axis.ToString()).ToArray()),
                     new NpgsqlParameter("buckets", rows.Select(r => r.Key.Bucket.ToString()).ToArray()),
@@ -82,6 +83,7 @@ public static class ItemContextUpsert
                     new NpgsqlParameter("positions", rows.Select(r => r.Key.Position).ToArray()),
                     new NpgsqlParameter("patches", rows.Select(r => r.Key.Patch).ToArray()),
                     new NpgsqlParameter("slots", rows.Select(r => r.Key.Slot.ToString()).ToArray()),
+                    new NpgsqlParameter("parents", rows.Select(r => r.Key.ParentItemId).ToArray()),
                     new NpgsqlParameter("axes", rows.Select(r => r.Key.Axis.ToString()).ToArray()),
                     new NpgsqlParameter("buckets", rows.Select(r => r.Key.Bucket.ToString()).ToArray()),
                     new NpgsqlParameter("games", rows.Select(r => r.Value.Games).ToArray()),

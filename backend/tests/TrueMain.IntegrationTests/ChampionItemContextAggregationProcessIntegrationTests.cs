@@ -59,20 +59,31 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
 
         await using var db = _fixture.CreateDbContext();
 
+        // Two branches, because every seeded build is two steps: the root branch every game
+        // starts from, then the branch after the core item. The item the build ends on opens
+        // no branch of its own — nobody decided anything after it (#1496).
         var totals = await db.ChampionItemContextTotals.AsNoTracking()
             .Where(row => row.Slot == ItemContextSlot.Build)
             .ToListAsync();
 
-        totals.Single(row => row.Axis == ItemContextAxis.Overall).Games
-            .Should().Be(24, "every folded game counts once towards the slot");
-        totals.Single(row => row.Axis == ItemContextAxis.EnemyMagicDamage && row.Bucket == ItemContextBucket.High)
+        totals.Select(row => row.ParentItemId).Distinct().Should().BeEquivalentTo([0, CoreItem]);
+        totals.Single(row => row.ParentItemId == 0 && row.Axis == ItemContextAxis.Overall).Games
+            .Should().Be(24, "every folded game decided its first item");
+        totals.Single(row => row.ParentItemId == CoreItem && row.Axis == ItemContextAxis.Overall).Games
+            .Should().Be(24, "and every one of them completed something after it");
+        totals.Single(row => row.ParentItemId == CoreItem
+                && row.Axis == ItemContextAxis.EnemyMagicDamage && row.Bucket == ItemContextBucket.High)
             .Games.Should().Be(12);
-        totals.Single(row => row.Axis == ItemContextAxis.EnemyMagicDamage && row.Bucket == ItemContextBucket.Low)
+        totals.Single(row => row.ParentItemId == CoreItem
+                && row.Axis == ItemContextAxis.EnemyMagicDamage && row.Bucket == ItemContextBucket.Low)
             .Games.Should().Be(12);
 
         var magicResist = await db.ChampionItemContextStats.AsNoTracking()
             .Where(row => row.ItemId == MagicResistItem)
             .ToListAsync();
+
+        magicResist.Select(row => row.ParentItemId).Distinct().Should().Equal([CoreItem],
+            "the step is the edge it was taken on, never the item alone");
 
         magicResist.Single(row => row.Axis == ItemContextAxis.Overall).Games.Should().Be(12);
         magicResist.Single(row => row.Axis == ItemContextAxis.EnemyMagicDamage && row.Bucket == ItemContextBucket.High)
@@ -104,6 +115,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
         var verdicts = await db.ChampionItemContextVerdicts.AsNoTracking().ToListAsync();
 
         var core = verdicts.Single(v => v.ItemId == CoreItem);
+        core.ParentItemId.Should().Be(0);
         core.Class.Should().Be(ItemContextClass.Core, "it is built in every game, so no situation explains it");
         core.PickRate.Should().Be(1d);
         core.Axes.Should().BeEmpty();
@@ -111,7 +123,8 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
         var magicResist = verdicts.Single(v => v.ItemId == MagicResistItem);
         magicResist.Class.Should().Be(ItemContextClass.Situational);
         magicResist.Games.Should().Be(12);
-        magicResist.SlotGames.Should().Be(24);
+        magicResist.ParentItemId.Should().Be(CoreItem);
+        magicResist.BranchGames.Should().Be(24);
         magicResist.PickRate.Should().Be(0.5d);
         magicResist.PatchWindow.Should().Be(1);
 
@@ -142,7 +155,8 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
 
         await using var db = _fixture.CreateDbContext();
         (await db.ChampionItemContextTotals.AsNoTracking()
-            .SingleAsync(row => row.Slot == ItemContextSlot.Build && row.Axis == ItemContextAxis.Overall))
+            .SingleAsync(row => row.Slot == ItemContextSlot.Build
+                && row.ParentItemId == CoreItem && row.Axis == ItemContextAxis.Overall))
             .Games.Should().Be(24, "nothing was pending, so nothing was counted twice");
         second.Should().BeEquivalentTo(new { Matches = 0, Verdicts = 0 }, o => o.ExcludingMissingMembers());
     }
@@ -162,7 +176,8 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
         // single game. The in-game axis survives: it is read from the timeline, not from a
         // profile.
         (await db.ChampionItemContextTotals.AsNoTracking()
-            .SingleAsync(row => row.Slot == ItemContextSlot.Build && row.Axis == ItemContextAxis.Overall))
+            .SingleAsync(row => row.Slot == ItemContextSlot.Build
+                && row.ParentItemId == CoreItem && row.Axis == ItemContextAxis.Overall))
             .Games.Should().Be(24);
 
         var axes = await db.ChampionItemContextTotals.AsNoTracking()
@@ -340,7 +355,16 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
             Item1 = items is { Length: > 1 } ? items[1] : 0,
             Item6 = 3363,
             TrinketItemId = 3363,
-            ItemEvents = [],
+            // The purchases are what make the build an ordered chain, and the chain is what
+            // the branch grain is read off (#1496). Without them `FinalBuildResolver` falls
+            // back to sorting by item id, and the fixture's "first item" would be whichever
+            // of the three has the smallest number.
+            ItemEvents = [.. (items ?? []).Select((itemId, order) => new ItemEvent
+            {
+                TimestampMs = 600_000 * (order + 1),
+                EventType = ItemEventTypes.Purchased,
+                ItemId = itemId,
+            })],
             SkillEvents = [],
         };
 

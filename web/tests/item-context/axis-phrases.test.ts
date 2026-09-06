@@ -120,13 +120,24 @@ describe('wordableAxes', () => {
 
 describe('indexItemContext', () => {
   it('keys on the slot as well as the item, because the two answer different questions', () => {
-    const build = { slot: 'Build', itemId: 3111 } as ChampionItemContextItem
-    const boots = { slot: 'Boots', itemId: 3111 } as ChampionItemContextItem
+    const build = { slot: 'Build', itemId: 3111, parentItemId: 0 } as ChampionItemContextItem
+    const boots = { slot: 'Boots', itemId: 3111, parentItemId: 0 } as ChampionItemContextItem
 
     const index = indexItemContext([build, boots])
 
     expect(index.get(itemContextKey('Build', 3111))).toBe(build)
     expect(index.get(itemContextKey('Boots', 3111))).toBe(boots)
+    expect(index.size).toBe(2)
+  })
+
+  it('keys on the branch too: the same item after another parent is another decision', () => {
+    const first = { slot: 'Build', itemId: 3153, parentItemId: 0 } as ChampionItemContextItem
+    const afterSteraks = { slot: 'Build', itemId: 3153, parentItemId: 3181 } as ChampionItemContextItem
+
+    const index = indexItemContext([first, afterSteraks])
+
+    expect(index.get(itemContextKey('Build', 3153, 0))).toBe(first)
+    expect(index.get(itemContextKey('Build', 3153, 3181))).toBe(afterSteraks)
     expect(index.size).toBe(2)
   })
 

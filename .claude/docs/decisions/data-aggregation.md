@@ -68,6 +68,20 @@ also what keeps the table at the scale of the matchup pre-aggregation. Three flo
 (games in both buckets, absolute lift, two-proportion significance): a large sample makes a two-point gap
 significant and a spectacular gap over ten games is noise, so no single floor is enough — #1450.
 
+**An item-context verdict is about an edge of the build tree, not about an item.**
+The first grain measured an item against every game of its slot — "how often does this champion ever finish this
+item". That is not a decision anybody makes, and it is confounded by game length: being ahead at 15 minutes means
+a longer game and more gold, so *every* late item is completed more often. Measured on production at the time:
+851 of 980 findings were `OwnGoldLeadAt15`, 828 of them at the `High` end, and it was the top finding 844 times —
+nine situational cards in ten said "when ahead at 15 min". Since #1496 every counter and every verdict is scoped
+to the branch the step was taken on, `(slot, parentItem → item)`, and a branch's denominator is the games that
+reached the parent **and completed a further item**. The siblings then partition the branch, so no axis can lift
+all of them at once and the confounder dies mechanically instead of being suppressed. A step nothing competes
+with — no sibling clears `MinAlternativeShare`, the same 10% the build tree prunes its children at — is `Core`
+whatever its rate: there was no decision to explain. Draft-time findings are ordered ahead of the gold lead,
+whose bands were also moved from ±300 to the measured deciles (±1 800 over 194 510 lanes), so `High` means
+snowballing rather than "the game lasted long enough to buy things" — #1496, #1450.
+
 **Verdicts are derived and rebuilt; the counters are additive and folded once per match.**
 The same process does both, and the split is the point. The counters follow the house rule (one fold per match,
 flagged on `matches`, frozen patches freeze). The verdicts are recomputed wholesale for the scopes a run touched,

@@ -2226,7 +2226,7 @@ function mockItemContext(championId: number, position: string | undefined) {
 
   const archetype = ARCHETYPES[s.archetype]
   const rng = mulberry32(championId * 17 + (position?.length ?? 0))
-  const slotGames = 400 + Math.floor(rng() * 2000)
+  const branchGames = 400 + Math.floor(rng() * 2000)
 
   const axis = (
     name: string,
@@ -2235,7 +2235,7 @@ function mockItemContext(championId: number, position: string | undefined) {
     rateOut: number,
     draftTime = true,
   ) => {
-    const half = Math.round(slotGames / 2)
+    const half = Math.round(branchGames / 2)
     return {
       axis: name,
       bucket,
@@ -2258,12 +2258,16 @@ function mockItemContext(championId: number, position: string | undefined) {
     pickRate: number,
     axes: ReturnType<typeof axis>[],
     patchWindow = 1,
+    // The branch the step was decided on (#1496) — 0 is where every build starts, and where
+    // the boots and starter decisions live.
+    parentItemId = 0,
   ) => ({
     slot,
+    parentItemId,
     itemId,
     class: itemClass,
-    games: Math.round(pickRate * slotGames),
-    slotGames,
+    games: Math.round(pickRate * branchGames),
+    branchGames,
     pickRate,
     winRate: round3(0.48 + rng() * 0.08),
     patchWindow,
@@ -2278,15 +2282,16 @@ function mockItemContext(championId: number, position: string | undefined) {
     patch: null,
     allRanks: true,
     items: [
+      // The build verdicts chain, as the tree does: each step hangs off the one before it.
       item('Build', items[0]!, 'Core', 0.93, []),
       item('Build', items[1]!, 'Situational', 0.42, [
         axis('EnemyMagicDamage', 'High', 0.62, 0.18),
-      ]),
+      ], 1, items[0]!),
       item('Build', items[2]!, 'Situational', 0.31, [
         axis('EnemyCrowdControl', 'High', 0.55, 0.21),
         axis('EnemySustain', 'High', 0.44, 0.19),
-      ], 2),
-      item('Build', items[3]!, 'Preference', 0.27, []),
+      ], 2, items[1]!),
+      item('Build', items[3]!, 'Preference', 0.27, [], 1, items[1]!),
       item('Boots', archetype.boots[0]!, 'Situational', 0.38, [
         axis('EnemyPhysicalDamage', 'High', 0.61, 0.12),
       ]),
