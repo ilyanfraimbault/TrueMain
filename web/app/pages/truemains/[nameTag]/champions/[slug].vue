@@ -354,7 +354,6 @@ const performanceSnapshot = useLazyHydrationSnapshot(
               v-else
               :powerspikes="false"
             />
-
           </template>
 
           <!-- This player's recent games on this champion — rendered even when the
