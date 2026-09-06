@@ -95,6 +95,7 @@ Last verified against `develop` on 2026-09-02.
 - The recommendation shows no situational-items row — #921, #939
 - The matchup tool judges the lane over its own sampled games — this finishes #1111's merge
 - `/matchup` carries one line of numbers, not two — and it stores the XP gap beside the gold one — #1098, #976, #1087
+- Column captions head every rendering of the matchup rows, filtered view included, and beat figure-restating tooltips — #1494
 
 ## Player profile — [`decisions/product-player-profile.md`](decisions/product-player-profile.md)
 
