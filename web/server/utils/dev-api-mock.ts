@@ -1344,6 +1344,9 @@ function mockProfile(player: MockPlayer): ProfileResponse {
     mains: row.topChampions.map(c => ({
       championId: c.championId,
       games: c.games,
+      // The window the count is a share of, derived from the same play rate the
+      // row already carries, so the mock's qualifier can't drift from its count.
+      sampleMatches: c.playRate > 0 ? Math.round(c.games / c.playRate) : c.games,
       playRate: c.playRate,
       primaryPosition: seedsById.get(c.championId)?.position ?? '',
       isOtp: c.isOtp,

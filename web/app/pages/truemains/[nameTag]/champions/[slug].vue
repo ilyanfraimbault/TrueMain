@@ -294,6 +294,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
           :champion-icon-url="displayIconUrl"
           :champion-id="championId"
           :position="champion?.position || selectedPosition || ''"
+          :patch="pickerPatch"
           :total-games="champion?.totalGames ?? 0"
           :total-wins="champion?.totalWins ?? 0"
           :low-sample-message="lowSampleMessage"

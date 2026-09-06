@@ -29,6 +29,7 @@ public sealed class ProfileQueryService(
     private sealed record MainDto(
         int ChampionId,
         int ChampionMatches,
+        int TotalMatches,
         double PlayRate,
         string PrimaryPosition,
         bool IsOtp,
@@ -127,6 +128,7 @@ public sealed class ProfileQueryService(
                 {
                     ChampionId = m.ChampionId,
                     Games = m.ChampionMatches,
+                    SampleMatches = m.TotalMatches,
                     PlayRate = m.PlayRate,
                     PrimaryPosition = m.PrimaryPosition,
                     IsOtp = m.IsOtp,
@@ -187,6 +189,7 @@ public sealed class ProfileQueryService(
             .Select(m => new MainDto(
                 m.ChampionId,
                 m.ChampionMatches,
+                m.TotalMatches,
                 m.PlayRate,
                 m.PrimaryPosition,
                 m.IsOtp,
