@@ -23,6 +23,18 @@ function formatPlayRate(rate: number): string {
   return formatPercentage(rate, 0)
 }
 
+// The count is a share of the recent-ranked window the main analysis reads, not
+// the player's whole history on the champion — and the champion page one row
+// away counts that whole history, for one patch and lane. Two bare counts that
+// disagree read as a bug; naming this one's denominator is what tells them
+// apart (#1498). `sampleMatches` comes from the API, so nothing here invents a
+// window: rows written before it existed fall back to the plain count.
+function formatSample(main: ProfileMainChampion): string {
+  return main.sampleMatches > 0
+    ? `${main.games} of last ${main.sampleMatches}`
+    : `${main.games} games`
+}
+
 // Mains whose games have aged out of retention (#1216). The numbers stay — they
 // are a real past measurement, and hiding them would drop the player off their
 // own profile — but they get a marker, because an unqualified count here is what
@@ -114,7 +126,7 @@ const canonicalIcon = useCanonicalIcon()
                 width="12"
                 height="12"
               >
-              <span>{{ main.games }} games</span>
+              <span>{{ formatSample(main) }}</span>
             </div>
           </div>
           <span class="shrink-0 text-sm font-semibold tabular-nums text-default">

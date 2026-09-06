@@ -37,6 +37,13 @@ export interface ProfileRanked {
 export interface ProfileMainChampion {
   championId: number
   games: number
+  /**
+   * The recent-ranked window `games` was counted out of. The main analysis
+   * reads a capped number of matches per account, so this card's count is a
+   * share of that window and not the player's whole history on the champion —
+   * which is what the champion page counts (#1498).
+   */
+  sampleMatches: number
   /** `games / total games on the account` from the main analysis (0..1). */
   playRate: number
   /** Riot team position string (uppercase, e.g. `MIDDLE`). Empty when no dominant lane. */
