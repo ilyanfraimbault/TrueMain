@@ -237,7 +237,7 @@ namespace Data.CompiledModels
             iX_matches_bans_pending.AddAnnotation("Relational:Filter", "\"BansAggregated\" = false");
 
             var iX_matches_item_context_pending = runtimeEntityType.AddIndex(
-                new[] { queueId },
+                new[] { queueId, gameStartTimeUtc },
                 name: "IX_matches_item_context_pending");
             iX_matches_item_context_pending.AddAnnotation("Relational:Filter", "\"ItemContextAggregated\" = false");
 

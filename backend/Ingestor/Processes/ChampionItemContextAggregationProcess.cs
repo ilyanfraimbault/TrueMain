@@ -94,10 +94,21 @@ public sealed class ChampionItemContextAggregationProcess(
             // TimelineIngested for the same reason as the sibling folds: the gold-lead axis
             // reads the 15-minute snapshot, and flagging a match whose timeline has not
             // arrived would lose that axis for it permanently.
+            //
+            // Newest first (#1514). The order is irrelevant to the end state — the counters
+            // are additive — but it decides which slices become readable first, and that
+            // matters whenever the queue is deep: a re-grain of this aggregate clears the
+            // flag on the whole corpus, and draining it oldest-first rebuilt the patches
+            // nobody reads before the one the site serves. On the #1496 rollout that left the
+            // current patch at 14 folded matches out of 148 484 three hours in, with every
+            // rebuilt verdict sitting on the previous patch.
+            //
+            // By game start rather than by patch: `Patch` is a string, and '16.9' sorts above
+            // '16.17', so ordering on it would silently invert at every x.9 → x.10 rollover.
             var matchIds = await db.Matches
                 .AsNoTracking()
                 .Where(m => m.QueueId == queueId && !m.ItemContextAggregated && m.TimelineIngested)
-                .OrderBy(m => m.Id)
+                .OrderByDescending(m => m.GameStartTimeUtc)
                 .Take(take)
                 .Select(m => m.Id)
                 .ToListAsync(ct);

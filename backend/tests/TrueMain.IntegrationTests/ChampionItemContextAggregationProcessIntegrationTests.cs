@@ -30,6 +30,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
     private const int QueueId = 420;
     private const string Version = "16.4.521.123";
     private const string Patch = "16.4";
+    private const string OlderVersion = "16.3.498.771";
     private const string Position = "TOP";
 
     private const int Champion = 266;
@@ -162,6 +163,39 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_DrainsTheBacklogNewestFirst()
+    {
+        // The order is irrelevant to the end state — the counters are additive — but it
+        // decides which patch becomes readable first, and a re-grain of this aggregate puts
+        // the whole corpus back in the queue (#1514). Draining oldest-first rebuilt the
+        // patches nobody reads before the one the site serves.
+        await _fixture.ResetDatabaseAsync();
+        await SeedAsync(magicGames: 6, physicalGames: 6, seedProfiles: false);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var older = DateTime.UtcNow.AddDays(-30);
+            Seed(db, await db.RiotAccounts.SingleAsync(), "old-magic", 6, MagicEnemies, MagicResistItem,
+                version: OlderVersion, startedAtUtc: older);
+            Seed(db, await db.RiotAccounts.SingleAsync(), "old-physical", 6, PhysicalEnemies, ArmourItem,
+                version: OlderVersion, startedAtUtc: older);
+            await db.SaveChangesAsync();
+        }
+
+        // One batch, sized to exactly the newer half of the queue.
+        await CreateProcess(maxMatchesPerRun: 12, batchSize: 12).RunCoreAsync(CancellationToken.None);
+
+        await using var assertions = _fixture.CreateDbContext();
+        var folded = await assertions.Matches.AsNoTracking()
+            .Where(m => m.ItemContextAggregated)
+            .Select(m => m.Patch)
+            .ToListAsync();
+
+        folded.Should().HaveCount(12).And.OnlyContain(patch => patch == Patch,
+            "the served patch is the one the site reads, so it drains before the old one");
+    }
+
+    [Fact]
     public async Task RunAsync_FoldsNothingForAChampionItHasNoProfilesFor()
     {
         await _fixture.ResetDatabaseAsync();
@@ -193,7 +227,9 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
             "an unqualifiable draft leaves an honest 'nothing moves this', not a guess");
     }
 
-    private ChampionItemContextAggregationProcess CreateProcess()
+    private ChampionItemContextAggregationProcess CreateProcess(
+        int? maxMatchesPerRun = null,
+        int? batchSize = null)
         => new(
             NullLogger<ChampionItemContextAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
@@ -204,6 +240,8 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
                 MinBucketGames = 5,
                 MinProfileGames = 1,
                 MinPickRate = 0.05,
+                MaxMatchesPerRun = maxMatchesPerRun ?? new ItemContextAggregationOptions().MaxMatchesPerRun,
+                MatchBatchSize = batchSize ?? new ItemContextAggregationOptions().MatchBatchSize,
             }),
             new FakeItemMetadataProvider(),
             new TestDbContextFactory(_fixture),
@@ -278,7 +316,9 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
         string prefix,
         int games,
         IReadOnlyList<int> enemies,
-        int situationalItemId)
+        int situationalItemId,
+        string version = Version,
+        DateTime? startedAtUtc = null)
     {
         string[] positions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
 
@@ -286,7 +326,8 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
         {
             var matchId = $"{prefix}-{i}";
             db.Matches.Add(new MatchBuilder()
-                .WithId(matchId).WithQueueId(QueueId).WithGameVersion(Version)
+                .WithId(matchId).WithQueueId(QueueId).WithGameVersion(version)
+                .WithGameStartTimeUtc((startedAtUtc ?? DateTime.UtcNow).AddMinutes(i))
                 .WithGameDurationSeconds(1800).WithTimelineIngested().Build());
 
             // Slot 1 is the tracked main; slots 2-5 its allies, 6-10 the enemy team.
