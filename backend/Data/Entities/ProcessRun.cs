@@ -81,5 +81,23 @@ public enum ProcessRunStatus
     /// health treats it as a settled, healthy outcome — just one that did nothing.
     /// </para>
     /// </summary>
-    Skipped = 4
+    Skipped = 4,
+
+    /// <summary>
+    /// The run was cut short by an orderly shutdown — the host asked it to stop and it
+    /// did, at the first point its cancellation token reached. A redeploy is the ordinary
+    /// cause (#1513).
+    /// <para>
+    /// Distinct from <see cref="Abandoned"/>, which is what a run looks like when nobody
+    /// closed it: the two describe opposite things about the same interruption — one host
+    /// stopped on request, the other died. Recording the difference is what lets the ops
+    /// panels stay quiet about a deploy while still reporting a host that vanished.
+    /// </para>
+    /// <para>
+    /// Not a failure: the work is simply unfinished and the next pass picks it up. It does
+    /// not count as a completed run for a cadence guard either, for the same reason
+    /// <see cref="Skipped"/> does not — nothing was actually done.
+    /// </para>
+    /// </summary>
+    Cancelled = 5
 }

@@ -25,7 +25,7 @@ public sealed record ProcessRunsReadModel
 
 /// <summary>
 /// A single recorded process run. <see cref="Status"/> is the
-/// <c>ProcessRunStatus</c> name ("Success"/"Failed"/"Running"/"Abandoned"); a
+/// <c>ProcessRunStatus</c> name ("Success"/"Failed"/"Running"/"Abandoned"/"Skipped"/"Cancelled"); a
 /// stale-heartbeat <c>Running</c> row is reported as "Abandoned" here even though
 /// its stored status is still <c>Running</c>. <see cref="Error"/> is the stored
 /// failure text (may be null) and <see cref="Summary"/> is the run's JSONB payload

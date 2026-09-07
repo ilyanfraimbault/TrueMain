@@ -194,6 +194,7 @@ Last verified against `develop` on 2026-09-02.
 - A CommunityDragon patch branch that does not exist yet is a transient condition, not a fatal one — #1107
 - Ranks are read from the ladder, not from one account at a time (2026-08-30) — #788, #1312, #1149
 - A lease is only kept if something reaps it (2026-09-01) — #1344
+- A redeploy is an outcome the pipeline records, not an accident it absorbs (2026-09-07) — #1513
 - Jungle first-clear tracking was built, then removed entirely (2026-08-24) — #1186, #1195, #535
 
 ## Performance, caching and incidents — [`decisions/performance-and-incidents.md`](decisions/performance-and-incidents.md)

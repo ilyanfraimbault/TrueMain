@@ -109,6 +109,33 @@ lease is spent while the claim still considers it held. Measured on production: 
 candidate rows, served by the existing `(PlatformId, Status, Score)` and partial claim indexes — no new index
 (#1344).
 
+## A redeploy is an outcome the pipeline records, not an accident it absorbs (2026-09-07)
+
+**Every deploy interrupts the pass in flight, and the pipeline now says so and recovers immediately.** Three
+changes, one per gap (#1513).
+
+**The containers get 120 s to stop.** Neither deployed stack overrode Docker's 10 s default, so a pass running
+for many minutes was SIGKILLed: the transaction in flight rolled back and the run stayed `Running` until the
+next boot reconciled it. The work is cooperative — `stoppingToken` reaches every process, every write is
+transactional — so the missing piece was time, not mechanism. The host's `ShutdownTimeout` is set to 100 s,
+below the grace period, so the runtime finishes on its own terms instead of being killed mid-finalisation.
+Neither number paces a normal stop: a cancelled pass unwinds in seconds, and both are ceilings.
+
+**`Cancelled` is a status of its own, next to `Abandoned`.** The two describe the same interruption from
+opposite sides — one host stopped because it was asked to, the other died — and collapsing them meant a
+redeploy and a crash left the same trace on the panels. It is recorded through a detached, time-boxed token,
+since the run's own is cancelled by then, and it is healthy on the read side: it opens no failure streak and
+paints neutral, not amber. It still counts as a run for a cadence guard, exactly as the `Abandoned` row it
+replaces did — an interrupted pass had already started spending its budget.
+
+**Claims are released at boot, not a lease later.** The lease reaper above is what recovers a claim in the
+general case, but at startup the single-instance-per-lane rule makes a stronger statement available: every
+claim on the table was taken by the incarnation that just died, so the cutoff is *now* rather than a lease
+ago. Without it a redeploy cost the pass it interrupted **plus** the remainder of
+`MatchIngestion:ClaimLeaseMinutes` before the accounts became claimable again. Scoped to the lane that
+claims — a release from the aggregate lane would free the fetch lane's live work — and its failure never
+blocks the boot, because the lease reaper is still there behind it.
+
 ## Jungle first-clear tracking was built, then removed entirely (2026-08-24)
 
 Shipped over #1186–#1195, then deleted: the camp sequence, the storage, the ingestion, the match-detail tab

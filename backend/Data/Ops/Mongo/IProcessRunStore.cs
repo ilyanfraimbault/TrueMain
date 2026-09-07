@@ -67,6 +67,9 @@ public interface IProcessRunStore
     /// are both excluded: the former is the caller's own in-flight row, the latter is a
     /// run that deliberately did nothing. Counting a skip here would let it stand in for
     /// the work it declined to do, re-arming the guard on every iteration (#1149).
+    /// <see cref="ProcessRunStatus.Cancelled"/> is <em>not</em> excluded: an interrupted
+    /// run did start spending its budget, and it counted here even before the status
+    /// existed — as the <see cref="ProcessRunStatus.Abandoned"/> row it used to leave.
     /// </para>
     /// </summary>
     Task<DateTime?> GetLastCompletedRunStartAsync(string processName, CancellationToken ct);

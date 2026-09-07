@@ -145,6 +145,34 @@ public sealed class ExpiredClaimReleaseIntegrationTests
             "once its candidate is back at Queued the account is reachable by the claim again");
     }
 
+    [Fact]
+    public async Task ReleasingWithNowAsTheCutoff_FreesAClaimTakenSecondsAgo()
+    {
+        // The startup release (#1513) reaps with "now" rather than a lease ago, so a claim
+        // whose lease has barely started comes back — which is the entire point at boot: the
+        // process holding it is the one that just died. This is the shape the worker's
+        // release relies on; the same cutoff at any other moment would free live work, which
+        // is why only the startup path is allowed to use it.
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        await SeedAccountAsync("KR", "puuid-fresh", MatchIngestStatus.Processing, now.AddSeconds(-20));
+        await SeedCandidateAsync("KR", "puuid-fresh", championId: 22, MainCandidateStatus.Processing);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var candidates = await new MainCandidateRepository(db).ReleaseExpiredClaimsAsync(now, CancellationToken.None);
+            var accounts = await new RiotAccountRepository(db).ReleaseExpiredMatchIngestClaimsAsync(now, CancellationToken.None);
+
+            candidates.Should().Be(1);
+            accounts.Should().Be(1);
+        }
+
+        var claimed = await ClaimAsync(now);
+        claimed.Should().ContainSingle(account => account.Puuid == "puuid-fresh",
+            "the pass that a redeploy interrupted must be reclaimable on the next boot, not a lease later");
+    }
+
     private async Task<List<AccountKey>> ClaimAsync(DateTime nowUtc)
     {
         await using var db = _fixture.CreateDbContext();

@@ -271,6 +271,7 @@ services:
     pull_policy: always
     container_name: truemain-ingestor
     restart: unless-stopped
+    stop_grace_period: 120s
     environment:
       <<: *ingestor-environment
       Job__Mode: ${INGESTOR_JOB_MODE:-FetchLane}
@@ -291,6 +292,7 @@ services:
     pull_policy: always
     container_name: truemain-ingestor-aggregate
     restart: unless-stopped
+    stop_grace_period: 120s
     environment:
       <<: *ingestor-environment
       Job__Mode: ${INGESTOR_AGGREGATE_JOB_MODE:-AggregateLane}

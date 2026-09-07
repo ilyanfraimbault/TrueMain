@@ -150,6 +150,16 @@ builder.Services.AddSingleton<IngestorMetrics>();
 // environment on every beat: the environment is process-global and a worker is not (#1348).
 builder.Services.AddSingleton<IHeartbeatFile, EnvironmentHeartbeatFile>();
 
+// A redeploy stops the container, and until #1513 the stop was a 10-second SIGTERM →
+// SIGKILL: Docker's default grace period, which nothing overrode. The work is cooperative
+// — stoppingToken is threaded through every process and every write is transactional — so
+// what it lacked was the time to unwind, record the cancelled run and let the in-flight
+// transaction settle. The compose files now grant a 120 s stop grace period; this budget
+// sits below it so the host finishes on its own terms rather than being killed halfway
+// through the finalisation. Only a ceiling: a cancelled pass normally stops in seconds.
+builder.Services.Configure<HostOptions>(options =>
+    options.ShutdownTimeout = TimeSpan.FromSeconds(100));
+
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

@@ -11,7 +11,8 @@ namespace Ingestor.Processes;
 /// </summary>
 /// <remarks>
 /// A <c>Running</c> row is written before the inner process starts and then
-/// flipped to <c>Success</c>/<c>Skipped</c>/<c>Failed</c> on completion — so the
+/// flipped to <c>Success</c>/<c>Skipped</c>/<c>Failed</c> on completion, or to
+/// <c>Cancelled</c> when a shutdown cuts the run short — so the
 /// row IS the shared "what's running now" state. While the inner process runs, a
 /// background loop refreshes the row's heartbeat so read queries can distinguish a
 /// genuinely in-flight run from one whose host died (the latter ages out to Abandoned).
@@ -24,6 +25,13 @@ public sealed class RecordedProcess<TInner>(
     where TInner : IIngestorProcess
 {
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// How long the cancellation record may take before the shutdown moves on without it.
+    /// Small on purpose: it is spent inside the container's stop grace period, alongside
+    /// every other process still unwinding.
+    /// </summary>
+    private static readonly TimeSpan ShutdownRecordBudget = TimeSpan.FromSeconds(10);
 
     public string Name => inner.Name;
 
@@ -57,12 +65,16 @@ public sealed class RecordedProcess<TInner>(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // Graceful shutdown mid-run is NOT a failure, so don't record one — and
-            // don't call RecordFailureAsync with the already-cancelled token (it
-            // would just throw another OCE). The Running row is left as-is and
-            // surfaces as Abandoned: via the stale-heartbeat read mapping within the
-            // staleness window, then persisted by startup reconciliation on the next
-            // boot. This keeps the Failed status meaningful (real errors only).
+            // Graceful shutdown mid-run is NOT a failure, so don't record one — but it
+            // is still an outcome, and one worth telling apart from a host that died
+            // (#1513). Until this was recorded, the Running row was simply left behind:
+            // it read as Abandoned for as long as the container stayed down and was only
+            // settled by the next boot's reconciliation, so a redeploy and a crash left
+            // the same trace. Written through a detached, time-boxed token because the
+            // run's own is by now cancelled — RecordAsync with it would only throw a
+            // second cancellation. Failed stays what it always was: real errors only.
+            var cancelledAt = timeProvider.GetUtcNow().UtcDateTime;
+            await RecordCancellationAsync(runId, startedAt, cancelledAt);
             throw;
         }
         catch (Exception ex)
@@ -83,6 +95,27 @@ public sealed class RecordedProcess<TInner>(
             // The loop never throws (it catches everything internally), so this
             // await just joins it before the run returns.
             await heartbeatLoop;
+        }
+    }
+
+    private async Task RecordCancellationAsync(Guid runId, DateTime startedAt, DateTime cancelledAt)
+    {
+        using var shutdownCts = new CancellationTokenSource(ShutdownRecordBudget, timeProvider);
+
+        try
+        {
+            await recorder.RecordCancellationAsync(runId, Name, startedAt, cancelledAt, shutdownCts.Token);
+        }
+        catch (Exception ex)
+        {
+            // Best-effort by design: the host is already stopping, and the worst case is
+            // the behaviour this replaced — the row stays Running until the next boot
+            // reconciles it to Abandoned. Holding the shutdown open for a store that is
+            // not answering would be the worse trade.
+            logger.LogWarning(
+                ex,
+                "Could not record the cancellation of {ProcessName}; the run will be reconciled at the next boot.",
+                Name);
         }
     }
 
