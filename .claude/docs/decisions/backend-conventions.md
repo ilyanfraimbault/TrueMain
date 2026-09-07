@@ -144,3 +144,73 @@ tolerate 6 h of silence, which left it unable to detect anything short of a proc
 day. A dedicated 30 s loop now refreshes it for the worker's whole lifetime and the threshold is 300 s, so a
 wedged process is caught in minutes. Whether the *work* is progressing is a separate question with a separate
 answer already in place: the `process_runs` heartbeat, which ages a stalled run out to `Abandoned` (#1229).
+
+## `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07)
+
+**Written down because there was no rule, and the drift was measurable** (#1520). On the day this
+landed, `ChampionsController` was 789 lines and 20 endpoints behind 14 injected services;
+`OpsController` was 869 lines and 30 endpoints behind 25; `Services/Champions` and `Services/Ops`
+held 59 and 57 files each, flat; and `Controllers/Champions/` contained five files of which three
+were not controllers. Both controllers were already recorded in `.github/file-size-baseline.txt` —
+the debt was registered and never repaid.
+
+Nothing here changed a route, a read-model or a query. The 55 route templates are byte-identical
+before and after, which is the property that made a move of this size reviewable at all.
+
+**`Controllers/` holds controllers and nothing else.** Not request DTOs, not parameter parsing, not
+`internal static` helpers that happen to be called from an action.
+
+- **Request bodies live in `Api/Requests/<area>/`** — the input mirror of `Api/ReadModels/<area>/`,
+  which already existed for outputs. A request type and the code that validates it into whatever the
+  services take belong in the same file family (`CompositionBuildRequest` beside
+  `CompositionBuildRequestMapper`): the shape of an input and the rules for a valid one are one
+  decision, and splitting them lets the two drift.
+- **Query-parameter parsing lives in `Api/Http/`, one file per parameter family** — patch, position,
+  elo bracket, platform, granularity, Riot ID. Each holds its normalisation, its 400 message and the
+  `ControllerBase` extension that produces the RFC 7807 body. Extensions rather than a shared base
+  class: the controllers that take a `position` have nothing else in common, and the 400 stays
+  produced by the controller itself.
+  The naming matters. These used to be `ChampionQueryParameterNormalizer` under
+  `Controllers/Champions`, which meant `TruemainsController` imported a *Champions* namespace to
+  normalise a patch string. They are HTTP rules, not champion rules.
+
+**One controller per resource, not per route prefix.** A prefix is a URL fact; a controller is a
+cohesion claim. `/champions` is now eight controllers and `/ops` ten, each owning one route family
+and injecting only the services it uses, all sharing the prefix through an abstract
+`*ControllerBase` that carries `[ApiController]`, `[Route]` and the common
+`ProducesResponseType`s. Abstract, so MVC never discovers the base as a controller of its own.
+
+Putting `[Authorize]` on `OpsControllerBase` rather than on each controller is the half worth
+keeping: an ops endpoint added to any of those files is authenticated by construction. A new
+controller under that prefix that forgot the attribute would expose operational data
+unauthenticated, and nothing in a route table would show it.
+
+This generalises a call already made once. `ChampionItemContextController` was split off in #1451
+with the argument that its parameters, its table and its concerns were not its neighbours' — and
+that the file it was leaving "is already carrying more than its share of the champion surface".
+That reasoning was right and applied to about seven other groups of endpoints in the same file.
+
+**`Services/<area>/` is grouped into feature subfolders, namespaces matching.** 59 files in one
+directory is a list, not a structure: nothing in it says that `CompositionSimilarityScorer` and
+`ParticipantBuildFactsLoader` serve different features, or that `PatchFilter` is shared by all of
+them. The largest folder is now 9 files. SQL text shared across areas — `LikeEscaping`, used by both
+the account explorer and the candidate search — sits in `Services/Sql/` rather than in whichever
+area happened to need it first.
+
+**A single-implementation interface lives in the file of its implementation.** 53 interface files of
+8 to 38 lines existed only to give DI and unit-test mocks a seam. They were also already
+inconsistent: `IDbStorageHistoryQueryService`, `IAccountFreshnessQueryService` and
+`IChampionAggregationStamp` were colocated and nobody had objected. 44 of the 53 moved into their
+implementation, interface first, then the class.
+
+**The exception is stated, bounded and shrinking.** Nine services are already over the 500-line
+limit and recorded in `.github/file-size-baseline.txt`, which ratchets a baselined file *down* only
+— colocating an interface there would add lines to a file that is only allowed to lose them, and
+fail CI. Those nine keep a separate interface file until the service is split (#1521–#1529), and
+each exception disappears with its issue. Do not add a tenth: a new service that is too long to hold
+its own interface is a service that needs splitting, which is the signal this rule is meant to
+produce.
+
+**Splitting those nine was deliberately excluded from #1520.** Each is behaviour-carrying work over
+non-trivial SQL that needs its own reasoning and its own review; folded into a 200-file structural
+move, neither the move nor the splits would have been reviewable.

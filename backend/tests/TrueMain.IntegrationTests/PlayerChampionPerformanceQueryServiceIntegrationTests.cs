@@ -2,7 +2,11 @@ using AwesomeAssertions;
 using Core.Options;
 using Data.Entities;
 using Microsoft.Extensions.Caching.Memory;
-using TrueMain.Services.Truemains;
+using TrueMain.Services.Truemains.Identity;
+using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Matches;
+using TrueMain.Services.Truemains.PlayerChampions;
+using TrueMain.Services.Truemains.Profile;
 using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;

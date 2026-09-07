@@ -1,5 +1,9 @@
 using AwesomeAssertions;
-using TrueMain.Services.Truemains;
+using TrueMain.Services.Truemains.Identity;
+using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Matches;
+using TrueMain.Services.Truemains.PlayerChampions;
+using TrueMain.Services.Truemains.Profile;
 
 namespace TrueMain.UnitTests;
 

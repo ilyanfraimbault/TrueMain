@@ -2,7 +2,14 @@ using System.Reflection;
 using AwesomeAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using TrueMain.Controllers.Champions;
-using TrueMain.Services.Champions;
+using TrueMain.Services.Champions.Builds;
+using TrueMain.Services.Champions.Composition;
+using TrueMain.Services.Champions.Directory;
+using TrueMain.Services.Champions.Mains;
+using TrueMain.Services.Champions.Matchups;
+using TrueMain.Services.Champions.Progression;
+using TrueMain.Services.Champions.Scopes;
+using TrueMain.Services.Champions.Synergies;
 
 namespace TrueMain.UnitTests;
 
@@ -14,10 +21,12 @@ namespace TrueMain.UnitTests;
 /// right answer, it just re-runs a 14-second scan for every concurrent visitor, and one
 /// that injects nothing at all looks tidier than the ones that do.
 ///
-/// <para>The dependency graph asserted here is the champion controller's constructor:
-/// that is the whole DI surface of the champion reads — the set of services the API
-/// resolves to answer a <c>/champions</c> request — and it is what a new endpoint has
-/// to be added to.</para>
+/// <para>The dependency graph asserted here is the constructors of every controller under
+/// the <c>/champions</c> prefix: that is the whole DI surface of the champion reads — the set
+/// of services the API resolves to answer a <c>/champions</c> request — and it is what a new
+/// endpoint has to be added to. Discovered by namespace rather than named one by one, so a
+/// controller added to that prefix is covered without anyone remembering to come here
+/// (#1520).</para>
 /// </summary>
 public sealed class ChampionReadCacheRegistrationTests
 {
@@ -55,40 +64,59 @@ public sealed class ChampionReadCacheRegistrationTests
     }
 
     [Fact]
-    public void The_controller_really_does_expose_the_champion_reads()
+    public void The_controllers_really_do_expose_the_champion_reads()
     {
-        // Guards the guard: if the controller stopped taking its reads by interface —
-        // resolving them from IServiceProvider, say — the two theories above would
-        // quietly shrink to nothing and pass for ever.
+        // Guards the guard: if the controllers stopped taking their reads by interface —
+        // resolving them from IServiceProvider, say — or if the namespace scan below stopped
+        // matching anything, the two theories above would quietly shrink to nothing and pass
+        // for ever.
         ChampionQueryServiceImplementations().Should().HaveCountGreaterThan(10);
+        ChampionControllers().Should().HaveCountGreaterThan(5);
     }
 
     private static IReadOnlyList<ParameterInfo> ConstructorParameters(Type implementation)
         => implementation.GetConstructors().Single().GetParameters();
 
     /// <summary>
-    /// The concrete champion query services the champion controller depends on, found
-    /// through its constructor: every <c>TrueMain.Services.Champions</c> interface it
-    /// asks for, mapped to the single implementation of it in that namespace.
+    /// Every concrete controller serving the <c>/champions</c> prefix. Found by namespace so
+    /// the guard follows the split (#1520) instead of naming one controller that used to hold
+    /// all of it.
+    /// </summary>
+    private static IReadOnlyList<Type> ChampionControllers()
+        => typeof(ChampionsControllerBase).Assembly
+            .GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false }
+                && typeof(ChampionsControllerBase).IsAssignableFrom(type))
+            .ToList();
+
+    /// <summary>
+    /// The concrete champion query services those controllers depend on, found through their
+    /// constructors: every interface under <c>TrueMain.Services.Champions</c> they ask for,
+    /// mapped to the single implementation of it in that namespace tree.
     /// </summary>
     private static IReadOnlyList<Type> ChampionQueryServiceImplementations()
     {
-        var championsNamespace = typeof(IChampionReadCache).Namespace!;
+        // The prefix, not the exact namespace: the services are grouped into per-feature
+        // child namespaces (Builds, Matchups, Composition…), and a read is a champion read
+        // wherever under that root it sits.
+        var championsRoot = typeof(IChampionReadCache).Namespace![..typeof(IChampionReadCache).Namespace!.LastIndexOf('.')];
         var candidates = typeof(IChampionReadCache).Assembly
             .GetTypes()
-            .Where(type => type is { IsClass: true, IsAbstract: false } && type.Namespace == championsNamespace)
+            .Where(type => type is { IsClass: true, IsAbstract: false } && IsUnder(type, championsRoot))
             .ToList();
 
-        return typeof(ChampionsController)
-            .GetConstructors()
-            .Single()
-            .GetParameters()
+        return ChampionControllers()
+            .SelectMany(controller => controller.GetConstructors().Single().GetParameters())
             .Select(parameter => parameter.ParameterType)
             .Where(type => type.IsInterface
-                && type.Namespace == championsNamespace
+                && IsUnder(type, championsRoot)
                 && type != typeof(IChampionReadCache))
             .Distinct()
             .Select(contract => candidates.Single(candidate => contract.IsAssignableFrom(candidate)))
             .ToList();
     }
+
+    private static bool IsUnder(Type type, string rootNamespace)
+        => type.Namespace is { } ns
+           && (ns == rootNamespace || ns.StartsWith(rootNamespace + '.', StringComparison.Ordinal));
 }
