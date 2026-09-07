@@ -2,8 +2,19 @@ using AwesomeAssertions;
 using Data;
 using Ingestor.Processes;
 using Microsoft.EntityFrameworkCore;
-using TrueMain.Services.Champions;
-using TrueMain.Services.Truemains;
+using TrueMain.Services.Champions.Builds;
+using TrueMain.Services.Champions.Composition;
+using TrueMain.Services.Champions.Directory;
+using TrueMain.Services.Champions.Mains;
+using TrueMain.Services.Champions.Matchups;
+using TrueMain.Services.Champions.Progression;
+using TrueMain.Services.Champions.Scopes;
+using TrueMain.Services.Champions.Synergies;
+using TrueMain.Services.Truemains.Identity;
+using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Matches;
+using TrueMain.Services.Truemains.PlayerChampions;
+using TrueMain.Services.Truemains.Profile;
 
 namespace TrueMain.UnitTests;
 

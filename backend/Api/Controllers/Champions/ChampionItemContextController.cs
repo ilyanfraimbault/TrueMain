@@ -1,21 +1,19 @@
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.ReadModels.Champions;
-using TrueMain.Services.Champions;
+using TrueMain.Http;
+using TrueMain.Services.Champions.Builds;
 
 namespace TrueMain.Controllers.Champions;
 
 /// <summary>
-/// The situational build context (#1450, read surface #1451), on its own controller rather
-/// than as one more action on <see cref="ChampionsController"/>: it shares no parameter
-/// with its neighbours — no rank, no population, no opponent — reads a table none of them
-/// touch, and that file is already carrying more than its share of the champion surface.
-/// The route prefix is the same, so the endpoint sits where a caller expects it.
+/// The situational build context (#1450, read surface #1451), on its own controller because it
+/// shares no parameter with its neighbours — no rank, no population, no opponent — and reads a
+/// table none of them touch. The route prefix is the same, so the endpoint sits where a caller
+/// expects it. This was the first controller split out of the champion surface; #1520
+/// generalised the rule it set.
 /// </summary>
-[ApiController]
-[Route("champions")]
-[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 public sealed class ChampionItemContextController(
-    IChampionItemContextQueryService itemContextQueryService) : ControllerBase
+    IChampionItemContextQueryService itemContextQueryService) : ChampionsControllerBase
 {
     /// <summary>
     /// The situational build context of a champion at a position (#1450): for every item
@@ -57,7 +55,7 @@ public sealed class ChampionItemContextController(
         var response = await itemContextQueryService.GetAsync(
             championId,
             normalizedPosition,
-            ChampionQueryParameterNormalizer.NormalizePatch(patch),
+            PatchParameter.Normalize(patch),
             ct);
 
         return Ok(response);

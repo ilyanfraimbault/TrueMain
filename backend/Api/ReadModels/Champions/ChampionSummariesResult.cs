@@ -1,7 +1,7 @@
 namespace TrueMain.ReadModels.Champions;
 
 /// <summary>
-/// Full result of <see cref="Services.Champions.IChampionSummariesQueryService.GetAllSummariesAsync"/>
+/// Full result of <see cref="Services.Champions.Directory.IChampionSummariesQueryService.GetAllSummariesAsync"/>
 /// (#972): the ranked directory rows plus the totals computed from the whole
 /// resolved patch, before the per-row filters (position required, min-sample
 /// floor) that shape <see cref="Summaries"/> are applied. This is the object

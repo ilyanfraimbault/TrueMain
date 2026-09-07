@@ -1,9 +1,13 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
-using TrueMain.Controllers.Champions;
+using TrueMain.Http;
 using TrueMain.ReadModels.Champions;
 using TrueMain.ReadModels.Truemains;
-using TrueMain.Services.Truemains;
+using TrueMain.Services.Truemains.Identity;
+using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Matches;
+using TrueMain.Services.Truemains.PlayerChampions;
+using TrueMain.Services.Truemains.Profile;
 
 namespace TrueMain.Controllers.Truemains;
 
@@ -123,7 +127,7 @@ public sealed class TruemainsController(
             return problem;
         }
 
-        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedPatch = PatchParameter.Normalize(patch);
 
         var response = await playerChampionBuildsQueryService.GetAsync(
             nameTag,
@@ -165,7 +169,7 @@ public sealed class TruemainsController(
             return problem;
         }
 
-        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedPatch = PatchParameter.Normalize(patch);
 
         var response = await playerChampionMatchupQueryService.GetAsync(
             nameTag,
@@ -210,7 +214,7 @@ public sealed class TruemainsController(
             return problem;
         }
 
-        var normalizedPatch = ChampionQueryParameterNormalizer.NormalizePatch(patch);
+        var normalizedPatch = PatchParameter.Normalize(patch);
 
         var response = await playerChampionPerformanceQueryService.GetAsync(
             nameTag,
