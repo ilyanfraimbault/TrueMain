@@ -118,6 +118,21 @@ describe('buildLaneBranches', () => {
       run('Discovery', { status: 'Running', finishedAtUtc: null }),
     ])
     expect(running[0]!.outcome).toBe('Running')
+
+    // A lane a shutdown cut short is incomplete however many steps finished first, so
+    // Cancelled outranks Success — reading it as a success would hide the pass every
+    // redeploy interrupts. It still yields to Abandoned, which claims the host died.
+    const cancelled = buildLaneBranches([
+      run('LadderSync'),
+      run('Discovery', { status: 'Cancelled' }),
+    ])
+    expect(cancelled[0]!.outcome).toBe('Cancelled')
+
+    const abandoned = buildLaneBranches([
+      run('LadderSync', { status: 'Cancelled' }),
+      run('Discovery', { status: 'Abandoned' }),
+    ])
+    expect(abandoned[0]!.outcome).toBe('Abandoned')
   })
 
   it('measures the lane from its first start to its last finish, and stays silent while in flight', () => {

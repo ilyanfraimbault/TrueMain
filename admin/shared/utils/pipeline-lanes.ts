@@ -51,11 +51,17 @@ export interface LaneBranch {
  * a lane with a step still going is `Running` whatever else it holds. `Skipped`
  * sits below `Success` so a lane that did real work is not reported as skipped
  * because its last step had nothing to do.
+ *
+ * `Cancelled` sits above `Success` for the opposite reason: a lane one shutdown cut
+ * short is incomplete however many steps finished before it, and reading it as a
+ * success would hide exactly the pass a redeploy interrupted. It stays below
+ * `Abandoned`, which says the host died rather than stopped.
  */
 const OUTCOME_PRECEDENCE: readonly ChainOutcome[] = [
   'Running',
   'Failed',
   'Abandoned',
+  'Cancelled',
   'Success',
   'Skipped',
   'notRun',

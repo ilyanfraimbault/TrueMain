@@ -1,5 +1,6 @@
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
@@ -31,6 +32,7 @@ public sealed class Worker(
         var mode = JobModeParser.Parse(options.Mode);
 
         await ReconcileOrphanedRunsAsync(mode, stoppingToken);
+        await ReleaseOrphanedClaimsAsync(mode, stoppingToken);
 
         // The heartbeat used to be touched once per iteration, at the top. A Full pass runs
         // for many minutes and the wait between passes for a whole Job:IntervalMinutes, so
@@ -151,6 +153,44 @@ public sealed class Worker(
         catch (Exception ex)
         {
             logger.LogError(ex, "Startup reconciliation of orphaned process runs failed; continuing to start the worker.");
+        }
+    }
+
+    private async Task ReleaseOrphanedClaimsAsync(JobMode mode, CancellationToken stoppingToken)
+    {
+        // Only the lane that claims (#1513). The claim rows belong to MatchIngestion, and a
+        // release from the aggregate lane would free whatever the fetch lane is holding
+        // right now — every one of its accounts, on every restart of a container that has
+        // nothing to do with them.
+        if (!JobModeSequence.For(mode).Contains(JobMode.MatchIngestionOnly))
+        {
+            return;
+        }
+
+        // Same reasoning as the run reconciliation above, applied to the claims those runs
+        // were holding: a single-instance lane cannot have a live claim at boot. Without
+        // this, the accounts a redeploy interrupted stayed Processing until the rest of
+        // MatchIngestion:ClaimLeaseMinutes had elapsed, so the deploy cost the pipeline the
+        // pass it interrupted plus whatever was left of the lease.
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var claimService = scope.ServiceProvider.GetRequiredService<IMatchClaimService>();
+
+            var released = await claimService.ReleaseOrphanedClaimsAsync(stoppingToken);
+            if (!released.IsEmpty)
+            {
+                logger.LogWarning(
+                    "Released {Candidates} candidate(s) and {Accounts} account claim(s) orphaned by the previous incarnation at startup.",
+                    released.Candidates,
+                    released.Accounts);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Never block the boot: the lease-based reap at the top of the next
+            // MatchIngestion pass is the fallback that was doing this job on its own.
+            logger.LogError(ex, "Startup release of orphaned claims failed; continuing to start the worker.");
         }
     }
 

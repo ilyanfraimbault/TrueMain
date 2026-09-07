@@ -137,8 +137,12 @@ public sealed class PipelineHealthQueryService(
             // pipeline that is zero extra queries; on a broken one it is one small counted
             // query for the process that is actually broken. Skipped counts as healthy
             // here (#1149): a cadence guard declining to run is the guard working, not a
-            // failure, so it must not open a streak on an otherwise-fine process.
-            var consecutiveFailures = effectiveStatus is ProcessRunStatus.Success or ProcessRunStatus.Skipped
+            // failure, so it must not open a streak on an otherwise-fine process. Cancelled
+            // is healthy for the neighbouring reason (#1513): the run stopped because the
+            // host asked it to, which is what a redeploy looks like, not a defect.
+            var consecutiveFailures = effectiveStatus is ProcessRunStatus.Success
+                or ProcessRunStatus.Skipped
+                or ProcessRunStatus.Cancelled
                 ? 0
                 : await processRunStore.CountTerminalRunsSinceAsync(
                     processName, rollup?.LastSuccessAtUtc, ct);

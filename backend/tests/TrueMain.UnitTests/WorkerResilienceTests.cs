@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -61,6 +62,9 @@ public sealed class WorkerResilienceTests
             services.AddKeyedSingleton<IIngestorProcess>(step, new NamedProcess(step.ToString()));
         }
 
+        // The full sequence claims, so the startup claim release resolves this (#1513).
+        services.AddSingleton(Substitute.For<IMatchClaimService>());
+
         using var provider = services.BuildServiceProvider();
         var countingScopeFactory = new CountingScopeFactory(
             provider.GetRequiredService<IServiceScopeFactory>());
@@ -85,12 +89,12 @@ public sealed class WorkerResilienceTests
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
 
-        // One scope is created and disposed per process in the sequence, plus one
-        // up front for the startup orphaned-run reconciliation (which runs once
-        // before the main loop, in its own scope).
-        const int reconciliationScopes = 1;
-        countingScopeFactory.ScopesCreated.Should().Be(steps.Count + reconciliationScopes);
-        countingScopeFactory.ScopesDisposed.Should().Be(steps.Count + reconciliationScopes);
+        // One scope is created and disposed per process in the sequence, plus the two
+        // startup steps that each run once before the main loop in a scope of their own:
+        // the orphaned-run reconciliation and the orphaned-claim release (#1513).
+        const int startupScopes = 2;
+        countingScopeFactory.ScopesCreated.Should().Be(steps.Count + startupScopes);
+        countingScopeFactory.ScopesDisposed.Should().Be(steps.Count + startupScopes);
         lifetime.Received(1).StopApplication();
     }
 

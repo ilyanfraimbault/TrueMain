@@ -284,6 +284,18 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
   variant, `compose.preprod.yaml` and `compose.prod.yaml` the two deployed
   ones. Both deployed stacks run `Database__ApplyMigrationsOnStartup=false`
   and rely on the rollout to migrate.
+- Both ingestor lanes carry `stop_grace_period: 120s` on the deployed stacks
+  (#1513). Docker's default is 10 s, and a pass runs for many minutes, so every
+  redeploy SIGKILLed the work in flight: the in-flight transaction rolled back and
+  the run was left `Running` for the next boot to reconcile. The work is
+  cooperative, so what it lacked was the time to unwind. The host's own
+  `ShutdownTimeout` (100 s, set in `Ingestor/Program.cs`) sits below the grace
+  period so the runtime finishes on its own terms rather than being killed
+  mid-finalisation; a cancelled pass normally stops in seconds, and the window is
+  only a ceiling. A run stopped this way is recorded `Cancelled` — the counterpart
+  of `Abandoned`, which means the host died instead of stopping — and the claims
+  the dead incarnation held are released at the next boot rather than a full
+  `MatchIngestion:ClaimLeaseMinutes` later.
 - `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
   projects against (#925). Unset means no forecast at all, which the admin
   panel says explicitly instead of fitting a line to a guessed capacity.

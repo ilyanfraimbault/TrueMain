@@ -88,7 +88,7 @@ public sealed record ProcessHealthReadModel
 
     /// <summary>
     /// Effective status, PascalCase: <c>Success</c> | <c>Failed</c> | <c>Running</c> |
-    /// <c>Abandoned</c> | <c>Missing</c>.
+    /// <c>Abandoned</c> | <c>Skipped</c> | <c>Cancelled</c> | <c>Missing</c>.
     ///
     /// <para>
     /// Effective, not stored: a <c>Running</c> row whose heartbeat has gone stale reads

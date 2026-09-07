@@ -36,6 +36,10 @@ export interface ProcessStatusMeta {
  *
  * `Skipped` and `Missing` share the neutral colour but never the icon: one ran and
  * declined, the other never started, and the badge has to carry the difference.
+ *
+ * `Cancelled` is neutral for a fourth: the run was stopped because the host was asked to
+ * stop, which is what every redeploy does. Its own icon, though — the work is unfinished,
+ * where a skip had nothing to do in the first place.
  */
 export const PROCESS_STATUS_META: Record<ProcessHealthStatus, ProcessStatusMeta> = {
   Success: { color: 'success', icon: 'i-lucide-circle-check' },
@@ -43,6 +47,7 @@ export const PROCESS_STATUS_META: Record<ProcessHealthStatus, ProcessStatusMeta>
   Running: { color: 'info', icon: 'i-lucide-loader-circle' },
   Abandoned: { color: 'warning', icon: 'i-lucide-circle-slash' },
   Skipped: { color: 'neutral', icon: 'i-lucide-skip-forward' },
+  Cancelled: { color: 'neutral', icon: 'i-lucide-power-off' },
   Missing: { color: 'neutral', icon: 'i-lucide-circle-dashed' },
 }
 
