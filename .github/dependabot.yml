@@ -98,6 +98,9 @@ updates:
     ignore:
       - dependency-name: "ghcr.io/ilyanfraimbault/truemain-*"
     groups:
-      compose-images:
+      minor-and-patch:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
