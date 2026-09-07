@@ -7,7 +7,7 @@ import type {
 } from '~~/shared/types/static-data'
 import { itemSlots, variationOptions } from '~~/shared/utils/build'
 import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { itemContextKey } from '~~/shared/utils/item-context'
+import { resolveItemContext } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   variations: BuildVariations
@@ -28,7 +28,7 @@ const props = defineProps<{
  * not Mercury's Treads as a build item, and only the first has a boots verdict.
  */
 function contextFor(slot: 'Boots' | 'Starter', itemId: number): ItemContextCard | undefined {
-  return props.itemContext?.get(itemContextKey(slot, itemId))
+  return resolveItemContext(props.itemContext, slot, itemId)
 }
 
 // Only the categories that carry an actual choice (#1466): `variationOptions`

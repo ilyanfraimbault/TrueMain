@@ -2,7 +2,7 @@
 import type { BuildTreeNode } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
 import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { itemContextKey } from '~~/shared/utils/item-context'
+import { resolveItemContext } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   tree: BuildTreeNode[]
@@ -26,7 +26,7 @@ const props = defineProps<{
  * build's first item, on branch 0.
  */
 function contextFor(itemId: number, parentItemId: number): ItemContextCard | undefined {
-  return props.itemContext?.get(itemContextKey('Build', itemId, parentItemId))
+  return resolveItemContext(props.itemContext, 'Build', itemId, parentItemId)
 }
 
 interface LaidOutNode {
