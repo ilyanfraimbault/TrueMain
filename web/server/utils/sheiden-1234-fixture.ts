@@ -35,10 +35,10 @@ export const SHEIDEN_PROFILE: ProfileResponse = {
   mains: [
     // Mid-lane heavy apex profile — keeps the right rail looking lived-in
     // even though the matches endpoint returns empty below.
-    { championId: 64, games: 180, playRate: 0.30, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
-    { championId: 91, games: 140, playRate: 0.23, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
-    { championId: 121, games: 96, playRate: 0.16, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
-    { championId: 11, games: 70, playRate: 0.12, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
+    { championId: 64, games: 180, sampleMatches: 600, playRate: 0.30, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
+    { championId: 91, games: 140, sampleMatches: 600, playRate: 0.23, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
+    { championId: 121, games: 96, sampleMatches: 600, playRate: 0.16, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
+    { championId: 11, games: 70, sampleMatches: 600, playRate: 0.12, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
   ],
   // Dedication on the top main (Kha'Zix): a wide-pool jungler, so commitment is
   // modest while span / volume / recency are strong. Values mirror what

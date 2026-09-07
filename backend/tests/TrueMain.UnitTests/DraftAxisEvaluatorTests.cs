@@ -119,11 +119,15 @@ public sealed class DraftAxisEvaluatorTests
     }
 
     [Fact]
-    public void TheOwnGoldLeadUsesTheSiteWideLaneEdges()
+    public void TheOwnGoldLeadOnlyCallsADecileALead()
     {
-        Evaluate(goldLead: 900d)[ItemContextAxis.OwnGoldLeadAt15].Should().Be(ItemContextBucket.High);
+        // The one in-game axis, banded at the measured deciles (#1496): a quartile lead —
+        // ±911 on production — is an ordinary lane, not a reason to buy something else.
+        Evaluate(goldLead: 2_000d)[ItemContextAxis.OwnGoldLeadAt15].Should().Be(ItemContextBucket.High);
+        Evaluate(goldLead: 900d)[ItemContextAxis.OwnGoldLeadAt15].Should().Be(ItemContextBucket.Mid);
         Evaluate(goldLead: 0d)[ItemContextAxis.OwnGoldLeadAt15].Should().Be(ItemContextBucket.Mid);
-        Evaluate(goldLead: -900d)[ItemContextAxis.OwnGoldLeadAt15].Should().Be(ItemContextBucket.Low);
+        Evaluate(goldLead: -900d)[ItemContextAxis.OwnGoldLeadAt15].Should().Be(ItemContextBucket.Mid);
+        Evaluate(goldLead: -2_000d)[ItemContextAxis.OwnGoldLeadAt15].Should().Be(ItemContextBucket.Low);
     }
 
     private static IReadOnlyDictionary<ItemContextAxis, ItemContextBucket> Evaluate(

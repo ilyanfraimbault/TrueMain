@@ -181,6 +181,11 @@ public sealed class TruemainsProfileApiIntegrationTests
         profile.Mains[1].ChampionId.Should().Be(103);
         profile.Mains[0].IsOtp.Should().BeFalse();
         profile.Mains[0].PrimaryPosition.Should().Be("MIDDLE");
+        // #1498: the window the count is a share of has to survive the
+        // DB -> MainDto -> ProfileReadModel hop, or the profile card falls back
+        // to the bare count that contradicted the champion page.
+        profile.Mains[0].Games.Should().Be(80);
+        profile.Mains[0].SampleMatches.Should().Be(200);
 
         // Aggregation: MIDDLE = 60 (Yasuo) + 60 (Ahri) = 120, BOTTOM = 20 (Yasuo).
         // Total = 140, MIDDLE rate = 120/140 ≈ 0.857, BOTTOM rate = 20/140 ≈ 0.143.

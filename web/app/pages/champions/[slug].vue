@@ -499,6 +499,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :champion-icon-url="displayIconUrl"
           :champion-id="championId"
           :position="champion?.position || selectedPosition || ''"
+          :patch="selectedPatch"
           :total-games="champion?.totalGames ?? 0"
           :total-wins="champion?.totalWins ?? 0"
           :roam-kp15="championRoam?.roamKp15 ?? null"

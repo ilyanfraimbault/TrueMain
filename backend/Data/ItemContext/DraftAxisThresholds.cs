@@ -96,12 +96,19 @@ public sealed class DraftAxisThresholds
     public double OpponentLanePressureHigh { get; set; } = 150d;
 
     /// <summary>
-    /// The champion's own gold lead at 15 minutes. The band edges are the lane-verdict
-    /// ones the site already uses for "won / lost the lane" (±300, the outer edge of
-    /// <c>web/app/utils/lane-verdict.ts</c>), so "ahead" means the same thing here as it
-    /// does everywhere else.
+    /// The champion's own gold lead at 15 minutes — the one in-game axis, so the one whose
+    /// bands have to be the strictest: it is worth a sentence only when the lead is large
+    /// enough that it changes what the player should buy.
     /// </summary>
-    public double OwnGoldLeadLow { get; set; } = -300d;
+    /// <remarks>
+    /// Measured, at the deciles of the real distribution: across 194 510 lanes at minute 15
+    /// on production the lead runs ±911 at the quartiles and ±1 847 at the deciles. This
+    /// shipped at ±300 — the lane-verdict edge — which called more than a third of all games
+    /// "ahead" and made the axis a proxy for "the game lasted long enough to buy things"
+    /// rather than for snowballing. At the deciles, <c>High</c> means the lane is genuinely
+    /// won, which is when the advice is worth reading (#1496).
+    /// </remarks>
+    public double OwnGoldLeadLow { get; set; } = -1800d;
 
-    public double OwnGoldLeadHigh { get; set; } = 300d;
+    public double OwnGoldLeadHigh { get; set; } = 1800d;
 }

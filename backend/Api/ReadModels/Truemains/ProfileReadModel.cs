@@ -78,6 +78,16 @@ public sealed record ProfileMainChampionReadModel
 
     public int Games { get; init; }
 
+    /// <summary>
+    /// How many recent ranked matches <see cref="Games"/> was counted out of —
+    /// the main analysis reads a capped window per account
+    /// (<c>MainAnalysis:MatchesToConsider</c>), not the player's whole history.
+    /// Sent so the profile can name the denominator instead of printing a bare
+    /// count that contradicts the champion page's own, differently scoped one
+    /// (#1498).
+    /// </summary>
+    public int SampleMatches { get; init; }
+
     /// <summary><c>games / total games on the account</c> as stored by the main analysis (0..1).</summary>
     public double PlayRate { get; init; }
 

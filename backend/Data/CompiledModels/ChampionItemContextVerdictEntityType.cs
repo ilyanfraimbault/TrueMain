@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ChampionItemContextVerdict",
                 typeof(ChampionItemContextVerdict),
                 baseEntityType,
-                propertyCount: 14,
+                propertyCount: 15,
                 unnamedIndexCount: 1,
                 keyCount: 1);
 
@@ -51,6 +51,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(ChampionItemContextVerdict).GetField("<Axes>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly));
             axes.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             axes.AddAnnotation("Relational:ColumnType", "jsonb");
+
+            var branchGames = runtimeEntityType.AddProperty(
+                "BranchGames",
+                typeof(int),
+                propertyInfo: typeof(ChampionItemContextVerdict).GetProperty("BranchGames", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionItemContextVerdict).GetField("<BranchGames>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: 0);
+            branchGames.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var championId = runtimeEntityType.AddProperty(
                 "ChampionId",
@@ -85,6 +93,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(ChampionItemContextVerdict).GetField("<ItemId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             itemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var parentItemId = runtimeEntityType.AddProperty(
+                "ParentItemId",
+                typeof(int),
+                propertyInfo: typeof(ChampionItemContextVerdict).GetProperty("ParentItemId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ChampionItemContextVerdict).GetField("<ParentItemId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: 0);
+            parentItemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var patch = runtimeEntityType.AddProperty(
                 "Patch",
@@ -132,14 +148,6 @@ namespace Data.CompiledModels
             slot.SetSentinelFromProviderValue("Build");
             slot.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
-            var slotGames = runtimeEntityType.AddProperty(
-                "SlotGames",
-                typeof(int),
-                propertyInfo: typeof(ChampionItemContextVerdict).GetProperty("SlotGames", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ChampionItemContextVerdict).GetField("<SlotGames>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                sentinel: 0);
-            slotGames.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-
             var wins = runtimeEntityType.AddProperty(
                 "Wins",
                 typeof(int),
@@ -153,7 +161,7 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { patch, championId, position, slot, itemId },
+                new[] { patch, championId, position, slot, parentItemId, itemId },
                 unique: true);
             index.AddAnnotation("Relational:Name", "IX_champion_item_context_verdicts_grain");
 

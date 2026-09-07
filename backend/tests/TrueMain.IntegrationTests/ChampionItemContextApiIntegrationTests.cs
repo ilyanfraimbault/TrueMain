@@ -44,7 +44,8 @@ public sealed class ChampionItemContextApiIntegrationTests
         situational.Slot.Should().Be("Build");
         situational.Class.Should().Be("Situational");
         situational.Games.Should().Be(300);
-        situational.SlotGames.Should().Be(1000);
+        situational.BranchGames.Should().Be(1000);
+        situational.ParentItemId.Should().Be(0, "the first legendary is decided on the branch every build starts from");
         situational.PickRate.Should().BeApproximately(0.3, 1e-9);
         situational.WinRate.Should().BeApproximately(0.5, 1e-9);
 
@@ -79,7 +80,7 @@ public sealed class ChampionItemContextApiIntegrationTests
     {
         await _fixture.ResetDatabaseAsync();
         await SeedAsync();
-        await SeedVerdictAsync(OlderPatch, 3065, ItemContextClass.Preference, games: 10, slotGames: 100, axes: []);
+        await SeedVerdictAsync(OlderPatch, 3065, ItemContextClass.Preference, games: 10, branchGames: 100, axes: []);
 
         var response = await GetAsync($"/champions/{Champion}/item-context?position={Position}");
 
@@ -130,7 +131,7 @@ public sealed class ChampionItemContextApiIntegrationTests
 
     private async Task SeedAsync(bool inGameAxis = false)
     {
-        await SeedVerdictAsync(Patch, 3065, ItemContextClass.Situational, games: 300, slotGames: 1000, axes:
+        await SeedVerdictAsync(Patch, 3065, ItemContextClass.Situational, games: 300, branchGames: 1000, axes:
         [
             new ItemContextAxisFinding
             {
@@ -146,7 +147,7 @@ public sealed class ChampionItemContextApiIntegrationTests
             },
         ]);
 
-        await SeedVerdictAsync(Patch, 6632, ItemContextClass.Core, games: 940, slotGames: 1000, axes: []);
+        await SeedVerdictAsync(Patch, 6632, ItemContextClass.Core, games: 940, branchGames: 1000, axes: []);
     }
 
     private async Task SeedVerdictAsync(
@@ -154,7 +155,7 @@ public sealed class ChampionItemContextApiIntegrationTests
         int itemId,
         ItemContextClass verdictClass,
         int games,
-        int slotGames,
+        int branchGames,
         List<ItemContextAxisFinding> axes)
     {
         await using var db = _fixture.CreateDbContext();
@@ -167,8 +168,8 @@ public sealed class ChampionItemContextApiIntegrationTests
             ItemId = itemId,
             Games = games,
             Wins = games / 2,
-            SlotGames = slotGames,
-            PickRate = games / (double)slotGames,
+            BranchGames = branchGames,
+            PickRate = games / (double)branchGames,
             Class = verdictClass,
             PatchWindow = axes.Count > 0 ? axes.Max(axis => axis.PatchWindow) : 1,
             Axes = axes,

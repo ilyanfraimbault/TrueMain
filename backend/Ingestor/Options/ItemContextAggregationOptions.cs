@@ -44,22 +44,36 @@ public class ItemContextAggregationOptions
     public int ProfileLookbackPatches { get; set; } = 2;
 
     /// <summary>
-    /// Pick rate at or above which an item is <c>Core</c>: built whatever the draft, so no
-    /// situation explains it and none is looked for.
+    /// Share of its branch at or above which an item is <c>Core</c>: taken whatever the
+    /// draft, so no situation explains it and none is looked for.
     /// </summary>
     public double CoreRate { get; set; } = 0.85;
 
     /// <summary>
-    /// Pick rate below which an item gets no verdict at all. A build the slice barely ever
-    /// makes is not a decision worth explaining, and this is what keeps the served table
-    /// an order of magnitude smaller than the counters behind it.
+    /// Share of its branch below which an item gets no verdict at all. A step the slice
+    /// barely ever takes is not a decision worth explaining, and this is what keeps the
+    /// served table an order of magnitude smaller than the counters behind it.
     /// </summary>
     public double MinPickRate { get; set; } = 0.05;
 
     /// <summary>
-    /// Games each of the two compared buckets must hold before an axis may be judged. The
-    /// patch window widens (see <see cref="MaxPatchLookback"/>) before an axis is dropped
-    /// for missing it.
+    /// Share of the branch a sibling must hold to count as a real alternative (#1496). An
+    /// item nothing else on its branch competes with is <c>Core</c> whatever its own rate:
+    /// there was no decision to explain, and the flat grain this replaced is precisely what
+    /// made a forced step look situational.
+    /// </summary>
+    /// <remarks>
+    /// The same 10% the build tree prunes its children at
+    /// (<c>ChampionBuildPathAnalyzer.BuildTreeMinPickRate</c>), so "the branch offers a
+    /// choice" means the same thing in the verdict as in the picture the reader is hovering.
+    /// </remarks>
+    public double MinAlternativeShare { get; set; } = 0.10;
+
+    /// <summary>
+    /// Games each of the two compared buckets must hold before an axis may be judged —
+    /// counted on the branch being judged, not on the whole slot, which is what makes this
+    /// floor bite on the deep branches nobody has enough games for. The patch window widens
+    /// (see <see cref="MaxPatchLookback"/>) before an axis is dropped for missing it.
     /// </summary>
     public int MinBucketGames { get; set; } = 100;
 
@@ -83,6 +97,6 @@ public class ItemContextAggregationOptions
     /// </summary>
     public int MaxPatchLookback { get; set; } = 2;
 
-    /// <summary>Most findings kept on one verdict, strongest lift first. Three is what a hover card can carry without becoming a table.</summary>
+    /// <summary>Most findings kept on one verdict, draft-time situations first and strongest lift within them. Three is what a hover card can carry without becoming a table.</summary>
     public int MaxAxesPerVerdict { get; set; } = 3;
 }

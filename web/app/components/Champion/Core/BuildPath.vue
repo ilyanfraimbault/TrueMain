@@ -8,19 +8,23 @@ import { itemContextKey } from '~~/shared/utils/item-context'
 const props = defineProps<{
   path: BuildItemPath | null
   itemsMap: Record<number, StaticItemData>
-  /** Situational verdicts (#1451), keyed by slot + item. Absent where the surface has no slice for them. */
+  /** Situational verdicts (#1451), keyed by slot + branch + item. Absent where the surface has no slice for them. */
   itemContext?: Map<string, ItemContextCard>
 }>()
-
-/** This block only ever asks about the `Build` slot — the same id answers a different question in each. */
-function contextFor(itemId: number): ItemContextCard | undefined {
-  return props.itemContext?.get(itemContextKey('Build', itemId))
-}
 
 // One slot per id in the build, resolved or not — see `itemSlots`. Keying the
 // no-data state off the resolved list instead made a loaded build claim it had
 // no path for as long as the item map was in flight.
 const items = computed(() => itemSlots(props.path?.itemIds, props.itemsMap))
+
+/**
+ * This block only ever asks about the `Build` slot — the same id answers a different
+ * question in each. The step is the edge, so the verdict is looked up under the item that
+ * precedes it in the path: the first item hangs off branch 0 (#1496).
+ */
+function contextFor(itemId: number, index: number): ItemContextCard | undefined {
+  return props.itemContext?.get(itemContextKey('Build', itemId, items.value[index - 1]?.id ?? 0))
+}
 </script>
 
 <template>
@@ -41,7 +45,7 @@ const items = computed(() => itemSlots(props.path?.itemIds, props.itemsMap))
       >
         <GameTooltipItemIcon
           :item="slot.item"
-          :context="contextFor(slot.id)"
+          :context="contextFor(slot.id, index)"
           :width="36"
           :height="36"
           class="size-9 shrink-0 rounded"

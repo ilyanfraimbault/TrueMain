@@ -151,6 +151,15 @@ Same PR, same reasoning applied to the fallback build: it renders the standard b
 the champion page's variations and rune list, which are the champion's answer to a question this page isn't
 asking and are read as the matchup's simply by sitting here.
 
+↳ **A column caption belongs to every rendering of the rows, and outranks a tooltip** (#1494). The champion
+page's matchups panel printed its `Lane` / `Game` captions above the best and worst sections only, so filtering
+on one opponent — the panel's own search — left a single row of three unlabelled figures. The captions are a
+component now and head the filtered row too. The row's two tooltips went with the fix: they spelled the exact
+figures back ("11 game(s) · 1.8% of this champion's matchups") over a value already on screen, which is never
+what the reader is missing — they need to know *what* the number is, which is what the caption says, statically,
+without a hover no touch device has. The one figure those tooltips carried that isn't on the row, the average
+gold gap at 15 min, is on `/matchup`'s record strip, one click away down the link every row already carries.
+
 **The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent.**
 "Lane opponent" is meaningless for a jungler, and the page is not a build editor — it answers "what do I build
 into this opponent". The wording is now `role opponent` everywhere in that feature, down to

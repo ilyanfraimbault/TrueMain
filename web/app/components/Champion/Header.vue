@@ -3,11 +3,18 @@ import { POSITION_BY_VALUE } from '~/utils/positions'
 import { roamVerdict } from '~/utils/roam-verdict'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   championName: string | null
   championIconUrl: string | null
   championId: number
   position: string
+  /**
+   * The patch the counts were computed over (#1498). Rendered beside the lane
+   * as the scope of everything after it: a bare count here contradicted the
+   * profile's own, differently scoped one, and a reader had no way to see that
+   * one was a patch slice. Null while the aggregate is still resolving.
+   */
+  patch?: string | null
   totalGames: number
   totalWins: number
   /**
@@ -32,7 +39,13 @@ const props = defineProps<{
   // real data ("Champion 164 · 0 games · 0.0% WR") instead of as a loading
   // state.
   loading?: boolean
-}>()
+}>(), {
+  // Vue casts an absent Boolean prop to `false`, so without this the
+  // player-scoped page — which passes no population at all — would read as
+  // "everyone" and print "across all tracked players" over one player's games.
+  // `undefined` is the third state the stat line branches on.
+  truemainsOnly: undefined,
+})
 
 const displayName = computed(() => props.championName ?? `Champion ${props.championId}`)
 const winRate = computed(() => (props.totalGames === 0 ? 0 : props.totalWins / props.totalGames))
@@ -113,6 +126,9 @@ const populationLabel = computed(() => {
             />
           </UTooltip>
           <span v-else>—</span>
+          <!-- Lane, then patch: the two together are the scope the numbers
+               after them were measured over. -->
+          <span v-if="patch">· {{ patch }}</span>
           <!-- A win rate over zero games is a fabricated 0.0%, not a
                measurement: on an empty slice (a lane the player never played,
                a patch with no game on record) the count stands alone. -->

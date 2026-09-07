@@ -12,7 +12,7 @@ const props = defineProps<{
    * path stops rather than running to the deepest leaf. */
   itemPath: number[]
   itemsMap: Record<number, StaticItemData>
-  /** Situational verdicts (#1451), keyed by slot + item. Absent where the page has no slice for them. */
+  /** Situational verdicts (#1451), keyed by slot + branch + item. Absent where the page has no slice for them. */
   itemContext?: Map<string, ItemContextCard>
 }>()
 
@@ -20,13 +20,19 @@ const props = defineProps<{
  * The verdict for a node, or undefined. Every node here is a completed legendary, so the
  * lookup is always on the `Build` slot — the boots and starter verdicts belong to the
  * variation rows, which ask different questions of the same hover card.
+ *
+ * A verdict is about the *edge* into a node, not the node's item (#1496): the parent is part
+ * of the key, and the tree is the one surface that has it for free. The root node is the
+ * build's first item, on branch 0.
  */
-function contextFor(itemId: number): ItemContextCard | undefined {
-  return props.itemContext?.get(itemContextKey('Build', itemId))
+function contextFor(itemId: number, parentItemId: number): ItemContextCard | undefined {
+  return props.itemContext?.get(itemContextKey('Build', itemId, parentItemId))
 }
 
 interface LaidOutNode {
   itemId: number
+  /** The item this node was built after — 0 on the root, which is the build's first item. */
+  parentItemId: number
   games: number
   /** Fraction in [0..1] — share of games at this slot that picked this item. Undefined on the synthetic root (no parent context). */
   pickRate?: number
@@ -54,6 +60,7 @@ const layout = computed(() => {
     nodes: BuildTreeNode[],
     parentIsMainPath: boolean,
     parentDepth: number,
+    parentItemId: number,
   ): LaidOutNode[] {
     // Mirror the backend's prune ordering (games desc → wins desc → itemId
     // asc) explicitly rather than trusting serialization order. Backend keeps
@@ -76,6 +83,7 @@ const layout = computed(() => {
       : null
     return sorted.map(node => ({
       itemId: node.itemId,
+      parentItemId,
       games: node.games,
       pickRate: node.pickRate,
       isMainEdge: mainChildId !== null && node.itemId === mainChildId,
@@ -85,12 +93,14 @@ const layout = computed(() => {
         node.children,
         mainChildId !== null && node.itemId === mainChildId,
         parentDepth + 1,
+        node.itemId,
       ),
     }))
   }
 
   const root: LaidOutNode = {
     itemId: props.firstItemId,
+    parentItemId: 0,
     games: 0,
     // Root is the build's first item by definition — every path in this
     // sub-tree starts here, so its slot-1 pickrate is 100%.
@@ -98,7 +108,7 @@ const layout = computed(() => {
     isMainEdge: false,
     x: 0,
     y: 0,
-    children: wrapChildren(props.tree, true, 0),
+    children: wrapChildren(props.tree, true, 0, props.firstItemId),
   }
 
   function widthOf(node: LaidOutNode): number {
@@ -193,7 +203,7 @@ const hasNodes = computed(() => layout.value.flat.length > 1)
         :key="`node-${index}`"
         :item="itemsMap[node.itemId] ?? null"
         :pick-rate="node.pickRate"
-        :context="contextFor(node.itemId)"
+        :context="contextFor(node.itemId, node.parentItemId)"
         :width="ITEM_SIZE"
         :height="ITEM_SIZE"
         class="absolute rounded"
