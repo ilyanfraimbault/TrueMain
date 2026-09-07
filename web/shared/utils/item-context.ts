@@ -173,15 +173,86 @@ export function itemContextKey(slot: ItemContextSlot, itemId: number, parentItem
 }
 
 /**
+ * The key a borrowed verdict is filed under: the item, on no particular branch (#1518). See
+ * `resolveItemContext` for when one is borrowed.
+ */
+function itemContextFallbackKey(slot: ItemContextSlot, itemId: number): string {
+  return `${slot}:*:${itemId}`
+}
+
+/**
  * Index a response for the O(1) lookups the build panels do while rendering, keyed by
- * slot, branch and item id.
+ * slot, branch and item id — plus, under a wildcard branch, the borrowable verdicts.
+ *
+ * **Why anything is borrowable (#1518).** The verdicts are folded over the all-ranks mains
+ * cohort, deliberately (#1450: splitting by rank starves the buckets a situation rests on),
+ * while the tree the reader hovers is drawn for the page's slice — one rank band, one first
+ * item, one keystone, pruned. The two populations do not build in the same order, so a verdict
+ * can sit on a step the picture never draws: on Irelia the finding is measured on
+ * *BOTRK → Wit's End*, and the Master+ tree goes *BOTRK → Hullbreaker → Wit's End*. Keyed on
+ * the edge alone that card silently disappears.
+ *
+ * An item is borrowable only when the slice gives it **exactly one** situational reading. Two
+ * readings mean the item genuinely answers different questions depending on where it is bought,
+ * and there the exact edge is the only honest key.
  */
 export function indexItemContext(
   items: readonly ChampionItemContextItem[] | null | undefined,
 ): Map<string, ItemContextCard> {
   const index = new Map<string, ItemContextCard>()
+  const situationalByItem = new Map<string, ItemContextCard[]>()
+
   for (const item of items ?? []) {
     index.set(itemContextKey(item.slot, item.itemId, item.parentItemId), item)
+    if (item.class === 'Situational') {
+      const key = itemContextFallbackKey(item.slot, item.itemId)
+      const found = situationalByItem.get(key)
+      if (found) {
+        found.push(item)
+      }
+      else {
+        situationalByItem.set(key, [item])
+      }
+    }
   }
+
+  for (const [key, found] of situationalByItem) {
+    if (found.length === 1) {
+      index.set(key, found[0]!)
+    }
+  }
+
   return index
+}
+
+/**
+ * The card to show for one step of a build, or `undefined`.
+ *
+ * The exact edge wins whenever it carries a finding — it is the most specific true thing about
+ * the step being hovered. Failing that, the item's single situational reading elsewhere in the
+ * slice is borrowed, but **only when it rests on more games than the exact edge does**: a
+ * `Preference` over 55 branch games is not evidence that nothing moves the pick, it is a branch
+ * too thin for the floors to have tested anything, whereas a `Preference` over thousands is a
+ * real answer and must not be overridden by a thinner finding from another step.
+ *
+ * Nothing here computes or invents a rate: a borrowed card was measured on the same item, the
+ * same champion, the same position and the same patch — only on a different step of the build.
+ */
+export function resolveItemContext(
+  index: Map<string, ItemContextCard> | undefined,
+  slot: ItemContextSlot,
+  itemId: number,
+  parentItemId = 0,
+): ItemContextCard | undefined {
+  const exact = index?.get(itemContextKey(slot, itemId, parentItemId))
+  if (exact?.class === 'Situational') {
+    return exact
+  }
+
+  const borrowed = index?.get(itemContextFallbackKey(slot, itemId))
+  if (borrowed && borrowed !== exact && (!exact || borrowed.branchGames > exact.branchGames)) {
+    return borrowed
+  }
+
+  return exact
 }

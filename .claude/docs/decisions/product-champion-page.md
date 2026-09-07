@@ -78,6 +78,20 @@ receive an axis it does not know. It renders one line fewer rather than showing 
 player. A vitest suite mirrors the backend's axis list and fails when the fold gains an axis with no copy, so the
 gap is caught at build time rather than in production — #1451.
 
+**A situational card may be borrowed from another branch of the same build.**
+The verdicts are folded over the all-ranks mains cohort (#1450 gave them no elo dimension on
+purpose) while the tree a reader hovers is drawn for the page's slice — one rank band, one first
+item, one keystone, pruned. The two populations do not build in the same order, so an edge-keyed
+card can be attached to a step the picture never draws: on Irelia the finding is measured on
+*BOTRK → Wit's End* while the Master+ tree goes *BOTRK → Hullbreaker → Wit's End*, and the card
+silently vanished. `resolveItemContext` therefore falls back to the item's single situational
+reading elsewhere in the slice, and only then — two readings mean the item genuinely answers
+different questions depending on where it is bought, and the exact edge is the only honest key.
+The borrowed reading must also rest on **more branch games** than the hovered step, because a
+`Preference` over 55 games is a branch too thin for the floors to have tested anything while one
+over thousands is a real answer. Nothing is computed client-side: a borrowed card was measured on
+the same item, champion, position and patch, one step away — #1518, #1496.
+
 **The build tree carries no situational mark.**
 #1451 ringed situational nodes in rose gold to say "there is a reason here, hover me". Removed in #1465: the tree
 is already dense with edges, icons and a highlighted main path, and a ring on a third of the nodes competed with

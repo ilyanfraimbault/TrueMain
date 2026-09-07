@@ -3,7 +3,7 @@ import type { BuildItemPath } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
 import { itemSlots } from '~~/shared/utils/build'
 import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { itemContextKey } from '~~/shared/utils/item-context'
+import { resolveItemContext } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   path: BuildItemPath | null
@@ -23,7 +23,7 @@ const items = computed(() => itemSlots(props.path?.itemIds, props.itemsMap))
  * precedes it in the path: the first item hangs off branch 0 (#1496).
  */
 function contextFor(itemId: number, index: number): ItemContextCard | undefined {
-  return props.itemContext?.get(itemContextKey('Build', itemId, items.value[index - 1]?.id ?? 0))
+  return resolveItemContext(props.itemContext, 'Build', itemId, items.value[index - 1]?.id ?? 0)
 }
 </script>
 

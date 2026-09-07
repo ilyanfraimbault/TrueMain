@@ -3,7 +3,7 @@ import type { BuildItemSet } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
 import { itemSlots } from '~~/shared/utils/build'
 import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { itemContextKey } from '~~/shared/utils/item-context'
+import { resolveItemContext } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
   boots: BuildItemSet | null
@@ -14,7 +14,7 @@ const props = defineProps<{
 
 /** This block only ever asks about the `Boots` slot — the same id answers a different question in each. */
 function contextFor(itemId: number): ItemContextCard | undefined {
-  return props.itemContext?.get(itemContextKey('Boots', itemId))
+  return resolveItemContext(props.itemContext, 'Boots', itemId)
 }
 
 // One slot per id in the build, resolved or not — see `itemSlots`. Keying the

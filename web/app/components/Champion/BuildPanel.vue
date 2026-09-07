@@ -27,8 +27,9 @@ const props = defineProps<{
   // is already the matchup's, so its spikes must come from the same games.
   opponentChampionId?: number | null
   /**
-   * The situational build context (#1451), keyed by `itemContextKey(slot, itemId)` and
-   * fetched once by `ChampionBuildTabs`. Empty on the surfaces that do not have a
+   * The situational build context (#1451), indexed by `indexItemContext` and read through
+   * `resolveItemContext` — never by hand, since a card may be borrowed from another branch
+   * (#1518). Fetched once by `ChampionBuildTabs`. Empty on the surfaces that do not have a
    * population slice to read it for (the builder preview, the player-scoped page).
    */
   itemContext?: Map<string, ItemContextCard>
