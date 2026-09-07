@@ -175,8 +175,12 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         entity.HasIndex(e => e.QueueId, "IX_matches_profile_pending")
             .HasFilter("\"ProfileAggregated\" = false");
 
-        // Same shape for the item-context fold (#1450).
-        entity.HasIndex(e => e.QueueId, "IX_matches_item_context_pending")
+        // The item-context fold (#1450), which unlike its siblings dequeues **newest first**
+        // (#1514) — so the ordering column is in the index, and picking a batch is a scan of
+        // the pending tail with a LIMIT instead of sorting the whole backlog on every batch.
+        // That backlog is the entire corpus whenever the aggregate is re-grained.
+        entity.HasIndex(e => new { e.QueueId, e.GameStartTimeUtc }, "IX_matches_item_context_pending")
+            .IsDescending(false, true)
             .HasFilter("\"ItemContextAggregated\" = false");
 
         // Deliberately Restrict, and the only child of matches that is — match_bans,

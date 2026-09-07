@@ -53,6 +53,42 @@ public sealed class MatchClaimServiceTests
     }
 
     [Fact]
+    public async Task ReleaseOrphanedClaimsAsync_ReachesEveryClaimRegardlessOfItsRemainingLease()
+    {
+        // The startup counterpart of the reaper above (#1513): at boot every claim on the
+        // table was taken by the incarnation that just died, so the cutoff is "now" rather
+        // than a lease ago — otherwise the accounts a redeploy interrupted stay unclaimable
+        // for the rest of their lease, which is the reclaim hole around every deploy.
+        var nowUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+
+        var riotAccounts = Substitute.For<IRiotAccountRepository>();
+        var mainCandidates = Substitute.For<IMainCandidateRepository>();
+        mainCandidates.ReleaseExpiredClaimsAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(5);
+        riotAccounts.ReleaseExpiredMatchIngestClaimsAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(2);
+
+        var session = Substitute.For<IDataSession>();
+        session.RiotAccounts.Returns(riotAccounts);
+        session.MainCandidates.Returns(mainCandidates);
+
+        var sessionFactory = Substitute.For<IDataSessionFactory>();
+        sessionFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(session));
+
+        var service = new MatchClaimService(
+            sessionFactory,
+            Substitute.For<IChampionCoverageProvider>(),
+            new FixedTimeProvider(nowUtc),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()),
+            NullLogger<MatchClaimService>.Instance);
+
+        var released = await service.ReleaseOrphanedClaimsAsync(CancellationToken.None);
+
+        released.Should().Be(new ExpiredClaimRelease(5, 2));
+
+        await mainCandidates.Received(1).ReleaseExpiredClaimsAsync(nowUtc, Arg.Any<CancellationToken>());
+        await riotAccounts.Received(1).ReleaseExpiredMatchIngestClaimsAsync(nowUtc, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ClaimAsync_PassesLeaseToRepositoryAndUpdatesCandidateStatus()
     {
         var lease = TimeSpan.FromMinutes(30);

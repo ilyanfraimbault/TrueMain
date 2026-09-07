@@ -59,6 +59,7 @@ const statusItems = [
   { label: 'Success', value: 'Success' },
   { label: 'Failed', value: 'Failed' },
   { label: 'Abandoned', value: 'Abandoned' },
+  { label: 'Cancelled', value: 'Cancelled' },
   { label: 'Skipped', value: 'Skipped' },
 ]
 
@@ -440,17 +441,25 @@ const selectedIterationEntries = computed<IterationEntry[]>(() =>
   })),
 )
 
-// Per-iteration outcome tallies for the detail header. Only finished iterations
-// reach this view (the in-flight one is excluded from the list), so there is no
-// `running` bucket — every run has settled to Success/Skipped/Failed/Abandoned.
+// Per-iteration outcome tallies for the detail header. Only finished iterations reach
+// this view (the in-flight one is excluded from the list), so there is no `running`
+// bucket — every run has settled. Rendered from one list rather than a badge per status:
+// the five were the same markup five times, and a status added later (Cancelled was, in
+// #1513) is a row here instead of a sixth copy. `Success` shows even at zero — "0 ok" is
+// the point when a pass went wrong — while the rest appear only when they happened.
+const TALLIED_STATUSES: readonly { status: ProcessRunStatus, label: string, color: BadgeColor, always?: boolean }[] = [
+  { status: 'Success', label: 'ok', color: 'success', always: true },
+  { status: 'Skipped', label: 'skipped', color: 'neutral' },
+  { status: 'Failed', label: 'failed', color: 'error' },
+  { status: 'Abandoned', label: 'abandoned', color: 'warning' },
+  { status: 'Cancelled', label: 'cancelled', color: 'neutral' },
+]
+
 const selectedIterationTally = computed(() => {
   const runs = selectedIteration.value?.runs ?? []
-  return {
-    success: runs.filter(run => run.status === 'Success').length,
-    skipped: runs.filter(run => run.status === 'Skipped').length,
-    failed: runs.filter(run => run.status === 'Failed').length,
-    abandoned: runs.filter(run => run.status === 'Abandoned').length,
-  }
+  return TALLIED_STATUSES
+    .map(entry => ({ ...entry, count: runs.filter(run => run.status === entry.status).length }))
+    .filter(entry => entry.always || entry.count > 0)
 })
 </script>
 
@@ -1087,31 +1096,12 @@ const selectedIterationTally = computed(() => {
               <!-- Outcome tally -->
               <div class="flex flex-wrap gap-2">
                 <UBadge
-                  color="success"
+                  v-for="entry in selectedIterationTally"
+                  :key="entry.status"
+                  :color="entry.color"
                   variant="subtle"
                   size="sm"
-                  :label="`${selectedIterationTally.success} ok`"
-                />
-                <UBadge
-                  v-if="selectedIterationTally.skipped > 0"
-                  color="neutral"
-                  variant="subtle"
-                  size="sm"
-                  :label="`${selectedIterationTally.skipped} skipped`"
-                />
-                <UBadge
-                  v-if="selectedIterationTally.failed > 0"
-                  color="error"
-                  variant="subtle"
-                  size="sm"
-                  :label="`${selectedIterationTally.failed} failed`"
-                />
-                <UBadge
-                  v-if="selectedIterationTally.abandoned > 0"
-                  color="warning"
-                  variant="subtle"
-                  size="sm"
-                  :label="`${selectedIterationTally.abandoned} abandoned`"
+                  :label="`${entry.count} ${entry.label}`"
                 />
               </div>
 

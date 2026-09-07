@@ -103,6 +103,13 @@ describe('processStatusColor', () => {
     expect(processStatusColor('Missing')).toBe('neutral')
   })
 
+  it('paints Cancelled as neutral — a redeploy stopping a run is not a defect', () => {
+    // The counterpart of Abandoned's warning: the host stopped because it was asked to,
+    // so there is nothing to look into, and colouring it amber would make every deploy
+    // read as an incident.
+    expect(processStatusColor('Cancelled')).toBe('neutral')
+  })
+
   it('falls back to neutral for a status the backend adds later', () => {
     expect(processStatusColor('SomethingNew')).toBe('neutral')
   })
@@ -121,6 +128,13 @@ describe('processStatusIcon', () => {
     // One ran and declined, the other never started. The colour cannot carry that
     // difference, so the icon has to.
     expect(processStatusIcon('Skipped')).not.toBe(processStatusIcon('Missing'))
+  })
+
+  it('gives Cancelled its own icon among the neutral statuses', () => {
+    // Three neutrals now: a run that declined, a run that never started, and a run left
+    // unfinished by a shutdown. Only the icon tells them apart.
+    expect(processStatusIcon('Cancelled')).not.toBe(processStatusIcon('Skipped'))
+    expect(processStatusIcon('Cancelled')).not.toBe(processStatusIcon('Missing'))
   })
 
   it.each([

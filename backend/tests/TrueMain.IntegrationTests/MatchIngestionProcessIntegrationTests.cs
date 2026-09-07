@@ -87,6 +87,9 @@ public sealed class MatchIngestionProcessIntegrationTests
 
         public Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct)
             => Task.FromResult(new ExpiredClaimRelease(0, 0));
+
+        public Task<ExpiredClaimRelease> ReleaseOrphanedClaimsAsync(CancellationToken ct)
+            => Task.FromResult(new ExpiredClaimRelease(0, 0));
     }
 
     private sealed class FakeAccountValidationService : IAccountValidationService

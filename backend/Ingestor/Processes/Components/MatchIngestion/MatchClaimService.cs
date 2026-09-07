@@ -14,22 +14,35 @@ public sealed class MatchClaimService(
     IOptions<IntakeOptions> intakeOptions,
     ILogger<MatchClaimService> logger) : IMatchClaimService
 {
-    public async Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct)
+    public Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct)
     {
-        await using var session = await sessionFactory.CreateAsync(ct);
-
         // The cutoff is derived here, from the same lease ClaimAsync hands to the claim
         // query, so the reaper and the claim cannot end up with two different ideas of when
         // a lease is spent — releasing a row the claim still considers held, or leaving one
         // it has already given up on.
         var leaseCutoffUtc = timeProvider.GetUtcNow().UtcDateTime - (lease > TimeSpan.Zero ? lease : TimeSpan.FromMinutes(30));
 
+        return ReleaseClaimsHeldBeforeAsync(leaseCutoffUtc, ct);
+    }
+
+    public Task<ExpiredClaimRelease> ReleaseOrphanedClaimsAsync(CancellationToken ct)
+        // "Now" as the cutoff, which reaches every claim there is (#1513). Sound only at
+        // startup, and only because the ingestor runs one instance per lane: the process
+        // that could have been holding a live claim is the one that just died, and this
+        // one has not claimed anything yet. Anywhere else this would free rows another
+        // pass is still working on, which is why the lease-based reap above exists.
+        => ReleaseClaimsHeldBeforeAsync(timeProvider.GetUtcNow().UtcDateTime, ct);
+
+    private async Task<ExpiredClaimRelease> ReleaseClaimsHeldBeforeAsync(DateTime cutoffUtc, CancellationToken ct)
+    {
+        await using var session = await sessionFactory.CreateAsync(ct);
+
         // Candidates first, while the stale claims are still on the account rows: the
         // predicate reads them to decide what counts as live. Doing it the other way round
         // reaches the same set — an Idle account has no live claim either — but only by
         // accident of the negation, and the order would then be load-bearing without saying so.
-        var candidates = await session.MainCandidates.ReleaseExpiredClaimsAsync(leaseCutoffUtc, ct);
-        var accounts = await session.RiotAccounts.ReleaseExpiredMatchIngestClaimsAsync(leaseCutoffUtc, ct);
+        var candidates = await session.MainCandidates.ReleaseExpiredClaimsAsync(cutoffUtc, ct);
+        var accounts = await session.RiotAccounts.ReleaseExpiredMatchIngestClaimsAsync(cutoffUtc, ct);
 
         var released = new ExpiredClaimRelease(candidates, accounts);
         if (!released.IsEmpty)
@@ -38,10 +51,10 @@ public sealed class MatchClaimService(
             // claim, which is exactly the signal the "candidates processing" panel is built
             // to surface. A steady-state run is silent.
             logger.LogInformation(
-                "Released {Candidates} candidate(s) and {Accounts} account claim(s) whose lease expired before {Cutoff:O}.",
+                "Released {Candidates} candidate(s) and {Accounts} account claim(s) held before {Cutoff:O}.",
                 candidates,
                 accounts,
-                leaseCutoffUtc);
+                cutoffUtc);
         }
 
         return released;

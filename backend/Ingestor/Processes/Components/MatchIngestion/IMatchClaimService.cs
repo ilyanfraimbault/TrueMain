@@ -25,6 +25,21 @@ public interface IMatchClaimService
     /// steady-state pass matches nothing and writes nothing.
     /// </remarks>
     Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct);
+
+    /// <summary>
+    /// Releases every claim there is, regardless of how much of its lease was left.
+    /// Called once at startup, before the first pass (#1513).
+    /// </summary>
+    /// <remarks>
+    /// A restart is the one moment when "held" and "orphaned" mean the same thing: the
+    /// ingestor runs a single instance per lane, so every claim on the table was taken by
+    /// the incarnation that just died and nothing will ever settle it. Waiting out the
+    /// remaining lease instead — up to <c>MatchIngestion:ClaimLeaseMinutes</c> — left the
+    /// accounts a redeploy interrupted unclaimable for the rest of it, which is precisely
+    /// the reclaim hole around every deploy this exists to close. Never call it while a
+    /// pass is running: it cannot tell a live claim from a dead one.
+    /// </remarks>
+    Task<ExpiredClaimRelease> ReleaseOrphanedClaimsAsync(CancellationToken ct);
 }
 
 /// <summary>What one reap freed, counted on both sides because they are not the same

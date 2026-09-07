@@ -218,18 +218,18 @@ export interface DbStorageThresholdCrossing {
 }
 
 /**
- * `Abandoned` is a run that started but never recorded an outcome: its owning
- * ingestor died mid-flight. The backend assigns it either at startup (orphaned
- * `Running` rows are reconciled) or on read (a `Running` row whose heartbeat has
- * gone stale). It is a terminal state, distinct from `Failed`.
+ * `Abandoned` is a run that started but never recorded an outcome: its owning ingestor
+ * died mid-flight — assigned at startup (orphaned `Running` rows are reconciled) or on
+ * read (a stale heartbeat). Terminal, and distinct from `Failed`. `Cancelled` is its
+ * counterpart: the same interruption, but a host that stopped because it was asked to.
  *
- * `Skipped` is a run whose cadence guard decided this iteration was too early
- * (e.g. `Discovery:MinRunInterval`). Settled and healthy — but it did no work, so
- * it is deliberately not a `Success`: the backend excludes it both from the
- * cadence gate that reads "when did this last actually run?" and from the
- * consecutive-failure streak.
+ * `Skipped` is a run whose cadence guard decided this iteration was too early (e.g.
+ * `Discovery:MinRunInterval`). Settled and healthy — but it did no work, so it is
+ * deliberately not a `Success`: the backend excludes it from the cadence gate that reads
+ * "when did this last actually run?" and from the consecutive-failure streak, which
+ * `Cancelled` also stays out of — though unlike a skip it left work unfinished.
  */
-export type ProcessRunStatus = 'Success' | 'Failed' | 'Running' | 'Abandoned' | 'Skipped'
+export type ProcessRunStatus = 'Success' | 'Failed' | 'Running' | 'Abandoned' | 'Skipped' | 'Cancelled'
 
 /** One run row of `GET /api/ops/process-runs` → `runs`. */
 export interface ProcessRun {
@@ -1200,7 +1200,7 @@ export interface PipelineHealthSignal {
 }
 
 /** Effective status of one pipeline process, PascalCase as `/ops/process-runs` spells it. */
-export type ProcessHealthStatus = 'Success' | 'Failed' | 'Running' | 'Abandoned' | 'Skipped' | 'Missing'
+export type ProcessHealthStatus = ProcessRunStatus | 'Missing'
 
 /** One process's run health. Timestamps are null when it has never recorded a run. */
 export interface ProcessHealth {

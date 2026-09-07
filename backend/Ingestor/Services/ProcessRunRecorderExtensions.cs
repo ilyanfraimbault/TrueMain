@@ -41,6 +41,35 @@ public static class ProcessRunRecorderExtensions
             ct);
     }
 
+    /// <summary>
+    /// Records a run that an orderly shutdown cut short, as
+    /// <see cref="ProcessRunStatus.Cancelled"/>.
+    /// <para>
+    /// Takes its own token rather than the run's (#1513): the run's token is, by
+    /// definition, already cancelled here, so writing the outcome through it would throw
+    /// a second cancellation instead of recording anything. The caller passes a detached,
+    /// time-boxed one so the write cannot outlive the shutdown window either.
+    /// </para>
+    /// </summary>
+    public static Task RecordCancellationAsync(
+        this IProcessRunRecorder runRecorder,
+        Guid runId,
+        string processName,
+        DateTime startedAtUtc,
+        DateTime finishedAtUtc,
+        CancellationToken shutdownCt)
+    {
+        return runRecorder.RecordAsync(
+            runId,
+            processName,
+            startedAtUtc,
+            finishedAtUtc,
+            ProcessRunStatus.Cancelled,
+            null,
+            "Cancelled: the host asked the run to stop (shutdown or redeploy).",
+            shutdownCt);
+    }
+
     public static Task RecordFailureAsync(
         this IProcessRunRecorder runRecorder,
         Guid runId,
