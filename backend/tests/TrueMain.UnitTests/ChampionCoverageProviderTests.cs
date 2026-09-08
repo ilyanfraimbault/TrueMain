@@ -32,6 +32,24 @@ public sealed class ChampionCoverageProviderTests
         snapshot.Deficit("KR", 22).Should().Be(1);    // covered on EUW1 is not covered on KR
     }
 
+    [Fact]
+    public async Task GetSnapshotAsync_UsesTheShippedCoverageFloor_WhenNothingOverridesIt()
+    {
+        // 50 active mains per champion per region (#1531), the product floor the whole
+        // scarcity signal is measured against. No compose file overrides Coverage:Target-
+        // MainsPerChampion, so this default is the one every environment runs.
+        var snapshot = await GetSnapshotAsync(
+            new Dictionary<(string PlatformId, int ChampionId), int>
+            {
+                [("EUW1", 22)] = 50,
+                [("KR", 22)] = 25,
+            },
+            targetMainsPerChampion: new CoverageOptions().TargetMainsPerChampion);
+
+        snapshot.Deficit("EUW1", 22).Should().Be(0);
+        snapshot.Deficit("KR", 22).Should().Be(0.5);
+    }
+
     private static async Task<ChampionCoverageSnapshot> GetSnapshotAsync(
         Dictionary<(string PlatformId, int ChampionId), int> mainsByPlatformChampion,
         int targetMainsPerChampion = 20)
