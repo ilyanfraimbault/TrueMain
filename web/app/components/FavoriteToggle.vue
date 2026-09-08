@@ -12,12 +12,9 @@ const props = withDefaults(defineProps<{
   region?: RegionSlug | null
   /** Profile icon id, so the favorites view can draw an avatar before its own fetch lands. */
   profileIconId?: number | null
-  /** Labelled pill ("Follow" / "Following") instead of the compact icon toggle. */
-  withLabel?: boolean
 }>(), {
   region: null,
   profileIconId: null,
-  withLabel: false,
 })
 
 const { isFavorite, toggle, atLimit } = useFavoriteTruemains()
@@ -59,8 +56,6 @@ const active = computed(() => mounted.value && isFavorite(nameTag.value))
 // since the cap is a property of the stored list.
 const isFull = computed(() => mounted.value && !active.value && atLimit.value)
 
-const label = computed(() => (active.value ? 'Following' : 'Follow'))
-
 const title = computed(() => {
   if (isFull.value) return `Favorites are full (${FAVORITES_LIMIT}) — remove one first`
   return active.value ? `Unfollow ${nameTag.value}` : `Follow ${nameTag.value}`
@@ -88,21 +83,26 @@ function onClick() {
       :aria-label="title"
       :title="title"
       :disabled="isFull"
-      class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md ring-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-      :class="[
-        withLabel ? 'h-8 px-2.5 text-xs font-semibold' : 'size-7',
-        active
-          ? 'bg-primary/15 text-primary ring-primary/40'
-          : 'text-muted ring-transparent hover:bg-primary/10 hover:text-primary',
-      ]"
+      class="inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+      :class="active ? 'text-primary' : 'text-muted hover:text-primary'"
       @click.stop.prevent="onClick"
     >
+      <!-- Followed reads as a *filled* star, not as a tinted button: the
+           control is the star, and a pill of background behind it competed
+           with every other chip on the row.
+
+           Two things are load-bearing here. `mode="svg"` inlines the glyph
+           instead of painting it as a CSS mask — a masked icon is a flat
+           silhouette with no interior to fill. And the fill has to target the
+           `<path>`, not the `<svg>`: lucide writes `fill="none"` on the path
+           itself, which a rule on the root element never overrides. -->
       <UIcon
+        mode="svg"
         name="i-lucide-star"
         class="size-4 shrink-0"
+        :class="active ? '[&_path]:fill-current' : undefined"
         aria-hidden="true"
       />
-      <span v-if="withLabel">{{ label }}</span>
     </button>
   </span>
 </template>
