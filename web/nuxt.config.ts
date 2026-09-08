@@ -179,6 +179,18 @@ export default defineNuxtConfig({
     // themselves live in server/handlers/ipx-cached.ts, which owns `/_ipx/**`.
     domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org'],
   },
+  // Satori shapes text with harfbuzzjs, which loads `hb.wasm` from a path it
+  // computes at runtime. Nitro's dependency trace only follows static
+  // imports, so the `.wasm` never reached `.output/server/node_modules/` and
+  // every `/_og/**` render died with `ENOENT ... hb.wasm` — a 500, i.e. a
+  // share card that unfurls on X/Discord with no image at all. Listing the
+  // file puts it back in the trace; it is the only asset in the OG chain
+  // loaded that way, which is why this is one entry and not a pattern.
+  nitro: {
+    externals: {
+      traceInclude: [fileURLToPath(import.meta.resolve('harfbuzzjs/hb.wasm'))],
+    },
+  },
   routeRules: {
     // IPX responses are deterministic per (source URL, modifiers) — safe to
     // mark immutable and cache for a week in shared/private caches. Note this

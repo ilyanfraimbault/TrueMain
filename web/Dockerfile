@@ -9,7 +9,8 @@ FROM deps AS build
 WORKDIR /app
 
 COPY . ./
-RUN npm run build
+RUN npm run build \
+    && test -f .output/server/node_modules/harfbuzzjs/hb.wasm
 
 FROM node:26-alpine AS runner
 WORKDIR /app
