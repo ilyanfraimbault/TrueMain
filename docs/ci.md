@@ -121,6 +121,17 @@ lock file that installs in the frontend job can still fail inside the image
 (#1236). Layer caches are scoped per image (`type=gha,scope=<image>`) and
 shared with the deploy builds.
 
+### The OG renderer's wasm
+
+`web/Dockerfile` asserts `harfbuzzjs/hb.wasm` is in the build output before
+the runner stage copies it. Satori loads that file through a path it computes
+at runtime, so nothing in the module graph points at it and Nitro's trace drops
+it silently — the image builds, boots and serves every page, and only
+`/_og/**` fails, with a 500 that shows up as a share card with no image. The
+trace itself is fixed in `web/nuxt.config.ts` (`nitro.externals.traceInclude`);
+the assertion is there so a regression fails the build instead of the next
+tweet.
+
 ## Deploys
 
 ### Immutable tags
