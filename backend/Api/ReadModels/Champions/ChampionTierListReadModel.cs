@@ -13,7 +13,7 @@ namespace TrueMain.ReadModels.Champions;
 /// Every metric is derived from the same <c>champion_aggregate_scopes</c> rows
 /// the champion directory reads (see <see cref="ChampionSummaryReadModel"/>);
 /// nothing here is synthesised. The tier thresholds are documented on
-/// <see cref="Services.Champions.ChampionTierCalculator"/>.
+/// <see cref="Services.Champions.Directory.ChampionTierCalculator"/>.
 /// </para>
 /// </summary>
 public sealed record ChampionTierListReadModel
@@ -46,7 +46,7 @@ public sealed record ChampionTierGroupReadModel
     /// <summary>
     /// Rows in this tier, ordered strongest-first by the same blended score
     /// that placed them in the bucket (see
-    /// <see cref="Services.Champions.ChampionTierCalculator"/>).
+    /// <see cref="Services.Champions.Directory.ChampionTierCalculator"/>).
     /// </summary>
     public IReadOnlyList<ChampionTierEntryReadModel> Entries { get; init; } = [];
 }
@@ -80,7 +80,7 @@ public sealed record ChampionTierEntryReadModel
     /// this field's patch has ban data at all; on a patch with none, the ban term
     /// is dropped from the blend and its weight folds into pick rate and win rate
     /// so tiers stay comparable across ban-data and no-ban-data patches — see
-    /// <see cref="Services.Champions.ChampionTierCalculator"/>.
+    /// <see cref="Services.Champions.Directory.ChampionTierCalculator"/>.
     /// </summary>
     public double? BanRate { get; init; }
 }

@@ -12,6 +12,9 @@
  * not performance: a niche champion is not "bad" at being picked, so those two
  * use a one-sided ramp that fades to muted — and they
  * do not share a scale with each other either (see the constants below).
+ *
+ * A build variation's share of its category is a fourth scale, for the same
+ * reason the third exists — see `variationShareTone` at the foot of the file.
  */
 
 /** Win rates inside ±this of 50% are noise, not an edge. */
@@ -107,4 +110,43 @@ export function pickRateBand(value: number | null | undefined): RateBand {
 /** Colour for a ban rate (0..1), on its own scale — see the constants above. */
 export function banRateTone(value: number | null | undefined): string {
   return presenceTone(value, BAN_RATE_NOTABLE, BAN_RATE_HIGH)
+}
+
+/**
+ * A variation chip's percentage is a *share of a category*, not a champion's
+ * presence in the meta, so it gets its own bands — the same reasoning that
+ * already keeps pick and ban rate apart: they do not share a denominator.
+ * `variationOptions` (`shared/utils/build.ts`) drops everything below 10% and
+ * keeps at most three options, so a chip's value lives in [0.10, 1] with a
+ * typical card reading something like 59 / 33 / 15. Run through
+ * {@link pickRateTone}, whose top band is 4%, *every* one of those chips came
+ * out at the full accent — a colour that is always on encodes nothing.
+ *
+ * The ramp is therefore centred rather than one-sided: an ordinary share is
+ * plain text, a shrinking one fades into the neutral, and only a genuine
+ * majority takes the accent. White is the base because a share is not a verdict
+ * — most of these numbers are simply "this is what people do".
+ */
+
+/** Past this share the option is not one of several, it is *the* choice. */
+export const VARIATION_SHARE_DOMINANT = 0.55
+
+/** Ahead of the field, but not the whole field. */
+export const VARIATION_SHARE_LEADING = 0.35
+
+/** Below this a surviving option is the tail of the card, not a real contender. */
+export const VARIATION_SHARE_NICHE = 0.18
+
+/**
+ * Colour for one variation's share of its category (0..1). Four steps down the
+ * existing axis — accent, dimmed accent, plain text, muted — so the ramp reads
+ * as one gradient and never invents a colour outside the `--color-data-*`
+ * tokens.
+ */
+export function variationShareTone(value: number | null | undefined): string {
+  if (value === null || value === undefined) return 'text-muted'
+  if (value >= VARIATION_SHARE_DOMINANT) return 'text-data-good'
+  if (value >= VARIATION_SHARE_LEADING) return 'text-data-good-dim'
+  if (value >= VARIATION_SHARE_NICHE) return 'text-default'
+  return 'text-muted'
 }

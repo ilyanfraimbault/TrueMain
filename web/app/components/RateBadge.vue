@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { pickRateTone } from '~/utils/rate-tone'
+import { variationShareTone } from '~/utils/rate-tone'
 
 // `games` is what the percentages are computed from. It used to sit next to the
 // badges (#923) because a matchup slice is usually small — measured on
@@ -32,14 +32,21 @@ const props = defineProps<{
  * The chip reads its value through `utils/rate-tone`, the same module the
  * tier-list chip uses — a rate must not be accented in one place and neutral in
  * another on pages a reader moves between. The bands and their calibration live
- * there; the pick-rate scale is one-sided, because a niche build is not *bad* at
- * being picked.
+ * there.
+ *
+ * The scale is `variationShareTone`, not the tier list's `pickRateTone`: this
+ * percentage is a share of one category, floored at 10% and split between at
+ * most three options, where the tier list's is a champion's share of a whole
+ * lane and peaks under 8%. On the tier-list bands every chip on the card came
+ * out at the full accent, so the colour said nothing. Here it runs muted →
+ * plain → accent, with white as the resting state: an ordinary share is what
+ * people do, not a verdict.
  *
  * The tone stayed with the chip when the win rate moved into the tooltip
  * (#1469): the accent marks the good end of a measurement (#1096), and a
  * tooltip line is not a place an accent reads.
  */
-const pickRateClass = computed(() => pickRateTone(props.pickRate))
+const pickRateClass = computed(() => variationShareTone(props.pickRate))
 
 // One line per stat, label and value in their own column, so the three numbers
 // read as a small table instead of a sentence to parse.

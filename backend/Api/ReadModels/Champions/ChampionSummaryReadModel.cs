@@ -58,7 +58,7 @@ public sealed record ChampionSummaryReadModel
     /// <summary>
     /// OPGG-style performance tier (<c>S</c> / <c>A</c> / <c>B</c> / <c>C</c> /
     /// <c>D</c>) for this <c>(champion, position)</c> on the active patch.
-    /// Computed by <see cref="Services.Champions.ChampionTierCalculator"/> from
+    /// Computed by <see cref="Services.Champions.Directory.ChampionTierCalculator"/> from
     /// a pick-rate + ban-rate + win-rate blend (#971 — presence-first, weighted
     /// toward pick and ban rate over a sample-shrunk win rate), then bucketed by
     /// percentile <b>within this row's own position</b> — not against the whole

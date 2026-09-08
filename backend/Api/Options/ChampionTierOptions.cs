@@ -1,7 +1,7 @@
 namespace TrueMain.Options;
 
 /// <summary>
-/// Blend weights for <see cref="Services.Champions.ChampionTierCalculator"/>'s
+/// Blend weights for <see cref="Services.Champions.Directory.ChampionTierCalculator"/>'s
 /// S/A/B/C/D scoring. Product knobs the user wants to tweak without a
 /// redeploy, so they bind from <c>ChampionTier:*</c> in configuration.
 ///

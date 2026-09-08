@@ -81,87 +81,95 @@ withDefaults(defineProps<{
 </script>
 
 <template>
-  <!-- Outer grid: left column is flexible, right Runes column is a fixed
-       268 px so the left column never resizes when rune layouts change
-       between builds/positions. 268 px fits the widest primary tree
-       (4 keystones, e.g. Precision): 4 × 39 px keystones + 3 × 2 px gaps =
-       162 px, + 24 px gutter + 80 px secondary/shard column (3 × 24 px +
-       2 × 4 px gaps) = 266 px, plus a 2 px safety margin. It was 240 px at
-       the old 35 px keystone; the extra 28 px is what the runes grew by to
-       stop leaving a quarter of their column empty, and it comes out of the
-       flexible left column, which has slack the runes column does not.
-       Trees with only 3 keystones leave a little trailing space — the
-       trade-off for a stable, non-shifting layout (sizing to content would
-       shift the left column when switching builds/positions). -->
-  <div class="grid gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1fr)_268px]">
-    <!-- Section A: everything except runes -->
-    <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
-      <!-- A1: Summoners + Starter, stacked, left-aligned.
-           Width is the wider of the two cards (116 px for Starter). -->
-      <div class="flex flex-col gap-5">
-        <ChampionCoreSpells
-          :summoners="summonerSpells"
-          :summoners-map="summonersMap"
-          :summoners-pending="summonersPending"
-        />
-        <ChampionCoreStarterItems
-          :starter="starterItems"
-          :items-map="itemsMap"
-          :item-context="itemContext"
-        />
-      </div>
-      <!-- A2: Skill order + Boots side-by-side, Build path below.
-           A2 grows to fill the remainder of Section A. justify-around
-           distributes the two fixed-width cards evenly inside A2. -->
-      <div class="flex flex-1 flex-col gap-5">
-        <!-- A2a: Skill order (156 px) and Boots (76 px) evenly spaced -->
-        <div class="flex flex-wrap items-start justify-around gap-6">
-          <ChampionCoreSkillOrder
-            v-if="championStatic"
-            :skill-order="skillOrder"
-            :champion-static="championStatic"
-            :pending="pending"
+  <!-- Container-relative, not viewport-relative (#967's rule): this panel sits
+       in a page column, and the column's width is what decides whether the
+       layout below fits — not the window's. The player-scoped champion page
+       runs a three-column grid, so at xl its middle column is ~575 px while the
+       viewport is 1280: on viewport breakpoints the two-column split below fired
+       anyway and drove Boots straight through the runes block. -->
+  <div class="@container">
+    <!-- Outer grid: left column is flexible, right Runes column is a fixed
+         268 px so the left column never resizes when rune layouts change
+         between builds/positions. 268 px fits the widest primary tree
+         (4 keystones, e.g. Precision): 4 × 39 px keystones + 3 × 2 px gaps =
+         162 px, + 24 px gutter + 80 px secondary/shard column (3 × 24 px +
+         2 × 4 px gaps) = 266 px, plus a 2 px safety margin. It was 240 px at
+         the old 35 px keystone; the extra 28 px is what the runes grew by to
+         stop leaving a quarter of their column empty, and it comes out of the
+         flexible left column, which has slack the runes column does not.
+         Trees with only 3 keystones leave a little trailing space — the
+         trade-off for a stable, non-shifting layout (sizing to content would
+         shift the left column when switching builds/positions). -->
+    <div class="grid gap-x-6 gap-y-5 @3xl:grid-cols-[minmax(0,1fr)_268px]">
+      <!-- Section A: everything except runes -->
+      <div class="flex flex-col gap-5 @lg:flex-row @lg:items-start">
+        <!-- A1: Summoners + Starter, stacked, left-aligned.
+             Width is the wider of the two cards (116 px for Starter). -->
+        <div class="flex flex-col gap-5">
+          <ChampionCoreSpells
+            :summoners="summonerSpells"
+            :summoners-map="summonersMap"
+            :summoners-pending="summonersPending"
           />
-          <ChampionCoreBoots
-            :boots="boots"
+          <ChampionCoreStarterItems
+            :starter="starterItems"
             :items-map="itemsMap"
             :item-context="itemContext"
           />
         </div>
-        <!-- A2b: Build path (336 px from sm) centered in A2 -->
-        <div class="flex justify-center">
-          <ChampionCoreBuildPath
-            :path="itemPath"
-            :items-map="itemsMap"
-            :item-context="itemContext"
-          />
+        <!-- A2: Skill order + Boots side-by-side, Build path below.
+             A2 grows to fill the remainder of Section A. justify-around
+             distributes the two fixed-width cards evenly inside A2. -->
+        <div class="flex flex-1 flex-col gap-5">
+          <!-- A2a: Skill order (156 px) and Boots (76 px) evenly spaced -->
+          <div class="flex flex-wrap items-start justify-around gap-6">
+            <ChampionCoreSkillOrder
+              v-if="championStatic"
+              :skill-order="skillOrder"
+              :champion-static="championStatic"
+              :pending="pending"
+            />
+            <ChampionCoreBoots
+              :boots="boots"
+              :items-map="itemsMap"
+              :item-context="itemContext"
+            />
+          </div>
+          <!-- A2b: Build path (336 px from sm) centered in A2 -->
+          <div class="flex justify-center">
+            <ChampionCoreBuildPath
+              :path="itemPath"
+              :items-map="itemsMap"
+              :item-context="itemContext"
+            />
+          </div>
         </div>
       </div>
-    </div>
-    <!-- Runes column — fixed 268 px wrapper at lg+ keeps the left column
-         stable in the two-column layout. Below lg the core view is a single
-         column, so the wrapper stays full-width to avoid regressing mobile.
-         The wrapper is always present (even with no rune data) so the grid
-         track doesn't collapse and cause a reflow. -->
-    <div class="w-full shrink-0 overflow-hidden lg:w-[268px]">
-      <ChampionCoreRunes
-        v-if="runePage && runeTree"
-        :page="runePage"
-        :tree="runeTree"
-        :size="runeSize"
-        :keystone-size="keystoneSize"
-      />
-      <!-- Gated on `runePage` alone, not on the `v-if` above: `runeTree` is a
-           separate static fetch, so keying the message off "we didn't render
-           runes" made it claim the sampled games carried no rune page during
-           every load. The aggregate's own null is the only thing that answers
-           that; while the tree is in flight the column just stays empty. -->
-      <p
-        v-else-if="!runePage && noRunesMessage"
-        class="text-sm text-muted"
-      >
-        {{ noRunesMessage }}
-      </p>
+      <!-- Runes column — fixed 268 px wrapper at lg+ keeps the left column
+           stable in the two-column layout. Below lg the core view is a single
+           column, so the wrapper stays full-width to avoid regressing mobile.
+           The wrapper is always present (even with no rune data) so the grid
+           track doesn't collapse and cause a reflow. -->
+      <div class="w-full shrink-0 overflow-hidden @3xl:w-[268px]">
+        <ChampionCoreRunes
+          v-if="runePage && runeTree"
+          :page="runePage"
+          :tree="runeTree"
+          :size="runeSize"
+          :keystone-size="keystoneSize"
+        />
+        <!-- Gated on `runePage` alone, not on the `v-if` above: `runeTree` is a
+             separate static fetch, so keying the message off "we didn't render
+             runes" made it claim the sampled games carried no rune page during
+             every load. The aggregate's own null is the only thing that answers
+             that; while the tree is in flight the column just stays empty. -->
+        <p
+          v-else-if="!runePage && noRunesMessage"
+          class="text-sm text-muted"
+        >
+          {{ noRunesMessage }}
+        </p>
+      </div>
     </div>
   </div>
 </template>

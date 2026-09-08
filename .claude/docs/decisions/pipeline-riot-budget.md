@@ -204,6 +204,41 @@ takes far longer than `InactiveAfterDays`, so `RecheckAfterHours` never binds an
 the state it maintains. That is #1475 — match participation as the primary activity signal — and the
 cadence here only bounds the damage until it lands.
 
+## The coverage floor is 50 mains per champion per region, and the claim's split is centred on it (2026-09-08)
+
+**A scarcity signal every region satisfies has no dynamic range left to say "this region is thin".**
+`Coverage:TargetMainsPerChampion` had been 20 since it was introduced, when we held almost no mains: it
+corresponded to a ~200 games/patch floor at the observed ~13.8 games per active main. Every tracked region
+has since passed it — one of them by more than an order of magnitude — so the mean deficit read ~0
+everywhere, the adaptive share of #1361 sat pinned at its depth extreme (`configured + swing` = 0.9), and the
+claim reserved ~90% of every batch for established mains. Breadth had, in effect, stopped: a batch of 75 left
+~8 slots for new candidates, while the harvest kept producing candidates the funnel could no longer consume,
+`Scored` grew without bound and `Queued` sat pegged at `Intake:MaxQueuedPerPlatform` with retention demoting
+the excess back every run.
+
+Nothing was broken. The signal was doing exactly what it was told; its reference point was stale.
+
+**The floor is a product decision, not a derived number.** 50 active mains per champion per region is the
+variety we want behind a champion's stats *in each region* — past it, another main on the same champion is
+worth less than more games from the mains already tracked, which is #900's rule unchanged. It is deliberately
+not derived from throughput: throughput decides how fast the floor is reached, never where it sits.
+
+**And the midpoint moved with it.** `MatchIngestion:EstablishedMainShare` is the value the adaptive range
+returns at a deficit of **0.5** — a region holding half the floor's mains. At a midpoint of 0.7 such a region
+still had the claim reserving over 80% of its slots for depth, which is the arithmetic behind "breadth
+stopped even where coverage was thin". At 0.6 it claims a ~70/30 split while below the floor and tightens
+back towards ~0.8 on its own as it reaches it — the deficit shrinks, the swing carries the share back up, and
+nothing needs re-tuning. Both values are option defaults that no compose file overrides, so preprod and prod
+move together.
+
+**What follows for free, and what does not.** Everything `IntakeCapacity` derives — Scoring's promotion cap,
+Harvest's refresh budget — is expressed from the share, so it rescales with it; that is the whole point of
+sizing the intake from the claim. What does *not* follow: the share is still a single scalar applied to every
+platform's quota, computed from the quota-weighted mean deficit. With one saturated region and two below the
+floor, the saturated one keeps spending slots on breadth it does not need while the thin ones get less than
+their own deficit argues for. A per-platform share is the right shape and is tracked separately — it changes
+the claim's signature, and this change deliberately moved only numbers.
+
 ## The intake is sized by the claim, not by the ladder (2026-09-02)
 
 **Every stage before the match-ingest claim used to carry its own absolute budget, and none of them was

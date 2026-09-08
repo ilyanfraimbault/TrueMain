@@ -1,6 +1,15 @@
 using AwesomeAssertions;
 using Data.Logging.Crash;
-using TrueMain.Services.Ops;
+using TrueMain.Services.Ops.Accounts;
+using TrueMain.Services.Ops.Candidates;
+using TrueMain.Services.Ops.Configuration;
+using TrueMain.Services.Ops.Coverage;
+using TrueMain.Services.Ops.Database;
+using TrueMain.Services.Ops.DataQuality;
+using TrueMain.Services.Ops.Diagnostics;
+using TrueMain.Services.Ops.Health;
+using TrueMain.Services.Ops.Processes;
+using TrueMain.Services.Ops.Stats;
 
 namespace TrueMain.UnitTests;
 

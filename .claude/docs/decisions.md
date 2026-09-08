@@ -41,6 +41,7 @@ Last verified against `develop` on 2026-09-02.
 - A `Preference` verdict renders nothing on the card — #1465
 - An item-context axis the front end has no wording for is dropped, never printed raw; a test mirrors the backend's axis list — #1451
 - The build tree carries no situational mark: the ring competed with the main-path highlight — #1451, #1465
+- A situational card is borrowed from another branch when the hovered step has no finding of its own — but only if the item has exactly one reading and the borrowed one rests on more games — #1518
 - Champion timeline-leads ("Lead vs role opponent") was removed; matchups stayed — #889
 - Power spikes are per-core-build bars anchored on events, not a time curve; bar height is excess acceleration — #890, #775
 - Scoping the aggregate to a build scopes the games, not the items — the item set has to be intersected at read time — #1021, #1022
@@ -61,6 +62,7 @@ Last verified against `develop` on 2026-09-02.
 - The patch diff is gone, front and API — the trend chart already shows patch-over-patch movement — #1466, #534
 - No orphan card in the variations row, and the runes fill the height they are given — #1466
 - A variation's badge is one number, and the precision is in the tooltip — #1469
+- A variation chip's percentage is a share of its card, so it gets its own colour scale — white at rest
 
 ## Champion directory, tier list and served patch — [`decisions/product-directory-and-tiers.md`](decisions/product-directory-and-tiers.md)
 
@@ -174,6 +176,7 @@ Last verified against `develop` on 2026-09-02.
 - The EF compiled model must be regenerated on every schema change — #242
 - Configuration defaults live in the class, and the two champion games floors are two keys — #1034, #860, #889
 - A unit of work covers the writes and nothing else (2026-08-28) — #264, #1229
+- `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07) — #1520, #1451
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
@@ -183,6 +186,7 @@ Last verified against `develop` on 2026-09-02.
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
 - A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04) — #1474, #1460, #1313, #900
+- The coverage floor is 50 mains per champion per region, and the claim's split is centred on it (2026-09-08) — #1531, #1361, #1150, #900
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150
 - Region balance is a target, not a quota: coverage deficit allocates every budget (2026-08-19) — #1149, #495, #900
 

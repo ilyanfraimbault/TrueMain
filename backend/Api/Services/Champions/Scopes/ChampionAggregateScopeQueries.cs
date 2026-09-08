@@ -1,0 +1,69 @@
+using Data.Entities;
+
+namespace TrueMain.Services.Champions.Scopes;
+
+/// <summary>
+/// LINQ helpers that share the (champion, queue, account, patch, platform, position)
+/// filter between the foundation and build-tree query services. The filter must stay
+/// identical across both endpoints — they have to read the same slice of aggregate
+/// data, otherwise a foundation hit can pair with an empty build tree.
+/// </summary>
+internal static class ChampionAggregateScopeQueries
+{
+    public static IQueryable<ChampionAggregateScope> WhereChampionScope(
+        this IQueryable<ChampionAggregateScope> source,
+        int championId,
+        int queueId,
+        Guid? riotAccountId,
+        string? patch,
+        string? platformId,
+        string? position,
+        IReadOnlyCollection<string>? eloBrackets = null,
+        bool truemainsOnly = true)
+    {
+        var query = source.Where(scope => scope.ChampionId == championId && scope.QueueId == queueId);
+
+        if (riotAccountId.HasValue)
+        {
+            query = query.Where(scope => scope.RiotAccountId == riotAccountId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(platformId))
+        {
+            query = query.Where(scope => scope.PlatformId == platformId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(patch))
+        {
+            query = query.Where(scope => scope.GameVersion == patch);
+        }
+
+        if (!string.IsNullOrWhiteSpace(position))
+        {
+            query = query.Where(scope => scope.Position == position);
+        }
+
+        // A null bracket set means "every game" (the ALL read-time union across
+        // every persisted tier). A non-null set narrows to those tiers — one
+        // tier for a "rank only" filter, several for a "rank and above" one,
+        // or none at all for a rejected filter (EloBracket.ResolveFilterOrEmpty)
+        // — via a single IN over the bracket-aware index. An empty non-null set
+        // must still apply the clause: Contains() on it is always false, which
+        // is the point — it must not fall back to "every game".
+        if (eloBrackets is not null)
+        {
+            query = query.Where(scope => eloBrackets.Contains(scope.EloBracket));
+        }
+
+        // Truemains filter (#1346). Defaults to true — mains only — because that
+        // is what the aggregate held before it started carrying the non-main
+        // population, so every caller that doesn't opt out keeps the numbers it
+        // has always returned. Turning it off widens to every tracked player.
+        if (truemainsOnly)
+        {
+            query = query.Where(scope => scope.IsMain);
+        }
+
+        return query;
+    }
+}

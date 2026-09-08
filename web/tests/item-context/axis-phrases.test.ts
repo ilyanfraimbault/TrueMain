@@ -7,6 +7,7 @@ import {
   itemContextAxisText,
   itemContextKey,
   KNOWN_ITEM_CONTEXT_AXES,
+  resolveItemContext,
   wordableAxes,
 } from '~~/shared/utils/item-context'
 
@@ -144,5 +145,66 @@ describe('indexItemContext', () => {
   it('tolerates a missing payload', () => {
     expect(indexItemContext(null).size).toBe(0)
     expect(indexItemContext(undefined).size).toBe(0)
+  })
+})
+
+/**
+ * Borrowing a verdict from another branch (#1518). The verdicts are folded over the all-ranks
+ * cohort while the tree is drawn for one rank band, so the two disagree about what follows
+ * what; a card keyed on the edge alone then vanishes on exactly the step a reader is hovering.
+ */
+describe('resolveItemContext', () => {
+  function verdict(
+    parentItemId: number,
+    itemId: number,
+    itemClass: ChampionItemContextItem['class'],
+    branchGames: number,
+  ): ChampionItemContextItem {
+    return { slot: 'Build', parentItemId, itemId, class: itemClass, branchGames } as ChampionItemContextItem
+  }
+
+  it('prefers the exact edge when that edge carries the finding', () => {
+    const exact = verdict(3153, 3091, 'Situational', 114)
+    const index = indexItemContext([exact, verdict(3181, 3091, 'Preference', 55)])
+
+    expect(resolveItemContext(index, 'Build', 3091, 3153)).toBe(exact)
+  })
+
+  it('borrows the item\'s only situational reading when the hovered step has none', () => {
+    // The measured Irelia case: the finding sits on BOTRK -> Wit's End, the Master+ tree draws
+    // BOTRK -> Hullbreaker -> Wit's End, and 55 branch games never tested anything.
+    const finding = verdict(3153, 3091, 'Situational', 114)
+    const index = indexItemContext([finding, verdict(3181, 3091, 'Preference', 55)])
+
+    expect(resolveItemContext(index, 'Build', 3091, 3181)).toBe(finding)
+  })
+
+  it('does not override a better-sampled step with a thinner finding', () => {
+    const thin = verdict(3153, 3091, 'Situational', 114)
+    const wellSampled = verdict(3181, 3091, 'Preference', 2000)
+    const index = indexItemContext([thin, wellSampled])
+
+    expect(resolveItemContext(index, 'Build', 3091, 3181)).toBe(wellSampled)
+  })
+
+  it('borrows nothing when the item means two different things depending on the step', () => {
+    const index = indexItemContext([
+      verdict(3153, 3091, 'Situational', 114),
+      verdict(6672, 3091, 'Situational', 90),
+    ])
+
+    expect(resolveItemContext(index, 'Build', 3091, 3181)).toBeUndefined()
+  })
+
+  it('returns the exact edge when there is nothing to borrow', () => {
+    const core = verdict(0, 3153, 'Core', 143)
+    const index = indexItemContext([core])
+
+    expect(resolveItemContext(index, 'Build', 3153, 0)).toBe(core)
+    expect(resolveItemContext(index, 'Build', 9999, 0)).toBeUndefined()
+  })
+
+  it('tolerates a missing index', () => {
+    expect(resolveItemContext(undefined, 'Build', 3091, 3153)).toBeUndefined()
   })
 })

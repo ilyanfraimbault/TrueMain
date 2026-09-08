@@ -1,5 +1,12 @@
 using Microsoft.Extensions.Caching.Memory;
-using TrueMain.Services.Champions;
+using TrueMain.Services.Champions.Builds;
+using TrueMain.Services.Champions.Composition;
+using TrueMain.Services.Champions.Directory;
+using TrueMain.Services.Champions.Mains;
+using TrueMain.Services.Champions.Matchups;
+using TrueMain.Services.Champions.Progression;
+using TrueMain.Services.Champions.Scopes;
+using TrueMain.Services.Champions.Synergies;
 
 namespace TrueMain.TestKit;
 
