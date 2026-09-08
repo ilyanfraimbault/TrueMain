@@ -62,6 +62,7 @@ Last verified against `develop` on 2026-09-02.
 - The patch diff is gone, front and API — the trend chart already shows patch-over-patch movement — #1466, #534
 - No orphan card in the variations row, and the runes fill the height they are given — #1466
 - A variation's badge is one number, and the precision is in the tooltip — #1469
+- A variation chip's percentage is a share of its card, so it gets its own colour scale — white at rest
 
 ## Champion directory, tier list and served patch — [`decisions/product-directory-and-tiers.md`](decisions/product-directory-and-tiers.md)
 

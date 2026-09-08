@@ -7,6 +7,10 @@ import {
   PICK_RATE_NOTABLE,
   pickRateBand,
   pickRateTone,
+  VARIATION_SHARE_DOMINANT,
+  VARIATION_SHARE_LEADING,
+  VARIATION_SHARE_NICHE,
+  variationShareTone,
   WIN_RATE_DECISIVE,
   WIN_RATE_EDGE,
   winRateBand,
@@ -97,5 +101,35 @@ describe('pickRateBand', () => {
     expect(pickRateBand(PICK_RATE_NOTABLE - 0.001)).toBe('default')
     expect(pickRateBand(0)).toBe('default')
     expect(pickRateBand(null)).toBe('default')
+  })
+})
+
+describe('variationShareTone', () => {
+  it('rests on plain text and moves off it in both directions', () => {
+    // The reading a build card's chips must produce: a majority takes the
+    // accent, the field around it is plain, and the tail fades out.
+    expect(variationShareTone(0.68)).toBe('text-data-good')
+    expect(variationShareTone(0.51)).toBe('text-data-good-dim')
+    expect(variationShareTone(0.33)).toBe('text-default')
+    expect(variationShareTone(0.13)).toBe('text-muted')
+  })
+
+  it('puts each boundary in the stronger band', () => {
+    expect(variationShareTone(VARIATION_SHARE_DOMINANT)).toBe('text-data-good')
+    expect(variationShareTone(VARIATION_SHARE_LEADING)).toBe('text-data-good-dim')
+    expect(variationShareTone(VARIATION_SHARE_NICHE)).toBe('text-default')
+    expect(variationShareTone(VARIATION_SHARE_NICHE - 0.001)).toBe('text-muted')
+  })
+
+  it('does not share the tier list\'s scale', () => {
+    // The defect this scale exists for: on `pickRateTone`'s bands every chip a
+    // variation card can render — the floor is 10% — is the full accent.
+    expect(pickRateTone(0.13)).toBe('text-data-good')
+    expect(variationShareTone(0.13)).toBe('text-muted')
+  })
+
+  it('stays muted when there is no share to colour', () => {
+    expect(variationShareTone(null)).toBe('text-muted')
+    expect(variationShareTone(undefined)).toBe('text-muted')
   })
 })

@@ -306,3 +306,15 @@ worth making. The champion header's win rate rounds the same way, for the same r
 game count is precision nobody acts on. `formatPercentage`'s site-wide default is deliberately untouched —
 callers that want whole numbers pass `0`, because sweeping every percentage on the site (tier list, matchups,
 synergies, trend charts) is a wider call than this one.
+
+**A variation chip's percentage is a share of its card, so it gets its own colour scale — white at rest.**
+The chip read its value through `pickRateTone`, the tier-list scale, whose top band is a 4% pick rate. A
+variation's percentage has a different denominator entirely: `variationOptions` floors it at 10% and splits at
+most three options, so *every* chip a card can render cleared that band and came out rose gold — a colour
+that is always on encodes nothing, and the panel read as decorated rather than measured. `variationShareTone`
+(`web/app/utils/rate-tone.ts`) bands it at 55 / 35 / 18%: a majority takes the accent, the option leading the
+field takes the dimmed step, an ordinary share is plain text and the tail fades to muted. White is the resting
+state on purpose — this number is "what people do", not a verdict, so it should be the neutral one, unlike a
+win rate. Same reasoning as the pick/ban split (`product-directory-and-tiers.md`): a scale belongs to a
+denominator, not to a metric's name.
+
