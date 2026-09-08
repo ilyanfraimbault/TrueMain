@@ -88,6 +88,31 @@ public sealed class IntakeCapacityTests
     }
 
     [Fact]
+    public void Defaults_ReserveTheBreadthTheCoverageFloorNeeds()
+    {
+        // The shipped share against the production batch size (#1531). Neither compose file
+        // overrides MatchIngestion:EstablishedMainShare, so this default is what the claim
+        // actually applies in preprod and prod, and moving it has to be argued for here.
+        var matchIngestion = new MatchIngestionOptions { BatchSize = 75 };
+
+        matchIngestion.EstablishedMainShare.Should().Be(0.6);
+        IntakeCapacity.NewCandidateSlotsPerCycle(matchIngestion).Should().Be(30);
+    }
+
+    [Fact]
+    public void AdaptiveShare_KeepsBreadthOpen_ForARegionAtHalfTheCoverageFloor()
+    {
+        // The case the midpoint is meant to describe (#1531): a region holding half the
+        // floor's mains reads a deficit near 0.5 and claims the configured split. At the old
+        // 0.7 midpoint that same region still reserved over 80% of its slots for depth, which
+        // is how breadth stopped while the deficit signal read "slightly better than average".
+        IntakeCapacity.AdaptiveEstablishedMainShare(0.6, 0.2, 0.5).Should().BeApproximately(0.6, 1e-9);
+
+        // And it still tightens back to depth on its own once the region reaches the floor.
+        IntakeCapacity.AdaptiveEstablishedMainShare(0.6, 0.2, 0).Should().BeApproximately(0.8, 1e-9);
+    }
+
+    [Fact]
     public void AdaptiveShare_ReturnsTheConfiguredValueAtHalfDeficit()
     {
         IntakeCapacity.AdaptiveEstablishedMainShare(0.7, 0.2, 0.5).Should().BeApproximately(0.7, 1e-9);
