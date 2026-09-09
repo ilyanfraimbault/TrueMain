@@ -154,9 +154,10 @@ its own visitors 429s, then 502s and 504s as the queue backed up. The key is now
 `X-Forwarded-For`, and only when the connection comes from a range listed in `RateLimit:TrustedProxies`
 (the private networks by default). Both halves are load-bearing: earlier header entries are written by the
 caller, and the API container publishes port 8080 on the host, so "only Caddy can reach it" is a firewall
-property rather than an application one. Every value binds from `RateLimit:*` and is surfaced in both
-compose files, because a traffic spike is precisely when a compiled-in constant is the slowest lever
-available — prod only rolls on a published release — #1546.
+property rather than an application one. The three numeric knobs bind from `RateLimit:*` and carry an env
+override in both compose files, because a traffic spike is precisely when a compiled-in constant is the
+slowest lever available — prod only rolls on a published release. `TrustedProxies` is a list and stays a
+code default: which networks may speak for a visitor is a deployment shape, not an incident lever — #1546.
 
 **The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved.**
 (Owner-confirmed terminology, 2026-07-28: do not call it a dev key.) The production application is submitted

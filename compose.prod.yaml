@@ -137,6 +137,7 @@ services:
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
       RateLimit__WindowSeconds: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
+      RateLimit__QueueLimit: "${RATE_LIMIT_QUEUE:-10}"
       Cors__Origins__0: "https://truemain.lol"
       Cors__Origins__1: "https://www.truemain.lol"
       Cors__Origins__2: "https://admin.truemain.lol"
