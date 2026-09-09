@@ -139,7 +139,7 @@ pieces of repository configuration exist (plus the two SSH secrets below):
 | Kind | Name | Value |
 | ---- | ---- | ----- |
 | variable | `HOSTINGER_PREPROD_VM_ID` | the preprod VPS id (or name) from the Hostinger API |
-| secret | `HOSTINGER_API_KEY` | API token generated in hPanel → Account → API |
+| secret | `HOSTINGER_PREPROD_API_KEY` | API token generated in hPanel → Account → API, **on the preprod account** |
 | secret | `PREPROD_ENV_FILE` | newline-separated `KEY=value` pairs mirroring the VPS `.env` |
 
 The action points Docker Manager at `compose.preprod.yaml` at the deployed
