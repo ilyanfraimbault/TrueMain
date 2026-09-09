@@ -25,8 +25,12 @@ renvoient.
     "detail": "position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY."
   }
   ```
-- **Rate limiting** : 100 requêtes / minute / IP sur toute la surface publique.
+- **Rate limiting** : 500 requêtes / minute / visiteur sur toute la surface publique
+  (configurable via `RateLimit:PermitLimit` et `RateLimit:WindowSeconds`).
   Au-delà → `429 Too Many Requests`. Les health checks en sont exemptés.
+  Le visiteur est identifié par le dernier maillon de `X-Forwarded-For`, et
+  uniquement quand la connexion provient d'un proxy déclaré dans
+  `RateLimit:TrustedProxies` ; sinon l'adresse de connexion fait foi.
 - **Authentification** : seuls les endpoints `/ops/*` sont protégés. Ils exigent
   l'en-tête `X-Ops-Key: <OPS_API_KEY>`. Sans clé valide → `401 Unauthorized`.
   Le reste (`/champions/*`, `/truemains/*`) est public.
