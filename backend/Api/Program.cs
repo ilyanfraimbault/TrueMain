@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
 using TrueMain.Options;
+using TrueMain.RateLimiting;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Directory;
@@ -282,25 +283,39 @@ builder.Services
         _ => { });
 builder.Services.AddAuthorization();
 
-// Rate limiting: one global per-IP fixed window (100 req / min with a small
-// queue) shields the public champion endpoints from casual abuse. There is no
-// separate ops policy — the ops endpoints share this window, and because the
-// admin portal proxies them all through one server, they share it from a
-// single source IP.
+// Rate limiting: one global per-visitor fixed window shields the public
+// champion endpoints from casual abuse. There is no separate ops policy — the
+// ops endpoints share this window.
+//
+// "Per visitor", not per connection: both frontends proxy every call through
+// their own server, so the connection address is one of two containers and
+// keying on it would throttle the whole site as if it were a single client.
+// RateLimitOptions carries the reasoning and the reason the header is read
+// back-to-front.
+builder.Services.AddOptions<RateLimitOptions>()
+    .Bind(builder.Configuration.GetSection(RateLimitOptions.SectionName))
+    .Validate(options => options.PermitLimit > 0, "RateLimit:PermitLimit must be greater than 0.")
+    .Validate(options => options.WindowSeconds > 0, "RateLimit:WindowSeconds must be greater than 0.")
+    .Validate(options => options.QueueLimit >= 0, "RateLimit:QueueLimit must be >= 0.")
+    .ValidateOnStart();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+    {
+        var limits = context.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ClientAddressResolver.Resolve(context, limits.ClientIpHeader),
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 10,
+                PermitLimit = limits.PermitLimit,
+                Window = TimeSpan.FromSeconds(limits.WindowSeconds),
+                QueueLimit = limits.QueueLimit,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-            }));
+            });
+    });
 });
+
 // The one door every champion read goes through: shared cache + single flight, keyed
 // by the ingestor's aggregation version rather than by a 60s clock (#1368). Registered
 // before the reads themselves because every one of them depends on it — a champion

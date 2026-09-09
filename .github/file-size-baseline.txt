@@ -13,6 +13,7 @@ admin/app/pages/index.vue	600	400
 admin/app/pages/logs.vue	568	400
 admin/app/pages/processes.vue	1187	400
 admin/shared/types/ops.ts	1687	300
+backend/Api/Program.cs	503	500
 backend/Api/ReadModels/Ops/AccountExplorerReadModel.cs	547	500
 backend/Api/Services/Champions/Builds/ChampionBuildsQueryService.cs	547	500
 backend/Api/Services/Champions/Directory/ChampionSummariesQueryService.cs	697	500
@@ -36,7 +37,7 @@ web/app/components/match/MatchRow.vue	612	400
 web/app/pages/champions/[slug].vue	649	400
 web/app/pages/champions/index.vue	484	400
 web/app/pages/dev/design-system.vue	616	400
-web/app/pages/truemains/[nameTag]/champions/[slug].vue	468	400
+web/app/pages/truemains/[nameTag]/champions/[slug].vue	427	400
 web/app/utils/favorites.ts	332	300
 web/shared/types/champions.ts	521	300
 web/shared/utils/champion-build-summary.ts	400	300
