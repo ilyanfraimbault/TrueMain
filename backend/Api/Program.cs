@@ -1,4 +1,3 @@
-using System.Threading.RateLimiting;
 using Core.Options;
 using Data;
 using Data.BuildFacts;
@@ -283,38 +282,7 @@ builder.Services
         _ => { });
 builder.Services.AddAuthorization();
 
-// Rate limiting: one global per-visitor fixed window shields the public
-// champion endpoints from casual abuse. There is no separate ops policy — the
-// ops endpoints share this window.
-//
-// "Per visitor", not per connection: both frontends proxy every call through
-// their own server, so the connection address is one of two containers and
-// keying on it would throttle the whole site as if it were a single client.
-// RateLimitOptions carries the reasoning and the reason the header is read
-// back-to-front.
-builder.Services.AddOptions<RateLimitOptions>()
-    .Bind(builder.Configuration.GetSection(RateLimitOptions.SectionName))
-    .Validate(options => options.PermitLimit > 0, "RateLimit:PermitLimit must be greater than 0.")
-    .Validate(options => options.WindowSeconds > 0, "RateLimit:WindowSeconds must be greater than 0.")
-    .Validate(options => options.QueueLimit >= 0, "RateLimit:QueueLimit must be >= 0.")
-    .ValidateOnStart();
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-    {
-        var limits = context.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
-        return RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ClientAddressResolver.Resolve(context, limits.ClientIpHeader),
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = limits.PermitLimit,
-                Window = TimeSpan.FromSeconds(limits.WindowSeconds),
-                QueueLimit = limits.QueueLimit,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-            });
-    });
-});
+builder.Services.AddTrueMainRateLimiting(builder.Configuration);
 
 // The one door every champion read goes through: shared cache + single flight, keyed
 // by the ingestor's aggregation version rather than by a 60s clock (#1368). Registered

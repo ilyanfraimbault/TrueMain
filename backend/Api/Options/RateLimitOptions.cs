@@ -55,6 +55,17 @@ public sealed class RateLimitOptions
     public int QueueLimit { get; set; } = 10;
 
     /// <summary>
+    /// Networks, in CIDR notation, whose connections may speak for another
+    /// address through <see cref="ClientIpHeader"/>. Defaults to the private
+    /// ranges, which is where both frontend proxies sit; anything reaching the
+    /// published container port from elsewhere is keyed on the address it
+    /// actually connected from, so the header cannot be used to escape the
+    /// limit. Empty disables the lookup entirely.
+    /// </summary>
+    public string[] TrustedProxies { get; set; } =
+        ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"];
+
+    /// <summary>
     /// Header carrying the forwarded client address. Empty disables the lookup
     /// and falls back to the connection address, which is the correct behaviour
     /// for a deployment where nothing sits in front of the API — and the wrong

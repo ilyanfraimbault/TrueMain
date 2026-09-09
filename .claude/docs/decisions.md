@@ -213,7 +213,7 @@ Last verified against `develop` on 2026-09-02.
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
 
 ## Infrastructure and deploy — [`decisions/infrastructure-and-deploy.md`](decisions/infrastructure-and-deploy.md)
-
+- The rate-limit partition is the visitor (last `X-Forwarded-For` hop, trusted proxies only), not the connection — this reverses "100 req/min per IP" — #1546
 - The admin portal is a standalone Nuxt app with its own deployment and domain — not a `/admin` route — #96, #91, #376
 - Preprod auto-deploys from `compose.preprod.yaml` on every push to `develop`; prod auto-deploys from `compose.prod.yaml` only when a GitHub Release is published — #717, #751
 - Images publish an immutable `:<sha>`/`:<version>` tag alongside the moving `:preprod`/`:latest`, and compose references the immutable one — #738, #765, #767

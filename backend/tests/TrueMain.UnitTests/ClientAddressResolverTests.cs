@@ -14,6 +14,9 @@ public class ClientAddressResolverTests
 {
     private const string Header = "X-Forwarded-For";
 
+    private static readonly IReadOnlyList<IPNetwork> TrustedProxies =
+        ClientAddressResolver.ParseNetworks(["127.0.0.0/8", "::1/128", "172.16.0.0/12"]);
+
     private static HttpContext Context(string? connectionAddress, params string[] headerLines)
     {
         var context = new DefaultHttpContext();
@@ -33,7 +36,7 @@ public class ClientAddressResolverTests
     [Fact]
     public void UsesConnectionAddressWhenNoHeaderIsPresent()
     {
-        var resolved = ClientAddressResolver.Resolve(Context("172.16.1.12"), Header);
+        var resolved = ClientAddressResolver.Resolve(Context("172.16.1.12"), Header, TrustedProxies);
 
         Assert.Equal("172.16.1.12", resolved);
     }
@@ -43,7 +46,7 @@ public class ClientAddressResolverTests
     {
         // The regression this whole change exists for: without the header the
         // key would be the web container's address for every visitor on the site.
-        var resolved = ClientAddressResolver.Resolve(Context("172.16.1.12", "203.0.113.7"), Header);
+        var resolved = ClientAddressResolver.Resolve(Context("172.16.1.12", "203.0.113.7"), Header, TrustedProxies);
 
         Assert.Equal("203.0.113.7", resolved);
     }
@@ -51,8 +54,8 @@ public class ClientAddressResolverTests
     [Fact]
     public void SeparatesTwoVisitorsArrivingThroughTheSameProxy()
     {
-        var first = ClientAddressResolver.Resolve(Context("172.16.1.12", "203.0.113.7"), Header);
-        var second = ClientAddressResolver.Resolve(Context("172.16.1.12", "198.51.100.4"), Header);
+        var first = ClientAddressResolver.Resolve(Context("172.16.1.12", "203.0.113.7"), Header, TrustedProxies);
+        var second = ClientAddressResolver.Resolve(Context("172.16.1.12", "198.51.100.4"), Header, TrustedProxies);
 
         Assert.NotEqual(first, second);
     }
@@ -66,10 +69,10 @@ public class ClientAddressResolverTests
         var attacker = Context("172.16.1.12", "1.2.3.4, 203.0.113.7");
         var sameClientAgain = Context("172.16.1.12", "9.9.9.9, 203.0.113.7");
 
-        Assert.Equal("203.0.113.7", ClientAddressResolver.Resolve(attacker, Header));
+        Assert.Equal("203.0.113.7", ClientAddressResolver.Resolve(attacker, Header, TrustedProxies));
         Assert.Equal(
-            ClientAddressResolver.Resolve(attacker, Header),
-            ClientAddressResolver.Resolve(sameClientAgain, Header));
+            ClientAddressResolver.Resolve(attacker, Header, TrustedProxies),
+            ClientAddressResolver.Resolve(sameClientAgain, Header, TrustedProxies));
     }
 
     [Fact]
@@ -77,7 +80,8 @@ public class ClientAddressResolverTests
     {
         var resolved = ClientAddressResolver.Resolve(
             Context("172.16.1.12", "1.2.3.4", "9.9.9.9, 203.0.113.7"),
-            Header);
+            Header,
+            TrustedProxies);
 
         Assert.Equal("203.0.113.7", resolved);
     }
@@ -85,7 +89,7 @@ public class ClientAddressResolverTests
     [Fact]
     public void IgnoresWhitespaceOnlyHeaderValues()
     {
-        var resolved = ClientAddressResolver.Resolve(Context("172.16.1.12", "   "), Header);
+        var resolved = ClientAddressResolver.Resolve(Context("172.16.1.12", "   "), Header, TrustedProxies);
 
         Assert.Equal("172.16.1.12", resolved);
     }
@@ -93,7 +97,7 @@ public class ClientAddressResolverTests
     [Fact]
     public void FallsBackToTheConnectionWhenTheHeaderLookupIsDisabled()
     {
-        var resolved = ClientAddressResolver.Resolve(Context("172.16.1.12", "203.0.113.7"), headerName: "");
+        var resolved = ClientAddressResolver.Resolve(Context("172.16.1.12", "203.0.113.7"), headerName: "", TrustedProxies);
 
         Assert.Equal("172.16.1.12", resolved);
     }
@@ -101,8 +105,52 @@ public class ClientAddressResolverTests
     [Fact]
     public void ReturnsAStableKeyWhenNothingIdentifiesTheCaller()
     {
-        var resolved = ClientAddressResolver.Resolve(Context(connectionAddress: null), Header);
+        var resolved = ClientAddressResolver.Resolve(Context(connectionAddress: null), Header, TrustedProxies);
 
         Assert.Equal("unknown", resolved);
+    }
+
+    [Fact]
+    public void IgnoresTheHeaderFromAnUntrustedConnection()
+    {
+        // The API container publishes its port on the host, so reaching it
+        // without passing through the edge is a firewall question, not an
+        // application one. A caller who does gets keyed on where they actually
+        // came from, whatever they claim to be forwarding.
+        var direct = Context("203.0.113.99", "10.0.0.1");
+
+        Assert.Equal("203.0.113.99", ClientAddressResolver.Resolve(direct, Header, TrustedProxies));
+    }
+
+    [Fact]
+    public void ForgedHeadersFromAnUntrustedConnectionCannotMintPartitions()
+    {
+        var first = Context("203.0.113.99", "10.0.0.1");
+        var second = Context("203.0.113.99", "10.0.0.2");
+
+        Assert.Equal(
+            ClientAddressResolver.Resolve(first, Header, TrustedProxies),
+            ClientAddressResolver.Resolve(second, Header, TrustedProxies));
+    }
+
+    [Fact]
+    public void TrustsAProxyPresentedAsAnIPv4MappedIPv6Peer()
+    {
+        // Dual-stack sockets present 172.16.1.12 as ::ffff:172.16.1.12, which
+        // no IPv4 range contains until it is unmapped.
+        var context = new DefaultHttpContext();
+        context.Connection.RemoteIpAddress = IPAddress.Parse("::ffff:172.16.1.12");
+        context.Request.Headers[Header] = "203.0.113.7";
+
+        Assert.Equal("203.0.113.7", ClientAddressResolver.Resolve(context, Header, TrustedProxies));
+    }
+
+    [Fact]
+    public void RejectsMalformedTrustedProxyRanges()
+    {
+        Assert.False(ClientAddressResolver.IsParsableNetwork("172.16.0.0"));
+        Assert.False(ClientAddressResolver.IsParsableNetwork("172.16.0.0/33"));
+        Assert.True(ClientAddressResolver.IsParsableNetwork("172.16.0.0/12"));
+        Assert.True(ClientAddressResolver.IsParsableNetwork("::1/128"));
     }
 }
