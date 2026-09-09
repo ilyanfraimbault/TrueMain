@@ -143,7 +143,21 @@ container with its entrypoint overridden to just loop a `psql` purge once a day 
 `umami-db`'s Postgres major version. Retention is `UMAMI_REPLAY_RETENTION_DAYS`, default 7 — #1018.
 
 **`/ops/*` is the only authenticated API surface** (`X-Ops-Key`, min 32 chars, rotated independently of the
-Riot key). Everything else is public and rate-limited to 100 req/min per IP — `docs/api.md`.
+Riot key). Everything else is public and rate-limited to 500 req/min per *visitor* — `docs/api.md`.
+
+**The rate-limit partition is the visitor, and the trust in `X-Forwarded-For` is bounded twice.**
+Until #1546 the limiter keyed on the connection address, which sounds per-client and is not: no browser
+reaches the API directly, so every public read arrives from the web container and every ops call from the
+admin one. The documented "100 req/min per IP" was therefore a site-wide ceiling of ~1.6 req/s shared by
+everyone at once, and the first burst of real traffic (a Reddit post) spent it in seconds — the site served
+its own visitors 429s, then 502s and 504s as the queue backed up. The key is now the *last* entry of
+`X-Forwarded-For`, and only when the connection comes from a range listed in `RateLimit:TrustedProxies`
+(the private networks by default). Both halves are load-bearing: earlier header entries are written by the
+caller, and the API container publishes port 8080 on the host, so "only Caddy can reach it" is a firewall
+property rather than an application one. The three numeric knobs bind from `RateLimit:*` and carry an env
+override in both compose files, because a traffic spike is precisely when a compiled-in constant is the
+slowest lever available — prod only rolls on a published release. `TrustedProxies` is a list and stays a
+code default: which networks may speak for a visitor is a deployment shape, not an incident lever — #1546.
 
 **The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved.**
 (Owner-confirmed terminology, 2026-07-28: do not call it a dev key.) The production application is submitted

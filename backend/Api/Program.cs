@@ -1,4 +1,3 @@
-using System.Threading.RateLimiting;
 using Core.Options;
 using Data;
 using Data.BuildFacts;
@@ -9,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
 using TrueMain.Options;
+using TrueMain.RateLimiting;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Directory;
@@ -282,25 +282,8 @@ builder.Services
         _ => { });
 builder.Services.AddAuthorization();
 
-// Rate limiting: one global per-IP fixed window (100 req / min with a small
-// queue) shields the public champion endpoints from casual abuse. There is no
-// separate ops policy — the ops endpoints share this window, and because the
-// admin portal proxies them all through one server, they share it from a
-// single source IP.
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 10,
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-            }));
-});
+builder.Services.AddTrueMainRateLimiting(builder.Configuration);
+
 // The one door every champion read goes through: shared cache + single flight, keyed
 // by the ingestor's aggregation version rather than by a 60s clock (#1368). Registered
 // before the reads themselves because every one of them depends on it — a champion
