@@ -144,7 +144,7 @@ services:
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
-      RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-300}"
+      RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
       RateLimit__WindowSeconds: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
       Cors__Origins__0: "http://localhost:3001"
       MongoLogging__CrashFilePath: /home/app/crashes

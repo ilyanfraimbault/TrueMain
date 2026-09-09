@@ -40,7 +40,7 @@ public sealed class RateLimitOptions
     /// into a handful of reads, so a person browsing quickly stays an order of
     /// magnitude under this while a scraper does not.
     /// </summary>
-    public int PermitLimit { get; set; } = 300;
+    public int PermitLimit { get; set; } = 500;
 
     /// <summary>Length of the fixed window, in seconds.</summary>
     public int WindowSeconds { get; set; } = 60;
