@@ -34,8 +34,14 @@ CI). It needs three pieces of repository configuration:
 | secret   | `PROD_ENV_FILE`         | newline-separated `KEY=value` pairs mirroring the VPS `.env` |
 
 Prod and preprod are on **separate Hostinger accounts**, so an API token is
-account-scoped: prod uses its own `HOSTINGER_PROD_API_KEY`, distinct from
-preprod's `HOSTINGER_API_KEY`.
+account-scoped: prod uses `HOSTINGER_PROD_API_KEY` and preprod uses
+`HOSTINGER_PREPROD_API_KEY`. Each token sees only its own account's VM, so
+using one against the other's `vm_id` fails with `403 [VPS:2000] Unauthorized`
+— which is exactly what happened on 2026-09-08, when both secrets were
+rewritten one second apart and preprod stopped deploying while prod kept
+working. The preprod secret used to be called `HOSTINGER_API_KEY`; it was
+renamed so the pair reads as a pair and neither can be mistaken for "the"
+Hostinger key.
 
 The action points Docker Manager at `compose.prod.yaml` at the released commit,
 so the project on the VPS always matches the release. Keep `PROD_ENV_FILE` in
