@@ -21,6 +21,7 @@ namespace Ingestor.Processes.Components.Retention;
 /// </summary>
 public static class RetainedPatchWindow
 {
+    /// <summary>One observed (platform, game version) pair and the start time of its newest match.</summary>
     internal sealed record ObservedPatch(string PlatformId, string GameVersion, DateTime LastGameStartTimeUtc);
 
     /// <summary>
@@ -81,6 +82,12 @@ public static class RetainedPatchWindow
                     .Select(observed => PatchVersion.TryParse(observed.GameVersion, out var patch)
                         ? patch.ToMajorMinor()
                         : null)
+                    // An unparseable game version is left out of the window entirely rather
+                    // than carried through raw. Retention already deletes those matches (their
+                    // generated Patch is NULL, so they match no retained patch), so keeping
+                    // them here would only invite the aggregation to rebuild a slice whose
+                    // source rows are about to disappear. Scopes already written from such a
+                    // version stay frozen, which is the safe side of the trade.
                     .Where(patch => !string.IsNullOrWhiteSpace(patch))
                     .Select(patch => patch!)
                     .Distinct(StringComparer.Ordinal)

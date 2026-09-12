@@ -568,8 +568,6 @@ public sealed class MatchDataRetentionProcess(
                 .ToList());
     }
 
-    /// <summary>One observed (platform, game version) pair and the start time of its newest match.</summary>
-
     private sealed record SnapshotPruneResult(int PrunedMatches, int DeletedSnapshots)
     {
         public static SnapshotPruneResult Empty { get; } = new(0, 0);
