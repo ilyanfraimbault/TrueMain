@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Data.Repositories;
@@ -411,82 +410,12 @@ public sealed class MatchDataRetentionProcess(
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         var retainedPatchCount = Math.Max(1, retentionOptions.Value.RetainedPatchCount);
         var queueId = (int)mainAnalysisOptions.Value.QueueId;
-        var observedMatches = await LoadObservedPatchesAsync(db, queueId, ct);
-        var retainedPatchesByPlatform = ComputeRetainedPatchesByPlatform(observedMatches, retainedPatchCount);
+        var retainedPatchesByPlatform = await RetainedPatchWindow.LoadAsync(db, queueId, retainedPatchCount, ct);
         var deletableMatchIds = retainedPatchesByPlatform.Count == 0
             ? []
             : await FindDeletableMatchIdsAsync(db, queueId, retainedPatchesByPlatform, ct);
 
         return new RetentionPlan(retainedPatchCount, queueId, retainedPatchesByPlatform, deletableMatchIds);
-    }
-
-    /// <summary>
-    /// The distinct (platform, game version) pairs of the retained queue, each with the
-    /// start time of its most recent match.
-    ///
-    /// <para>
-    /// Grouped server-side on purpose: the plan only needs the couple of newest patches per
-    /// platform, but the table holds hundreds of thousands of matches, and projecting one
-    /// row per match pulled the whole retained history into memory on every retention run.
-    /// The <c>PatchVersion</c> normalisation below is not translatable to SQL, but the
-    /// <c>GROUP BY (platform_id, game_version)</c> and its <c>max(game_start_time_utc)</c>
-    /// are, and they return a few hundred rows instead.
-    /// </para>
-    ///
-    /// <para>
-    /// Ordering by that maximum is equivalent to the previous per-match ordering: a patch's
-    /// first appearance in a descending match list is exactly its most recent match, and a
-    /// normalised patch's most recent match is the newest across the game versions that
-    /// normalise to it.
-    /// </para>
-    /// </summary>
-    private static Task<List<ObservedPatch>> LoadObservedPatchesAsync(
-        TrueMainDbContext db,
-        int queueId,
-        CancellationToken ct)
-    {
-        return ObservedPatchesQuery(db, queueId).ToListAsync(ct);
-    }
-
-    /// <summary>
-    /// The query behind <see cref="LoadObservedPatchesAsync"/>, exposed so a test can assert
-    /// on the SQL it translates to: the whole point of the shape is that Postgres does the
-    /// grouping, and a client-evaluated fallback would silently read the table again.
-    /// </summary>
-    internal static IQueryable<ObservedPatch> ObservedPatchesQuery(TrueMainDbContext db, int queueId)
-    {
-        return db.Matches
-            .AsNoTracking()
-            .Where(match => match.QueueId == queueId)
-            .GroupBy(match => new { match.PlatformId, match.GameVersion })
-            .Select(group => new ObservedPatch(
-                group.Key.PlatformId,
-                group.Key.GameVersion,
-                group.Max(match => match.GameStartTimeUtc)));
-    }
-
-    internal static Dictionary<string, HashSet<string>> ComputeRetainedPatchesByPlatform(
-        IReadOnlyCollection<ObservedPatch> observedPatches,
-        int retainedPatchCount)
-    {
-        return observedPatches
-            .GroupBy(observed => observed.PlatformId, StringComparer.Ordinal)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    // Newest patch first, with the game version as a tie-breaker so two
-                    // versions sharing a last-seen timestamp keep a stable order.
-                    .OrderByDescending(observed => observed.LastGameStartTimeUtc)
-                    .ThenByDescending(observed => observed.GameVersion, StringComparer.Ordinal)
-                    .Select(observed => PatchVersion.TryParse(observed.GameVersion, out var patch)
-                        ? patch.ToMajorMinor()
-                        : null)
-                    .Where(patch => !string.IsNullOrWhiteSpace(patch))
-                    .Select(patch => patch!)
-                    .Distinct(StringComparer.Ordinal)
-                    .Take(retainedPatchCount)
-                    .ToHashSet(StringComparer.Ordinal),
-                StringComparer.Ordinal);
     }
 
     private static async Task<List<string>> FindDeletableMatchIdsAsync(
@@ -638,9 +567,6 @@ public sealed class MatchDataRetentionProcess(
                 .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))
                 .ToList());
     }
-
-    /// <summary>One observed (platform, game version) pair and the start time of its newest match.</summary>
-    internal sealed record ObservedPatch(string PlatformId, string GameVersion, DateTime LastGameStartTimeUtc);
 
     private sealed record SnapshotPruneResult(int PrunedMatches, int DeletedSnapshots)
     {
