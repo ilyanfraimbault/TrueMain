@@ -183,6 +183,7 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
         await new ChampionPatternAggregationProcess(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
+            Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions()),
             new ChampionPatternSourceRowReader(factory),
             new ChampionPatternAggregateBuilder(new CohortItemMetadataProvider()),
             new ChampionPatternAggregatePersister(factory, new ChampionDimensionResolver(factory)),

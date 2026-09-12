@@ -4,6 +4,7 @@ using Core.Options;
 using Data.BuildFacts;
 using Data.Entities;
 using AwesomeAssertions;
+using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.PatternAggregation;
 using Microsoft.EntityFrameworkCore;
@@ -231,6 +232,50 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_ShouldNotRebuildAFrozenPatchWhenAStragglerMatchArrivesLate()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedChampionPatternDataAsync();
+
+        // A one-patch window, so 16.5 is unambiguously retired once 16.6 is out: with the
+        // production count of two and only two patches in the fixture, both would legitimately
+        // still be inside it and there would be nothing frozen to protect.
+        var process = CreateProcess(retainedPatchCount: 1);
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using (var mutateDb = _fixture.CreateDbContext())
+        {
+            mutateDb.MatchParticipants.RemoveRange(await mutateDb.MatchParticipants.ToListAsync());
+            mutateDb.Matches.RemoveRange(await mutateDb.Matches.ToListAsync());
+            await mutateDb.SaveChangesAsync();
+        }
+
+        await SeedSecondPatchDataAsync();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        // One old 16.5 game lands long after the patch retired — a harvested account's
+        // history, or a backfill. Retention will sweep it on its next pass, but until
+        // then the row is there, and it used to be enough to make 16.5 "live" again:
+        // the whole frozen patch was deleted and rebuilt over this single straggler.
+        await SeedStragglerOnFrozenPatchAsync();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
+
+        scopes.Select(scope => scope.GameVersion).Should().BeEquivalentTo(["16.5", "16.6"]);
+
+        // Untouched: the straggler is outside the retained window, so 16.5 keeps the two
+        // games it was frozen with instead of collapsing to the one game still on disk.
+        var frozen = scopes.Single(scope => scope.GameVersion == "16.5");
+        frozen.Games.Should().Be(2);
+        frozen.Wins.Should().Be(1);
+
+        var live = scopes.Single(scope => scope.GameVersion == "16.6");
+        live.Games.Should().Be(1);
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldIgnoreMatchesShorterThanFifteenMinutes()
     {
         await _fixture.ResetDatabaseAsync();
@@ -409,7 +454,9 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
         await db.SaveChangesAsync();
     }
 
-    private ChampionPatternAggregationProcess CreateProcess(bool aggregateNonMains = false)
+    private ChampionPatternAggregationProcess CreateProcess(
+        bool aggregateNonMains = false,
+        int retainedPatchCount = 2)
     {
         var dbContextFactory = new TestDbContextFactory(_fixture);
         return new ChampionPatternAggregationProcess(
@@ -418,6 +465,10 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
             {
                 QueueId = LolQueueId.RankedSoloDuo,
                 AggregateNonMainPopulation = aggregateNonMains
+            }),
+            Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
+            {
+                RetainedPatchCount = retainedPatchCount
             }),
             new ChampionPatternSourceRowReader(dbContextFactory),
             new ChampionPatternAggregateBuilder(new FakeItemMetadataProvider()),
@@ -549,6 +600,39 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
         db.MatchParticipants.Add(BuildParticipant(
             Guid.Parse("44444444-4444-4444-4444-444444444444"),
             "KR_AGG_16_6",
+            true,
+            [3153, 3006, 6672]));
+
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SeedStragglerOnFrozenPatchAsync()
+    {
+        var now = DateTime.UtcNow;
+
+        await using var db = _fixture.CreateDbContext();
+
+        db.Matches.Add(new Match
+        {
+            Id = "KR_AGG_16_5_STRAGGLER",
+            PlatformId = "KR",
+            QueueId = (int)LolQueueId.RankedSoloDuo,
+            MapId = (int)LolMapId.SummonersRift,
+            GameMode = "CLASSIC",
+            GameType = "MATCHED_GAME",
+            // Played back when 16.5 was current; only its ingestion is late, which is
+            // exactly why the window ranks patches by their newest game and not by when
+            // rows appeared.
+            GameStartTimeUtc = now.AddDays(-30),
+            GameDurationSeconds = 1800,
+            GameVersion = "16.5.1",
+            CreatedAtUtc = now,
+            TimelineIngested = true
+        });
+
+        db.MatchParticipants.Add(BuildParticipant(
+            Guid.Parse("55555555-5555-5555-5555-555555555555"),
+            "KR_AGG_16_5_STRAGGLER",
             true,
             [3153, 3006, 6672]));
 

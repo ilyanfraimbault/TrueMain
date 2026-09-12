@@ -9,6 +9,15 @@ inside the retention window — permanently destroying history, since no source 
 the history for that patch; the accepted trade-off is that a frozen patch can never be recomputed — #466,
 reaffirmed by #606 and #694.
 
+**"Live" is the retained-patch window, not "has at least one match left".** Old games keep being ingested
+long after their patch retired, and retention only sweeps them on its next pass, so the weaker definition let
+a retired patch flicker back to life and had its whole history rebuilt over those few stragglers — #466 held
+only for patches nobody backfilled. The window is now each platform's `RetainedPatchCount` most recent
+patches, ranked by the recency of their newest *game*, shared with `MatchDataRetentionProcess` through
+`RetainedPatchWindow` so the two cannot drift. One snapshot per run feeds both the cleanup set and the source
+rows, which is also what makes the scope insert collision-free: a pair entering the window mid-run waits for
+the next run instead of being rebuilt without its cleanup — #1549.
+
 **Aggregate retention is opt-in per environment: `AggregateRetainedPatchCount` defaults to 0 (frozen forever); preprod sets 2.**
 The freeze is right for production history but preprod must stay tiny — #711.
 

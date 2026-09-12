@@ -1,4 +1,5 @@
 using Core.Options;
+using Ingestor.Options;
 using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Processes.Summaries;
 using Microsoft.Extensions.Options;
@@ -8,6 +9,7 @@ namespace Ingestor.Processes;
 public sealed class ChampionPatternAggregationProcess(
     ILogger<ChampionPatternAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
+    IOptions<MatchDataRetentionOptions> retentionOptions,
     ChampionPatternSourceRowReader sourceRowReader,
     ChampionPatternAggregateBuilder aggregateBuilder,
     ChampionPatternAggregatePersister aggregatePersister,
@@ -33,7 +35,11 @@ public sealed class ChampionPatternAggregationProcess(
         // the rows (#1346, #601).
         var includeNonMains = analysisOptions.Value.AggregateNonMainPopulation;
 
-        var livePatchKeys = await sourceRowReader.LoadLivePatchKeysAsync(queueId, ct);
+        // One snapshot of the rebuildable window for the whole pass, shared by the
+        // cleanup keys and the source rows of every champion below: a patch that enters
+        // it mid-loop must not be half-rebuilt against a cleanup set that predates it.
+        var livePatchKeys = await sourceRowReader.LoadLivePatchKeysAsync(
+            queueId, retentionOptions.Value.RetainedPatchCount, ct);
         var championIds = await sourceRowReader.LoadChampionIdsAsync(queueId, ct);
 
         if (championIds.Count == 0)
