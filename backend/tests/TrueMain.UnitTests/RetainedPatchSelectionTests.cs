@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using Ingestor.Processes;
+using Ingestor.Processes.Components.Retention;
 
 namespace TrueMain.UnitTests;
 
@@ -14,7 +14,7 @@ public sealed class RetainedPatchSelectionTests
     [Fact]
     public void Keeps_the_newest_patches_per_platform()
     {
-        var observed = new List<MatchDataRetentionProcess.ObservedPatch>
+        var observed = new List<RetainedPatchWindow.ObservedPatch>
         {
             new("EUW1", "14.1.500.1234", new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc)),
             new("EUW1", "14.3.700.9999", new DateTime(2026, 3, 10, 0, 0, 0, DateTimeKind.Utc)),
@@ -22,7 +22,7 @@ public sealed class RetainedPatchSelectionTests
             new("KR", "14.2.600.4321", new DateTime(2026, 2, 11, 0, 0, 0, DateTimeKind.Utc)),
         };
 
-        var retained = MatchDataRetentionProcess.ComputeRetainedPatchesByPlatform(observed, retainedPatchCount: 2);
+        var retained = RetainedPatchWindow.Compute(observed, retainedPatchCount: 2);
 
         retained["EUW1"].Should().BeEquivalentTo(["14.3", "14.2"]);
         retained["KR"].Should().BeEquivalentTo(["14.2"]);
@@ -33,14 +33,14 @@ public sealed class RetainedPatchSelectionTests
     {
         // Two game versions normalising to 14.3 are one patch, not two: the retention
         // count is a patch count, and counting builds would silently halve the history.
-        var observed = new List<MatchDataRetentionProcess.ObservedPatch>
+        var observed = new List<RetainedPatchWindow.ObservedPatch>
         {
             new("EUW1", "14.3.700.9999", new DateTime(2026, 3, 10, 0, 0, 0, DateTimeKind.Utc)),
             new("EUW1", "14.3.701.1111", new DateTime(2026, 3, 12, 0, 0, 0, DateTimeKind.Utc)),
             new("EUW1", "14.2.600.4321", new DateTime(2026, 2, 10, 0, 0, 0, DateTimeKind.Utc)),
         };
 
-        var retained = MatchDataRetentionProcess.ComputeRetainedPatchesByPlatform(observed, retainedPatchCount: 2);
+        var retained = RetainedPatchWindow.Compute(observed, retainedPatchCount: 2);
 
         retained["EUW1"].Should().BeEquivalentTo(["14.3", "14.2"]);
     }
@@ -48,13 +48,13 @@ public sealed class RetainedPatchSelectionTests
     [Fact]
     public void Drops_unparseable_game_versions_instead_of_spending_a_retained_slot_on_them()
     {
-        var observed = new List<MatchDataRetentionProcess.ObservedPatch>
+        var observed = new List<RetainedPatchWindow.ObservedPatch>
         {
             new("EUW1", "not-a-version", new DateTime(2026, 3, 20, 0, 0, 0, DateTimeKind.Utc)),
             new("EUW1", "14.2.600.4321", new DateTime(2026, 2, 10, 0, 0, 0, DateTimeKind.Utc)),
         };
 
-        var retained = MatchDataRetentionProcess.ComputeRetainedPatchesByPlatform(observed, retainedPatchCount: 1);
+        var retained = RetainedPatchWindow.Compute(observed, retainedPatchCount: 1);
 
         retained["EUW1"].Should().BeEquivalentTo(["14.2"]);
     }

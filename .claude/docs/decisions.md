@@ -149,6 +149,7 @@ Last verified against `develop` on 2026-09-02.
 ## Aggregates, retention and the schema — [`decisions/data-aggregation.md`](decisions/data-aggregation.md)
 
 - Champion aggregates are replace-by-scope on *live* patches only. Old patches are frozen and must never be wiped — #466, #606, #694
+- "Live" is the retained-patch window, not "has at least one match left"; one snapshot per run feeds both the cleanup set and the source rows — #1549
 - Aggregate retention is opt-in per environment: `AggregateRetainedPatchCount` defaults to 0 (frozen forever); preprod sets 2 — #711
 - Timeline snapshots are pruned to the canonical marks {5, 10, 15, 20, 30} once a match is powerspike-aggregated — #772, #694
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920

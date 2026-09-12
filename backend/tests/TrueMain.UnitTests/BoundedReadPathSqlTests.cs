@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Data;
 using Ingestor.Processes;
+using Ingestor.Processes.Components.Retention;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
@@ -44,7 +45,7 @@ public sealed class BoundedReadPathSqlTests
     {
         using var db = CreateContext();
 
-        var sql = MatchDataRetentionProcess.ObservedPatchesQuery(db, 420).ToQueryString();
+        var sql = RetainedPatchWindow.ObservedPatchesQuery(db, 420).ToQueryString();
 
         // The whole point of the shape: a few hundred (platform, version) rows come back
         // instead of one row per retained match. A client-evaluated fallback would emit a
@@ -60,7 +61,7 @@ public sealed class BoundedReadPathSqlTests
     {
         using var db = CreateContext();
 
-        var sql = MatchDataRetentionProcess.ObservedPatchesQuery(db, 420).ToQueryString();
+        var sql = RetainedPatchWindow.ObservedPatchesQuery(db, 420).ToQueryString();
 
         // The previous shape ordered every match by start time and projected it. Sorting
         // the whole table is exactly the cost the grouping removes.

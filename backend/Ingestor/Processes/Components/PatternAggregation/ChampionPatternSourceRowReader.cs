@@ -3,6 +3,7 @@ using Core.Lol.Ranking;
 using Data;
 using Data.Aggregation;
 using Data.BuildFacts;
+using Ingestor.Processes.Components.Retention;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
@@ -65,12 +66,40 @@ public sealed class ChampionPatternSourceRowReader(
         return playedChampionIds.Union(scopeChampionIds).ToList();
     }
 
+    /// <summary>
+    /// The (patch, platform) pairs this run may rebuild aggregates for: each platform's
+    /// <c>MatchDataRetention:RetainedPatchCount</c> most recent patches, the same window
+    /// <c>MatchDataRetentionProcess</c> keeps raw matches for.
+    ///
+    /// <para>
+    /// It used to be "every (patch, platform) that still has one match", which conflated
+    /// two different things and broke both of them. Old games keep arriving long after
+    /// their patch retired — a harvested account's history, a backfill — and retention only
+    /// sweeps them on its next pass, so a retired patch was permanently flickering back
+    /// into the set. Each flicker un-froze that patch and replaced its whole aggregate
+    /// history with a rebuild over the handful of stragglers (#466 regressed in practice),
+    /// and because this set is snapshotted once per run while the per-champion source rows
+    /// are read across the following twenty minutes, a pair that flickered in mid-loop was
+    /// rebuilt <em>without</em> being in the cleanup set — inserting scopes on top of the
+    /// frozen ones and failing the run on a duplicate key (#1549).
+    /// </para>
+    ///
+    /// <para>
+    /// Both defects are one missing invariant: the window is a single snapshot per run, and
+    /// every scope written has to come from inside it. The caller threads this set into the
+    /// source-row load as well as the cleanup, so that holds by construction — a patch that
+    /// enters the window mid-run is simply picked up by the next run.
+    /// </para>
+    /// </summary>
     internal async Task<IReadOnlySet<(string GameVersion, string PlatformId)>> LoadLivePatchKeysAsync(
         int queueId,
+        int retainedPatchCount,
         CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        return await LoadLivePatchKeysCoreAsync(db, queueId, ct);
+        var retainedPatchesByPlatform = await RetainedPatchWindow.LoadAsync(
+            db, queueId, Math.Max(1, retainedPatchCount), ct);
+        return RetainedPatchWindow.ToPatchPlatformPairs(retainedPatchesByPlatform);
     }
 
     // `includeNonMains` folds the non-main population too
@@ -90,7 +119,8 @@ public sealed class ChampionPatternSourceRowReader(
         var existingAggregateScopes = LoadExistingAggregateScopes(
             await LoadExistingScopeKeysAsync(db, queueId, championId, ct),
             livePatchKeys);
-        var sourceRows = await LoadSourceRowsAsync(db, queueId, championId, includeNonMains, ct);
+        var sourceRows = await LoadSourceRowsAsync(
+            db, queueId, championId, livePatchKeys, includeNonMains, ct);
 
         return new ChampionPatternAggregationInputs
         {
@@ -132,50 +162,26 @@ public sealed class ChampionPatternSourceRowReader(
             .Where(scope => livePatchKeys.Contains((scope.GameVersion, scope.PlatformId)))
             .ToList();
 
-    private static async Task<HashSet<(string GameVersion, string PlatformId)>> LoadLivePatchKeysCoreAsync(
-        TrueMainDbContext db,
-        int queueId,
-        CancellationToken ct)
-    {
-        // Scopes store the normalised patch ("16.5"), and since #1368 so does
-        // matches: "Patch" is a stored generated column carrying exactly what
-        // PatchVersion.TryParse(...).ToMajorMinor() would return. The DISTINCT is
-        // therefore served straight from IX_matches_queue_patch_platform instead of
-        // scanning the raw GameVersion of every retained match and normalising the
-        // result in memory.
-        var patchKeys = await db.Matches
-            .AsNoTracking()
-            .Where(match => match.QueueId == queueId && match.Patch != null)
-            .Select(match => new { Patch = match.Patch!, match.PlatformId })
-            .Distinct()
-            .ToListAsync(ct);
-
-        // The unparseable tail, kept for parity: NormalizeGameVersion falls back to
-        // the raw string when the version does not parse, and the aggregate scopes
-        // written from such a row carry that raw string too — so the live key has to
-        // as well, or those scopes would silently be treated as frozen. Patch is NULL
-        // exactly when the parse fails, so the same index answers this as a NULL
-        // range, and in practice the range is empty.
-        var unparseableKeys = await db.Matches
-            .AsNoTracking()
-            .Where(match => match.QueueId == queueId && match.Patch == null)
-            .Select(match => new { Patch = match.GameVersion, match.PlatformId })
-            .Distinct()
-            .ToListAsync(ct);
-
-        return patchKeys
-            .Concat(unparseableKeys)
-            .Select(key => (key.Patch, key.PlatformId))
-            .ToHashSet();
-    }
-
     private static async Task<List<AggregateSourceRow>> LoadSourceRowsAsync(
         TrueMainDbContext db,
         int queueId,
         int championId,
+        IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys,
         bool includeNonMains,
         CancellationToken ct)
     {
+        // Narrow to the window in SQL on the two axes a list translates to, then pair them
+        // up exactly below. The cross product is a superset of the window only while a
+        // platform trails another through a rollout, and the rows it adds are precisely the
+        // retired-patch stragglers this filter exists to drop — a few dozen, against the
+        // hundreds of thousands the patch predicate already removed.
+        var windowPatches = livePatchKeys.Select(key => key.GameVersion).Distinct().ToList();
+        var windowPlatforms = livePatchKeys.Select(key => key.PlatformId).Distinct().ToList();
+        if (windowPatches.Count == 0)
+        {
+            return [];
+        }
+
         var sourceRows = await (
             from participant in db.MatchParticipants.AsNoTracking()
             join match in db.Matches.AsNoTracking() on participant.MatchId equals match.Id
@@ -194,6 +200,8 @@ public sealed class ChampionPatternSourceRowReader(
                 && participant.RiotAccountId != null
                 && match.QueueId == queueId
                 && match.TimelineIngested
+                && windowPlatforms.Contains(match.PlatformId)
+                && windowPatches.Contains(match.Patch ?? match.GameVersion)
             select new AggregateSourceRow
             {
                 MatchId = match.Id,
@@ -234,6 +242,7 @@ public sealed class ChampionPatternSourceRowReader(
             .ToListAsync(ct);
 
         var filtered = sourceRows
+            .Where(row => livePatchKeys.Contains((row.GameVersion, row.PlatformId)))
             .Where(HasCompleteCorrelatedTimeline)
             .ToList();
 

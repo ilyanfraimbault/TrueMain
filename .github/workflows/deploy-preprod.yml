@@ -26,12 +26,12 @@ jobs:
           PREPROD_SSH_HOST: ${{ secrets.PREPROD_SSH_HOST }}
           PREPROD_SSH_KEY: ${{ secrets.PREPROD_SSH_KEY }}
           PREPROD_ENV_FILE: ${{ secrets.PREPROD_ENV_FILE }}
-          HOSTINGER_API_KEY: ${{ secrets.HOSTINGER_API_KEY }}
+          HOSTINGER_PREPROD_API_KEY: ${{ secrets.HOSTINGER_PREPROD_API_KEY }}
           HOSTINGER_PREPROD_VM_ID: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
         run: |
           set -uo pipefail
           missing=""
-          for name in PREPROD_SSH_HOST PREPROD_SSH_KEY PREPROD_ENV_FILE HOSTINGER_API_KEY HOSTINGER_PREPROD_VM_ID; do
+          for name in PREPROD_SSH_HOST PREPROD_SSH_KEY PREPROD_ENV_FILE HOSTINGER_PREPROD_API_KEY HOSTINGER_PREPROD_VM_ID; do
             if [ -z "${!name}" ]; then
               missing="${missing} ${name}"
             fi
@@ -91,7 +91,7 @@ jobs:
     secrets:
       ssh_host: ${{ secrets.PREPROD_SSH_HOST }}
       ssh_key: ${{ secrets.PREPROD_SSH_KEY }}
-      hostinger_api_key: ${{ secrets.HOSTINGER_API_KEY }}
+      hostinger_api_key: ${{ secrets.HOSTINGER_PREPROD_API_KEY }}
       env_file: ${{ secrets.PREPROD_ENV_FILE }}
 
   tag:
