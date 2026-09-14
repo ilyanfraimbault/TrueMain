@@ -18,4 +18,5 @@ internal sealed record MongoLogRecord(
     string? Exception,
     string? ProcessName,
     string Host,
-    string? EventType);
+    string? EventType,
+    MongoLogRequestFields Request = default);

@@ -287,3 +287,37 @@ of 68 056 mains, at most 5 for any one champion and exactly 0 for 123 of the 173
 was a column of zeros with no label saying what it measured. It now rides under the **Mains** figure it
 qualifies, as "N relaxed", rendered only when non-zero and explained in the panel's info popover. The
 `/ops/stats/champions` payload is unchanged: the field was never the problem — #1442, #1033, #407.
+
+## Request failures reach the ops logs as counted signal, not as request logging (2026-09-14)
+
+**Decision:** the API reports four request-side outcomes as ops events, so they reach the Logs page at its
+default Warning floor: `RateLimitRejected`, `RequestFailed` (a 5xx answer), `RequestAborted` (the client gave up)
+and `LogRecordsDropped` (the log channel itself overflowed). A row written during a request carries that request —
+method, path, status, duration and `traceId` — in its own fields. Successful and 4xx requests are still not
+logged — #1555.
+
+Preparing a 200-visitor load test showed that none of the errors such a test provokes would have been visible.
+A 429 was reported at Debug. A 5xx left the framework's "unhandled exception" line with no path. An abandoned
+request left nothing. And when the bounded channel overflowed, it evicted the oldest records — a burst's first
+and most useful errors — without a trace.
+
+- **A 429 flood costs a handful of rows, not one per rejection.** Each partition (visitor) gets one row the first
+  time it is rejected in a window, carrying the request that tripped the limit; every rejection is counted, and
+  when the window closes one row per partition rejected more than once states the exact count. At most 50 such
+  rows are written per window, plus one totalling the rest. One row per 429 would have made the flood evict
+  everything else from the channel — the failure this work exists to expose.
+- **5xx and aborts are logged by the outermost middleware, ahead of the exception handler**, so it sees the 500
+  that handler writes. The handler's line keeps the exception, this row carries the request, and the traceId
+  joins them. That traceId is `HttpContext.TraceIdentifier` — what ProblemDetails hands the client — not the W3C
+  activity id, which would match nothing a user can quote.
+- **Rows written by anything else during a request pick the request up from the hosting scope**
+  (`RequestId`, `RequestPath`): the Mongo provider now reads external scopes instead of discarding them, so EF
+  and framework errors gain a path too. A template that names a field wins over the scope.
+- **Dropping stays the channel's overload policy; dropping silently does not.** The channel counts what it
+  evicts, and the sink writes the count as a row built directly into the batch — logging it would feed the
+  full channel.
+- Npgsql's own logger is wired to the host's, so failures below EF Core (connection, pool, protocol) are no
+  longer invisible.
+
+This stays inside "signal-only" (#444): nothing here records a request that went well.
+

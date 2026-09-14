@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
@@ -97,6 +98,7 @@ internal sealed class MongoLogSink(
                     // Flush window elapsed; persist whatever we have so far.
                 }
 
+                AppendDroppedNotice(buffer);
                 await PersistAsync(buffer, stoppingToken);
             }
         }
@@ -131,10 +133,39 @@ internal sealed class MongoLogSink(
             }
         }
 
+        AppendDroppedNotice(buffer);
         if (buffer.Count > 0)
         {
             await PersistAsync(buffer, CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// Adds one <see cref="OpsEvents.LogRecordsDropped"/> row to the batch when the
+    /// channel evicted records since the last flush (#1555). Built here, as a
+    /// document, rather than logged: an <c>ILogger</c> call would go back into the
+    /// very channel that is full.
+    /// </summary>
+    private void AppendDroppedNotice(List<MongoLogDocument> buffer)
+    {
+        var dropped = channel.TakeDroppedCount();
+        if (dropped == 0)
+        {
+            return;
+        }
+
+        buffer.Add(new MongoLogDocument
+        {
+            TimestampUtc = DateTime.UtcNow,
+            Level = nameof(LogLevel.Warning),
+            Category = typeof(MongoLogSink).FullName!,
+            Message = $"{dropped} log record(s) were dropped because the log channel (capacity {channel.Capacity}) "
+                      + "was full; the rows around this one are incomplete.",
+            ProcessName = Truncate(_options.ProcessName, 64),
+            Host = Truncate(Environment.MachineName, 128),
+            EventId = OpsEvents.LogRecordsDropped.Id,
+            EventType = OpsEvents.LogRecordsDropped.Name
+        });
     }
 
     private async Task PersistAsync(IReadOnlyList<MongoLogDocument> documents, CancellationToken ct)
@@ -178,7 +209,15 @@ internal sealed class MongoLogSink(
         EventId = record.EventId == 0 ? null : record.EventId,
         // Never truncated: the value always comes from the fixed OpsEvents catalog
         // (MongoLogger.Resolve), so its length is bounded by the catalog itself.
-        EventType = record.EventType
+        EventType = record.EventType,
+        // Request fields come from request data a caller controls (the path above
+        // all), so they are bounded like the infra fields, not left uncapped like a
+        // stack trace.
+        TraceId = Truncate(record.Request.TraceId, 64),
+        RequestMethod = Truncate(record.Request.RequestMethod, 16),
+        RequestPath = Truncate(record.Request.RequestPath, 512),
+        StatusCode = record.Request.StatusCode,
+        DurationMs = record.Request.DurationMs
     };
 
     private static string? Truncate(string? value, int maxLength)

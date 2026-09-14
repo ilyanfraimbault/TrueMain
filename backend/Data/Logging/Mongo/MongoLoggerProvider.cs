@@ -11,6 +11,7 @@ namespace Data.Logging.Mongo;
 /// configured minimum level is persisted by the background sink.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The <c>[ProviderAlias("Mongo")]</c> attribute lets the standard
 /// <c>Logging:Mongo:LogLevel</c> configuration section target this provider
 /// independently of others, on top of the sink's own
@@ -20,9 +21,16 @@ namespace Data.Logging.Mongo;
 /// dropped before this provider is even called, while Error-severity events such
 /// as the circuit breaker opening are still persisted (#444). Console providers
 /// are unaffected, so the noise can stay visible on stdout.
+/// </para>
+/// <para>
+/// It implements <see cref="ISupportExternalScope"/> so a record written during an
+/// HTTP request can carry that request's path and trace identifier (#1555): the
+/// logger factory hands every scope-aware provider the shared scope stack, and
+/// <see cref="MongoLogger"/> reads it when it snapshots a record.
+/// </para>
 /// </remarks>
 [ProviderAlias("Mongo")]
-internal sealed class MongoLoggerProvider : ILoggerProvider
+internal sealed class MongoLoggerProvider : ILoggerProvider, ISupportExternalScope
 {
     private readonly MongoLogChannel _channel;
     private readonly MongoLoggingOptions _options;
@@ -36,8 +44,13 @@ internal sealed class MongoLoggerProvider : ILoggerProvider
         _host = Environment.MachineName;
     }
 
+    /// <summary>The scope stack set by the logger factory; null until it has been set.</summary>
+    internal IExternalScopeProvider? ScopeProvider { get; private set; }
+
     public ILogger CreateLogger(string categoryName)
-        => _loggers.GetOrAdd(categoryName, name => new MongoLogger(name, _channel, _options, _host));
+        => _loggers.GetOrAdd(categoryName, name => new MongoLogger(name, _channel, _options, _host, this));
+
+    public void SetScopeProvider(IExternalScopeProvider scopeProvider) => ScopeProvider = scopeProvider;
 
     public void Dispose() => _loggers.Clear();
 }

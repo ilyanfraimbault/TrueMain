@@ -49,7 +49,8 @@ public sealed class LogsApiIntegrationTests
             .Should().BeEquivalentTo(
             [
                 "id", "timestampUtc", "level", "category",
-                "message", "exception", "processName", "host", "eventType"
+                "message", "exception", "processName", "host", "eventType",
+                "traceId", "requestMethod", "requestPath", "statusCode", "durationMs"
             ]);
 
         var payload = await response.Content.ReadFromJsonAsync<LogsTestContract>();

@@ -64,4 +64,33 @@ public sealed class MongoLogDocument
     [BsonElement("eventType")]
     [BsonIgnoreIfNull]
     public string? EventType { get; set; }
+
+    /// <summary>
+    /// <c>HttpContext.TraceIdentifier</c> of the request the record was written
+    /// during — the <c>traceId</c> a ProblemDetails response hands the client, so a
+    /// reported error can be found here (#1555). Null outside a request.
+    /// </summary>
+    [BsonElement("traceId")]
+    [BsonIgnoreIfNull]
+    public string? TraceId { get; set; }
+
+    /// <summary>HTTP method of the request the record belongs to (#1555); null outside a request.</summary>
+    [BsonElement("requestMethod")]
+    [BsonIgnoreIfNull]
+    public string? RequestMethod { get; set; }
+
+    /// <summary>Path (and query, when the writer included it) of the request the record belongs to (#1555).</summary>
+    [BsonElement("requestPath")]
+    [BsonIgnoreIfNull]
+    public string? RequestPath { get; set; }
+
+    /// <summary>Status code the request answered with, when the writer knew it (#1555).</summary>
+    [BsonElement("statusCode")]
+    [BsonIgnoreIfNull]
+    public int? StatusCode { get; set; }
+
+    /// <summary>How long the request took, in milliseconds, when the writer measured it (#1555).</summary>
+    [BsonElement("durationMs")]
+    [BsonIgnoreIfNull]
+    public long? DurationMs { get; set; }
 }

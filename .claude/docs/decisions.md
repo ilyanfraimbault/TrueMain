@@ -256,6 +256,7 @@ Last verified against `develop` on 2026-09-02.
 - The configuration viewer is an allow-list, and each host reports itself (2026-08-08) — #1034, #1033, #924
 - The pipeline chain is drawn per lane, not as one flat list (2026-09-02) — #1399, #1362
 - An admin number is either actionable or it is not printed: primary-lane below-floor lines, no `Ext. samples` column (2026-09-03) — #1442
+- Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 

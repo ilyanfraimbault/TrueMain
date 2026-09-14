@@ -65,7 +65,12 @@ public sealed class LogsQueryService(IMongoLogQuery query) : ILogsQueryService
                     Exception = row.Exception,
                     ProcessName = row.ProcessName,
                     Host = row.Host,
-                    EventType = row.EventType
+                    EventType = row.EventType,
+                    TraceId = row.TraceId,
+                    RequestMethod = row.RequestMethod,
+                    RequestPath = row.RequestPath,
+                    StatusCode = row.StatusCode,
+                    DurationMs = row.DurationMs
                 })
                 .ToList(),
             Total = result.Total,

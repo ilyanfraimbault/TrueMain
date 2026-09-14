@@ -11,7 +11,7 @@
 import { h } from 'vue'
 import { UCheckbox } from '#components'
 import type { TableColumn } from '@nuxt/ui'
-import type { LogEntry, LogLevel } from '~~/shared/types/ops'
+import type { LogEntry, LogLevel } from '~~/shared/types/logs'
 import { formatDateTime } from '~~/shared/utils/format'
 
 // This page hosts two server-paginated lists: the application Logs and the durable
@@ -477,89 +477,7 @@ function openDetail(entry: LogEntry) {
             : ''"
         >
           <template #body>
-            <div v-if="selectedEntry" class="space-y-5">
-              <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                <div>
-                  <dt class="text-muted text-xs uppercase mb-0.5">
-                    Level
-                  </dt>
-                  <dd>
-                    <UBadge
-                      :color="levelColor(selectedEntry.level)"
-                      :icon="levelIcon(selectedEntry.level)"
-                      variant="subtle"
-                      size="sm"
-                      :label="selectedEntry.level"
-                    />
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-muted text-xs uppercase mb-0.5">
-                    Timestamp
-                  </dt>
-                  <dd class="tabular-nums">
-                    {{ formatDateTime(selectedEntry.timestampUtc) }}
-                  </dd>
-                </div>
-                <div class="col-span-2">
-                  <dt class="text-muted text-xs uppercase mb-0.5">
-                    Category
-                  </dt>
-                  <dd class="font-mono text-xs break-all">
-                    {{ selectedEntry.category }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-muted text-xs uppercase mb-0.5">
-                    Process
-                  </dt>
-                  <dd class="font-mono text-xs">
-                    {{ selectedEntry.processName ?? '—' }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-muted text-xs uppercase mb-0.5">
-                    Host
-                  </dt>
-                  <dd class="font-mono text-xs">
-                    {{ selectedEntry.host ?? '—' }}
-                  </dd>
-                </div>
-                <div v-if="selectedEntry.eventType" class="col-span-2">
-                  <dt class="text-muted text-xs uppercase mb-0.5">
-                    Event
-                  </dt>
-                  <dd>
-                    <UBadge
-                      color="primary"
-                      variant="subtle"
-                      size="sm"
-                      :label="selectedEntry.eventType"
-                    />
-                  </dd>
-                </div>
-              </dl>
-
-              <div>
-                <div class="flex items-center justify-between mb-1.5">
-                  <p class="text-muted text-xs uppercase">
-                    Message
-                  </p>
-                  <CopyButton :text="selectedEntry.message" label="Copy" />
-                </div>
-                <pre class="text-xs bg-elevated/50 border border-default rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedEntry.message }}</pre>
-              </div>
-
-              <div v-if="selectedEntry.exception">
-                <div class="flex items-center justify-between mb-1.5">
-                  <p class="text-muted text-xs uppercase">
-                    Exception
-                  </p>
-                  <CopyButton :text="selectedEntry.exception" label="Copy" />
-                </div>
-                <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ selectedEntry.exception }}</pre>
-              </div>
-            </div>
+            <LogEntryDetail v-if="selectedEntry" :entry="selectedEntry" />
           </template>
         </USlideover>
       </template>

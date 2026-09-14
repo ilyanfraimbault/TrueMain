@@ -249,6 +249,97 @@ public sealed class MongoLoggingIntegrationTests
         recorded.TimestampUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
     }
 
+    [Fact]
+    public async Task DiagnosticSink_PersistsTheRequestARecordBelongsTo()
+    {
+        await _mongo.ResetAsync();
+
+        using var host = BuildHost();
+        await host.StartAsync();
+
+        var collection = _mongo.GetCollection<MongoLogDocument>(MongoFixture.LogsCollection);
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Test.Requests");
+
+        // A template that names the fields (the request-outcome middleware's shape)…
+        logger.LogError(
+            OpsEvents.RequestFailed,
+            "{RequestMethod} {RequestPath} answered {StatusCode} in {DurationMs} ms (trace {TraceId})",
+            "GET",
+            "/champions/103?patch=16.18",
+            503,
+            1234L,
+            "0HN7:00000001");
+
+        // …and a record that names nothing but is written inside the hosting scope
+        // ASP.NET opens around a request (the framework's unhandled-exception line).
+        using (logger.BeginScope(new Dictionary<string, object?>
+               {
+                   ["RequestId"] = "0HN7:00000002",
+                   ["RequestPath"] = "/truemains"
+               }))
+        {
+            logger.LogError(new InvalidOperationException("boom"), "An unhandled exception has occurred.");
+        }
+
+        await AsyncWait.UntilAsync(async () =>
+            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 2,
+            "the sink to persist both request records");
+
+        await host.StopAsync();
+
+        var documents = await collection.Find(FilterDefinition<MongoLogDocument>.Empty).ToListAsync();
+
+        var failed = documents.Single(doc => doc.EventType == nameof(OpsEvents.RequestFailed));
+        failed.RequestMethod.Should().Be("GET");
+        failed.RequestPath.Should().Be("/champions/103?patch=16.18");
+        failed.StatusCode.Should().Be(503);
+        failed.DurationMs.Should().Be(1234);
+        failed.TraceId.Should().Be("0HN7:00000001");
+
+        var unhandled = documents.Single(doc => doc.EventType is null);
+        unhandled.TraceId.Should().Be("0HN7:00000002");
+        unhandled.RequestPath.Should().Be("/truemains");
+        unhandled.StatusCode.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DiagnosticSink_PersistsACountOfTheRecordsAFullChannelDropped()
+    {
+        await _mongo.ResetAsync();
+
+        using var host = BuildHost(new Dictionary<string, string?>
+        {
+            ["MongoLogging:Capacity"] = "2"
+        });
+
+        // Written before the sink starts draining, so the two-record channel evicts
+        // deterministically: records 0-2 are dropped, 3 and 4 survive.
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Test.Overflow");
+        for (var index = 0; index < 5; index++)
+        {
+            logger.LogWarning("warning {Index}", index);
+        }
+
+        await host.StartAsync();
+
+        var collection = _mongo.GetCollection<MongoLogDocument>(MongoFixture.LogsCollection);
+        await AsyncWait.UntilAsync(async () =>
+            await collection.CountDocumentsAsync(FilterDefinition<MongoLogDocument>.Empty) == 3,
+            "the sink to persist the two surviving records and the dropped-records row");
+
+        await host.StopAsync();
+
+        var documents = await collection.Find(FilterDefinition<MongoLogDocument>.Empty).ToListAsync();
+        documents.Where(doc => doc.EventType is null).Select(doc => doc.Message)
+            .Should().BeEquivalentTo(["warning 3", "warning 4"]);
+
+        var dropped = documents.Single(doc => doc.EventType == nameof(OpsEvents.LogRecordsDropped));
+        dropped.Level.Should().Be("Warning");
+        dropped.EventId.Should().Be(OpsEvents.LogRecordsDropped.Id);
+        dropped.ProcessName.Should().Be("Test");
+        dropped.Message.Should().StartWith("3 log record(s) were dropped");
+    }
+
     private IHost BuildHost(IEnumerable<KeyValuePair<string, string?>>? extraConfiguration = null)
     {
         var builder = Host.CreateApplicationBuilder();
