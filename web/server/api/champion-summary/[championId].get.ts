@@ -35,6 +35,21 @@ import { resolveChampionBuildSummary } from '~~/shared/utils/champion-build-summ
  * Every upstream degrades on its own: no backend means no numbers, no DDragon
  * means no names, and the block simply renders less. None substitutes for
  * another, and nothing is invented — see `resolveChampionBuildSummary`.
+ *
+ * **Only an absence is cached** (#1557). A 404 describes the slice — the champion
+ * has no aggregate there — and is as true in five minutes as now. A 429, a 5xx or
+ * an unreachable upstream describes the moment: it used to be folded into the
+ * same empty summary and cached, so one throttled request blanked the paragraph
+ * for every visitor of that slice for five minutes. Those now fail the cached
+ * loader, which stores nothing, and the handler answers that one view with the
+ * empty summary.
+ *
+ * **The fan-out is attributed to the visitor who caused it** (#1557). These are
+ * in-process calls through the `/api` proxy, which carry no headers of their own:
+ * without the visitor's `X-Forwarded-For` the API would key every summary on the
+ * web container, one rate-limit bucket shared by the whole site. Only that header
+ * is forwarded — the rest of the visitor's request has no business in a response
+ * shared by everyone who hits the same cache key.
  */
 
 /**
@@ -122,9 +137,23 @@ function readQuery(event: H3Event): SummaryQuery {
   }
 }
 
-const loadChampionBuildSummary = defineCachedFunction(
-  async (championId: number, query: SummaryQuery): Promise<ChampionBuildSummary> => {
+/** The status of a failed upstream call, when it got as far as an HTTP answer. */
+function upstreamStatus(error: unknown): number | undefined {
+  const failure = error as { statusCode?: unknown, response?: { status?: unknown } } | null
+  const status = failure?.statusCode ?? failure?.response?.status
+  return typeof status === 'number' ? status : undefined
+}
+
+/** A 404 is the slice's answer and degrades to `null`; anything else is rethrown so it is never cached. */
+function absentOnlyWhenNotFound(error: unknown): null {
+  if (upstreamStatus(error) === 404) return null
+  throw error
+}
+
+const loadChampionBuildSummary = defineCachedFunction<ChampionBuildSummary, [number, SummaryQuery, string?]>(
+  async (championId: number, query: SummaryQuery, forwardedFor?: string): Promise<ChampionBuildSummary> => {
     const patch = query.patch ?? undefined
+    const headers = forwardedFor ? { 'x-forwarded-for': forwardedFor } : undefined
 
     const [champion, championStatic, itemsMap, runeTree, summonersMap, opponentStatic] = await Promise.all([
       // A 404 here is meaningful rather than exceptional — the champion simply
@@ -138,16 +167,17 @@ const loadChampionBuildSummary = defineCachedFunction(
           truemainsOnly: query.truemainsOnly ? undefined : 'false',
           opponentChampionId: query.opponentChampionId ?? undefined,
         },
-      }).catch(() => null),
-      $fetch<ChampionStaticData>(`/api/static/${championId}`, { query: { patch } }).catch(() => null),
-      $fetch<Record<number, StaticItemData>>('/api/static/items', { query: { patch } }).catch(() => null),
-      $fetch<RuneTreeResponse>('/api/static/rune-tree', { query: { patch } }).catch(() => null),
-      $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', { query: { patch } }).catch(() => null),
+        headers,
+      }).catch(absentOnlyWhenNotFound),
+      $fetch<ChampionStaticData>(`/api/static/${championId}`, { query: { patch }, headers }).catch(absentOnlyWhenNotFound),
+      $fetch<Record<number, StaticItemData>>('/api/static/items', { query: { patch }, headers }).catch(absentOnlyWhenNotFound),
+      $fetch<RuneTreeResponse>('/api/static/rune-tree', { query: { patch }, headers }).catch(absentOnlyWhenNotFound),
+      $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', { query: { patch }, headers }).catch(absentOnlyWhenNotFound),
       // Only when one is pinned — the unfiltered page must not pay a sixth
       // lookup for a name it will never print.
       query.opponentChampionId === null
         ? Promise.resolve(null)
-        : $fetch<ChampionStaticData>(`/api/static/${query.opponentChampionId}`, { query: { patch } }).catch(() => null),
+        : $fetch<ChampionStaticData>(`/api/static/${query.opponentChampionId}`, { query: { patch }, headers }).catch(absentOnlyWhenNotFound),
     ])
 
     return resolveChampionBuildSummary({
@@ -181,5 +211,24 @@ export default defineEventHandler(async (event): Promise<ChampionBuildSummary> =
   if (championId === null) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid championId' })
   }
-  return loadChampionBuildSummary(championId, readQuery(event))
+  const query = readQuery(event)
+  try {
+    return await loadChampionBuildSummary(championId, query, getRequestHeader(event, 'x-forwarded-for'))
+  }
+  catch {
+    // An upstream said "not now" (429, 5xx, unreachable). The loader stored
+    // nothing, so the next view retries; this one gets the empty summary rather
+    // than a second fan-out against an API that just asked for less traffic.
+    return resolveChampionBuildSummary({
+      championId,
+      champion: null,
+      championStatic: null,
+      itemsMap: null,
+      runeTree: null,
+      summonersMap: null,
+      requestedEloBracket: query.eloBracket ?? 'ALL',
+      opponentName: null,
+      opponentIconUrl: null,
+    })
+  }
 })

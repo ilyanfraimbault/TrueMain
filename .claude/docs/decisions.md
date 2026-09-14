@@ -136,6 +136,7 @@ Last verified against `develop` on 2026-09-02.
 - Every icon URL is built by one helper, so one asset is one cache entry — #1000
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
 - `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26) — #1226, #947, #966
+- SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14) — #1557, #1546
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
