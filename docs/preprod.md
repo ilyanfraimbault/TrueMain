@@ -21,10 +21,13 @@ Design goals:
   are small and only the current patch's match data is retained. The
   accounts/mains base is never purged by retention — only match data is — so
   the player base persists while matches stay bounded.
+- **Prod's parameters, not prod's volume** — everything that shapes behaviour
+  matches `compose.prod.yaml`; what may differ, and why, is listed in
+  [Parity with prod](#parity-with-prod).
 
 ## Two ingestor lanes
 
-Preprod runs the ingestion pipeline as **two containers** (#1362), where prod still runs one:
+Preprod runs the ingestion pipeline as **two containers** (#1362), as prod does since #1491:
 
 | container | `Job:Mode` | cadence |
 | --- | --- | --- |
@@ -33,7 +36,7 @@ Preprod runs the ingestion pipeline as **two containers** (#1362), where prod st
 
 The two halves have opposite bottlenecks — the fetch lane waits on Riot, the aggregate lane on Postgres — so
 chaining them left the API key idle through every aggregation. Splitting them is a deployment choice, not a
-code one: a single container on `Job:Mode=Full` still runs all 20 steps in order, which is what prod does.
+code one: a single container on `Job:Mode=Full` still runs all 20 steps in order.
 
 Both lanes share one environment block in `compose.preprod.yaml` (the `x-ingestor-environment` anchor); only
 the mode, the cadence, the `Application Name` on the connection string and the crash volume differ. To collapse
@@ -100,30 +103,60 @@ docker compose up -d
 The API container will not create the schema itself (migrations are applied
 out-of-band, not on startup — see below): run the `Deploy Preprod` workflow
 once via `gh workflow run deploy-preprod.yml` (or the Actions UI) right after
-this first bring-up, so `migrate-preprod` creates the schema before the API
+this first bring-up, so the rollout's `migrate` job creates the schema before the API
 is expected to serve traffic.
 
 The compose file uses `truemain_preprod_*` volume names, so even on the old
 production host the stack starts from a virgin Postgres/Mongo. Migrations are
-applied by the `migrate-preprod` CI job (see below), not at API startup; the
+applied by the rollout's `migrate` job (see below), not at API startup; the
 ingestor then populates the database over its cycles.
 
 Exposed ports (HTTP, no TLS — restrict by firewall to trusted IPs):
 
-| Service     | Port |
-| ----------- | ---- |
-| web         | 3001 |
-| admin       | 3002 |
-| api         | 8081 |
-| umami-proxy | 3100 |
-| pgadmin     | 5051 |
-| postgres    | 5432 (loopback only) |
+| Service                 | Port |
+| ----------------------- | ---- |
+| web (through `caddy`)   | 3001 |
+| admin (through `caddy`) | 3002 |
+| api                     | 8081 |
+| umami-proxy             | 3100 |
+| pgadmin                 | 5051 |
+| postgres                | 5432 (loopback only) |
 
 `umami-proxy` is the one entry in that table that cannot be narrowed to
 loopback: it is what the visitor's browser posts analytics events to
 (`UMAMI_PUBLIC_URL`, injected into the frontends as `NUXT_PUBLIC_UMAMI_HOST`),
 so binding it to `127.0.0.1` would silently drop every hit. Firewall it to the
 tester IPs like the rest, not to the host itself.
+
+## Edge proxy
+
+Web and admin are not published directly: a `caddy` service listens on 3001 and
+3002 and proxies to them, the way Caddy fronts prod (#1558). Before it, preprod
+differed from prod in three behaviours that all came from having nothing in
+front of the apps:
+
+- **Rate limiting.** The API keys its per-visitor limit on the last
+  `X-Forwarded-For` hop (#1546). With no edge to write that header, every
+  preprod visitor landed in one bucket, so a load test measured the limiter
+  rather than the site.
+- **Access logs.** Both sites log every request to the Caddy container's output,
+  as prod's two sites do.
+- **Admin login throttle.** The admin runs with `NUXT_TRUST_PROXY=true`, like
+  prod, because Caddy overwrites `X-Forwarded-For` with the peer it saw.
+
+Two things stay different by nature. The Caddyfile is inline in
+`compose.preprod.yaml` (`configs.edge_caddyfile`) rather than a file next to it,
+because the Docker Manager deploy ships the compose file and nothing else — the
+same reason `umami-proxy` is configured that way. And it serves plain HTTP
+(`auto_https off`): preprod has no DNS name to get a certificate for, and the
+host's 80/443 belong to another project, so the admin session cookie stays
+non-`Secure`.
+
+`PREPROD_SITE_URL` and `PREPROD_ADMIN_URL` (in `.env`, so the address stays out
+of the repo) are the two origins Caddy serves. The web app advertises the first
+in its canonical links, sitemap and robots.txt instead of the prod host, and the
+API allows both as CORS origins, as prod lists its own. The deploy fails if
+either is unset.
 
 ## Updating preprod to the latest develop
 
@@ -238,30 +271,63 @@ docker compose up -d
 If the compose file itself changed on `develop`, re-download it before
 pulling.
 
-## Data-diet knobs
+## Parity with prod
 
-The ingestion volume is tuned with environment variables on the `ingestor`
-service in `compose.preprod.yaml` and `compose.prod.yaml` (they override
-`appsettings.json`; see `backend/Ingestor/Options/*` for the full catalogue).
-Prod's match-search knobs are explicit `compose.prod.yaml` overrides (#811),
-not `appsettings.json` defaults — they were raised once the champion
-matchup/lead aggregation stopped dominating the loop's cycle time:
+Preprod runs **prod's parameters at a smaller volume** (#1558): a measurement
+taken here — a load test, a query plan, a pipeline pass — only means something if
+the stack behaves like prod's. Everything in `compose.preprod.yaml` matches
+`compose.prod.yaml` except what falls into one of the three groups below; a
+difference that fits none of them is drift to fix, not a preprod habit.
+
+### Volume
+
+The ingestion volume is tuned with environment variables shared by both ingestor
+lanes (the `x-ingestor-environment` anchor). They override the defaults declared
+in `backend/Ingestor/Options/*`:
 
 | Knob | Preprod | Prod | Effect |
 | ---- | ------- | ---- | ------ |
-| `MatchDataRetention__RetainedPatchCount` | 1 | 2 (appsettings default) | keep only the current patch's match data |
 | `Discovery__MaxAccountsPerPlatformPerRun` | 100 | 750 | ladder crawl window |
 | `Discovery__NewAccountsTarget` | 15 | 75 | new accounts per run |
 | `Scoring__TopNPerPlatform` | 50 | 300 | candidates queued per platform |
 | `Harvest__MaxCandidatesPerRun` | 500 | 7500 | harvest candidate generation cap |
 | `MatchIngestion__BatchSize` | 25 | 75 | accounts fetched per cycle |
-| `MatchIngestion__MatchesPerAccount` | 10 | 20 (appsettings default) | matches per account |
-| `MainAnalysis__MatchesToConsider` | 30 | 50 (appsettings default) | analysis window |
-| `MainAnalysis__MinMatchesToEvaluate` | 10 | 20 (appsettings default) | flag mains sooner on the small sample |
+| `ManualSeed__BatchSize` | 250 | 750 | manual seeds resolved per cycle |
+| `MatchDataRetention__RetainedPatchCount` | 1 | 2 (code default) | patches of match data kept |
+| `MatchDataRetention__AggregateRetainedPatchCount` | 2 | 0 (code default: kept forever) | patches of aggregates kept, so older champion pages are empty on preprod by choice |
+| `MongoLogging__LogsRetention` | 30 days | 90 days (default) | diagnostic log TTL |
 
-Adjust them directly in the compose file on the host if preprod needs more (or
-less) data — no image rebuild required, `docker compose up -d` recreates the
-ingestor with the new values.
+Postgres memory settings follow the same logic: they keep **prod's ratio to the
+host's RAM**, not prod's absolute values — see *Postgres server tuning* in
+`docs/prod.md`.
+
+The main-detection parameters are deliberately **not** in this table. Preprod
+used to fetch 10 matches per account, analyse 30 and flag a main from 10, where
+prod runs the code defaults of 20, 50 and 20. That is a different definition of
+a main, not a smaller sample of the same one, so preprod now runs prod's values.
+
+Adjust a volume knob directly in the compose file on the host if preprod needs
+more (or less) data for a while — no image rebuild required, `docker compose up
+-d` recreates the ingestor with the new values. The next deploy puts the
+repository's values back.
+
+### Identity
+
+What cannot be the same on two environments: the Riot API key and the database
+it is paired with, container, volume and network names, host ports, image tags,
+secrets, the public origins (`PREPROD_SITE_URL`, `PREPROD_ADMIN_URL`, Umami's
+URLs), `NUXT_PUBLIC_APP_ENV`, and TLS (see [Edge proxy](#edge-proxy)). Preprod
+also publishes two debugging aids prod does not have: pgAdmin, and Postgres on
+loopback.
+
+### Trials
+
+Behaviour that runs on preprod first, on purpose, and stays listed here until it
+is promoted to prod or dropped:
+
+- `MainAnalysis__AggregateNonMainPopulation=true` — the "everyone" population
+  fold (#1346). Prod keeps it off until its memory cost is validated there
+  (#601).
 
 ## Platform scope
 

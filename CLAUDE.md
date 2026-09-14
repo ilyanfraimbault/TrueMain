@@ -11,7 +11,7 @@ TrueMain is a League of Legends analytics site: champion/player stats computed f
   - **Preprod** auto-deploys from `compose.preprod.yaml` on every push to `develop` — a plain feature merge reaches preprod automatically a few minutes later, no manual step.
   - **Prod** auto-deploys from `compose.prod.yaml` only when a GitHub Release is **published** — merging to `develop`/`master` alone does not reach prod; cutting a release does (see the `release` skill).
   - Both jobs publish immutable `:<sha>`/`:<version>` image tags alongside the moving `:preprod`/`:latest` ones, so compose always resolves to a tag Docker Manager is forced to pull — a mutable-tag redeploy would otherwise silently keep the stale image running.
-  - Both `compose.preprod.yaml` and `compose.prod.yaml` run with `ApplyMigrationsOnStartup: "false"` — migrations apply out-of-band, via a `migrate-preprod`/`migrate-prod` CI job that pipes an idempotent SQL script into the VPS's Postgres container over SSH before the deploy job rolls the images (`docs/production-migrations.md`, #208, #1058).
+  - Both `compose.preprod.yaml` and `compose.prod.yaml` run with `ApplyMigrationsOnStartup: "false"` — migrations apply out-of-band, via the `migrate` job of the shared `rollout.yml` workflow, which pipes an idempotent SQL script into the VPS's Postgres container over SSH before the deploy job rolls the images (`docs/production-migrations.md`, #208, #1058).
 - `docs/` — project docs; `docs/ci.md` explains every workflow, Dockerfile and compose choice — the config files themselves carry no comments, keep it that way.
 
 ## Project knowledge base — read before proposing work

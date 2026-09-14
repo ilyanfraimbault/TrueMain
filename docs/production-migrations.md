@@ -77,7 +77,7 @@ dotnet ef migrations script \
 
 Always open and review the generated SQL before it applies — confirm there
 are no unintended `DROP`s and no destructive data operations. The
-`migrate-preprod`/`migrate-prod` jobs print the full script to the job log
+rollout's `migrate` job prints the full script to the job log
 (`::group::migration.sql`) and upload it as a build artifact (90-day
 retention) before applying it, so both runs leave an auditable record —
 see "CI wiring" below.
@@ -137,7 +137,7 @@ into `psql` inside the running container over SSH instead — same
 
 ### A migration that depends on a server setting runs before the setting exists
 
-`migrate-preprod` / `migrate-prod` deliberately run **before** the deploy job rolls
+The rollout's `migrate` job deliberately runs **before** the deploy job rolls
 the images, so the script always meets the *previous* server. A migration whose
 statement depends on a setting introduced by the same PR therefore runs against a
 server that does not have it yet, and — because EF stamps

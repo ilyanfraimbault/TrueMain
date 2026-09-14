@@ -67,8 +67,9 @@ export default defineNuxtConfig({
     adminPassword: process.env.NUXT_ADMIN_PASSWORD ?? 'truemain',
     // When true, the login throttle reads the client IP from `X-Forwarded-For`
     // (set by a trusted TLS-terminating proxy that overwrites it — Caddy in
-    // prod). Leave false for direct-exposure deployments (dev, qa on :3002)
-    // where `X-Forwarded-For` is attacker-controlled. Set via NUXT_TRUST_PROXY.
+    // prod, the edge Caddy on preprod's :3002). Leave false wherever the app is
+    // reached directly (local dev), since `X-Forwarded-For` is then
+    // attacker-controlled. Set via NUXT_TRUST_PROXY.
     trustProxy: process.env.NUXT_TRUST_PROXY === 'true',
     // `session.password` is read by nuxt-auth-utils from NUXT_SESSION_PASSWORD
     // (>= 32 chars). Declared so a misconfigured env surfaces clearly.
@@ -76,7 +77,7 @@ export default defineNuxtConfig({
       password: process.env.NUXT_SESSION_PASSWORD ?? '',
       // Drives the session cookie `Secure` attribute. Browsers reject a
       // `Secure` cookie over plain HTTP, so it defaults to false for
-      // direct-HTTP deployments (dev, qa on :3002). In prod the admin sits
+      // plain-HTTP deployments (dev, and preprod's :3002). In prod the admin sits
       // behind Caddy (TLS) which sets NUXT_SESSION_COOKIE_SECURE=true, so the
       // cookie is `Secure` over HTTPS.
       cookie: { secure: process.env.NUXT_SESSION_COOKIE_SECURE === 'true' },

@@ -225,6 +225,7 @@ Last verified against `develop` on 2026-09-02.
 - Both deploy pipelines serialise at workflow level, not per job — #1228
 - Integration tests run on pushes to `develop`/`master`, not only on pull requests — #1228
 - Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database — #705
+- Preprod runs prod's parameters at a smaller volume, behind its own plain-HTTP edge Caddy (2026-09-14) — #1558, #1546
 - Preprod builds carry a prerelease version, tagged only after they deploy (2026-08-24)
 - Caddy terminates TLS and is the only public entry point in prod — #433, #430, #426
 - The admin `/analytics` iframe stays on Umami's public share view, not the authenticated app — kept as-is on purpose, 2026-08-04 — #1013, #1014

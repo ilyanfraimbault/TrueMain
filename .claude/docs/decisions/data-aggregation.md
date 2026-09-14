@@ -194,6 +194,6 @@ quietly disagrees with the C# rule just drops rows out of every champion read.
 
 **Not a startup migration.** Adding a STORED column rewrites the table under `ACCESS EXCLUSIVE` and the two
 index builds follow it; at ~274 k rows that is seconds, but it goes out of band through the
-`migrate-preprod`/`migrate-prod` job like every other migration (`docs/production-migrations.md`, #598). The
+rollout's `migrate` job like every other migration (`docs/production-migrations.md`, #598). The
 indexes are ordinary `CREATE INDEX`, not `CONCURRENTLY`: the rewrite already holds the strongest lock there
 is, so concurrency would buy nothing and cost the ability to run inside the script's transaction.

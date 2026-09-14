@@ -294,6 +294,8 @@ jobs:
       ADMIN_USERNAME: truemain
       ADMIN_PASSWORD: truemain
       UMAMI_APP_SECRET: ci-umami-app-secret-min-32-characters
+      PREPROD_SITE_URL: http://preprod.ci.invalid:3001
+      PREPROD_ADMIN_URL: http://preprod.ci.invalid:3002
 
     steps:
       - name: Checkout
