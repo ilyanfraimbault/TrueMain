@@ -149,3 +149,31 @@ through untouched, so it is a shape fixer and never a guard. Every static endpoi
 a CDN URL *and* uses it as a cache key, so an unvalidated `?patch=` is both a path-injection vector and an
 unbounded-cache-key vector: one entry per distinct string, held for the payload TTL. The guard lives in
 `normalizeRequestedPatch` and covers all four web static endpoints, not just the champion list.
+
+## SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14)
+
+**Decision:** a fetch that can run during SSR and reaches the backend through `/api` goes through
+`useRequestFetch()` (or `useFetch`, which already does), and a server handler that fans out to `/api` forwards
+the visitor's `X-Forwarded-For` — that header only. A cached server function stores an upstream's 404, but
+rethrows a 429, a 5xx or an unreachable upstream so that nothing is stored — #1557.
+
+On the server, a bare `$fetch('/api/…')` is an in-process call that carries none of the incoming request's
+headers. The proxy then calls the API from the web container with no `X-Forwarded-For`, and the API — which keys
+its rate limit on that header since #1546 — puts every SSR call of every visitor in one bucket: the site-wide
+ceiling #1546 removed for browser calls. The `/truemains` leaderboard's first page and the champion page's build
+summary were the two SSR paths affected; every other page fetch is `server: false`, and the static endpoints talk
+to Data Dragon, not the API.
+
+- **Only that one header crosses into a cached handler.** The champion summary is shared by everyone who hits
+  the same slice key; forwarding the rest of the triggering visitor's request (cookies, `If-None-Match`) into a
+  response other people receive is how a cache serves one person's variant to all. The visitor whose view misses
+  the cache is the one charged for the fan-out, which is what the limit is for.
+- **A 429 used to be cached for five minutes as an empty summary.** Every upstream failure was folded into
+  `null`, and `null` is what the cache stored, so one throttled request blanked the paragraph for the whole slice.
+  A 404 still degrades and is cached — it is the slice's answer. Anything else fails the cached loader, and that
+  one view gets the empty summary, without a second fan-out against an API that just asked for less traffic.
+- **The proxy does not rewrite `X-Forwarded-For` from `getRequestIP`.** h3 returns the header's *first* entry,
+  the one a client writes; the API reads the *last*, the one the edge appends. Normalising it in the proxy would
+  reopen exactly the spoofing #1546 closed, so the header passes through untouched and the edge stays the only
+  writer that counts.
+
