@@ -24,7 +24,7 @@ running and the `53300` outage returned — #462.
 **Preprod and prod both apply migrations out-of-band, as a discrete CI step before the images roll — not at startup.**
 `Database__ApplyMigrationsOnStartup` is `false` in both `compose.preprod.yaml` and `compose.prod.yaml`
 (Microsoft advises against startup migration under concurrency: elevated app-account privileges, no review
-or rollback). The `migrate-preprod`/`migrate-prod` jobs in `deploy-preprod.yml`/`deploy-prod.yml` generate an
+or rollback). The `migrate` job of `rollout.yml` (called by `deploy-preprod.yml`/`deploy-prod.yml`) generates an
 idempotent SQL script from the deployed commit/tag and apply it over SSH by piping it into `psql` inside the
 running Postgres container — neither VPS exposes a connection reachable from a GitHub-hosted runner. The
 deploy job depends on the migrate job, so a failed migration blocks the image roll. Preprod runs this on
@@ -165,3 +165,24 @@ and pending review. It declares ACCOUNT-V1, SUMMONER-V4, MATCH-V5, LEAGUE-V4 and
 **not SPECTATOR-V5**. Consequences: no live-game features (#532, parked P3), no RSO and therefore no user
 accounts (#780), ingestion is rate-limited, and data changes are forward-only because backfill is not
 possible. Approval is the single external unlock for all of it — #780.
+
+## Preprod runs prod's parameters at a smaller volume, behind its own edge Caddy (2026-09-14)
+
+**Decision:** `compose.preprod.yaml` may differ from `compose.prod.yaml` only in **volume** (ingestion batch
+sizes, retention, Postgres memory sizes kept at prod's ratio to RAM), **identity** (Riot key, names, ports,
+origins, secrets, TLS) and **documented trials** (`AggregateNonMainPopulation`). Everything else matches, and
+a plain-HTTP `caddy` service fronts web and admin on preprod's ports — #1558.
+
+Preparing a load test (#1560) forced the inventory, and preprod had drifted in ways that would have made its
+numbers meaningless. With nothing in front of the apps, the API never saw an `X-Forwarded-For` and put every
+preprod visitor in one rate-limit bucket, and the admin throttle could not trust the header. Main detection ran
+on 10/30/10 matches instead of 20/50/20 — a different definition of a main, not a smaller sample of the same one.
+
+- **Memory settings scale; they are not copied.** `shared_buffers=4GB` on a 7.7 GB shared host invites the OOM
+  this project has already had (#601). Prod's *ratios* carry over, and the preprod values already met them.
+- **The Caddyfile is inline** under `configs:`, because the deploy hands Docker Manager the compose file only —
+  a sibling `Caddyfile` would have to be placed on the host by hand.
+- **Plain HTTP stays.** Preprod has no DNS name, and the host's 80/443 belong to another project; the admin
+  cookie stays non-`Secure`, which is an identity difference, not drift.
+- **`AggregateNonMainPopulation` stays a preprod-only trial**, kept by the owner's choice rather than aligned.
+

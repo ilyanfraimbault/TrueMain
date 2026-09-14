@@ -13,9 +13,6 @@ x-ingestor-environment: &ingestor-environment
       Scoring__TopNPerPlatform: "50"
       Harvest__MaxCandidatesPerRun: "500"
       MatchIngestion__BatchSize: "25"
-      MatchIngestion__MatchesPerAccount: "10"
-      MainAnalysis__MatchesToConsider: "30"
-      MainAnalysis__MinMatchesToEvaluate: "10"
       MainAnalysis__AggregateNonMainPopulation: "true"
 
 services:
@@ -147,7 +144,8 @@ services:
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
       RateLimit__WindowSeconds: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
       RateLimit__QueueLimit: "${RATE_LIMIT_QUEUE:-10}"
-      Cors__Origins__0: "http://localhost:3001"
+      Cors__Origins__0: "${PREPROD_SITE_URL:?set PREPROD_SITE_URL before deploying}"
+      Cors__Origins__1: "${PREPROD_ADMIN_URL:?set PREPROD_ADMIN_URL before deploying}"
       MongoLogging__CrashFilePath: /home/app/crashes
       MongoLogging__LogsRetention: "30.00:00:00"
     volumes:
@@ -175,13 +173,12 @@ services:
       NUXT_API_BASE_URL: http://api:8080
       NUXT_PUBLIC_APP_ENV: preprod
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
+      NUXT_PUBLIC_SITE_URL: "${PREPROD_SITE_URL:?set PREPROD_SITE_URL before deploying}"
       NUXT_PUBLIC_UMAMI_HOST: ${UMAMI_PUBLIC_URL:-}
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
       api:
         condition: service_healthy
-    ports:
-      - "3001:3000"
     networks:
       - truemain_internal
 
@@ -199,15 +196,29 @@ services:
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
       NUXT_SESSION_COOKIE_SECURE: "false"
-      NUXT_TRUST_PROXY: "false"
+      NUXT_TRUST_PROXY: "true"
       NUXT_PUBLIC_UMAMI_URL: ${UMAMI_PUBLIC_URL:-}
       NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
       api:
         condition: service_healthy
+    networks:
+      - truemain_internal
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: truemain-preprod-caddy
+    restart: unless-stopped
+    configs:
+      - source: edge_caddyfile
+        target: /etc/caddy/Caddyfile
     ports:
-      - "3002:3000"
+      - "3001:3001"
+      - "3002:3002"
+    depends_on:
+      - web
+      - admin
     networks:
       - truemain_internal
 
@@ -341,6 +352,24 @@ services:
       - truemain_internal
 
 configs:
+  edge_caddyfile:
+    content: |
+      {
+      	auto_https off
+      }
+
+      :3001 {
+      	log
+      	reverse_proxy web:3000
+      }
+
+      :3002 {
+      	log
+      	reverse_proxy admin:3000 {
+      		header_up X-Forwarded-For {remote_host}
+      	}
+      }
+
   umami_proxy_caddyfile:
     content: |
       {

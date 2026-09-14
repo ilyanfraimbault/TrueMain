@@ -15,7 +15,7 @@ Design goals:
   [`docs/riot-key-switch.md`](riot-key-switch.md).
 - **Full-volume ingestion** — `compose.prod.yaml` runs the largest data-diet
   knobs (see the table in `docs/preprod.md`); most are explicit overrides now
-  (#811), a few still fall back to the `appsettings.json` defaults.
+  (#811), a few still fall back to the options classes' code defaults.
 
 ## Updating prod to the latest release
 
@@ -119,7 +119,8 @@ docker compose up -d
 ```
 
 If `compose.prod.yaml` itself changed in the release, re-download it before
-pulling. The file sets `pull_policy: always` on the four application services
+pulling. The file sets `pull_policy: always` on the five application services
+(api, web, admin and both ingestor lanes)
 for exactly this path: with no `IMAGE_TAG` in the env the images resolve to
 the moving `:latest`, which is already present locally and would otherwise be
 silently reused (#765). The CI rollout passes an immutable `IMAGE_TAG`, so a
@@ -156,14 +157,17 @@ container's `shm_size` was still raised from 256m to 1g, because parallel-query
 and hash workers allocate their shared segments there and 256m is what got
 exhausted; cheap insurance now that the server is allowed to use real memory.
 
-Preprod (`compose.preprod.yaml`) runs the same *settings* with roughly halved
-values (`shared_buffers=2GB`, `effective_cache_size=5GB`, `work_mem=16MB`,
-`maintenance_work_mem=512MB`, `max_wal_size=2GB`, `min_wal_size=512MB`): it is
-a smaller host (96 GB disk, ~11 GB database) sharing the box with the whole
-preprod stack, its RAM was not measured, so the values are conservative rather
-than derived. Keeping the same settings means preprod exercises the tuned
-plans (jit off, flash-priced random access, a `work_mem` that does not spill)
-before prod does; revisit with a real measurement if preprod has headroom.
+Preprod (`compose.preprod.yaml`) runs the same *settings*, with the memory ones
+scaled to its host rather than copied (#1558). Measured on 2026-09-14 it has
+2 vCPU and 7.7 GB of RAM, shared with other containers, against prod's 4 and 16.
+The rule is prod's ratio, not prod's value: `shared_buffers` at a quarter of RAM
+(2GB), `effective_cache_size` at about 70% (5GB), `work_mem` and
+`maintenance_work_mem` halved with the RAM (16MB, 512MB), and the WAL sizes halved
+with the smaller disk (2GB / 512MB). Every setting that is not a size — jit off,
+flash-priced random access, no parallel workers, the autovacuum factors — is
+identical, so preprod exercises the plans prod will. Absolute timings measured on
+preprod still underestimate prod's capacity: it has half the cores, and shares
+them.
 
 ## Ingestor tuning knobs
 

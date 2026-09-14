@@ -295,6 +295,11 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
   variant, `compose.preprod.yaml` and `compose.prod.yaml` the two deployed
   ones. Both deployed stacks run `Database__ApplyMigrationsOnStartup=false`
   and rely on the rollout to migrate.
+- `compose.preprod.yaml` puts a plain-HTTP `caddy` in front of web and admin,
+  like prod's edge, with its Caddyfile inline under `configs:` because the
+  deploy ships the compose file alone (`docs/preprod.md`, #1558). It requires
+  `PREPROD_SITE_URL` and `PREPROD_ADMIN_URL`, which is why the compose-config
+  job sets both.
 - Both ingestor lanes carry `stop_grace_period: 120s` on the deployed stacks
   (#1513). Docker's default is 10 s, and a pass runs for many minutes, so every
   redeploy SIGKILLed the work in flight: the in-flight transaction rolled back and
@@ -310,7 +315,7 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
 - `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
   projects against (#925). Unset means no forecast at all, which the admin
   panel says explicitly instead of fitting a line to a guessed capacity.
-- The `umami-purge` sidecar exists because self-hosted Umami has no retention
+- The `umami-replay-cleanup` sidecar exists because self-hosted Umami has no retention
   for session replay and heatmap data (#1018): `session_replay` and
   `heatmap_event` are the heaviest tables it writes and grow unbounded. It is
   the Postgres image with the entrypoint replaced by a purge script on a loop,
