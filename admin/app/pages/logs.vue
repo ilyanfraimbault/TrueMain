@@ -477,7 +477,7 @@ function openDetail(entry: LogEntry) {
             : ''"
         >
           <template #body>
-            <LogsEntryDetail v-if="selectedEntry" :entry="selectedEntry" />
+            <LogEntryDetail v-if="selectedEntry" :entry="selectedEntry" />
           </template>
         </USlideover>
       </template>
