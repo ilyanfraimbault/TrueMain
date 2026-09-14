@@ -9,6 +9,7 @@ using Scalar.AspNetCore;
 using TrueMain.Authentication;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
+using TrueMain.RequestLogging;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Directory;
@@ -395,6 +396,10 @@ if (app.Environment.IsDevelopment()
         "Cors:Origins is empty; the {Policy} policy allows no cross-origin browser request. Set Cors:Origins in configuration to let the frontend reach the API.",
         frontendCorsPolicy);
 }
+
+// Outermost request middleware, ahead of the exception handler: logs 5xx answers
+// and client aborts with their path and traceId (#1555).
+app.UseRequestOutcomeLogging();
 
 // Development gets the rich debug page (source snippets, full stack trace);
 // everywhere else keeps the RFC 7807 ProblemDetails handler so clients always

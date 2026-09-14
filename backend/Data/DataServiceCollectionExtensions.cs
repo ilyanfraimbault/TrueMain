@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace Data;
@@ -32,7 +33,9 @@ public static class DataServiceCollectionExtensions
         // here: hosts register this during startup, but the integration-test
         // WebApplicationFactory only injects ConnectionStrings:TrueMain later via
         // ConfigureAppConfiguration, so an eager read would throw before it lands.
-        services.AddSingleton(_ => BuildDataSource(GetRequiredConnectionString(configuration)));
+        services.AddSingleton(serviceProvider => BuildDataSource(
+            GetRequiredConnectionString(configuration),
+            serviceProvider.GetService<ILoggerFactory>()));
         services.AddDbContextFactory<TrueMainDbContext>(
             (serviceProvider, options) => options.UseNpgsql(serviceProvider.GetRequiredService<NpgsqlDataSource>()));
 
@@ -45,10 +48,20 @@ public static class DataServiceCollectionExtensions
     /// dedicated-migration connection, the integration-test fixture) rather than
     /// through dependency injection.
     /// </summary>
-    public static NpgsqlDataSource BuildDataSource(string connectionString)
+    /// <param name="connectionString">The Npgsql connection string.</param>
+    /// <param name="loggerFactory">When given, Npgsql's own diagnostics (connection
+    /// failures, pool exhaustion, protocol errors) go through the host's logging
+    /// pipeline — and so reach the ops logs — instead of nowhere (#1555). EF Core
+    /// already logs failed commands; these are the failures below it.</param>
+    public static NpgsqlDataSource BuildDataSource(string connectionString, ILoggerFactory? loggerFactory = null)
     {
         var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
         dataSourceBuilder.EnableDynamicJson();
+        if (loggerFactory is not null)
+        {
+            dataSourceBuilder.UseLoggerFactory(loggerFactory);
+        }
+
         return dataSourceBuilder.Build();
     }
 

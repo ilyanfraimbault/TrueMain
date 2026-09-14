@@ -34,7 +34,9 @@ public sealed record MongoLogPage(
 /// <summary>
 /// A single diagnostic log row as read from Mongo. <see cref="Id"/> is the
 /// 24-char hex string form of the document's ObjectId. <see cref="EventType"/> is
-/// the registered ops-event name when the row is a named domain event (#444).
+/// the registered ops-event name when the row is a named domain event (#444). The
+/// trailing request fields are set when the row was written during an HTTP request
+/// (#1555).
 /// </summary>
 public sealed record MongoLogRow(
     string Id,
@@ -45,4 +47,9 @@ public sealed record MongoLogRow(
     string? Exception,
     string? ProcessName,
     string? Host,
-    string? EventType);
+    string? EventType,
+    string? TraceId = null,
+    string? RequestMethod = null,
+    string? RequestPath = null,
+    int? StatusCode = null,
+    long? DurationMs = null);

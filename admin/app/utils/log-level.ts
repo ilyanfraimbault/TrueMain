@@ -1,4 +1,5 @@
-import type { BadgeColor, LogLevel } from '~~/shared/types/ops'
+import type { LogLevel } from '~~/shared/types/logs'
+import type { BadgeColor } from '~~/shared/types/ops'
 
 /**
  * Severity names ordered from least to most severe — the level filter's option

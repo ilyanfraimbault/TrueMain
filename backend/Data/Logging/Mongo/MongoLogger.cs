@@ -11,7 +11,8 @@ internal sealed class MongoLogger(
     string category,
     MongoLogChannel channel,
     MongoLoggingOptions options,
-    string host) : ILogger
+    string host,
+    MongoLoggerProvider? provider = null) : ILogger
 {
     // Categories whose own logging the sink must never re-capture, or it would
     // feed the Mongo driver's own diagnostics back into the channel it is
@@ -27,6 +28,9 @@ internal sealed class MongoLogger(
         Array.Exists(ExcludedCategoryPrefixes, prefix =>
             category.StartsWith(prefix, StringComparison.Ordinal));
 
+    // Scopes are pushed onto the factory's shared stack (ISupportExternalScope on the
+    // provider), never onto this logger: the no-op here only runs when a caller holds
+    // this logger directly, outside a factory.
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
 
     public bool IsEnabled(LogLevel logLevel)
@@ -79,7 +83,8 @@ internal sealed class MongoLogger(
                 Exception: exception?.ToString(),
                 ProcessName: options.ProcessName,
                 Host: host,
-                EventType: eventType);
+                EventType: eventType,
+                Request: MongoLogRequestFields.Extract(state, provider?.ScopeProvider));
 
             channel.TryWrite(record);
         }

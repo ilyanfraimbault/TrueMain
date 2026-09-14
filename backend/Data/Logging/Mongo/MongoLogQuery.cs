@@ -80,7 +80,12 @@ public sealed class MongoLogQuery(MongoLogContext context) : IMongoLogQuery
             doc.Exception,
             doc.ProcessName,
             doc.Host,
-            doc.EventType)).ToList();
+            doc.EventType,
+            doc.TraceId,
+            doc.RequestMethod,
+            doc.RequestPath,
+            doc.StatusCode,
+            doc.DurationMs)).ToList();
 
         return new MongoLogPage(rows, total, effectivePage, effectivePageSize);
     }
