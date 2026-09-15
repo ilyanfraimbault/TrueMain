@@ -1,5 +1,6 @@
 import type { EventHandler, H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toRouteTemplate } from '~~/server/utils/log-forwarder'
 import { isUnsafeProxyPath } from '~~/server/utils/proxy-path'
 
 // The only entry point to the privileged backend. It is a Nitro route, so the three things
@@ -27,6 +28,9 @@ const useRuntimeConfig = vi.fn()
 vi.stubGlobal('requireUserSession', (event: H3Event) => requireUserSession(event))
 vi.stubGlobal('useRuntimeConfig', (event: H3Event) => useRuntimeConfig(event))
 vi.stubGlobal('isUnsafeProxyPath', isUnsafeProxyPath)
+const reportToOpsLogs = vi.fn()
+vi.stubGlobal('toRouteTemplate', toRouteTemplate)
+vi.stubGlobal('reportToOpsLogs', reportToOpsLogs)
 
 async function loadHandler(): Promise<EventHandler> {
   const module = await import('~~/server/api/ops/[...path]')
@@ -136,5 +140,22 @@ describe('ops proxy handler', () => {
     })
 
     expect(proxyRequest).not.toHaveBeenCalled()
+  })
+
+  it('reports a 5xx answered by the API to the ops logs, per route', async () => {
+    const handler = await loadHandler()
+    reportToOpsLogs.mockReset()
+
+    await handler(eventAt('/api/ops/logs?level=Error'))
+    const [, , options] = proxyRequest.mock.calls[0]!
+    const { onResponse } = options as { onResponse: (event: H3Event, response: Response) => void }
+    onResponse({ method: 'GET' } as H3Event, new Response(null, { status: 502 }))
+
+    expect(reportToOpsLogs).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'Error',
+      eventType: 'FrontendUpstreamErrors',
+      requestPath: '/ops/logs',
+      statusCode: 502,
+    }))
   })
 })

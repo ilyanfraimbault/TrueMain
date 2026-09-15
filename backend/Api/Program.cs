@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
+using TrueMain.LogIngest;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
 using TrueMain.RequestLogging;
@@ -284,6 +285,7 @@ builder.Services
 builder.Services.AddAuthorization();
 
 builder.Services.AddTrueMainRateLimiting(builder.Configuration);
+builder.Services.AddTrueMainLogIngest(builder.Configuration);
 
 // The one door every champion read goes through: shared cache + single flight, keyed
 // by the ingestor's aggregation version rather than by a 60s clock (#1368). Registered

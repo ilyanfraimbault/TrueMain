@@ -255,7 +255,7 @@ public sealed class LogsApiIntegrationTests
 
         // The process catalog rides on every response (static list, no Mongo
         // distinct) so the admin UI can build its filter select.
-        payload.Processes.Should().BeEquivalentTo(["Api", "Ingestor"]);
+        payload.Processes.Should().BeEquivalentTo(LogProcesses.KnownProcessNames);
     }
 
     [Fact]

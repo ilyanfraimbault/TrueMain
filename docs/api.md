@@ -69,6 +69,44 @@ renvoient.
 
 ---
 
+# Internal — `/internal`
+
+Server-to-server endpoints, not for browsers: the public site's `/api` proxy refuses
+this prefix (after decoding and case-folding the path), and the admin's ops proxy
+only ever forwards under `/ops`. The global per-visitor rate limit applies.
+
+## `POST /internal/logs`
+
+Where the web and admin servers report their own errors, so they land in the ops
+logs next to the API's (#1556). Authenticated by the `X-Log-Ingest-Key` header
+(`LogIngest:ApiKey`, distinct from the ops key); when no key is configured, every
+call is refused.
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `process` | string | `Web` or `Admin` |
+| `host` | string? | ≤ 128 characters |
+| `entries` | array | 1 to 50 entries |
+| `entries[].timestampUtc` | datetime? | replaced by the server clock when older than 10 minutes or more than 1 minute ahead |
+| `entries[].level` | string | `Warning`, `Error` or `Critical` |
+| `entries[].category` | string | ≤ 128 characters |
+| `entries[].message` | string | ≤ 4,000 characters |
+| `entries[].exception` | string? | ≤ 16,000 characters |
+| `entries[].eventType` | string? | `FrontendServerError`, `FrontendUpstreamErrors`, or none |
+| `entries[].requestMethod` | string? | ≤ 16 characters |
+| `entries[].requestPath` | string? | a route template (`/api/champions/{n}`), ≤ 512 characters |
+| `entries[].statusCode` | int? | 100–599 |
+| `entries[].durationMs` | long? | 0–3,600,000 |
+| `entries[].count` | int? | 1–1,000,000; folded into the message when above 1 |
+
+Responses:
+
+- `202` — `{ "accepted": n }`, the entries queued for persistence (fewer than sent
+  only when the log store is off in this environment).
+- `400` — ProblemDetails. One invalid entry rejects the whole batch.
+- `401` — missing or wrong key, or ingestion off.
+- `413` — body over 1 MB.
+
 # Champions — `/champions`
 
 Public. Agrégats par champion calculés sur la population de *truemains*. Tous ces

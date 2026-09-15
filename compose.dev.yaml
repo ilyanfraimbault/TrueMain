@@ -92,6 +92,7 @@ services:
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
+      LogIngest__ApiKey: ${LOG_INGEST_KEY:-}
       MongoLogging__CrashFilePath: /home/app/crashes
     depends_on:
       postgres:
@@ -150,6 +151,7 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_API_BASE_URL: http://api:8080
+      NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       CHOKIDAR_USEPOLLING: "true"
     depends_on:
       api:
@@ -180,6 +182,7 @@ services:
       NITRO_PORT: 3000
       NUXT_OPS_API_BASE_URL: http://api:8080
       NUXT_OPS_KEY: ${OPS_API_KEY}
+      NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}

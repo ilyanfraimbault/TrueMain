@@ -50,6 +50,10 @@ public static class MongoLoggingServiceCollectionExtensions
         services.TryAddSingleton<IAuditLog, MongoAuditLog>();
         services.TryAddSingleton<IMongoLogQuery, MongoLogQuery>();
 
+        // Records reported by other processes (the frontends, through the API's
+        // POST /internal/logs, #1556), written to the same channel as this host's own.
+        services.TryAddSingleton<IForwardedLogWriter, ForwardedLogWriter>();
+
         // Add the provider to the logging pipeline. Registering the concrete
         // ILoggerProvider via the enumerable plugs a custom provider in without
         // disturbing the console/debug providers already present.

@@ -44,7 +44,10 @@ public sealed class RateLimitLoggingIntegrationTests
         // No endpoint answers this path: the first call is a 404 that spends the only
         // permit of the window, the second is rejected by the limiter.
         (await client.GetAsync("/rate-limit-probe")).StatusCode.Should().Be(HttpStatusCode.NotFound);
-        (await client.GetAsync("/rate-limit-probe")).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        using var rejected = await client.GetAsync("/rate-limit-probe");
+        rejected.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        // The fixed-window lease knows when the window reopens, and the client is told.
+        rejected.Headers.RetryAfter.Should().NotBeNull();
 
         var collection = _mongo.GetCollection<MongoLogDocument>(MongoFixture.LogsCollection);
         var rejections = Builders<MongoLogDocument>.Filter.Eq(doc => doc.EventType, nameof(OpsEvents.RateLimitRejected));

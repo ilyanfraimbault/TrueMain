@@ -18,8 +18,9 @@ namespace TrueMain.RateLimiting;
 /// <see cref="MaxPartitionRowsPerWindow"/> rows plus one row totalling the rest.
 /// </para>
 /// <para>
-/// A rejection racing the window swap may be counted in the next window rather
-/// than this one; the totals across windows stay exact.
+/// A rejection that races the window swap can be added to the dictionary being
+/// published after it has been read, and is then lost. Only those few are: the
+/// count is a signal to read, not a figure to bill.
 /// </para>
 /// </remarks>
 public sealed class RateLimitRejectionRecorder(ILogger<RateLimitRejectionRecorder> logger)
