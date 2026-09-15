@@ -78,8 +78,20 @@ watch(activeTab, (value) => {
   if (value) openedTabs.value.add(value)
 })
 
-// A new set of builds (another champion, lane or rank) starts over on its first tab.
-watch(() => items.value.map(item => item.value).join(), () => {
+// A new set of builds (another champion, lane, rank, patch or matchup) starts over on
+// its first tab. Keyed on the scope and on what each build *is* — the tab values are
+// positional (`build-0`…), so they stay identical when the same number of different
+// builds arrives.
+const buildSetKey = computed(() => [
+  props.championId,
+  props.position,
+  props.patch,
+  props.eloBracket,
+  props.opponentChampionId,
+  ...props.builds.map(build => `${build.firstItemId}:${build.primaryKeystoneId}`),
+].join('|'))
+
+watch(buildSetKey, () => {
   activeTab.value = items.value[0]?.value
   openedTabs.value = new Set(activeTab.value ? [activeTab.value] : [])
 })
