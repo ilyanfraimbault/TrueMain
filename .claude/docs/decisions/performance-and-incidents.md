@@ -137,6 +137,20 @@ pass abandoned its wait, its scope would be disposed underneath the shared work 
 a disposed context. The leaderboard does not need the flag — it creates its own context — and it does not get
 it.
 
+## A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15)
+
+**Decision:** concurrent requests that miss the same leaderboard page share one computation
+(`RequestCoalescer`, owner waits); the champion page's mains comparison fetches the mains list in the browser
+only; the leaderboard's per-page reads on `main_champion_stats` filter on `PlatformId` as well as `Puuid` — #1570.
+
+- **Why.** The first 200-visitor preprod load test saturated the database pool. Three leaderboard statements
+  took most of its database time, at 5–7 s a call. Champion pages asked for their mains list during SSR on every
+  render (the #1231 opt-out only covered the card, not the comparison picker), and every concurrent miss ran
+  the count, the page and six hydration queries again.
+- **Why the platform filter.** A puuid is global, so it filters nothing, but the only index that leads to
+  `Puuid` is `(PlatformId, Puuid, ChampionId)`. On `Puuid` alone Postgres walked the whole index: 300 ms for a
+  page's top champions on preprod, 1.5 ms with the filter.
+
 ## A Riot ID resolves through a functional index on the lowered name and tag (2026-09-15)
 
 **Decision:** `riot_accounts` carries `IX_riot_accounts_game_name_tag_line_lower` on

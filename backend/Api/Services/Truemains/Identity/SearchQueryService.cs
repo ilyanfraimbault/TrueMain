@@ -139,7 +139,7 @@ public sealed class SearchQueryService(
         var puuids = rows.Select(r => r.Puuid).ToArray();
         var ranksByAccount = await FetchLatestRanksAsync(rows.Select(r => r.Id).ToArray(), ct);
         var topChampionsByPuuid = await FetchTopChampionIdsAsync(puuids, ct);
-        var positionsByPuuid = await MainPositions.FetchAsync(db, puuids, ct);
+        var positionsByPuuid = await MainPositions.FetchAsync(db, rows.Select(r => r.PlatformId).Distinct().ToArray(), puuids, ct);
 
         var results = rows
             .Select(r =>

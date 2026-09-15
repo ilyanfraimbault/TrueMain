@@ -41,10 +41,14 @@ GitHub-hosted runner, against preprod — #1559.
   system under test; the result would measure both.
 - **Not against prod.** A test that finds the ceiling finds it for real visitors. Preprod runs prod's parameters
   (#1558), so its results are comparable in kind; they are a lower bound in size, and are reported as one.
-- **Visitors are replayed, not browsers.** k6 does not run the site's JavaScript, so each page view requests the
-  SSR HTML and then the calls the hydrated page makes, with the champion slices drawn at random so the test
-  reaches the database rather than the cache. The request lists mirror the page composables and have to follow
-  them.
+- **Visitors are replayed over HTTP; a few browsers time the pages.** k6's HTTP client does not run the site's
+  JavaScript, so each page view requests the SSR HTML and then the calls the hydrated page makes, with the
+  champion slices drawn at random so the test reaches the database rather than the cache. The request lists
+  mirror the page composables and have to follow them. That makes the load, but not the page-load time: most
+  of the champion page and its icons exist only once its JavaScript ran. A handful of `k6/browser` VUs load the
+  same pages during the hold (and alone, in the `browser` scenario) and record data ready, view loaded and page
+  loaded with every rendered image — #1572 (2026-09-15). Browsers stay few: one costs the runner what
+  hundreds of HTTP visitors do.
 - **Nothing published names the host.** The repository is public: requests are tagged by route template, and the
   workflow refuses to publish output containing the host.
 

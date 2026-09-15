@@ -37,6 +37,7 @@ public sealed class TruemainsLeaderboardQueryService(
     // Static because the service is scoped: the whole point is to coalesce across
     // concurrent *requests*, which each get their own instance.
     private static readonly RequestCoalescer<Ranking> RankingCoalescer = new();
+    private static readonly RequestCoalescer<LeaderboardResponse> ResponseCoalescer = new();
 
     // Ranked solo queue. Matches the queue used by MainStatsCalculator
     // for main_champion_stats, so the "games" / KDA / winrate cell stays
@@ -109,6 +110,30 @@ public sealed class TruemainsLeaderboardQueryService(
                 Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
                 cached.Rows.Count, cached.Total, totalSw.ElapsedMilliseconds);
             return cached;
+        }
+
+        // Miss. Every request that missed the same page and filters together shares
+        // one computation instead of each running the count, the page and six
+        // hydration queries (#1570): a champion page asks for its mains card on
+        // every view, and under load those misses arrived together. The owner
+        // waits for the pass even if its visitor leaves, since Count and Page run
+        // on its request-scoped context (see RequestCoalescer).
+        var shape = new ResponseShape(cacheKey, platforms, championFilter, normalizedPosition, minGames, otpOnly, sort, clampedPage, clampedPageSize, offset, region);
+        return await ResponseCoalescer.GetOrJoinAsync(cacheKey, () => ComputeResponseAsync(shape), ct, ownerAwaitsToCompletion: true);
+    }
+
+    private async Task<LeaderboardResponse> ComputeResponseAsync(ResponseShape shape)
+    {
+        var (cacheKey, platforms, championFilter, normalizedPosition, minGames, otpOnly, sort, clampedPage, clampedPageSize, offset, region) = shape;
+        // Detached from any single caller's token: the pass is shared.
+        var ct = CancellationToken.None;
+        var totalSw = Stopwatch.StartNew();
+
+        // Re-check under the coalescer: a pass for this key may have finished and
+        // cached its response while this caller was starting.
+        if (cache.TryGetValue<LeaderboardResponse>(cacheKey, out var justCached) && justCached is not null)
+        {
+            return justCached;
         }
 
         // Ranking by dedication can't seek an index — the score is derived at
@@ -193,7 +218,7 @@ public sealed class TruemainsLeaderboardQueryService(
 
         var statsTask = TimedAsync(() => FetchStatsAsync(accountIds, puuidByAccountId, ct));
         var ranksTask = TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
-        var positionsTask = TimedAsync(() => FetchPositionsAsync(puuids, ct));
+        var positionsTask = TimedAsync(() => FetchPositionsAsync(platforms, puuids, ct));
 
         // The dedication-sorted path already scored every candidate to rank
         // them, so the page's scores are in hand — only the rank-sorted path
@@ -208,7 +233,7 @@ public sealed class TruemainsLeaderboardQueryService(
         // because TimedAsync wraps the whole continuation — the wait on
         // topChampionsTask *plus* the build round trips — so it is an upper
         // bound, not the build query in isolation.
-        var topChampionsTask = TimedAsync(() => FetchTopChampionsAsync(puuids, ct));
+        var topChampionsTask = TimedAsync(() => FetchTopChampionsAsync(platforms, puuids, ct));
         var buildsTask = TimedAsync(async () =>
         {
             var (topChampions, _) = await topChampionsTask;
@@ -735,6 +760,7 @@ public sealed class TruemainsLeaderboardQueryService(
     }
 
     private async Task<Dictionary<string, List<LeaderboardTopChampionReadModel>>> FetchTopChampionsAsync(
+        string[] platforms,
         string[] puuids,
         CancellationToken ct)
     {
@@ -749,7 +775,10 @@ public sealed class TruemainsLeaderboardQueryService(
 
         var take = TopChampionsPerRow;
         // ROW_NUMBER per puuid keeps the top-3 cap inside the database so we
-        // don't fetch every main row only to throw most away in C#. PlayRate
+        // don't fetch every main row only to throw most away in C#. The platform
+        // filter adds nothing to the result (a puuid is global) but lets the
+        // (PlatformId, Puuid, ChampionId) index seek: on Puuid alone Postgres
+        // walks the whole index, 300 ms instead of 1.5 ms for a page (#1570). PlayRate
         // ties tend to coincide with championMatches ties, so the secondary
         // sort matches ProfileQueryService for consistency.
         FormattableString sql = $"""
@@ -765,7 +794,8 @@ public sealed class TruemainsLeaderboardQueryService(
                         ORDER BY m."PlayRate" DESC, m."ChampionMatches" DESC
                     ) AS rn
                 FROM main_champion_stats m
-                WHERE m."Puuid" = ANY ({puuids})
+                WHERE m."PlatformId" = ANY ({platforms})
+                  AND m."Puuid" = ANY ({puuids})
                   AND m."IsMain" = true
                   AND m."IsActive" = true
             )
@@ -793,168 +823,15 @@ public sealed class TruemainsLeaderboardQueryService(
                 }).ToList());
     }
 
-    private async Task<Dictionary<(string Puuid, int ChampionId), ChampionBuild>> FetchTopChampionBuildsAsync(
+    private async Task<Dictionary<(string Puuid, int ChampionId), LeaderboardTopBuilds.ChampionBuild>> FetchTopChampionBuildsAsync(
         Dictionary<string, List<LeaderboardTopChampionReadModel>> topChampionsByPuuid,
         Dictionary<string, Guid> accountIdByPuuid,
         CancellationToken ct)
     {
-        // Resolve the page's (account, champion) pairs straight from the top-3
-        // result — only the champions actually shown get a build, keeping the
-        // dim fetches to the page slice (≤ ~75 pairs) rather than every champion
-        // each account has aggregated. The reverse map recovers the puuid from
-        // the scope's RiotAccountId (aggregates are keyed by account, not puuid).
-        var puuidByAccountId = new Dictionary<Guid, string>(accountIdByPuuid.Count);
-        var pairs = new HashSet<(Guid AccountId, int ChampionId)>();
-        foreach (var (puuid, champions) in topChampionsByPuuid)
-        {
-            if (!accountIdByPuuid.TryGetValue(puuid, out var accountId))
-            {
-                continue;
-            }
-
-            puuidByAccountId[accountId] = puuid;
-            foreach (var champion in champions)
-            {
-                pairs.Add((accountId, champion.ChampionId));
-            }
-        }
-
-        if (pairs.Count == 0)
-        {
-            return new Dictionary<(string, int), ChampionBuild>();
-        }
-
         // Own short-lived context: this runs concurrently with FetchStats and
         // FetchLatestRanks, and a single DbContext is not thread-safe.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-
-        var accountIds = pairs.Select(pair => pair.AccountId).Distinct().ToList();
-        var championIds = pairs.Select(pair => pair.ChampionId).Distinct().ToList();
-        var queueId = RankedQueueId;
-
-        // Three sequential round trips (one shared context, so not parallel):
-        // this aggregate join, then the build-dim lookup, then the rune-dim
-        // lookup. This first query joins patterns to the player's ranked-solo
-        // scopes for the shown champions, summing each (account, champion, build,
-        // runes) combo across every patch / position. Aggregating over all the
-        // player's patches mirrors the per-player build pages — the dominant
-        // build is the one the player commits to over time, not just on the live
-        // patch. The account×champion id filters over-select the cross product,
-        // so the exact pairs are re-checked in memory below.
-        var grouped = await ctx.ChampionAggregatePatterns
-            .AsNoTracking()
-            .Join(
-                ctx.ChampionAggregateScopes.AsNoTracking()
-                    .Where(scope => scope.QueueId == queueId
-                        && accountIds.Contains(scope.RiotAccountId)
-                        && championIds.Contains(scope.ChampionId))
-                    // Mains only: this is the truemains leaderboard, and since
-                    // #1346 the aggregate also holds non-main scopes. Without
-                    // this a player's off-main games would count towards the
-                    // champion they are ranked on.
-                    .Where(scope => scope.IsMain),
-                pattern => pattern.ScopeId,
-                scope => scope.Id,
-                (pattern, scope) => new
-                {
-                    scope.RiotAccountId,
-                    scope.ChampionId,
-                    pattern.BuildId,
-                    pattern.RunePageId,
-                    pattern.Games,
-                })
-            .GroupBy(row => new { row.RiotAccountId, row.ChampionId, row.BuildId, row.RunePageId })
-            .Select(group => new
-            {
-                group.Key.RiotAccountId,
-                group.Key.ChampionId,
-                group.Key.BuildId,
-                group.Key.RunePageId,
-                Games = group.Sum(row => row.Games),
-            })
-            .ToListAsync(ct);
-
-        // Keep only the (account, champion) pairs the page actually asked for —
-        // the SQL filtered each id set independently, so an account that plays
-        // champion A and another that plays champion B both pulled rows for A
-        // and B; this drops the cross-product leakage.
-        var relevant = grouped
-            .Where(row => pairs.Contains((row.RiotAccountId, row.ChampionId)))
-            .ToList();
-
-        if (relevant.Count == 0)
-        {
-            return new Dictionary<(string, int), ChampionBuild>();
-        }
-
-        var buildIds = relevant.Select(row => row.BuildId).Distinct().ToList();
-        var runeIds = relevant.Select(row => row.RunePageId).Distinct().ToList();
-
-        var dimBuilds = await ctx.ChampionDimBuilds.AsNoTracking()
-            .Where(dim => buildIds.Contains(dim.Id))
-            .ToDictionaryAsync(dim => dim.Id, dim => dim.BuildItem0, ct);
-        var dimRunes = await ctx.ChampionDimRunePages.AsNoTracking()
-            .Where(dim => runeIds.Contains(dim.Id))
-            .ToDictionaryAsync(dim => dim.Id, dim => new RunePageDim(dim.PrimaryKeystoneId, dim.SecondaryStyleId), ct);
-
-        var result = new Dictionary<(string Puuid, int ChampionId), ChampionBuild>(relevant.Count);
-
-        foreach (var accountChampion in relevant.GroupBy(row => (row.RiotAccountId, row.ChampionId)))
-        {
-            if (!puuidByAccountId.TryGetValue(accountChampion.Key.RiotAccountId, out var puuid))
-            {
-                continue;
-            }
-
-            // Hydrate each combo with its dim values, dropping rows whose dim
-            // lookup is missing (transient ingest state) or whose first item /
-            // keystone is malformed — same guard as LoadTopBuildsAsync.
-            var enriched = accountChampion
-                .Select(row => new
-                {
-                    row.Games,
-                    FirstItem = dimBuilds.GetValueOrDefault(row.BuildId),
-                    Rune = dimRunes.GetValueOrDefault(row.RunePageId),
-                })
-                .Where(row => row.FirstItem > 0 && row.Rune.PrimaryKeystoneId > 0)
-                .ToList();
-
-            if (enriched.Count == 0)
-            {
-                continue;
-            }
-
-            // Dominant (firstItem, keystone) bucket — same tie-break order as
-            // LoadTopBuildsAsync (games desc, firstItem asc, keystone asc) so a
-            // player's leaderboard cell and their champion page agree.
-            var topBucket = enriched
-                .GroupBy(row => (FirstItemId: row.FirstItem, KeystoneId: row.Rune.PrimaryKeystoneId))
-                .Select(bucket => new
-                {
-                    FirstItem = bucket.Key.FirstItemId,
-                    Keystone = bucket.Key.KeystoneId,
-                    Games = bucket.Sum(row => row.Games),
-                    Rows = bucket.ToList(),
-                })
-                .OrderByDescending(bucket => bucket.Games)
-                .ThenBy(bucket => bucket.FirstItem)
-                .ThenBy(bucket => bucket.Keystone)
-                .First();
-
-            // Most-common secondary tree within the winning bucket.
-            var secondaryStyleId = topBucket.Rows
-                .GroupBy(row => row.Rune.SecondaryStyleId)
-                .OrderByDescending(group => group.Sum(row => row.Games))
-                .ThenBy(group => group.Key)
-                .First().Key;
-
-            result[(puuid, accountChampion.Key.ChampionId)] = new ChampionBuild(
-                PrimaryKeystoneId: topBucket.Keystone,
-                SecondaryStyleId: secondaryStyleId,
-                FirstItemId: topBucket.FirstItem);
-        }
-
-        return result;
+        return await LeaderboardTopBuilds.FetchAsync(ctx, RankedQueueId, topChampionsByPuuid, accountIdByPuuid, ct);
     }
 
     private async Task<Dictionary<string, StatsRow>> FetchStatsAsync(
@@ -1025,6 +902,7 @@ public sealed class TruemainsLeaderboardQueryService(
     }
 
     private async Task<Dictionary<string, LeaderboardPositionsReadModel>> FetchPositionsAsync(
+        string[] platforms,
         string[] puuids,
         CancellationToken ct)
     {
@@ -1037,7 +915,7 @@ public sealed class TruemainsLeaderboardQueryService(
         // hydration fetches, and a single DbContext is not thread-safe. The
         // derivation itself lives in MainPositions, shared with search.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-        return await MainPositions.FetchAsync(ctx, puuids, ct);
+        return await MainPositions.FetchAsync(ctx, platforms, puuids, ct);
     }
 
     private static string? NormalizePosition(string? position)
@@ -1074,6 +952,19 @@ public sealed class TruemainsLeaderboardQueryService(
         IReadOnlyList<Guid>? OrderedAccountIds,
         Dictionary<Guid, DedicationReadModel>? DedicationByAccount);
 
+    private sealed record ResponseShape(
+        string CacheKey,
+        string[] Platforms,
+        int? ChampionFilter,
+        string? Position,
+        int MinGames,
+        bool OtpOnly,
+        LeaderboardSort Sort,
+        int Page,
+        int PageSize,
+        int Offset,
+        string? Region);
+
     private sealed record PageRow(
         Guid Id,
         string Puuid,
@@ -1087,13 +978,6 @@ public sealed class TruemainsLeaderboardQueryService(
     private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints, int? Wins, int? Losses);
 
     private sealed record TopChampionRow(string Puuid, int ChampionId, int Games, double PlayRate, bool IsOtp);
-
-    // Value type so a missing (puuid, champion) lookup yields all-null build ids
-    // via GetValueOrDefault instead of needing a null-reference guard at the
-    // call site — null is the contract for "no aggregated build".
-    private readonly record struct ChampionBuild(int? PrimaryKeystoneId, int? SecondaryStyleId, int? FirstItemId);
-
-    private readonly record struct RunePageDim(int PrimaryKeystoneId, int SecondaryStyleId);
 
     private sealed record StatsRow(int Games, int Wins, int Losses, double Kda);
 }

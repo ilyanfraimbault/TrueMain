@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       scenario:
-        description: smoke, visitors or ratelimit-probe
+        description: smoke, visitors, browser or ratelimit-probe
         type: choice
         options:
           - smoke
           - visitors
+          - browser
           - ratelimit-probe
         default: smoke
       vus:
@@ -27,6 +28,10 @@ on:
         description: Also fetch page bundles and images
         type: boolean
         default: true
+      browser_vus:
+        description: Browsers timing full page loads (empty for the scenario default, 0 for none)
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -66,11 +71,28 @@ jobs:
         env:
           PREPROD_HOST: ${{ secrets.PREPROD_SSH_HOST }}
         run: |
+          set -uo pipefail
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS --max-time 15 -o /dev/null "http://${PREPROD_HOST}:3001/"; then
+              exit 0
+            fi
+            echo "Attempt ${attempt}: preprod web did not answer from this runner."
+            if [ "$attempt" -lt 5 ]; then
+              sleep 20
+            fi
+          done
+          echo "::error::Preprod web did not answer on port 3001 from this runner after 5 attempts. Some runner addresses are dropped before they reach the host: dispatch the workflow again, it lands on another runner (docs/load-testing.md, Runner reachability)."
+          exit 1
+
+      - name: Find Chrome for the browser VUs
+        run: |
           set -euo pipefail
-          if ! curl -fsS --max-time 15 -o /dev/null "http://${PREPROD_HOST}:3001/"; then
-            echo "::error::Preprod web did not answer on port 3001 from the runner: check the host firewall and the edge Caddy."
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          if [ -z "$chrome" ]; then
+            echo "::error::No Chrome or Chromium on the runner; the browser VUs cannot start."
             exit 1
           fi
+          echo "K6_BROWSER_EXECUTABLE_PATH=$chrome" >> "$GITHUB_ENV"
 
       - name: Run k6
         id: k6
@@ -81,11 +103,16 @@ jobs:
           RAMP: ${{ inputs.ramp }}
           HOLD: ${{ inputs.hold }}
           FETCH_ASSETS: ${{ inputs.fetch_assets }}
+          BROWSER_VUS: ${{ inputs.browser_vus }}
+          K6_BROWSER_ARGS: no-sandbox
         run: |
           set -uo pipefail
           mkdir -p out
           code=0
-          BASE_URL="http://${PREPROD_HOST}:3001" SUMMARY_DIR=out k6 run --no-color loadtest/k6/run.js || code=$?
+          BASE_URL="http://${PREPROD_HOST}:3001" SUMMARY_DIR=out k6 run --no-color --log-output=file=out/k6.log loadtest/k6/run.js || code=$?
+          if [ -f out/k6.log ]; then
+            sed -i "s#${PREPROD_HOST}#preprod#g" out/k6.log
+          fi
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
 
       - name: Refuse to publish output naming the host
