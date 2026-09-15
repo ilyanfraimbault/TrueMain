@@ -72,8 +72,9 @@ jobs:
         run: |
           set -uo pipefail
           mkdir -p out
-          BASE_URL="http://${PREPROD_HOST}:3001" SUMMARY_DIR=out k6 run --no-color loadtest/k6/run.js
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          code=0
+          BASE_URL="http://${PREPROD_HOST}:3001" SUMMARY_DIR=out k6 run --no-color loadtest/k6/run.js || code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
 
       - name: Refuse to publish output naming the host
         if: always()
