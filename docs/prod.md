@@ -126,6 +126,14 @@ the moving `:latest`, which is already present locally and would otherwise be
 silently reused (#765). The CI rollout passes an immutable `IMAGE_TAG`, so a
 pull is implied there anyway.
 
+## Compression at the edge
+
+Caddy compresses what it proxies for the public site and the admin (`encode zstd gzip` in the `Caddyfile`, #1583),
+choosing zstd or gzip from the browser's `Accept-Encoding`. Nothing upstream compresses: until then a champion
+page's HTML (about 200 KB), each JS bundle (up to about 290 KB) and `/api/static/items` (about 500 KB) went out
+raw. Images from `/_ipx` are already WebP and gain little. Preprod's edge Caddy carries the same directive, so its
+page-load measurements stay comparable.
+
 ## Postgres server tuning
 
 `compose.prod.yaml` starts Postgres with explicit `-c` settings (part A of #1366).
