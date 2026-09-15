@@ -169,6 +169,18 @@ identical, so preprod exercises the plans prod will. Absolute timings measured o
 preprod still underestimate prod's capacity: it has half the cores, and shares
 them.
 
+## Connection pools
+
+Every service reaches Postgres through PgBouncer in transaction mode: 25 server connections (`DEFAULT_POOL_SIZE`)
+plus 5 in reserve, shared by the API and both ingestor lanes, which all connect as the same user. The same values
+run in every compose file, preprod included.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| API `Maximum Pool Size` | 30 | what PgBouncer can actually serve (25 + 5 reserve). At 100, a load test queued 74 API clients at PgBouncer, with waits up to 11 s and requests hanging until the visitor gave up (#1570). Excess requests now wait in Npgsql and fail after its 15 s connection timeout, with a logged error |
+| Ingestors' `Maximum Pool Size` | 40 each | unchanged; their batches hold a connection across a pass |
+| PgBouncer `QUERY_WAIT_TIMEOUT` | 30 s | ends a client's wait for a server connection. The longest wait measured under overload was 11 s, so it only cuts a wait that would otherwise last minutes; it applies to the ingestors too |
+
 ## Ingestor tuning knobs
 
 `compose.prod.yaml` overrides the ingestor's app settings for full-volume
