@@ -30,9 +30,10 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
-  group: preprod-pipeline
+  group: preprod-loadtest
   cancel-in-progress: false
 
 jobs:
@@ -42,6 +43,17 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      - name: Refuse to start while a preprod deploy is queued or running
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pending="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy-preprod.yml --limit 20 --json status --jq '[.[] | select(.status != "completed")] | length')"
+          if [ "$pending" != "0" ]; then
+            echo "::error::A preprod deploy is queued or running. Dispatch the load test again once it has finished."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v7
 

@@ -181,7 +181,9 @@ tags already on the remote, so two runs resolving a version at once would land
 on the same number; on prod two releases back to back would race for the
 moving `:latest`. A running deploy is never cancelled, GitHub collapses the
 pending queue to the newest run, and on preprod only a commit that actually
-deployed gets its `-rc.N` tag (`tag` runs last).
+deployed gets its `-rc.N` tag (`tag` runs last). A group holds one running and
+one pending run, and queuing a third cancels the pending one: that is why the
+preprod load test keeps a group of its own (*Load test*).
 
 ### Verifying the rollout reached the VPS
 
@@ -249,8 +251,12 @@ prerelease and not build metadata.
 
 - It is manual only. A load test is an event someone decides on — the rate limit may need raising for it —
   not something a push should trigger.
-- It joins the `preprod-pipeline` concurrency group, so a deploy triggered during a run waits for the run
-  instead of recreating the containers under it.
+- It keeps its own concurrency group, `preprod-loadtest`, and coordinates with the deploy by looking at the
+  other workflow's runs instead (#1566). Sharing `preprod-pipeline` would have made a dispatched test the
+  group's pending run and silently cancelled a deploy already queued there.
+  - The test's first step refuses to start while a `deploy-preprod.yml` run is queued or running.
+  - The deploy's `preflight` waits, up to 45 minutes, while a load test is queued or running, so it never
+    recreates the containers under a test. Both read the runs with the workflow token (`actions: read`).
 - The target is built from the existing `PREPROD_SSH_HOST` secret. The repository is public, so the host is
   never written into the workflow, and a guard step deletes the output and fails the job if any file in it
   names the host; only then is the summary appended to the job page and uploaded. Secrets are masked in the

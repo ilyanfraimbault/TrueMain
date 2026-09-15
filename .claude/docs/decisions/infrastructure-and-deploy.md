@@ -79,6 +79,9 @@ Preprod needs it because the `-rc.N` counter is read from the remote tags; prod 
 releases published back to back would interleave their `publish` jobs and race for the moving `:latest`
 tag. `cancel-in-progress: false` in both: a running deploy finishes, and GitHub collapses the pending
 queue to the newest run — a visibly cancelled run, never a half-deploy — #1228.
+Nothing else joins `preprod-pipeline`. The preprod load test once did, and a test dispatched while a deploy was
+pending cancelled that deploy; it now has its own group, refuses to start while a deploy is queued or running,
+and the deploy's preflight waits for a running test — #1566 (2026-09-15).
 
 **Integration tests run on pushes to `develop`/`master`, not only on pull requests.**
 The push to `develop` is the commit that deploys to preprod and the develop→master merge is the one a
