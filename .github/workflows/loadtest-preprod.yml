@@ -71,11 +71,18 @@ jobs:
         env:
           PREPROD_HOST: ${{ secrets.PREPROD_SSH_HOST }}
         run: |
-          set -euo pipefail
-          if ! curl -fsS --max-time 15 -o /dev/null "http://${PREPROD_HOST}:3001/"; then
-            echo "::error::Preprod web did not answer on port 3001 from the runner: check the host firewall and the edge Caddy."
-            exit 1
-          fi
+          set -uo pipefail
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS --max-time 15 -o /dev/null "http://${PREPROD_HOST}:3001/"; then
+              exit 0
+            fi
+            echo "Attempt ${attempt}: preprod web did not answer from this runner."
+            if [ "$attempt" -lt 5 ]; then
+              sleep 20
+            fi
+          done
+          echo "::error::Preprod web did not answer on port 3001 from this runner after 5 attempts. Some runner addresses are dropped before they reach the host: dispatch the workflow again, it lands on another runner (docs/load-testing.md, Runner reachability)."
+          exit 1
 
       - name: Find Chrome for the browser VUs
         run: |
