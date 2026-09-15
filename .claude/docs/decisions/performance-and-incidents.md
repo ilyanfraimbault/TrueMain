@@ -173,3 +173,17 @@ exact `lower(col) = @p` expression that index serves — #1570.
   btree over two short text expressions on a table of a few hundred thousand rows builds in seconds; the write
   lock is held that long, once, at the release that ships it.
 
+## The public web server runs one Node worker per useful core (2026-09-15)
+
+**Decision:** the web app builds with Nitro's `node-cluster` preset, with `NITRO_CLUSTER_WORKERS` set per
+environment (prod 3, preprod 2) — #1579.
+
+- **Why.** Once the database kept up (#1570), the 200-visitor preprod runs failed at the web container itself:
+  about 130,000–150,000 accept-queue overflows per run, 20,000–36,000 edge `502`s, one Node process at 30–80 % CPU,
+  pgbouncer idle. Rendering is single-threaded per process, so more cores only help with more processes.
+- **Workers, not replicas behind Caddy.** Same container, same port, same health check and deploy; no Caddy load
+  balancing or service duplication to keep in sync.
+- **Explicit counts.** The preset defaults to `os.cpus()`, which is the host's core count inside a container.
+- **Accepted cost.** In-memory caches (`/_ipx` bytes, Nitro cached functions) are per worker: colder caches
+  and more memory, bounded by the caches' own caps.
+

@@ -166,6 +166,7 @@ services:
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
+      NITRO_CLUSTER_WORKERS: "3"
       NUXT_API_BASE_URL: http://api:8080
       NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       NUXT_PUBLIC_APP_ENV: production
