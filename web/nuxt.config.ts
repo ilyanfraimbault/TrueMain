@@ -187,6 +187,8 @@ export default defineNuxtConfig({
   // file puts it back in the trace; it is the only asset in the OG chain
   // loaded that way, which is why this is one entry and not a pattern.
   nitro: {
+    // One worker per useful core behind the same port (#1579); see docs/ci.md.
+    preset: 'node-cluster',
     externals: {
       traceInclude: [fileURLToPath(import.meta.resolve('harfbuzzjs/hb.wasm'))],
     },

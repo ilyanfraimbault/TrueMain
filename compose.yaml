@@ -114,6 +114,7 @@ services:
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
+      NITRO_CLUSTER_WORKERS: "2"
       NUXT_API_BASE_URL: http://api:8080
       NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       NUXT_PUBLIC_UMAMI_HOST: http://localhost:3100

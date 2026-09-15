@@ -133,6 +133,22 @@ trace itself is fixed in `web/nuxt.config.ts` (`nitro.externals.traceInclude`);
 the assertion is there so a regression fails the build instead of the next
 tweet.
 
+### The web server runs one worker per core
+
+`web/nuxt.config.ts` builds with Nitro's `node-cluster` preset (#1579): the container's entry forks
+`NITRO_CLUSTER_WORKERS` Node processes that share port 3000. With a single process, the 200-visitor preprod load
+test left the web container's accept queue (backlog 511) overflowing about 130,000–150,000 times per run, and
+the edge Caddy answered 502 after its 3 s dial timeout, while the API and the database had capacity to spare.
+Server-side rendering is CPU work on one thread per process, so a second core did nothing for it.
+
+- The worker count is set in the compose files, never left to the preset's default: inside a container
+  `os.cpus()` reports the host's cores, not the container's share. Prod runs 3 of its 4 vCPU (the API, Postgres
+  and the ingestors need the rest), preprod and the local stack 2.
+- Each worker has its own memory: the `/_ipx` byte cache (64 MB cap) and Nitro's in-memory cached functions are
+  per worker, so a cache warmed by one worker is cold in the others, and the image cache's worst case is
+  multiplied by the worker count.
+- The admin portal keeps a single process; its traffic is one operator.
+
 ## Deploys
 
 ### Immutable tags
