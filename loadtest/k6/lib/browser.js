@@ -115,14 +115,18 @@ async function scrollThrough() {
   window.scrollTo(0, document.documentElement.scrollHeight)
 }
 
-// Brings the n-th rendered image still loading into view, and returns how many
-// are still loading: a lazy image the paced scroll passed too quickly never
-// starts otherwise.
-function revealPendingImage(index) {
-  const pending = Array.from(document.images)
-    .filter(image => image.getClientRects().length > 0 && !image.complete)
-  if (pending.length > index) pending[index].scrollIntoView({ block: 'center' })
-  return pending.length
+// Brings the next rendered image still loading, and not yet brought into view,
+// into view; returns whether there was one. A lazy image the paced scroll passed
+// too quickly never starts otherwise. Each image is revealed once and marked, so
+// one that never loads (clipped inside its container) cannot hold the loop, and
+// images that loaded meanwhile simply drop out of the pending set.
+function revealNextPendingImage() {
+  const next = Array.from(document.images)
+    .find(image => image.getClientRects().length > 0 && !image.complete && !image.dataset.loadtestRevealed)
+  if (!next) return false
+  next.dataset.loadtestRevealed = 'true'
+  next.scrollIntoView({ block: 'center' })
+  return true
 }
 
 function pagePaths(data) {
@@ -184,7 +188,7 @@ async function loadPage(base, page, path) {
     await tab.evaluate(scrollThrough)
     if (!(await waitForQuiet(tab, deadline))) return
     for (let reveal = 0; reveal < MAX_REVEALS; reveal++) {
-      if ((await tab.evaluate(revealPendingImage, reveal)) <= reveal) break
+      if (!(await tab.evaluate(revealNextPendingImage))) break
       if (!(await waitForQuiet(tab, deadline))) return
     }
     const whole = await tab.evaluate(measure)
