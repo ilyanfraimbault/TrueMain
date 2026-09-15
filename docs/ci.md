@@ -143,7 +143,7 @@ Server-side rendering is CPU work on one thread per process, so a second core di
 
 - The worker count is set in the compose files, never left to the preset's default: inside a container
   `os.cpus()` reports the host's cores, not the container's share. Prod runs 3 of its 4 vCPU (the API, Postgres
-  and the ingestors need the rest), preprod and the local stack 2.
+  and the ingestors need the rest), the local stack 2, and preprod 1 because its host is shared (2026-09-16).
 - Each worker has its own memory: the `/_ipx` byte cache (64 MB cap) and Nitro's in-memory cached functions are
   per worker, so a cache warmed by one worker is cold in the others, and the image cache's worst case is
   multiplied by the worker count.

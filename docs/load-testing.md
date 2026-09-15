@@ -4,6 +4,10 @@ How TrueMain is load-tested and how to read the result. The test runs against **
 **GitHub-hosted runner**, with [k6](https://grafana.com/docs/k6/) (`loadtest/k6/`), and is started by hand from
 the **Load test preprod** workflow (#1559).
 
+> Since 2026-09-16 preprod runs at test volume on a shared host and is **not** a capacity target: a day of
+> `visitors` runs starved the whole VPS. Use `smoke` and `browser` there to check a change; a 200-visitor run needs
+> a host of its own.
+
 ## Why this shape
 
 - **Preprod, not prod.** A test that finds the ceiling finds it for real visitors too. Preprod runs prod's

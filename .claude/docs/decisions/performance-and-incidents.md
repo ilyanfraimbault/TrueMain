@@ -176,7 +176,7 @@ exact `lower(col) = @p` expression that index serves — #1570.
 ## The public web server runs one Node worker per useful core (2026-09-15)
 
 **Decision:** the web app builds with Nitro's `node-cluster` preset, with `NITRO_CLUSTER_WORKERS` set per
-environment (prod 3, preprod 2) — #1579.
+environment (prod 3; preprod 1 since 2026-09-16, its host being shared) — #1579.
 
 - **Why.** Once the database kept up (#1570), the 200-visitor preprod runs failed at the web container itself:
   about 130,000–150,000 accept-queue overflows per run, 20,000–36,000 edge `502`s, one Node process at 30–80 % CPU,
