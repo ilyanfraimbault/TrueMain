@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   packages: write
+  actions: read
 
 concurrency:
   group: preprod-pipeline
@@ -18,7 +19,7 @@ jobs:
   preflight:
     name: Preflight deployment configuration
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 50
 
     steps:
       - name: Require the full preprod deployment configuration
@@ -41,6 +42,25 @@ jobs:
             exit 1
           fi
           echo "Preprod deployment configuration is complete." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for a running preprod load test
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 45 * 60 ))
+          while :; do
+            running="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow loadtest-preprod.yml --limit 20 --json status --jq '[.[] | select(.status != "completed")] | length')"
+            if [ "$running" = "0" ]; then
+              break
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::A preprod load test is still running after 45 minutes. Re-run this deploy once it has finished."
+              exit 1
+            fi
+            echo "A preprod load test is running; waiting before deploying."
+            sleep 30
+          done
 
   version:
     name: Resolve preprod version

@@ -30,8 +30,9 @@ Actions → *Load test preprod* → *Run workflow*:
 | `ramp` / `hold` | `3m` / `10m` | ramp-up and time at full load (`visitors`); ramp-down is 2 minutes |
 | `fetch_assets` | `true` | also fetch bundles and images; turn it off to isolate SSR and the API |
 
-The workflow shares the preprod deploy's concurrency group: a deploy waits for a running test instead of
-redeploying under it. Run `smoke` first after any change to the script or to the pages it replays.
+A test refuses to start while a preprod deploy is queued or running: dispatch it again once the deploy has
+finished. A deploy triggered during a test (a merge to `develop`) waits for the test before rolling out, so do
+not merge while a long run is on. Run `smoke` first after any change to the script or to the pages it replays.
 
 Against any origin, locally: `k6 run -e BASE_URL=http://localhost:3001 -e SCENARIO=smoke loadtest/k6/run.js`.
 
