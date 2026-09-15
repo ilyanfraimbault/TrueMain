@@ -17,14 +17,18 @@
  */
 defineOptions({ inheritAttrs: false })
 
-const props = defineProps<{
+defineProps<{
   disabled?: boolean
 }>()
 
+// Armed on any hover, even while `disabled`: the icon's data (item, rune and spell
+// maps) can land after the pointer arrived, and a pointer resting on the icon sends
+// no second `mouseover`. Once armed, `UTooltip` owns `disabled` and opens on the next
+// move after the data is there.
 const armed = ref(false)
 
 function arm() {
-  if (!props.disabled) armed.value = true
+  armed.value = true
 }
 </script>
 
