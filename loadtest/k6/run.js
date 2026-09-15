@@ -82,13 +82,20 @@ function thresholds() {
     }
   }
   if (SCENARIO === 'ratelimit-probe') return perRoute
-  return {
-    ...perRoute,
+  const correctness = {
     'http_req_failed{kind:page}': ['rate<0.01'],
     'http_req_failed{kind:api}': ['rate<0.01'],
+    'checks': ['rate>0.99'],
+  }
+  // Latency is judged under load only. A smoke run is one visitor on cold
+  // caches: it proves the script and the target, and its first champion reads
+  // are slow by construction, which says nothing about capacity.
+  if (SCENARIO === 'smoke') return { ...perRoute, ...correctness }
+  return {
+    ...perRoute,
+    ...correctness,
     'http_req_duration{kind:page}': ['p(95)<1500'],
     'http_req_duration{kind:api}': ['p(95)<2000'],
-    'checks': ['rate>0.99'],
   }
 }
 

@@ -66,7 +66,6 @@ export const ROUTES = {
     '/api/champions/[id]/item-context',
     '/api/champions/[id]/matchups',
     '/api/champions/[id]/synergies',
-    '/api/champions/[id]/synergies/trios',
     '/api/truemains',
     '/api/truemains/[nameTag]/profile',
     '/api/truemains/[nameTag]/rank-history',
@@ -95,11 +94,26 @@ function page(ctx, session, path, name) {
 }
 
 function batch(ctx, kind, calls) {
-  if (calls.length === 0) return
+  if (calls.length === 0) return []
   const requests = calls.map(([path, name]) => ['GET', `${ctx.base}${path}`, null, { tags: { name, kind } }])
-  for (const response of http.batch(requests)) {
+  const responses = http.batch(requests)
+  for (const response of responses) {
     record(response)
     check(response, { [`${kind} answered`]: answered }, { kind })
+  }
+  return responses
+}
+
+// The build the page opens on: its first item and keystone key the power-spike
+// read, which the API refuses without them. Null when the slice has no build.
+function topBuild(response) {
+  if (response.status !== 200) return null
+  try {
+    const build = (response.json('builds') || [])[0]
+    return build && build.firstItemId > 0 && build.primaryKeystoneId > 0 ? build : null
+  }
+  catch {
+    return null
   }
 }
 
@@ -164,17 +178,25 @@ function championPage(ctx, session) {
   const slice = query({ position, eloBracket })
   page(ctx, session, `/champions/${slug}${query({ position, elo: eloBracket === DEFAULT_ELO_BRACKET ? undefined : eloBracket })}`, '/champions/[slug]')
   statics(ctx, session, ['items', 'rune-tree', 'summoner-spells', 'champions', 'versions'])
-  batch(ctx, 'api', [
+  // Duo trios are left out: the page fires them only once a visitor picks a
+  // partner, never on load.
+  const [champion] = batch(ctx, 'api', [
     [`/api/champions/${id}${slice}`, '/api/champions/[id]'],
     [`/api/champions/${id}/trend${query({ position })}`, '/api/champions/[id]/trend'],
     [`/api/champions/${id}/scaling${slice}`, '/api/champions/[id]/scaling'],
     [`/api/champions/${id}/roam${slice}`, '/api/champions/[id]/roam'],
-    [`/api/champions/${id}/powerspikes${slice}`, '/api/champions/[id]/powerspikes'],
     [`/api/champions/${id}/item-context${query({ position })}`, '/api/champions/[id]/item-context'],
     [`/api/champions/${id}/matchups${slice}`, '/api/champions/[id]/matchups'],
     [`/api/champions/${id}/synergies${slice}`, '/api/champions/[id]/synergies'],
-    [`/api/champions/${id}/synergies/trios${slice}`, '/api/champions/[id]/synergies/trios'],
   ])
+  // Power spikes wait for the builds, as the build panel does.
+  const build = topBuild(champion)
+  if (build) {
+    batch(ctx, 'api', [[
+      `/api/champions/${id}/powerspikes${query({ position, eloBracket, buildFirstItemId: build.firstItemId, buildKeystoneId: build.primaryKeystoneId })}`,
+      '/api/champions/[id]/powerspikes',
+    ]])
+  }
 }
 
 function truemainsList(ctx, session) {
@@ -192,9 +214,9 @@ function profile(ctx, session) {
   statics(ctx, session, ['items', 'champions', 'versions'])
   batch(ctx, 'api', [
     [`/api/truemains/${nameTag}/profile`, '/api/truemains/[nameTag]/profile'],
-    [`/api/truemains/${nameTag}/rank-history?days=30`, '/api/truemains/[nameTag]/rank-history'],
+    [`/api/truemains/${nameTag}/rank-history?days=90`, '/api/truemains/[nameTag]/rank-history'],
     [`/api/truemains/${nameTag}/activity`, '/api/truemains/[nameTag]/activity'],
-    [`/api/truemains/${nameTag}/matches?page=1&pageSize=10`, '/api/truemains/[nameTag]/matches'],
+    [`/api/truemains/${nameTag}/matches?page=1`, '/api/truemains/[nameTag]/matches'],
   ])
 }
 

@@ -41,15 +41,19 @@ A session is 3 to 6 page views, with 5 to 20 seconds of reading between them, dr
 
 | Journey | Share | Requests after the HTML |
 | --- | ---: | --- |
-| champion page | 40 % | champion, trend, scaling, roam, power spikes, item context, matchups, synergies, trios |
+| champion page | 40 % | champion, trend, scaling, roam, item context, matchups, synergies; then power spikes for the build the page opens on |
 | home | 20 % | overview, leaderboard teaser |
 | tier list | 15 % | tier list for a random lane and bracket |
 | champions list | 10 % | directory for a random bracket |
 | truemains | 10 % | none — the leaderboard renders server-side |
 | player profile | 5 % | profile, rank history, activity, matches |
 
-The request lists mirror the page composables in `web/app`. When a page starts or stops fetching something,
-`loadtest/k6/lib/journeys.js` has to follow, or the test drifts away from what visitors actually cause.
+The request lists mirror the page composables in `web/app`, including their conditions: power spikes are
+requested only once the champion answered with a build (the API refuses them without its key), and duo trios
+not at all (the page fires them only after a visitor picks a partner). When a page starts or stops fetching
+something, `loadtest/k6/lib/journeys.js` has to follow, or the test either drifts from what visitors cause or
+fails on requests no visitor sends. A stub origin cannot catch that: check a change with `smoke` against
+preprod.
 
 ## The rate limit and a single runner
 
@@ -68,8 +72,10 @@ header forwarding and the logging all work, and it belongs before any long run.
 The job page carries the summary and the artifact holds the same numbers as JSON. Neither contains a URL or the
 host: requests are named by route template, and the workflow refuses to publish any output that names the host.
 
-- **Thresholds** — failed page and API requests under 1 %, page p95 under 1.5 s, API p95 under 2 s, checks over
-  99 %. They report and never stop the run; a crossed threshold fails the job once the summary is published.
+- **Thresholds** — failed page and API requests under 1 % and checks over 99 % on every run; page p95 under
+  1.5 s and API p95 under 2 s on `visitors` only, since a one-visitor smoke run on cold caches is slow by
+  construction. They report and never stop the run; a crossed threshold fails the job once the summary is
+  published.
 - **Responses** — a 404 is a champion without data for the slice, which is an answer; a 429 is the limiter; a
   5xx is the site failing; *no answer* is a timeout or a dropped connection.
 - **Per route** — where the latency and the failures are.
