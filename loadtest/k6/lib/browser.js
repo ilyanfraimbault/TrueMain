@@ -38,8 +38,13 @@ export const browserMetrics = {
   incomplete: new Rate('browser_page_incomplete'),
 }
 
-// A page that has not loaded within this budget counts as incomplete.
-const PAGE_BUDGET_MS = 60000
+// Budgets, each counted from the start of its stage: the landing view (navigation
+// to a quiet viewport), then the whole page (scroll, then each pending image
+// revealed). A page that runs out of either counts as incomplete. Separate, so a
+// slow landing cannot leave the whole-page stage no time at all, and the log says
+// which stage ran out.
+const LANDING_BUDGET_MS = 60000
+const WHOLE_PAGE_BUDGET_MS = 60000
 const QUIET_MS = 750
 const POLL_MS = 100
 const MAX_REVEALS = 40
@@ -169,27 +174,31 @@ async function loadPage(base, page, path) {
   const context = await browser.newContext()
   let tab = null
   let complete = false
+  let stage = 'navigation'
   try {
     await context.addInitScript(INIT_SCRIPT)
     tab = await context.newPage()
     await tab.route(new RegExp(`^https?://(?!${escapeRegExp(base.replace(/^https?:\/\//, ''))}/)`), route => route.abort())
 
-    const deadline = Date.now() + PAGE_BUDGET_MS
-    const response = await tab.goto(`${base}${path}`, { waitUntil: 'load', timeout: PAGE_BUDGET_MS })
+    const landingDeadline = Date.now() + LANDING_BUDGET_MS
+    const response = await tab.goto(`${base}${path}`, { waitUntil: 'load', timeout: LANDING_BUDGET_MS })
     if (!response || (response.status() >= 400 && response.status() !== 404)) return
 
-    if (!(await waitForQuiet(tab, deadline))) return
+    stage = 'landing view'
+    if (!(await waitForQuiet(tab, landingDeadline))) return
     const landing = await tab.evaluate(measure)
     if (landing.ttfb !== null) browserMetrics.ttfb.add(landing.ttfb, tags)
     if (landing.lcp !== null) browserMetrics.lcp.add(landing.lcp, tags)
     if (landing.dataReady !== null) browserMetrics.dataReady.add(landing.dataReady, tags)
     browserMetrics.viewLoaded.add(landing.loaded, tags)
 
+    stage = 'whole page'
+    const wholePageDeadline = Date.now() + WHOLE_PAGE_BUDGET_MS
     await tab.evaluate(scrollThrough)
-    if (!(await waitForQuiet(tab, deadline))) return
+    if (!(await waitForQuiet(tab, wholePageDeadline))) return
     for (let reveal = 0; reveal < MAX_REVEALS; reveal++) {
       if (!(await tab.evaluate(revealNextPendingImage))) break
-      if (!(await waitForQuiet(tab, deadline))) return
+      if (!(await waitForQuiet(tab, wholePageDeadline))) return
     }
     const whole = await tab.evaluate(measure)
     browserMetrics.pageLoaded.add(whole.loaded, tags)
@@ -203,6 +212,11 @@ async function loadPage(base, page, path) {
   }
   finally {
     browserMetrics.incomplete.add(!complete, tags)
+    if (!complete) {
+      // Into k6's log file, never a URL: which stage ran out, and what was still pending.
+      const state = tab ? await tab.evaluate(progress).catch(() => null) : null
+      console.warn(`incomplete load of ${page} during the ${stage}${state ? `: ${state.fetches} fetches in flight, ${state.pendingImages} images loading in the viewport` : ''}`)
+    }
     // The tab first: a context closed over an open tab keeps the iteration from ending.
     if (tab) await tab.close()
     await context.close()
