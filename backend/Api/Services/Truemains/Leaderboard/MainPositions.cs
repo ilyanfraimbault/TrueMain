@@ -27,9 +27,13 @@ internal static class MainPositions
     /// mains and derives each player's primary/secondary lane. Runs on the
     /// caller's context — callers that hydrate concurrently must pass their
     /// own short-lived context (a single DbContext is not thread-safe).
+    /// <paramref name="platformIds"/> are the platforms the puuids live on: a
+    /// puuid is global, so they filter nothing, but they let the
+    /// (PlatformId, Puuid, ChampionId) index seek instead of being walked (#1570).
     /// </summary>
     public static async Task<Dictionary<string, LeaderboardPositionsReadModel>> FetchAsync(
         TrueMainDbContext ctx,
+        string[] platformIds,
         string[] puuids,
         CancellationToken ct)
     {
@@ -43,7 +47,7 @@ internal static class MainPositions
         // requested slice (~25 players × few mains each).
         var rows = await ctx.MainChampionStats
             .AsNoTracking()
-            .Where(m => puuids.Contains(m.Puuid) && m.IsMain && m.IsActive)
+            .Where(m => platformIds.Contains(m.PlatformId) && puuids.Contains(m.Puuid) && m.IsMain && m.IsActive)
             .Select(m => new { m.Puuid, m.PlayRate, m.ChampionMatches, m.PositionBreakdown })
             .ToListAsync(ct);
 
