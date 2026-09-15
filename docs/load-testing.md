@@ -65,8 +65,12 @@ afterwards: set `RATE_LIMIT_PERMITS` in the preprod `.env`, recreate the `api` c
 deploy restores it too, since the `.env` is rewritten from the `PREPROD_ENV_FILE` secret.
 
 `ratelimit-probe` does the opposite: it keeps the limit and checks that the rejections reach the admin Logs as
-`RateLimitRejected` rows keyed on the runner's address. That is the end-to-end proof that the edge proxy, the SSR
-header forwarding and the logging all work, and it belongs before any long run.
+`RateLimitRejected` rows keyed on the runner's address. It sends 16 requests a second: fifteen of a cached API
+read, so the limit is crossed however slow the pages are, and one server-rendered page, whose own call to the
+API must be charged to the same visitor. Expect a first-rejection row and a per-window count on process `Api`
+(the count exceeds k6's 429s by the rejected SSR calls, whose pages still render), and counted
+`FrontendUpstreamErrors` rows on process `Web`. That is the end-to-end proof that the edge proxy, the SSR header
+forwarding and the logging all work, and it belongs before any long run.
 
 ## Reading the result
 
