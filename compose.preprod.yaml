@@ -365,11 +365,13 @@ configs:
 
       :3001 {
       	log
+      	encode zstd gzip
       	reverse_proxy web:3000
       }
 
       :3002 {
       	log
+      	encode zstd gzip
       	reverse_proxy admin:3000 {
       		header_up X-Forwarded-For {remote_host}
       	}
