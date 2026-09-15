@@ -204,6 +204,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
       ?? 'http://localhost:5008',
+    // Server-only key for the API's `POST /internal/logs` (#1556), from
+    // NUXT_LOG_INGEST_KEY. Empty keeps error forwarding off
+    // (server/plugins/log-forwarding.ts).
+    logIngestKey: '',
     public: {
       // Which deployed environment this container is (`preprod` / `production`),
       // and the build running in it — the preprod pipeline stamps a prerelease

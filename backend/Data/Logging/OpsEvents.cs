@@ -102,6 +102,20 @@ public static class OpsEvents
     /// </summary>
     public static readonly EventId LogRecordsDropped = new(1013, nameof(LogRecordsDropped));
 
+    /// <summary>
+    /// A frontend server — the public site or the admin portal — failed a request with a
+    /// 5xx of its own: a render error, a handler that threw, the API proxy unable to reach
+    /// the API (#1556). Reported through <c>POST /internal/logs</c>, one row per distinct
+    /// error per flush, with the occurrence count.
+    /// </summary>
+    public static readonly EventId FrontendServerError = new(1014, nameof(FrontendServerError));
+
+    /// <summary>
+    /// A frontend's proxy relayed a 429 or a 5xx answer from the API (#1556): what the
+    /// visitor saw, counted per route template and status.
+    /// </summary>
+    public static readonly EventId FrontendUpstreamErrors = new(1015, nameof(FrontendUpstreamErrors));
+
     // Single source for the lookup + the UI-facing list, so a new event only has
     // to be added in two places (its field above and this array).
     private static readonly EventId[] All =
@@ -119,7 +133,9 @@ public static class OpsEvents
         RateLimitRejected,
         RequestFailed,
         RequestAborted,
-        LogRecordsDropped
+        LogRecordsDropped,
+        FrontendServerError,
+        FrontendUpstreamErrors
     ];
 
     private static readonly Dictionary<string, int> IdByName =
@@ -131,6 +147,18 @@ public static class OpsEvents
     /// </summary>
     public static IReadOnlyList<string> KnownEventTypes { get; } =
         All.Select(eventId => eventId.Name!).ToList();
+
+    /// <summary>
+    /// The events a frontend may report through <c>POST /internal/logs</c> (#1556).
+    /// Anything else is refused, so a forwarded row can never pass for a backend event
+    /// such as <see cref="ProcessRunFailed"/>.
+    /// </summary>
+    public static IReadOnlyList<string> ForwardableEventTypes { get; } =
+        [FrontendServerError.Name!, FrontendUpstreamErrors.Name!];
+
+    /// <summary>The id of a registered event name, or null.</summary>
+    public static int? IdOf(string name)
+        => IdByName.TryGetValue(name, out var id) ? id : null;
 
     /// <summary>
     /// Returns the registered event name when <paramref name="eventId"/> is one of

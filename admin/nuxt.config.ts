@@ -61,6 +61,9 @@ export default defineNuxtConfig({
     // `X-Ops-Key` header so the key never reaches the browser.
     opsApiBaseUrl: process.env.NUXT_OPS_API_BASE_URL ?? 'http://localhost:5008',
     opsKey: process.env.NUXT_OPS_KEY ?? '',
+    // Key for the API's `POST /internal/logs` (#1556), distinct from the ops key.
+    // Empty keeps error forwarding off (server/plugins/log-forwarding.ts).
+    logIngestKey: process.env.NUXT_LOG_INGEST_KEY ?? '',
     // Single-operator credentials checked by the login endpoint. Both default
     // to `truemain` for local dev; override per environment.
     adminUsername: process.env.NUXT_ADMIN_USERNAME ?? 'truemain',

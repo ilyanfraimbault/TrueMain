@@ -40,5 +40,20 @@ export default defineEventHandler(async (event) => {
     headers: {
       'X-Ops-Key': opsKey,
     },
+    // A failing ops call is an admin-tier error worth a row in the Logs page
+    // (#1556), counted per route.
+    onResponse: (proxied, response) => {
+      if (response.status !== 429 && response.status < 500) return
+      const route = toRouteTemplate(`/ops${path}`)
+      reportToOpsLogs({
+        level: response.status >= 500 ? 'Error' : 'Warning',
+        category: 'ops-proxy',
+        eventType: 'FrontendUpstreamErrors',
+        message: `The API answered ${response.status} to ${proxied.method} ${route}`,
+        requestMethod: proxied.method,
+        requestPath: route,
+        statusCode: response.status,
+      })
+    },
   })
 })

@@ -40,6 +40,27 @@ export default defineEventHandler(async (event) => {
   if (isUnsafeProxyPath(path)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid request path' })
   }
+  // The API's `/internal` surface is for server-side callers with their own key
+  // (#1556), never for a visitor going through this proxy.
+  if (isInternalApiPath(path)) {
+    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
+  }
 
-  return proxyRequest(event, `${apiBaseUrl}${path}`)
+  return proxyRequest(event, `${apiBaseUrl}${path}`, {
+    // What the visitor was served, counted per route in the ops logs (#1556): a
+    // 429 is the API shedding load, a 5xx is the API failing.
+    onResponse: (proxied, response) => {
+      if (response.status !== 429 && response.status < 500) return
+      const route = toRouteTemplate(`/api${path}`)
+      reportToOpsLogs({
+        level: response.status >= 500 ? 'Error' : 'Warning',
+        category: 'api-proxy',
+        eventType: 'FrontendUpstreamErrors',
+        message: `The API answered ${response.status} to ${proxied.method} ${route}`,
+        requestMethod: proxied.method,
+        requestPath: route,
+        statusCode: response.status,
+      })
+    },
+  })
 })
