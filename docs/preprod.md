@@ -276,9 +276,9 @@ pulling.
 
 ## Parity with prod
 
-Preprod runs **prod's parameters at a smaller volume** (#1558): a measurement
-taken here — a load test, a query plan, a pipeline pass — only means something if
-the stack behaves like prod's. Everything in `compose.preprod.yaml` matches
+Preprod runs **prod's parameters at a test volume**: it checks that a change
+behaves on real data before a release, on a host it shares with other projects.
+It is not sized for capacity measurements any more (see *Volume*). Everything in `compose.preprod.yaml` matches
 `compose.prod.yaml` except what falls into one of the three groups below; a
 difference that fits none of them is drift to fix, not a preprod habit.
 
@@ -299,15 +299,20 @@ in `backend/Ingestor/Options/*`:
 | `MatchDataRetention__RetainedPatchCount` | 1 | 2 (code default) | patches of match data kept |
 | `MatchDataRetention__AggregateRetainedPatchCount` | 2 | 0 (code default: kept forever) | patches of aggregates kept, so older champion pages are empty on preprod by choice |
 | `MongoLogging__LogsRetention` | 30 days | 90 days (default) | diagnostic log TTL |
+| `MatchIngestion__MatchesPerAccount` | 10 | 20 (default) | matches fetched per account |
+| `MainAnalysis__MatchesToConsider` | 30 | 50 (default) | recent matches main analysis reads |
+| `MainAnalysis__MinMatchesToEvaluate` | 10 | 20 (default) | matches needed before an account is evaluated |
+| web `NITRO_CLUSTER_WORKERS` | 1 | 3 | Node processes serving the public site |
 
 Postgres memory settings follow the same logic: they keep **prod's ratio to the
 host's RAM**, not prod's absolute values — see *Postgres server tuning* in
 `docs/prod.md`.
 
-The main-detection parameters are deliberately **not** in this table. Preprod
-used to fetch 10 matches per account, analyse 30 and flag a main from 10, where
-prod runs the code defaults of 20, 50 and 20. That is a different definition of
-a main, not a smaller sample of the same one, so preprod now runs prod's values.
+Main detection is back at 10/30/10 (2026-09-16). Running prod's 20/50/20, two web
+workers and a day of 200-visitor load tests on the shared 2-vCPU host starved the
+whole VPS — the preprod stack had to be stopped by hand. A main on preprod is
+therefore detected from a smaller sample than on prod; check a main-detection
+change against prod's numbers, not preprod's.
 
 Adjust a volume knob directly in the compose file on the host if preprod needs
 more (or less) data for a while — no image rebuild required, `docker compose up

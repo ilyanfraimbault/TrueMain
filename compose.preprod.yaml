@@ -13,6 +13,9 @@ x-ingestor-environment: &ingestor-environment
       Scoring__TopNPerPlatform: "50"
       Harvest__MaxCandidatesPerRun: "500"
       MatchIngestion__BatchSize: "25"
+      MatchIngestion__MatchesPerAccount: "10"
+      MainAnalysis__MatchesToConsider: "30"
+      MainAnalysis__MinMatchesToEvaluate: "10"
       MainAnalysis__AggregateNonMainPopulation: "true"
 
 services:
@@ -172,7 +175,7 @@ services:
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
-      NITRO_CLUSTER_WORKERS: "2"
+      NITRO_CLUSTER_WORKERS: "1"
       NUXT_API_BASE_URL: http://api:8080
       NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       NUXT_PUBLIC_APP_ENV: preprod

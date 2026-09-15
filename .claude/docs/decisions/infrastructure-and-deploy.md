@@ -189,3 +189,15 @@ on 10/30/10 matches instead of 20/50/20 — a different definition of a main, no
   cookie stays non-`Secure`, which is an identity difference, not drift.
 - **`AggregateNonMainPopulation` stays a preprod-only trial**, kept by the owner's choice rather than aligned.
 
+## Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
+
+**Decision:** preprod goes back to 10/30/10 main detection and one web worker; it verifies changes before a
+release and is no longer the target for capacity tests. This reverses the main-detection part of the entry above.
+
+- **Why.** On 2026-09-15 a day of 200-visitor load tests, prod's 20/50/20 ingestion and a two-worker web server
+  on the shared 2-vCPU VPS starved everything on it (about 90 % CPU steal, TLS handshakes of several seconds for
+  the other projects), and the owner stopped the preprod stack by hand.
+- **Consequence.** Main detection on preprod works from a smaller sample than prod; the edge Caddy, compression,
+  pools and every non-volume parameter still match prod. The load-test workflow stays for `smoke` checks; a
+  capacity run needs a host of its own.
+

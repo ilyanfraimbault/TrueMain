@@ -238,6 +238,7 @@ Last verified against `develop` on 2026-09-02.
 - Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow — #680, #1018
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
+- Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
 
 ## Admin portal — observability data — [`decisions/admin-observability.md`](decisions/admin-observability.md)
 
