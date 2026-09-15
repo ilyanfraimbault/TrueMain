@@ -93,8 +93,15 @@ const optimizedSrc = computed(() => canonicalIcon(props.src))
 // A cached image can finish loading before hydration attaches the @load
 // listener; without this check the skeleton would cover it forever.
 const imgEl = ref<HTMLImageElement | null>(null)
+// An image already complete at mount (served from memory: a cached icon, or the same
+// icon re-created when a hover arms its tooltip, #1585) is shown at once, without the
+// fade-in: the fade exists to soften an image arriving, not to replay on a remount.
+const instant = ref(false)
 onMounted(() => {
-  if (imgEl.value?.complete && imgEl.value.naturalWidth > 0) loaded.value = true
+  if (imgEl.value?.complete && imgEl.value.naturalWidth > 0) {
+    instant.value = true
+    loaded.value = true
+  }
 })
 </script>
 
@@ -156,8 +163,8 @@ onMounted(() => {
         :width="FETCH_SIZE"
         :height="FETCH_SIZE"
         :loading="loading"
-        class="size-full transition-opacity duration-150"
-        :class="loaded && !failed ? 'opacity-100' : 'opacity-0'"
+        class="size-full"
+        :class="[loaded && !failed ? 'opacity-100' : 'opacity-0', instant ? '' : 'transition-opacity duration-150']"
         @load="loaded = true"
         @error="failed = true"
       >

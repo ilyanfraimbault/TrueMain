@@ -57,6 +57,11 @@ write its rows under a pager reading 4 — #1234.
   they always rendered a single `SkeletonImage` — which is why the symptom looked specific to skill orders and
   summoners.
 
+  Since #1585 the icon tooltips are not mounted until the pointer first passes over the icon
+  (`GameTooltip/LazyTooltip.vue`). That keeps this rule: Reka takes its snapshot when the tooltip mounts, once,
+  on the element it keeps for good, and it opens on `pointermove`, so the resting pointer opens it on its next
+  move and nothing is opened by hand.
+
 - **A skeleton is the real component in `pending` mode, not a drawing of it.** The champion page's build
   section has two loading phases it cannot merge: the aggregate and the patch-pinned static bundles are
   separate fetches, and the ~95 DDragon icons only start downloading once the ids they resolve are mounted.
@@ -189,4 +194,19 @@ stale-while-revalidate=86400`, added by a Nitro `beforeResponse` hook, never to 
   it; `stale-while-revalidate` keeps a reload past the hour from blocking on the network.
 - **A hook, not a route rule**, because route-rule headers are set before the handler and would make a failed
   lookup cacheable too.
+
+## A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15)
+
+**Decision:** a build tab's panel is mounted the first time the tab is opened and kept afterwards, and the item,
+rune and spell icon tooltips mount on the first hover — #1585.
+
+- **Why.** A prod champion page spent about 9.6 s of main-thread long tasks in its first 14 s (longest 2.1 s),
+  delaying its second wave of fetches by 2 s after the data it needed had arrived. A CPU profile of the page
+  put the time in Vue's component creation and patching and in Nuxt UI / Reka's per-component prop, context and
+  class work, not in the app's own code: the cost was the number of components. Three build panels were fully
+  mounted on load, and every icon was a `UTooltip`.
+- **Kept after first open**, so switching back to a tab is instant and keeps its state; a new set of builds
+  starts over on its first tab.
+- **Power spikes follow the panel**: they are fetched for a tab when it is first opened, which the load test's
+  champion journey now mirrors.
 
