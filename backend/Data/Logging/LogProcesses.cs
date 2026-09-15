@@ -12,4 +12,11 @@ namespace Data.Logging;
 public static class LogProcesses
 {
     public static IReadOnlyList<string> KnownProcessNames { get; } = ["Api", "Ingestor", "Web", "Admin"];
+
+    /// <summary>
+    /// The hosts that write crash reports. The frontends forward errors but never
+    /// crash-report — they have no crash capture and no Mongo connection — so the
+    /// Crashes filter does not offer them.
+    /// </summary>
+    public static IReadOnlyList<string> CrashReportingProcessNames { get; } = ["Api", "Ingestor"];
 }
