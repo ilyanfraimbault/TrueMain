@@ -41,7 +41,7 @@ A session is 3 to 6 page views, with 5 to 20 seconds of reading between them, dr
 
 | Journey | Share | Requests after the HTML |
 | --- | ---: | --- |
-| champion page | 40 % | champion, trend, scaling, roam, item context, matchups, synergies; then power spikes for the build the page opens on |
+| champion page | 40 % | champion, trend, scaling, roam, item context, matchups, synergies; then power spikes once per build tab |
 | home | 20 % | overview, leaderboard teaser |
 | tier list | 15 % | tier list for a random lane and bracket |
 | champions list | 10 % | directory for a random bracket |
@@ -49,7 +49,8 @@ A session is 3 to 6 page views, with 5 to 20 seconds of reading between them, dr
 | player profile | 5 % | profile, rank history, activity, matches |
 
 The request lists mirror the page composables in `web/app`, including their conditions: power spikes are
-requested only once the champion answered with a build (the API refuses them without its key), and duo trios
+requested only once the champion answered, one per build tab since every tab's panel stays mounted (the API
+refuses them without the build's key), and duo trios
 not at all (the page fires them only after a visitor picks a partner). When a page starts or stops fetching
 something, `loadtest/k6/lib/journeys.js` has to follow, or the test either drifts from what visitors cause or
 fails on requests no visitor sends. A stub origin cannot catch that: check a change with `smoke` against

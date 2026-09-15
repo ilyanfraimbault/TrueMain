@@ -104,16 +104,18 @@ function batch(ctx, kind, calls) {
   return responses
 }
 
-// The build the page opens on: its first item and keystone key the power-spike
-// read, which the API refuses without them. Null when the slice has no build.
-function topBuild(response) {
-  if (response.status !== 200) return null
+// The builds the page renders as tabs. Every tab's panel stays mounted and fetches
+// its own power spikes, keyed on the build's first item and keystone — the API
+// refuses the read without them — so a visitor causes one power-spike request per
+// build the champion read returned (already capped server-side).
+function buildKeys(response) {
+  if (response.status !== 200) return []
   try {
-    const build = (response.json('builds') || [])[0]
-    return build && build.firstItemId > 0 && build.primaryKeystoneId > 0 ? build : null
+    return (response.json('builds') || [])
+      .filter(build => build && build.firstItemId > 0 && build.primaryKeystoneId > 0)
   }
   catch {
-    return null
+    return []
   }
 }
 
@@ -189,14 +191,12 @@ function championPage(ctx, session) {
     [`/api/champions/${id}/matchups${slice}`, '/api/champions/[id]/matchups'],
     [`/api/champions/${id}/synergies${slice}`, '/api/champions/[id]/synergies'],
   ])
-  // Power spikes wait for the builds, as the build panel does.
-  const build = topBuild(champion)
-  if (build) {
-    batch(ctx, 'api', [[
-      `/api/champions/${id}/powerspikes${query({ position, eloBracket, buildFirstItemId: build.firstItemId, buildKeystoneId: build.primaryKeystoneId })}`,
-      '/api/champions/[id]/powerspikes',
-    ]])
-  }
+  // Power spikes wait for the builds, then fire once per build tab, as the
+  // mounted build panels do.
+  batch(ctx, 'api', buildKeys(champion).map(build => [
+    `/api/champions/${id}/powerspikes${query({ position, eloBracket, buildFirstItemId: build.firstItemId, buildKeystoneId: build.primaryKeystoneId })}`,
+    '/api/champions/[id]/powerspikes',
+  ]))
 }
 
 function truemainsList(ctx, session) {
