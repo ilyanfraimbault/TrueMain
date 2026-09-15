@@ -21,7 +21,7 @@ backend/Api/Services/Ops/Accounts/AccountExplorerQueryService.cs	630	500
 backend/Api/Services/Ops/Coverage/PatchCoverageQueryService.cs	801	500
 backend/Api/Services/Ops/DataQuality/DataQualityDetectorsQueryService.cs	998	500
 backend/Api/Services/Ops/DataQuality/DataQualityQueryService.cs	695	500
-backend/Api/Services/Truemains/Leaderboard/TruemainsLeaderboardQueryService.cs	1099	500
+backend/Api/Services/Truemains/Leaderboard/TruemainsLeaderboardQueryService.cs	983	500
 backend/Api/Services/Truemains/Matches/MatchDetailQueryService.cs	582	500
 backend/Data/Logging/Mongo/MongoLogContext.cs	658	500
 backend/Data/Ops/Mongo/ProcessRunStore.cs	508	500

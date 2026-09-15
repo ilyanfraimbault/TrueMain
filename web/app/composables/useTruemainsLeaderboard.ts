@@ -16,7 +16,7 @@ interface UseTruemainsLeaderboardOptions {
    * the backend round-trip.
    *
    * Pass `false` where the panel is secondary — the champion page's Truemains
-   * card (#1231). There, `server: true` bought nothing (the card is below the
+   * card (#1231) and its mains comparison picker (#1570). There, `server: true` bought nothing (the card is below the
    * fold and `hydrate-on-visible` defers its hydration anyway) and cost a
    * backend call, uncached by Nitro, on every SSR of every champion page. That
    * page's SSR budget is deliberately spent on the build summary alone
