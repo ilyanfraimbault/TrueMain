@@ -7,13 +7,15 @@
 //                    the target and the summary before a real run.
 //   visitors         ramps to VUS concurrent visitors over RAMP, holds for HOLD,
 //                    ramps down over RAMP_DOWN. The capacity test.
-//   ratelimit-probe  one client over the rate limit for a minute: proves 429s
-//                    reach the ops logs, keyed on the client's address.
+//   ratelimit-probe  one client well over the rate limit for a minute: proves
+//                    429s reach the ops logs, keyed on the client's address,
+//                    and that server-rendered pages spend the same budget.
 //
 // Other variables: THINK_MIN / THINK_MAX (seconds between page views),
 // FETCH_ASSETS (true|false), SUMMARY_DIR (where summary.md / summary.json go).
 
 import http from 'k6/http'
+import exec from 'k6/execution'
 import { fail, sleep } from 'k6'
 import { between } from './lib/params.js'
 import { ROUTES, newSession, record, viewPage } from './lib/journeys.js'
@@ -55,13 +57,16 @@ const SCENARIOS = {
     gracefulRampDown: '30s',
     exec: 'visitors',
   },
+  // The rate is set against a fast, cached API read so the limit is crossed
+  // whatever the site's latency: a probe paced by slow server-rendered pages
+  // can stay under the limit and prove nothing.
   'ratelimit-probe': {
     executor: 'constant-arrival-rate',
-    rate: 6,
+    rate: 16,
     timeUnit: '1s',
     duration: '1m',
-    preAllocatedVUs: 4,
-    maxVUs: 12,
+    preAllocatedVUs: 20,
+    maxVUs: 60,
     exec: 'probe',
   },
 }
@@ -141,9 +146,15 @@ export function visitors(data) {
 }
 
 export function probe() {
-  const page = 1 + Math.floor(Math.random() * 5)
-  record(http.get(`${BASE_URL}/truemains?page=${page}`, { tags: { name: '/truemains', kind: 'page' } }))
-  record(http.get(`${BASE_URL}/api/champions/overview`, { tags: { name: '/api/champions/overview', kind: 'api' } }))
+  // One iteration in sixteen is a server-rendered page: its own call to the API
+  // must land in the same visitor's budget, and be rejected with the rest once
+  // it is spent.
+  if (exec.scenario.iterationInTest % 16 === 0) {
+    const page = 1 + Math.floor(Math.random() * 5)
+    record(http.get(`${BASE_URL}/truemains?page=${page}`, { tags: { name: '/truemains', kind: 'page' } }))
+    return
+  }
+  record(http.get(`${BASE_URL}/api/truemains?page=1&pageSize=5`, { tags: { name: '/api/truemains', kind: 'api' } }))
 }
 
 export function handleSummary(data) {
@@ -159,7 +170,7 @@ export function handleSummary(data) {
       ? `0 → ${VUS} visitors over ${RAMP}, held ${HOLD}, down over ${RAMP_DOWN}; ${THINK_MIN}–${THINK_MAX} s between page views; assets ${FETCH_ASSETS ? 'on' : 'off'}`
       : SCENARIO === 'smoke'
         ? `1 visitor for 1 minute; ${THINK_MIN}–${THINK_MAX} s between page views; assets ${FETCH_ASSETS ? 'on' : 'off'}`
-        : '1 client at 12 requests/s for 1 minute, over the per-visitor rate limit',
+        : '1 client at 16 requests/s for 1 minute (15 cached API reads, 1 server-rendered page), over the per-visitor rate limit',
   }
   const summary = buildSummary(data, profile, ROUTES)
   return {
