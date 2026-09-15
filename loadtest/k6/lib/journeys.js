@@ -238,11 +238,12 @@ function championPage(ctx, session) {
       [`/api/champions/${id}/synergies${slice}`, '/api/champions/[id]/synergies'],
       [`/api/truemains${query({ page: 1, pageSize: 10, championId: id })}`, '/api/truemains'],
     ])
-    // Power spikes wait for the builds, then fire once per build tab, as the
-    // mounted build panels do; the champion's static data waits for its patch.
+    // Power spikes wait for the builds, then fire for the tab on screen only: a
+    // build panel is mounted the first time its tab is opened (#1585). The
+    // champion's static data waits for its patch.
     const patch = patchOf(champion)
     const staticKey = `champion-${id}-${patch}`
-    const followUps = buildKeys(champion).map(build => [
+    const followUps = buildKeys(champion).slice(0, 1).map(build => [
       `/api/champions/${id}/powerspikes${query({ position, eloBracket, buildFirstItemId: build.firstItemId, buildKeystoneId: build.primaryKeystoneId })}`,
       '/api/champions/[id]/powerspikes',
     ])
