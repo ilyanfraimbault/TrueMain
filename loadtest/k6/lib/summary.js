@@ -27,8 +27,9 @@ function ms(value) {
   return value === undefined ? '—' : `${grouped(value)} ms`
 }
 
+// A kept sub-metric with no sample still reports 0: show that as no figure.
 function pair(stats) {
-  return stats.med === undefined ? '—' : `${ms(stats.med)} / ${ms(stats.p95)}`
+  return !stats.count ? '—' : `${ms(stats.med)} / ${ms(stats.p95)}`
 }
 
 function percent(value) {
@@ -62,6 +63,7 @@ function routeRows(data, routes) {
 
 function trend(data, key) {
   return {
+    count: metricValue(data, key, 'count'),
     med: metricValue(data, key, 'med'),
     p95: metricValue(data, key, 'p(95)'),
   }

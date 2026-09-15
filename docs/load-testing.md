@@ -77,7 +77,7 @@ are aborted. From navigation start, it records:
 | view loaded | the landing viewport settled: no request to the site in flight for 750 ms, last resource (images included) answered |
 | page loaded | the whole page scrolled through, then each image still loading brought into view in turn, until the network is quiet again, so the sections that load once visible and the lazy images count. The scroll is paced, so this figure includes a few seconds of scrolling |
 | images, failed / never loaded | images rendered on the page; those that answered without a usable image; those still not loaded after being brought into view (a lazy image clipped inside its container never starts) |
-| incomplete | loads that did not reach *page loaded* within 60 s, or whose HTML failed |
+| incomplete | loads whose HTML failed, or that ran out of budget: 60 s to settle the landing view, then 60 s more for the whole page. `k6.log` in the artifact says which stage ran out and what was still pending |
 
 *Quiet* means no fetch of the page's own in flight, no image loading in the viewport and no new resource for
 750 ms. It is read from inside the page: k6's request events keep a browser iteration from ending.
