@@ -85,6 +85,18 @@ are aborted. From navigation start, it records:
 Images hidden on the page (inactive build tabs) are left out, since a browser never loads them. Every figure
 is tagged with the page template, never with a URL.
 
+## Runner reachability
+
+GitHub-hosted runners sometimes cannot reach preprod at all: the connection times out, and nothing arrives on
+the host (#1568). On 2026-09-15 two dispatches in a row failed that way and the next one succeeded. On the host
+itself nothing filtered the traffic — no local firewall rule, no fail2ban, conntrack far from full — and a
+packet capture saw a working runner's connection attempts arrive but none from the failing ones. The drop
+happens upstream, in the hosting provider's network, most likely for some runner address ranges; the provider's
+panel firewall and DDoS protection have not been inspected yet.
+
+The workflow's first network step tries five times, 20 seconds apart, before it gives up. When it does, dispatch
+the run again: it lands on another runner, and usually another address.
+
 ## The rate limit and a single runner
 
 The API allows each visitor `RateLimit:PermitLimit` requests per window (500 a minute by default). Every virtual

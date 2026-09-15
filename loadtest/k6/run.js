@@ -214,7 +214,7 @@ function describe() {
     return `0 → ${VUS} visitors over ${RAMP}, held ${HOLD}, down over ${RAMP_DOWN}; ${THINK_MIN}–${THINK_MAX} s between page views; assets ${FETCH_ASSETS ? 'on' : 'off'}${BROWSER_VUS > 0 ? `${browsers} during the hold` : ''}`
   }
   if (SCENARIO === 'smoke') {
-    return `1 visitor for 1 minute; ${THINK_MIN}–${THINK_MAX} s between page views; assets ${FETCH_ASSETS ? 'on' : 'off'}${browsers}, one pass`
+    return `1 visitor for 1 minute; ${THINK_MIN}–${THINK_MAX} s between page views; assets ${FETCH_ASSETS ? 'on' : 'off'}${BROWSER_VUS > 0 ? `${browsers}, one pass` : ''}`
   }
   if (SCENARIO === 'browser') {
     return `${BROWSER_VUS} browser${BROWSER_VUS > 1 ? 's' : ''}, ${BROWSER_PASSES} passes over every page, no other load`

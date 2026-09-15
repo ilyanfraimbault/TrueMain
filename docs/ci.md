@@ -263,6 +263,9 @@ prerelease and not build metadata.
   logs, but not in artifacts.
 - k6 is pinned (`grafana/setup-k6-action` with an explicit `k6-version`), so two runs weeks apart differ by
   the site, not by the tool.
+- Before k6 starts, the runner checks that preprod answers, five times 20 seconds apart. Some runner addresses
+  never reach the host (#1568), and a clear error telling the operator to re-dispatch beats a k6 run whose
+  every request times out.
 - The k6 step records its exit code instead of failing, so a run that crossed a threshold (exit 99) still
   publishes its summary; the last step fails the job afterwards.
 - The browser VUs use the Chrome preinstalled on the runner image, found on the `PATH` by a step that fails
