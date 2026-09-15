@@ -51,10 +51,19 @@ onboarding. All six were rewritten as plain transactional DDL, which is free: th
 re-execute on an empty database. The `migrate-fresh` CI job applies the generated script to a blank Postgres
 on every PR so this cannot come back.
 
-**Npgsql pools are capped per service (api 50, ingestor 20) against Postgres `max_connections=100`.**
+**Npgsql pools are capped per service against Postgres `max_connections=100`.**
 Two unbounded pools defaulting to 100 each could request 200 connections; once truemain.lol went live this
-produced `53300: sorry, too many clients already` and a total API outage. PgBouncer was proposed as the proper
-fix; the caps are what actually shipped (no `pgbouncer` service exists in the compose files) — #437, #461, #462.
+produced `53300: sorry, too many clients already` and a total API outage. The caps shipped first — #437, #461,
+#462 — and PgBouncer (transaction pooling, 25 server connections plus 5 in reserve) later went in front of
+Postgres, so the Npgsql caps now bound client connections to PgBouncer, not Postgres backends.
+
+**Since #1570 the API's pool matches what PgBouncer can serve, and a wait at PgBouncer is bounded.** The API ran
+`Maximum Pool Size=100` against a PgBouncer pool of 25 + 5: under the 200-visitor load test, 74 clients queued at
+PgBouncer with waits up to 11 s, and API requests hung until the visitor's 60 s timeout. The API pool is now 30
+(PgBouncer's default plus reserve pool), so excess requests queue in Npgsql and fail after its 15 s connection
+timeout with a logged error; PgBouncer's `QUERY_WAIT_TIMEOUT` is 30 s for every client, ingestors included, well
+above the longest wait measured under overload (11 s), so it only ends a wait that would otherwise last minutes.
+The ingestors keep their own caps (40 each).
 
 ## Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02)
 
