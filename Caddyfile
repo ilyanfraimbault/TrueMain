@@ -26,6 +26,7 @@
 # Public site
 truemain.lol {
 	log
+	encode zstd gzip
 	reverse_proxy web:3000
 }
 
@@ -37,6 +38,7 @@ www.truemain.lol {
 # Admin dashboard
 admin.truemain.lol {
 	log
+	encode zstd gzip
 
 	# Force X-Forwarded-For to the real peer IP, dropping any client-supplied
 	# value. Caddy already does this by default (the browser is an untrusted

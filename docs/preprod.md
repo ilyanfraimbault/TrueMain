@@ -139,6 +139,9 @@ front of the apps:
   `X-Forwarded-For` hop (#1546). With no edge to write that header, every
   preprod visitor landed in one bucket, so a load test measured the limiter
   rather than the site.
+- **Compression.** Both sites compress responses (`encode zstd gzip`), like prod's edge (#1583): HTML,
+  bundles and API JSON otherwise travel raw, and a page-load measurement over an uncompressed edge would
+  overstate transfer times.
 - **Access logs.** Both sites log every request to the Caddy container's output,
   as prod's two sites do.
 - **Admin login throttle.** The admin runs with `NUXT_TRUST_PROXY=true`, like

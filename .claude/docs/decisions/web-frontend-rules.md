@@ -182,6 +182,19 @@ to Data Dragon, not the API.
   reopen exactly the spoofing #1546 closed, so the header passes through untouched and the edge stays the only
   writer that counts.
 
+## Static game data is cached by the browser for the hour the server caches it (2026-09-15)
+
+**Decision:** successful `/api/static/*` answers carry `Cache-Control: public, max-age=3600,
+stale-while-revalidate=86400`, added by a Nitro `beforeResponse` hook, never to an error — #1584.
+
+- **Why.** A reload of a prod champion page downloaded 684 KB of static data again (7 of 12 calls), and its icons
+  waited for it, while bundles and images came from the browser cache. The client cache
+  (`app/utils/static-cache.ts`) dies with the page.
+- **The same hour as the server cache**, so a new patch reaches a visitor no later than the server itself serves
+  it; `stale-while-revalidate` keeps a reload past the hour from blocking on the network.
+- **A hook, not a route rule**, because route-rule headers are set before the handler and would make a failed
+  lookup cacheable too.
+
 ## A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15)
 
 **Decision:** a build tab's panel is mounted the first time the tab is opened and kept afterwards, and the item,
