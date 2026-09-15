@@ -15,6 +15,7 @@ two environments and the migration path in detail.
 | `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
+| `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
 
 `.github/actions/migration-script` is the composite action every job that
 needs the idempotent EF migration script goes through (`migrate-fresh` in CI,
@@ -241,6 +242,23 @@ version sort ranks `1.20.0-rc.4` above `1.20.0`, so anything reading "the
 latest release" must filter to bare `MAJOR.MINOR.PATCH`. `-rc.` and `.` are
 legal in a Docker reference, `+` is not, which is why the version is a semver
 prerelease and not build metadata.
+
+## Load test
+
+`loadtest-preprod.yml` runs `loadtest/k6/run.js` against preprod (`docs/load-testing.md`, #1559).
+
+- It is manual only. A load test is an event someone decides on — the rate limit may need raising for it —
+  not something a push should trigger.
+- It joins the `preprod-pipeline` concurrency group, so a deploy triggered during a run waits for the run
+  instead of recreating the containers under it.
+- The target is built from the existing `PREPROD_SSH_HOST` secret. The repository is public, so the host is
+  never written into the workflow, and a guard step deletes the output and fails the job if any file in it
+  names the host; only then is the summary appended to the job page and uploaded. Secrets are masked in the
+  logs, but not in artifacts.
+- k6 is pinned (`grafana/setup-k6-action` with an explicit `k6-version`), so two runs weeks apart differ by
+  the site, not by the tool.
+- The k6 step records its exit code instead of failing, so a run that crossed a threshold (exit 99) still
+  publishes its summary; the last step fails the job afterwards.
 
 ## Claude review
 

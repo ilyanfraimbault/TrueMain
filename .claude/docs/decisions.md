@@ -288,6 +288,7 @@ Last verified against `develop` on 2026-09-02.
 - CI traps — #1236
 - API wire conventions
 - Every issue goes on GitHub Project #2
+- Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 
 ## CI runs only what the diff can break, and config files carry no comments (2026-09-02)
 
