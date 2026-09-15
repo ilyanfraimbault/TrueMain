@@ -19,7 +19,7 @@
 
 export type ForwardedLevel = 'Warning' | 'Error' | 'Critical'
 
-export type ForwardedEventType = 'FrontendServerError' | 'FrontendUpstreamErrors'
+export type ForwardedEventType = 'FrontendServerError' | 'FrontendUpstreamErrors' | 'FrontendRequestAborted'
 
 export interface ForwardedError {
   level: ForwardedLevel

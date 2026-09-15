@@ -47,6 +47,24 @@ export default defineNitroPlugin((nitroApp) => {
     })
   })
 
+  // A client that left before this server answered (#1569), once per request and
+  // counted per route like everything else here. Nothing else would ever report it:
+  // an abandoned response is never written, so the error hook above does not run.
+  nitroApp.hooks.hook('request', (event) => {
+    if (!isReportableAbandonment(event.path)) return
+    watchForAbandonment(event, () => {
+      const route = toRouteTemplate(event.path)
+      reportToOpsLogs({
+        level: 'Warning',
+        category: 'nitro',
+        eventType: 'FrontendRequestAborted',
+        message: `The client left before ${event.method} ${route} was answered`,
+        requestMethod: event.method,
+        requestPath: route,
+      })
+    })
+  })
+
   nitroApp.hooks.hook('close', async () => {
     clearInterval(timer)
     setLogForwarder(null)

@@ -1,5 +1,7 @@
 import type { EventHandler, H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { EventEmitter } from 'node:events'
+import { abortOnAbandonment } from '~~/server/utils/abandoned-request'
 import { isInternalApiPath } from '~~/server/utils/internal-api-path'
 import { toRouteTemplate } from '~~/server/utils/log-forwarder'
 import { isUnsafeProxyPath } from '~~/server/utils/proxy-path'
@@ -22,6 +24,7 @@ vi.stubGlobal('isUnsafeProxyPath', isUnsafeProxyPath)
 vi.stubGlobal('isInternalApiPath', isInternalApiPath)
 vi.stubGlobal('toRouteTemplate', toRouteTemplate)
 vi.stubGlobal('reportToOpsLogs', reportToOpsLogs)
+vi.stubGlobal('abortOnAbandonment', abortOnAbandonment)
 
 async function loadHandler(): Promise<EventHandler> {
   const module = await import('~~/server/api/[...path]')
@@ -35,6 +38,11 @@ function eventAt(path: string): H3Event {
 function onResponseOfFirstCall(): (event: H3Event, response: Response) => void {
   const [, , options] = proxyRequest.mock.calls[0]!
   return (options as { onResponse: (event: H3Event, response: Response) => void }).onResponse
+}
+
+function eventWithResponseAt(path: string) {
+  const res = Object.assign(new EventEmitter(), { writableFinished: false })
+  return { event: { path, method: 'GET', node: { res } } as unknown as H3Event, res }
 }
 
 describe('api proxy handler', () => {
@@ -90,5 +98,27 @@ describe('api proxy handler', () => {
     onResponseOfFirstCall()(eventAt('/api/champions/103'), new Response(null, { status: 404 }))
 
     expect(reportToOpsLogs).not.toHaveBeenCalled()
+  })
+
+  // #1569: the upstream call is cancelled with the visitor, and that cancellation is
+  // not a proxy failure.
+  it('cancels the API call when the visitor leaves, and returns quietly', async () => {
+    const handler = await loadHandler()
+    const { event, res } = eventWithResponseAt('/api/champions/103/roam')
+    proxyRequest.mockImplementation(async (_event, _target, options: { fetchOptions: { signal: AbortSignal } }) => {
+      res.emit('close')
+      expect(options.fetchOptions.signal.aborted).toBe(true)
+      throw new Error('This operation was aborted')
+    })
+
+    await expect(handler(event)).resolves.toBeNull()
+  })
+
+  it('still fails when the API call fails with the visitor waiting', async () => {
+    const handler = await loadHandler()
+    const { event } = eventWithResponseAt('/api/champions/103/roam')
+    proxyRequest.mockRejectedValue(Object.assign(new Error('Bad Gateway'), { statusCode: 502 }))
+
+    await expect(handler(event)).rejects.toMatchObject({ statusCode: 502 })
   })
 })

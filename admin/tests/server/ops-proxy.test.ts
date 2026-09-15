@@ -1,5 +1,7 @@
 import type { EventHandler, H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { EventEmitter } from 'node:events'
+import { abortOnAbandonment } from '~~/server/utils/abandoned-request'
 import { toRouteTemplate } from '~~/server/utils/log-forwarder'
 import { isUnsafeProxyPath } from '~~/server/utils/proxy-path'
 
@@ -31,6 +33,7 @@ vi.stubGlobal('isUnsafeProxyPath', isUnsafeProxyPath)
 const reportToOpsLogs = vi.fn()
 vi.stubGlobal('toRouteTemplate', toRouteTemplate)
 vi.stubGlobal('reportToOpsLogs', reportToOpsLogs)
+vi.stubGlobal('abortOnAbandonment', abortOnAbandonment)
 
 async function loadHandler(): Promise<EventHandler> {
   const module = await import('~~/server/api/ops/[...path]')
@@ -157,5 +160,19 @@ describe('ops proxy handler', () => {
       requestPath: '/ops/logs',
       statusCode: 502,
     }))
+  })
+
+  // #1569: the ops call is cancelled when the operator's browser leaves, quietly.
+  it('cancels the API call when the browser leaves, and returns quietly', async () => {
+    const handler = await loadHandler()
+    const res = Object.assign(new EventEmitter(), { writableFinished: false })
+    const event = { path: '/api/ops/logs', node: { res } } as unknown as H3Event
+    proxyRequest.mockImplementation(async (_event, _target, options: { fetchOptions: { signal: AbortSignal } }) => {
+      res.emit('close')
+      expect(options.fetchOptions.signal.aborted).toBe(true)
+      throw new Error('This operation was aborted')
+    })
+
+    await expect(handler(event)).resolves.toBeNull()
   })
 })

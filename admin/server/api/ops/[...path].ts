@@ -36,24 +36,34 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid request path' })
   }
 
-  return proxyRequest(event, `${opsApiBaseUrl}/ops${path}`, {
-    headers: {
-      'X-Ops-Key': opsKey,
-    },
-    // A failing ops call is an admin-tier error worth a row in the Logs page
-    // (#1556), counted per route.
-    onResponse: (proxied, response) => {
-      if (response.status !== 429 && response.status < 500) return
-      const route = toRouteTemplate(`/ops${path}`)
-      reportToOpsLogs({
-        level: response.status >= 500 ? 'Error' : 'Warning',
-        category: 'ops-proxy',
-        eventType: 'FrontendUpstreamErrors',
-        message: `The API answered ${response.status} to ${proxied.method} ${route}`,
-        requestMethod: proxied.method,
-        requestPath: route,
-        statusCode: response.status,
-      })
-    },
-  })
+  // Cancelled when the operator's browser leaves (#1569), so the API stops the work.
+  const signal = abortOnAbandonment(event)
+  try {
+    return await proxyRequest(event, `${opsApiBaseUrl}/ops${path}`, {
+      fetchOptions: { signal },
+      headers: {
+        'X-Ops-Key': opsKey,
+      },
+      // A failing ops call is an admin-tier error worth a row in the Logs page
+      // (#1556), counted per route.
+      onResponse: (proxied, response) => {
+        if (response.status !== 429 && response.status < 500) return
+        const route = toRouteTemplate(`/ops${path}`)
+        reportToOpsLogs({
+          level: response.status >= 500 ? 'Error' : 'Warning',
+          category: 'ops-proxy',
+          eventType: 'FrontendUpstreamErrors',
+          message: `The API answered ${response.status} to ${proxied.method} ${route}`,
+          requestMethod: proxied.method,
+          requestPath: route,
+          statusCode: response.status,
+        })
+      },
+    })
+  }
+  catch (error) {
+    // Nobody is waiting for this answer, and the plugin already counted the abandonment.
+    if (signal.aborted) return null
+    throw error
+  }
 })

@@ -46,21 +46,33 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Not Found' })
   }
 
-  return proxyRequest(event, `${apiBaseUrl}${path}`, {
-    // What the visitor was served, counted per route in the ops logs (#1556): a
-    // 429 is the API shedding load, a 5xx is the API failing.
-    onResponse: (proxied, response) => {
-      if (response.status !== 429 && response.status < 500) return
-      const route = toRouteTemplate(`/api${path}`)
-      reportToOpsLogs({
-        level: response.status >= 500 ? 'Error' : 'Warning',
-        category: 'api-proxy',
-        eventType: 'FrontendUpstreamErrors',
-        message: `The API answered ${response.status} to ${proxied.method} ${route}`,
-        requestMethod: proxied.method,
-        requestPath: route,
-        statusCode: response.status,
-      })
-    },
-  })
+  // Cancelled when the visitor leaves (#1569): the API then stops the work and logs
+  // `RequestAborted`, instead of holding a database connection for nobody.
+  const signal = abortOnAbandonment(event)
+  try {
+    return await proxyRequest(event, `${apiBaseUrl}${path}`, {
+      fetchOptions: { signal },
+      // What the visitor was served, counted per route in the ops logs (#1556): a
+      // 429 is the API shedding load, a 5xx is the API failing.
+      onResponse: (proxied, response) => {
+        if (response.status !== 429 && response.status < 500) return
+        const route = toRouteTemplate(`/api${path}`)
+        reportToOpsLogs({
+          level: response.status >= 500 ? 'Error' : 'Warning',
+          category: 'api-proxy',
+          eventType: 'FrontendUpstreamErrors',
+          message: `The API answered ${response.status} to ${proxied.method} ${route}`,
+          requestMethod: proxied.method,
+          requestPath: route,
+          statusCode: response.status,
+        })
+      },
+    })
+  }
+  catch (error) {
+    // Nobody is waiting for this answer any more, and the abandonment is already
+    // counted by the log-forwarding plugin: not a proxy failure to report.
+    if (signal.aborted) return null
+    throw error
+  }
 })
