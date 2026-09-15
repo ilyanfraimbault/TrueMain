@@ -46,11 +46,12 @@ public sealed class TruemainAccountResolver(TrueMainDbContext db)
 
         // Lowered equality on both halves rather than ILIKE: equality sidesteps
         // LIKE metacharacters in raw user input entirely (no escaping to get
-        // wrong), and `lower(col) = @p` is the exact expression a functional
-        // index on (lower("GameName"), lower("TagLine")) would serve, which an
-        // ILIKE could not use. Today no such index exists — the only index on
-        // these columns is the plain case-sensitive one — so this is a scan of
-        // riot_accounts; see #1230 for the measurement before adding one.
+        // wrong), and `lower(col) = @p` is the exact expression the functional
+        // index IX_riot_accounts_game_name_tag_line_lower serves, which an ILIKE
+        // could not use. Keep the expression as it is: `ToLower()` on both
+        // columns is what EF renders as lower("GameName") / lower("TagLine").
+        // Without that index this was a scan of riot_accounts, over 4 s on
+        // preprod, run four times per profile view (#1570).
         //
         // Postgres' lower() follows the database collation and .NET's follows
         // the invariant culture; they agree on ASCII, which is what Riot tag

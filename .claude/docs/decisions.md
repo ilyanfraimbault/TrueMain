@@ -214,6 +214,7 @@ Last verified against `develop` on 2026-09-02.
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
 - A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15) — #1570
+- A Riot ID resolves through a functional index on the lowered name and tag (2026-09-15) — #1570
 
 ## Infrastructure and deploy — [`decisions/infrastructure-and-deploy.md`](decisions/infrastructure-and-deploy.md)
 - The rate-limit partition is the visitor (last `X-Forwarded-For` hop, trusted proxies only), not the connection — this reverses "100 req/min per IP" — #1546
