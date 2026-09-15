@@ -136,3 +136,17 @@ this. The champion reads run on the caller's request-scoped `DbContext`, so if t
 pass abandoned its wait, its scope would be disposed underneath the shared work and every joiner would fail on
 a disposed context. The leaderboard does not need the flag — it creates its own context — and it does not get
 it.
+
+## A Riot ID resolves through a functional index on the lowered name and tag (2026-09-15)
+
+**Decision:** `riot_accounts` carries `IX_riot_accounts_game_name_tag_line_lower` on
+`(lower("GameName"), lower("TagLine"))`, created by a plain migration, and `TruemainAccountResolver` keeps the
+exact `lower(col) = @p` expression that index serves — #1570.
+
+- **Why.** Every name-tag route (profile, rank history, activity, matches, the player-scoped champion panels,
+  the mains comparison) resolves through that lookup, a profile view four times over. With no index it scanned
+  and sorted the whole table: 2.8 s a call under the 200-visitor load test, 4.3 s at rest on preprod.
+- **Why a plain migration.** `CONCURRENTLY` cannot run in the deploy's single-transaction script (#1227), and a
+  btree over two short text expressions on a table of a few hundred thousand rows builds in seconds; the write
+  lock is held that long, once, at the release that ships it.
+

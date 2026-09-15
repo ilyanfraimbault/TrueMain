@@ -213,6 +213,7 @@ Last verified against `develop` on 2026-09-02.
 - Npgsql pools are capped per service (api 50, ingestor 20) against Postgres `max_connections=100` — #437, #461, #462
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
+- A Riot ID resolves through a functional index on the lowered name and tag (2026-09-15) — #1570
 
 ## Infrastructure and deploy — [`decisions/infrastructure-and-deploy.md`](decisions/infrastructure-and-deploy.md)
 - The rate-limit partition is the visitor (last `X-Forwarded-For` hop, trusted proxies only), not the connection — this reverses "100 req/min per IP" — #1546
