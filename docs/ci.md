@@ -265,6 +265,11 @@ prerelease and not build metadata.
   the site, not by the tool.
 - The k6 step records its exit code instead of failing, so a run that crossed a threshold (exit 99) still
   publishes its summary; the last step fails the job afterwards.
+- The browser VUs use the Chrome preinstalled on the runner image, found on the `PATH` by a step that fails
+  with a clear error if it is gone, and run with `no-sandbox`, as headless Chrome on a CI runner needs.
+- k6's own log goes to `out/k6.log`, not to the job log: the browser logs the URLs it loads, and a job log is
+  public. The step replaces the host in that file before the guard runs, so the guard still refuses any other
+  output that names it.
 
 ## Claude review
 
