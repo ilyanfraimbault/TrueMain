@@ -1,0 +1,106 @@
+name: Load test preprod
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: smoke, visitors or ratelimit-probe
+        type: choice
+        options:
+          - smoke
+          - visitors
+          - ratelimit-probe
+        default: smoke
+      vus:
+        description: Concurrent visitors (visitors scenario)
+        type: number
+        default: 200
+      ramp:
+        description: Ramp-up duration (visitors scenario)
+        type: string
+        default: 3m
+      hold:
+        description: Hold duration at full load (visitors scenario)
+        type: string
+        default: 10m
+      fetch_assets:
+        description: Also fetch page bundles and images
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preprod-pipeline
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    name: k6 (${{ inputs.scenario }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: 2.2.0
+
+      - name: Check preprod answers from the runner
+        env:
+          PREPROD_HOST: ${{ secrets.PREPROD_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          if ! curl -fsS --max-time 15 -o /dev/null "http://${PREPROD_HOST}:3001/"; then
+            echo "::error::Preprod web did not answer on port 3001 from the runner: check the host firewall and the edge Caddy."
+            exit 1
+          fi
+
+      - name: Run k6
+        id: k6
+        env:
+          PREPROD_HOST: ${{ secrets.PREPROD_SSH_HOST }}
+          SCENARIO: ${{ inputs.scenario }}
+          VUS: ${{ inputs.vus }}
+          RAMP: ${{ inputs.ramp }}
+          HOLD: ${{ inputs.hold }}
+          FETCH_ASSETS: ${{ inputs.fetch_assets }}
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          BASE_URL="http://${PREPROD_HOST}:3001" SUMMARY_DIR=out k6 run --no-color loadtest/k6/run.js
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to publish output naming the host
+        if: always()
+        env:
+          PREPROD_HOST: ${{ secrets.PREPROD_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          if [ -d out ] && grep -rqF "$PREPROD_HOST" out/; then
+            rm -rf out
+            echo "::error::The k6 output contains the preprod host; nothing is published."
+            exit 1
+          fi
+
+      - name: Publish the summary on the job page
+        if: always() && hashFiles('out/summary.md') != ''
+        run: cat out/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the summary
+        if: always() && hashFiles('out/summary.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: loadtest-${{ inputs.scenario }}-${{ github.run_id }}
+          path: out/
+          retention-days: 30
+
+      - name: Fail when k6 did
+        if: steps.k6.outputs.exit_code != '0'
+        run: |
+          echo "::error::k6 exited with ${{ steps.k6.outputs.exit_code }} (99 means a threshold was crossed)."
+          exit 1

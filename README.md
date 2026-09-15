@@ -62,6 +62,7 @@ Everything runs as Docker containers on a single host. In production, Caddy term
 
 - [`docs/api.md`](docs/api.md) — HTTP endpoint reference (parameters and response shapes).
 - [`docs/preprod.md`](docs/preprod.md) — preprod environment: `:preprod` images tracking `develop`, fresh database with a dedicated Riot API key, data-diet knobs, deployment runbook.
+- [`docs/load-testing.md`](docs/load-testing.md) — load testing preprod with k6 from GitHub Actions: scenarios, what a simulated visitor does, the rate-limit caveat, how to read the summary.
 - [`docs/riot-production-key-application.md`](docs/riot-production-key-application.md) — what has to be true before applying for a Riot production API key, and what the application must say.
 - [`docs/riot-key-switch.md`](docs/riot-key-switch.md) — runbook for replacing the Riot API key: PUUIDs are encrypted per key, so the switch invalidates every stored identifier and is recovered through the Riot ID.
 - [`docs/diagrams/architecture.drawio`](docs/diagrams/architecture.drawio) — architecture diagram.

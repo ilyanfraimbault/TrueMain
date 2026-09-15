@@ -31,3 +31,20 @@ Part of the [decision log](../decisions.md). Format: **Decision** — why — `s
   orders work inside a sprint. Priority used to double as the sprint bucket ("P0 = current sprint"); that
   overloading was dropped because it silently competed with the real iteration field the board was already
   using. No milestones.
+
+## Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14)
+
+**Decision:** the load test is a k6 script in `loadtest/k6/`, started by hand from `loadtest-preprod.yml` on a
+GitHub-hosted runner, against preprod — #1559.
+
+- **Not from the preprod host.** The host also runs other workloads, and a generator there takes CPU from the
+  system under test; the result would measure both.
+- **Not against prod.** A test that finds the ceiling finds it for real visitors. Preprod runs prod's parameters
+  (#1558), so its results are comparable in kind; they are a lower bound in size, and are reported as one.
+- **Visitors are replayed, not browsers.** k6 does not run the site's JavaScript, so each page view requests the
+  SSR HTML and then the calls the hydrated page makes, with the champion slices drawn at random so the test
+  reaches the database rather than the cache. The request lists mirror the page composables and have to follow
+  them.
+- **Nothing published names the host.** The repository is public: requests are tagged by route template, and the
+  workflow refuses to publish output containing the host.
+
