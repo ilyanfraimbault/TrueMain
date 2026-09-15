@@ -348,3 +348,20 @@ test that saturated the web tier would have left the admin page looking healthy.
 - **Route templates, not paths** (`/api/truemains/{nameTag}/matches`): aggregatable, and free of player names and
   query values.
 
+## A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15)
+
+**Decision:** the public site's and the admin's servers report every page or API request a client left before
+it was answered as `FrontendRequestAborted`, counted per route template like their other errors, and their
+proxies cancel the API call with the client — #1569.
+
+- **Why.** The 200-visitor load test ended with about 2,000 requests the edge proxy logged as abandoned and a
+  single `RequestAborted` row: the proxies kept calling the API after the visitor left, so the API never saw an
+  abort, and nothing on the frontend side wrote one. Those orphan calls also held database connections while the
+  pool was saturated.
+- **Watched on the response, not the request.** A response closed before it finished is the one signal that
+  holds for every client and every Node version; the request's own `close` also fires on a normal end.
+- **Bundles and images are left out** (paths under `/_`): a visitor leaving a page abandons dozens of them at
+  once, and their hashed paths would each become a route.
+- **A cancelled proxy call returns quietly.** It is not a failure to report as `FrontendServerError`; the
+  abandonment is already counted.
+

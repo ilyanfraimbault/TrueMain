@@ -116,6 +116,13 @@ public static class OpsEvents
     /// </summary>
     public static readonly EventId FrontendUpstreamErrors = new(1015, nameof(FrontendUpstreamErrors));
 
+    /// <summary>
+    /// A client left a frontend server before it answered (#1569): a closed tab, a proxy or
+    /// load generator giving up. Counted per route template; the proxied API call is
+    /// cancelled with it, so the API side shows up as <see cref="RequestAborted"/>.
+    /// </summary>
+    public static readonly EventId FrontendRequestAborted = new(1016, nameof(FrontendRequestAborted));
+
     // Single source for the lookup + the UI-facing list, so a new event only has
     // to be added in two places (its field above and this array).
     private static readonly EventId[] All =
@@ -135,7 +142,8 @@ public static class OpsEvents
         RequestAborted,
         LogRecordsDropped,
         FrontendServerError,
-        FrontendUpstreamErrors
+        FrontendUpstreamErrors,
+        FrontendRequestAborted
     ];
 
     private static readonly Dictionary<string, int> IdByName =
@@ -154,7 +162,7 @@ public static class OpsEvents
     /// such as <see cref="ProcessRunFailed"/>.
     /// </summary>
     public static IReadOnlyList<string> ForwardableEventTypes { get; } =
-        [FrontendServerError.Name!, FrontendUpstreamErrors.Name!];
+        [FrontendServerError.Name!, FrontendUpstreamErrors.Name!, FrontendRequestAborted.Name!];
 
     /// <summary>The id of a registered event name, or null.</summary>
     public static int? IdOf(string name)

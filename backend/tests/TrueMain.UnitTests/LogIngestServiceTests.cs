@@ -66,6 +66,20 @@ public class LogIngestServiceTests
     }
 
     [Theory]
+    [InlineData(nameof(OpsEvents.FrontendServerError))]
+    [InlineData(nameof(OpsEvents.FrontendUpstreamErrors))]
+    [InlineData(nameof(OpsEvents.FrontendRequestAborted))]
+    public void AcceptsEveryEventAFrontendReports(string eventType)
+    {
+        var (service, writer) = Create();
+
+        var result = service.Ingest(Request(Entry(eventType: eventType)));
+
+        Assert.Equal(1, result.Accepted);
+        Assert.Equal(eventType, Assert.Single(writer.Entries).EventType);
+    }
+
+    [Theory]
     [InlineData(nameof(OpsEvents.RequestFailed))]
     [InlineData(nameof(OpsEvents.ProcessRunFailed))]
     [InlineData("SomethingInvented")]

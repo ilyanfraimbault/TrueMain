@@ -261,6 +261,7 @@ Last verified against `develop` on 2026-09-02.
 - An admin number is either actionable or it is not printed: primary-lane below-floor lines, no `Ext. samples` column (2026-09-03) — #1442
 - Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
 - The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
+- A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
