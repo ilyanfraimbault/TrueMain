@@ -308,6 +308,11 @@ Postgres memory settings follow the same logic: they keep **prod's ratio to the
 host's RAM**, not prod's absolute values — see *Postgres server tuning* in
 `docs/prod.md`.
 
+The host is CPU-limited by the provider when the stack is busy, so every health
+check runs with a 20s timeout and a 90s start period (`docs/ci.md`): a probe that
+times out under that limitation would otherwise make a deploy abort on a healthy
+container.
+
 Main detection is back at 10/30/10 (2026-09-16). Running prod's 20/50/20, two web
 workers and a day of 200-visitor load tests on the shared 2-vCPU host starved the
 whole VPS — the preprod stack had to be stopped by hand. A main on preprod is

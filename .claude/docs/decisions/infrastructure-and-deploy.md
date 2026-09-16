@@ -200,4 +200,7 @@ release and is no longer the target for capacity tests. This reverses the main-d
 - **Consequence.** Main detection on preprod works from a smaller sample than prod; the edge Caddy, compression,
   pools and every non-volume parameter still match prod. The load-test workflow stays for `smoke` checks; a
   capacity run needs a host of its own.
+- **Health checks are patient** (20s timeouts, 90s start periods, doubled retries, same checks). When the stack
+  starts, the provider's CPU limitation kicks in and a `mongosh` ping measured 52s on the host; with 5s timeouts
+  Docker Manager saw a healthy Mongo as an unhealthy dependency and abandoned two deploys in a row.
 
