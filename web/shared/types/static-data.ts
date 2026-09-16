@@ -88,6 +88,8 @@ export interface StaticPerkStyleData {
   id: number
   name: string
   iconUrl: string
+  /** CDragon's one-line summary of the tree ("Empowered abilities and resource manipulation"). */
+  tooltip?: string
 }
 
 /**
