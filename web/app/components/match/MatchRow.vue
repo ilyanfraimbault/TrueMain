@@ -9,7 +9,6 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
-import { isBootsItem, isNonBuildItem } from '~~/shared/utils/build'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 import { formatDuration } from '~/utils/relativeTime'
 
@@ -108,56 +107,6 @@ const keystone: ComputedRef<StaticPerkData | null> = computed(() => {
 const subStyle: ComputedRef<StaticPerkStyleData | null> = computed(() => {
   if (!self.value.subStyleId) return null
   return props.runeTree.perkStyles[self.value.subStyleId] ?? null
-})
-
-// Inventory slots: three-state model so the row can tell apart a slot the
-// player never bought (Item* = 0 in the DB — render an invisible same-sized
-// placeholder) from one whose static data hasn't resolved yet (id > 0 but no
-// entry in the items map — keep the skeleton, that's a real loading state).
-// Without this distinction, every zero in the participant row renders as a
-// "skeleton" square and looks like the page is stuck loading half the items.
-//
-// Real items are left-aligned and the remaining cells become invisible
-// placeholders so the six-slot grid stays the same width on every row — the
-// trinket column lines up vertically across the whole match history even
-// when a row only has three items.
-type InventorySlot =
-  | { kind: 'empty' }
-  | { kind: 'loading' }
-  | { kind: 'item', item: StaticItemData }
-
-const INVENTORY_SLOT_COUNT = 6
-
-// The boots are pulled out of the six inventory slots into their own cell
-// under the trinket (scoreboard convention), so the main grid holds only the
-// non-boots items. The Eye of the Herald — a Rift Herald summon that sits in
-// the trinket slot, never a real build item — is dropped everywhere.
-const bootsItem = computed<StaticItemData | null>(() => {
-  for (const id of self.value.items) {
-    const item = props.items[id]
-    if (item && isBootsItem(item)) return item
-  }
-  return null
-})
-
-const inventoryItems = computed<InventorySlot[]>(() => {
-  const bootsId = bootsItem.value?.id
-  const filled: InventorySlot[] = self.value.items
-    .filter(id => id > 0 && id !== bootsId && !isNonBuildItem(id))
-    .map((id) => {
-      const item = props.items[id]
-      return item ? { kind: 'item', item } : { kind: 'loading' }
-    })
-  const empties: InventorySlot[] = Array.from(
-    { length: Math.max(0, INVENTORY_SLOT_COUNT - filled.length) },
-    () => ({ kind: 'empty' }),
-  )
-  return [...filled, ...empties]
-})
-const trinket = computed<StaticItemData | null>(() => {
-  const id = self.value.trinketItemId
-  if (id <= 0 || isNonBuildItem(id)) return null
-  return props.items[id] ?? null
 })
 
 // The viewing player's assigned role, taken straight from the PUUID-matched
@@ -437,58 +386,13 @@ const rowTint = computed(() =>
               />
             </div>
 
-            <!-- Items: dark inset (scoreboard-style) with the six inventory
-                 slots as a 3×2 grid, then a trailing column stacking the trinket
-                 over the boots — boots are pulled out of the grid so they line up
-                 with the trinket the way trackers show them. Empty slots stay as
-                 transparent placeholders so the grid keeps its shape. The Eye of
-                 the Herald is filtered out upstream (it's not a build item). -->
-            <div class="flex items-center gap-1 rounded-lg bg-black/25 p-1 ring-1 ring-white/5 @2xl:gap-1.5 @2xl:p-1.5">
-              <div class="grid grid-cols-3 gap-0.5 @2xl:gap-1">
-                <template
-                  v-for="(slot, idx) in inventoryItems"
-                  :key="`item-${idx}`"
-                >
-                  <div
-                    v-if="slot.kind === 'empty'"
-                    class="size-5 shrink-0 rounded bg-white/5 @2xl:size-6"
-                    aria-hidden="true"
-                  />
-                  <GameTooltipItemIcon
-                    v-else
-                    :item="slot.kind === 'item' ? slot.item : null"
-                    :width="24"
-                    :height="24"
-                    class="size-5 rounded @2xl:size-6"
-                  />
-                </template>
-              </div>
-              <div class="flex flex-col gap-0.5 @2xl:gap-1">
-                <GameTooltipItemIcon
-                  :item="trinket"
-                  :width="24"
-                  :height="24"
-                  loading="lazy"
-                  class="size-5 rounded-full @2xl:size-6"
-                />
-                <div
-                  v-if="bootsItem"
-                  class="size-5 @2xl:size-6"
-                >
-                  <GameTooltipItemIcon
-                    :item="bootsItem"
-                    :width="24"
-                    :height="24"
-                    class="size-5 rounded @2xl:size-6"
-                  />
-                </div>
-                <div
-                  v-else
-                  class="size-5 @2xl:size-6"
-                  aria-hidden="true"
-                />
-              </div>
-            </div>
+            <!-- Items: the shared 3×2 grid + trinket/boots column, the same
+                 block the expanded scoreboard draws per player. -->
+            <MatchItemGrid
+              :item-ids="self.items"
+              :trinket-item-id="self.trinketItemId"
+              :items="items"
+            />
           </div>
         </div>
 

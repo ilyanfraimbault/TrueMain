@@ -7,8 +7,6 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { formatCount } from '~~/shared/utils/counts'
-import { formatTier } from '~/utils/tiers'
 
 const props = defineProps<{
   participants: MatchDetailParticipant[]
@@ -36,7 +34,8 @@ function profileSlug(p: MatchDetailParticipant): string | null {
   return `/truemains/${encodeURIComponent(`${p.gameName}-${p.tagLine}`)}`
 }
 
-// Highest damage across the rendered team — drives the damage bar fill.
+// Highest damage across the rendered team — drives the damage bar fill, and
+// the one participant who reaches it gets the full-strength bar.
 const maxDamage = computed(() =>
   props.participants.reduce((max, p) => Math.max(max, p.totalDamageDealtToChampions), 0),
 )
@@ -50,9 +49,11 @@ function kda(p: MatchDetailParticipant) {
   return ((p.kills + p.assists) / p.deaths).toFixed(2)
 }
 
-// Six inventory slots (items 0..5) left-aligned; trinket is items[6].
-function inventory(p: MatchDetailParticipant) {
-  return p.items.slice(0, 6)
+// `11697` → `11.7k`: the bar already carries the comparison, the label only
+// has to give the order of magnitude, and a fixed one-decimal form keeps the
+// five labels the same width.
+function fmtDamage(value: number) {
+  return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`
 }
 
 const sideLabel = computed(() => (props.teamId === 100 ? 'Blue' : 'Red'))
@@ -174,8 +175,31 @@ function ordinal(placement: number) {
           />
         </div>
 
-        <!-- Identity + rank -->
-        <div class="flex min-w-0 flex-[1.2] flex-col">
+        <!-- Rank crest + identity. The crest alone names the tier; the full
+             rank and LP sit in its tooltip, the same card the leaderboard's
+             rank emblem opens. A fixed slot (empty when unranked) keeps the
+             names aligned down the list. -->
+        <div class="flex min-w-0 flex-[1.2] items-center gap-1.5">
+          <UTooltip
+            v-if="p.rank"
+            :delay-duration="150"
+            :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
+          >
+            <span class="inline-flex size-5 shrink-0 items-center justify-center">
+              <RankIcon :tier="p.rank.tier" :size="20" loading="lazy" />
+            </span>
+            <template #content>
+              <GameTooltipSurface>
+                <RankSummary
+                  :tier="p.rank.tier"
+                  :division="p.rank.division"
+                  :league-points="p.rank.leaguePoints"
+                  :size="32"
+                />
+              </GameTooltipSurface>
+            </template>
+          </UTooltip>
+          <span v-else class="size-5 shrink-0" aria-hidden="true" />
           <NuxtLink
             v-if="profileSlug(p)"
             :to="profileSlug(p)!"
@@ -184,10 +208,6 @@ function ordinal(placement: number) {
             {{ p.gameName }}
           </NuxtLink>
           <span v-else class="truncate text-xs font-medium text-muted">{{ p.gameName ?? p.summonerName }}</span>
-          <span v-if="p.rank" class="flex items-center gap-1 text-[10px] text-muted">
-            <RankIcon :tier="p.rank.tier" :size="14" />
-            {{ formatTier(p.rank.tier, p.rank.division) }}
-          </span>
         </div>
 
         <!-- KDA -->
@@ -204,16 +224,23 @@ function ordinal(placement: number) {
           <span>{{ formatPercentage(p.killParticipation, 0) }} KP</span>
         </div>
 
-        <!-- Damage bar -->
-        <div class="hidden w-[5rem] shrink-0 flex-col gap-0.5 sm:flex">
-          <span class="text-[10px] tabular-nums text-muted">{{ formatCount(p.totalDamageDealtToChampions) }}</span>
-          <div class="h-1.5 w-full overflow-hidden rounded-full bg-default/40">
+        <!-- Damage: bar first, then the figure and its per-minute rate under
+             it. The team's top dealer gets the full-strength fill so the
+             carry reads at a glance; everyone else sits on a softer tone. -->
+        <div class="hidden w-[6.5rem] shrink-0 flex-col gap-1 sm:flex">
+          <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
             <div
-              class="h-full rounded-full"
-              :class="win ? 'bg-sky-500' : 'bg-red-500'"
+              class="h-full rounded-full transition-[width]"
+              :class="p.totalDamageDealtToChampions === maxDamage
+                ? 'bg-primary shadow-[0_0_8px] shadow-primary/60'
+                : 'bg-primary/45'"
               :style="{ width: `${damagePct(p.totalDamageDealtToChampions)}%` }"
             />
           </div>
+          <span class="whitespace-nowrap text-[11px] leading-none tabular-nums">
+            <span class="font-semibold text-default">{{ fmtDamage(p.totalDamageDealtToChampions) }}</span>
+            <span class="text-muted"> ({{ Math.round(p.damagePerMin) }}/m)</span>
+          </span>
         </div>
 
         <!--
@@ -222,25 +249,13 @@ function ordinal(placement: number) {
           the breakpoints where the items block is hidden.
         -->
         <div class="ml-auto flex shrink-0 items-center gap-2">
-          <!-- Items -->
-          <div class="hidden shrink-0 items-center gap-1 md:flex">
-            <div class="flex gap-0.5">
-              <template v-for="(itemId, idx) in inventory(p)" :key="`item-${idx}`">
-                <div v-if="!itemId" class="size-5 shrink-0" aria-hidden="true" />
-                <GameTooltipItemIcon
-                  v-else
-                  :item="items[itemId] ?? null"
-                  :width="20"
-                  :height="20"
-                  class="size-5 rounded"
-                />
-              </template>
-            </div>
-            <GameTooltipItemIcon
-              :item="p.trinketItemId ? items[p.trinketItemId] ?? null : null"
-              :width="20"
-              :height="20"
-              class="size-5 rounded-full"
+          <!-- Items: the same grid + trinket/boots column as the collapsed row. -->
+          <div class="hidden md:block">
+            <MatchItemGrid
+              :item-ids="p.items"
+              :trinket-item-id="p.trinketItemId"
+              :items="items"
+              :size="20"
             />
           </div>
 
