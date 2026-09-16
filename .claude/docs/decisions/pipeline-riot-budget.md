@@ -173,6 +173,21 @@ skipped nothing. Deliberately **not** done here: recording discarded match ids i
 the ids call there is nothing left to record — and the ManualSeed pacing change, which interacts with the
 candidate-funnel backlog (#1361) and belongs with it.
 
+## Every outbound client asks for compressed responses (2026-09-16)
+
+**The ingestor's HTTP clients — the three Riot clients, Community Dragon and Data Dragon — all go through
+`AcceptCompressedResponses()`**, which turns on automatic decompression on the primary handler. Without it .NET
+sends no `Accept-Encoding` and Riot answers with raw JSON: on one EUW match, the match is 78 KB raw against
+11 KB gzipped and the timeline 791 KB against 68 KB, so about 91 % of every ingested match's download was
+avoidable. Those downloads were most of the production host's inbound traffic.
+
+- The default handler is adjusted in place, not replaced, so pooling and lifetime stay the factory's defaults.
+- Responses are read as streams, so the missing `Content-Length` of a decompressed body changes nothing.
+- The unit test pins both the setting and the fact that the default handler does *not* decompress, so the
+  reason for the extension cannot silently disappear.
+
+Source: #1601.
+
 ## A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04)
 
 `LadderSync:MaxRequestsPerRun` (#1313) and `MainActivity:BatchSize` (#900) bounded a *run*. Nothing bounded
