@@ -709,45 +709,6 @@ ennemie — la rivière et sa propre jungle ne comptent pas.
 `roamKp5/10/15` = moyennes cumulatives par partie ; `null` sous le plancher
 d'échantillon et pour `JUNGLE` (pas de lane propre).
 
-## `GET /champions/{championId}/powerspikes`
-
-Événements de power spike (items complétés, paliers de niveau 6/11/16) avec leur
-magnitude, **scopés à un seul build core**.
-
-**Query** — `position` (**requis**, `400` sinon), `buildFirstItemId` et
-`buildKeystoneId` (**requis**, positifs, `400` sinon), `patch` (optionnel),
-`eloBracket` (optionnel), `opponentChampionId` (optionnel)
-
-Le couple `buildFirstItemId` / `buildKeystoneId` identifie le build core de la
-même façon que la lecture des builds clé ses onglets — un build jamais joué
-renvoie une liste vide plutôt qu'un repli sur les autres builds du champion.
-
-`opponentChampionId` restreint les spikes aux parties jouées contre cet
-adversaire de lane, le même filtre que `GET /champions/{id}` (#957). Le plancher
-de parties ne s'applique alors pas : un matchup tient 4 parties en médiane sur un
-patch, donc chaque événement porte son propre `games` plutôt que d'être masqué.
-Seules les parties agrégées depuis #957 portent un adversaire — un matchup non
-encore couvert renvoie une liste vide, ce qui reste un `200`.
-
-**Réponse `200`** — `ChampionPowerspikesResponse`
-
-```json
-{
-  "championId": 103,
-  "position": "MIDDLE",
-  "patch": "16.4",
-  "events": [
-    { "type": "item", "refId": 6653, "avgMinute": 16.3, "spikeMagnitude": 0.18, "games": 1500 },
-    { "type": "level", "refId": 6, "avgMinute": 6.8, "spikeMagnitude": 0.09, "games": 1700 }
-  ]
-}
-```
-
-- `events[].type` : `item` (`refId` = item id) ou `level` (`refId` = 6/11/16).
-- `events[].spikeMagnitude` : accélération de l'avance sur l'adversaire, en excès
-  de la courbure ambiante de la courbe moyenne. La courbe elle-même n'est plus
-  renvoyée : elle ne sert plus que de baseline côté serveur.
-
 ## `GET /champions/{championId}/mains-comparison`
 
 Face-à-face entre un compte Riot et les mains de ce champion (#528) : winrate,
@@ -1664,9 +1625,8 @@ comptes de lignes **exacts** de ses tables, la couverture champions/patchs, la
 fraîcheur des données et le dernier run enregistré ; plus les backlogs d'ingestion qui
 doivent lire zéro quand les agrégations ont rattrapé leur retard.
 
-Cinq familles, dans cet ordre, identifiées par leur `key` — valeurs de contrat, le
-front branche ses libellés dessus : `builds`, `matchups`, `synergies`, `powerspikes`,
-`mains`.
+Quatre familles, dans cet ordre, identifiées par leur `key` — valeurs de contrat, le
+front branche ses libellés dessus : `builds`, `matchups`, `synergies`, `mains`.
 
 Pas de paramètre.
 
@@ -1695,10 +1655,8 @@ Pas de paramètre.
     }
   ],
   "backlog": {
-    "pendingPowerspikeMatches": 0,
     "pendingSynergyMatches": 12400,
-    "pendingEloBracketParticipants": 0,
-    "timelineIngestedMatches": 980000
+    "pendingEloBracketParticipants": 0
   }
 }
 ```
@@ -1711,12 +1669,8 @@ Pas de paramètre.
 - `pendingSynergyMatches` démarre au **nombre total de matchs retenus** : le drapeau
   de repli est livré à `false` sur toutes les lignes préexistantes, donc ce compteur
   affiche un gros backlog au premier déploiement puis se vide au fil des runs (#922).
-- `timelineIngestedMatches` n'est **pas** un backlog, et n'est le dénominateur que de
-  `pendingPowerspikeMatches` : les deux se filtrent sur `TimelineIngested`. Les deux
-  autres compteurs ont chacun le leur — `pendingSynergyMatches` compte tous les matchs
-  de la queue, timeline ou non, et `pendingEloBracketParticipants` compte des
-  **participants**, une autre unité. Les rapprocher au même dénominateur donnerait des
-  pourcentages faux.
+- Les deux compteurs n'ont pas la même unité : `pendingSynergyMatches` compte des
+  matchs de la queue, `pendingEloBracketParticipants` des **participants**.
 
 ## `GET /ops/patch-coverage`
 
@@ -1794,7 +1748,7 @@ Pas de paramètre.
   `PatchCoverage:ThinLineLimit` ; `belowFloorCount` porte le total réel.
 - `folds[].measured` à `false` = ce patch **précède entièrement** le repli. Les
   payloads bruts ne sont pas conservés, donc un repli arrivé en cours de corpus ne
-  peut pas être rattrapé (#920 bans, #957 powerspikes par adversaire) : ses lignes
+  peut pas être rattrapé (#920 bans) : ses lignes
   sur les patchs antérieurs sont absentes **par construction**, pas manquantes. Tous
   les compteurs de la ligne valent alors `null` et `notMeasuredNote` le dit — un zéro
   se lirait « le repli est cassé », la seule chose qu'il n'est pas.

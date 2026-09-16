@@ -34,9 +34,8 @@ public static class StarterItemAnalyzer
     /// Resolves the starter basket <em>and</em> the reasoning around it: the reason code
     /// for an empty or rejected basket, and the paid total the 500g budget is checked
     /// against. This is the entry point every caller that also needs the basket for a
-    /// downstream resolver uses — <c>ParticipantBuildFactsLoader</c>,
-    /// <c>ChampionPatternAggregateBuilder</c> and <c>ChampionPowerspikeAggregationProcess</c>
-    /// all call it and feed <see cref="StarterItemsAnalysis.Items"/> straight into
+    /// downstream resolver uses — <c>ParticipantBuildFactsLoader</c> and
+    /// <c>ChampionPatternAggregateBuilder</c> both call it and feed <see cref="StarterItemsAnalysis.Items"/> straight into
     /// <see cref="FinalBuildResolver"/> and <see cref="BootsResolver"/>, which must be
     /// told which items were starters or they count them as build slots.
     /// <see cref="BuildStarterItems(IReadOnlyList{ItemEvent}, IReadOnlyList{int}, IReadOnlyDictionary{int, ItemMetadata})"/>

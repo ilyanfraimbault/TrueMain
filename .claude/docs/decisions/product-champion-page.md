@@ -1,54 +1,28 @@
-# Champion page — builds, power spikes, SSR prose
+# Champion page — builds, SSR prose
 
 Part of the [decision log](../decisions.md). Format: **Decision** — why — `source`.
 
 **Champion timeline-leads ("Lead vs role opponent") was removed; matchups stayed.**
-Not worth its maintenance cost; effort went to power spikes instead. `JobMode.MatchupLeadAggregationOnly` and
+Not worth its maintenance cost; effort went to power spikes instead (since removed too, #1599). `JobMode.MatchupLeadAggregationOnly` and
 the `MatchupLeadAggregation` options section were deliberately **not renamed** — they are config-facing
 (`INGESTOR_JOB_MODE`) and renaming risks a prod startup failure for no functional gain — #889.
 
-**Power spikes are per-core-build bars anchored on events, not a time curve; bar height is excess acceleration.**
-A blended cross-build answer is wrong (Botrk vs Kraken rushes behave differently). Winrate delta was
-considered and rejected as confounded — completing a third item correlates with already winning — #890, #775.
-
-**Scoping the aggregate to a build scopes the games, not the items — the item set has to be intersected at
-read time** (#1021). The event rows carry `(BuildFirstItemId, BuildKeystoneId)`, but within that slice *every*
-item a game completed produces a row, so a situational item bought in a minority of the slice's games sat in
-the table beside the build's own. Ranking the bars by magnitude then let it outrank a core item, and the panel
-showed items absent from the tab's core path. Fixed on the read: item events are intersected with the core
-path (`ChampionCoreBuildPathResolver`, resolving it exactly as the builds read does) and returned in **build
-order**, not by magnitude and not by mean minute. Two consequences worth keeping in mind. **The panel is
-withheld rather than approximated** when no path resolves — the aggregate slice is gone, say nothing, because
-"which items are this build's" is the one question that could not be answered. And **the bar row is not a
-timeline**: each item's minute is a mean over its own games (those where it was completed at all), so two
-adjacent bars can sit a minute apart while describing disjoint cohorts. That is what made the row read as
-impossible; ordering by the build rather than by those minutes stops presenting them as a sequence, and
-conditioning them on the preceding core items is #1022.
+**Power spikes were removed, end to end.**
+The panel (per-core-build bars of how much the champion's lead curve accelerated around each completed item and
+level milestone, #694, #890, #957) was judged not useful by the product owner: readers did not act on it, and it
+cost a fold, three tables, a per-minute timeline grid and a whole branch of retention. Everything went — the
+endpoint, the `ChampionPowerspikeAggregation` fold (`JobMode` 12 is retired, not reused), the
+`champion_powerspike_*` / `powerspike_sigma_stats` tables and `matches.PowerspikeAggregated`. Timeline snapshots
+are back to the canonical marks only. Its earlier decisions (event-anchored bars, build-order intersection,
+matchup-scoped rows) are withdrawn with it; bring the feature back only with a new question it answers — #1599.
 
 **"Completed item" is the build path's eligibility rule, shared, not a local restatement of it** (#1021). The
-powerspike fold tested `IsFinalItem && !IsBootsItem`, but `IsFinalItem` only means "nothing builds out of
-this" — equally true of potions, control wards, trinkets, Doran's and support-quest items, all of which were
-being folded and rendered as power spikes. `FinalBuildResolver.IsEligibleFinalBuildItem` is now public and is
-the single definition; an item that cannot appear in a build cannot be that build's power spike. Ids are
-mapped through `GetDisplayedBuildItemId` for the same reason the build path does it, or a transform item
-would be named one way by the fold and another by the dim tables and never match.
-
-**Matchup-scoped power spikes are a dimension on the aggregate, not a live recompute — because a live
-recompute is impossible.**
-The other matchup-filtered sections fold `match_participants` live (#923), so #957 was written assuming the
-same. It cannot work: a spike is the second difference of the power curve on a ±3-minute window around an
-arbitrary event minute, and retention prunes the dense per-minute grid to {5, 10, 15, 20, 30} the moment the
-match is folded (#772). The window has nothing left to sit on. What made it cheap instead is that the spike is
-*already* opponent-relative — the fold resolves the lane opponent to build the diff series and was simply
-discarding their id. Recording it splits the grain exactly: every game belongs to one opponent, so the
-unscoped read recovers its old numbers by summing across them, which is what it already did.
-Two consequences, both deliberate. **Coverage is forward-only**: pre-#957 rows sit at `OpponentChampionId = 0`
-and no filter can match them, so a matchup's spikes start empty and fill in patch by patch — the section says
-so rather than blaming the matchup. And **retention rolls the split back up** when a patch leaves the live
-window: without that, a 500-game build shredded into 40 opponent rows of ~12 would fall entirely under the
-`PowerspikeEventMinGames` floor and the next cycle would delete the patch's spikes from the *unscoped* read
-too. The baseline curve stays champion-wide on purpose — it corrects the global concavity of lead curves, and
-recomputing it on a 4-game matchup would swap that correction for noise and subtract the signal from itself — #957.
+(since removed) power spikes fold tested `IsFinalItem && !IsBootsItem`, but `IsFinalItem` only means "nothing
+builds out of this" — equally true of potions, control wards, trinkets, Doran's and support-quest items, all of
+which were folded as build items. `FinalBuildResolver.IsEligibleFinalBuildItem` is public and is the single
+definition anything reading purchases as a *build* must apply. Ids are mapped through
+`GetDisplayedBuildItemId` for the same reason the build path does it, or a transform item would be named one way
+by a fold and another by the dim tables and never match.
 
 **The "why this item" card is a rate and a situation, and nothing else.**
 It shipped with the contrast rate, the sample size and a scope footnote on every line — *"62% against a
@@ -246,7 +220,7 @@ disappearance: the core block always shows the dominant option of every category
 card was redundant. The build *tree* stays exempt from the floor — it is the long tail, drawn.
 
 **The panel answers before it nuances, and the build tree is a picture, not a card.** #1466 reordered the
-build panel to core → build tree → variations → runes → power spikes, so nothing sits between the two blocks
+build panel to core → build tree → variations → runes, so nothing sits between the two blocks
 that together are the whole answer, and stripped the tree of its `SectionCard`. The tree's icons and edges say
 "build tree" without a heading; framed, it made the panel read as a stack of boxes of equal weight, which is
 the opposite of what the order is for. The build *path* inside the core block stays alongside it — the path is

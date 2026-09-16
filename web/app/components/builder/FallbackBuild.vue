@@ -102,9 +102,9 @@ const itemContextIndex = computed(() => indexItemContext(itemContext.value?.item
     />
     <!-- The core block and the build tree, not the champion page's whole build
          panel. This page is read to answer "what do I build into this
-         opponent": the champion's global variations, alternative rune pages and
-         power spikes answer a different question, and reading them here as if
-         they were the matchup's is worse than not showing them. -->
+         opponent": the champion's global variations and alternative rune pages
+         answer a different question, and reading them here as if they were
+         the matchup's is worse than not showing them. -->
     <div
       v-else-if="build && championStatic"
       class="space-y-6"

@@ -18,18 +18,17 @@ const props = defineProps<{
   /** True while `summonersMap` is still loading — see `ChampionCoreSpells`. */
   summonersPending?: boolean
   runeTree: RuneTreeResponse | null
-  // Scope forwarded to the per-build power spikes panel, which fetches its own
-  // slice keyed on (champion, position, patch, elo, opponent) + the build it
-  // renders. Optional: the builder preview and the player-scoped champion page
-  // reuse these tabs without a population slice to attach spikes to.
+  // Population scope of the builds shown: it keys the situational build context
+  // fetch and, with the rank and matchup below, tells a new set of builds apart
+  // (see `buildSetKey`). Optional: the player-scoped champion page reuses these
+  // tabs without a population slice.
   championId?: number
   position?: string | null
   patch?: string | null
   eloBracket?: string | null
   // Lane opponent from the champion page's matchup filter (#957). The builds
   // themselves are already re-sliced server-side when it is set (#923), so the
-  // tabs shown here belong to the matchup; this carries the same scope down so
-  // the spikes describe those games rather than the champion at large.
+  // tabs shown here belong to the matchup.
   opponentChampionId?: number | null
   /**
    * Render the tabs as scaffolding rather than as data: every icon falls back
@@ -67,9 +66,9 @@ const items = computed(() =>
 )
 
 // A panel is built the first time its tab is opened, then kept (#1585). Every panel
-// carries a few hundred components (icons, tooltips, the build tree, power spikes and
-// their fetch), and building the two hidden ones on load was main-thread time spent on
-// tabs most visitors never open. Once opened a panel stays mounted
+// carries a few hundred components (icons, tooltips, the build tree), and building the
+// two hidden ones on load was main-thread time spent on tabs most visitors never open.
+// Once opened a panel stays mounted
 // (`unmount-on-hide="false"`), so switching back is instant and keeps its state.
 const activeTab = ref(items.value[0]?.value)
 const openedTabs = ref(new Set<string>(activeTab.value ? [activeTab.value] : []))
@@ -189,11 +188,6 @@ watch(buildSetKey, () => {
           :summoners-map="summonersMap"
           :summoners-pending="summonersPending"
           :rune-tree="runeTree"
-          :champion-id="championId"
-          :position="position"
-          :patch="patch"
-          :elo-bracket="eloBracket"
-          :opponent-champion-id="opponentChampionId"
           :item-context="itemContextIndex"
           :pending="pending"
         />

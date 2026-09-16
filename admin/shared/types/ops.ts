@@ -978,10 +978,10 @@ export interface RiotApiUsage {
 /**
  * One aggregation family from `GET /api/ops/stats/aggregations` — a group of
  * aggregate tables produced by a single ingestor process (builds patterns,
- * matchups, synergies, powerspikes, mains).
+ * matchups, synergies, mains).
  */
 export interface AggregationFamily {
-  /** Stable identifier: "builds" | "matchups" | "synergies" | "powerspikes" | "mains". */
+  /** Stable identifier: "builds" | "matchups" | "synergies" | "mains". */
   key: string
   /** The recorded ingestor process producing this family. */
   processName: string
@@ -1012,8 +1012,6 @@ export interface AggregationRun {
 
 /** Aggregation-side backlogs — all read zero when the pipeline is caught up. */
 export interface AggregationBacklog {
-  /** Queue-scoped timeline-ingested matches not yet folded into powerspikes. */
-  pendingPowerspikeMatches: number
   /**
    * Queue-scoped matches not yet folded into the synergy aggregates. Starts at the
    * full retained match count on the first deploy (the fold flag ships false for
@@ -1022,8 +1020,6 @@ export interface AggregationBacklog {
   pendingSynergyMatches: number
   /** Tracked participants still missing their elo bracket stamp. */
   pendingEloBracketParticipants: number
-  /** Queue-scoped matches with an ingested timeline (backlog denominator). */
-  timelineIngestedMatches: number
 }
 
 /** `GET /api/ops/stats/aggregations` — the Aggregation panel payload. */

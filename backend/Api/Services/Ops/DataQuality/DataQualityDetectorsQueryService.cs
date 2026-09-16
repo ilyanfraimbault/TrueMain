@@ -52,7 +52,6 @@ public sealed class DataQualityDetectorsQueryService(
     [
         "ChampionPatternAggregation",
         "ChampionMatchupLeadAggregation",
-        "ChampionPowerspikeAggregation",
         "ChampionBanAggregation",
         "ChampionSynergyAggregation", "ChampionProfileAggregation", "ChampionItemContextAggregation"
     ];

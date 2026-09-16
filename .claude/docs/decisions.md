@@ -34,7 +34,7 @@ Last verified against `develop` on 2026-09-02.
 - Matchups reject the widened population rather than ignoring it — #1346, #1087
 - The thin-sample caveat is a header tooltip, and it counts games rather than coverage — #1346
 
-## Champion page — builds, power spikes, SSR prose — [`decisions/product-champion-page.md`](decisions/product-champion-page.md)
+## Champion page — builds, SSR prose — [`decisions/product-champion-page.md`](decisions/product-champion-page.md)
 
 - The "why this item" card is a rate and a situation, nothing else: no contrast rate, no sample, no scope footnote — #1451, #1465
 - The card's key term uses the item tooltip's colour vocabulary (damage coloured by the resistance that blocks it); untinted where no stat answers it — #1465
@@ -43,10 +43,8 @@ Last verified against `develop` on 2026-09-02.
 - The build tree carries no situational mark: the ring competed with the main-path highlight — #1451, #1465
 - A situational card is borrowed from another branch when the hovered step has no finding of its own — but only if the item has exactly one reading and the borrowed one rests on more games — #1518
 - Champion timeline-leads ("Lead vs role opponent") was removed; matchups stayed — #889
-- Power spikes are per-core-build bars anchored on events, not a time curve; bar height is excess acceleration — #890, #775
-- Scoping the aggregate to a build scopes the games, not the items — the item set has to be intersected at read time — #1021, #1022
+- Power spikes were removed end to end (endpoint, fold, tables, per-minute snapshots) — judged not useful — #1599
 - "Completed item" is the build path's eligibility rule, shared, not a local restatement of it — #1021
-- Matchup-scoped power spikes are a dimension on the aggregate, not a live recompute — because a live recompute is impossible — #923, #957, #772
 - Champion URLs are bare slugs, and the slug map is app state rather than per-page async data — #1124
 - The champion page server-renders its build as prose — the one SSR round-trip the page pays — #926, #1123, #1273
 - The build paragraph's cache window is 5 minutes, because it sits next to live numbers — #1123, #926, #1273
@@ -154,7 +152,7 @@ Last verified against `develop` on 2026-09-02.
 - Champion aggregates are replace-by-scope on *live* patches only. Old patches are frozen and must never be wiped — #466, #606, #694
 - "Live" is the retained-patch window, not "has at least one match left"; one snapshot per run feeds both the cleanup set and the source rows — #1549
 - Aggregate retention is opt-in per environment: `AggregateRetainedPatchCount` defaults to 0 (frozen forever); preprod sets 2 — #711
-- Timeline snapshots are pruned to the canonical marks {5, 10, 15, 20, 30} once a match is powerspike-aggregated — #772, #694
+- Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid — #772, #694, #1599
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
 - Champion profiles (`champion_profile_stats`) are measured from the champion's own games over the full pool, never labelled by hand; the ranged flag is the one static attribute — #1449
@@ -189,6 +187,7 @@ Last verified against `develop` on 2026-09-02.
 - The lane is derived from the process name; the mode it ran under is recorded (2026-09-02) — #1362
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
+- Every outbound client asks for compressed responses (2026-09-16) — #1601
 - A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04) — #1474, #1460, #1313, #900
 - The coverage floor is 50 mains per champion per region, and the claim's split is centred on it (2026-09-08) — #1531, #1361, #1150, #900
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150

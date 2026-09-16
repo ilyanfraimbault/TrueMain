@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { isLoadingStatus } from '~/utils/async-data'
 import type { ChampionBuild } from '~~/shared/types/champions'
 import type {
   ChampionStaticData,
@@ -9,7 +8,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 
-const props = defineProps<{
+defineProps<{
   build: ChampionBuild
   championStatic: ChampionStaticData
   itemsMap: Record<number, StaticItemData>
@@ -17,15 +16,6 @@ const props = defineProps<{
   /** True while `summonersMap` is still loading — see `ChampionCoreSpells`. */
   summonersPending?: boolean
   runeTree: RuneTreeResponse | null
-  // Optional population scope — absent in the builder preview and on the
-  // player-scoped champion page, where power spikes are not shown.
-  championId?: number
-  position?: string | null
-  patch?: string | null
-  eloBracket?: string | null
-  // Lane opponent selected in the filter bar (#957): the build this panel renders
-  // is already the matchup's, so its spikes must come from the same games.
-  opponentChampionId?: number | null
   /**
    * The situational build context (#1451), indexed by `indexItemContext` and read through
    * `resolveItemContext` — never by hand, since a card may be borrowed from another branch
@@ -36,24 +26,6 @@ const props = defineProps<{
   /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
   pending?: boolean
 }>()
-
-const showPowerspikes = computed(() => Boolean(props.championId && props.position))
-
-// Power spikes are only meaningful within one build, so the panel fetches its
-// own slice for the build it renders. BuildTabs keeps every panel mounted, so
-// this fires once per build rather than on every tab switch.
-// The build key is zeroed while scaffolding: the placeholder aggregate's item
-// and keystone ids are made up, and the composable holds (rather than firing a
-// request for a build that does not exist) as soon as one of them is 0.
-const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
-  () => props.championId ?? 0,
-  () => props.position,
-  () => props.patch,
-  () => (props.pending ? 0 : props.build.firstItemId),
-  () => (props.pending ? 0 : props.build.primaryKeystoneId),
-  () => props.eloBracket,
-  () => props.opponentChampionId,
-)
 </script>
 
 <template>
@@ -117,15 +89,6 @@ const { data: powerspikes, status: powerspikesStatus } = useChampionPowerspikes(
       :rune-pages="build.runePages"
       :rune-tree="runeTree"
       :pending="pending"
-    />
-
-    <!-- Section 5: Power spikes for this build -->
-    <ChampionBuildPanelPowerspikes
-      v-if="showPowerspikes"
-      :events="powerspikes?.events ?? []"
-      :matchup-scoped="Boolean(opponentChampionId)"
-      :items-map="itemsMap"
-      :loading="pending || isLoadingStatus(powerspikesStatus)"
     />
   </div>
 </template>

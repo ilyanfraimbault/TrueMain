@@ -20,9 +20,9 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 19,
+                propertyCount: 18,
                 navigationCount: 1,
-                unnamedIndexCount: 6,
+                unnamedIndexCount: 5,
                 namedIndexCount: 6,
                 keyCount: 1);
 
@@ -145,16 +145,6 @@ namespace Data.CompiledModels
                 maxLength: 8);
             platformId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
-            var powerspikeAggregated = runtimeEntityType.AddProperty(
-                "PowerspikeAggregated",
-                typeof(bool),
-                propertyInfo: typeof(Match).GetProperty("PowerspikeAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(Match).GetField("<PowerspikeAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                valueGenerated: ValueGenerated.OnAdd,
-                sentinel: false);
-            powerspikeAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-            powerspikeAggregated.AddAnnotation("Relational:DefaultValue", false);
-
             var profileAggregated = runtimeEntityType.AddProperty(
                 "ProfileAggregated",
                 typeof(bool),
@@ -211,25 +201,20 @@ namespace Data.CompiledModels
                 new[] { platformId });
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { queueId });
-            index0.AddAnnotation("Relational:Filter", "\"PowerspikeAggregated\" = false");
-            index0.AddAnnotation("Relational:Name", "IX_matches_powerspike_pending");
+                new[] { timelineIngested });
+            index0.AddAnnotation("Relational:Name", "IX_matches_timeline_ingested");
 
             var index1 = runtimeEntityType.AddIndex(
-                new[] { timelineIngested });
-            index1.AddAnnotation("Relational:Name", "IX_matches_timeline_ingested");
+                new[] { patch, queueId });
+            index1.AddAnnotation("Relational:Name", "IX_matches_patch_queue");
 
             var index2 = runtimeEntityType.AddIndex(
-                new[] { patch, queueId });
-            index2.AddAnnotation("Relational:Name", "IX_matches_patch_queue");
+                new[] { platformId, queueId, gameStartTimeUtc });
+            index2.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
 
             var index3 = runtimeEntityType.AddIndex(
-                new[] { platformId, queueId, gameStartTimeUtc });
-            index3.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
-
-            var index4 = runtimeEntityType.AddIndex(
                 new[] { queueId, patch, platformId });
-            index4.AddAnnotation("Relational:Name", "IX_matches_queue_patch_platform");
+            index3.AddAnnotation("Relational:Name", "IX_matches_queue_patch_platform");
 
             var iX_matches_bans_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },
@@ -254,7 +239,7 @@ namespace Data.CompiledModels
             var iX_matches_snapshot_prune_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },
                 name: "IX_matches_snapshot_prune_pending");
-            iX_matches_snapshot_prune_pending.AddAnnotation("Relational:Filter", "\"PowerspikeAggregated\" = true AND \"TimelineSnapshotsPruned\" = false");
+            iX_matches_snapshot_prune_pending.AddAnnotation("Relational:Filter", "\"TimelineIngested\" = true AND \"TimelineSnapshotsPruned\" = false");
 
             var iX_matches_synergy_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

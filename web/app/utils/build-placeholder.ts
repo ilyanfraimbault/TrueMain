@@ -169,12 +169,3 @@ function placeholderBuild(offset: number): ChampionBuild {
 
 /** Three tabs — the number the champion page shows for most champions. */
 export const PLACEHOLDER_BUILDS: ChampionBuild[] = [0, 1, 2].map(placeholderBuild)
-
-/**
- * Scope handed to the placeholder panel for the sole purpose of putting the
- * power-spikes section in the layout it reserves: `ChampionBuildPanel` gates
- * that section on having a (champion, position) scope. Nothing is ever
- * requested with it — `pending` zeroes the build key the spikes endpoint
- * requires, which holds the fetch.
- */
-export const PLACEHOLDER_SPIKES_SCOPE = { championId: 1, position: 'MIDDLE' } as const

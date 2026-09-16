@@ -319,7 +319,6 @@ builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadat
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
 builder.Services.AddScoped<IChampionRoamQueryService, ChampionRoamQueryService>();
-builder.Services.AddScoped<IChampionPowerspikesQueryService, ChampionPowerspikesQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
 // The single name-tag -> account lookup shared by every player-scoped route

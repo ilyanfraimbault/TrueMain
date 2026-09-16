@@ -5,24 +5,18 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 
 /// <summary>
 /// Builds per-interval timeline snapshots (issue #525) from a match timeline:
-/// one row per participant at each minute mark, with raw values only. The "lead
-/// vs lane opponent" is intentionally not computed here — it is a read-time delta
-/// against the opposing teamPosition.
+/// one row per participant at each canonical minute mark, with raw values only.
+/// The "lead vs lane opponent" is intentionally not computed here — it is a
+/// read-time delta against the opposing teamPosition.
 /// </summary>
 /// <remarks>
-/// Sampled every minute (issue #567) so reads can align state to arbitrary event
-/// times (item completed, level 6/11/16) and draw a power curve over time — the
-/// foundation for the powerspike read. Riot timeline frames are ~1/min, so each
-/// minute mark resolves to its own frame. The denser sampling is forward-only;
-/// games ingested before this change keep their original 5/10/15/20/30 marks, so
-/// reads that need a stable, cross-cohort grid (e.g. timeline-leads) must pin the
-/// canonical marks rather than consume every interval.
+/// The per-minute grid (#567) only ever fed the power spikes, which are gone; every
+/// remaining reader uses these marks. Matches ingested while that grid was written are
+/// pruned back to them by <c>MatchDataRetention</c>.
 /// </remarks>
 internal static class TimelineSnapshotBuilder
 {
-    private const int MaxIntervalMinute = 30;
-
-    internal static readonly int[] IntervalMinutes = [.. Enumerable.Range(1, MaxIntervalMinute)];
+    internal static readonly int[] IntervalMinutes = [5, 10, 15, 20, 30];
 
     // A minute mark is only captured if a frame sits within half a minute of it,
     // so games that ended before a mark simply produce no row for it.

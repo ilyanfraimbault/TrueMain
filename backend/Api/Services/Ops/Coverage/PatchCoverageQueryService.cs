@@ -375,7 +375,6 @@ public sealed class PatchCoverageQueryService(
                 min(m."GameStartTimeUtc") AS "FirstGameStartUtc",
                 max(m."GameStartTimeUtc") AS "LastGameStartUtc",
                 count(*) FILTER (WHERE NOT m."TimelineIngested") AS "PendingTimeline",
-                count(*) FILTER (WHERE m."TimelineIngested" AND NOT m."PowerspikeAggregated") AS "PendingPowerspike",
                 count(*) FILTER (WHERE NOT m."SynergyAggregated") AS "PendingSynergy",
                 count(*) FILTER (WHERE NOT m."MatchupLeadAggregated") AS "PendingMatchupLead",
                 count(*) FILTER (WHERE NOT m."BansAggregated") AS "PendingBans"
@@ -415,7 +414,6 @@ public sealed class PatchCoverageQueryService(
                     group.Min(row => row.FirstGameStartUtc),
                     group.Max(row => row.LastGameStartUtc),
                     group.Sum(row => row.PendingTimeline),
-                    group.Sum(row => row.PendingPowerspike),
                     group.Sum(row => row.PendingSynergy),
                     group.Sum(row => row.PendingMatchupLead),
                     group.Sum(row => row.PendingBans),
@@ -690,38 +688,6 @@ public sealed class PatchCoverageQueryService(
             """),
         new(
             new FoldSpec(
-                "powerspikes",
-                "Power curves — champion_powerspike_curve_stats",
-                "Per-minute gold/damage leads. Folded from timeline snapshots, so it trails timeline ingestion.",
-                ingestion => ingestion?.PendingPowerspike),
-            """
-            SELECT
-                "Patch" AS "Patch",
-                count(*) AS "Rows",
-                count(DISTINCT "ChampionId") AS "Champions",
-                max("AggregatedAtUtc") AS "LastAggregatedAtUtc"
-            FROM champion_powerspike_curve_stats
-            GROUP BY "Patch"
-            """),
-        new(
-            new FoldSpec(
-                "powerspikeOpponents",
-                "Power spikes by opponent — champion_powerspike_event_stats",
-                "Spike rows carrying the lane opponent they were measured against (#957). Rows folded before it, and "
-                    + "rows retention has collapsed, are rolled back to opponent 0 and are excluded here — which is "
-                    + "why this count starts empty on a patch and fills in rather than arriving whole.",
-                ingestion => ingestion?.PendingPowerspike),
-            """
-            SELECT
-                "Patch" AS "Patch",
-                count(*) FILTER (WHERE "OpponentChampionId" <> 0) AS "Rows",
-                count(DISTINCT "ChampionId") FILTER (WHERE "OpponentChampionId" <> 0) AS "Champions",
-                max("AggregatedAtUtc") FILTER (WHERE "OpponentChampionId" <> 0) AS "LastAggregatedAtUtc"
-            FROM champion_powerspike_event_stats
-            GROUP BY "Patch"
-            """),
-        new(
-            new FoldSpec(
                 "synergies",
                 "Synergies — champion_synergy_stats",
                 "Per-pairing win rates. Read behind the highest floor on the site (ChampionsList:MinSynergyGames), so "
@@ -766,7 +732,6 @@ public sealed class PatchCoverageQueryService(
         DateTime? FirstGameStartUtc,
         DateTime? LastGameStartUtc,
         long PendingTimeline,
-        long PendingPowerspike,
         long PendingSynergy,
         long PendingMatchupLead,
         long PendingBans,
@@ -790,7 +755,6 @@ public sealed class PatchCoverageQueryService(
         DateTime? FirstGameStartUtc,
         DateTime? LastGameStartUtc,
         long PendingTimeline,
-        long PendingPowerspike,
         long PendingSynergy,
         long PendingMatchupLead,
         long PendingBans);

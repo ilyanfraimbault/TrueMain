@@ -14,21 +14,20 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 /// <summary>
-/// The acceptance test of #1365: one corpus, five folds, one denominator.
+/// The acceptance test of #1365: one corpus, four folds, one denominator.
 ///
 /// <para>
-/// A champion page stacks a header, a matchups panel, a synergies panel and a power
-/// spikes panel, and a reader compares their game counts by eye. They are written by
+/// A champion page stacks a header, a matchups panel and a synergies panel, and a reader compares their game counts by eye. They are written by
 /// different processes, and every time one of them restated the cohort in its own words
 /// they diverged while still looking comparable — 3.2x on production when the matchup
 /// folds gated on "an account we know" instead of "a main of this champion" (#1087),
-/// and the same defect survived on synergies and power spikes until #1365.
+/// and the same defect survived on synergies until #1365.
 /// </para>
 ///
 /// <para>
 /// The corpus is built to catch exactly that: the same champion, in the same lane, on
 /// the same patch, played by a <b>main</b> and by a <b>tracked non-main</b> — plus a
-/// remake. Only the main's games may be counted, by all four folds and by the header
+/// remake. Only the main's games may be counted, by every fold and by the header
 /// above them.
 /// </para>
 /// </summary>
@@ -109,21 +108,10 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
                 && row.Patch == Patch)
             .SumAsync(row => row.Games);
 
-        // The power spikes panel: the curve's sample at a minute every seeded game
-        // reached.
-        var powerspikeGames = await db.ChampionPowerspikeCurveStats
-            .AsNoTracking()
-            .Where(row => row.ChampionId == Champion
-                && row.TeamPosition == Position
-                && row.Patch == Patch
-                && row.IntervalMinute == 10)
-            .SumAsync(row => row.Games);
-
         headerGames.Should().Be(MainGames, "the corpus holds exactly this many games by a main of the champion");
         matchupGames.Should().Be(MainGames);
         laneGames.Should().Be(MainGames);
         synergyGames.Should().Be(MainGames, "before #1365 this counted the tracked non-main's games too");
-        powerspikeGames.Should().Be(MainGames, "before #1365 this counted the tracked non-main's games too");
     }
 
     [Fact]
@@ -141,7 +129,7 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
         (await db.Matches.CountAsync(m => m.Id.StartsWith("KR_REMAKE")))
             .Should().Be(RemakeGames);
         (await db.Matches.CountAsync(m => m.Id.StartsWith("KR_REMAKE")
-            && m.SynergyAggregated && m.PowerspikeAggregated
+            && m.SynergyAggregated
             && m.MatchupLeadAggregated))
             .Should().Be(RemakeGames, "an unproductive match is still flagged, or it is re-read forever");
 
@@ -170,14 +158,6 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new SynergyAggregationOptions()),
             factory,
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
-
-        await new ChampionPowerspikeAggregationProcess(
-            NullLogger<ChampionPowerspikeAggregationProcess>.Instance,
-            Microsoft.Extensions.Options.Options.Create(new PowerspikeAggregationOptions()),
-            Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
-            factory,
-            new CohortItemMetadataProvider(),
             TimeProvider.System).RunCoreAsync(CancellationToken.None);
 
         await new ChampionPatternAggregationProcess(
@@ -265,12 +245,12 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
                 matchId, participantId++, enemyChampion, enemyPosition, teamId: 200, win: !win));
         }
 
-        // The lane pair's per-minute grid: the champion side is slot 1, its MIDDLE
-        // opponent is slot 8 (the third enemy seeded). Both are needed — the power
-        // curve is the difference between them, and the lane outcome reads minute 15.
+        // The lane pair's snapshots: the champion side is slot 1, its MIDDLE opponent is
+        // slot 8 (the third enemy seeded). Both are needed — the lane outcome reads the
+        // difference between them at minute 15.
         const int championSlot = 1;
         var opponentSlot = 1 + Allies.Length + 1 + Array.FindIndex(Enemies, e => e.Position == Position);
-        for (var minute = 1; minute <= 30; minute++)
+        foreach (var minute in new[] { 5, 10, 15, 20, 30 })
         {
             db.MatchParticipantTimelineSnapshots.Add(
                 Snapshot(matchId, championSlot, minute, 10_000 + minute * 100, 5_000 + minute * 50));

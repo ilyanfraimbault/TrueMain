@@ -36,10 +36,6 @@ public static class AggregateRetention
             .AsNoTracking().Select(scope => scope.GameVersion).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionMatchupStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionPowerspikeCurveStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionPowerspikeEventStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionSynergyStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionSynergyBaselineStats
@@ -101,10 +97,6 @@ public static class AggregateRetention
                     .Where(scope => scope.GameVersion == stalePatch).ExecuteDeleteAsync(ct),
                 result.DeletedMatchupStats + await db.ChampionMatchupStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                result.DeletedPowerspikeCurveStats + await db.ChampionPowerspikeCurveStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                result.DeletedPowerspikeEventStats + await db.ChampionPowerspikeEventStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 // The synergy pair rows and the baselines they are divided by go in
                 // the same transaction as each other: a patch left with baselines but
                 // no pairs (or the reverse) would still be read, and would answer with
@@ -139,11 +131,10 @@ public static class AggregateRetention
         {
             logger.LogInformation(
                 "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup, "
-                + "{DeletedPowerspikes} powerspike, {DeletedSynergies} synergy and {DeletedBans} ban "
+                + "{DeletedSynergies} synergy and {DeletedBans} ban "
                 + "rows for stale patches {StalePatches} (keeping {RetainedPatches}).",
                 result.DeletedScopes,
                 result.DeletedMatchupStats,
-                result.DeletedPowerspikeCurveStats + result.DeletedPowerspikeEventStats,
                 result.DeletedSynergyStats,
                 result.DeletedBanStats,
                 string.Join("|", stalePatches),
@@ -155,8 +146,6 @@ public static class AggregateRetention
     public sealed record AggregateDeletionResult(
         int DeletedScopes,
         int DeletedMatchupStats,
-        int DeletedPowerspikeCurveStats,
-        int DeletedPowerspikeEventStats,
         int DeletedSynergyStats,
         int DeletedBanStats,
         // The situational-context family (#1449, #1450): champion profiles, the item
@@ -164,13 +153,11 @@ public static class AggregateRetention
         // together in one transaction, so one counter describes all four tables.
         int DeletedContextStats)
     {
-        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0, 0, 0);
+        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0);
 
         public int TotalDeleted
             => DeletedScopes
                 + DeletedMatchupStats
-                + DeletedPowerspikeCurveStats
-                + DeletedPowerspikeEventStats
                 + DeletedSynergyStats
                 + DeletedBanStats
                 + DeletedContextStats;

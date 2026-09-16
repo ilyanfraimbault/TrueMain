@@ -52,7 +52,6 @@ public sealed class PipelineHealthQueryService(
         "MatchParticipantEloBracketEnrichment",
         "ChampionPatternAggregation",
         "ChampionMatchupLeadAggregation",
-        "ChampionPowerspikeAggregation",
         "AccountRefresh",
         "MatchDataRetention"
     ];

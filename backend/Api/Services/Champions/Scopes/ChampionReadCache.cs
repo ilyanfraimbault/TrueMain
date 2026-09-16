@@ -71,7 +71,7 @@ public interface IChampionReadCache
 /// </para>
 /// <para>
 /// <b>The live folds are a weaker case, deliberately.</b> Roam, scaling, item timings,
-/// powerspikes, synergies, the live branch of matchups, mains-comparison and the
+/// synergies, the live branch of matchups, mains-comparison and the
 /// composition selection read <c>match_participants</c> directly, so their answers also
 /// move with match ingestion — which since #1374 runs in a lane of its own, not with the
 /// aggregation. The version token does not track that, so for these

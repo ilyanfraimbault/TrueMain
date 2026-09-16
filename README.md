@@ -25,7 +25,7 @@ A .NET worker that runs a set of scheduled, independently recorded processes:
 - **Discovery** walks ranked ladders across platforms to find candidate players.
 - **Match ingestion / harvest** pulls solo/duo (queue 420) match and timeline data for known accounts. Other queues are dropped at ingest — TrueMain is ranked-only by design.
 - **Scoring / main analysis** computes the games-vs-mastery signal that promotes a player to *true main* status for a champion.
-- **Aggregation** folds match participants into per-champion aggregates: builds, runes, skill orders, matchups (with their 15-minute lane outcomes and gold/XP gaps), synergies, bans, power spikes, kill positions. Aggregates are computed per patch and rank scope; past patches are frozen once their live matches are retired.
+- **Aggregation** folds match participants into per-champion aggregates: builds, runes, skill orders, matchups (with their 15-minute lane outcomes and gold/XP gaps), synergies, bans, kill positions. Aggregates are computed per patch and rank scope; past patches are frozen once their live matches are retired.
 - **Retention** trims raw match data that has already been aggregated, keeping the database bounded.
 
 ### Api
@@ -38,7 +38,7 @@ An ASP.NET Core service exposing the read side: champion aggregates, true-main l
 
 ### web
 
-The public Nuxt frontend: champion pages (builds, runes, skill order, matchups, synergies, power spikes), player pages, and search. It talks to the Api through a Nitro server proxy, so the browser never reaches the backend directly.
+The public Nuxt frontend: champion pages (builds, runes, skill order, matchups, synergies), player pages, and search. It talks to the Api through a Nitro server proxy, so the browser never reaches the backend directly.
 
 ### admin
 

@@ -45,11 +45,11 @@ public sealed class ProcessRunSummaryJsonTests
                 """);
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
-            3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 4, 5, 8, 9, 6, 11, 3,
+            3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 8, 9,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]))
             .Should().Be(
                 """
-                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"demotedQueuedCandidates":42,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedPowerspikeCurveStats":4,"deletedPowerspikeEventStats":5,"deletedSynergyStats":8,"deletedBanStats":9,"prunedSubFloorPowerspikeEvents":6,"collapsedPowerspikeOpponentShards":11,"collapsedPowerspikeOpponentGroups":3,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
+                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"demotedQueuedCandidates":42,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedSynergyStats":8,"deletedBanStats":9,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
                 """);
     }
 
@@ -277,11 +277,6 @@ public sealed class ProcessRunSummaryJsonTests
             new TeamPositionCorrectionSummary(7, 3),
             new { correctedParticipants = 7, inspectedTeams = 3 });
 
-        // ChampionMatchupLeadAggregationProcess and ChampionPowerspikeAggregationProcess.
-        yield return (
-            new MatchAggregationSummary(4000, 4),
-            new { matches = 4000, batches = 4 });
-
         // ChampionSynergyAggregationProcess (#922) — same match/batch pair plus the
         // two upsert counts, since it writes two tables per fold.
         yield return (
@@ -313,7 +308,7 @@ public sealed class ProcessRunSummaryJsonTests
             });
 
         yield return (
-            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 4, 5, 8, 9, 6, 11, 3,
+            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 8, 9,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]),
             new
             {
@@ -328,13 +323,8 @@ public sealed class ProcessRunSummaryJsonTests
                 deletedIntermediateSnapshots = 900,
                 deletedAggregateScopes = 1,
                 deletedMatchupStats = 2,
-                deletedPowerspikeCurveStats = 4,
-                deletedPowerspikeEventStats = 5,
                 deletedSynergyStats = 8,
                 deletedBanStats = 9,
-                prunedSubFloorPowerspikeEvents = 6,
-                collapsedPowerspikeOpponentShards = 11,
-                collapsedPowerspikeOpponentGroups = 3,
                 retainedPatchesByPlatform = new[]
                 {
                     new { platformId = "KR", patches = new[] { "16.3", "16.4" } }

@@ -52,17 +52,23 @@ builder.Services.AddTransient<RiotRateLimitObserverHandler>();
 // the 429s the retry strategy absorbs, which are the responses carrying the Retry-After the
 // next acquisition must honour. The metrics handler stays innermost so a permit wait is
 // never recorded as Riot latency.
+//
+// Every client also asks for compressed responses (#1601): a match timeline is ~90 % smaller
+// gzipped, and the default handler sends no Accept-Encoding at all.
 builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>(ConfigureRiotClient)
+    .AcceptCompressedResponses()
     .AddHttpMessageHandler<RiotRateLimitHandler>()
     .AddRiotResilienceHandler()
     .AddHttpMessageHandler<RiotRateLimitObserverHandler>()
     .AddHttpMessageHandler<RiotApiMetricsHandler>();
 builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>(ConfigureRiotClient)
+    .AcceptCompressedResponses()
     .AddHttpMessageHandler<RiotRateLimitHandler>()
     .AddRiotResilienceHandler()
     .AddHttpMessageHandler<RiotRateLimitObserverHandler>()
     .AddHttpMessageHandler<RiotApiMetricsHandler>();
 builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>(ConfigureRiotClient)
+    .AcceptCompressedResponses()
     .AddHttpMessageHandler<RiotRateLimitHandler>()
     .AddRiotResilienceHandler()
     .AddHttpMessageHandler<RiotRateLimitObserverHandler>()
@@ -94,6 +100,7 @@ builder.Services.AddScoped<IChampionCoverageProvider, ChampionCoverageProvider>(
 // total timeout — and the client timeout above it — are the only bounds on the call.
 builder.Services
     .AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>(ConfigureCommunityDragonClient)
+    .AcceptCompressedResponses()
     .AddCommunityDragonResilienceHandler();
 // Data Dragon has the same profile as CommunityDragon for our purposes — a static-file
 // CDN fetched once per patch and cached in-process, with no Retry-After semantics — so
@@ -101,6 +108,7 @@ builder.Services
 // options and resilience pipeline rather than a third tuning of the standard handler.
 builder.Services
     .AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>(ConfigureCommunityDragonClient)
+    .AcceptCompressedResponses()
     .AddCommunityDragonResilienceHandler();
 builder.Services.AddScoped<ChampionPatternSourceRowReader>();
 builder.Services.AddScoped<ChampionPatternAggregateBuilder>();

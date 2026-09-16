@@ -19,8 +19,8 @@ public sealed record AggregationsReadModel
 }
 
 /// <summary>
-/// One aggregation family (builds patterns, matchups, synergies,
-/// powerspikes, mains): the tables it owns with exact row counts, its
+/// One aggregation family (builds patterns, matchups, synergies, mains):
+/// the tables it owns with exact row counts, its
 /// champion/patch coverage, and the latest run of the process producing it.
 /// </summary>
 public sealed record AggregationFamilyReadModel
@@ -82,14 +82,8 @@ public sealed record AggregationRunReadModel
 public sealed record AggregationBacklogReadModel
 {
     /// <summary>
-    /// Queue-scoped matches with an ingested timeline not yet folded into the
-    /// powerspike aggregates.
-    /// </summary>
-    public long PendingPowerspikeMatches { get; init; }
-
-    /// <summary>
     /// Queue-scoped matches not yet folded into the synergy aggregates (#922).
-    /// Unlike the powerspike counter this one has no timeline prerequisite, and it
+    /// It has no timeline prerequisite, and it
     /// starts at the full retained match count: the fold flag ships false for every
     /// pre-existing row on purpose, so this reads as a large backlog on the first
     /// deploy and drains over the following runs.
@@ -101,7 +95,4 @@ public sealed record AggregationBacklogReadModel
     /// rank-scoped aggregations cannot bucket yet.
     /// </summary>
     public long PendingEloBracketParticipants { get; init; }
-
-    /// <summary>Queue-scoped matches with an ingested timeline (backlog denominator).</summary>
-    public long TimelineIngestedMatches { get; init; }
 }
