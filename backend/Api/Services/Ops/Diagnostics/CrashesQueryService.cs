@@ -24,7 +24,7 @@ public interface ICrashesQueryService
 /// </summary>
 public sealed class CrashesQueryService(ICrashQuery query) : ICrashesQueryService
 {
-    private static readonly IReadOnlyList<string> ProcessNames = Data.Logging.LogProcesses.KnownProcessNames;
+    private static readonly IReadOnlyList<string> ProcessNames = Data.Logging.LogProcesses.CrashReportingProcessNames;
     private static readonly IReadOnlyList<string> SourceNames = Enum.GetNames<CrashSource>();
 
     public async Task<CrashesReadModel> GetAsync(

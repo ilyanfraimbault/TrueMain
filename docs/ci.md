@@ -15,6 +15,7 @@ two environments and the migration path in detail.
 | `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
+| `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
 
 `.github/actions/migration-script` is the composite action every job that
 needs the idempotent EF migration script goes through (`migrate-fresh` in CI,
@@ -132,6 +133,22 @@ trace itself is fixed in `web/nuxt.config.ts` (`nitro.externals.traceInclude`);
 the assertion is there so a regression fails the build instead of the next
 tweet.
 
+### The web server runs one worker per core
+
+`web/nuxt.config.ts` builds with Nitro's `node-cluster` preset (#1579): the container's entry forks
+`NITRO_CLUSTER_WORKERS` Node processes that share port 3000. With a single process, the 200-visitor preprod load
+test left the web container's accept queue (backlog 511) overflowing about 130,000–150,000 times per run, and
+the edge Caddy answered 502 after its 3 s dial timeout, while the API and the database had capacity to spare.
+Server-side rendering is CPU work on one thread per process, so a second core did nothing for it.
+
+- The worker count is set in the compose files, never left to the preset's default: inside a container
+  `os.cpus()` reports the host's cores, not the container's share. Prod runs 3 of its 4 vCPU (the API, Postgres
+  and the ingestors need the rest), the local stack 2, and preprod 1 because its host is shared (2026-09-16).
+- Each worker has its own memory: the `/_ipx` byte cache (64 MB cap) and Nitro's in-memory cached functions are
+  per worker, so a cache warmed by one worker is cold in the others, and the image cache's worst case is
+  multiplied by the worker count.
+- The admin portal keeps a single process; its traffic is one operator.
+
 ## Deploys
 
 ### Immutable tags
@@ -180,7 +197,9 @@ tags already on the remote, so two runs resolving a version at once would land
 on the same number; on prod two releases back to back would race for the
 moving `:latest`. A running deploy is never cancelled, GitHub collapses the
 pending queue to the newest run, and on preprod only a commit that actually
-deployed gets its `-rc.N` tag (`tag` runs last).
+deployed gets its `-rc.N` tag (`tag` runs last). A group holds one running and
+one pending run, and queuing a third cancels the pending one: that is why the
+preprod load test keeps a group of its own (*Load test*).
 
 ### Verifying the rollout reached the VPS
 
@@ -242,6 +261,35 @@ latest release" must filter to bare `MAJOR.MINOR.PATCH`. `-rc.` and `.` are
 legal in a Docker reference, `+` is not, which is why the version is a semver
 prerelease and not build metadata.
 
+## Load test
+
+`loadtest-preprod.yml` runs `loadtest/k6/run.js` against preprod (`docs/load-testing.md`, #1559).
+
+- It is manual only. A load test is an event someone decides on — the rate limit may need raising for it —
+  not something a push should trigger.
+- It keeps its own concurrency group, `preprod-loadtest`, and coordinates with the deploy by looking at the
+  other workflow's runs instead (#1566). Sharing `preprod-pipeline` would have made a dispatched test the
+  group's pending run and silently cancelled a deploy already queued there.
+  - The test's first step refuses to start while a `deploy-preprod.yml` run is queued or running.
+  - The deploy's `preflight` waits, up to 45 minutes, while a load test is queued or running, so it never
+    recreates the containers under a test. Both read the runs with the workflow token (`actions: read`).
+- The target is built from the existing `PREPROD_SSH_HOST` secret. The repository is public, so the host is
+  never written into the workflow, and a guard step deletes the output and fails the job if any file in it
+  names the host; only then is the summary appended to the job page and uploaded. Secrets are masked in the
+  logs, but not in artifacts.
+- k6 is pinned (`grafana/setup-k6-action` with an explicit `k6-version`), so two runs weeks apart differ by
+  the site, not by the tool.
+- Before k6 starts, the runner checks that preprod answers, five times 20 seconds apart. Some runner addresses
+  never reach the host (#1568), and a clear error telling the operator to re-dispatch beats a k6 run whose
+  every request times out.
+- The k6 step records its exit code instead of failing, so a run that crossed a threshold (exit 99) still
+  publishes its summary; the last step fails the job afterwards.
+- The browser VUs use the Chrome preinstalled on the runner image, found on the `PATH` by a step that fails
+  with a clear error if it is gone, and run with `no-sandbox`, as headless Chrome on a CI runner needs.
+- k6's own log goes to `out/k6.log`, not to the job log: the browser logs the URLs it loads, and a job log is
+  public. The step replaces the host in that file before the guard runs, so the guard still refuses any other
+  output that names it.
+
 ## Claude review
 
 `claude-review.yml` posts inline comments prefixed `BLOCKING:` or `NIT:` and
@@ -288,6 +336,21 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
 - `*.dev` variants run `dotnet watch` / `nuxt dev` with a long `start_period`
   (90–120s) so `condition: service_healthy` in `compose.dev.yaml` survives a
   cold start.
+- **The app containers run with `init: true`** (2026-09-16). Docker's health check
+  starts a process inside the container; when it ends, it is reparented to PID 1,
+  and neither Node nor .NET reaps a child it never spawned. With a probe every
+  10s the leftovers pile up: 103 `[wget] <defunct>` in prod's web container after
+  four days, 46 on preprod plus one each on admin and api. `init: true` puts
+  Docker's `tini` at PID 1, which reaps them; the app still receives signals and
+  stops the same way.
+- **Every probe is generous on time, strict on meaning** (2026-09-16). Timeouts
+  are 20s and start periods 90s across the images and the data stores, and the
+  retry counts are doubled. The preprod host is CPU-limited by the provider when
+  the stack starts, and a `mongosh` ping that normally answers in milliseconds
+  took 52s there: the 5s timeouts turned a healthy Mongo into an unhealthy
+  dependency and Docker Manager abandoned the deploy (`dependency failed to
+  start`). What each probe *checks* is unchanged — the ingestor still fails on a
+  heartbeat older than 300s — only the patience is.
 
 ## Stacks
 
@@ -295,6 +358,11 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
   variant, `compose.preprod.yaml` and `compose.prod.yaml` the two deployed
   ones. Both deployed stacks run `Database__ApplyMigrationsOnStartup=false`
   and rely on the rollout to migrate.
+- `compose.preprod.yaml` puts a plain-HTTP `caddy` in front of web and admin,
+  like prod's edge, with its Caddyfile inline under `configs:` because the
+  deploy ships the compose file alone (`docs/preprod.md`, #1558). It requires
+  `PREPROD_SITE_URL` and `PREPROD_ADMIN_URL`, which is why the compose-config
+  job sets both.
 - Both ingestor lanes carry `stop_grace_period: 120s` on the deployed stacks
   (#1513). Docker's default is 10 s, and a pass runs for many minutes, so every
   redeploy SIGKILLed the work in flight: the in-flight transaction rolled back and
@@ -310,7 +378,7 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
 - `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
   projects against (#925). Unset means no forecast at all, which the admin
   panel says explicitly instead of fitting a line to a guessed capacity.
-- The `umami-purge` sidecar exists because self-hosted Umami has no retention
+- The `umami-replay-cleanup` sidecar exists because self-hosted Umami has no retention
   for session replay and heatmap data (#1018): `session_replay` and
   `heatmap_event` are the heaviest tables it writes and grow unbounded. It is
   the Postgres image with the entrypoint replaced by a purge script on a loop,

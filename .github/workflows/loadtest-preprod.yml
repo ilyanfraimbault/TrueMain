@@ -1,0 +1,146 @@
+name: Load test preprod
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: smoke, visitors, browser or ratelimit-probe
+        type: choice
+        options:
+          - smoke
+          - visitors
+          - browser
+          - ratelimit-probe
+        default: smoke
+      vus:
+        description: Concurrent visitors (visitors scenario)
+        type: number
+        default: 200
+      ramp:
+        description: Ramp-up duration (visitors scenario)
+        type: string
+        default: 3m
+      hold:
+        description: Hold duration at full load (visitors scenario)
+        type: string
+        default: 10m
+      fetch_assets:
+        description: Also fetch page bundles and images
+        type: boolean
+        default: true
+      browser_vus:
+        description: Browsers timing full page loads (empty for the scenario default, 0 for none)
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: preprod-loadtest
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    name: k6 (${{ inputs.scenario }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Refuse to start while a preprod deploy is queued or running
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pending="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy-preprod.yml --limit 20 --json status --jq '[.[] | select(.status != "completed")] | length')"
+          if [ "$pending" != "0" ]; then
+            echo "::error::A preprod deploy is queued or running. Dispatch the load test again once it has finished."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: 2.2.0
+
+      - name: Check preprod answers from the runner
+        env:
+          PREPROD_HOST: ${{ secrets.PREPROD_SSH_HOST }}
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS --max-time 15 -o /dev/null "http://${PREPROD_HOST}:3001/"; then
+              exit 0
+            fi
+            echo "Attempt ${attempt}: preprod web did not answer from this runner."
+            if [ "$attempt" -lt 5 ]; then
+              sleep 20
+            fi
+          done
+          echo "::error::Preprod web did not answer on port 3001 from this runner after 5 attempts. Some runner addresses are dropped before they reach the host: dispatch the workflow again, it lands on another runner (docs/load-testing.md, Runner reachability)."
+          exit 1
+
+      - name: Find Chrome for the browser VUs
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          if [ -z "$chrome" ]; then
+            echo "::error::No Chrome or Chromium on the runner; the browser VUs cannot start."
+            exit 1
+          fi
+          echo "K6_BROWSER_EXECUTABLE_PATH=$chrome" >> "$GITHUB_ENV"
+
+      - name: Run k6
+        id: k6
+        env:
+          PREPROD_HOST: ${{ secrets.PREPROD_SSH_HOST }}
+          SCENARIO: ${{ inputs.scenario }}
+          VUS: ${{ inputs.vus }}
+          RAMP: ${{ inputs.ramp }}
+          HOLD: ${{ inputs.hold }}
+          FETCH_ASSETS: ${{ inputs.fetch_assets }}
+          BROWSER_VUS: ${{ inputs.browser_vus }}
+          K6_BROWSER_ARGS: no-sandbox
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          code=0
+          BASE_URL="http://${PREPROD_HOST}:3001" SUMMARY_DIR=out k6 run --no-color --log-output=file=out/k6.log loadtest/k6/run.js || code=$?
+          if [ -f out/k6.log ]; then
+            sed -i "s#${PREPROD_HOST}#preprod#g" out/k6.log
+          fi
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to publish output naming the host
+        if: always()
+        env:
+          PREPROD_HOST: ${{ secrets.PREPROD_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          if [ -d out ] && grep -rqF "$PREPROD_HOST" out/; then
+            rm -rf out
+            echo "::error::The k6 output contains the preprod host; nothing is published."
+            exit 1
+          fi
+
+      - name: Publish the summary on the job page
+        if: always() && hashFiles('out/summary.md') != ''
+        run: cat out/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the summary
+        if: always() && hashFiles('out/summary.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: loadtest-${{ inputs.scenario }}-${{ github.run_id }}
+          path: out/
+          retention-days: 30
+
+      - name: Fail when k6 did
+        if: steps.k6.outputs.exit_code != '0'
+        run: |
+          echo "::error::k6 exited with ${{ steps.k6.outputs.exit_code }} (99 means a threshold was crossed)."
+          exit 1

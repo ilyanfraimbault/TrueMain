@@ -187,6 +187,8 @@ export default defineNuxtConfig({
   // file puts it back in the trace; it is the only asset in the OG chain
   // loaded that way, which is why this is one entry and not a pattern.
   nitro: {
+    // One worker per useful core behind the same port (#1579); see docs/ci.md.
+    preset: 'node-cluster',
     externals: {
       traceInclude: [fileURLToPath(import.meta.resolve('harfbuzzjs/hb.wasm'))],
     },
@@ -204,6 +206,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
       ?? 'http://localhost:5008',
+    // Server-only key for the API's `POST /internal/logs` (#1556), from
+    // NUXT_LOG_INGEST_KEY. Empty keeps error forwarding off
+    // (server/plugins/log-forwarding.ts).
+    logIngestKey: '',
     public: {
       // Which deployed environment this container is (`preprod` / `production`),
       // and the build running in it — the preprod pipeline stamps a prerelease

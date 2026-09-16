@@ -22,7 +22,7 @@ COPY --from=build /app/publish .
 RUN mkdir -p /home/app/crashes && chown app:app /home/app/crashes
 USER app
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=20s --start-period=90s --retries=10 \
     CMD curl --fail --silent http://localhost:8080/healthz || exit 1
 
 ENTRYPOINT ["dotnet", "Api.dll"]

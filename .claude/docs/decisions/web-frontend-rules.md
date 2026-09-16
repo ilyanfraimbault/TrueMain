@@ -57,6 +57,11 @@ write its rows under a pager reading 4 — #1234.
   they always rendered a single `SkeletonImage` — which is why the symptom looked specific to skill orders and
   summoners.
 
+  Since #1585 the icon tooltips are not mounted until the pointer first passes over the icon
+  (`GameTooltip/LazyTooltip.vue`). That keeps this rule: Reka takes its snapshot when the tooltip mounts, once,
+  on the element it keeps for good, and it opens on `pointermove`, so the resting pointer opens it on its next
+  move and nothing is opened by hand.
+
 - **A skeleton is the real component in `pending` mode, not a drawing of it.** The champion page's build
   section has two loading phases it cannot merge: the aggregate and the patch-pinned static bundles are
   separate fetches, and the ~95 DDragon icons only start downloading once the ids they resolve are mounted.
@@ -149,3 +154,59 @@ through untouched, so it is a shape fixer and never a guard. Every static endpoi
 a CDN URL *and* uses it as a cache key, so an unvalidated `?patch=` is both a path-injection vector and an
 unbounded-cache-key vector: one entry per distinct string, held for the payload TTL. The guard lives in
 `normalizeRequestedPatch` and covers all four web static endpoints, not just the champion list.
+
+## SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14)
+
+**Decision:** a fetch that can run during SSR and reaches the backend through `/api` goes through
+`useRequestFetch()` (or `useFetch`, which already does), and a server handler that fans out to `/api` forwards
+the visitor's `X-Forwarded-For` — that header only. A cached server function stores an upstream's 404, but
+rethrows a 429, a 5xx or an unreachable upstream so that nothing is stored — #1557.
+
+On the server, a bare `$fetch('/api/…')` is an in-process call that carries none of the incoming request's
+headers. The proxy then calls the API from the web container with no `X-Forwarded-For`, and the API — which keys
+its rate limit on that header since #1546 — puts every SSR call of every visitor in one bucket: the site-wide
+ceiling #1546 removed for browser calls. The `/truemains` leaderboard's first page and the champion page's build
+summary were the two SSR paths affected; every other page fetch is `server: false`, and the static endpoints talk
+to Data Dragon, not the API.
+
+- **Only that one header crosses into a cached handler.** The champion summary is shared by everyone who hits
+  the same slice key; forwarding the rest of the triggering visitor's request (cookies, `If-None-Match`) into a
+  response other people receive is how a cache serves one person's variant to all. The visitor whose view misses
+  the cache is the one charged for the fan-out, which is what the limit is for.
+- **A 429 used to be cached for five minutes as an empty summary.** Every upstream failure was folded into
+  `null`, and `null` is what the cache stored, so one throttled request blanked the paragraph for the whole slice.
+  A 404 still degrades and is cached — it is the slice's answer. Anything else fails the cached loader, and that
+  one view gets the empty summary, without a second fan-out against an API that just asked for less traffic.
+- **The proxy does not rewrite `X-Forwarded-For` from `getRequestIP`.** h3 returns the header's *first* entry,
+  the one a client writes; the API reads the *last*, the one the edge appends. Normalising it in the proxy would
+  reopen exactly the spoofing #1546 closed, so the header passes through untouched and the edge stays the only
+  writer that counts.
+
+## Static game data is cached by the browser for the hour the server caches it (2026-09-15)
+
+**Decision:** successful `/api/static/*` answers carry `Cache-Control: public, max-age=3600,
+stale-while-revalidate=86400`, added by a Nitro `beforeResponse` hook, never to an error — #1584.
+
+- **Why.** A reload of a prod champion page downloaded 684 KB of static data again (7 of 12 calls), and its icons
+  waited for it, while bundles and images came from the browser cache. The client cache
+  (`app/utils/static-cache.ts`) dies with the page.
+- **The same hour as the server cache**, so a new patch reaches a visitor no later than the server itself serves
+  it; `stale-while-revalidate` keeps a reload past the hour from blocking on the network.
+- **A hook, not a route rule**, because route-rule headers are set before the handler and would make a failed
+  lookup cacheable too.
+
+## A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15)
+
+**Decision:** a build tab's panel is mounted the first time the tab is opened and kept afterwards, and the item,
+rune and spell icon tooltips mount on the first hover — #1585.
+
+- **Why.** A prod champion page spent about 9.6 s of main-thread long tasks in its first 14 s (longest 2.1 s),
+  delaying its second wave of fetches by 2 s after the data it needed had arrived. A CPU profile of the page
+  put the time in Vue's component creation and patching and in Nuxt UI / Reka's per-component prop, context and
+  class work, not in the app's own code: the cost was the number of components. Three build panels were fully
+  mounted on load, and every icon was a `UTooltip`.
+- **Kept after first open**, so switching back to a tab is instant and keeps its state; a new set of builds
+  starts over on its first tab.
+- **Power spikes follow the panel**: they are fetched for a tab when it is first opened, which the load test's
+  champion journey now mirrors.
+

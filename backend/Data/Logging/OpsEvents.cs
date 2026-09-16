@@ -5,9 +5,11 @@ namespace Data.Logging;
 /// <summary>
 /// Catalog of the named domain events ("ops events") the pipeline emits for
 /// operator-facing milestones — e.g. a main candidate finishing validation or a
-/// manual seed request reaching its terminal state (#444). Writers (Ingestor
-/// processes) log them through the standard <see cref="ILogger"/> API using these
-/// <see cref="EventId"/>s; the Mongo sink (<c>MongoLogger</c>) recognises them via
+/// manual seed request reaching its terminal state (#444) — and for the request
+/// outcomes an operator has to be able to count (#1555). Writers (Ingestor
+/// processes, the API's request pipeline, the log sink itself) log them through
+/// the standard <see cref="ILogger"/> API using these <see cref="EventId"/>s; the
+/// Mongo sink (<c>MongoLogger</c>) recognises them via
 /// <see cref="Resolve"/> and persists them from <see cref="PersistedFloor"/> up,
 /// below its usual Warning floor, stamping the event name into the document's
 /// <c>eventType</c> so <c>GET /ops/logs</c> can filter on it. The admin Logs panel
@@ -74,6 +76,53 @@ public static class OpsEvents
     /// </summary>
     public static readonly EventId MainActivityCycleCompleted = new(1009, nameof(MainActivityCycleCompleted));
 
+    /// <summary>
+    /// The API rate limiter rejected a visitor (#1555). The first rejection of a
+    /// partition in a window is logged with its request; the rest of that window is
+    /// counted and published as one row per partition when the window closes, so a
+    /// burst of thousands of 429s costs a handful of rows instead of flooding the
+    /// bounded log channel.
+    /// </summary>
+    public static readonly EventId RateLimitRejected = new(1010, nameof(RateLimitRejected));
+
+    /// <summary>An API request answered with a 5xx status (#1555); carries method, path, status, duration and traceId.</summary>
+    public static readonly EventId RequestFailed = new(1011, nameof(RequestFailed));
+
+    /// <summary>
+    /// The client went away before the API answered (#1555) — a timeout upstream, a
+    /// closed tab, a load generator giving up. Logged because ASP.NET only reports it
+    /// at Debug, and under load it is often the first symptom.
+    /// </summary>
+    public static readonly EventId RequestAborted = new(1012, nameof(RequestAborted));
+
+    /// <summary>
+    /// The bounded log channel was full and evicted records before the sink could
+    /// persist them (#1555). Written by the sink itself, straight into the batch, so
+    /// a lossy burst is visible as a count instead of silently missing rows.
+    /// </summary>
+    public static readonly EventId LogRecordsDropped = new(1013, nameof(LogRecordsDropped));
+
+    /// <summary>
+    /// A frontend server — the public site or the admin portal — failed a request with a
+    /// 5xx of its own: a render error, a handler that threw, the API proxy unable to reach
+    /// the API (#1556). Reported through <c>POST /internal/logs</c>, one row per distinct
+    /// error per flush, with the occurrence count.
+    /// </summary>
+    public static readonly EventId FrontendServerError = new(1014, nameof(FrontendServerError));
+
+    /// <summary>
+    /// A frontend's proxy relayed a 429 or a 5xx answer from the API (#1556): what the
+    /// visitor saw, counted per route template and status.
+    /// </summary>
+    public static readonly EventId FrontendUpstreamErrors = new(1015, nameof(FrontendUpstreamErrors));
+
+    /// <summary>
+    /// A client left a frontend server before it answered (#1569): a closed tab, a proxy or
+    /// load generator giving up. Counted per route template; the proxied API call is
+    /// cancelled with it, so the API side shows up as <see cref="RequestAborted"/>.
+    /// </summary>
+    public static readonly EventId FrontendRequestAborted = new(1016, nameof(FrontendRequestAborted));
+
     // Single source for the lookup + the UI-facing list, so a new event only has
     // to be added in two places (its field above and this array).
     private static readonly EventId[] All =
@@ -87,7 +136,14 @@ public static class OpsEvents
         ProcessRunCompleted,
         ProcessRunFailed,
         HarvestBudgetExhausted,
-        MainActivityCycleCompleted
+        MainActivityCycleCompleted,
+        RateLimitRejected,
+        RequestFailed,
+        RequestAborted,
+        LogRecordsDropped,
+        FrontendServerError,
+        FrontendUpstreamErrors,
+        FrontendRequestAborted
     ];
 
     private static readonly Dictionary<string, int> IdByName =
@@ -99,6 +155,18 @@ public static class OpsEvents
     /// </summary>
     public static IReadOnlyList<string> KnownEventTypes { get; } =
         All.Select(eventId => eventId.Name!).ToList();
+
+    /// <summary>
+    /// The events a frontend may report through <c>POST /internal/logs</c> (#1556).
+    /// Anything else is refused, so a forwarded row can never pass for a backend event
+    /// such as <see cref="ProcessRunFailed"/>.
+    /// </summary>
+    public static IReadOnlyList<string> ForwardableEventTypes { get; } =
+        [FrontendServerError.Name!, FrontendUpstreamErrors.Name!, FrontendRequestAborted.Name!];
+
+    /// <summary>The id of a registered event name, or null.</summary>
+    public static int? IdOf(string name)
+        => IdByName.TryGetValue(name, out var id) ? id : null;
 
     /// <summary>
     /// Returns the registered event name when <paramref name="eventId"/> is one of

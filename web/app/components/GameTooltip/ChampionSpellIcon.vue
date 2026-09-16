@@ -34,7 +34,7 @@ const fallbackText = computed(() => props.fallbackLabel || props.spell?.key || '
 </script>
 
 <template>
-  <UTooltip
+  <GameTooltipLazyTooltip
     :disabled="!hasSpell"
     :delay-duration="150"
     :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
@@ -57,5 +57,5 @@ const fallbackText = computed(() => props.fallbackLabel || props.spell?.key || '
         <GameTooltipChampionSpellBody :spell="spell" />
       </GameTooltipSurface>
     </template>
-  </UTooltip>
+  </GameTooltipLazyTooltip>
 </template>

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using AwesomeAssertions;
 using Data.Entities;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Champions;
 using TrueMain.ReadModels.Truemains;
 
@@ -172,6 +173,24 @@ public sealed class TruemainAccountResolutionApiIntegrationTests
         var response = await client.GetAsync("/truemains/phantasmmain-na1/profile");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task The_lowered_riot_id_lookup_has_its_functional_index()
+    {
+        // The resolver's `lower(col) = @p` only seeks with this index (#1570). It is
+        // declared in a migration, not in the model, so nothing else would notice a
+        // later migration dropping it and every name-tag route scanning riot_accounts again.
+        await using var db = _fixture.CreateDbContext();
+        var definitions = await db.Database
+            .SqlQueryRaw<string>(
+                "SELECT indexdef AS \"Value\" FROM pg_indexes "
+                + "WHERE tablename = 'riot_accounts' AND indexname = 'IX_riot_accounts_game_name_tag_line_lower'")
+            .ToListAsync();
+
+        definitions.Should().ContainSingle()
+            .Which.Should().Contain("lower((\"GameName\")::text)")
+            .And.Contain("lower((\"TagLine\")::text)");
     }
 
     private async Task SeedAccountAsync()

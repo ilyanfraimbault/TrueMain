@@ -16,9 +16,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      timeout: 20s
+      retries: 20
+      start_period: 90s
     networks:
       - truemain_internal
 
@@ -40,13 +40,14 @@ services:
       MIN_POOL_SIZE: "5"
       RESERVE_POOL_SIZE: "5"
       RESERVE_POOL_TIMEOUT: "3"
+      QUERY_WAIT_TIMEOUT: "30"
       STATS_USERS: ${POSTGRES_USER}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 45s
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,7 +55,7 @@ services:
       - truemain_internal
 
   mongo:
-    image: mongo:8.3.8
+    image: mongo:8.3.9
     container_name: truemain-mongo
     restart: unless-stopped
     environment:
@@ -67,9 +68,9 @@ services:
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      timeout: 20s
+      retries: 20
+      start_period: 90s
     networks:
       - truemain_internal
 
@@ -79,14 +80,16 @@ services:
       dockerfile: Api/Dockerfile
     container_name: truemain-api
     restart: unless-stopped
+    init: true
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "true"
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=100;No Reset On Close=true;Application Name=truemain-api
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=30;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
+      LogIngest__ApiKey: ${LOG_INGEST_KEY:-}
       Cors__Origins__0: "http://localhost:3000"
       MongoLogging__CrashFilePath: /home/app/crashes
     volumes:
@@ -109,10 +112,13 @@ services:
       dockerfile: Dockerfile
     container_name: truemain-web
     restart: unless-stopped
+    init: true
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
+      NITRO_CLUSTER_WORKERS: "2"
       NUXT_API_BASE_URL: http://api:8080
+      NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       NUXT_PUBLIC_UMAMI_HOST: http://localhost:3100
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
@@ -129,11 +135,13 @@ services:
       dockerfile: Dockerfile
     container_name: truemain-admin
     restart: unless-stopped
+    init: true
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_OPS_API_BASE_URL: http://api:8080
       NUXT_OPS_KEY: ${OPS_API_KEY}
+      NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       NUXT_SESSION_PASSWORD: ${ADMIN_SESSION_PASSWORD}
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
@@ -154,6 +162,7 @@ services:
       dockerfile: Ingestor/Dockerfile
     container_name: truemain-ingestor
     restart: unless-stopped
+    init: true
     environment:
       DOTNET_ENVIRONMENT: Production
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
@@ -186,9 +195,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
       interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      timeout: 20s
+      retries: 20
+      start_period: 90s
     networks:
       - truemain_internal
 

@@ -32,7 +32,7 @@ const hasItem = computed(() => Boolean(props.item))
 </script>
 
 <template>
-  <UTooltip
+  <GameTooltipLazyTooltip
     :disabled="!hasItem"
     :delay-duration="150"
     :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
@@ -57,5 +57,5 @@ const hasItem = computed(() => Boolean(props.item))
         />
       </GameTooltipSurface>
     </template>
-  </UTooltip>
+  </GameTooltipLazyTooltip>
 </template>

@@ -7,8 +7,10 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
+using TrueMain.LogIngest;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
+using TrueMain.RequestLogging;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Directory;
@@ -283,6 +285,7 @@ builder.Services
 builder.Services.AddAuthorization();
 
 builder.Services.AddTrueMainRateLimiting(builder.Configuration);
+builder.Services.AddTrueMainLogIngest(builder.Configuration);
 
 // The one door every champion read goes through: shared cache + single flight, keyed
 // by the ingestor's aggregation version rather than by a 60s clock (#1368). Registered
@@ -395,6 +398,10 @@ if (app.Environment.IsDevelopment()
         "Cors:Origins is empty; the {Policy} policy allows no cross-origin browser request. Set Cors:Origins in configuration to let the frontend reach the API.",
         frontendCorsPolicy);
 }
+
+// Outermost request middleware, ahead of the exception handler: logs 5xx answers
+// and client aborts with their path and traceId (#1555).
+app.UseRequestOutcomeLogging();
 
 // Development gets the rich debug page (source snippets, full stack trace);
 // everywhere else keeps the RFC 7807 ProblemDetails handler so clients always

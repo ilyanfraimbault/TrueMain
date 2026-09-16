@@ -287,3 +287,81 @@ of 68 056 mains, at most 5 for any one champion and exactly 0 for 123 of the 173
 was a column of zeros with no label saying what it measured. It now rides under the **Mains** figure it
 qualifies, as "N relaxed", rendered only when non-zero and explained in the panel's info popover. The
 `/ops/stats/champions` payload is unchanged: the field was never the problem — #1442, #1033, #407.
+
+## Request failures reach the ops logs as counted signal, not as request logging (2026-09-14)
+
+**Decision:** the API reports four request-side outcomes as ops events, so they reach the Logs page at its
+default Warning floor: `RateLimitRejected`, `RequestFailed` (a 5xx answer), `RequestAborted` (the client gave up)
+and `LogRecordsDropped` (the log channel itself overflowed). A row written during a request carries that request —
+method, path, status, duration and `traceId` — in its own fields. Successful and 4xx requests are still not
+logged — #1555.
+
+Preparing a 200-visitor load test showed that none of the errors such a test provokes would have been visible.
+A 429 was reported at Debug. A 5xx left the framework's "unhandled exception" line with no path. An abandoned
+request left nothing. And when the bounded channel overflowed, it evicted the oldest records — a burst's first
+and most useful errors — without a trace.
+
+- **A 429 flood costs a handful of rows, not one per rejection.** Each partition (visitor) gets one row the first
+  time it is rejected in a window, carrying the request that tripped the limit; every rejection is counted, and
+  when the window closes one row per partition rejected more than once states the exact count. At most 50 such
+  rows are written per window, plus one totalling the rest. One row per 429 would have made the flood evict
+  everything else from the channel — the failure this work exists to expose.
+- **5xx and aborts are logged by the outermost middleware, ahead of the exception handler**, so it sees the 500
+  that handler writes. The handler's line keeps the exception, this row carries the request, and the traceId
+  joins them. That traceId is `HttpContext.TraceIdentifier` — what ProblemDetails hands the client — not the W3C
+  activity id, which would match nothing a user can quote.
+- **Rows written by anything else during a request pick the request up from the hosting scope**
+  (`RequestId`, `RequestPath`): the Mongo provider now reads external scopes instead of discarding them, so EF
+  and framework errors gain a path too. A template that names a field wins over the scope.
+- **Dropping stays the channel's overload policy; dropping silently does not.** The channel counts what it
+  evicts, and the sink writes the count as a row built directly into the batch — logging it would feed the
+  full channel.
+- Npgsql's own logger is wired to the host's, so failures below EF Core (connection, pool, protocol) are no
+  longer invisible.
+
+This stays inside "signal-only" (#444): nothing here records a request that went well.
+
+## The frontends report their server errors through the API, with a key of their own (2026-09-15)
+
+**Decision:** the public site's and the admin portal's servers forward their own failures to
+`POST /internal/logs`, which writes them to the same log channel as the API's rows, under process `Web` or
+`Admin` — #1556.
+
+What reaches the Logs page from them: every request their server failed with a 5xx — a render error, a handler
+that threw, a proxy that could not reach the API (`FrontendServerError`) — and every 429 or 5xx the API answered
+through their proxies (`FrontendUpstreamErrors`). Until then all of it went to container output only, so a load
+test that saturated the web tier would have left the admin page looking healthy.
+
+- **Through the API, not straight into Mongo.** The frontends have no Mongo connection and should not get one;
+  the API already owns the channel with its batching, truncation and drop accounting, and forwarded rows go
+  through exactly that path.
+- **A dedicated key, and an optional one.** The public site's server is the most exposed process in the stack;
+  it gets the right to write its own rows, not the ops key. An environment without a key has the whole path off
+  instead of a failing deploy.
+- **What a key holder can write is bounded.** Process allow-list (`Web`/`Admin`, so `Api` and `Ingestor` rows
+  cannot be forged), event allow-list, Warning and above only, 50 entries, capped lengths, timestamps clamped to
+  the server clock. The public `/api` proxy refuses `/internal` after decoding, dot-segment removal and
+  case-folding, since ASP.NET would route every one of those variants.
+- **Aggregated before sending, dropped rather than retried.** Identical errors fold into one entry with a count
+  per 5-second flush, distinct ones are bounded (the excess becomes one warning), and a failed send is dropped.
+  The forwarder is busiest precisely when the API is struggling, and a retry would add to the load it reports.
+- **Route templates, not paths** (`/api/truemains/{nameTag}/matches`): aggregatable, and free of player names and
+  query values.
+
+## A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15)
+
+**Decision:** the public site's and the admin's servers report every page or API request a client left before
+it was answered as `FrontendRequestAborted`, counted per route template like their other errors, and their
+proxies cancel the API call with the client — #1569.
+
+- **Why.** The 200-visitor load test ended with about 2,000 requests the edge proxy logged as abandoned and a
+  single `RequestAborted` row: the proxies kept calling the API after the visitor left, so the API never saw an
+  abort, and nothing on the frontend side wrote one. Those orphan calls also held database connections while the
+  pool was saturated.
+- **Watched on the response, not the request.** A response closed before it finished is the one signal that
+  holds for every client and every Node version; the request's own `close` also fires on a normal end.
+- **Bundles and images are left out** (paths under `/_`): a visitor leaving a page abandons dozens of them at
+  once, and their hashed paths would each become a route.
+- **A cancelled proxy call returns quietly.** It is not a failure to report as `FrontendServerError`; the
+  abandonment is already counted.
+

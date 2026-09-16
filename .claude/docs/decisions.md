@@ -129,6 +129,7 @@ Last verified against `develop` on 2026-09-02.
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
 - A row rendered on more than one surface sizes off its own width, not the viewport — #967
 - A tooltip trigger keeps the same DOM element for the life of the component
+- A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15) — #1585
 - A skeleton is the real component in `pending` mode, not a drawing of it
 - Icon slots are rendered from the ids, never gated on a resolved static lookup
 - Champion-page icons are slow because of browser queue depth, not the image proxy — measure the split before "optimising" it — #680, #997
@@ -136,6 +137,8 @@ Last verified against `develop` on 2026-09-02.
 - Every icon URL is built by one helper, so one asset is one cache entry — #1000
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
 - `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26) — #1226, #947, #966
+- SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14) — #1557, #1546
+- Static game data is cached by the browser for the hour the server caches it (2026-09-15) — #1584
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
@@ -209,9 +212,12 @@ Last verified against `develop` on 2026-09-02.
 - Consequence: every heavy aggregate runs single-threaded, so batch work must be chunked — #603, #594, #632
 - Aggregation is chunked per champion to bound memory — #600
 - A heavy `CREATE INDEX CONCURRENTLY` must never be a startup migration — #595, #597, #598
-- Npgsql pools are capped per service (api 50, ingestor 20) against Postgres `max_connections=100` — #437, #461, #462
+- Npgsql pools are capped per service against Postgres `max_connections=100`; the API's matches PgBouncer's, and a PgBouncer wait is bounded at 30 s — #437, #461, #462, #1570
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
+- A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15) — #1570
+- A Riot ID resolves through a functional index on the lowered name and tag (2026-09-15) — #1570
+- The public web server runs one Node worker per useful core (2026-09-15) — #1579
 
 ## Infrastructure and deploy — [`decisions/infrastructure-and-deploy.md`](decisions/infrastructure-and-deploy.md)
 - The rate-limit partition is the visitor (last `X-Forwarded-For` hop, trusted proxies only), not the connection — this reverses "100 req/min per IP" — #1546
@@ -225,12 +231,14 @@ Last verified against `develop` on 2026-09-02.
 - Both deploy pipelines serialise at workflow level, not per job — #1228
 - Integration tests run on pushes to `develop`/`master`, not only on pull requests — #1228
 - Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database — #705
+- Preprod runs prod's parameters at a smaller volume, behind its own plain-HTTP edge Caddy (2026-09-14) — #1558, #1546
 - Preprod builds carry a prerelease version, tagged only after they deploy (2026-08-24)
 - Caddy terminates TLS and is the only public entry point in prod — #433, #430, #426
 - The admin `/analytics` iframe stays on Umami's public share view, not the authenticated app — kept as-is on purpose, 2026-08-04 — #1013, #1014
 - Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow — #680, #1018
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
+- Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
 
 ## Admin portal — observability data — [`decisions/admin-observability.md`](decisions/admin-observability.md)
 
@@ -255,6 +263,9 @@ Last verified against `develop` on 2026-09-02.
 - The configuration viewer is an allow-list, and each host reports itself (2026-08-08) — #1034, #1033, #924
 - The pipeline chain is drawn per lane, not as one flat list (2026-09-02) — #1399, #1362
 - An admin number is either actionable or it is not printed: primary-lane below-floor lines, no `Ext. samples` column (2026-09-03) — #1442
+- Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
+- The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
+- A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
@@ -284,6 +295,7 @@ Last verified against `develop` on 2026-09-02.
 - CI traps — #1236
 - API wire conventions
 - Every issue goes on GitHub Project #2
+- Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 
 ## CI runs only what the diff can break, and config files carry no comments (2026-09-02)
 

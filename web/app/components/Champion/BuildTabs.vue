@@ -65,6 +65,36 @@ const items = computed(() =>
     build,
   })),
 )
+
+// A panel is built the first time its tab is opened, then kept (#1585). Every panel
+// carries a few hundred components (icons, tooltips, the build tree, power spikes and
+// their fetch), and building the two hidden ones on load was main-thread time spent on
+// tabs most visitors never open. Once opened a panel stays mounted
+// (`unmount-on-hide="false"`), so switching back is instant and keeps its state.
+const activeTab = ref(items.value[0]?.value)
+const openedTabs = ref(new Set<string>(activeTab.value ? [activeTab.value] : []))
+
+watch(activeTab, (value) => {
+  if (value) openedTabs.value.add(value)
+})
+
+// A new set of builds (another champion, lane, rank, patch or matchup) starts over on
+// its first tab. Keyed on the scope and on what each build *is* — the tab values are
+// positional (`build-0`…), so they stay identical when the same number of different
+// builds arrives.
+const buildSetKey = computed(() => [
+  props.championId,
+  props.position,
+  props.patch,
+  props.eloBracket,
+  props.opponentChampionId,
+  ...props.builds.map(build => `${build.firstItemId}:${build.primaryKeystoneId}`),
+].join('|'))
+
+watch(buildSetKey, () => {
+  activeTab.value = items.value[0]?.value
+  openedTabs.value = new Set(activeTab.value ? [activeTab.value] : [])
+})
 </script>
 
 <template>
@@ -80,8 +110,8 @@ const items = computed(() =>
     :ui="{ body: 'p-0 sm:p-0' }"
   >
     <UTabs
+      v-model="activeTab"
       :items="items"
-      :default-value="items[0]?.value"
       variant="pill"
       color="neutral"
       size="md"
@@ -152,7 +182,7 @@ const items = computed(() =>
              all three would triple the placeholder DOM — and the SSR HTML —
              for two panels nobody can reach behind the skeleton's `inert`. -->
         <ChampionBuildPanel
-          v-if="!pending || item.value === items[0]?.value"
+          v-if="pending ? item.value === items[0]?.value : openedTabs.has(item.value)"
           :build="item.build"
           :champion-static="championStatic"
           :items-map="itemsMap"

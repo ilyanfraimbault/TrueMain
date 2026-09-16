@@ -9,6 +9,9 @@
 const INSECURE_DEFAULT = 'truemain'
 const MIN_SESSION_PASSWORD_LENGTH = 32
 const MIN_OPS_KEY_LENGTH = 32
+// Optional — unset turns error forwarding off — but a key that is set must be a
+// secret: the same floor the API applies to it (#1556).
+const MIN_LOG_INGEST_KEY_LENGTH = 32
 // Shorter than the two machine secrets above because an operator types this one
 // by hand, but a floor all the same: the check used to reject `truemain` and
 // accept `a`, which the login throttle alone does not save (#1225).
@@ -36,6 +39,10 @@ export default defineNitroPlugin(() => {
   }
   if (!config.opsKey || config.opsKey.length < MIN_OPS_KEY_LENGTH) {
     problems.push(`NUXT_OPS_KEY must be set to the ops API key (at least ${MIN_OPS_KEY_LENGTH} characters); otherwise the ops proxy forwards an invalid X-Ops-Key and every backend call 401s`)
+  }
+
+  if (config.logIngestKey && config.logIngestKey.length < MIN_LOG_INGEST_KEY_LENGTH) {
+    problems.push(`NUXT_LOG_INGEST_KEY must be at least ${MIN_LOG_INGEST_KEY_LENGTH} characters when set; leave it empty to turn error forwarding off`)
   }
 
   if (problems.length > 0) {

@@ -51,10 +51,19 @@ onboarding. All six were rewritten as plain transactional DDL, which is free: th
 re-execute on an empty database. The `migrate-fresh` CI job applies the generated script to a blank Postgres
 on every PR so this cannot come back.
 
-**Npgsql pools are capped per service (api 50, ingestor 20) against Postgres `max_connections=100`.**
+**Npgsql pools are capped per service against Postgres `max_connections=100`.**
 Two unbounded pools defaulting to 100 each could request 200 connections; once truemain.lol went live this
-produced `53300: sorry, too many clients already` and a total API outage. PgBouncer was proposed as the proper
-fix; the caps are what actually shipped (no `pgbouncer` service exists in the compose files) — #437, #461, #462.
+produced `53300: sorry, too many clients already` and a total API outage. The caps shipped first — #437, #461,
+#462 — and PgBouncer (transaction pooling, 25 server connections plus 5 in reserve) later went in front of
+Postgres, so the Npgsql caps now bound client connections to PgBouncer, not Postgres backends.
+
+**Since #1570 the API's pool matches what PgBouncer can serve, and a wait at PgBouncer is bounded.** The API ran
+`Maximum Pool Size=100` against a PgBouncer pool of 25 + 5: under the 200-visitor load test, 74 clients queued at
+PgBouncer with waits up to 11 s, and API requests hung until the visitor's 60 s timeout. The API pool is now 30
+(PgBouncer's default plus reserve pool), so excess requests queue in Npgsql and fail after its 15 s connection
+timeout with a logged error; PgBouncer's `QUERY_WAIT_TIMEOUT` is 30 s for every client, ingestors included, well
+above the longest wait measured under overload (11 s), so it only ends a wait that would otherwise last minutes.
+The ingestors keep their own caps (40 each).
 
 ## Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02)
 
@@ -136,3 +145,45 @@ this. The champion reads run on the caller's request-scoped `DbContext`, so if t
 pass abandoned its wait, its scope would be disposed underneath the shared work and every joiner would fail on
 a disposed context. The leaderboard does not need the flag — it creates its own context — and it does not get
 it.
+
+## A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15)
+
+**Decision:** concurrent requests that miss the same leaderboard page share one computation
+(`RequestCoalescer`, owner waits); the champion page's mains comparison fetches the mains list in the browser
+only; the leaderboard's per-page reads on `main_champion_stats` filter on `PlatformId` as well as `Puuid` — #1570.
+
+- **Why.** The first 200-visitor preprod load test saturated the database pool. Three leaderboard statements
+  took most of its database time, at 5–7 s a call. Champion pages asked for their mains list during SSR on every
+  render (the #1231 opt-out only covered the card, not the comparison picker), and every concurrent miss ran
+  the count, the page and six hydration queries again.
+- **Why the platform filter.** A puuid is global, so it filters nothing, but the only index that leads to
+  `Puuid` is `(PlatformId, Puuid, ChampionId)`. On `Puuid` alone Postgres walked the whole index: 300 ms for a
+  page's top champions on preprod, 1.5 ms with the filter.
+
+## A Riot ID resolves through a functional index on the lowered name and tag (2026-09-15)
+
+**Decision:** `riot_accounts` carries `IX_riot_accounts_game_name_tag_line_lower` on
+`(lower("GameName"), lower("TagLine"))`, created by a plain migration, and `TruemainAccountResolver` keeps the
+exact `lower(col) = @p` expression that index serves — #1570.
+
+- **Why.** Every name-tag route (profile, rank history, activity, matches, the player-scoped champion panels,
+  the mains comparison) resolves through that lookup, a profile view four times over. With no index it scanned
+  and sorted the whole table: 2.8 s a call under the 200-visitor load test, 4.3 s at rest on preprod.
+- **Why a plain migration.** `CONCURRENTLY` cannot run in the deploy's single-transaction script (#1227), and a
+  btree over two short text expressions on a table of a few hundred thousand rows builds in seconds; the write
+  lock is held that long, once, at the release that ships it.
+
+## The public web server runs one Node worker per useful core (2026-09-15)
+
+**Decision:** the web app builds with Nitro's `node-cluster` preset, with `NITRO_CLUSTER_WORKERS` set per
+environment (prod 3; preprod 1 since 2026-09-16, its host being shared) — #1579.
+
+- **Why.** Once the database kept up (#1570), the 200-visitor preprod runs failed at the web container itself:
+  about 130,000–150,000 accept-queue overflows per run, 20,000–36,000 edge `502`s, one Node process at 30–80 % CPU,
+  pgbouncer idle. Rendering is single-threaded per process, so more cores only help with more processes.
+- **Workers, not replicas behind Caddy.** Same container, same port, same health check and deploy; no Caddy load
+  balancing or service duplication to keep in sync.
+- **Explicit counts.** The preset defaults to `os.cpus()`, which is the host's core count inside a container.
+- **Accepted cost.** In-memory caches (`/_ipx` bytes, Nitro cached functions) are per worker: colder caches
+  and more memory, bounded by the caches' own caps.
+

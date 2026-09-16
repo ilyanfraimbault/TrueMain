@@ -20,8 +20,6 @@ import type {
   IncompleteMatchesFilters,
   IncompleteMatchesResponse,
   IngestionTimeGranularity,
-  LogsFilters,
-  LogsResponse,
   MatchDataQualityDetail,
   MatchesIngested,
   MatchTimeBucket,
@@ -41,6 +39,7 @@ import type {
   SeedRequestsFilters,
   SeedRequestsResponse,
 } from '~~/shared/types/ops'
+import type { LogsFilters, LogsResponse } from '~~/shared/types/logs'
 
 /**
  * Strip `undefined`, `null`, and empty-string values from a query object so an

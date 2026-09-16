@@ -21,7 +21,7 @@ const hasPerk = computed(() => Boolean(props.perk))
 </script>
 
 <template>
-  <UTooltip
+  <GameTooltipLazyTooltip
     :disabled="!hasPerk"
     :delay-duration="150"
     :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
@@ -42,5 +42,5 @@ const hasPerk = computed(() => Boolean(props.perk))
         <GameTooltipPerkBody :perk="perk" />
       </GameTooltipSurface>
     </template>
-  </UTooltip>
+  </GameTooltipLazyTooltip>
 </template>

@@ -75,9 +75,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      timeout: 20s
+      retries: 20
+      start_period: 90s
     networks:
       - truemain_internal
 
@@ -99,13 +99,14 @@ services:
       MIN_POOL_SIZE: "5"
       RESERVE_POOL_SIZE: "5"
       RESERVE_POOL_TIMEOUT: "3"
+      QUERY_WAIT_TIMEOUT: "30"
       STATS_USERS: ${POSTGRES_USER}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 45s
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,7 +114,7 @@ services:
       - truemain_internal
 
   mongo:
-    image: mongo:8.3.8
+    image: mongo:8.3.9
     container_name: truemain-preprod-mongo
     restart: unless-stopped
     environment:
@@ -124,9 +125,9 @@ services:
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      timeout: 20s
+      retries: 20
+      start_period: 90s
     networks:
       - truemain_internal
 
@@ -135,19 +136,22 @@ services:
     pull_policy: always
     container_name: truemain-preprod-api
     restart: unless-stopped
+    init: true
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "false"
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=100;No Reset On Close=true;Application Name=truemain-api
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=30;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
+      LogIngest__ApiKey: ${LOG_INGEST_KEY:-}
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
       RateLimit__WindowSeconds: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
       RateLimit__QueueLimit: "${RATE_LIMIT_QUEUE:-10}"
-      Cors__Origins__0: "http://localhost:3001"
+      Cors__Origins__0: "${PREPROD_SITE_URL:?set PREPROD_SITE_URL before deploying}"
+      Cors__Origins__1: "${PREPROD_ADMIN_URL:?set PREPROD_ADMIN_URL before deploying}"
       MongoLogging__CrashFilePath: /home/app/crashes
       MongoLogging__LogsRetention: "30.00:00:00"
     volumes:
@@ -169,19 +173,21 @@ services:
     pull_policy: always
     container_name: truemain-preprod-web
     restart: unless-stopped
+    init: true
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
+      NITRO_CLUSTER_WORKERS: "1"
       NUXT_API_BASE_URL: http://api:8080
+      NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       NUXT_PUBLIC_APP_ENV: preprod
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
+      NUXT_PUBLIC_SITE_URL: "${PREPROD_SITE_URL:?set PREPROD_SITE_URL before deploying}"
       NUXT_PUBLIC_UMAMI_HOST: ${UMAMI_PUBLIC_URL:-}
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
       api:
         condition: service_healthy
-    ports:
-      - "3001:3000"
     networks:
       - truemain_internal
 
@@ -190,24 +196,40 @@ services:
     pull_policy: always
     container_name: truemain-preprod-admin
     restart: unless-stopped
+    init: true
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_OPS_API_BASE_URL: http://api:8080
       NUXT_OPS_KEY: ${OPS_API_KEY}
+      NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       NUXT_SESSION_PASSWORD: "${ADMIN_SESSION_PASSWORD:?set ADMIN_SESSION_PASSWORD before deploying}"
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
       NUXT_SESSION_COOKIE_SECURE: "false"
-      NUXT_TRUST_PROXY: "false"
+      NUXT_TRUST_PROXY: "true"
       NUXT_PUBLIC_UMAMI_URL: ${UMAMI_PUBLIC_URL:-}
       NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
       api:
         condition: service_healthy
+    networks:
+      - truemain_internal
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: truemain-preprod-caddy
+    restart: unless-stopped
+    configs:
+      - source: edge_caddyfile
+        target: /etc/caddy/Caddyfile
     ports:
-      - "3002:3000"
+      - "3001:3001"
+      - "3002:3002"
+    depends_on:
+      - web
+      - admin
     networks:
       - truemain_internal
 
@@ -216,6 +238,7 @@ services:
     pull_policy: always
     container_name: truemain-preprod-ingestor
     restart: unless-stopped
+    init: true
     stop_grace_period: 120s
     environment:
       <<: *ingestor-environment
@@ -237,6 +260,7 @@ services:
     pull_policy: always
     container_name: truemain-preprod-ingestor-aggregate
     restart: unless-stopped
+    init: true
     stop_grace_period: 120s
     environment:
       <<: *ingestor-environment
@@ -269,9 +293,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
       interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      timeout: 20s
+      retries: 20
+      start_period: 90s
     networks:
       - truemain_internal
 
@@ -341,6 +365,26 @@ services:
       - truemain_internal
 
 configs:
+  edge_caddyfile:
+    content: |
+      {
+      	auto_https off
+      }
+
+      :3001 {
+      	log
+      	encode zstd gzip
+      	reverse_proxy web:3000
+      }
+
+      :3002 {
+      	log
+      	encode zstd gzip
+      	reverse_proxy admin:3000 {
+      		header_up X-Forwarded-For {remote_host}
+      	}
+      }
+
   umami_proxy_caddyfile:
     content: |
       {

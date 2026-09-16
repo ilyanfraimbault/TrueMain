@@ -1,6 +1,4 @@
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
@@ -37,12 +35,7 @@ public sealed class ApiKeyAuthenticationHandler(
             return Task.FromResult(AuthenticateResult.Fail("Ops API key is not configured."));
         }
 
-        // Hash both sides so FixedTimeEquals gets same-length spans even when
-        // the provided key differs in length from the configured one —
-        // otherwise the early-out on span length re-opens the timing channel.
-        var providedHash = SHA256.HashData(Encoding.UTF8.GetBytes(providedApiKey[0]!));
-        var configuredHash = SHA256.HashData(Encoding.UTF8.GetBytes(configured));
-        if (!CryptographicOperations.FixedTimeEquals(providedHash, configuredHash))
+        if (!ApiKeyComparison.Matches(providedApiKey[0]!, configured))
         {
             Logger.LogWarning("Ops API key rejected for {RemoteIp}.", Context.Connection.RemoteIpAddress);
             return Task.FromResult(AuthenticateResult.Fail("Invalid API key."));

@@ -64,4 +64,23 @@ public sealed record LogEntryReadModel
     /// row is a named domain event (#444); null for plain diagnostics.
     /// </summary>
     public string? EventType { get; init; }
+
+    /// <summary>
+    /// <c>HttpContext.TraceIdentifier</c> of the request the row was written during,
+    /// i.e. the <c>traceId</c> of the ProblemDetails the client received (#1555).
+    /// Null for rows written outside a request.
+    /// </summary>
+    public string? TraceId { get; init; }
+
+    /// <summary>HTTP method of the request the row belongs to (#1555).</summary>
+    public string? RequestMethod { get; init; }
+
+    /// <summary>Path of the request the row belongs to, with its query when the writer included it (#1555).</summary>
+    public string? RequestPath { get; init; }
+
+    /// <summary>Status code the request answered with, when known (#1555).</summary>
+    public int? StatusCode { get; init; }
+
+    /// <summary>Request duration in milliseconds, when measured (#1555).</summary>
+    public long? DurationMs { get; init; }
 }

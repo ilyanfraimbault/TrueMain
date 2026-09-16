@@ -31,3 +31,24 @@ Part of the [decision log](../decisions.md). Format: **Decision** — why — `s
   orders work inside a sprint. Priority used to double as the sprint bucket ("P0 = current sprint"); that
   overloading was dropped because it silently competed with the real iteration field the board was already
   using. No milestones.
+
+## Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14)
+
+**Decision:** the load test is a k6 script in `loadtest/k6/`, started by hand from `loadtest-preprod.yml` on a
+GitHub-hosted runner, against preprod — #1559.
+
+- **Not from the preprod host.** The host also runs other workloads, and a generator there takes CPU from the
+  system under test; the result would measure both.
+- **Not against prod.** A test that finds the ceiling finds it for real visitors. Preprod runs prod's parameters
+  (#1558), so its results are comparable in kind; they are a lower bound in size, and are reported as one.
+- **Visitors are replayed over HTTP; a few browsers time the pages.** k6's HTTP client does not run the site's
+  JavaScript, so each page view requests the SSR HTML and then the calls the hydrated page makes, with the
+  champion slices drawn at random so the test reaches the database rather than the cache. The request lists
+  mirror the page composables and have to follow them. That makes the load, but not the page-load time: most
+  of the champion page and its icons exist only once its JavaScript ran. A handful of `k6/browser` VUs load the
+  same pages during the hold (and alone, in the `browser` scenario) and record data ready, view loaded and page
+  loaded with every rendered image — #1572 (2026-09-15). Browsers stay few: one costs the runner what
+  hundreds of HTTP visitors do.
+- **Nothing published names the host.** The repository is public: requests are tagged by route template, and the
+  workflow refuses to publish output containing the host.
+

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
@@ -39,9 +40,31 @@ public static class RateLimitingServiceCollectionExtensions
                 + "back onto the proxy's own partition.")
             .ValidateOnStart();
         services.AddSingleton<TrustedProxyNetworks>();
+        services.AddSingleton<RateLimitRejectionRecorder>();
+        services.AddHostedService<RateLimitRejectionSummaryService>();
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            // The middleware only reports a rejection at Debug, which never reaches
+            // the ops logs; the recorder turns it into rows an operator can count
+            // without letting a flood of 429s fill the log channel (#1555).
+            options.OnRejected = (rejection, _) =>
+            {
+                var context = rejection.HttpContext;
+                if (rejection.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                {
+                    context.Response.Headers.RetryAfter =
+                        Math.Ceiling(retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+                }
+
+                var limits = context.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
+                var trustedProxies = context.RequestServices.GetRequiredService<TrustedProxyNetworks>();
+                context.RequestServices.GetRequiredService<RateLimitRejectionRecorder>().Record(
+                    ClientAddressResolver.Resolve(context, limits.ClientIpHeader, trustedProxies.Networks),
+                    context.Request.Method,
+                    context.Request.Path.Value ?? "/");
+                return ValueTask.CompletedTask;
+            };
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
                 var limits = context.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;

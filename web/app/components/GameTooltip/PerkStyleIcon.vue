@@ -22,7 +22,7 @@ const tooltipText = computed(() => props.style?.name ?? '')
 </script>
 
 <template>
-  <UTooltip
+  <GameTooltipLazyTooltip
     :disabled="!hasStyle"
     :delay-duration="150"
     :text="tooltipText"
@@ -35,5 +35,5 @@ const tooltipText = computed(() => props.style?.name ?? '')
       :height="height"
       :loading="loading"
     />
-  </UTooltip>
+  </GameTooltipLazyTooltip>
 </template>
