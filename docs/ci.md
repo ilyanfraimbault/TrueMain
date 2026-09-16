@@ -336,6 +336,13 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
 - `*.dev` variants run `dotnet watch` / `nuxt dev` with a long `start_period`
   (90–120s) so `condition: service_healthy` in `compose.dev.yaml` survives a
   cold start.
+- **The app containers run with `init: true`** (2026-09-16). Docker's health check
+  starts a process inside the container; when it ends, it is reparented to PID 1,
+  and neither Node nor .NET reaps a child it never spawned. With a probe every
+  10s the leftovers pile up: 103 `[wget] <defunct>` in prod's web container after
+  four days, 46 on preprod plus one each on admin and api. `init: true` puts
+  Docker's `tini` at PID 1, which reaps them; the app still receives signals and
+  stops the same way.
 - **Every probe is generous on time, strict on meaning** (2026-09-16). Timeouts
   are 20s and start periods 90s across the images and the data stores, and the
   retry counts are doubled. The preprod host is CPU-limited by the provider when
