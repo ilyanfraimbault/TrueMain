@@ -200,8 +200,8 @@ public sealed record PatchFoldCoverageReadModel
 
     /// <summary>
     /// False when this patch predates the fold entirely. Raw match payloads are not kept,
-    /// so a fold that shipped mid-corpus can never be backfilled (#920 bans, #957
-    /// per-opponent power spikes): its rows on older patches are absent by construction,
+    /// so a fold that shipped mid-corpus can never be backfilled (#920 bans): its
+    /// rows on older patches are absent by construction,
     /// not missing. A zero there would read as "the fold is broken", which is the one
     /// thing it is not, so every count on such a row is null and
     /// <see cref="NotMeasuredNote"/> says so instead.

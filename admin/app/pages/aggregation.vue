@@ -23,11 +23,6 @@ const FAMILY_META: Record<string, { title: string, icon: string, hint: string }>
     icon: 'i-lucide-swords',
     hint: 'Champion vs champion win rates per lane, patch and rank.',
   },
-  powerspikes: {
-    title: 'Powerspikes',
-    icon: 'i-lucide-zap',
-    hint: 'Incremental per-match folding of gold/damage curves and spike events.',
-  },
   mains: {
     title: 'Mains',
     icon: 'i-lucide-user-check',
@@ -114,9 +109,9 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
       />
 
       <!-- Summary tiles -->
-      <!-- Five stat cards since #922 added the synergy backlog: three up at lg so
-           none of the two-line titles wrap, all five in one row from xl. -->
-      <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+      <!-- Four stat cards: two by two up to xl so none of the two-line titles
+           wrap, all four in one row from there. -->
+      <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <UCard>
           <p class="text-xs text-muted uppercase">
             Aggregate rows
@@ -137,20 +132,6 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
           </p>
           <p class="text-xs text-muted tabular-nums">
             {{ formatDateTime(latestAggregatedAtUtc) }}
-          </p>
-        </UCard>
-        <UCard>
-          <p class="text-xs text-muted uppercase">
-            Pending powerspike matches
-          </p>
-          <p
-            class="mt-1 text-2xl font-semibold tabular-nums"
-            :class="(backlog?.pendingPowerspikeMatches ?? 0) > 0 ? 'text-warning' : 'text-highlighted'"
-          >
-            {{ formatNumber(backlog?.pendingPowerspikeMatches) }}
-          </p>
-          <p class="text-xs text-muted tabular-nums">
-            of {{ formatNumber(backlog?.timelineIngestedMatches) }} timeline-ingested
           </p>
         </UCard>
         <UCard>
@@ -185,7 +166,7 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
 
       <!-- Family cards -->
       <div v-if="pending && !families.length" class="grid gap-6 lg:grid-cols-2">
-        <USkeleton v-for="index in 5" :key="index" class="h-64 w-full" />
+        <USkeleton v-for="index in 4" :key="index" class="h-64 w-full" />
       </div>
 
       <div v-else class="grid gap-6 lg:grid-cols-2">

@@ -109,7 +109,7 @@ public sealed class IngestorProcessRegistrationTests
     /// <summary>
     /// Each lane keeps the relative order the full pipeline gives its steps: the order
     /// within a lane is still load-bearing (the ban fold must see stamped elo brackets, the
-    /// timeline prune must not precede the powerspike fold), even though the two lanes
+    /// storage snapshot must follow retention), even though the two lanes
     /// themselves are free to run at different cadences.
     /// </summary>
     [Fact]

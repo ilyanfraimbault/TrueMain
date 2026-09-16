@@ -216,9 +216,6 @@ public sealed record EloBracketEnrichmentSummary(int Stamped, int Deferred, int 
 /// <summary>Team position correction outcome.</summary>
 public sealed record TeamPositionCorrectionSummary(int CorrectedParticipants, int InspectedTeams) : IProcessRunSummary;
 
-/// <summary>Batched match aggregation outcome (powerspike).</summary>
-public sealed record MatchAggregationSummary(int Matches, int Batches) : IProcessRunSummary;
-
 /// <summary>
 /// Champion synergy aggregation outcome (#922). Carries the two upsert counts on
 /// top of the shared match/batch pair so the admin's aggregation page can tell a
@@ -335,18 +332,10 @@ public sealed record MatchDataRetentionSummary(
     int DeletedIntermediateSnapshots,
     int DeletedAggregateScopes,
     int DeletedMatchupStats,
-    int DeletedPowerspikeCurveStats,
-    int DeletedPowerspikeEventStats,
     // Pair rows and the baselines they are read against, summed (#922) — they are
     // deleted together in one transaction, so one counter describes both.
     int DeletedSynergyStats,
     // Ban counts and the match totals they are divided by, summed (#920) — deleted
     // together in one transaction, so one counter describes both.
     int DeletedBanStats,
-    int PrunedSubFloorPowerspikeEvents,
-    // Per-opponent powerspike shards (#957) rolled back into one opponent-less row
-    // once their patch froze, and how many rows that produced. Runs before the
-    // sub-floor prune above, which must see the rolled-up games rather than shards.
-    int CollapsedPowerspikeOpponentShards,
-    int CollapsedPowerspikeOpponentGroups,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

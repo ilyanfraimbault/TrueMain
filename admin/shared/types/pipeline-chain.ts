@@ -35,7 +35,6 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'ChampionMatchupLeadAggregation',
   'ChampionSynergyAggregation',
   'ChampionBanAggregation',
-  'ChampionPowerspikeAggregation',
   'AccountRefresh',
   'MatchDataRetention',
   'CandidateStockSnapshot',
@@ -103,7 +102,6 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'ChampionMatchupLeadAggregation',
       'ChampionSynergyAggregation',
       'ChampionBanAggregation',
-      'ChampionPowerspikeAggregation',
       'MatchDataRetention',
       'CandidateStockSnapshot',
       'StorageSnapshot',
@@ -215,11 +213,6 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Bans',
     description:
       'Counts champion-select bans and the match totals they are divided by, to produce ban rates.',
-  },
-  ChampionPowerspikeAggregation: {
-    label: 'Power Spikes',
-    description:
-      'Measures when a champion pulls ahead over the course of a game, while the dense per-minute timeline data still exists.',
   },
   AccountRefresh: {
     label: 'Account Refresh',

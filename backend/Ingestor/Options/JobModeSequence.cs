@@ -74,10 +74,6 @@ public static class JobModeSequence
         // bands a match is counted in — a match folded before its participants are
         // stamped lands in the ALL band only, and the fold is one-shot.
         JobMode.BanAggregationOnly,
-        // Folds each newly-ingested match into the powerspike aggregates (#694)
-        // while its dense per-minute snapshots still exist, so MatchDataRetention
-        // can then prune them to the canonical marks.
-        JobMode.PowerspikeAggregationOnly,
         JobMode.AccountRefreshOnly,
         JobMode.MatchDataRetentionOnly,
         // Reads the candidate stock per status (#1403) after retention, for the same
@@ -128,7 +124,6 @@ public static class JobModeSequence
         JobMode.MatchupLeadAggregationOnly,
         JobMode.SynergyAggregationOnly,
         JobMode.BanAggregationOnly,
-        JobMode.PowerspikeAggregationOnly,
         JobMode.MatchDataRetentionOnly,
         JobMode.CandidateStockSnapshotOnly,
         JobMode.StorageSnapshotOnly

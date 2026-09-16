@@ -40,8 +40,8 @@ describe('PIPELINE_LANES', () => {
 
   it('keeps each lane in PIPELINE_CHAIN order', () => {
     // Order *within* a lane is load-bearing on the backend (the ban fold needs elo
-    // stamped, the timeline prune must not precede the powerspike fold), so a branch
-    // that renders its steps in another order would misdescribe the run.
+    // stamped first), so a branch that renders its steps in another order would
+    // misdescribe the run.
     for (const lane of PIPELINE_LANES) {
       const positions = lane.steps.map(step => PIPELINE_CHAIN.indexOf(step))
 

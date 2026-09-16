@@ -86,7 +86,6 @@ export const ROUTES = {
     '/api/champions/[id]/trend',
     '/api/champions/[id]/scaling',
     '/api/champions/[id]/roam',
-    '/api/champions/[id]/powerspikes',
     '/api/champions/[id]/item-context',
     '/api/champions/[id]/matchups',
     '/api/champions/[id]/synergies',
@@ -134,21 +133,6 @@ function batch(ctx, view, kind, calls) {
     if (!check(response, { [`${callKind} answered`]: answered }, { kind: callKind })) view.failed = true
   })
   return responses
-}
-
-// The builds the page renders as tabs. Every tab's panel stays mounted and fetches
-// its own power spikes, keyed on the build's first item and keystone — the API
-// refuses the read without them — so a visitor causes one power-spike request per
-// build the champion read returned (already capped server-side).
-function buildKeys(response) {
-  if (response.status !== 200) return []
-  try {
-    return (response.json('builds') || [])
-      .filter(build => build && build.firstItemId > 0 && build.primaryKeystoneId > 0)
-  }
-  catch {
-    return []
-  }
 }
 
 // The browser keeps static lookups for an hour (`app/utils/static-cache.ts`), so
@@ -238,20 +222,13 @@ function championPage(ctx, session) {
       [`/api/champions/${id}/synergies${slice}`, '/api/champions/[id]/synergies'],
       [`/api/truemains${query({ page: 1, pageSize: 10, championId: id })}`, '/api/truemains'],
     ])
-    // Power spikes wait for the builds, then fire for the tab on screen only: a
-    // build panel is mounted the first time its tab is opened (#1585). The
-    // champion's static data waits for its patch.
+    // The champion's static data waits for its patch.
     const patch = patchOf(champion)
     const staticKey = `champion-${id}-${patch}`
-    const followUps = buildKeys(champion).slice(0, 1).map(build => [
-      `/api/champions/${id}/powerspikes${query({ position, eloBracket, buildFirstItemId: build.firstItemId, buildKeystoneId: build.primaryKeystoneId })}`,
-      '/api/champions/[id]/powerspikes',
-    ])
     if (patch && !session.statics[staticKey]) {
       session.statics[staticKey] = true
-      followUps.push([`/api/static/${id}${query({ patch })}`, '/api/static/[id]', 'static'])
+      batch(ctx, view, 'static', [[`/api/static/${id}${query({ patch })}`, '/api/static/[id]']])
     }
-    batch(ctx, view, 'api', followUps)
   })
 }
 

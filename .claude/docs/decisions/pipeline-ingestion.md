@@ -43,7 +43,7 @@ let that escape `CommunityDragonItemMetadataProvider`, and 7 matches on 16.16 ab
 stalled, since its batch selector re-picks the same uncommitted batch forever (16 errors on 2026-08-12, one
 failure of each process per cycle) — #1107. Fixed by falling back to the `latest` branch (the previous patch
 until CommunityDragon catches up, then the new one) and re-probing the real branch every 30 min. Skipping the
-affected matches was rejected: `ProcessBatchAsync` flags every match in a batch as `PowerspikeAggregated`
+affected matches was rejected: the (since removed, #1599) powerspike fold flagged every match in a batch
 whether or not it contributed, so a skipped match is dropped from the aggregates permanently — stale-by-one-patch
 item metadata beats a hole. A non-404 failure still throws; an outage must not be papered over with the wrong
 patch's data. Faulted loads are also no longer cached — a `Lazy<Task<…>>` that faults kept rethrowing the

@@ -25,8 +25,7 @@ namespace Ingestor.Processes;
 /// #606 (~3.5 min on prod, cold cache) but its cost scales with total retained match
 /// volume, not with new matches: once prod's 2-patch retention window held ~250k
 /// matches it ballooned to ~20+ min/cycle and starved the rest of the ingestion loop
-/// (#811). This mirrors <see cref="ChampionPowerspikeAggregationProcess"/> (#694)
-/// instead: each match is folded exactly once (gated by
+/// (#811). It is incremental instead: each match is folded exactly once (gated by
 /// <see cref="Match.MatchupLeadAggregated"/>) into additive per-champion rows via
 /// <c>ON CONFLICT DO UPDATE SET x = x + EXCLUDED.x</c>, so a cycle's cost scales with
 /// matches ingested since the last run, not with the whole retained history. Rows are
@@ -34,7 +33,7 @@ namespace Ingestor.Processes;
 /// scope and applies the floor on the merged total, so the all-patches view floors on
 /// the real total. Aged-out patches are never revisited (retention only ever drops
 /// whole patches, never a mid-patch straggler — see <c>MatchDataRetentionProcess</c>),
-/// so their rows simply freeze once their matches are gone, same as Powerspike.
+/// so their rows simply freeze once their matches are gone.
 ///
 /// <para>
 /// The champion side of every row is a <b>main of that champion</b>

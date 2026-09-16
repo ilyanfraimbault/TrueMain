@@ -97,8 +97,7 @@ platform", not "a data aggregator". One paragraph, roughly:
 
 > TrueMain helps League of Legends players get better on the champions they
 > actually play. For every champion it shows what winning players build, rune
-> and skill through, how the matchup and lane phase typically go, and where the
-> power spikes fall; for a player it shows how their own games on that champion
+> and skill through, and how the matchup and lane phase typically go; for a player it shows how their own games on that champion
 > diverge from what works, so they know what to change. The data comes from
 > ranked solo/duo matches ingested through the Riot API and is presented free,
 > without advertising interstitials or paywalled statistics.

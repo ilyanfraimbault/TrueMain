@@ -24,7 +24,7 @@ namespace Ingestor.Processes;
 /// regression #811 had to undo for matchups. Rows carry no sample floor; the read
 /// side folds them to the requested patch / elo scope and floors the merged total.
 /// Aged-out patches are never revisited, so their rows freeze once retention drops
-/// their matches, exactly as matchup and powerspike rows do.
+/// their matches, exactly as matchup rows do.
 ///
 /// Two things differ from the matchup fold:
 ///
@@ -37,7 +37,7 @@ namespace Ingestor.Processes;
 ///    <see cref="ChampionCohort"/> — a main of the champion they are playing, in a
 ///    game that is not a remake — since #1365; it used to be the wider "any account we
 ///    know", which is the cohort mismatch #1087 had already fixed for matchups while
-///    this fold and the powerspike one kept counting a different population from the
+///    this fold kept counting a different population from the
 ///    header above them. The <b>partner</b> side stays everyone: the expected value the
 ///    metric subtracts is built from an ally drawn near the population mean, so
 ///    narrowing it would bias every synergy on the site (#922).

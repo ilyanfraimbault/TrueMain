@@ -21,7 +21,7 @@ public interface IChampionItemTimingsQueryService
 
 /// <summary>
 /// Average first-purchase time of each item for a champion at a position — the
-/// "power spike" timeline. Unnests the participants' ITEM_PURCHASED events
+/// item timeline. Unnests the participants' ITEM_PURCHASED events
 /// (stored as jsonb on match_participants), takes the first purchase of each item
 /// per game, and averages across games above the sample floor. Same queue / patch
 /// / tracked-account population as the sibling champion reads; cached and

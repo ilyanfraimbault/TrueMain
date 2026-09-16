@@ -21,10 +21,11 @@ the next run instead of being rebuilt without its cleanup — #1549.
 **Aggregate retention is opt-in per environment: `AggregateRetainedPatchCount` defaults to 0 (frozen forever); preprod sets 2.**
 The freeze is right for production history but preprod must stay tiny — #711.
 
-**Timeline snapshots are pruned to the canonical marks {5, 10, 15, 20, 30} once a match is powerspike-aggregated.**
+**Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid.**
 The dense per-minute grid grew to ~13 GB / 55.6M rows for exactly one consumer (power spikes); every other
-reader uses only those five marks. Pre-aggregating power spikes first made the intermediate minutes
-disposable — #772, #694.
+reader uses only those five marks. It was first pruned once a match was powerspike-aggregated (#772, #694);
+with power spikes removed, ingestion writes the five marks only and retention prunes every timeline-ingested
+match still carrying the old grid, flagged `TimelineSnapshotsPruned` so it is scanned once — #1599.
 
 **Aggregation is incremental per match, flagged on `matches`, never a full recompute.**
 Full-recompute self-joins reached ~21.6 min per cycle on prod, making it 5.7× slower than preprod and
@@ -60,7 +61,7 @@ rests on. Three consequences: the fold takes the **full participant pool** (a pr
 its mains — only remakes and non-canonical positions are excluded); **only participants carrying the context
 columns count**, so the flag ships `false` and the pre-#1448 history is flagged without diluting anything; and the
 **ranged flag is the one static attribute**, read from Data Dragon and `COALESCE`d on write so a CDN outage never
-blanks it, while an item-metadata outage aborts the run as it does for powerspikes — flagging a match without its
+blanks it, while an item-metadata outage aborts the run — flagging a match without its
 archetypes would lose them for good. Shares, means and per-minute rates are read-time arithmetic over the sums;
 readers apply their own games floor — an additive fold cannot know a row's final count — #1449.
 

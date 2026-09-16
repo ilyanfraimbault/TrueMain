@@ -25,8 +25,6 @@ import type {
   ChampionMatchupEntry,
   ChampionMatchups,
   ChampionOverviewResponse,
-  ChampionPowerspikeEvent,
-  ChampionPowerspikesResponse,
   ChampionResponse,
   ChampionRoamResponse,
   ChampionScalingResponse,
@@ -688,67 +686,6 @@ async function mockScaling(id: number): Promise<ChampionScalingResponse | null> 
     patch: await latestShortPatch(),
     buckets,
     scalingIndex: round3(buckets[4]!.winRate - buckets[0]!.winRate),
-  }
-}
-
-async function mockPowerspikes(
-  id: number,
-  buildFirstItemId: number,
-  opponentChampionId = 0,
-): Promise<ChampionPowerspikesResponse | null> {
-  const s = seedsById.get(id)
-  if (!s) return null
-  // A matchup slice only has spikes for matches folded since #957 shipped, so an
-  // opponent whose id is a multiple of 5 stages the empty one — the state the
-  // section is actually in for most pairs on day one, and the one the copy has to
-  // survive. It is reachable on purpose, like the matchup page's degraded states.
-  if (opponentChampionId > 0 && opponentChampionId % 5 === 0) {
-    return { championId: s.id, position: s.position, patch: await latestShortPatch(), events: [] }
-  }
-  // Spikes are scoped to one core build (#890) and to one lane opponent (#957),
-  // so the fixture varies with both: each build starts on its own first item and
-  // the rest of the sequence rotates, the way two real builds diverge after the
-  // first buy, and the opponent reshuffles the magnitudes on top.
-  const rng = mulberry32(s.id * 401 + buildFirstItemId + opponentChampionId * 7)
-  // Measured on production, the median champion-vs-opponent pair holds 4 games on
-  // a patch (#923). The matchup slice therefore reports counts an order of
-  // magnitude below the global one, which is exactly what the section must render
-  // honestly rather than hide.
-  const gameScale = opponentChampionId > 0 ? 0.02 : 1
-  const archetype = ARCHETYPES[s.archetype]
-  // One spike per core item: mostly positive, tapering with build order, the
-  // odd negative read on late defensive buys. The real endpoint returns the
-  // build's core path only, in build order (#1021) — which is what this loop
-  // already produces, since it walks the archetype's item sequence.
-  const rotation = archetype.items.indexOf(buildFirstItemId)
-  const buildItems = rotation > 0
-    ? [...archetype.items.slice(rotation), ...archetype.items.slice(0, rotation)]
-    : archetype.items
-  // Up to 7 bars, not 6: the core path is the first item plus a walk capped at
-  // ChampionBuildPathAnalyzer.ItemPathMaxDepth (6), so the real endpoint can return
-  // seven — and dev has to be able to show the widest row the layout must survive.
-  const events: ChampionPowerspikeEvent[] = buildItems.slice(0, 7).map((itemId, i) => ({
-    type: 'item' as const,
-    refId: itemId,
-    avgMinute: round3(9 + i * 4.6 + rng() * 1.6),
-    spikeMagnitude: round3((0.09 - i * 0.022) * (rng() > 0.12 ? 1 : -0.6) + (rng() - 0.5) * 0.01),
-    games: Math.max(1, Math.round(s.pr * POOL_GAMES * Math.max(0.08, 0.7 - i * 0.11) * gameScale)),
-  }))
-  events.push(...[6, 11, 16].map(level => ({
-    type: 'level' as const,
-    refId: level,
-    avgMinute: round3(level === 6 ? 7.5 + rng() : level === 11 ? 16 + rng() * 2 : 26 + rng() * 3),
-    spikeMagnitude: round3(0.05 - level * 0.002 + (rng() - 0.5) * 0.01),
-    games: Math.max(1, Math.round(s.pr * POOL_GAMES * (level === 16 ? 0.4 : 0.9) * gameScale)),
-  })))
-  // Items in build order, then the level milestones ascending — the response is a
-  // display order now, not a ranking, so sorting it by magnitude here would let the
-  // mock pass a component the real payload would break (#1021).
-  return {
-    championId: s.id,
-    position: s.position,
-    patch: await latestShortPatch(),
-    events,
   }
 }
 
@@ -2348,11 +2285,6 @@ export async function resolveDevApiMock(
       sub === undefined ? mockChampionDetail(id, position, eloBracket, truemainsOnly)
       : sub === 'trend' ? mockTrend(id)
       : sub === 'scaling' ? mockScaling(id)
-      : sub === 'powerspikes' ? mockPowerspikes(
-          id,
-          Number(query.buildFirstItemId) || 0,
-          Number(query.opponentChampionId) || 0,
-        )
       : sub === 'item-context' ? mockItemContext(id, position)
       : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)

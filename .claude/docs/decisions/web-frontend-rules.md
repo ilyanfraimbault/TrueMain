@@ -74,9 +74,7 @@ write its rows under a pager reading 4 — #1234.
   the tab pickrate) rather than printing the placeholder's filler figures. The two phases become one
   continuous state whose only transition is the content filling in, the skeleton cannot drift when a section
   moves, and CLS is exact instead of estimated. `pages/dev/build-skeleton.vue` renders both skeletons with
-  nothing to fetch, the same way `dev/match-row.vue` makes a row reviewable in isolation. The escape hatch
-  is per-section: the skeleton takes `powerspikes` because the player-scoped page's tabs carry no population
-  scope and its real card has no such section to reserve.
+  nothing to fetch, the same way `dev/match-row.vue` makes a row reviewable in isolation.
 
 - **Icon slots are rendered from the ids, never gated on a resolved static lookup.** Same rule as the
   tooltip-trigger one above, from the other side. The build tabs' leading item/keystone icons were gated on
@@ -207,6 +205,4 @@ rune and spell icon tooltips mount on the first hover — #1585.
   mounted on load, and every icon was a `UTooltip`.
 - **Kept after first open**, so switching back to a tab is instant and keeps its state; a new set of builds
   starts over on its first tab.
-- **Power spikes follow the panel**: they are fetched for a tab when it is first opened, which the load test's
-  champion journey now mirrors.
 

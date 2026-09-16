@@ -45,7 +45,6 @@ public sealed class IngestorAppSettingsNoDefaultsTests
         (MatchDataRetentionOptions.SectionName, typeof(MatchDataRetentionOptions)),
         (CandidatePruningOptions.SectionName, typeof(CandidatePruningOptions)),
         (IntakeOptions.SectionName, typeof(IntakeOptions)),
-        (PowerspikeAggregationOptions.SectionName, typeof(PowerspikeAggregationOptions)),
         (MatchupLeadAggregationOptions.SectionName, typeof(MatchupLeadAggregationOptions)),
         (SynergyAggregationOptions.SectionName, typeof(SynergyAggregationOptions)),
         (LaneOutcomeAggregationOptions.SectionName, typeof(LaneOutcomeAggregationOptions)),

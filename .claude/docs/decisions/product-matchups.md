@@ -55,8 +55,8 @@ population from the header above them: `ChampionSynergyAggregationProcess` and
 `ChampionPowerspikeAggregationProcess` still gated on `RiotAccountId != null` — any tracked account, main or
 not — while the header, the tier list, the builds and the matchups gated on `IsMain`. The gate is now
 `Data/Aggregation/ChampionCohort.cs` (the generalised `MatchupCohort`), composed by all four folds: **tracked
-account + `main_champion_stats.IsMain` + canonical `TeamPosition` + not a remake**. A unit test greps the four
-fold sources for `RiotAccountId`, `IsMain`, a private copy of the canonical positions and `GameDurationSeconds`,
+account + `main_champion_stats.IsMain` + canonical `TeamPosition` + not a remake**. A unit test greps the
+fold sources (three since power spikes were removed, #1599) for `RiotAccountId`, `IsMain`, a private copy of the canonical positions and `GameDurationSeconds`,
 because the failure mode is not a wrong answer, it is a plausible line added to one fold that nobody re-compares
 against the header. Three things this pins.
 **The partner side stays everyone.** Only the queried/`SELF` side of a synergy pairing is a main; the ally is

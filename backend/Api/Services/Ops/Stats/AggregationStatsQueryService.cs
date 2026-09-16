@@ -24,7 +24,6 @@ public sealed class AggregationStatsQueryService(
         "ChampionPatternAggregation",
         "ChampionMatchupLeadAggregation",
         "ChampionSynergyAggregation",
-        "ChampionPowerspikeAggregation",
         "MainAnalysis",
         "MatchParticipantEloBracketEnrichment"
     ];
@@ -47,18 +46,9 @@ public sealed class AggregationStatsQueryService(
             await BuildBuildsFamilyAsync(runsByProcess, ct),
             await BuildMatchupsFamilyAsync(runsByProcess, ct),
             await BuildSynergiesFamilyAsync(runsByProcess, ct),
-            await BuildPowerspikesFamilyAsync(runsByProcess, ct),
             await BuildMainsFamilyAsync(runsByProcess, ct)
         };
 
-        var timelineIngestedMatches = await db.Matches
-            .AsNoTracking()
-            .LongCountAsync(match => match.QueueId == queueId && match.TimelineIngested, ct);
-        var pendingPowerspikeMatches = await db.Matches
-            .AsNoTracking()
-            .LongCountAsync(
-                match => match.QueueId == queueId && match.TimelineIngested && !match.PowerspikeAggregated,
-                ct);
         var pendingSynergyMatches = await db.Matches
             .AsNoTracking()
             .LongCountAsync(match => match.QueueId == queueId && !match.SynergyAggregated, ct);
@@ -74,10 +64,8 @@ public sealed class AggregationStatsQueryService(
             Families = families,
             Backlog = new AggregationBacklogReadModel
             {
-                PendingPowerspikeMatches = pendingPowerspikeMatches,
                 PendingSynergyMatches = pendingSynergyMatches,
-                PendingEloBracketParticipants = pendingEloBracketParticipants,
-                TimelineIngestedMatches = timelineIngestedMatches
+                PendingEloBracketParticipants = pendingEloBracketParticipants
             }
         };
     }
@@ -170,37 +158,6 @@ public sealed class AggregationStatsQueryService(
             DistinctPatches = distinctPatches,
             LastAggregatedAtUtc = lastAggregatedAtUtc,
             LastRun = runsByProcess["ChampionSynergyAggregation"]
-        };
-    }
-
-    private async Task<AggregationFamilyReadModel> BuildPowerspikesFamilyAsync(
-        IReadOnlyDictionary<string, AggregationRunReadModel?> runsByProcess,
-        CancellationToken ct)
-    {
-        var curves = db.ChampionPowerspikeCurveStats.AsNoTracking();
-
-        var curveRows = await curves.LongCountAsync(ct);
-        var eventRows = await db.ChampionPowerspikeEventStats.AsNoTracking().LongCountAsync(ct);
-        var sigmaRows = await db.PowerspikeSigmaStats.AsNoTracking().LongCountAsync(ct);
-        var distinctChampions = await curves.Select(stat => stat.ChampionId).Distinct().CountAsync(ct);
-        var distinctPatches = await curves.Select(stat => stat.Patch).Distinct().CountAsync(ct);
-        var lastAggregatedAtUtc = await curves.MaxAsync(stat => (DateTime?)stat.AggregatedAtUtc, ct);
-
-        return new AggregationFamilyReadModel
-        {
-            Key = "powerspikes",
-            ProcessName = "ChampionPowerspikeAggregation",
-            Tables =
-            [
-                new AggregationTableCountReadModel { Table = "champion_powerspike_curve_stats", Rows = curveRows },
-                new AggregationTableCountReadModel { Table = "champion_powerspike_event_stats", Rows = eventRows },
-                new AggregationTableCountReadModel { Table = "powerspike_sigma_stats", Rows = sigmaRows }
-            ],
-            TotalRows = curveRows + eventRows + sigmaRows,
-            DistinctChampions = distinctChampions,
-            DistinctPatches = distinctPatches,
-            LastAggregatedAtUtc = lastAggregatedAtUtc,
-            LastRun = runsByProcess["ChampionPowerspikeAggregation"]
         };
     }
 

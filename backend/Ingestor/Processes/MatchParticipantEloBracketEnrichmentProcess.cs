@@ -10,7 +10,7 @@ namespace Ingestor.Processes;
 /// <c>RiotAccountId</c>) that have not been enriched yet — the per-game elo band
 /// derived from the account's nearest <c>rank_snapshots</c> capture to the match
 /// start (<see cref="EloBracketResolver"/>). This is the enabler that lets every
-/// champion-page panel (live matchups / scaling / roam / powerspikes / item
+/// champion-page panel (live matchups / scaling / roam / item
 /// timings and the pre-aggregated matchup / timeline-lead tables) filter by rank,
 /// mirroring the band already stored on <c>champion_aggregate_scopes</c>.
 ///

@@ -87,7 +87,7 @@ public sealed class ChampionBuildsController(
 
     /// <summary>
     /// Average first-purchase time of each item for a champion at a position — the
-    /// "power spike" timeline, computed live from the participants' item-purchase
+    /// item timeline, computed live from the participants' item-purchase
     /// events. <paramref name="position"/> is the required Riot team position; an
     /// unrecognised position is a 400. Always 200 with a (possibly empty) list
     /// ordered earliest-first; items below the sample floor are dropped. The caller

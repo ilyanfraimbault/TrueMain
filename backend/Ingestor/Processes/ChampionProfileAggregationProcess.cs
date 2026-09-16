@@ -39,7 +39,7 @@ namespace Ingestor.Processes;
 ///    is not published).
 ///
 /// 3. <b>Item metadata is fatal, champion statics are not.</b> A metadata outage aborts
-///    the run like it does for the powerspike fold — flagging a match without its
+///    the run — flagging a match without its
 ///    archetypes would lose them for good. The ranged flag is a static attribute stored
 ///    with <c>COALESCE</c>, so a Data Dragon outage just leaves it for the next batch.
 ///

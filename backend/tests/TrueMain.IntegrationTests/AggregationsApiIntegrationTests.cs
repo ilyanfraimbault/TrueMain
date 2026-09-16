@@ -43,7 +43,7 @@ public sealed class AggregationsApiIntegrationTests
         var families = root.GetProperty("families").EnumerateArray().ToList();
         families.Select(family => family.GetProperty("key").GetString())
             .Should().BeEquivalentTo(
-                ["builds", "matchups", "synergies", "powerspikes", "mains"],
+                ["builds", "matchups", "synergies", "mains"],
                 options => options.WithStrictOrdering());
 
         // Builds: two scopes on two hotfix versions of the same patch → one
@@ -77,12 +77,11 @@ public sealed class AggregationsApiIntegrationTests
         // MainAnalysis never ran in this seed.
         mains.GetProperty("lastRun").ValueKind.Should().Be(JsonValueKind.Null);
 
-        // Backlog: of the three queue-scoped timeline-ingested matches exactly one
-        // awaits powerspike folding; the non-soloq match is excluded entirely. One
-        // tracked participant misses its elo bracket (the untracked one doesn't count).
+        // Backlog: two soloq matches await synergy folding; the non-soloq match is
+        // excluded entirely. One tracked participant misses its elo bracket (the
+        // untracked one doesn't count).
         var backlog = root.GetProperty("backlog");
-        backlog.GetProperty("timelineIngestedMatches").GetInt64().Should().Be(3);
-        backlog.GetProperty("pendingPowerspikeMatches").GetInt64().Should().Be(1);
+        backlog.GetProperty("pendingSynergyMatches").GetInt64().Should().Be(2);
         backlog.GetProperty("pendingEloBracketParticipants").GetInt64().Should().Be(1);
     }
 
@@ -128,19 +127,6 @@ public sealed class AggregationsApiIntegrationTests
             BuildMatchup(championId: 22, opponent: 99, patch: "16.5", now),
             BuildMatchup(championId: 64, opponent: 22, patch: "16.4", now));
 
-        db.ChampionPowerspikeCurveStats.Add(new ChampionPowerspikeCurveStat
-        {
-            ChampionId = 22,
-            TeamPosition = "MIDDLE",
-            Patch = "16.4",
-            EloBracket = "GOLD",
-            IntervalMinute = 10,
-            Games = 5,
-            TotalGoldDiff = 1200,
-            TotalDamageDiff = 800,
-            AggregatedAtUtc = now
-        });
-
         db.MainChampionStats.Add(new MainChampionStat
         {
             Puuid = account.Puuid,
@@ -155,14 +141,14 @@ public sealed class AggregationsApiIntegrationTests
             CalculatedAtUtc = now.AddHours(-1)
         });
 
-        // Soloq: one aggregated, one pending, one pending-but-no-timeline (not in
-        // the powerspike backlog). Plus one non-soloq match that never counts.
+        // Soloq: two synergy-folded, one pending, one pending without a timeline.
+        // Plus one non-soloq match that never counts.
         db.Matches.AddRange(
-            BuildMatch("AGG_1", queueId: 420, timelineIngested: true, powerspikeAggregated: true, now),
-            BuildMatch("AGG_2", queueId: 420, timelineIngested: true, powerspikeAggregated: false, now),
-            BuildMatch("AGG_3", queueId: 420, timelineIngested: true, powerspikeAggregated: true, now),
-            BuildMatch("AGG_4", queueId: 420, timelineIngested: false, powerspikeAggregated: false, now),
-            BuildMatch("AGG_5", queueId: 440, timelineIngested: true, powerspikeAggregated: false, now));
+            BuildMatch("AGG_1", queueId: 420, timelineIngested: true, synergyAggregated: true, now),
+            BuildMatch("AGG_2", queueId: 420, timelineIngested: true, synergyAggregated: false, now),
+            BuildMatch("AGG_3", queueId: 420, timelineIngested: true, synergyAggregated: true, now),
+            BuildMatch("AGG_4", queueId: 420, timelineIngested: false, synergyAggregated: false, now),
+            BuildMatch("AGG_5", queueId: 440, timelineIngested: true, synergyAggregated: false, now));
 
         db.MatchParticipants.AddRange(
             BuildParticipant("AGG_1", account.Puuid, account.Id, eloBracket: string.Empty,
@@ -244,7 +230,7 @@ public sealed class AggregationsApiIntegrationTests
             AggregatedAtUtc = now
         };
 
-    private static Match BuildMatch(string id, int queueId, bool timelineIngested, bool powerspikeAggregated, DateTime now)
+    private static Match BuildMatch(string id, int queueId, bool timelineIngested, bool synergyAggregated, DateTime now)
         => new()
         {
             Id = id,
@@ -258,7 +244,7 @@ public sealed class AggregationsApiIntegrationTests
             GameVersion = "16.4.1",
             CreatedAtUtc = now.AddDays(-1),
             TimelineIngested = timelineIngested,
-            PowerspikeAggregated = powerspikeAggregated
+            SynergyAggregated = synergyAggregated
         };
 
     private static MatchParticipant BuildParticipant(
