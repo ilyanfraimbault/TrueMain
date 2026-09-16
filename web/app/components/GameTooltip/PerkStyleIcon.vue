@@ -18,14 +18,13 @@ const props = withDefaults(defineProps<{
 })
 
 const hasStyle = computed(() => Boolean(props.style))
-const tooltipText = computed(() => props.style?.name ?? '')
 </script>
 
 <template>
   <GameTooltipLazyTooltip
     :disabled="!hasStyle"
     :delay-duration="150"
-    :text="tooltipText"
+    :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
   >
     <SkeletonImage
       v-bind="$attrs"
@@ -35,5 +34,13 @@ const tooltipText = computed(() => props.style?.name ?? '')
       :height="height"
       :loading="loading"
     />
+    <template
+      v-if="style"
+      #content
+    >
+      <GameTooltipSurface>
+        <GameTooltipPerkStyleBody :perk-style="style" />
+      </GameTooltipSurface>
+    </template>
   </GameTooltipLazyTooltip>
 </template>
