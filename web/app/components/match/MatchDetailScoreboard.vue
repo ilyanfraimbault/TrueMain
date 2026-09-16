@@ -175,18 +175,25 @@ function ordinal(placement: number) {
           />
         </div>
 
-        <!-- Rank crest + identity. The crest alone names the tier; the full
-             rank and LP sit in its tooltip, the same card the leaderboard's
-             rank emblem opens. A fixed slot (empty when unranked) keeps the
-             names aligned down the list. -->
-        <div class="flex min-w-0 flex-[1.2] items-center gap-1.5">
+        <!-- Identity, rank crest under it. The crest alone names the tier;
+             the full rank and LP sit in its tooltip, the same card the
+             leaderboard's rank emblem opens. -->
+        <div class="flex min-w-0 flex-[1.2] flex-col items-start gap-0.5">
+          <NuxtLink
+            v-if="profileSlug(p)"
+            :to="profileSlug(p)!"
+            class="max-w-full truncate text-xs font-medium text-default transition-colors hover:text-primary"
+          >
+            {{ p.gameName }}
+          </NuxtLink>
+          <span v-else class="max-w-full truncate text-xs font-medium text-muted">{{ p.gameName ?? p.summonerName }}</span>
           <UTooltip
             v-if="p.rank"
             :delay-duration="150"
             :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
           >
-            <span class="inline-flex size-5 shrink-0 items-center justify-center">
-              <RankIcon :tier="p.rank.tier" :size="20" loading="lazy" />
+            <span class="inline-flex size-[18px] items-center justify-center">
+              <RankIcon :tier="p.rank.tier" :size="18" loading="lazy" />
             </span>
             <template #content>
               <GameTooltipSurface>
@@ -199,15 +206,6 @@ function ordinal(placement: number) {
               </GameTooltipSurface>
             </template>
           </UTooltip>
-          <span v-else class="size-5 shrink-0" aria-hidden="true" />
-          <NuxtLink
-            v-if="profileSlug(p)"
-            :to="profileSlug(p)!"
-            class="truncate text-xs font-medium text-default transition-colors hover:text-primary"
-          >
-            {{ p.gameName }}
-          </NuxtLink>
-          <span v-else class="truncate text-xs font-medium text-muted">{{ p.gameName ?? p.summonerName }}</span>
         </div>
 
         <!-- KDA -->

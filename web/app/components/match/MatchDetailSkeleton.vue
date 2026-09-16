@@ -48,10 +48,10 @@
             <USkeleton class="size-[18px] rounded-full" />
             <USkeleton class="size-[14px] rounded-full" />
           </div>
-          <!-- Rank crest + identity -->
-          <div class="flex min-w-0 flex-[1.2] items-center gap-1.5">
-            <USkeleton class="size-5 shrink-0 rounded-full" />
+          <!-- Identity + rank crest -->
+          <div class="flex min-w-0 flex-[1.2] flex-col gap-1">
             <USkeleton class="h-3 w-24" />
+            <USkeleton class="size-[18px] rounded-full" />
           </div>
           <!-- KDA -->
           <div class="flex w-[4.5rem] shrink-0 flex-col items-center gap-1">

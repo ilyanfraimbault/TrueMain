@@ -8,7 +8,7 @@ import type {
   StaticPerkStyleData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
+import { getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 import { formatDuration } from '~/utils/relativeTime'
 
@@ -148,16 +148,21 @@ const csPerMin = computed(() => {
   return (self.value.cs / minutes).toFixed(1)
 })
 
-const kpPercent = computed(() => formatPercentage(self.value.killParticipation, 0))
-
-// Performance score (#918): the number the MVP/ACE crown two columns right is
-// derived from, printed so the badge stops being the only way to read it — and
-// so a good game that just missed the crown still shows as one. Same value the
-// expanded detail panel shows for this player.
+// Performance score (#918), in the right-edge slot it shares with the MVP/ACE
+// accolade derived from it: a crowned game shows the crown with the score in its
+// tooltip, any other game prints the score.
 const perfScore = computed(() => self.value.performanceScore)
 
-const perfTooltip = computed(() =>
-  `Performance score ${perfScore.value}/100 — ${ordinal(self.value.placement)} of 10 in this game`)
+const accolade = computed(() => {
+  if (self.value.isMvp) return 'MVP'
+  if (self.value.isAce) return 'ACE'
+  return null
+})
+
+const perfTooltip = computed(() => {
+  const detail = `Performance score ${perfScore.value}/100 — ${ordinal(self.value.placement)} of 10 in this game`
+  return accolade.value ? `${accolade.value} · ${detail}` : detail
+})
 
 function ordinal(n: number): string {
   const rest = n % 100
@@ -287,14 +292,15 @@ const rowTint = computed(() =>
              exact same box, or everything to its right (the centred
              loadout, the right-edge group) drifts left/right row to row and
              the columns stop lining up down the list. -->
-        <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-52 @3xl:gap-3">
+        <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-44 @3xl:gap-3">
           <div class="flex w-28 flex-col items-center">
-            <div class="whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
-              {{ self.kills }}
+            <!-- Explicit gap: whitespace between inline spans spaced the slashes unevenly. -->
+            <div class="flex items-baseline gap-1 whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
+              <span>{{ self.kills }}</span>
               <span class="text-muted/70">/</span>
               <span class="text-red-400">{{ self.deaths }}</span>
               <span class="text-muted/70">/</span>
-              {{ self.assists }}
+              <span>{{ self.assists }}</span>
             </div>
             <div class="text-[11px] font-semibold tabular-nums" :class="kdaColor">
               {{ kdaRatio }}
@@ -312,7 +318,7 @@ const rowTint = computed(() =>
             >
               {{ lpDeltaText }}
             </div>
-            <!-- Duration lives under KP in the stats stack, which only exists
+            <!-- Duration lives under CS/m in the stats stack, which only exists
                  from @3xl — below that it falls back here so a drawer or a
                  phone doesn't lose it entirely. -->
             <div class="text-[11px] text-muted tabular-nums @3xl:hidden">
@@ -324,16 +330,11 @@ const rowTint = computed(() =>
                team compositions (added at @xl) need. Below that the KDA
                cluster, the build and the compositions are the scan targets.
                Centred (not left-aligned) inside the track it shares with the
-               KDA cluster: the four lines are one stacked measurement block,
-               and ragged-left they read as a column that lost its column. -->
+               KDA cluster. Kill participation is left to the scoreboard: it
+               says little on its own, and the performance score moved to the
+               right edge. -->
           <div class="hidden flex-1 flex-col items-center gap-0.5 text-[11px] text-muted tabular-nums @3xl:flex">
-            <UTooltip :text="perfTooltip">
-              <span class="font-semibold" :class="perfColor">
-                {{ perfScore }} PERF
-              </span>
-            </UTooltip>
             <span>{{ csPerMin }} CS/m</span>
-            <span>{{ kpPercent }} KP</span>
             <span>{{ durationLabel }}</span>
           </div>
         </div>
@@ -448,30 +449,28 @@ const rowTint = computed(() =>
             </div>
           </div>
 
-          <!--
-            MVP / ACE accolade + expand chevron. MVP = a crown in the brand
-            `gold` accent (best player of the game); ACE = an award rosette in
-            the rose `primary` (best player of the losing team). Distinct icon
-            *and* colour so the two never blur together, and the same two
-            tokens the expanded MatchDetailScoreboard uses, so the collapsed
-            crown and the scoreboard crown are the same gold. A UTooltip
-            spells out which accolade it is on hover/focus. Chevron rotates
-            180°. The accolade sits in a fixed-size slot (rendered empty
-            rather than omitted when there's no MVP/ACE) so the chevron next
-            to it — and everything left of this group — lines up at the same
-            spot whether or not a given row has a badge. -->
+          <!-- Performance slot + chevron: MVP crown (`gold`) or ACE rosette
+               (`primary`, as in the scoreboard) with the score in the
+               tooltip, otherwise the graded score. Fixed width so the columns
+               line up down the list. -->
           <div class="flex shrink-0 items-center gap-1 @2xl:gap-2">
-            <div class="flex size-5 shrink-0 items-center justify-center">
-              <UTooltip
-                v-if="self.isMvp || self.isAce"
-                :text="self.isMvp ? 'MVP' : 'ACE'"
-              >
+            <div class="flex w-7 shrink-0 items-center justify-center">
+              <UTooltip :text="perfTooltip">
                 <UIcon
+                  v-if="accolade"
                   :name="self.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
                   class="size-5 drop-shadow"
                   :class="self.isMvp ? 'text-gold' : 'text-primary'"
-                  :aria-label="self.isMvp ? 'MVP' : 'ACE'"
+                  :aria-label="`${accolade}, performance score ${perfScore}`"
                 />
+                <span
+                  v-else
+                  class="text-sm font-bold tabular-nums"
+                  :class="perfColor"
+                  :aria-label="`Performance score ${perfScore}`"
+                >
+                  {{ perfScore }}
+                </span>
               </UTooltip>
             </div>
             <UIcon

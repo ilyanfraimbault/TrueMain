@@ -16,15 +16,13 @@
            result label, and its duration moved into the stats cluster. -->
       <USkeleton class="size-10 shrink-0 rounded @2xl:ml-1 @2xl:size-12" />
       <!-- KDA + stats -->
-      <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-52 @3xl:gap-3">
+      <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-44 @3xl:gap-3">
         <div class="flex w-28 flex-col items-center gap-1">
           <USkeleton class="h-5 w-20" />
           <USkeleton class="h-3 w-14" />
           <USkeleton class="h-3 w-10 @3xl:hidden" />
         </div>
         <div class="hidden flex-1 flex-col items-center gap-0.5 @3xl:flex">
-          <USkeleton class="h-3 w-14" />
-          <USkeleton class="h-3 w-12" />
           <USkeleton class="h-3 w-12" />
           <USkeleton class="h-3 w-10" />
         </div>
@@ -62,7 +60,9 @@
             <USkeleton v-for="i in 5" :key="`enemy-${i}`" class="size-6 rounded" />
           </div>
         </div>
-        <USkeleton class="size-5 shrink-0 rounded-full" />
+        <div class="flex w-7 shrink-0 justify-center">
+          <USkeleton class="size-5 rounded-full" />
+        </div>
       </div>
     </div>
   </article>
