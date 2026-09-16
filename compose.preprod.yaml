@@ -136,6 +136,7 @@ services:
     pull_policy: always
     container_name: truemain-preprod-api
     restart: unless-stopped
+    init: true
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
@@ -172,6 +173,7 @@ services:
     pull_policy: always
     container_name: truemain-preprod-web
     restart: unless-stopped
+    init: true
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
@@ -194,6 +196,7 @@ services:
     pull_policy: always
     container_name: truemain-preprod-admin
     restart: unless-stopped
+    init: true
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
@@ -235,6 +238,7 @@ services:
     pull_policy: always
     container_name: truemain-preprod-ingestor
     restart: unless-stopped
+    init: true
     stop_grace_period: 120s
     environment:
       <<: *ingestor-environment
@@ -256,6 +260,7 @@ services:
     pull_policy: always
     container_name: truemain-preprod-ingestor-aggregate
     restart: unless-stopped
+    init: true
     stop_grace_period: 120s
     environment:
       <<: *ingestor-environment
