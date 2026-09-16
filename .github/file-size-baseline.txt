@@ -30,7 +30,7 @@ backend/Tools/DevSeed/SeedGenerator.cs	607	500
 web/app/components/AppBackdrop.vue	426	400
 web/app/components/AppSearch.vue	541	400
 web/app/components/leaderboard/LeaderboardRow.vue	481	400
-web/app/components/match/MatchRow.vue	612	400
+web/app/components/match/MatchRow.vue	515	400
 web/app/pages/champions/[slug].vue	649	400
 web/app/pages/champions/index.vue	484	400
 web/app/pages/dev/design-system.vue	616	400

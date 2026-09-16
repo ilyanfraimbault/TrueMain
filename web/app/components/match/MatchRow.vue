@@ -8,8 +8,7 @@ import type {
   StaticPerkStyleData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
-import { isBootsItem, isNonBuildItem } from '~~/shared/utils/build'
+import { getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 import { formatDuration } from '~/utils/relativeTime'
 
@@ -110,56 +109,6 @@ const subStyle: ComputedRef<StaticPerkStyleData | null> = computed(() => {
   return props.runeTree.perkStyles[self.value.subStyleId] ?? null
 })
 
-// Inventory slots: three-state model so the row can tell apart a slot the
-// player never bought (Item* = 0 in the DB — render an invisible same-sized
-// placeholder) from one whose static data hasn't resolved yet (id > 0 but no
-// entry in the items map — keep the skeleton, that's a real loading state).
-// Without this distinction, every zero in the participant row renders as a
-// "skeleton" square and looks like the page is stuck loading half the items.
-//
-// Real items are left-aligned and the remaining cells become invisible
-// placeholders so the six-slot grid stays the same width on every row — the
-// trinket column lines up vertically across the whole match history even
-// when a row only has three items.
-type InventorySlot =
-  | { kind: 'empty' }
-  | { kind: 'loading' }
-  | { kind: 'item', item: StaticItemData }
-
-const INVENTORY_SLOT_COUNT = 6
-
-// The boots are pulled out of the six inventory slots into their own cell
-// under the trinket (scoreboard convention), so the main grid holds only the
-// non-boots items. The Eye of the Herald — a Rift Herald summon that sits in
-// the trinket slot, never a real build item — is dropped everywhere.
-const bootsItem = computed<StaticItemData | null>(() => {
-  for (const id of self.value.items) {
-    const item = props.items[id]
-    if (item && isBootsItem(item)) return item
-  }
-  return null
-})
-
-const inventoryItems = computed<InventorySlot[]>(() => {
-  const bootsId = bootsItem.value?.id
-  const filled: InventorySlot[] = self.value.items
-    .filter(id => id > 0 && id !== bootsId && !isNonBuildItem(id))
-    .map((id) => {
-      const item = props.items[id]
-      return item ? { kind: 'item', item } : { kind: 'loading' }
-    })
-  const empties: InventorySlot[] = Array.from(
-    { length: Math.max(0, INVENTORY_SLOT_COUNT - filled.length) },
-    () => ({ kind: 'empty' }),
-  )
-  return [...filled, ...empties]
-})
-const trinket = computed<StaticItemData | null>(() => {
-  const id = self.value.trinketItemId
-  if (id <= 0 || isNonBuildItem(id)) return null
-  return props.items[id] ?? null
-})
-
 // The viewing player's assigned role, taken straight from the PUUID-matched
 // self read-model so the portrait can badge a position icon instead of the
 // champion level. Null when Riot never assigned one (old rows, non-SR modes) —
@@ -199,16 +148,21 @@ const csPerMin = computed(() => {
   return (self.value.cs / minutes).toFixed(1)
 })
 
-const kpPercent = computed(() => formatPercentage(self.value.killParticipation, 0))
-
-// Performance score (#918): the number the MVP/ACE crown two columns right is
-// derived from, printed so the badge stops being the only way to read it — and
-// so a good game that just missed the crown still shows as one. Same value the
-// expanded detail panel shows for this player.
+// Performance score (#918), in the right-edge slot it shares with the MVP/ACE
+// accolade derived from it: a crowned game shows the crown with the score in its
+// tooltip, any other game prints the score.
 const perfScore = computed(() => self.value.performanceScore)
 
-const perfTooltip = computed(() =>
-  `Performance score ${perfScore.value}/100 — ${ordinal(self.value.placement)} of 10 in this game`)
+const accolade = computed(() => {
+  if (self.value.isMvp) return 'MVP'
+  if (self.value.isAce) return 'ACE'
+  return null
+})
+
+const perfTooltip = computed(() => {
+  const detail = `Performance score ${perfScore.value}/100 — ${ordinal(self.value.placement)} of 10 in this game`
+  return accolade.value ? `${accolade.value} · ${detail}` : detail
+})
 
 function ordinal(n: number): string {
   const rest = n % 100
@@ -338,14 +292,15 @@ const rowTint = computed(() =>
              exact same box, or everything to its right (the centred
              loadout, the right-edge group) drifts left/right row to row and
              the columns stop lining up down the list. -->
-        <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-52 @3xl:gap-3">
+        <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-44 @3xl:gap-3">
           <div class="flex w-28 flex-col items-center">
-            <div class="whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
-              {{ self.kills }}
+            <!-- Explicit gap: whitespace between inline spans spaced the slashes unevenly. -->
+            <div class="flex items-baseline gap-1 whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
+              <span>{{ self.kills }}</span>
               <span class="text-muted/70">/</span>
               <span class="text-red-400">{{ self.deaths }}</span>
               <span class="text-muted/70">/</span>
-              {{ self.assists }}
+              <span>{{ self.assists }}</span>
             </div>
             <div class="text-[11px] font-semibold tabular-nums" :class="kdaColor">
               {{ kdaRatio }}
@@ -363,7 +318,7 @@ const rowTint = computed(() =>
             >
               {{ lpDeltaText }}
             </div>
-            <!-- Duration lives under KP in the stats stack, which only exists
+            <!-- Duration lives under CS/m in the stats stack, which only exists
                  from @3xl — below that it falls back here so a drawer or a
                  phone doesn't lose it entirely. -->
             <div class="text-[11px] text-muted tabular-nums @3xl:hidden">
@@ -375,16 +330,11 @@ const rowTint = computed(() =>
                team compositions (added at @xl) need. Below that the KDA
                cluster, the build and the compositions are the scan targets.
                Centred (not left-aligned) inside the track it shares with the
-               KDA cluster: the four lines are one stacked measurement block,
-               and ragged-left they read as a column that lost its column. -->
+               KDA cluster. Kill participation is left to the scoreboard: it
+               says little on its own, and the performance score moved to the
+               right edge. -->
           <div class="hidden flex-1 flex-col items-center gap-0.5 text-[11px] text-muted tabular-nums @3xl:flex">
-            <UTooltip :text="perfTooltip">
-              <span class="font-semibold" :class="perfColor">
-                {{ perfScore }} PERF
-              </span>
-            </UTooltip>
             <span>{{ csPerMin }} CS/m</span>
-            <span>{{ kpPercent }} KP</span>
             <span>{{ durationLabel }}</span>
           </div>
         </div>
@@ -437,58 +387,13 @@ const rowTint = computed(() =>
               />
             </div>
 
-            <!-- Items: dark inset (scoreboard-style) with the six inventory
-                 slots as a 3×2 grid, then a trailing column stacking the trinket
-                 over the boots — boots are pulled out of the grid so they line up
-                 with the trinket the way trackers show them. Empty slots stay as
-                 transparent placeholders so the grid keeps its shape. The Eye of
-                 the Herald is filtered out upstream (it's not a build item). -->
-            <div class="flex items-center gap-1 rounded-lg bg-black/25 p-1 ring-1 ring-white/5 @2xl:gap-1.5 @2xl:p-1.5">
-              <div class="grid grid-cols-3 gap-0.5 @2xl:gap-1">
-                <template
-                  v-for="(slot, idx) in inventoryItems"
-                  :key="`item-${idx}`"
-                >
-                  <div
-                    v-if="slot.kind === 'empty'"
-                    class="size-5 shrink-0 rounded bg-white/5 @2xl:size-6"
-                    aria-hidden="true"
-                  />
-                  <GameTooltipItemIcon
-                    v-else
-                    :item="slot.kind === 'item' ? slot.item : null"
-                    :width="24"
-                    :height="24"
-                    class="size-5 rounded @2xl:size-6"
-                  />
-                </template>
-              </div>
-              <div class="flex flex-col gap-0.5 @2xl:gap-1">
-                <GameTooltipItemIcon
-                  :item="trinket"
-                  :width="24"
-                  :height="24"
-                  loading="lazy"
-                  class="size-5 rounded-full @2xl:size-6"
-                />
-                <div
-                  v-if="bootsItem"
-                  class="size-5 @2xl:size-6"
-                >
-                  <GameTooltipItemIcon
-                    :item="bootsItem"
-                    :width="24"
-                    :height="24"
-                    class="size-5 rounded @2xl:size-6"
-                  />
-                </div>
-                <div
-                  v-else
-                  class="size-5 @2xl:size-6"
-                  aria-hidden="true"
-                />
-              </div>
-            </div>
+            <!-- Items: the shared 3×2 grid + trinket/boots column, the same
+                 block the expanded scoreboard draws per player. -->
+            <MatchItemGrid
+              :item-ids="self.items"
+              :trinket-item-id="self.trinketItemId"
+              :items="items"
+            />
           </div>
         </div>
 
@@ -544,30 +449,28 @@ const rowTint = computed(() =>
             </div>
           </div>
 
-          <!--
-            MVP / ACE accolade + expand chevron. MVP = a crown in the brand
-            `gold` accent (best player of the game); ACE = an award rosette in
-            the rose `primary` (best player of the losing team). Distinct icon
-            *and* colour so the two never blur together, and the same two
-            tokens the expanded MatchDetailScoreboard uses, so the collapsed
-            crown and the scoreboard crown are the same gold. A UTooltip
-            spells out which accolade it is on hover/focus. Chevron rotates
-            180°. The accolade sits in a fixed-size slot (rendered empty
-            rather than omitted when there's no MVP/ACE) so the chevron next
-            to it — and everything left of this group — lines up at the same
-            spot whether or not a given row has a badge. -->
+          <!-- Performance slot + chevron: MVP crown (`gold`) or ACE rosette
+               (`primary`, as in the scoreboard) with the score in the
+               tooltip, otherwise the graded score. Fixed width so the columns
+               line up down the list. -->
           <div class="flex shrink-0 items-center gap-1 @2xl:gap-2">
-            <div class="flex size-5 shrink-0 items-center justify-center">
-              <UTooltip
-                v-if="self.isMvp || self.isAce"
-                :text="self.isMvp ? 'MVP' : 'ACE'"
-              >
+            <div class="flex w-7 shrink-0 items-center justify-center">
+              <UTooltip :text="perfTooltip">
                 <UIcon
+                  v-if="accolade"
                   :name="self.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
                   class="size-5 drop-shadow"
                   :class="self.isMvp ? 'text-gold' : 'text-primary'"
-                  :aria-label="self.isMvp ? 'MVP' : 'ACE'"
+                  :aria-label="`${accolade}, performance score ${perfScore}`"
                 />
+                <span
+                  v-else
+                  class="text-sm font-bold tabular-nums"
+                  :class="perfColor"
+                  :aria-label="`Performance score ${perfScore}`"
+                >
+                  {{ perfScore }}
+                </span>
               </UTooltip>
             </div>
             <UIcon

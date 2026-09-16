@@ -48,10 +48,10 @@
             <USkeleton class="size-[18px] rounded-full" />
             <USkeleton class="size-[14px] rounded-full" />
           </div>
-          <!-- Identity + rank -->
+          <!-- Identity + rank crest -->
           <div class="flex min-w-0 flex-[1.2] flex-col gap-1">
             <USkeleton class="h-3 w-24" />
-            <USkeleton class="h-2.5 w-16" />
+            <USkeleton class="size-[18px] rounded-full" />
           </div>
           <!-- KDA -->
           <div class="flex w-[4.5rem] shrink-0 flex-col items-center gap-1">
@@ -64,20 +64,23 @@
             <USkeleton class="h-2.5 w-8" />
           </div>
           <!-- Damage bar -->
-          <div class="hidden w-[5rem] shrink-0 flex-col gap-1 sm:flex">
-            <USkeleton class="h-2.5 w-12" />
+          <div class="hidden w-[6.5rem] shrink-0 flex-col gap-1 sm:flex">
             <USkeleton class="h-1.5 w-full rounded-full" />
+            <USkeleton class="h-2.5 w-16" />
           </div>
-          <!-- Items + trinket -->
-          <div class="ml-auto hidden shrink-0 items-center gap-1 md:flex">
-            <div class="flex gap-0.5">
+          <!-- Items grid + trinket/boots column -->
+          <div class="ml-auto hidden shrink-0 items-center gap-0.5 p-0.5 md:flex">
+            <div class="grid grid-cols-3 gap-0.5">
               <USkeleton
                 v-for="i in 6"
                 :key="`sk-inv-${team}-${row}-${i}`"
                 class="size-5 rounded"
               />
             </div>
-            <USkeleton class="size-5 rounded-full" />
+            <div class="flex flex-col gap-0.5">
+              <USkeleton class="size-5 rounded-full" />
+              <USkeleton class="size-5 rounded" />
+            </div>
           </div>
         </li>
       </ul>
