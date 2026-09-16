@@ -18,7 +18,7 @@ RUN mkdir -p /home/app/crashes && chown app:app /home/app/crashes
 USER app
 
 ENV INGESTOR_HEARTBEAT_PATH=/tmp/ingestor-heartbeat
-HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=60s --timeout=20s --start-period=90s --retries=5 \
     CMD test -f "$INGESTOR_HEARTBEAT_PATH" \
         && test "$(($(date +%s) - $(stat -c %Y "$INGESTOR_HEARTBEAT_PATH")))" -lt 300 \
         || exit 1

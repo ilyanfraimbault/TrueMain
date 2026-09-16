@@ -336,6 +336,14 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
 - `*.dev` variants run `dotnet watch` / `nuxt dev` with a long `start_period`
   (90–120s) so `condition: service_healthy` in `compose.dev.yaml` survives a
   cold start.
+- **Every probe is generous on time, strict on meaning** (2026-09-16). Timeouts
+  are 20s and start periods 90s across the images and the data stores, and the
+  retry counts are doubled. The preprod host is CPU-limited by the provider when
+  the stack starts, and a `mongosh` ping that normally answers in milliseconds
+  took 52s there: the 5s timeouts turned a healthy Mongo into an unhealthy
+  dependency and Docker Manager abandoned the deploy (`dependency failed to
+  start`). What each probe *checks* is unchanged — the ingestor still fails on a
+  heartbeat older than 300s — only the patience is.
 
 ## Stacks
 

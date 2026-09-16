@@ -25,7 +25,7 @@ USER node
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
+HEALTHCHECK --interval=10s --timeout=20s --start-period=90s --retries=10 \
     CMD wget --quiet --tries=1 --spider http://127.0.0.1:3000/ || exit 1
 
 CMD ["node", ".output/server/index.mjs"]
