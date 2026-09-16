@@ -53,8 +53,7 @@ already existed rather than adding a scheduler.
 What makes it safe is that the sequence was never what ordered the work *between* steps: every aggregation
 selects only the matches whose prerequisites hold (`TimelineIngested`, the per-fold flags on `matches`), so a
 fold that runs early finds nothing and picks the rows up next pass. Order *within* a lane is still
-load-bearing — the ban fold must see stamped elo brackets, the timeline prune must not precede the powerspike
-fold — which is why the two lanes preserve the full pipeline's relative order, asserted by a test that also
+load-bearing — the ban fold must see stamped elo brackets, the storage snapshot must follow retention — which is why the two lanes preserve the full pipeline's relative order, asserted by a test that also
 pins them as a true partition of it: a step in neither would silently stop running, a step in both would fold
 the same rows twice.
 The one thing the split genuinely broke is orphan-run reconciliation. It abandoned *every* `Running` document

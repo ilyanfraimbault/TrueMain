@@ -84,7 +84,7 @@ public sealed class ChampionMainsComparisonQueryService(
         // interface is reachable without MVC, and a raw GameVersion arriving
         // here would otherwise be compared against the major.minor LIKE prefix
         // and silently match nothing. Every sibling champion read
-        // (scaling / matchups / roam / item-timings / powerspikes / leads /
+        // (scaling / matchups / roam / item-timings / leads /
         // composition) normalises the same way for the same reason — dropping
         // it here alone would make this the one service that trusts its caller.
         var normalizedPatch = PatchFilter.Normalize(patch);

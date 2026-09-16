@@ -22,7 +22,7 @@ namespace TrueMain.IntegrationTests;
 /// The seed builds the three states the page exists to keep apart, in one corpus:
 /// <c>16.14</c> settled and fully covered, <c>16.15</c> aggregated but short of the bar
 /// (the patch the site actually serves), and <c>16.16</c> ingested with no aggregate row
-/// at all. Bans and per-opponent spikes exist only from <c>16.15</c> on, so the older
+/// at all. Bans exist only from <c>16.15</c> on, so the older
 /// patch must read "not measured before" rather than zero.
 /// </para>
 /// </summary>
@@ -176,26 +176,6 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
         var current = payload.Patches.Single(patch => patch.Patch == "16.15");
         current.Folds.Single(fold => fold.Key == "bans").Measured.Should().BeTrue();
         current.Folds.Single(fold => fold.Key == "bans").Rows.Should().Be(1);
-    }
-
-    [Fact]
-    public async Task GetPatchCoverage_ScopesThePerOpponentSpikeFoldToTheRowsThatCarryAnOpponent()
-    {
-        var payload = await LoadAsync();
-
-        // #957 splits the spike grain on the lane opponent. Rows folded before it — and
-        // rows retention has collapsed — are rolled back to opponent 0, so they are not
-        // per-opponent coverage even though they sit in the same table. 16.14 holds one of
-        // each shape, and only the newer patch's row counts.
-        var older = payload.Patches.Single(patch => patch.Patch == "16.14");
-        var opponents = older.Folds.Single(fold => fold.Key == "powerspikeOpponents");
-
-        opponents.Measured.Should().BeFalse("the only opponent-scoped row on the corpus is on 16.15");
-        opponents.FirstMeasuredPatch.Should().Be("16.15");
-        opponents.Rows.Should().BeNull();
-
-        var current = payload.Patches.Single(patch => patch.Patch == "16.15");
-        current.Folds.Single(fold => fold.Key == "powerspikeOpponents").Rows.Should().Be(1);
     }
 
     [Fact]
@@ -357,11 +337,6 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
             AggregatedAtUtc = now.AddHours(-1)
         });
 
-        // Spike rows on both patches, but only the newer one carries a lane opponent
-        // (#957). The 16.14 row is the pre-#957 shape rolled back to opponent 0.
-        db.ChampionPowerspikeEventStats.Add(BuildSpikeEvent("16.14", opponentChampionId: 0, now.AddHours(-2)));
-        db.ChampionPowerspikeEventStats.Add(BuildSpikeEvent("16.15", opponentChampionId: 103, now.AddHours(-1)));
-
         await db.SaveChangesAsync();
     }
 
@@ -423,7 +398,6 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
         GameVersion = $"{patch}.1.1",
         CreatedAtUtc = DateTime.UtcNow,
         TimelineIngested = true,
-        PowerspikeAggregated = folded,
         SynergyAggregated = folded,
         MatchupLeadAggregated = folded,
         BansAggregated = folded
@@ -446,27 +420,6 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
         Win = participantId <= 5,
         ItemEvents = [],
         SkillEvents = []
-    };
-
-    private static ChampionPowerspikeEventStat BuildSpikeEvent(
-        string patch,
-        int opponentChampionId,
-        DateTime aggregatedAt) => new()
-    {
-        Id = Guid.NewGuid(),
-        ChampionId = 266,
-        TeamPosition = "MIDDLE",
-        Patch = patch,
-        EloBracket = "GOLD",
-        BuildFirstItemId = 6630,
-        BuildKeystoneId = 8010,
-        OpponentChampionId = opponentChampionId,
-        EventType = "level",
-        RefId = 6,
-        SumSpike = 1.5,
-        SumMinute = 8.5,
-        Games = 12,
-        AggregatedAtUtc = aggregatedAt
     };
 
     private static HttpClient CreateAuthedClient(ApiWebApplicationFactory factory)

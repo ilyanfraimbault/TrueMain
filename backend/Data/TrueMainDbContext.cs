@@ -59,14 +59,6 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionItemContextTotal> ChampionItemContextTotals => Set<ChampionItemContextTotal>();
     public DbSet<ChampionItemContextVerdict> ChampionItemContextVerdicts => Set<ChampionItemContextVerdict>();
 
-    // Pre-aggregated champion powerspikes (#694): the per-minute power curve, the
-    // per-event slope-change spikes, and the global per-minute lead spread. Populated
-    // incrementally by ChampionPowerspikeAggregationProcess so the dense per-minute
-    // MatchParticipantTimelineSnapshot rows can be pruned to the canonical marks.
-    public DbSet<ChampionPowerspikeCurveStat> ChampionPowerspikeCurveStats => Set<ChampionPowerspikeCurveStat>();
-    public DbSet<ChampionPowerspikeEventStat> ChampionPowerspikeEventStats => Set<ChampionPowerspikeEventStat>();
-    public DbSet<PowerspikeSigmaStat> PowerspikeSigmaStats => Set<PowerspikeSigmaStat>();
-
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 
     // Junction-table aggregate + globally-deduplicated dimension tables: the
@@ -102,7 +94,7 @@ public class TrueMainDbContext : DbContext
         base.ConfigureConventions(configurationBuilder);
 
         // A single, explicit scale rule for the EF-mapped stat doubles (e.g.
-        // MainChampionStat.PlayRate and the champion_powerspike_* rates) instead of
+        // MainChampionStat.PlayRate) instead of
         // per-property guesswork. Npgsql maps double to `double precision` and
         // ignores the facet, so this carries no schema delta — it documents intent
         // and applies automatically to any future double property. (It does not

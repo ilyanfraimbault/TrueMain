@@ -47,7 +47,7 @@ public sealed class RecordedProcessSkipStatusTests
     public async Task RunCoreAsync_WhenTheInnerProcessDidWork_StillRecordsSuccess()
     {
         var recorder = Substitute.For<IProcessRunRecorder>();
-        var process = Build(recorder, () => new MatchAggregationSummary(3, 1));
+        var process = Build(recorder, () => new TeamPositionCorrectionSummary(3, 1));
 
         await process.RunCoreAsync(CancellationToken.None);
 

@@ -18,7 +18,10 @@ public enum JobMode
     HarvestOnly = 9,
     MatchupLeadAggregationOnly = 10,
     EloBracketEnrichmentOnly = 11,
-    PowerspikeAggregationOnly = 12,
+
+    // 12 was PowerspikeAggregationOnly, retired with its process when power spikes were
+    // dropped from the product. Kept retired for the same reason as 18 below.
+
     TeamPositionCorrectionOnly = 13,
     MainActivityOnly = 14,
     SynergyAggregationOnly = 15,

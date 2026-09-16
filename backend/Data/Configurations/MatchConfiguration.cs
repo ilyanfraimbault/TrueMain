@@ -85,10 +85,6 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
-        entity.Property(e => e.PowerspikeAggregated)
-            .IsRequired()
-            .HasDefaultValue(false);
-
         entity.Property(e => e.TimelineSnapshotsPruned)
             .IsRequired()
             .HasDefaultValue(false);
@@ -135,23 +131,17 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         entity.HasIndex(e => new { e.QueueId, e.Patch, e.PlatformId })
             .HasDatabaseName("IX_matches_queue_patch_platform");
 
-        // Partial index over the not-yet-aggregated tail so the incremental
-        // powerspike batch selection stays cheap; once backfilled almost every row
-        // is aggregated, so the filtered index holds only the recent pending matches.
-        entity.HasIndex(e => e.QueueId)
-            .HasDatabaseName("IX_matches_powerspike_pending")
-            .HasFilter("\"PowerspikeAggregated\" = false");
-
-        // Partial index over the aggregated-but-not-yet-pruned tail so retention's
-        // snapshot-pruning selection stays cheap; it empties as pruning catches up
-        // and only ever holds the recently-aggregated matches awaiting a prune. The
-        // named overload keeps this a distinct index from IX_matches_powerspike_pending
-        // above (both key on QueueId, so EF would otherwise fold them into one).
+        // Partial index over the timeline-ingested-but-not-yet-pruned tail so
+        // retention's snapshot-pruning selection stays cheap; it empties as pruning
+        // catches up and only ever holds the recently-ingested matches awaiting a prune.
+        // The named overloads keep the QueueId-keyed partial indexes distinct (EF would
+        // otherwise fold them into one).
         entity.HasIndex(e => e.QueueId, "IX_matches_snapshot_prune_pending")
-            .HasFilter("\"PowerspikeAggregated\" = true AND \"TimelineSnapshotsPruned\" = false");
+            .HasFilter("\"TimelineIngested\" = true AND \"TimelineSnapshotsPruned\" = false");
 
         // Partial index over the not-yet-aggregated tail so the incremental
-        // matchup/lead batch selection stays cheap, mirroring IX_matches_powerspike_pending.
+        // matchup/lead batch selection stays cheap; once backfilled almost every row
+        // is aggregated, so the filtered index holds only the recent pending matches.
         entity.HasIndex(e => e.QueueId, "IX_matches_matchup_lead_pending")
             .HasFilter("\"MatchupLeadAggregated\" = false");
 

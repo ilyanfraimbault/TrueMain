@@ -4,7 +4,6 @@ import {
   PLACEHOLDER_CHAMPION_STATIC,
   PLACEHOLDER_ITEMS_MAP,
   PLACEHOLDER_RUNE_TREE,
-  PLACEHOLDER_SPIKES_SCOPE,
   PLACEHOLDER_SUMMONERS_MAP,
 } from '~/utils/build-placeholder'
 
@@ -20,17 +19,6 @@ import {
 // thing that changes when the data lands is that the icons and numbers fill in.
 //
 // It also cannot drift: move a section and the skeleton moves with it.
-withDefaults(defineProps<{
-  /**
-   * Whether the reserved layout includes the per-build power-spikes section.
-   * False for the call sites that render the tabs without a population scope
-   * (the player-scoped champion page), where the real card has no such section
-   * and reserving it would leave a gap that collapses on load.
-   */
-  powerspikes?: boolean
-}>(), {
-  powerspikes: true,
-})
 </script>
 
 <template>
@@ -49,8 +37,6 @@ withDefaults(defineProps<{
       :summoners-map="PLACEHOLDER_SUMMONERS_MAP"
       summoners-pending
       :rune-tree="PLACEHOLDER_RUNE_TREE"
-      :champion-id="powerspikes ? PLACEHOLDER_SPIKES_SCOPE.championId : undefined"
-      :position="powerspikes ? PLACEHOLDER_SPIKES_SCOPE.position : null"
     />
   </div>
 </template>

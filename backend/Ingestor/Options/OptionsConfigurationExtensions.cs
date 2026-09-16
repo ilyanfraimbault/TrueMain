@@ -235,12 +235,6 @@ public static class OptionsConfigurationExtensions
             .Validate(options => options.EstablishedMainShareSwing is >= 0 and <= 1, "Intake:EstablishedMainShareSwing must be between 0 and 1.")
             .ValidateOnStart();
 
-        services.AddOptions<PowerspikeAggregationOptions>()
-            .Bind(configuration.GetSection(PowerspikeAggregationOptions.SectionName))
-            .Validate(options => options.MatchBatchSize > 0, "PowerspikeAggregation:MatchBatchSize must be greater than 0.")
-            .Validate(options => options.MaxMatchesPerRun >= 0, "PowerspikeAggregation:MaxMatchesPerRun must be >= 0.")
-            .ValidateOnStart();
-
         services.AddOptions<MatchupLeadAggregationOptions>()
             .Bind(configuration.GetSection(MatchupLeadAggregationOptions.SectionName))
             .Validate(options => options.MatchBatchSize > 0, "MatchupLeadAggregation:MatchBatchSize must be greater than 0.")

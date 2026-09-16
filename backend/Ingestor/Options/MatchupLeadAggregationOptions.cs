@@ -9,7 +9,7 @@ public class MatchupLeadAggregationOptions
     /// timeline snapshots) and folded into the matchup/lead aggregates per transaction.
     /// Kept modest so a batch's working set and its upsert / flag transaction stay
     /// bounded; the run loops batches until the per-run cap or the pending backlog is
-    /// exhausted. Mirrors <see cref="PowerspikeAggregationOptions.MatchBatchSize"/>.
+    /// exhausted.
     /// </summary>
     public int MatchBatchSize { get; set; } = 500;
 

@@ -175,37 +175,6 @@ export interface ChampionScalingBucket {
 }
 
 /**
- * Event spikes for a champion at a position, scoped to one core build (issue
- * #571, scoped per build in #890): the items that build completes and the level
- * milestones (6/11/16), each carrying how much the champion's power accelerates
- * around it. The mean power curve is no longer returned — it is only the
- * baseline the spikes are measured against, server-side.
- */
-export interface ChampionPowerspikesResponse {
-  championId: number
-  position: string
-  patch: string | null
-  /** Spike events, ordered by descending magnitude. */
-  events: ChampionPowerspikeEvent[]
-}
-
-export interface ChampionPowerspikeEvent {
-  type: 'item' | 'level'
-  /** Item id for `item` events; champion level (6/11/16) for `level` events. */
-  refId: number
-  /** Mean minute the event occurs across games. */
-  avgMinute: number
-  /**
-   * Mean change in the power-curve slope across a ±3 min window around the
-   * event (after − before), in excess of the baseline curvature the mean curve
-   * shows at that minute. Positive = the champion's advantage accelerates after
-   * the event beyond the norm — the power spike.
-   */
-  spikeMagnitude: number
-  games: number
-}
-
-/**
  * How much a champion roams at a position: the average number of out-of-lane
  * kill participations (kills + assists) per game at the 5/10/15-minute marks
  * (cumulative). A roam is a participation in a different lane, the enemy jungle,

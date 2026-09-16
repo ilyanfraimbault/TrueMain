@@ -132,13 +132,10 @@ public sealed class CommunityDragonItemMetadataProvider(
     /// <remarks>
     /// CommunityDragon mirrors a patch hours-to-days after Riot ships it, so on
     /// every patch day the first games on the new patch reach aggregation while
-    /// <c>/&lt;patch&gt;/</c> still 404s. Treating that as fatal aborted both
-    /// <c>ChampionPatternAggregation</c> and <c>ChampionPowerspikeAggregation</c>
-    /// for the whole live-patch corpus over a handful of new-patch rows (#1107).
-    /// The previous patch's item metadata is a far better answer than no run at
-    /// all: item ids are stable across patches, and powerspike in particular
-    /// flags every match in a batch as folded whether or not it contributed, so
-    /// skipping the rows would drop them from the aggregates permanently.
+    /// <c>/&lt;patch&gt;/</c> still 404s. Treating that as fatal aborted
+    /// <c>ChampionPatternAggregation</c> for the whole live-patch corpus over a
+    /// handful of new-patch rows (#1107). The previous patch's item metadata is a
+    /// far better answer than no run at all: item ids are stable across patches.
     /// </remarks>
     private async Task<(List<CommunityDragonItem> Items, bool IsFallback)> FetchPatchItemsAsync(
         string patch,

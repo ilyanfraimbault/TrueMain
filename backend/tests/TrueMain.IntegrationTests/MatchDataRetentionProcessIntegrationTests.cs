@@ -90,10 +90,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         // the safety net for a destructive operation on a format surprise.
         (await db.ChampionMatchupStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
             .Should().BeEquivalentTo(["16.5", "unknown"]);
-        (await db.ChampionPowerspikeCurveStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
-            .Should().BeEquivalentTo(["16.5"]);
-        (await db.ChampionPowerspikeEventStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
-            .Should().BeEquivalentTo(["16.5"]);
     }
 
     [Fact]
@@ -111,12 +107,10 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             .Should().BeEquivalentTo(["16.4", "16.5"]);
         (await db.ChampionAggregatePatterns.AsNoTracking().CountAsync()).Should().Be(2);
         (await db.ChampionMatchupStats.AsNoTracking().CountAsync()).Should().Be(3);
-        (await db.ChampionPowerspikeCurveStats.AsNoTracking().CountAsync()).Should().Be(2);
-        (await db.ChampionPowerspikeEventStats.AsNoTracking().CountAsync()).Should().Be(2);
     }
 
     [Fact]
-    public async Task RunAsync_ShouldPruneAggregatedSnapshotsToCanonicalMarksOnce()
+    public async Task RunAsync_ShouldPruneTimelineSnapshotsToCanonicalMarksOnce()
     {
         await _fixture.ResetDatabaseAsync();
 
@@ -125,8 +119,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         {
             // Both ranked and in-window, so only the snapshot pruning acts on them.
             seedDb.Matches.AddRange(
-                BuildMatch("PRUNE_AGG", "KR", now.AddHours(-2), "16.4.1", powerspikeAggregated: true),
-                BuildMatch("PRUNE_PENDING", "KR", now.AddHours(-1), "16.4.1", powerspikeAggregated: false));
+                BuildMatch("PRUNE_AGG", "KR", now.AddHours(-2), "16.4.1"),
+                BuildMatch("PRUNE_PENDING", "KR", now.AddHours(-1), "16.4.1", timelineIngested: false));
             seedDb.MatchParticipants.AddRange(
                 BuildParticipant(Guid.Parse("88888888-8888-8888-8888-8888888888b1"), "PRUNE_AGG"),
                 BuildParticipant(Guid.Parse("88888888-8888-8888-8888-8888888888b2"), "PRUNE_PENDING"));
@@ -143,8 +137,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests
 
         await using var db = _fixture.CreateDbContext();
 
-        // The aggregated match is reduced to the canonical marks and flagged, so a
-        // second run skips it.
+        // The legacy dense grid of a timeline-ingested match is reduced to the canonical
+        // marks and flagged, so a second run skips it.
         var aggMinutes = await db.MatchParticipantTimelineSnapshots.AsNoTracking()
             .Where(snapshot => snapshot.MatchId == "PRUNE_AGG")
             .Select(snapshot => snapshot.IntervalMinute)
@@ -156,8 +150,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             .Select(match => match.TimelineSnapshotsPruned)
             .SingleAsync()).Should().BeTrue();
 
-        // The not-yet-aggregated match keeps its full dense grid and stays unflagged —
-        // the powerspike aggregation still needs those minutes.
+        // A match whose timeline ingestion has not completed is left alone and stays
+        // unflagged, so it is pruned once its timeline lands.
         (await db.MatchParticipantTimelineSnapshots.AsNoTracking()
             .CountAsync(snapshot => snapshot.MatchId == "PRUNE_PENDING")).Should().Be(30);
         (await db.Matches.AsNoTracking()
@@ -165,70 +159,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             .Select(match => match.TimelineSnapshotsPruned)
             .SingleAsync()).Should().BeFalse();
     }
-
-    [Fact]
-    public async Task RunAsync_ShouldCollapsePerOpponentPowerspikeRowsOnFrozenPatchesOnly()
-    {
-        await _fixture.ResetDatabaseAsync();
-        await SeedRetentionDataAsync();
-
-        // With one patch retained per platform the live set is {16.4 (KR), 16.5 (NA1)},
-        // so 16.3 is the frozen patch the collapse must act on.
-        await using (var seedDb = _fixture.CreateDbContext())
-        {
-            foreach (var patch in new[] { "16.3", "16.4" })
-            {
-                foreach (var opponent in new[] { 51, 61 })
-                {
-                    seedDb.ChampionPowerspikeEventStats.Add(PowerspikeEvent(patch, opponent, games: 12));
-                }
-            }
-
-            await seedDb.SaveChangesAsync();
-        }
-
-        await BuildRecordedProcess(retainedPatchCount: 1).RunCoreAsync(CancellationToken.None);
-
-        await using var db = _fixture.CreateDbContext();
-        var rows = await db.ChampionPowerspikeEventStats.AsNoTracking()
-            .OrderBy(stat => stat.Patch).ThenBy(stat => stat.OpponentChampionId)
-            .Select(stat => new { stat.Patch, stat.OpponentChampionId, stat.Games })
-            .ToListAsync();
-
-        // The frozen patch keeps one opponent-less row carrying both shards' games.
-        // 12 + 12 = 24 is the point: each shard alone sits under the 20-game floor the
-        // sub-floor prune applies right after, so without the collapse the patch would
-        // lose its spikes entirely — including for the unscoped read, which kept them
-        // before the opponent dimension existed.
-        rows.Where(row => row.Patch == "16.3").Should().BeEquivalentTo(
-            new[] { new { Patch = "16.3", OpponentChampionId = 0, Games = 24 } });
-
-        // The live patch is untouched: its split is still being queried by the page.
-        rows.Where(row => row.Patch == "16.4").Should().BeEquivalentTo(
-        [
-            new { Patch = "16.4", OpponentChampionId = 51, Games = 12 },
-            new { Patch = "16.4", OpponentChampionId = 61, Games = 12 }
-        ]);
-    }
-
-    private static ChampionPowerspikeEventStat PowerspikeEvent(string patch, int opponentChampionId, int games)
-        => new()
-        {
-            Id = Guid.NewGuid(),
-            ChampionId = 22,
-            TeamPosition = "BOTTOM",
-            Patch = patch,
-            EloBracket = "GOLD",
-            BuildFirstItemId = 6672,
-            BuildKeystoneId = 8008,
-            OpponentChampionId = opponentChampionId,
-            EventType = "level",
-            RefId = 6,
-            SumSpike = games * 0.01,
-            SumMinute = games * 6d,
-            Games = games,
-            AggregatedAtUtc = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc)
-        };
 
     private async Task SeedAggregateDataAsync()
     {
@@ -261,29 +191,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
                 EloBracket = "GOLD",
                 Games = 5,
                 Wins = 3,
-                AggregatedAtUtc = aggregatedAt
-            });
-            db.ChampionPowerspikeCurveStats.Add(new ChampionPowerspikeCurveStat
-            {
-                Id = Guid.NewGuid(),
-                ChampionId = 22,
-                TeamPosition = "BOTTOM",
-                Patch = patch,
-                EloBracket = "GOLD",
-                IntervalMinute = 10,
-                Games = 5,
-                AggregatedAtUtc = aggregatedAt
-            });
-            db.ChampionPowerspikeEventStats.Add(new ChampionPowerspikeEventStat
-            {
-                Id = Guid.NewGuid(),
-                ChampionId = 22,
-                TeamPosition = "BOTTOM",
-                Patch = patch,
-                EloBracket = "GOLD",
-                EventType = "level",
-                RefId = 6,
-                Games = 5,
                 AggregatedAtUtc = aggregatedAt
             });
         }
@@ -372,7 +279,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         int queueId = 420,
         string gameMode = "CLASSIC",
         int mapId = 11,
-        bool powerspikeAggregated = false)
+        bool timelineIngested = true)
     {
         return new Match
         {
@@ -386,8 +293,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests
             GameDurationSeconds = 1800,
             GameVersion = gameVersion,
             CreatedAtUtc = gameStartTimeUtc,
-            TimelineIngested = true,
-            PowerspikeAggregated = powerspikeAggregated
+            TimelineIngested = timelineIngested
         };
     }
 

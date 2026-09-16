@@ -37,7 +37,7 @@ grep -l "TrueMainDbContext" $(find backend/Api/Services -name "*QueryService*.cs
 **Written down because a review read the table names and inferred the wrong rule** (#1251). "Postgres schema,
 therefore snake_case everywhere" is a reasonable guess and it is wrong here: every table is snake_case
 (`champion_matchup_stats`, `riot_accounts`), and every column is quoted **PascalCase** (`"ChampionId"`,
-`"IsMain"`, `"PowerspikeAggregated"` — see the raw SQL filters in `MatchConfiguration` and
+`"IsMain"`, `"SynergyAggregated"` — see the raw SQL filters in `MatchConfiguration` and
 `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`). There is exactly one exception, `elo_bracket`, mapped by
 hand with `HasColumnName` in seven configurations. Applied literally, the "snake_case columns" reading would
 have produced new snake_case columns in the middle of a PascalCase schema — making the mix worse in the name

@@ -18,7 +18,7 @@ interface ChampionPatchSliceConfig<T> {
 
 /**
  * Factory for the patch-scoped champion detail slices (timeline leads /
- * scaling / powerspikes / roam). They all share the same contract:
+ * scaling / roam). They all share the same contract:
  *
  * - keyed on (champion, position, patch, elo) so each slice dedupes with the
  *   rest of the detail page and re-fetches when any filter changes;

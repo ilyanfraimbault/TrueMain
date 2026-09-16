@@ -10,8 +10,8 @@ namespace DevSeed;
 /// every read path the champion page exercises:
 ///
 /// - Raw <c>matches</c> / <c>match_participants</c> / timeline snapshots / kill
-///   positions, for the live-computed reads (Roam, Scaling, the live matchup /
-///   powerspikes fallback).
+///   positions, for the live-computed reads (Roam, Scaling, the live matchup
+///   fallback).
 /// - <c>champion_matchup_stats</c> (#606 pre-aggregation), accumulated from the
 ///   very same synthetic games so the live and pre-aggregated numbers agree, and
 ///   split per (patch, elo bracket) like the real fold — the matchups panel is

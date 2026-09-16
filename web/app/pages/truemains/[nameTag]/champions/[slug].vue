@@ -347,12 +347,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
               :summoners-pending="isLoadingStatus(summonersStatus)"
               :rune-tree="runeTree ?? null"
             />
-            <!-- These tabs carry no population scope, so the real card has no
-                 power-spikes section for the skeleton to reserve. -->
-            <ChampionBuildTabsSkeleton
-              v-else
-              :powerspikes="false"
-            />
+            <ChampionBuildTabsSkeleton v-else />
           </template>
 
           <!-- This player's recent games on this champion — rendered even when the

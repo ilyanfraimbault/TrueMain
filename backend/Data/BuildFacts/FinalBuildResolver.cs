@@ -143,8 +143,8 @@ public static class FinalBuildResolver
     /// is not that test — it only means "nothing builds out of this", which is also
     /// true of potions, wards, trinkets, Doran's and support-quest items. Anything
     /// reading purchases to talk about a *build* has to apply this whole predicate,
-    /// so it is public and lives here: the powerspike fold used to restate a looser
-    /// version of it and surfaced consumables as power spikes (#1021).
+    /// so it is public and lives here: a fold that restated a looser version of it
+    /// surfaced consumables as build items (#1021).
     /// </summary>
     public static bool IsEligibleFinalBuildItem(ItemMetadata metadata)
         => metadata is { IsFinalItem: true, IsConsumable: false }

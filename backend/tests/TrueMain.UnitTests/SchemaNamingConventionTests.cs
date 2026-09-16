@@ -14,7 +14,7 @@ namespace TrueMain.UnitTests;
 /// The convention is <b>tables snake_case, columns PascalCase</b> — not "snake_case
 /// everywhere", which is what a reader assumes from the table names alone. Every column in
 /// the schema is quoted PascalCase (<c>"ChampionId"</c>, <c>"IsMain"</c>,
-/// <c>"PowerspikeAggregated"</c> — visible in the raw SQL filters and in
+/// <c>"SynergyAggregated"</c> — visible in the raw SQL filters and in
 /// <c>Data/DataQuality/ChampionDimensionCanonicalKeys.cs</c>) with exactly one historical
 /// exception, <c>elo_bracket</c>, mapped by hand in seven configurations. Renaming either
 /// side is a heavy migration over frozen tables for no gain, so the schema stands and these

@@ -15,26 +15,25 @@ public readonly record struct ChampionCohortKey(string MatchId, int ParticipantI
 /// player is a main of that champion</b>.
 ///
 /// <para>
-/// <b>Why it lives in <c>Data</c> and why it is shared.</b> Four folds write the panels
+/// <b>Why it lives in <c>Data</c> and why it is shared.</b> Several folds write the panels
 /// stacked on one champion page — <c>ChampionMatchupLeadAggregationProcess</c> and
-/// <c>ChampionLaneOutcomeAggregationProcess</c> (the matchups panel),
-/// <c>ChampionSynergyAggregationProcess</c> (synergies) and
-/// <c>ChampionPowerspikeAggregationProcess</c> (power spikes) — beside a header read
+/// <c>ChampionLaneOutcomeAggregationProcess</c> (the matchups panel) and
+/// <c>ChampionSynergyAggregationProcess</c> (synergies) — beside a header read
 /// from <c>champion_aggregate_scopes</c>. Whenever one of them restates the cohort in
 /// its own words the numbers drift apart while still looking comparable: #1087 measured
 /// 14 576 games behind the matchups panel against 4 605 behind the header immediately
 /// above it, on the same champion, lane and patch — a factor of 3.2 — because the folds
 /// gated on <c>RiotAccountId != null</c> ("an account we know") while the aggregate
 /// gated on <c>IsMain</c> ("a main of this champion", the site's premise). #1087 fixed
-/// the two matchup folds; the synergy and powerspike folds carried the same defect
-/// until #1365 pointed them here too.
+/// the two matchup folds; the synergy fold carried the same defect until #1365 pointed
+/// it here too.
 /// </para>
 ///
 /// <para>
-/// <b>The queried side only.</b> The opponent of a matchup, the partner of a synergy
-/// pairing and the lane opponent a spike is measured against are whoever was in that
-/// game, main or not, tracked or not. Narrowing them would measure "how this champion's
-/// mains do against/with that champion's mains", a different and much thinner question —
+/// <b>The queried side only.</b> The opponent of a matchup and the partner of a synergy
+/// pairing are whoever was in that game, main or not, tracked or not. Narrowing them would
+/// measure "how this champion's mains do against/with that champion's mains", a different
+/// and much thinner question —
 /// and for synergy it would break the maths outright, since the expected value is built
 /// from a partner side drawn from the general population (#922).
 /// </para>
@@ -42,7 +41,7 @@ public readonly record struct ChampionCohortKey(string MatchId, int ParticipantI
 /// <para>
 /// <b>Mains, not the widened population.</b> The aggregate behind the header carries
 /// both populations since #1346 and its reads choose, defaulting to truemains; these
-/// four tables carry no such dimension, so they answer for mains only and the matchups
+/// tables carry no such dimension, so they answer for mains only and the matchups
 /// panel already rejects <c>truemainsOnly=false</c> rather than mislabelling them.
 /// Gating here on <c>IsMain</c> is therefore what makes the panels agree with the
 /// header's default — the number a reader compares them against.
@@ -113,9 +112,8 @@ public static class ChampionCohort
         }
 
         // The matches of the batch that are games rather than remakes. Kept separately
-        // from the member keys because the powerspike fold's normaliser is accumulated
-        // over every lane pair of a match, tracked or not, and still must not be fed a
-        // remake.
+        // from the member keys so a fold can skip a remake as a whole, whether or not it
+        // has a cohort member.
         var eligibleMatchIds = await db.Matches
             .AsNoTracking()
             .Where(match => matchIds.Contains(match.Id)

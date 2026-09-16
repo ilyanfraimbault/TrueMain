@@ -132,7 +132,7 @@ version probe becoming the new hot query. An empty database is just another vers
 fold invalidates the empty answers by moving the token.
 
 **For the live folds the backstop *is* the freshness bound, and that is the trade.** Roam, scaling, item
-timings, powerspikes, synergies, the live branch of matchups, mains-comparison and the composition selection
+timings, synergies, the live branch of matchups, mains-comparison and the composition selection
 read `match_participants` directly, so they also move with match ingestion — which since #1374 runs in a lane
 of its own, decoupled from aggregation. The token does not track that, so those answers can sit up to the
 30-minute absolute expiry where they used to sit one minute. Accepted knowingly: these are precisely the reads
