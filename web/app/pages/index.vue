@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { RegionSlug } from '~~/shared/types/leaderboard'
 import { formatCompactCount } from '~~/shared/utils/counts'
 import { isLoadingStatus } from '~/utils/async-data'
 
@@ -40,30 +39,14 @@ const tierlistPending = computed(() =>
   isLoadingStatus(overviewStatus.value) || isLoadingStatus(staticListStatus.value))
 
 // ─── Truemains teaser (SSR, like the /truemains page) ─────────────────────
-const region = ref<RegionSlug | null>(null)
 const {
   rows: truemainRows,
   total: truemainsTotal,
   isInitialLoading: truemainsInitialLoading,
-  isLoading: truemainsLoading,
-} = useTruemainsLeaderboard(1, { pageSize: 5, region })
+} = useTruemainsLeaderboard(1, { pageSize: TRUEMAINS_TEASER_ROWS })
 
-// "Truemains tracked" chip: read the live total while the region filter is
-// off, and fall back to a latched copy once the user flips the region tabs
-// (the filtered total is the region's count, not the global one). The latch
-// is client-only and the computed reads `total` directly — a watcher-set ref
-// would stay null in the SSR HTML (watchers don't flush during SSR) while
-// hydration sets it synchronously, a guaranteed node mismatch.
-const latchedTotal = ref<number | null>(null)
-if (import.meta.client) {
-  watch(truemainsTotal, (value) => {
-    if (region.value === null && value > 0) latchedTotal.value = value
-  }, { immediate: true })
-}
 const trackedTruemains = computed(() =>
-  region.value === null && truemainsTotal.value > 0
-    ? truemainsTotal.value
-    : latchedTotal.value)
+  truemainsTotal.value > 0 ? truemainsTotal.value : null)
 
 // ─── Hero stat chips — every number is derived from a real payload ────────
 const overviewPending = computed(() => isLoadingStatus(overviewStatus.value))
@@ -188,11 +171,9 @@ const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
            and cause a structural hydration mismatch. The ~373 KiB item map it
            needs is instead deferred inside the panel (visibility-gated fetch). -->
       <HomeTruemainsPanel
-        v-model:region="region"
         :rows="truemainRows"
         :champions-by-id="championsById"
         :initial-loading="truemainsInitialLoading"
-        :loading="truemainsLoading"
         :patch="ddragonPatch"
       />
     </section>

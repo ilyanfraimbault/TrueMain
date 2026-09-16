@@ -34,45 +34,33 @@ const rows = computed(() =>
 
 <template>
   <section
-    class="surface rounded-2xl p-3 sm:p-4"
+    class="surface flex flex-col rounded-2xl p-3 sm:p-4"
     aria-labelledby="home-tierlist-title"
   >
-    <header class="flex items-center justify-between gap-3 pb-3">
+    <header class="pb-2">
       <h2
         id="home-tierlist-title"
         class="text-sm font-semibold text-default"
       >
         Tier list
       </h2>
-      <UButton
-        to="/champions"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        trailing-icon="i-lucide-arrow-right"
-        label="Full tier list"
-      />
     </header>
 
     <ul
       v-if="rows.length > 0"
-      class="space-y-1"
+      class="space-y-0.5"
     >
       <li
-        v-for="(row, index) in rows"
+        v-for="row in rows"
         :key="`${row.championId}-${row.position}`"
       >
         <!-- `-mx-2 px-2` bleeds the hover background slightly into the panel
-             padding while keeping the rank flush with the section header
+             padding while keeping the icon flush with the section header
              instead of indenting the whole row. -->
         <NuxtLink
           :to="{ path: pathFor(row.championId), query: { position: row.position } }"
           class="surface-hover -mx-2 flex items-center gap-3 rounded-lg px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <span class="w-4 shrink-0 text-center text-xs tabular-nums text-dimmed">
-            {{ index + 1 }}
-          </span>
-
           <SkeletonImage
             :src="row.iconUrl"
             :alt="row.name"
@@ -115,5 +103,16 @@ const rows = computed(() =>
     >
       No champion stats for this patch yet.
     </p>
+
+    <footer class="mt-auto flex justify-end pt-2">
+      <UButton
+        to="/champions"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+        trailing-icon="i-lucide-arrow-right"
+        label="Full tier list"
+      />
+    </footer>
   </section>
 </template>
