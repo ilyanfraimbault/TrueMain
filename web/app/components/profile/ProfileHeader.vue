@@ -20,10 +20,19 @@ const iconUrl = computed(() => getProfileIconUrl(props.identity.profileIconId, p
 
 const region = computed(() => platformIdToRegion(props.identity.platformId))
 
-const displayName = computed(() => {
-  return props.identity.tagLine
-    ? `${props.identity.gameName}#${props.identity.tagLine}`
-    : props.identity.gameName
+const tag = computed(() => (props.identity.tagLine ? `#${props.identity.tagLine}` : ''))
+
+/**
+ * Riot IDs run up to 16 + 5 characters, which at `text-2xl` is wider than the
+ * rail. The title wraps before the `#`, so the widest line is whichever part is
+ * longer; the font then shrinks until that line fits the name block's width
+ * (`100cqi`) minus the follow star and its gap (2.25rem). 0.62em is Inter
+ * semibold's average advance for ordinary IDs, measured; wide-glyph outliers
+ * (`WWWW…`) still fit through the `overflow-wrap: anywhere` fallback.
+ */
+const titleStyle = computed(() => {
+  const chars = Math.max(props.identity.gameName.length, tag.value.length, 1)
+  return { fontSize: `clamp(1rem, (100cqi - 2.25rem) / ${(chars * 0.62).toFixed(2)}, 1.5rem)` }
 })
 </script>
 
@@ -35,16 +44,25 @@ const displayName = computed(() => {
     <SkeletonImage
       :src="iconUrl"
       :alt="`${identity.gameName} profile icon`"
-      class="size-20 rounded-lg"
+      class="size-20 shrink-0 rounded-lg"
     />
-    <div class="flex min-w-0 flex-col items-start gap-1">
+    <!-- An inline-size container so the title can size itself against the room
+         actually left beside (or, stacked, under) the icon. Containment drops
+         content-based sizing, hence `flex-1` and the stacked `self-stretch`. -->
+    <div
+      class="@container flex min-w-0 flex-1 flex-col items-start gap-1"
+      :class="stacked ? 'xl:self-stretch' : undefined"
+    >
       <!-- The follow star sits on the Riot ID, not under the identity block:
            it acts on the account the title names, and as a labelled pill on its
            own line it read as a third stat under the level rather than as a
            control attached to the name. -->
       <div class="flex min-w-0 items-center gap-2">
-        <h1 class="min-w-0 break-words text-2xl font-semibold leading-tight">
-          {{ displayName }}
+        <h1
+          class="min-w-0 font-semibold leading-tight [overflow-wrap:anywhere]"
+          :style="titleStyle"
+        >
+          {{ identity.gameName }}<wbr>{{ tag }}
         </h1>
         <FavoriteToggle
           :game-name="identity.gameName"
