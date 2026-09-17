@@ -220,3 +220,19 @@ rune and spell icon tooltips mount on the first hover — #1585.
 - **Kept after first open**, so switching back to a tab is instant and keeps its state; a new set of builds
   starts over on its first tab.
 
+
+## Focus moves to the content only when the path changes (2026-09-17)
+
+**Decision:** after a client-side navigation, focus moves to `#main-content` (the `UMain` in `app.vue`) only when
+the path changed and the navigation is not the initial one; the skip link focuses the same region without writing a
+hash to the URL — #1616.
+
+- **Why path, not any navigation.** The champion page's filters, the leaderboard pager and the player page's match
+  filters are `router.replace` calls on the same path. Moving focus there would pull the keyboard out of the control
+  the reader is still operating, one click at a time.
+- **After `page:finish`, not in `afterEach`.** The guard runs before the new page is mounted; focusing then parks the
+  keyboard in front of the outgoing page.
+- **`preventScroll` on both paths.** `<main>` starts under the sticky header, so `focus()` with scrolling aligned its
+  top with the viewport's and hid the page's first row behind the header; the next Tab scrolls to its own target.
+- **One `<main>`, owned by the shell** (#1615). Pages render a single non-landmark root: two nested `main` landmarks
+  made "jump to main" ambiguous, and page transitions need a single root element.

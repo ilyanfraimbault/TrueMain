@@ -137,6 +137,7 @@ Last verified against `develop` on 2026-09-02.
 - `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26); a local Nuxt layer was rejected for now (2026-09-17) and a CI drift check is planned — #1226, #947, #966, #1623, #1625
 - SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14) — #1557, #1546
 - Static game data is cached by the browser for the hour the server caches it (2026-09-15) — #1584
+- Focus moves to the content only when the path changes; the shell owns the single `<main>` (2026-09-17) — #1616, #1615
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
