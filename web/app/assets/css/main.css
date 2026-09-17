@@ -455,3 +455,59 @@ html {
   --vis-tooltip-border-radius: 0;
   --vis-tooltip-box-shadow: none;
 }
+
+/*
+ * Page transitions (#1621) — the browser's View Transitions API, switched on
+ * by `experimental.viewTransition` in nuxt.config.ts. Nuxt starts one only
+ * when the page component changes: a query-only navigation (the champion
+ * page's filters, the pagers) re-renders in place, and `prefers-reduced-motion:
+ * reduce` skips it entirely.
+ *
+ * Restrained on purpose — this is a dense data UI, and the transition's only
+ * job is to say "the page changed" rather than "it re-rendered". The content
+ * region (`#main-content`, the `UMain` in app.vue) is its own layer: the
+ * outgoing page fades out quickly, the incoming one fades in with a 6px rise,
+ * starting once the old one is half gone — a plain cross-fade shows two dense
+ * tables on top of each other mid-way, which reads as noise, not motion.
+ * The shell (header, footer) stays in the root layer, where the stock
+ * cross-fade of two near-identical frames only shows the nav highlight moving.
+ *
+ * The group's size morph is turned off: two pages rarely share a height, and a
+ * box stretching between them reads as layout jank, not motion. The fade-in is
+ * short enough to be over before a client-side fetch lands, so a page that
+ * opens on skeletons fills in afterwards as an update, not as a second
+ * navigation.
+ */
+#main-content {
+  view-transition-name: page;
+}
+
+::view-transition-group(page) {
+  animation: none;
+}
+
+::view-transition-old(page) {
+  animation: 90ms ease-in both page-out;
+}
+
+::view-transition-new(page) {
+  animation: 180ms ease-out 60ms both page-in;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 150ms;
+}
+
+@keyframes page-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

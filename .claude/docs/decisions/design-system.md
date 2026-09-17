@@ -204,3 +204,21 @@ shape to compare against.
   the entry is back to +0.2 KB (the theme in `app.config.ts`). Excluding the unused themes from the CSS with
   `@source not` was rejected: it would silently leave the next `Prose*` component a page adopts unstyled — the
   static-extraction trap `DESIGN_SYSTEM.md` already warns about.
+
+## Page transitions are a staggered fade of the content only (2026-09-17)
+
+**Decision:** page changes use the browser's View Transitions API through `experimental.viewTransition: true`,
+animating only `#main-content`: the old page fades out in 90 ms, the new one fades in over 180 ms with a 6 px rise,
+starting at 60 ms — #1621.
+
+- **Content only.** The header and footer stay in the root layer, whose stock cross-fade of two near-identical
+  frames only shows the nav highlight moving. The content group's size morph is disabled: two pages rarely share a
+  height, and a stretching box reads as jank.
+- **Staggered, not a cross-fade.** A plain cross-fade shows two dense tables on top of each other half-way through,
+  which reads as noise on this UI (observed on paused frames).
+- **Where it does not run.** Nuxt starts a transition only when the page component changes, so the champion page's
+  filter clicks and the pagers (same-path `router.replace`) never animate; `true` rather than `'always'` skips it
+  under `prefers-reduced-motion: reduce`. Both verified in the browser.
+- **Known cost.** The browser freezes the old frame from the start of the navigation until Nuxt's `page:finish`,
+  and aborts the animation after 4 s. A page that awaits data in setup (the champion page's build summary) or a cold
+  chunk load therefore shows a frozen frame for that time instead of a live one.

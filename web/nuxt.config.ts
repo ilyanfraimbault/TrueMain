@@ -181,6 +181,12 @@ export default defineNuxtConfig({
   },
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
+  experimental: {
+    // Page transitions through the View Transitions API (#1621); the motion
+    // itself is in main.css. `true`, not `'always'`: Nuxt then skips the
+    // transition for visitors who ask for reduced motion.
+    viewTransition: true,
+  },
   // Dark-only: there is no colour-mode toggle in the header any more. The
   // module stays installed because @nuxt/ui depends on it, and it has no
   // "forced" switch — `preference` is only a *default*, and a returning visitor
