@@ -32,6 +32,7 @@ const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.va
 // elo bracket and the backend does the per-role tiering. Client-only
 // (`server: false`) to keep the SSR shell deterministic, mirroring the
 // /champions directory page.
+const apiFetch = useApiFetch()
 const {
   data: tierList,
   error: tierListError,
@@ -47,7 +48,7 @@ const {
     // Sent only when off: true is the API default, so pinning it would just make
     // every resting request carry a redundant param.
     if (!filters.value.truemainsOnly) query.truemainsOnly = 'false'
-    return $fetch<ChampionTierListResponse>('/api/champions/tierlist', { query })
+    return apiFetch<ChampionTierListResponse>('/champions/tierlist', { query })
   },
   {
     watch: [

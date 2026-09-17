@@ -40,6 +40,7 @@ const { currentPage, setPage } = useRoutePage()
 // Pagination is applied client-side below so search + position filters can
 // stay client-side too and the user can paginate filtered subsets without
 // extra round-trips.
+const apiFetch = useApiFetch()
 const {
   data: summaries,
   error: summariesError,
@@ -50,7 +51,7 @@ const {
   () => {
     const patch = filters.value.patch
     const elo = filters.value.eloBracket
-    return $fetch<ChampionSummaryResponse[]>('/api/champions', {
+    return apiFetch<ChampionSummaryResponse[]>('/champions', {
       query: {
         ...(patch ? { patch } : {}),
         // Cumulative "X+" threshold; the composable already omits the default
