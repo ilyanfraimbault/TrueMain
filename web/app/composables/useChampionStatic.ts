@@ -17,13 +17,15 @@ export function useChampionStatic(
   // back, or the TTL entry lands under a key nothing ever looks up.
   const keyRef = computed(() => `champion-static-${toValue(championId)}-${toValue(patch) || 'none'}`)
 
+  const apiFetch = useApiFetch()
+
   return useLazyAsyncData<ChampionStaticData>(
     () => keyRef.value,
     async () => {
       const id = toValue(championId)
       const resolvedPatch = toValue(patch) ?? ''
       const key = keyRef.value
-      const data = await $fetch<ChampionStaticData>(`/api/static/${id}`, {
+      const data = await apiFetch<ChampionStaticData>(`/static/${id}`, {
         query: { patch: resolvedPatch },
       })
       markStaticFetched(key, nuxtApp)

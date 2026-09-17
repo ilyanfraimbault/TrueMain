@@ -15,10 +15,11 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
  */
 export function useChampionStaticList() {
   const nuxtApp = useNuxtApp()
+  const apiFetch = useApiFetch()
   return useLazyAsyncData<ChampionStaticListItem[]>(
     'champion-static-list',
     async () => {
-      const data = await $fetch<ChampionStaticListItem[]>('/api/static/champions')
+      const data = await apiFetch<ChampionStaticListItem[]>('/static/champions')
       markStaticFetched('champion-static-list', nuxtApp)
       return data
     },

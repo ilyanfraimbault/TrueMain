@@ -27,16 +27,11 @@ const LEGACY = new Set([
   'composables/useTruemainRankHistory.ts',
   'composables/useTruemainSearch.ts',
   // Not migrated yet (#1619).
-  'composables/useChampionStaticList.ts',
-  'composables/useChampionStatic.ts',
-  'composables/useDDragonVersions.ts',
-  'composables/useMatchDetail.ts',
   'pages/champions/index.vue',
   'pages/champions/tierlist.vue',
   'pages/dev/match-row.vue',
   'pages/dev/profile.vue',
   'plugins/champion-slugs.ts',
-  'plugins/static-prefetch.client.ts',
 ])
 
 const APP_DIR = fileURLToPath(new URL('../../app', import.meta.url))

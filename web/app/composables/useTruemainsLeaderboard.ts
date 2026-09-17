@@ -90,12 +90,10 @@ export function useTruemainsLeaderboard(
   const fallbackPageSize = options.pageSize ?? 25
   const serverFetch = options.server ?? true
 
-  // The initial render fetches on the server, where a bare `$fetch('/api/…')` is
-  // an in-process call that carries none of the visitor's headers: the API would
-  // key it on the web container, one rate-limit bucket for every visitor at once
-  // (#1557). `useRequestFetch` forwards the incoming request's `X-Forwarded-For`,
-  // and is the plain `$fetch` in the browser.
-  const requestFetch = useRequestFetch()
+  // The initial render fetches on the server, where the visitor has to be forwarded
+  // or the API puts every visitor's SSR call in one rate-limit bucket (#1557) —
+  // `useApiFetch` does that.
+  const apiFetch = useApiFetch()
 
   // `useAsyncData` (not `useFetch`) so the cache key is the page + filter
   // signature rather than the request URL — keeps the key stable and explicit,
@@ -112,7 +110,7 @@ export function useTruemainsLeaderboard(
       // would hydrate the full leaderboard from the teaser's 5 cached rows.
       return `truemains-leaderboard-${pageRef.value}-${fallbackPageSize}-${region}-${position}-${championId}-${otpOnly}-${sortRef.value}`
     },
-    () => requestFetch<LeaderboardResponse>('/api/truemains', { query: buildQuery() }),
+    () => apiFetch<LeaderboardResponse>('/truemains', { query: buildQuery() }),
     {
       server: serverFetch,
       watch: [pageRef, regionRef, positionRef, championIdRef, otpOnlyRef, sortRef],
