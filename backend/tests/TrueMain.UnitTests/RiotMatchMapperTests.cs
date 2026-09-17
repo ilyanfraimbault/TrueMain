@@ -95,6 +95,21 @@ public sealed class RiotMatchMapperTests
     }
 
     [Fact]
+    public void Map_CopiesTheRoleBoundItem()
+    {
+        var dto = BuildMatch();
+        var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
+        participantDto.Item6 = 3363;
+        participantDto.RoleBoundItem = 3006;
+        dto.Info.Participants.Add(participantDto);
+
+        var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
+
+        result.Participants[0].RoleBoundItemId.Should().Be(3006);
+        result.Participants[0].TrinketItemId.Should().Be(3363);
+    }
+
+    [Fact]
     public void Map_CopiesDamageDealtToChampionsAndVisionScore()
     {
         var dto = BuildMatch();

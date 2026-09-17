@@ -132,6 +132,7 @@ internal static class RiotMatchMapper
                 Item5 = participant.Item5,
                 Item6 = participant.Item6,
                 TrinketItemId = participant.Item6,
+                RoleBoundItemId = participant.RoleBoundItem,
                 PerksDefense = participant.Perks.StatPerks.Defense,
                 PerksFlex = participant.Perks.StatPerks.Flex,
                 PerksOffense = participant.Perks.StatPerks.Offense,

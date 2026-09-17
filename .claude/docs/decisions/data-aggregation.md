@@ -198,3 +198,22 @@ index builds follow it; at ~274 k rows that is seconds, but it goes out of band 
 rollout's `migrate` job like every other migration (`docs/production-migrations.md`, #598). The
 indexes are ordinary `CREATE INDEX`, not `CONCURRENTLY`: the rewrite already holds the strongest lock there
 is, so concurrency would buy nothing and cost the ability to run inside the script's transaction.
+
+## A final inventory is slots 0–5 plus the role-bound slot, never the trinket (2026-09-17)
+
+**Every build derivation reads a participant's end-of-game inventory through `Data/BuildFacts/FinalInventory`:
+the six inventory slots and Riot's `roleBoundItem`, stored as `match_participants."RoleBoundItemId"`.**
+`item6` is the trinket slot and nothing else (ward, lens, Farsight, the odd Eye of the Herald). It used to be
+handed to the resolvers as a seventh "final item" and kept out of builds only by an id filter on the
+trinkets. Leaving it out of the input makes a trinket in a build impossible rather than merely filtered.
+
+The role-bound slot exists since the role quests. It holds a bot laner's boots once the quest is done, so an
+ADC can end on six items *and* boots, and the other roles' quest reward (not in the store, so no build picks
+it up). A support's slot holds a Control Ward (a consumable, filtered the same way). Reading it is what lets
+the boots fallback and the profile fold's item archetypes see those boots. Rows ingested before the column
+existed carry 0; their boots were still in slots 0–5, so nothing is lost.
+
+**The match row and the scoreboard draw the inventory the way the game does** (`match/MatchItemGrid.vue`):
+slots 0–5 as a 3×2 grid in slot order, then the trinket over the role-bound slot. #1607 pulled the boots out
+of the grid into that column, thinking a seventh item came through the inventory slots. That left a gap in
+nearly every grid and made the trinket read as one of the six items — `#1612`.

@@ -247,11 +247,12 @@ function ordinal(placement: number) {
           the breakpoints where the items block is hidden.
         -->
         <div class="ml-auto flex shrink-0 items-center gap-2">
-          <!-- Items: the same grid + trinket/boots column as the collapsed row. -->
+          <!-- Items: the same grid + trinket/role-bound column as the collapsed row. -->
           <div class="hidden md:block">
             <MatchItemGrid
               :item-ids="p.items"
               :trinket-item-id="p.trinketItemId"
+              :role-bound-item-id="p.roleBoundItemId"
               :items="items"
               :size="20"
             />

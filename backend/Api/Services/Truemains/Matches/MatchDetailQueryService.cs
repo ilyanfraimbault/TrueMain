@@ -375,12 +375,9 @@ public sealed class MatchDetailQueryService(
                     Kills = p.Kills,
                     Deaths = p.Deaths,
                     Assists = p.Assists,
-                    Items = new[]
-                    {
-                        p.Item0, p.Item1, p.Item2,
-                        p.Item3, p.Item4, p.Item5, p.Item6,
-                    },
+                    Items = new[] { p.Item0, p.Item1, p.Item2, p.Item3, p.Item4, p.Item5 },
                     TrinketItemId = p.TrinketItemId,
+                    RoleBoundItemId = p.RoleBoundItemId,
                     Summoner1Id = p.Summoner1Id,
                     Summoner2Id = p.Summoner2Id,
                     PrimaryStyleId = p.PrimaryStyleId,

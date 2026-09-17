@@ -116,9 +116,9 @@ public sealed class MatchDetailApiIntegrationTests
         main.Kills.Should().Be(10);
         main.Deaths.Should().Be(2);
         main.Assists.Should().Be(5);
-        main.Items.Should().HaveCount(7);
-        main.Items[0].Should().Be(6692);
+        main.Items.Should().Equal(6692, 3047, 0, 0, 0, 0);
         main.TrinketItemId.Should().Be(3340);
+        main.RoleBoundItemId.Should().Be(3006);
         main.Summoner1Id.Should().Be(4);
         main.Summoner2Id.Should().Be(12);
         main.PrimaryStyleId.Should().Be(8000);
@@ -308,6 +308,7 @@ public sealed class MatchDetailApiIntegrationTests
                 Item5 = 0,
                 Item6 = 3340,
                 TrinketItemId = 3340,
+                RoleBoundItemId = isMain ? 3006 : 0,
                 PerksOffense = 5005,
                 PerksFlex = 5008,
                 PerksDefense = 5001,

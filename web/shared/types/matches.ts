@@ -25,8 +25,11 @@ export interface MatchSummarySelf {
   assists: number
   cs: number
   killParticipation: number
+  /** Inventory slots 0..5 (length 6). The trinket is in `trinketItemId`. */
   items: number[]
   trinketItemId: number
+  /** Riot's role-bound slot — a bot laner's quest boots, other roles' quest reward. 0 when empty. */
+  roleBoundItemId: number
   teamId: number
   /** Riot team position (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY). Null when Riot did not assign one. */
   position: string | null

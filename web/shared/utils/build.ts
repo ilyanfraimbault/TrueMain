@@ -50,11 +50,6 @@ export function isNonBuildItem(itemId: number): boolean {
   return NON_BUILD_ITEM_IDS.has(itemId)
 }
 
-/** True when the item is a pair of boots (DDragon `tags` contains "Boots"). */
-export function isBootsItem(item: StaticItemData | null | undefined): boolean {
-  return item?.tags?.includes('Boots') ?? false
-}
-
 /**
  * DDragon flags an item the player can't buy in the shop as
  * `gold.purchasable = false` and/or `inStore = false`. Those items only ever
