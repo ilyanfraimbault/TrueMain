@@ -13,7 +13,7 @@ useSeoMeta({
 </script>
 
 <template>
-  <main class="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
     <PageHeader
       eyebrow="About"
       title="About TrueMain"
@@ -163,5 +163,5 @@ useSeoMeta({
         </p>
       </section>
     </article>
-  </main>
+  </div>
 </template>

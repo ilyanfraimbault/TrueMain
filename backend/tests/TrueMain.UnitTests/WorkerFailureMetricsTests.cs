@@ -31,6 +31,7 @@ public sealed class WorkerFailureMetricsTests
         ("MainActivity", JobMode.MainActivityOnly),
         ("MatchIngestion", JobMode.MatchIngestionOnly),
         ("MatchTeamPositionCorrection", JobMode.TeamPositionCorrectionOnly),
+        ("MatchRoleBoundItemBackfill", JobMode.RoleBoundItemBackfillOnly),
         ("MainAnalysis", JobMode.MainAnalysisOnly),
         ("MatchParticipantEloBracketEnrichment", JobMode.EloBracketEnrichmentOnly),
         ("ChampionPatternAggregation", JobMode.PatternAggregationOnly),

@@ -357,7 +357,7 @@ public sealed class ChampionProfileAggregationProcess(
         int TeamId,
         string TeamPosition,
         bool Win,
-        int Item0, int Item1, int Item2, int Item3, int Item4, int Item5, int RoleBoundItemId,
+        int Item0, int Item1, int Item2, int Item3, int Item4, int Item5, int? RoleBoundItemId,
         int? PhysicalDamage,
         int? MagicDamage,
         int? TrueDamage,
