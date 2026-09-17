@@ -169,7 +169,7 @@ Last verified against `develop` on 2026-09-02.
 - PUUID indexing is intentional — do not propose dropping it or migrating to `RiotAccountId`-only — #123, #124
 - Pattern aggregates use a junction model (`champion_aggregate_patterns` + globally deduplicated `champion_dim_*`)
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
-- A final inventory is slots 0–5 plus Riot's role-bound slot; the trinket slot is never a build input, and the match row draws the inventory the way the game does (2026-09-17) — #1612, #1607
+- A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
 
 ## Backend code conventions — [`decisions/backend-conventions.md`](decisions/backend-conventions.md)
 

@@ -195,7 +195,7 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
             PrimaryPerk3Id = runePage.PrimaryPerk3Id,
             SecondaryPerk1Id = runePage.SecondaryPerk1Id,
             SecondaryPerk2Id = runePage.SecondaryPerk2Id,
-            Item0 = 3153, Item1 = 3006, Item2 = 0, Item3 = 0, Item4 = 0, Item5 = 0, RoleBoundItemId = 0,
+            Item0 = 3153, Item1 = 3006, Item2 = 0, Item3 = 0, Item4 = 0, Item5 = 0, RoleBoundItemId = null,
             ItemEvents =
             [
                 new ItemEvent { TimestampMs = 5_000 * skillBias, ItemId = 1001, EventType = "ITEM_PURCHASED" },

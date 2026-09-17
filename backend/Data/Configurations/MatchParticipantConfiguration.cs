@@ -141,8 +141,6 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
 
         entity.Property(e => e.TrinketItemId)
             .IsRequired();
-        entity.Property(e => e.RoleBoundItemId)
-            .IsRequired();
 
         entity.Property(e => e.PerksDefense)
             .IsRequired();
@@ -202,6 +200,12 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         entity.HasIndex(
             e => new { e.ChampionId, e.TeamPosition, e.EloBracket },
             "IX_match_participants_champion_position_full");
+
+        // The role-bound backfill's work queue (#1612): bot-lane rows ingested before
+        // the column existed. Partial, so it holds only what is left to drain and the
+        // steady-state scan is an empty index read instead of a pass over the table.
+        entity.HasIndex(e => e.Id, "IX_match_participants_role_bound_pending")
+            .HasFilter("\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
 
         entity.HasOne(e => e.RiotAccount)
             .WithMany()
