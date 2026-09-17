@@ -30,6 +30,7 @@ public static class IngestorProcessServiceCollectionExtensions
         services.AddRecordedProcess<MainActivityProcess>(JobMode.MainActivityOnly);
         services.AddRecordedProcess<MatchIngestionProcess>(JobMode.MatchIngestionOnly);
         services.AddRecordedProcess<MatchTeamPositionCorrectionProcess>(JobMode.TeamPositionCorrectionOnly);
+        services.AddRecordedProcess<MatchRoleBoundItemBackfillProcess>(JobMode.RoleBoundItemBackfillOnly);
         services.AddRecordedProcess<MainAnalysisProcess>(JobMode.MainAnalysisOnly);
         services.AddRecordedProcess<MatchParticipantEloBracketEnrichmentProcess>(JobMode.EloBracketEnrichmentOnly);
         services.AddRecordedProcess<ChampionPatternAggregationProcess>(JobMode.PatternAggregationOnly);

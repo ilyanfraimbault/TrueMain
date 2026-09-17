@@ -216,6 +216,9 @@ public sealed record EloBracketEnrichmentSummary(int Stamped, int Deferred, int 
 /// <summary>Team position correction outcome.</summary>
 public sealed record TeamPositionCorrectionSummary(int CorrectedParticipants, int InspectedTeams) : IProcessRunSummary;
 
+/// <summary>Role-bound slot backfill outcome (#1612).</summary>
+public sealed record RoleBoundItemBackfillSummary(int Resolved, int InferredBoots, int Batches) : IProcessRunSummary;
+
 /// <summary>
 /// Champion synergy aggregation outcome (#922). Carries the two upsert counts on
 /// top of the shared match/batch pair so the admin's aggregation page can tell a

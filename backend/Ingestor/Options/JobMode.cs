@@ -67,5 +67,11 @@ public enum JobMode
     /// Folds each match into the situational item context and rebuilds its verdicts
     /// (#1450). Appended for the same reason as the values above.
     /// </summary>
-    ChampionItemContextAggregationOnly = 25
+    ChampionItemContextAggregationOnly = 25,
+
+    /// <summary>
+    /// Infers the role-bound slot of bot-lane rows ingested before it was recorded
+    /// (#1612). Appended for the same reason as the values above.
+    /// </summary>
+    RoleBoundItemBackfillOnly = 26
 }

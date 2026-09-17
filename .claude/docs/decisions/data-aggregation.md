@@ -207,11 +207,20 @@ the six inventory slots and Riot's `roleBoundItem`, stored as `match_participant
 handed to the resolvers as a seventh "final item" and kept out of builds only by an id filter on the
 trinkets. Leaving it out of the input makes a trinket in a build impossible rather than merely filtered.
 
-The role-bound slot exists since the role quests. It holds a bot laner's boots once the quest is done, so an
-ADC can end on six items *and* boots, and the other roles' quest reward (not in the store, so no build picks
-it up). A support's slot holds a Control Ward (a consumable, filtered the same way). Reading it is what lets
-the boots fallback and the profile fold's item archetypes see those boots. Rows ingested before the column
-existed carry 0; their boots were still in slots 0–5, so nothing is lost.
+The role-bound slot exists since the role quests. It **always** holds a bot laner's boots, quest done or not
+(8,127 of 8,378 bot-lane rows on preprod, 2026-09-17; the other roles keep theirs in slots 0–5), so an ADC
+can end on six items *and* boots. The other roles get their quest reward there (not in the store, so no
+build picks it up), and a support gets a Control Ward (a consumable, filtered the same way). Reading the slot
+is what lets the boots fallback and the profile fold's item archetypes see those boots.
+
+**The column is nullable: `NULL` means "never recorded", 0 means "empty".** Rows ingested before the column
+existed lost a bot laner's boots entirely, since they are in neither slots 0–5 nor the trinket.
+`MatchRoleBoundItemBackfillProcess` recovers them from the stored item timeline: the last pair bought, or the
+last pair seen when none was bought (a rune's boots). On preprod's new rows this matched Riot's value for 99 %
+of bot laners, and every miss was that rune's boots, which the fallback covers. Re-fetching from Riot was
+rejected: it spends the match-v5 budget on ~1M rows to recover what the row already holds. The other roles'
+legacy rows stay `NULL` and read as empty, because their quest reward appears nowhere else. The column was
+dropped and re-added rather than altered, so no row was rewritten on a 35 GB table.
 
 **The match row and the scoreboard draw the inventory the way the game does** (`match/MatchItemGrid.vue`):
 slots 0–5 as a 3×2 grid in slot order, then the trinket over the role-bound slot. #1607 pulled the boots out

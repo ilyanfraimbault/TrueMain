@@ -46,7 +46,7 @@ public sealed class MatchParticipantBuilder
     private int _item5;
     private int _item6 = 3363;
     private int _trinketItemId = 3363;
-    private int _roleBoundItemId;
+    private int? _roleBoundItemId = 0;
     private int _perksDefense = 5002;
     private int _perksFlex = 5008;
     private int _perksOffense = 5005;
@@ -119,7 +119,7 @@ public sealed class MatchParticipantBuilder
     }
 
     public MatchParticipantBuilder WithItem6(int item6) { _item6 = item6; return this; }
-    public MatchParticipantBuilder WithRoleBoundItem(int roleBoundItemId) { _roleBoundItemId = roleBoundItemId; return this; }
+    public MatchParticipantBuilder WithRoleBoundItem(int? roleBoundItemId) { _roleBoundItemId = roleBoundItemId; return this; }
 
     public MatchParticipantBuilder WithTrinket(int trinketItemId)
     {

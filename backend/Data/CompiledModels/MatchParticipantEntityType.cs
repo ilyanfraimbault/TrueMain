@@ -26,7 +26,7 @@ namespace Data.CompiledModels
                 navigationCount: 2,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 3,
-                namedIndexCount: 2,
+                namedIndexCount: 3,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -284,10 +284,10 @@ namespace Data.CompiledModels
 
             var roleBoundItemId = runtimeEntityType.AddProperty(
                 "RoleBoundItemId",
-                typeof(int),
+                typeof(int?),
                 propertyInfo: typeof(MatchParticipant).GetProperty("RoleBoundItemId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(MatchParticipant).GetField("<RoleBoundItemId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                sentinel: 0);
+                nullable: true);
             roleBoundItemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var skillEvents = runtimeEntityType.AddProperty(
@@ -477,6 +477,11 @@ namespace Data.CompiledModels
                 new[] { championId, teamPosition, eloBracket },
                 name: "IX_match_participants_champion_position_tracked");
             iX_match_participants_champion_position_tracked.AddAnnotation("Relational:Filter", "\"RiotAccountId\" IS NOT NULL");
+
+            var iX_match_participants_role_bound_pending = runtimeEntityType.AddIndex(
+                new[] { id },
+                name: "IX_match_participants_role_bound_pending");
+            iX_match_participants_role_bound_pending.AddAnnotation("Relational:Filter", "\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
 
             return runtimeEntityType;
         }
