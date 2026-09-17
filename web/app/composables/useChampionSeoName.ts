@@ -36,8 +36,8 @@ export async function useChampionSeoName(
   const championIdRef = computed(() => toValue(championId))
   const patchRef = computed(() => toValue(patch) || undefined)
 
-  const seoStaticFetch = useFetch<ChampionStaticData>(
-    () => `/api/static/${championIdRef.value}`,
+  const seoStaticFetch = useApi<ChampionStaticData>(
+    () => `/static/${championIdRef.value}`,
     {
       key: () => `champion-seo-name-${championIdRef.value}-${patchRef.value ?? 'none'}`,
       query: computed(() => ({ patch: patchRef.value })),

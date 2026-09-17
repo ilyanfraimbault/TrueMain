@@ -29,6 +29,8 @@ export function useChampionSynergies(
   const eloBracketRef = computed(() => toValue(options.eloBracket) || undefined)
   const patchRef = computed(() => toValue(options.patch) || undefined)
 
+  const apiFetch = useApiFetch()
+
   return useLazyAsyncData<ChampionSynergies | null>(
     () => [
       'champion-synergies',
@@ -47,8 +49,8 @@ export function useChampionSynergies(
       if (eloBracketRef.value) query.eloBracket = eloBracketRef.value
       if (patchRef.value) query.patch = patchRef.value
 
-      return await $fetch<ChampionSynergies>(
-        `/api/champions/${championIdRef.value}/synergies`,
+      return await apiFetch<ChampionSynergies>(
+        `/champions/${championIdRef.value}/synergies`,
         { query },
       )
     },
@@ -77,6 +79,8 @@ export function useChampionTrioSynergies(
   const eloBracketRef = computed(() => toValue(options.eloBracket) || undefined)
   const patchRef = computed(() => toValue(options.patch) || undefined)
 
+  const apiFetch = useApiFetch()
+
   return useLazyAsyncData<ChampionTrioSynergies | null>(
     () => [
       'champion-trio-synergies',
@@ -102,8 +106,8 @@ export function useChampionTrioSynergies(
       if (eloBracketRef.value) query.eloBracket = eloBracketRef.value
       if (patchRef.value) query.patch = patchRef.value
 
-      return await $fetch<ChampionTrioSynergies>(
-        `/api/champions/${championIdRef.value}/synergies/trios`,
+      return await apiFetch<ChampionTrioSynergies>(
+        `/champions/${championIdRef.value}/synergies/trios`,
         { query },
       )
     },

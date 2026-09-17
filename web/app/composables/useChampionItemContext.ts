@@ -28,6 +28,8 @@ export function useChampionItemContext(
     items: [],
   })
 
+  const apiFetch = useApiFetch()
+
   return useLazyAsyncData<ChampionItemContextResponse>(
     () => `champion-item-context|${championIdRef.value}|${positionRef.value ?? ''}|${patchRef.value ?? ''}`,
     () => {
@@ -40,8 +42,8 @@ export function useChampionItemContext(
       const query: Record<string, string> = { position: positionRef.value }
       if (patchRef.value) query.patch = patchRef.value
 
-      return $fetch<ChampionItemContextResponse>(
-        `/api/champions/${championIdRef.value}/item-context`,
+      return apiFetch<ChampionItemContextResponse>(
+        `/champions/${championIdRef.value}/item-context`,
         { query },
       )
     },

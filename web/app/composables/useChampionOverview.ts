@@ -9,9 +9,9 @@ import type { ChampionOverviewResponse } from '~~/shared/types/champions'
  * cache lifecycles for no gain.
  */
 export function useChampionOverview() {
-  return useLazyAsyncData<ChampionOverviewResponse>(
-    'home-champion-overview',
-    () => $fetch<ChampionOverviewResponse>('/api/champions/overview'),
-    { server: false },
-  )
+  return useApi<ChampionOverviewResponse>('/champions/overview', {
+    key: 'home-champion-overview',
+    lazy: true,
+    server: false,
+  })
 }

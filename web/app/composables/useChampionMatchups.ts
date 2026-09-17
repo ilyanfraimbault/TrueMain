@@ -56,6 +56,8 @@ export function useChampionMatchups(
   const eloBracketRef = computed(() => toValue(options.eloBracket) || undefined)
   const patchRef = computed(() => toValue(options.patch) || undefined)
 
+  const apiFetch = useApiFetch()
+
   return useLazyAsyncData<ChampionMatchups | null>(
     () => [
       'champion-matchups',
@@ -82,11 +84,11 @@ export function useChampionMatchups(
       if (!nameTag && eloBracketRef.value) query.eloBracket = eloBracketRef.value
 
       const path = nameTag
-        ? `/api/truemains/${encodeURIComponent(nameTag)}/champions/${championIdRef.value}/matchups`
-        : `/api/champions/${championIdRef.value}/matchups`
+        ? `/truemains/${encodeURIComponent(nameTag)}/champions/${championIdRef.value}/matchups`
+        : `/champions/${championIdRef.value}/matchups`
 
       try {
-        return await $fetch<ChampionMatchups>(path, { query })
+        return await apiFetch<ChampionMatchups>(path, { query })
       }
       catch (error: unknown) {
         // Unknown player (player-scoped route) → empty state, not an error.

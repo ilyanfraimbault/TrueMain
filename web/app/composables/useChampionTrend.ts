@@ -32,6 +32,8 @@ export function useChampionTrend(
   const positionRef = computed(() => toValue(position) || undefined)
   const enabledRef = computed(() => toValue(enabled))
 
+  const apiFetch = useApiFetch()
+
   const result = useLazyAsyncData<ChampionTrendResponse>(
     () => ['champion-trend', championIdRef.value, positionRef.value ?? ''].join('-'),
     () => {
@@ -40,7 +42,7 @@ export function useChampionTrend(
       if (!enabledRef.value) {
         return Promise.resolve({ championId: championIdRef.value, position: '', points: [] })
       }
-      return $fetch<ChampionTrendResponse>(`/api/champions/${championIdRef.value}/trend`, {
+      return apiFetch<ChampionTrendResponse>(`/champions/${championIdRef.value}/trend`, {
         query: positionRef.value ? { position: positionRef.value } : {},
       })
     },
