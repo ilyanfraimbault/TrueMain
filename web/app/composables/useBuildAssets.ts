@@ -103,12 +103,13 @@ function useStaticFetch<T>(
   const nuxtApp = useNuxtApp()
   const patchRef = computed(() => toValue(patch) || null)
   const keyRef = computed(() => staticFetchKey(keyPrefix, patchRef.value, options.unresolvedKeySegment))
+  const apiFetch = useApiFetch()
 
   return useLazyAsyncData<T>(
     () => keyRef.value,
     async () => {
       const key = keyRef.value
-      const data = await $fetch<T>(endpoint, {
+      const data = await apiFetch<T>(endpoint, {
         query: patchRef.value ? { patch: patchRef.value } : {},
       })
       markStaticFetched(key, nuxtApp)
@@ -135,7 +136,7 @@ export function useStaticRuneTree(
   patch: MaybeRefOrGetter<string | null | undefined>,
   options: StaticFetchOptions = {},
 ) {
-  return useStaticFetch<RuneTreeResponse>(RUNE_TREE_KEY_PREFIX, '/api/static/rune-tree', patch, { server: true, ...options })
+  return useStaticFetch<RuneTreeResponse>(RUNE_TREE_KEY_PREFIX, '/static/rune-tree', patch, { server: true, ...options })
 }
 
 /**
@@ -155,7 +156,7 @@ export function useStaticItems(
   patch: MaybeRefOrGetter<string | null | undefined>,
   options: StaticFetchOptions = {},
 ) {
-  return useStaticFetch<Record<number, StaticItemData>>('static-items', '/api/static/items', patch, options)
+  return useStaticFetch<Record<number, StaticItemData>>('static-items', '/static/items', patch, options)
 }
 
 /**
@@ -169,7 +170,7 @@ export function useStaticSummonerSpells(
   patch: MaybeRefOrGetter<string | null | undefined>,
   options: StaticFetchOptions = {},
 ) {
-  return useStaticFetch<Record<number, StaticSummonerSpellData>>('static-summoners', '/api/static/summoner-spells', patch, { server: true, ...options })
+  return useStaticFetch<Record<number, StaticSummonerSpellData>>('static-summoners', '/static/summoner-spells', patch, { server: true, ...options })
 }
 
 /**

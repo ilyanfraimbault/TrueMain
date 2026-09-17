@@ -51,6 +51,16 @@ describe('useApiFetch', () => {
     })
   })
 
+  it('carries the SSR-rendered leaderboard, the #1557 path', async () => {
+    requestFetch.mockResolvedValue({ rows: [], page: 1, pageSize: 25, total: 0 })
+    const { component } = probe(() => useTruemainsLeaderboard(1))
+
+    await mountSuspended(component)
+    await flushPromises()
+
+    expect(requestFetch).toHaveBeenCalledWith('/truemains', { baseURL: '/api', query: { page: 1 } })
+  })
+
   it('keeps the status a handler branches on, so a 404 still means "empty"', async () => {
     requestFetch.mockRejectedValue(httpError(404, 'Not Found'))
     const { component, result } = probe(() => useChampionMatchups(266, 'TOP'))

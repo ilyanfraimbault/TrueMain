@@ -18,9 +18,10 @@ import { RUNE_TREE_KEY_PREFIX, staticFetchKey } from '~/composables/useBuildAsse
 // the warm entry only answers the unresolved-patch question.
 export default defineNuxtPlugin((nuxtApp) => {
   const payload = nuxtApp.payload.data as Record<string, unknown>
+  const apiFetch = useApiFetch()
 
   if (!payload['champion-static-list']) {
-    $fetch<ChampionStaticListItem[]>('/api/static/champions')
+    apiFetch<ChampionStaticListItem[]>('/static/champions')
       .then((data) => {
         payload['champion-static-list'] = data
         markStaticFetched('champion-static-list', nuxtApp)
@@ -32,7 +33,7 @@ export default defineNuxtPlugin((nuxtApp) => {
 
   const runeTreeKey = staticFetchKey(RUNE_TREE_KEY_PREFIX)
   if (!payload[runeTreeKey]) {
-    $fetch<RuneTreeResponse>('/api/static/rune-tree')
+    apiFetch<RuneTreeResponse>('/static/rune-tree')
       .then((data) => {
         payload[runeTreeKey] = data
         markStaticFetched(runeTreeKey, nuxtApp)
