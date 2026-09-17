@@ -223,6 +223,13 @@ export default defineNuxtConfig({
         'cache-control': `public, max-age=${IPX_CACHE_SECONDS}, immutable`,
       },
     },
+    // The three text pages fetch nothing, so they are rendered once at build
+    // time and served as files (#1617). The champion slug map their payload
+    // carries is therefore a build-time copy — `plugins/champion-slugs.ts`
+    // refreshes it on the client for exactly that reason.
+    '/about': { prerender: true },
+    '/privacy': { prerender: true },
+    '/terms': { prerender: true },
   },
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
