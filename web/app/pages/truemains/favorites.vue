@@ -73,7 +73,7 @@ const runeTree = computed(() => runeTreeData.value ?? null)
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-6">
     <UBreadcrumb :items="breadcrumbItems" />
 
     <PageHeader
@@ -147,5 +147,5 @@ const runeTree = computed(() => runeTreeData.value ?? null)
         :match-count="MATCHES_PER_FAVORITE"
       />
     </div>
-  </main>
+  </div>
 </template>

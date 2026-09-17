@@ -208,7 +208,7 @@ const missingMatchupNotice = computed(() => {
 </script>
 
 <template>
-  <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
     <PageHeader
       eyebrow="Draft tools"
       title="Matchup"
@@ -350,5 +350,5 @@ const missingMatchupNotice = computed(() => {
         Pick a champion and a role
       </p>
     </div>
-  </main>
+  </div>
 </template>

@@ -1,6 +1,4 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'default' })
-
 useSeoMeta({
   title: 'Build skeleton playground',
   description: 'Isolated visual review of the champion build section loading states.',
@@ -14,7 +12,7 @@ useSeoMeta({
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
+  <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <h1 class="text-lg font-semibold text-default">
       Build skeleton playground
     </h1>
@@ -34,5 +32,5 @@ useSeoMeta({
         <ChampionBuildCoreSkeleton />
       </SectionCard>
     </section>
-  </main>
+  </div>
 </template>

@@ -13,8 +13,6 @@ import type {
 } from '~~/shared/types/static-data'
 import { groupMatchesByDay } from '~/utils/match-history'
 
-definePageMeta({ layout: 'default' })
-
 useSeoMeta({
   title: 'Profile playground',
   description: 'Isolated visual review of the truemain profile page with mock fixtures.',
@@ -307,7 +305,7 @@ const mockMatchDays = computed(() => groupMatchesByDay(mockMatches.value))
 </script>
 
 <template>
-  <main class="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
+  <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
     <header class="flex flex-col gap-1">
       <p class="text-xs font-semibold uppercase tracking-wide text-muted">
         Dev playground
@@ -357,5 +355,5 @@ const mockMatchDays = computed(() => groupMatchesByDay(mockMatches.value))
         <MatchRowSkeleton v-for="i in 2" :key="i" />
       </template>
     </section>
-  </main>
+  </div>
 </template>

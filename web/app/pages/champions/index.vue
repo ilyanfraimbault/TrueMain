@@ -223,7 +223,7 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
 </script>
 
 <template>
-  <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
     <PageHeader
       eyebrow="Builds & stats"
       title="Champions"
@@ -480,5 +480,5 @@ const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsM
         </ul>
       </template>
     </ClientOnly>
-  </main>
+  </div>
 </template>

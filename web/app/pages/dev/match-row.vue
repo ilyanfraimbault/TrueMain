@@ -7,8 +7,6 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 
-definePageMeta({ layout: 'default' })
-
 useSeoMeta({
   title: 'MatchRow playground',
   description: 'Isolated visual review of the match history row component.',
