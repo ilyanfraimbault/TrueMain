@@ -183,3 +183,24 @@ unmistakable neutral grey, still painted clearly above the card surface. It went
 too dark, where it read as a hole in the grid rather than as a day off, and a grid with holes in it has no
 shape to compare against.
 
+
+## Long-form text uses Nuxt UI's prose layer, themed to the site's scale (2026-09-17)
+
+**Decision:** `ui: { prose: true }` is enabled and the text pages (`/about`, `/privacy`, `/terms`) are written with
+`Prose*` components, whose theme lives under `ui.prose` in `app.config.ts` — #1624.
+
+- **Why.** The three pages repeated one hand-written vocabulary (`text-lg font-semibold text-highlighted` per h2,
+  `space-y-3` per section, `text-sm leading-relaxed text-muted` per article). The next piece of prose (a methodology
+  page, a changelog) inherits the theme instead of copying the classes a fourth time.
+- **The site's scale, not Nuxt UI's.** The defaults are tuned for documentation (`text-2xl` bold h2, 20 px paragraph
+  gaps, `font-medium` links, `text-pretty`). The override reproduces the pages as they were set — verified
+  pixel-identical against the previous build — so the migration changed the source, not the page. The one visible
+  difference kept on purpose: a hovered link shows Nuxt UI's 1 px bottom border instead of an underline, together
+  with its focus outline.
+- **The cost, measured** (production builds, gzip). Nuxt UI adds every prose theme to Tailwind's sources, so the
+  site-wide entry stylesheet grows from 35.0 KB to 38.6 KB (+3.6 KB, +10 %) on every page. It also registers the
+  ~45 `Prose*` components as *global*, which cost another +2.5 KB in the entry script; `nuxt.config.ts` turns that
+  off (`components:extend`), since nothing renders MDC and the pages resolve the components at compile time —
+  the entry is back to +0.2 KB (the theme in `app.config.ts`). Excluding the unused themes from the CSS with
+  `@source not` was rejected: it would silently leave the next `Prose*` component a page adopts unstyled — the
+  static-extraction trap `DESIGN_SYSTEM.md` already warns about.

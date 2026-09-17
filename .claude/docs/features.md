@@ -81,7 +81,7 @@ localStorage-backed follow list (`web/app/utils/favorites.ts`, key `truemain:fav
 The brand's own page (#1122). Static prose, no fetch, so the whole thing is in the server HTML: what TrueMain is, what a "true main" / dedication score means, that the data is Riot-API-derived, and a linked list of the four main sections. Exists for SEO as much as for readers — it is the only page that states the brand name in prose, which is what a search engine reads to resolve the bare `truemain` query, and it doubles as an internal-linking hub. Linked from `AppFooter`.
 
 ### `/privacy`, `/terms`
-Static legal prose — required for the Riot production-key application.
+Static legal prose — required for the Riot production-key application. All three text pages are written with Nuxt UI `Prose*` components, themed once under `ui.prose` in `app.config.ts` (#1624; conventions in `web/docs/DESIGN_SYSTEM.md`).
 
 ### `/dev/*`
 Component playgrounds (`charts`, `match-row`, `profile`, `build-skeleton`) plus the design-system reference screen (`design-system`). **Stripped from production** by a `pages:extend` hook in `nuxt.config.ts`.
