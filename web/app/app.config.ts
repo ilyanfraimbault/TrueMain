@@ -65,5 +65,44 @@ export default defineAppConfig({
         variant: 'subtle',
       },
     },
+    // Long-form text (#1624) — `/about`, `/privacy`, `/terms`. Nuxt UI's prose
+    // defaults are tuned for documentation pages (a `text-2xl` bold h2, 20px
+    // paragraph gaps, `text-base` body); this app's prose sits inside a
+    // `surface` card and follows the site's own scale instead: `text-sm`
+    // `text-muted` body, `text-lg` semibold `text-highlighted` headings — the
+    // muted/highlighted split from DESIGN_SYSTEM.md.
+    //
+    // Spacing is a 12px rhythm (`my-3`, collapsing between siblings) with the
+    // outer margins trimmed by `first:` / `last:`, so a block placed first or
+    // last in a padded card adds nothing to the padding. A page grouping its
+    // text into `<section>`s spaces those itself (`space-y-8`); an h2 that is
+    // not first in its parent brings the same 32px on its own.
+    //
+    // `text-wrap` restores normal wrapping over the default `text-pretty`, and
+    // links keep the body weight (the default is `font-medium`): both keep the
+    // pages exactly as they were set before the migration. `strong` is the
+    // site's emphasis — one weight step and the default text colour, not bold.
+    prose: {
+      h2: {
+        slots: {
+          base: 'text-lg font-semibold mt-8 mb-3 first:mt-0',
+        },
+      },
+      p: {
+        base: 'my-3 first:mt-0 last:mb-0 text-sm leading-relaxed text-muted text-wrap',
+      },
+      ul: {
+        base: 'my-3 first:mt-0 last:mb-0 ps-5 text-sm text-muted marker:text-muted',
+      },
+      li: {
+        base: 'my-1 ps-0 leading-relaxed',
+      },
+      a: {
+        base: 'font-normal',
+      },
+      strong: {
+        base: 'font-medium text-default',
+      },
+    },
   },
 })
