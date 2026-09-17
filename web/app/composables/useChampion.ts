@@ -80,6 +80,8 @@ export function useChampion(
       truemainsOnly ? 'truemains' : 'everyone',
     ].join('-')
 
+  const apiFetch = useApiFetch()
+
   const result = useLazyAsyncData<ChampionResponse | null>(
     () => {
       const f = filters.value
@@ -108,8 +110,8 @@ export function useChampion(
 
       if (nameTag) {
         try {
-          return await $fetch<ChampionResponse>(
-            `/api/truemains/${encodeURIComponent(nameTag)}/champions/${id}`,
+          return await apiFetch<ChampionResponse>(
+            `/truemains/${encodeURIComponent(nameTag)}/champions/${id}`,
             // Only what this endpoint declares. It is scoped to one account and
             // renders no rank or population control, so forwarding `eloBracket`
             // / `truemainsOnly` sent dead params that read as if the toggle
@@ -137,7 +139,7 @@ export function useChampion(
       // `buildKey('', '')`) `getCachedData` reuses this identical response
       // instead of triggering a second no-filter fetch (and its loading flash).
       const outcome = await resolveGlobalChampion(
-        query => $fetch<ChampionResponse>(`/api/champions/${id}`, { query }),
+        query => apiFetch<ChampionResponse>(`/champions/${id}`, { query }),
         f,
       )
       if (outcome.fallbackData !== null) nuxtApp.static.data[unfilteredKey] = outcome.fallbackData

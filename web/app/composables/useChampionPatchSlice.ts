@@ -53,6 +53,8 @@ export function createChampionPatchSlice<T>(config: ChampionPatchSliceConfig<T>)
 
     const gated = computed(() => !enabledRef.value || !positionRef.value)
 
+    const apiFetch = useApiFetch()
+
     const result = useLazyAsyncData<T>(
       () => `${config.keyPrefix}|${championIdRef.value}|${positionRef.value ?? ''}|${patchRef.value ?? ''}|${eloBracketRef.value ?? ''}`,
       () => {
@@ -69,8 +71,8 @@ export function createChampionPatchSlice<T>(config: ChampionPatchSliceConfig<T>)
         const query: Record<string, string> = { position: resolvedPosition }
         if (patchRef.value) query.patch = patchRef.value
         if (eloBracketRef.value) query.eloBracket = eloBracketRef.value
-        return $fetch<T>(
-          `/api/champions/${championIdRef.value}/${config.endpoint}`,
+        return apiFetch<T>(
+          `/champions/${championIdRef.value}/${config.endpoint}`,
           { query },
         )
       },

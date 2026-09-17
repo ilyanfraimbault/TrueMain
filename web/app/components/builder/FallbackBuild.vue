@@ -23,11 +23,13 @@ const props = defineProps<{
   notice?: string | null
 }>()
 
+const apiFetch = useApiFetch()
+
 const { data: champion, status, error } = useLazyAsyncData<ChampionResponse | null>(
   () => `builder-fallback-${props.championId}-${props.position}`,
   async () => {
     try {
-      return await $fetch<ChampionResponse>(`/api/champions/${props.championId}`, {
+      return await apiFetch<ChampionResponse>(`/champions/${props.championId}`, {
         query: { position: props.position },
       })
     }
