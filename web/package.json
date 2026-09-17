@@ -22,21 +22,21 @@
   },
   "dependencies": {
     "@nuxt/image": "^2.1.0",
-    "@nuxt/ui": "^4.11.0",
-    "@nuxtjs/seo": "^5.3.14",
+    "@nuxt/ui": "^4.11.1",
+    "@nuxtjs/seo": "^5.3.16",
     "@resvg/resvg-js": "^2.6.2",
     "nuxt": "^4.5.2",
-    "nuxt-charts": "^2.2.1",
+    "nuxt-charts": "^2.2.3",
     "satori": "^0.33.4",
     "vue": "^3.5.42"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
-    "happy-dom": "^20.14.0",
+    "@types/node": "^26.5.1",
+    "happy-dom": "^20.14.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vitest": "^5.0.0",
-    "vue-chrts": "2.2.1",
+    "vue-chrts": "2.2.3",
     "vue-tsc": "^3.3.11"
   }
 }
