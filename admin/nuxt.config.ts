@@ -17,7 +17,7 @@ export default defineNuxtConfig({
   // Namespace upstream nuxt-charts components under `Nc*` (same convention as
   // `web/`) so app-level chart wrappers can embed the upstream chart without
   // colliding with their own auto-resolved name.
-  nuxtCharts: {
+  nuxtChartsLegacy: {
     prefix: 'Nc',
   },
   css: ['~/assets/css/main.css'],
