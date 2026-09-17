@@ -146,6 +146,20 @@ the behaviour it encodes is pinned by a test in *both* suites. Labelled copies a
 `server/utils/ddragon-patch.ts` and `server/api/static/champions.get.ts`; the champion handlers differ only by
 the admin's `requireUserSession` gate, so any other difference in a diff is a regression, not a variant.
 
+**A local Nuxt layer was weighed and rejected for now (2026-09-17, #1623).** The argument against a package does
+not apply to a layer: a local layer has no version and is never published. The layer loses on build plumbing
+instead. The images build from `./web` and `./admin` contexts, so a root-level `layers/` directory is invisible
+to both Docker builds. Each app also has its own `node_modules` and the repo root has none, so bare imports inside
+layer files have nothing to resolve against. Adopting a layer would mean moving both production builds to the
+repo root, giving the layer its own dependency story, and making the CI `changes` gate run both apps for it. All
+of that to share about 300 near-identical, rarely touched lines (`proxy-path`, `abandoned-request`,
+`log-forwarder`, `log-forwarding`). The pairs that really drifted need their differences reconciled whatever the
+mechanism, and a layer does not do that for them. Worth revisiting if the shared surface grows substantially, or
+if the image builds move to the repo root for another reason.
+
+The guard against drift will be a CI check (#1625, not yet shipped): the twin pairs are declared, and a pair that differs outside
+lines marked app-specific fails the build.
+
 `PATCH_PATTERN` (`^\d+\.\d+\.\d+$`) sits next to `normalizeDataDragonPatch`, which produces the value it
 validates — that function expands the short `16.5` form the backend scopes expose and passes everything else
 through untouched, so it is a shape fixer and never a guard. Every static endpoint interpolates the result into
