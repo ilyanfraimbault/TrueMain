@@ -1,6 +1,4 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'default' })
-
 useSeoMeta({
   title: 'Charts playground',
   description: 'Visual review of the ChartsLineChart wrapper with mock data.',
@@ -70,7 +68,7 @@ const winrateYFormatter = (tick: number): string =>
 </script>
 
 <template>
-  <main class="mx-auto flex w-full max-w-5xl flex-col gap-8 p-4 md:p-6">
+  <div class="mx-auto flex w-full max-w-5xl flex-col gap-8 p-4 md:p-6">
     <header class="flex flex-col gap-1">
       <p class="text-xs font-semibold uppercase tracking-wide text-muted">
         Dev playground
@@ -142,5 +140,5 @@ const winrateYFormatter = (tick: number): string =>
         />
       </div>
     </section>
-  </main>
+  </div>
 </template>

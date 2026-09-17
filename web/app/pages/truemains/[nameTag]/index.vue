@@ -135,17 +135,17 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
 </script>
 
 <template>
-  <!--
-    Two-column layout on lg+. Left rail (20rem) collects the player-level
-    summary (identity, ranked, mains, roles); the right rail is the match
-    feed and stretches into the rest of the viewport. On smaller screens
-    everything stacks naturally — the grid collapses to a single column.
+  <div class="mx-auto w-full max-w-7xl p-4 md:p-6">
+    <!--
+      Two-column layout on lg+. Left rail (20rem) collects the player-level
+      summary (identity, ranked, mains, roles); the right rail is the match
+      feed and stretches into the rest of the viewport. On smaller screens
+      everything stacks naturally — the grid collapses to a single column.
 
-    The container caps at 7xl (1280px); going wider starts to feel sparse
-    on ultrawide screens where the match rows can't get any denser without
-    more data per row.
-  -->
-  <main class="mx-auto w-full max-w-7xl p-4 md:p-6">
+      The container caps at 7xl (1280px); going wider starts to feel sparse
+      on ultrawide screens where the match rows can't get any denser without
+      more data per row.
+    -->
     <!-- Truemains > {player}, linking back to the OTP leaderboard. The share
          controls (#926) sit on the same row so they stay above the fold on
          mobile, where the left rail pushes everything else down. Rendered in
@@ -278,5 +278,5 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
         </template>
       </section>
     </div>
-  </main>
+  </div>
 </template>

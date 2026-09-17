@@ -215,7 +215,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
+  <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <!-- Truemains > {player} > {champion}, linking back to the leaderboard and
          the player's profile. -->
     <UBreadcrumb :items="breadcrumbItems" />
@@ -418,5 +418,5 @@ const performanceSnapshot = useLazyHydrationSnapshot(
         />
       </aside>
     </div>
-  </main>
+  </div>
 </template>

@@ -378,7 +378,7 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
+  <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <!-- Champions > {champion}, mirroring the schema.org breadcrumb. Shown
          across every state (error / no-data / normal) as the first child. -->
     <UBreadcrumb :items="breadcrumbItems" />
@@ -645,5 +645,5 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         </aside>
       </div>
     </template>
-  </main>
+  </div>
 </template>

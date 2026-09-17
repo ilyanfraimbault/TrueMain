@@ -115,7 +115,7 @@ const championsById = useChampionsById(champions)
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
     <PageHeader
       eyebrow="Leaderboard"
       title="Truemains"
@@ -195,5 +195,5 @@ const championsById = useChampionsById(champions)
         @update:page="setPage"
       />
     </div>
-  </main>
+  </div>
 </template>

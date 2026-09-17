@@ -134,7 +134,7 @@ function championDestination(entry: { championId: number, position: string }) {
 </script>
 
 <template>
-  <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
     <header class="space-y-3">
       <h1 class="text-2xl font-semibold">
         Tier List
@@ -228,5 +228,5 @@ function championDestination(entry: { championId: number, position: string }) {
         <TierlistSkeleton />
       </template>
     </ClientOnly>
-  </main>
+  </div>
 </template>

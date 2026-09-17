@@ -13,8 +13,6 @@
  * builds by the `pages:extend` hook in `nuxt.config.ts`.
  */
 
-definePageMeta({ layout: 'default' })
-
 useSeoMeta({
   title: 'Design system playground',
   description: 'Isolated visual review of the app’s colour, elevation and type foundations.',
