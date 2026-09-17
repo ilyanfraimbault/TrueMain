@@ -240,7 +240,7 @@ const rowTint = computed(() =>
         :role="canExpand ? 'button' : undefined"
         :tabindex="canExpand ? 0 : undefined"
         :aria-expanded="canExpand ? expanded : undefined"
-        class="flex flex-1 flex-wrap items-center gap-2 px-2 py-2 @md:flex-nowrap @2xl:gap-3 @2xl:px-3 @2xl:py-2.5"
+        class="flex flex-1 flex-wrap items-center gap-2 px-2 py-2 @md:flex-nowrap @md:justify-between @2xl:gap-3 @2xl:px-3 @2xl:py-2.5"
         :class="canExpand ? 'cursor-pointer' : ''"
         @click="toggle"
         @keydown.enter.prevent="toggle"
@@ -253,47 +253,49 @@ const rowTint = computed(() =>
              only consumer the colour alone doesn't serve. Duration and LP
              delta moved into the stats cluster below. -->
 
-        <!-- Champion portrait, badged with the player's role (or the champion
-             level when Riot assigned no position). Summoner spells and runes
-             used to sit next to it; they now live just left of the item block
-             (see below) so the whole loadout — spells, runes, items — reads as
-             one continuous strip, matching the scoreboard layout. -->
-        <div class="relative shrink-0 @2xl:ml-1">
-          <SkeletonImage
-            :src="championIconUrl"
-            :alt="championName"
-            :title="championName"
-            loading="lazy"
-            class="size-10 rounded @2xl:size-12"
-          />
-          <span
-            class="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-default ring-1 ring-default"
-            :class="selfPosition
-              ? 'size-4 @2xl:size-5'
-              : 'size-3.5 text-[9px] font-bold leading-none @2xl:size-4 @2xl:text-[10px]'"
-            :title="selfPosition ? (POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition) : undefined"
-          >
-            <img
-              v-if="selfPosition"
-              :src="canonicalIcon(getPositionIconUrl(selfPosition))"
+        <!-- From @md up every column is fixed-width and the row is
+             `justify-between`: free width is shared evenly between columns
+             instead of pooling as two dead gaps around the build (#1610).
+             Portrait + KDA stay wrapped so the spread never splits them. -->
+        <div class="flex shrink-0 items-center gap-2 @2xl:gap-3">
+          <!-- Champion portrait, badged with the player's role (or the champion
+               level when Riot assigned no position). Summoner spells and runes
+               used to sit next to it; they now live just left of the item block
+               (see below) so the whole loadout — spells, runes, items — reads as
+               one continuous strip, matching the scoreboard layout. -->
+          <div class="relative shrink-0 @2xl:ml-1">
+            <SkeletonImage
+              :src="championIconUrl"
+              :alt="championName"
+              :title="championName"
               loading="lazy"
-              :alt="POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition"
-              class="size-3 @2xl:size-3.5"
+              class="size-10 rounded @2xl:size-12"
+            />
+            <span
+              class="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-default ring-1 ring-default"
+              :class="selfPosition
+                ? 'size-4 @2xl:size-5'
+                : 'size-3.5 text-[9px] font-bold leading-none @2xl:size-4 @2xl:text-[10px]'"
+              :title="selfPosition ? (POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition) : undefined"
             >
-            <template v-else>{{ self.championLevel }}</template>
-          </span>
-        </div>
+              <img
+                v-if="selfPosition"
+                :src="canonicalIcon(getPositionIconUrl(selfPosition))"
+                loading="lazy"
+                :alt="POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition"
+                class="size-3 @2xl:size-3.5"
+              >
+              <template v-else>{{ self.championLevel }}</template>
+            </span>
+          </div>
 
-        <!-- KDA + stats: two-column block. KDA on top with the ratio under
-             it; CS/m and KP stacked to the right so they share the vertical
-             rhythm of the KDA cluster. Tabular-nums everywhere so digits
-             never jitter, and the whole block is a fixed width (not just
-             min-width) — a 12/2/15 game and a 4/8/8 game must occupy the
-             exact same box, or everything to its right (the centred
-             loadout, the right-edge group) drifts left/right row to row and
-             the columns stop lining up down the list. -->
-        <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-44 @3xl:gap-3">
-          <div class="flex w-28 flex-col items-center">
+          <!-- KDA cluster: KDA on top with the ratio under it. Tabular-nums
+               everywhere so digits never jitter, and the column is a fixed
+               width (not just min-width) — a 12/2/15 game and a 4/8/8 game
+               must occupy the exact same box, or every column to its right
+               drifts row to row and the columns stop lining up down the
+               list. The same holds for the stats column below. -->
+          <div class="flex w-28 shrink-0 flex-col items-center">
             <!-- Explicit gap: whitespace between inline spans spaced the slashes unevenly. -->
             <div class="flex items-baseline gap-1 whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
               <span>{{ self.kills }}</span>
@@ -325,34 +327,31 @@ const rowTint = computed(() =>
               {{ durationLabel }}
             </div>
           </div>
-          <!-- Secondary stats only once the row clears @3xl — the last thing
-               to come back, because the 4rem they cost is exactly what the
-               team compositions (added at @xl) need. Below that the KDA
-               cluster, the build and the compositions are the scan targets.
-               Centred (not left-aligned) inside the track it shares with the
-               KDA cluster. Kill participation is left to the scoreboard: it
-               says little on its own, and the performance score moved to the
-               right edge. -->
-          <div class="hidden flex-1 flex-col items-center gap-0.5 text-[11px] text-muted tabular-nums @3xl:flex">
-            <span>{{ csPerMin }} CS/m</span>
-            <span>{{ durationLabel }}</span>
-          </div>
+        </div>
+
+        <!-- Secondary stats only once the row clears @3xl — the last thing
+             to come back, because the 4rem they cost is exactly what the
+             team compositions (added at @xl) need. Below that the KDA
+             cluster, the build and the compositions are the scan targets.
+             Centred (not left-aligned) in its own fixed-width column, like the
+             KDA cluster. Kill participation is left to the scoreboard: it
+             says little on its own, and the performance score moved to the
+             right edge. -->
+        <div class="hidden w-14 shrink-0 flex-col items-center gap-0.5 text-[11px] text-muted tabular-nums @3xl:flex">
+          <span>{{ csPerMin }} CS/m</span>
+          <span>{{ durationLabel }}</span>
         </div>
 
         <!-- Loadout strip: summoner spells + runes + item block, tightly
              grouped (small internal gaps) so spells → runes → items read
-             left-to-right as one continuous build. Centred inside its flex-1
-             track (between the KDA cluster and the right-edge group, which
-             already reserves its own space via the row's flex layout) —
-             flush-left here left a wide dead gap in front of the team
-             compositions on anything wider than the drawer. Summoners and
-             runes each stack 2-high to match the two rows of the item grid. -->
+             left-to-right as one continuous build. Summoners and runes each
+             stack 2-high to match the two rows of the item grid. -->
         <!-- Below @md the loadout wraps onto its own line (`order-last` keeps
              it under the row rather than between the KDA and the accolade).
              A phone can't hold meta + portrait + KDA + a 9rem build strip on
              one line, and the alternative — dropping half the build — throws
              away the thing the row exists to show. -->
-        <div class="order-last flex w-full grow items-center justify-center @md:order-none @md:w-auto @md:flex-1">
+        <div class="order-last flex w-full items-center justify-center @md:order-none @md:w-auto @md:shrink-0">
           <div class="flex shrink-0 items-center gap-1">
             <div class="flex flex-col gap-0.5">
               <GameTooltipSummonerSpellIcon
@@ -399,11 +398,10 @@ const rowTint = computed(() =>
 
         <!-- Right-edge group: team compositions + MVP/ACE accolade + expand
              chevron, pinned together as one unit. From @md up no margin is
-             needed — the loadout's flex-1 track above already claims all of
-             the row's free space, so this group lands flush against the right
-             edge right after it. Below @md the loadout has wrapped away onto
-             its own line, taking that slack with it, so the group needs
-             `ml-auto` to stay on the edge instead of hugging the KDA. -->
+             needed — the row's `justify-between` already puts the last column
+             flush against the right edge. Below @md the loadout has wrapped
+             away onto its own line and the row keeps its default justification,
+             so the group needs `ml-auto` to stay on the edge. -->
         <div class="ml-auto flex shrink-0 items-center gap-2 @md:ml-0 @2xl:gap-3">
           <!-- Team compositions: two horizontal rows of 5, allies over
                enemies, each sorted TOP → SUPPORT so a column pairs
