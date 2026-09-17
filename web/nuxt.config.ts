@@ -158,6 +158,27 @@ export default defineNuxtConfig({
   // `nuxt dev` failed to resolve the stylesheet at all on a clean install and
   // the client bundle never booted. The alias resolves off srcDir in both.
   css: ['~/assets/css/main.css'],
+  // Registers Nuxt UI's `Prose*` components without @nuxt/content (#1624):
+  // the text pages (/about, /privacy, /terms) are written with them, so their
+  // typography is themed once under `ui.prose` in `app.config.ts`.
+  ui: {
+    prose: true,
+  },
+  hooks: {
+    // Nuxt UI registers the ~45 `Prose*` components as *global*, which is what
+    // MDC needs to resolve them by name at runtime — and which puts one lazy
+    // registration per component in the entry script of every page (+2.5 kB
+    // gzip, measured). Nothing here renders MDC: the pages name the components
+    // in their templates, so plain auto-imports resolve them at compile time
+    // and only the pages that use them pay for them.
+    'components:extend'(components) {
+      for (const component of components) {
+        if (component.pascalName.startsWith('Prose')) {
+          component.global = false
+        }
+      }
+    },
+  },
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
   // Dark-only: there is no colour-mode toggle in the header any more. The

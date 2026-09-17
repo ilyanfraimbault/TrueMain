@@ -148,6 +148,7 @@ Last verified against `develop` on 2026-09-02.
 - The rose-gold-only surface rule is reversed: neutral surfaces, a scarce accent, and a data axis of its own (2026-08-10) — #1060, #1059, #927
 - Measurements are rose gold again: the cold→warm data axis is withdrawn (2026-08-11) — #1096, #1060, #927
 - Measurements are set in Inter again: the mono stat face is withdrawn — #1060, #1111
+- Long-form text uses Nuxt UI's prose layer, themed to the site's scale; non-global components, +3.6 KB gzip CSS accepted (2026-09-17) — #1624
 
 ## Aggregates, retention and the schema — [`decisions/data-aggregation.md`](decisions/data-aggregation.md)
 
