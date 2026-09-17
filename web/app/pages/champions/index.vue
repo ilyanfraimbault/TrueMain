@@ -41,11 +41,7 @@ const { currentPage, setPage } = useRoutePage()
 // stay client-side too and the user can paginate filtered subsets without
 // extra round-trips.
 const apiFetch = useApiFetch()
-const {
-  data: summaries,
-  error: summariesError,
-  status: summariesStatus,
-} = useLazyAsyncData<ChampionSummaryResponse[]>(
+const { data: summaries, error: summariesError, status: summariesStatus } = useLazyAsyncData<ChampionSummaryResponse[]>(
   () => `champions-list-${filters.value.patch ?? 'latest'}-${filters.value.eloBracket ?? 'ALL'}`
     + `-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
   () => {
