@@ -78,6 +78,7 @@ public sealed class RiotJsonSourceGenerationTests
             "item4": 3033,
             "item5": 0,
             "item6": 3363,
+            "roleBoundItem": 3006,
             "summoner1Id": 4,
             "summoner2Id": 14,
             "challenges": { "kda": 6.33, "soloKills": 4 },
@@ -201,6 +202,7 @@ public sealed class RiotJsonSourceGenerationTests
         participant.ChampLevel.Should().Be(17);
         participant.Item0.Should().Be(6673);
         participant.Item6.Should().Be(3363);
+        participant.RoleBoundItem.Should().Be(3006);
         participant.Summoner1Id.Should().Be(4);
         participant.Summoner2Id.Should().Be(14);
 

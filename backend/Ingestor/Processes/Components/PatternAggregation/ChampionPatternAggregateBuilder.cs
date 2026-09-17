@@ -151,7 +151,7 @@ public sealed class ChampionPatternAggregateBuilder(
         foreach (var row in sourceRows)
         {
             var itemMetadata = await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct);
-            int[] finalItems = [row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.Item6];
+            var finalItems = FinalInventory.Of(row.Item0, row.Item1, row.Item2, row.Item3, row.Item4, row.Item5, row.RoleBoundItemId);
             var starterAnalysis = StarterItemAnalyzer.Analyze(row.ItemEvents, finalItems, itemMetadata);
 
             var (spell1Id, spell2Id) = new SummonerSpellPair(row.Summoner1Id, row.Summoner2Id).Canonical();

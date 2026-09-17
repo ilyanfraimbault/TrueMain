@@ -237,7 +237,7 @@ public sealed class ChampionPatternSourceRowReader(
                 Item3 = participant.Item3,
                 Item4 = participant.Item4,
                 Item5 = participant.Item5,
-                Item6 = participant.Item6
+                RoleBoundItemId = participant.RoleBoundItemId
             })
             .ToListAsync(ct);
 

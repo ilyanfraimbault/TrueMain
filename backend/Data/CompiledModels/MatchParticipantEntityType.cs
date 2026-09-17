@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 "Data.Entities.MatchParticipant",
                 typeof(MatchParticipant),
                 baseEntityType,
-                propertyCount: 51,
+                propertyCount: 52,
                 navigationCount: 2,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 3,
@@ -281,6 +281,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MatchParticipant).GetField("<Role>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 32);
             role.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var roleBoundItemId = runtimeEntityType.AddProperty(
+                "RoleBoundItemId",
+                typeof(int),
+                propertyInfo: typeof(MatchParticipant).GetProperty("RoleBoundItemId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipant).GetField("<RoleBoundItemId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: 0);
+            roleBoundItemId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var skillEvents = runtimeEntityType.AddProperty(
                 "SkillEvents",

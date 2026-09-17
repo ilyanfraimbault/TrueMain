@@ -193,7 +193,7 @@ public sealed class ChampionItemContextAggregationProcess(
             .Select(p => new BuildRow(
                 p.MatchId,
                 p.ParticipantId,
-                new[] { p.Item0, p.Item1, p.Item2, p.Item3, p.Item4, p.Item5, p.Item6 },
+                FinalInventory.Of(p.Item0, p.Item1, p.Item2, p.Item3, p.Item4, p.Item5, p.RoleBoundItemId),
                 p.ItemEvents))
             .ToDictionaryAsync(row => (row.MatchId, row.ParticipantId), ct);
 

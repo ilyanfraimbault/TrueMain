@@ -31,9 +31,11 @@ export interface MatchDetailParticipant {
   kills: number
   deaths: number
   assists: number
-  /** Inventory slots 0..6 (length 7). The trinket is in `trinketItemId`. */
+  /** Inventory slots 0..5 (length 6). The trinket is in `trinketItemId`. */
   items: number[]
   trinketItemId: number
+  /** Riot's role-bound slot — a bot laner's quest boots, other roles' quest reward. 0 when empty. */
+  roleBoundItemId: number
   summoner1Id: number
   summoner2Id: number
   primaryStyleId: number

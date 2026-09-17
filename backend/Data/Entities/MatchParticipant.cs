@@ -106,6 +106,13 @@ public class MatchParticipant
 
     public int TrinketItemId { get; set; }
 
+    /// <summary>
+    /// Riot's <c>roleBoundItem</c>: the slot a role quest fills outside the six inventory
+    /// slots and the trinket — a bot laner's boots, the other roles' quest reward. 0 on
+    /// rows ingested before the column existed.
+    /// </summary>
+    public int RoleBoundItemId { get; set; }
+
     public int PerksDefense { get; set; }
 
     public int PerksFlex { get; set; }

@@ -1,3 +1,4 @@
+using Core.Lol.Items;
 using Data.BuildFacts;
 using Data.Entities;
 using AwesomeAssertions;
@@ -163,6 +164,33 @@ public sealed class FinalBuildResolverTests
         ], [3153, 3899, 0, 0, 0, 0, 0], [], Metadata);
 
         buildItems.Should().NotContain(3899);
+        buildItems.Should().Equal(3153);
+    }
+
+    [Fact]
+    public void Resolve_keeps_six_items_when_the_boots_sit_in_the_role_bound_slot()
+    {
+        var buildItems = FinalBuildResolver.Resolve(
+        [
+            new ItemEvent { TimestampMs = 5000, ItemId = 3006, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 10000, ItemId = 3153, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 20000, ItemId = 3031, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 30000, ItemId = 3085, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 40000, ItemId = 6672, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 50000, ItemId = 3072, EventType = "ITEM_PURCHASED" },
+            new ItemEvent { TimestampMs = 60000, ItemId = LolItemIds.Manamune, EventType = "ITEM_PURCHASED" }
+        ], FinalInventory.Of(3153, 3031, 3085, 6672, 3072, LolItemIds.Manamune, 3006), [], Metadata);
+
+        buildItems.Should().Equal(3153, 3031, 3085, 6672, 3072, LolItemIds.Manamune);
+    }
+
+    [Fact]
+    public void Resolve_leaves_a_role_quest_reward_out_of_the_build()
+    {
+        var buildItems = FinalBuildResolver.Resolve(
+            [new ItemEvent { TimestampMs = 10000, ItemId = 3153, EventType = "ITEM_PURCHASED" }],
+            FinalInventory.Of(3153, 0, 0, 0, 0, 0, 1209), [], Metadata);
+
         buildItems.Should().Equal(3153);
     }
 }

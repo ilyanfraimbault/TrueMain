@@ -1,27 +1,31 @@
 <script setup lang="ts">
 import type { StaticItemData } from '~~/shared/types/static-data'
-import { isBootsItem, isNonBuildItem } from '~~/shared/utils/build'
+import { isNonBuildItem } from '~~/shared/utils/build'
 
 // A player's end-of-game inventory, shared by the collapsed match row and the
-// expanded scoreboard so both read the same way: the non-boots items as a 3×2
-// grid, then a trailing column stacking the trinket over the boots (scoreboard
-// convention). Pulling the boots out is what makes the seventh inventory slot
-// fit — a bot laner's role quest grants boots on top of six full items, so a
-// fixed six-slot strip silently dropped one of them.
+// expanded scoreboard, laid out the way the game lays it out: inventory slots
+// 0..5 as a 3×2 grid in slot order, then a side column stacking the trinket
+// over Riot's role-bound slot. That slot sits outside the six — it is where a
+// bot laner's boots go once the role quest is done (six items *and* boots), and
+// where the other roles' quest reward goes — so nothing is pulled out of or
+// packed into the grid.
 const props = withDefaults(defineProps<{
-  /** Inventory slots as the API sends them (0 = empty). */
+  /** Inventory slots 0..5 as the API sends them (0 = empty). */
   itemIds: number[]
   trinketItemId: number
+  /** Riot's role-bound slot (0 = empty, or a row ingested before it was recorded). */
+  roleBoundItemId?: number
   items: Record<number, StaticItemData>
   /** Icon edge in px — drives every cell through an inline style, so empty slots and icons always match. */
   size?: number
 }>(), {
+  roleBoundItemId: 0,
   size: 24,
 })
 
-// Three-state slot so the grid tells apart a slot the player never bought
-// (invisible placeholder) from one whose static data hasn't resolved yet (id > 0
-// but no entry in the map — the icon keeps its skeleton, a real loading state).
+// Three-state slot so the grid tells apart a slot the player never filled
+// (placeholder) from one whose static data hasn't resolved yet (id > 0 but no
+// entry in the map — the icon keeps its skeleton, a real loading state).
 type InventorySlot =
   | { kind: 'empty' }
   | { kind: 'loading' }
@@ -29,38 +33,20 @@ type InventorySlot =
 
 const INVENTORY_SLOT_COUNT = 6
 
-const bootsItem = computed<StaticItemData | null>(() => {
-  for (const id of props.itemIds) {
-    const item = props.items[id]
-    if (item && isBootsItem(item)) return item
-  }
-  return null
-})
+function toSlot(id: number | undefined): InventorySlot {
+  if (!id || id <= 0 || isNonBuildItem(id)) return { kind: 'empty' }
+  const item = props.items[id]
+  return item ? { kind: 'item', item } : { kind: 'loading' }
+}
 
-// Real items are left-aligned and the remaining cells become placeholders, so
-// the grid keeps the same width on every row and the trinket column lines up
-// down the list. The Eye of the Herald — a Rift Herald summon, never a build
-// item — is dropped.
-const inventory = computed<InventorySlot[]>(() => {
-  const bootsId = bootsItem.value?.id
-  const filled: InventorySlot[] = props.itemIds
-    .filter(id => id > 0 && id !== bootsId && !isNonBuildItem(id))
-    .map((id) => {
-      const item = props.items[id]
-      return item ? { kind: 'item', item } : { kind: 'loading' }
-    })
-  const empties: InventorySlot[] = Array.from(
-    { length: Math.max(0, INVENTORY_SLOT_COUNT - filled.length) },
-    () => ({ kind: 'empty' }),
-  )
-  return [...filled, ...empties]
-})
+const inventory = computed<InventorySlot[]>(() =>
+  Array.from({ length: INVENTORY_SLOT_COUNT }, (_, slot) => toSlot(props.itemIds[slot])),
+)
 
-const trinket = computed<StaticItemData | null>(() => {
-  const id = props.trinketItemId
-  if (id <= 0 || isNonBuildItem(id)) return null
-  return props.items[id] ?? null
-})
+// The Eye of the Herald — a Rift Herald summon parked in the trinket slot,
+// never an item the player chose — reads as an empty trinket.
+const trinket = computed(() => toSlot(props.trinketItemId))
+const roleBound = computed(() => toSlot(props.roleBoundItemId))
 
 const cellStyle = computed(() => ({ width: `${props.size}px`, height: `${props.size}px` }))
 const gap = computed(() => (props.size >= 24 ? 'gap-1' : 'gap-0.5'))
@@ -91,8 +77,8 @@ const gap = computed(() => (props.size >= 24 ? 'gap-1' : 'gap-0.5'))
     </div>
     <div class="flex flex-col" :class="gap">
       <GameTooltipItemIcon
-        v-if="trinket"
-        :item="trinket"
+        v-if="trinket.kind !== 'empty'"
+        :item="trinket.kind === 'item' ? trinket.item : null"
         :width="size"
         :height="size"
         loading="lazy"
@@ -100,8 +86,8 @@ const gap = computed(() => (props.size >= 24 ? 'gap-1' : 'gap-0.5'))
       />
       <div v-else class="shrink-0 rounded-full bg-white/5" :style="cellStyle" aria-hidden="true" />
       <GameTooltipItemIcon
-        v-if="bootsItem"
-        :item="bootsItem"
+        v-if="roleBound.kind !== 'empty'"
+        :item="roleBound.kind === 'item' ? roleBound.item : null"
         :width="size"
         :height="size"
         loading="lazy"

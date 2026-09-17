@@ -73,6 +73,12 @@ public sealed record MatchSummarySelfReadModel
 
     public int TrinketItemId { get; init; }
 
+    /// <summary>
+    /// Riot's role-bound slot, outside the six inventory slots: a bot laner's boots once the
+    /// role quest is done, the other roles' quest reward. 0 when empty or not recorded.
+    /// </summary>
+    public int RoleBoundItemId { get; init; }
+
     /// <summary>100 = blue side, 200 = red side.</summary>
     public int TeamId { get; init; }
 

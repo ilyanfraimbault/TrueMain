@@ -141,6 +141,8 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
 
         entity.Property(e => e.TrinketItemId)
             .IsRequired();
+        entity.Property(e => e.RoleBoundItemId)
+            .IsRequired();
 
         entity.Property(e => e.PerksDefense)
             .IsRequired();

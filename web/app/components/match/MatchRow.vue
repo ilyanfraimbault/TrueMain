@@ -387,11 +387,11 @@ const rowTint = computed(() =>
               />
             </div>
 
-            <!-- Items: the shared 3×2 grid + trinket/boots column, the same
-                 block the expanded scoreboard draws per player. -->
+            <!-- Items: the shared inventory block the scoreboard draws per player. -->
             <MatchItemGrid
               :item-ids="self.items"
               :trinket-item-id="self.trinketItemId"
+              :role-bound-item-id="self.roleBoundItemId"
               :items="items"
             />
           </div>
