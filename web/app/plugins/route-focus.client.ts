@@ -14,8 +14,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   let pending = false
 
   useRouter().afterEach((to, from, failure) => {
-    if (failure) return
-    pending = shouldMoveFocus(to, from)
+    pending = !failure && shouldMoveFocus(to, from)
   })
 
   nuxtApp.hook('page:finish', () => {
