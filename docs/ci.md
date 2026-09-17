@@ -76,6 +76,13 @@ files are generated with (`npx npm@11.13.0 install` locally, see `CLAUDE.md`).
 `nuxt typecheck` can pass on stale `.nuxt` types while `nuxt build` fails, so
 the job runs typecheck, the vitest suite and a fresh build.
 
+The web app's vitest config holds two projects (#1620), both run by the one
+`npm run test` step: `unit`, the pure-function tests in a bare happy-dom
+environment, and `nuxt`, the tests under `web/tests/nuxt/` that boot the real
+Nuxt runtime through `@nuxt/test-utils` to mount components and exercise
+hydration paths. They live under `web/**`, so the `web` path filter already
+covers them.
+
 ### File sizes
 
 The frontends carry no linter and the backend analyzers have no file-length

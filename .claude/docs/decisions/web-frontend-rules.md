@@ -206,3 +206,19 @@ rune and spell icon tooltips mount on the first hover — #1585.
 - **Kept after first open**, so switching back to a tab is instant and keeps its state; a new set of builds
   starts over on its first tab.
 
+
+## Render-time behaviour is tested inside the Nuxt runtime, in a vitest project of its own (2026-09-17)
+
+**Decision:** `web/` runs two vitest projects from one `npm test`: `unit` (pure functions, bare happy-dom, no
+Nuxt) and `nuxt` (`@nuxt/test-utils`, `defineVitestProject`), whose tests live in `web/tests/nuxt/` — #1620.
+
+- **Why.** The bugs that cost the most on this app were render-time ones — lazy-hydration mismatches
+  (#834/#837), an immediate watcher firing during SSR (#1234) — and the unit suite has no runtime to mount a
+  component in, so none of them could be asserted.
+- **Separate projects**, so the runtime's boot cost never lands on the fast suite and a runtime flake never
+  blocks a pure-function test.
+- **What the runtime suite pins today**: the champion build section's skeleton → tabs transition, driven by
+  the real `useChampion`, and `useLazyHydrationSnapshot` hydrating against its SSR value — with a control test
+  proving the harness does report a mismatch when the live value is bound directly.
+- **A test that needs auto-imports, `#components`, `useState`, routing or a hydration path goes in
+  `tests/nuxt/`**; everything else stays a unit test.

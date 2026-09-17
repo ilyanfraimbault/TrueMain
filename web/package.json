@@ -31,7 +31,9 @@
     "vue": "^3.5.42"
   },
   "devDependencies": {
+    "@nuxt/test-utils": "^4.3.2",
     "@types/node": "^26.5.1",
+    "@vue/test-utils": "^2.5.1",
     "happy-dom": "^20.14.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
