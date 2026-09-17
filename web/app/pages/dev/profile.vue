@@ -22,24 +22,25 @@ useSeoMeta({
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
+const apiFetch = useApiFetch()
 const { data: champions } = useLazyAsyncData<ChampionStaticListItem[]>(
   'dev-profile-champions',
-  () => $fetch<ChampionStaticListItem[]>('/api/static/champions'),
+  () => apiFetch<ChampionStaticListItem[]>('/static/champions'),
   { default: () => [], server: false },
 )
 const { data: items } = useLazyAsyncData<Record<number, StaticItemData>>(
   () => `dev-profile-items-${latestPatch.value ?? ''}`,
-  () => $fetch<Record<number, StaticItemData>>('/api/static/items', { query: { patch: latestPatch.value ?? '' } }),
+  () => apiFetch<Record<number, StaticItemData>>('/static/items', { query: { patch: latestPatch.value ?? '' } }),
   { default: () => ({}), server: false, watch: [latestPatch] },
 )
 const { data: summonerSpells } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
   () => `dev-profile-summoner-spells-${latestPatch.value ?? ''}`,
-  () => $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', { query: { patch: latestPatch.value ?? '' } }),
+  () => apiFetch<Record<number, StaticSummonerSpellData>>('/static/summoner-spells', { query: { patch: latestPatch.value ?? '' } }),
   { default: () => ({}), server: false, watch: [latestPatch] },
 )
 const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
   () => `dev-profile-rune-tree-${latestPatch.value ?? ''}`,
-  () => $fetch<RuneTreeResponse>('/api/static/rune-tree', { query: { patch: latestPatch.value ?? '' } }),
+  () => apiFetch<RuneTreeResponse>('/static/rune-tree', { query: { patch: latestPatch.value ?? '' } }),
   { default: () => ({ styles: [], perks: {}, perkStyles: {}, shardSlots: [] }), server: false, watch: [latestPatch] },
 )
 

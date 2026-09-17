@@ -40,17 +40,14 @@ const { currentPage, setPage } = useRoutePage()
 // Pagination is applied client-side below so search + position filters can
 // stay client-side too and the user can paginate filtered subsets without
 // extra round-trips.
-const {
-  data: summaries,
-  error: summariesError,
-  status: summariesStatus,
-} = useLazyAsyncData<ChampionSummaryResponse[]>(
+const apiFetch = useApiFetch()
+const { data: summaries, error: summariesError, status: summariesStatus } = useLazyAsyncData<ChampionSummaryResponse[]>(
   () => `champions-list-${filters.value.patch ?? 'latest'}-${filters.value.eloBracket ?? 'ALL'}`
     + `-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
   () => {
     const patch = filters.value.patch
     const elo = filters.value.eloBracket
-    return $fetch<ChampionSummaryResponse[]>('/api/champions', {
+    return apiFetch<ChampionSummaryResponse[]>('/champions', {
       query: {
         ...(patch ? { patch } : {}),
         // Cumulative "X+" threshold; the composable already omits the default
