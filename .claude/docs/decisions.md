@@ -140,6 +140,7 @@ Last verified against `develop` on 2026-09-02.
 - Focus moves to the content only when the path changes; the shell owns the single `<main>` (2026-09-17) — #1616, #1615
 - Render-time behaviour is tested inside the Nuxt runtime, in a vitest project of its own (2026-09-17) — #1620
 - Backend calls go through `useApi` / `useApiFetch`, not a bare `$fetch('/api/…')` (2026-09-17) — #1619, #1557
+- The three text pages are cached at runtime (`swr`), never prerendered — a prerendered page freezes the build's runtime config (2026-09-18) — #1617
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 

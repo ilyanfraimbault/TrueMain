@@ -43,22 +43,5 @@ export default defineNuxtPlugin(async (nuxtApp) => {
         .then((data) => { slugs.value = data })
         .catch(() => {})
     })
-    return
-  }
-
-  // A prerendered page (#1617) carries the map as it was at *build* time, and
-  // this state then lives for the whole visit — a champion added by a later
-  // patch would keep numeric links on every page reached from there. Refresh
-  // it once hydration is over: the page hydrates against the map its HTML was
-  // rendered with, then the links upgrade in place. A failed refresh keeps the
-  // build-time map, which is still right for every champion it knows.
-  if (nuxtApp.payload.prerenderedAt) {
-    onNuxtReady(() => {
-      void $fetch<ChampionSlugMap>('/api/static/champion-slugs')
-        .then((data) => {
-          if (Object.keys(data).length > 0) slugs.value = data
-        })
-        .catch(() => {})
-    })
   }
 })
