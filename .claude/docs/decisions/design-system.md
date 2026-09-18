@@ -204,3 +204,29 @@ shape to compare against.
   the entry is back to +0.2 KB (the theme in `app.config.ts`). Excluding the unused themes from the CSS with
   `@source not` was rejected: it would silently leave the next `Prose*` component a page adopts unstyled — the
   static-extraction trap `DESIGN_SYSTEM.md` already warns about.
+
+## Page transitions are a staggered fade of the content only (2026-09-18)
+
+**Decision:** page changes use the browser's View Transitions API through `experimental.viewTransition: true`,
+animating only `#main-content`: the old page fades out in 90 ms, the new one fades in over 180 ms with a 6 px rise,
+starting at 60 ms — #1621.
+
+- **Content only.** The header and footer stay in the root layer, whose stock cross-fade of two near-identical
+  frames only shows the nav highlight moving. The content group's size morph is disabled: two pages rarely share a
+  height, and a stretching box reads as jank.
+- **Staggered, not a cross-fade.** A plain cross-fade shows two dense tables on top of each other half-way through,
+  which reads as noise on this UI (observed on paused frames).
+- **Where it does not run.** Nuxt starts a transition only when the page component changes, so the champion page's
+  filter clicks and the pagers (same-path `router.replace`) never animate; `true` rather than `'always'` skips it
+  under `prefers-reduced-motion: reduce`. Both verified in the browser.
+- **The champion page opts out of arriving.** The browser freezes the old frame from the start of the navigation
+  until Nuxt's `page:finish`, and aborts the animation after 4 s. The champion page awaits its build summary in
+  setup, so a cold navigation into it showed a frozen directory for 4 s and then no animation at all — worse than
+  no transition, where the old page at least stays live (hover states, pulsing skeletons). The rule is about the
+  *destination*, so leaving the champion page still animates; any future page that awaits data in setup is opted
+  out the same way, rather than shortening the animation for everyone.
+- **Where the opt-out lives**: the destination paths are listed in `utils/view-transition.ts` and applied by
+  `plugins/view-transition.client.ts`, which clears `to.meta.viewTransition` in a `beforeEach` — Nuxt reads that
+  flag in a `beforeResolve`, which always runs later. `definePageMeta` on the page itself would be more direct,
+  but `pages/champions/[slug].vue` is over the file-size guardrail's limit and may only shrink. Both the rule and
+  the guard's effect are tested (unit test, plus a browser run counting the transitions each navigation starts).

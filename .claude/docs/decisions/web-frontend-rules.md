@@ -276,3 +276,22 @@ placeholder). Paths are relative to `/api`, which both helpers own and a caller 
 - **The hand-rolled fetchers stay apart** — `useTruemainFetch` and its consumers, `useCompositionBuild`,
   `useCompositionBuildGames`, `useTruemainSearch`: per-viewer payloads, client-only by construction, with
   monotonic request tokens. `useFetch`'s shared payload is exactly what they must never enter (#862, #1234).
+
+## The three text pages are cached at runtime (`swr`), never prerendered (2026-09-18)
+
+**Decision:** `/about`, `/privacy` and `/terms` carry a `swr` route rule of one hour — Nitro renders them once
+per container and serves the cached HTML afterwards, revalidating in the background. `prerender: true` was
+tried first (#1617) and rejected.
+
+- **Why not prerender.** Nuxt inlines `runtimeConfig.public` into the rendered HTML, so a page emitted by
+  `nuxt build` carries the *build* environment's config and the client keeps it for the whole visit. Measured
+  on a production build served with preprod's env: a visit landing on `/about` loaded no Umami script on that
+  page *or any page reached from it*, lost the footer's `env · version` stamp, and emitted the prod canonical
+  URL. That reverses the promotable-image decision (`runtimeConfig.public` is read at runtime so one image
+  moves from preprod to prod) — re-reading each value on the client instead would leave the same trap for the
+  next `runtimeConfig.public` consumer.
+- **Why one hour.** The TTL matches the champion slug map's own server cache
+  (`server/api/static/champion-slugs.get.ts`), the only backend-derived value in these pages' payload, so a
+  cached page is never staler than a freshly rendered one.
+- **Measured**: served locally, a cached response answers in ~3.5 ms against ~117 ms for a full render, and
+  the env, version, Umami host/id and canonical URL are the running container's.

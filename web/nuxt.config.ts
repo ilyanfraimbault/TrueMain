@@ -3,6 +3,10 @@ import { fileURLToPath } from 'node:url'
 import { addServerHandler, defineNuxtModule } from '@nuxt/kit'
 import { IPX_CACHE_SECONDS, IPX_ROUTE_BASE } from './shared/utils/ipx'
 
+// How long a rendered text page stays in the Nitro cache before it is
+// re-rendered in the background (see the `routeRules` entries below).
+const STATIC_PAGE_SWR_SECONDS = 60 * 60 // 1 hour
+
 // Claims `/_ipx/**` before @nuxt/image sets up its own handler. The module
 // checks `nuxt.options.serverHandlers` for the route and steps aside when it
 // finds one (`hasUserProvidedIPX`), which is exactly what we want: everything
@@ -181,6 +185,12 @@ export default defineNuxtConfig({
   },
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
+  experimental: {
+    // Page transitions through the View Transitions API (#1621); the motion
+    // itself is in main.css. `true`, not `'always'`: Nuxt then skips the
+    // transition for visitors who ask for reduced motion.
+    viewTransition: true,
+  },
   // Dark-only: there is no colour-mode toggle in the header any more. The
   // module stays installed because @nuxt/ui depends on it, and it has no
   // "forced" switch — `preference` is only a *default*, and a returning visitor
@@ -223,6 +233,19 @@ export default defineNuxtConfig({
         'cache-control': `public, max-age=${IPX_CACHE_SECONDS}, immutable`,
       },
     },
+    // The three text pages fetch nothing of their own, so their HTML only
+    // depends on the shell: render it once, then serve it from the Nitro cache
+    // and re-render in the background when the entry ages out (#1617).
+    // `swr` rather than `prerender` on purpose: a prerendered page would carry
+    // the *build* environment's `runtimeConfig.public` — no Umami, no version
+    // stamp, the prod canonical URL on preprod — for the whole visit that lands
+    // on it, which is exactly what the runtime-config decision below avoids.
+    // The TTL matches the champion slug map's own server cache
+    // (`server/api/static/champion-slugs.get.ts`), so a cached page is never
+    // staler than an SSR one.
+    '/about': { swr: STATIC_PAGE_SWR_SECONDS },
+    '/privacy': { swr: STATIC_PAGE_SWR_SECONDS },
+    '/terms': { swr: STATIC_PAGE_SWR_SECONDS },
   },
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
