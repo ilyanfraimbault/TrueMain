@@ -402,10 +402,11 @@ one container could take the machine down with it.
 
 - Every service in `compose.preprod.yaml` carries `cpus` (a hard ceiling) and `cpu_shares` (its
   weight when everything wants CPU at once). The ceilings deliberately add up to more than 2: they
-  cap a runaway, while the shares decide who yields under contention. Postgres and pgbouncer get
-  the highest weight, the API the next, and the throwaway services (pgAdmin, Umami, the cleanup
-  sidecar) the lowest. `cpu_shares` has no `deploy.resources` equivalent, which is why these are
-  the flat Compose keys and not a `deploy:` block.
+  cap a runaway, while the shares decide who yields under contention. Postgres alone carries the
+  top weight (2048); the rest of the request path — pgbouncer, Mongo, the API — shares the tier
+  below it (1024), then the web and ingestor tier, then the admin and analytics one, and last the
+  throwaway services (pgAdmin, the cleanup sidecar). `cpu_shares` has no `deploy.resources`
+  equivalent, which is why these are the flat Compose keys and not a `deploy:` block.
 - `compose.prod.yaml` gets no caps: its host is not shared and sizing one machine's limits from
   another's symptoms would be guesswork.
 - Health probes ran every 10 s on eleven containers. The probe itself is cheap; the `runc exec`
