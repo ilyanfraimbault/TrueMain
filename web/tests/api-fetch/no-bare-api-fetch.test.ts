@@ -26,17 +26,9 @@ const LEGACY = new Set([
   'composables/useTruemainProfile.ts',
   'composables/useTruemainRankHistory.ts',
   'composables/useTruemainSearch.ts',
-  // Not migrated yet (#1619).
-  'composables/useChampionStaticList.ts',
-  'composables/useChampionStatic.ts',
-  'composables/useDDragonVersions.ts',
-  'composables/useMatchDetail.ts',
-  'pages/champions/index.vue',
-  'pages/champions/tierlist.vue',
-  'pages/dev/match-row.vue',
-  'pages/dev/profile.vue',
+  // Reads a Nitro static route, not the backend, and is being reworked for the
+  // prerendered pages (#1617) — migrate it once that lands.
   'plugins/champion-slugs.ts',
-  'plugins/static-prefetch.client.ts',
 ])
 
 const APP_DIR = fileURLToPath(new URL('../../app', import.meta.url))
