@@ -124,9 +124,9 @@ const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.valu
 // same defaults the aggregate does, so both describe the same slice.
 //
 // Awaited server-side only (see `seoStaticFetch`: no Suspense fallback on
-// `<NuxtPage>`, so a client await freezes the outgoing page). `useRequestFetch`
+// `<NuxtPage>`, so a client await freezes the outgoing page). `useApiFetch`
 // carries the visitor's X-Forwarded-For into the SSR call (#1557).
-const requestFetch = useRequestFetch()
+const apiFetch = useApiFetch()
 const buildSummaryFetch = useAsyncData(
   () => [
     'champion-build-summary',
@@ -142,7 +142,7 @@ const buildSummaryFetch = useAsyncData(
     // the key is what SSR payload reuse keys on.
     filters.value.truemainsOnly ? 'truemains' : 'everyone',
   ].join('-'),
-  () => requestFetch<ChampionBuildSummary>(`/api/champion-summary/${championId.value}`, {
+  () => apiFetch<ChampionBuildSummary>(`/champion-summary/${championId.value}`, {
     query: {
       patch: filters.value.patch || undefined,
       position: filters.value.position || undefined,

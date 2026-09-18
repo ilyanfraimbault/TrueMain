@@ -30,6 +30,8 @@ export function usePlayerChampionPerformance(
   const patchRef = computed(() => toValue(options.patch) || undefined)
   const positionRef = computed(() => toValue(options.position) || undefined)
 
+  const apiFetch = useApiFetch()
+
   return useLazyAsyncData<PlayerChampionPerformanceResponse | null>(
     () => [
       'player-champion-performance',
@@ -46,8 +48,8 @@ export function usePlayerChampionPerformance(
       if (positionRef.value) query.position = positionRef.value
 
       try {
-        return await $fetch<PlayerChampionPerformanceResponse>(
-          `/api/truemains/${encodeURIComponent(nameTagRef.value)}/champions/${championIdRef.value}/performance`,
+        return await apiFetch<PlayerChampionPerformanceResponse>(
+          `/truemains/${encodeURIComponent(nameTagRef.value)}/champions/${championIdRef.value}/performance`,
           { query },
         )
       }

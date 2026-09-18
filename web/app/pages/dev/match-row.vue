@@ -17,27 +17,28 @@ useSeoMeta({
 // honest about the resolved icon URLs and lets us spot wiring problems here
 // before they hit the live page.
 
+const apiFetch = useApiFetch()
 const { data: champions } = useLazyAsyncData<ChampionStaticListItem[]>(
   'dev-match-row-champions',
-  () => $fetch<ChampionStaticListItem[]>('/api/static/champions'),
+  () => apiFetch<ChampionStaticListItem[]>('/static/champions'),
   { default: () => [], server: false },
 )
 
 const { data: items } = useLazyAsyncData<Record<number, StaticItemData>>(
   'dev-match-row-items',
-  () => $fetch<Record<number, StaticItemData>>('/api/static/items', { query: {} }),
+  () => apiFetch<Record<number, StaticItemData>>('/static/items', { query: {} }),
   { default: () => ({}), server: false },
 )
 
 const { data: summonerSpells } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
   'dev-match-row-summoner-spells',
-  () => $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', { query: {} }),
+  () => apiFetch<Record<number, StaticSummonerSpellData>>('/static/summoner-spells', { query: {} }),
   { default: () => ({}), server: false },
 )
 
 const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
   'dev-match-row-rune-tree',
-  () => $fetch<RuneTreeResponse>('/api/static/rune-tree', { query: {} }),
+  () => apiFetch<RuneTreeResponse>('/static/rune-tree', { query: {} }),
   { default: () => ({ styles: [], perks: {}, perkStyles: {}, shardSlots: [] }), server: false },
 )
 

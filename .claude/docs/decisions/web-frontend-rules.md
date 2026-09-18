@@ -252,3 +252,27 @@ Nuxt) and `nuxt` (`@nuxt/test-utils`, `defineVitestProject`), whose tests live i
   proving the harness does report a mismatch when the live value is bound directly.
 - **A test that needs auto-imports, `#components`, `useState`, routing or a hydration path goes in
   `tests/nuxt/`**; everything else stays a unit test.
+
+## Backend calls go through `useApi` / `useApiFetch`, not a bare `$fetch('/api/…')` (2026-09-17)
+
+**Decision:** `app/composables/useApi.ts` holds the one way the web app calls the backend — #1619.
+`useApi` (built with `createUseFetch`) is the default for a declarative call; `useApiFetch()`, called in setup,
+is the fetcher for a `useAsyncData` handler that needs logic (a 404 that means "empty", a gate resolving a
+placeholder). Paths are relative to `/api`, which both helpers own and a caller cannot override.
+
+- **Why.** The #1557 rule (an SSR-capable call must go through `useRequestFetch()` so the visitor's
+  `X-Forwarded-For` reaches the API's rate limiter) was enforced by memory. Both helpers resolve
+  `useRequestFetch()` themselves, so a new call site forwards by default. `tests/nuxt/use-api.test.ts` pins it
+  by swapping `useRequestFetch` for a spy, and `tests/api-fetch/no-bare-api-fetch.test.ts` fails on any new bare
+  `$fetch('/api/…')` outside a list that may only shrink.
+- **Errors are normalised once, after ofetch's retry.** An HTTP failure is rethrown with its status and the
+  `describeFetchError` copy as its message — never the proxied URL or the backend's body — so a stray
+  `{{ error.message }}` or `error.vue` cannot print either. The status survives, so handlers still branch on
+  `fetchErrorStatus`. A failure without a status (network drop, abort) passes through untouched: Nuxt recognises a
+  superseded request by its `AbortError`. Normalising in an `onResponseError` hook was rejected — throwing there
+  skips ofetch's retry of a 5xx / 429 GET.
+- **Keys are unchanged by a migration.** A migrated call passes its old key explicitly (`useApi(…, { key })`), and
+  calls sharing a key keep identical options (Nuxt 4's singleton data-fetching rule).
+- **The hand-rolled fetchers stay apart** — `useTruemainFetch` and its consumers, `useCompositionBuild`,
+  `useCompositionBuildGames`, `useTruemainSearch`: per-viewer payloads, client-only by construction, with
+  monotonic request tokens. `useFetch`'s shared payload is exactly what they must never enter (#862, #1234).
