@@ -13,7 +13,7 @@ x-ingestor-environment: &ingestor-environment
 
 services:
   postgres:
-    image: postgres:17.2
+    image: postgres:18.4
     container_name: truemain-postgres
     restart: unless-stopped
     shm_size: "1g"
@@ -227,7 +227,7 @@ services:
       - truemain_internal
 
   umami-db:
-    image: postgres:17.2
+    image: postgres:18.4
     container_name: truemain-umami-db
     restart: unless-stopped
     environment:
@@ -260,7 +260,7 @@ services:
       - truemain_internal
 
   umami-replay-cleanup:
-    image: postgres:17.2-alpine
+    image: postgres:18.4-alpine
     container_name: truemain-umami-replay-cleanup
     restart: unless-stopped
     environment:
