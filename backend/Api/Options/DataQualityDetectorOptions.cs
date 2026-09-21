@@ -104,14 +104,36 @@ public sealed class DataQualityDetectorOptions
     public double OrphanRatioRedPercent { get; set; } = 99;
 
     /// <summary>
+    /// Orphan share, in percent, below which the trend does not vote at all (#1656).
+    ///
+    /// <para>
+    /// The rise exists to catch a regression that has not yet pushed the absolute level
+    /// past its own threshold — a share sliding towards 100%. A platform sitting at 12%
+    /// and moving to 17% is not that, and flagging it turns the card amber on days
+    /// nothing is wrong. Below this floor the level itself is the answer and the trend is
+    /// ignored.
+    /// </para>
+    /// </summary>
+    public double OrphanRatioRiseMinLevelPercent { get; set; } = 60;
+
+    /// <summary>
     /// Rise in the orphan share, in percentage points, between the older and newer half
     /// of the sample before the card goes amber. Catches a regression that has not yet
     /// pushed the absolute level past its own threshold.
+    ///
+    /// <para>
+    /// The level has to clear <see cref="OrphanRatioRiseMinLevelPercent"/> first, and the
+    /// line has to sit outside the sampling noise: with
+    /// <see cref="OrphanSampleMatchesPerPlatform"/> at 60 each window holds ~300
+    /// participants, so the difference between two windows carries a couple of points of
+    /// noise on its own. A line at 5 points was inside that band and fired on healthy
+    /// platforms (#1656).
+    /// </para>
     /// </summary>
-    public double OrphanRatioRiseAmberPoints { get; set; } = 5;
+    public double OrphanRatioRiseAmberPoints { get; set; } = 8;
 
     /// <summary>Rise in the orphan share, in percentage points, before the card goes red.</summary>
-    public double OrphanRatioRiseRedPoints { get; set; } = 15;
+    public double OrphanRatioRiseRedPoints { get; set; } = 20;
 
     /// <summary>
     /// Hours since the Harvest step last succeeded before it reads as amber. Harvest is

@@ -106,6 +106,20 @@ public sealed record DataQualityDetectorRowReadModel
     /// </summary>
     public string? ValueLabel { get; init; }
 
+    /// <summary>
+    /// The verdict of the measure <see cref="ValueLabel"/> prints, when it is not the
+    /// row's own (#1656).
+    ///
+    /// <para>
+    /// A row can judge more than one measure — the orphan card judges a share and its
+    /// movement — and <see cref="Status"/> is the worst of them. Painting the printed
+    /// number with that verdict puts a warning colour on a reading that is fine and hides
+    /// which measure actually tripped. Null means the printed number <em>is</em> the
+    /// judged one and carries <see cref="Status"/>.
+    /// </para>
+    /// </summary>
+    public string? ValueStatus { get; init; }
+
     /// <summary>Why this row reads the way it does, or what it is measuring.</summary>
     public string? Note { get; init; }
 }
