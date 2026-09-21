@@ -1,4 +1,5 @@
 using Core.Lol.Lane;
+using Core.Lol.Map;
 using Data.Entities;
 using EloBracket = Core.Lol.Ranking.EloBracket;
 
