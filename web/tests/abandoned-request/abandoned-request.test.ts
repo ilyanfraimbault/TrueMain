@@ -53,7 +53,7 @@ describe('abortOnAbandonment', () => {
 describe('isReportableAbandonment', () => {
   it.each([
     ['/champions/ahri', true],
-    ['/api/champions/103/roam', true],
+    ['/api/champions/103/scaling', true],
     ['/_nuxt/entry.abc123.js', false],
     ['/_ipx/f_webp&s_64x64/https://ddragon.example/icon.png', false],
     [undefined, false],

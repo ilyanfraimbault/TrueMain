@@ -174,8 +174,8 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
 
         entity.HasIndex(e => e.RiotAccountId);
 
-        // The champion-page reads (builds, matchups, scaling, leads, item-timings,
-        // roam) all filter the tracked-account rows by champion + lane. A partial
+        // The champion-page reads (builds, matchups, scaling, leads, item-timings)
+        // all filter the tracked-account rows by champion + lane. A partial
         // index on those columns (only the tracked rows, ~1/10 of the table) turns
         // those filters into an index seek instead of a scan of the full 35 GB
         // match_participants table. EloBracket is the trailing column so the same

@@ -46,7 +46,7 @@ public interface IChampionReadCache
 /// <c>TryGetValue</c>/<c>Store</c> pair and a 60 s TTL, and several
 /// (<c>ChampionBuildsQueryService</c>, the live matchup fold, the synergy trios, the
 /// trend and patch-diff reads) were not caching at all. Measured cold on production
-/// (#1368): roam 14.1 s, synergies 2.3 s, item timings 1.3 s, matchups 0.57 s —
+/// (#1368): synergies 2.3 s, item timings 1.3 s, matchups 0.57 s —
 /// against 0.08–0.15 s warm. With 173 champions × 5 lanes × rank brackets, a 60 s TTL
 /// means practically every visit to a non-top champion pays the cold price, and
 /// nothing stopped ten concurrent visitors from each paying it at the same time.
@@ -70,7 +70,7 @@ public interface IChampionReadCache
 /// entries survive until the ingestor actually publishes new numbers.
 /// </para>
 /// <para>
-/// <b>The live folds are a weaker case, deliberately.</b> Roam, scaling, item timings,
+/// <b>The live folds are a weaker case, deliberately.</b> Scaling, item timings,
 /// synergies, the live branch of matchups, mains-comparison and the
 /// composition selection read <c>match_participants</c> directly, so their answers also
 /// move with match ingestion — which since #1374 runs in a lane of its own, not with the

@@ -13,7 +13,6 @@ public class TrueMainDbContext : DbContext
     public DbSet<Persona> Personas => Set<Persona>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
     public DbSet<MatchParticipantTimelineSnapshot> MatchParticipantTimelineSnapshots => Set<MatchParticipantTimelineSnapshot>();
-    public DbSet<MatchParticipantKillPosition> MatchParticipantKillPositions => Set<MatchParticipantKillPosition>();
     public DbSet<MatchBan> MatchBans => Set<MatchBan>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
     public DbSet<PerkSelectionCatalog> PerkSelectionCatalogs => Set<PerkSelectionCatalog>();

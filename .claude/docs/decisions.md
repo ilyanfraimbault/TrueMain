@@ -51,7 +51,7 @@ Last verified against `develop` on 2026-09-02.
 - `hydrate-on-visible` does not make a panel free — it defers hydration, not server rendering — #1123, #1231
 - The build paragraph is typeset, and rune trees get Riot's colours to do it — #1123, #1143
 - The paragraph's hover cards are resolved client-side, not carried in its payload — #1147, #1145
-- Roaming is a badge in the header, not a panel — #536
+- Roaming is gone: no badge, no endpoint, no kill-position table — #536
 - A variation card only exists when there is a variation; a settled build says so by being short — #1466
 - The panel answers before it nuances, and the build tree is a picture, not a card — #1466
 - The build paragraph is collapsed, moved to the foot of the sidebar, and no longer restates the icon grid — #1466, #1123, #1143

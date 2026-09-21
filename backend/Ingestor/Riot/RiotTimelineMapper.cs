@@ -6,7 +6,7 @@ namespace Ingestor.Riot;
 /// Maps the raw Riot match timeline payload into the internal <see cref="MatchTimelineDto"/>.
 /// Captures per-frame participant state (position, gold, CS, jungle, damage to champions) and
 /// event positions / kill participants — the foundation for timeline-derived analytics
-/// (per-interval leads, jungle pathing, roam). See issue #538.
+/// (per-interval leads, jungle pathing). See issue #538.
 /// </summary>
 internal static class RiotTimelineMapper
 {

@@ -106,7 +106,7 @@ describe('log forwarder', () => {
 
 describe('toRouteTemplate', () => {
   it.each([
-    ['/api/champions/103/roam?position=MIDDLE', '/api/champions/{n}/roam'],
+    ['/api/champions/103/scaling?position=MIDDLE', '/api/champions/{n}/scaling'],
     ['/api/truemains/Faker-KR1/matches?page=2', '/api/truemains/{nameTag}/matches'],
     ['/truemains/Faker-KR1', '/truemains/{nameTag}'],
     ['/api/truemains/search?q=fak', '/api/truemains/search'],

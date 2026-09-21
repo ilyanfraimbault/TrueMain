@@ -2,7 +2,7 @@
 // The model behind the numbers is documented in docs/performance-score.md.
 
 /**
- * The nine graded axes of the per-match performance score, in the backend's
+ * The eight graded axes of the per-match performance score, in the backend's
  * own order (`Core.Lol.Performance.PerformanceComponentKind`).
  */
 export const PERFORMANCE_COMPONENT_KINDS = [
@@ -14,7 +14,6 @@ export const PERFORMANCE_COMPONENT_KINDS = [
   'Vision',
   'Laning',
   'MidGame',
-  'Roam',
 ] as const
 
 export type PerformanceComponentKind = typeof PERFORMANCE_COMPONENT_KINDS[number]

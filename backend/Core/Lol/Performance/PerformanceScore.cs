@@ -6,18 +6,17 @@ namespace Core.Lol.Performance;
 /// of its <see cref="PerformanceScoreInput"/> — same input, same score, forever —
 /// so it can be recomputed on any read path without a schema change.
 ///
-/// <para><b>Shape.</b> Nine components are each normalized to 0..1, then folded
+/// <para><b>Shape.</b> Eight components are each normalized to 0..1, then folded
 /// into a weighted average that is rescaled to 0..100. A component whose input is
-/// missing (no team kills, no timeline snapshot, no kill-position coverage, a
-/// zero-length game…) is <em>dropped</em> and its weight redistributed over the
-/// survivors — never scored as a zero, which would silently punish a player for a
-/// gap in our data.</para>
+/// missing (no team kills, no timeline snapshot, a zero-length game…) is
+/// <em>dropped</em> and its weight redistributed over the survivors — never scored
+/// as a zero, which would silently punish a player for a gap in our data.</para>
 ///
 /// <para><b>Components and how each is normalized.</b></para>
 /// <list type="bullet">
 ///   <item><description><b>Combat</b> — <c>(kills + assists) / max(1, deaths)</c>,
 ///   linear up to <c>6.0</c> KDA = full marks. Capping is intentional: one blowout
-///   stat must not swamp the other eight components.</description></item>
+///   stat must not swamp the other seven components.</description></item>
 ///   <item><description><b>Kill participation</b> — <c>(kills + assists) / teamKills</c>,
 ///   clamped to 0..1 (shared assists can push the raw ratio past 1).</description></item>
 ///   <item><description><b>Damage share</b> — this player's share of the team's damage
@@ -41,10 +40,6 @@ namespace Core.Lol.Performance;
 ///   laning phase (20 / 30): did the lead survive, grow, or evaporate once the lane broke.
 ///   A game that ends before minute 20 has no such mark and simply drops the
 ///   component.</description></item>
-///   <item><description><b>Roam</b> — early kill participations made outside the player's
-///   own lane, against a role-specific reference count. Dropped for JUNGLE, whose every
-///   gank would otherwise read as a roam (the same exclusion the champion roam panel
-///   makes), and dropped for a match with no kill-position coverage.</description></item>
 /// </list>
 ///
 /// <para><b>Role weights.</b> Each position gets its own weight profile summing to 100
@@ -128,7 +123,6 @@ public static class PerformanceScore
             (PerformanceComponentKind.Vision, profile.Vision, PerMinute(input.VisionScore, minutes, profile.VisionPerMinuteFullMarks)),
             (PerformanceComponentKind.Laning, profile.Laning, Leads(input, laningPhase: true)),
             (PerformanceComponentKind.MidGame, profile.MidGame, Leads(input, laningPhase: false)),
-            (PerformanceComponentKind.Roam, profile.Roam, Roam(input, profile)),
         };
 
         var totalWeight = 0d;
@@ -225,16 +219,6 @@ public static class PerformanceScore
         return totalWeight <= 0d ? null : weighted / totalWeight;
     }
 
-    /// <summary>
-    /// Early out-of-lane kill participations against the role's reference count.
-    /// Null when the match has no kill-position coverage, or when the role has no
-    /// meaningful "own lane" to leave (JUNGLE, whose profile sets the reference to 0).
-    /// </summary>
-    private static double? Roam(PerformanceScoreInput input, RoleProfile profile)
-        => input.OutOfLaneTakedowns is not { } takedowns || profile.RoamFullMarks <= 0d
-            ? null
-            : Clamp01(takedowns / profile.RoamFullMarks);
-
     /// <summary>Maps a signed lead to 0..1 with a dead-even lane sitting at 0.5.</summary>
     private static double Centered(int diff, double span)
         => Clamp01(0.5d + (diff / (2d * span)));
@@ -246,10 +230,9 @@ public static class PerformanceScore
     private static double Clamp01(double value) => Math.Clamp(value, 0d, 1d);
 
     /// <summary>
-    /// Per-role weight profile. The nine weights sum to 100 for every role, and the
-    /// three "full marks" references calibrate the per-minute and roam components so
-    /// each role is graded against its own realistic ceiling rather than a single
-    /// global one.
+    /// Per-role weight profile. The eight weights sum to 100 for every role, and the
+    /// two "full marks" references calibrate the per-minute components so each role is
+    /// graded against its own realistic ceiling rather than a single global one.
     /// </summary>
     private readonly record struct RoleProfile(
         double Combat,
@@ -260,26 +243,30 @@ public static class PerformanceScore
         double Vision,
         double Laning,
         double MidGame,
-        double Roam,
         double CsPerMinuteFullMarks,
-        double VisionPerMinuteFullMarks,
-        double RoamFullMarks)
+        double VisionPerMinuteFullMarks)
     {
         /// <summary>
         /// Weight profile for a Riot team position. Case-insensitive; an empty or
         /// unrecognised position (ARAM, unparsed roles) gets the neutral profile —
         /// roughly the average of the five lanes, so nothing is graded on a role
         /// assumption we cannot back.
+        ///
+        /// <para>The weight that used to grade early out-of-lane kill participations
+        /// sits on kill participation now that the roam axis is gone: both measure
+        /// "was this player there when the team got kills", so folding it there keeps
+        /// each role's balance rather than diluting it across seven unrelated
+        /// axes.</para>
         /// </summary>
         public static RoleProfile For(string? teamPosition) => teamPosition?.Trim().ToUpperInvariant() switch
         {
-            // Combat, KP, Damage, Gold, Farm, Vision, Laning, MidGame, Roam | cs/min ref, vision/min ref, roam ref
-            "TOP" => new(20, 14, 16, 7, 14, 5, 12, 7, 5, 9.0d, 0.9d, 1.5d),
-            "JUNGLE" => new(18, 18, 14, 7, 14, 7, 12, 10, 0, 6.5d, 1.2d, 0d),
-            "MIDDLE" => new(20, 14, 18, 7, 14, 5, 10, 6, 6, 9.0d, 0.9d, 2.5d),
-            "BOTTOM" => new(20, 12, 20, 7, 16, 4, 10, 8, 3, 9.5d, 0.8d, 1.0d),
-            "UTILITY" => new(18, 20, 7, 4, 5, 24, 8, 6, 8, 2.0d, 2.4d, 2.5d),
-            _ => new(20, 16, 16, 7, 12, 7, 10, 8, 4, 8.0d, 1.0d, 2.0d),
+            // Combat, KP, Damage, Gold, Farm, Vision, Laning, MidGame | cs/min ref, vision/min ref
+            "TOP" => new(20, 19, 16, 7, 14, 5, 12, 7, 9.0d, 0.9d),
+            "JUNGLE" => new(18, 18, 14, 7, 14, 7, 12, 10, 6.5d, 1.2d),
+            "MIDDLE" => new(20, 20, 18, 7, 14, 5, 10, 6, 9.0d, 0.9d),
+            "BOTTOM" => new(20, 15, 20, 7, 16, 4, 10, 8, 9.5d, 0.8d),
+            "UTILITY" => new(18, 28, 7, 4, 5, 24, 8, 6, 2.0d, 2.4d),
+            _ => new(20, 20, 16, 7, 12, 7, 10, 8, 8.0d, 1.0d),
         };
     }
 }

@@ -197,17 +197,17 @@ lands rather than `v-if`-ed around the trigger, because Reka snapshots the trigg
 swapping it when the item map arrives is exactly the #1145 bug, which left tooltips able to open and unable
 to close — #1147.
 
-**Roaming is a badge in the header, not a panel.** The #536 panel gave a full below-the-fold section — title,
-subtitle, sample line, three hand-drawn bars and a verdict word — to three cumulative averages, and two of the
-three states it could reach ("Balanced", "Lane-focused") were "this champion is like most champions", which is
-not worth a section. Nobody visits a champion page to learn it kills people out of lane before minute 15. What
-is left is one `Roamer` badge next to the win rate, shown only when the @15 average clears `ROAMER_KP15` (1.5,
-`web/app/utils/roam-verdict.ts`) — the threshold is a product call, so it lives in the frontend like
-`laneVerdict`'s bands — with the number itself in the tooltip. The badge is deliberately one-sided: not being
-a roamer is the default the rest of the page already implies, and an unmeasured champion (below the backend's
-sample floor, or `JUNGLE`) is silent for the same reason it must not read as either. Nothing changed behind it:
-`/champions/{id}/roam` still computes and returns @5/@10/@15, the page still fetches all three, and reviving a
-curve means writing a component, not a backend.
+**Roaming is gone: no badge, no endpoint, no kill-position table.** #536 shipped a below-the-fold panel, later cut
+down to a single `Roamer` badge beside the win rate. The badge was the last thing standing, and it
+was wrong often enough to be worse than nothing: the geometry behind it counted *any* kill participation off
+the player's own lane, so an ADC who followed a fight into the enemy jungle at 12 minutes read as a roamer next
+to a mid laner who actually roams. Calibrating a threshold per lane would have been a second product debate
+over a metric nobody came to the page for. So the whole axis is removed — the `Roamer` badge, the
+`/champions/{id}/roam` endpoint and its query service, the `Roam` component of the performance score, and the
+`match_participant_kill_positions` table with its timeline ingestion. The score's role weights keep summing to
+100 by folding roam's weight into `killParticipation`, which measures the same "was this player there for the
+team's kills" without the map geometry. Reviving it means re-ingesting positions, not un-commenting a
+component.
 
 **A variation card only exists when there is a variation; a settled build says so by being short.** The panel
 listed four alternatives cards unconditionally, above a 5% floor. On a champion whose build is not up for

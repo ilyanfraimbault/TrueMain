@@ -1,6 +1,6 @@
 namespace Core.Lol.Performance;
 
-/// <summary>The nine graded axes of <see cref="PerformanceScore"/>.</summary>
+/// <summary>The eight graded axes of <see cref="PerformanceScore"/>.</summary>
 public enum PerformanceComponentKind
 {
     /// <summary>KDA, capped so one blowout line cannot swamp the rest.</summary>
@@ -26,9 +26,6 @@ public enum PerformanceComponentKind
 
     /// <summary>Leads over the lane opponent at the post-laning marks (&gt; 15 min).</summary>
     MidGame,
-
-    /// <summary>Early kill participations made outside the player's own lane.</summary>
-    Roam,
 }
 
 /// <summary>
@@ -75,7 +72,7 @@ public sealed record PerformanceScoreBreakdown
     public int Score { get; init; }
 
     /// <summary>
-    /// One entry per <see cref="PerformanceComponentKind"/>, always all nine and
+    /// One entry per <see cref="PerformanceComponentKind"/>, always all eight and
     /// always in enum order, so a caller can index them positionally. Dropped
     /// components are present with a <c>null</c> value.
     /// </summary>

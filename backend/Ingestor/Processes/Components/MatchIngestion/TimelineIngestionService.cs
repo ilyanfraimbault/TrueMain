@@ -114,10 +114,6 @@ public sealed class TimelineIngestionService(
             // no window where a match is left without snapshots.
             await session.MatchParticipantTimelineSnapshots.DeleteByMatchIdsAsync(appliedMatchIds, ct);
 
-            // Bounded early-game kill-participation positions for the roam metric (#536),
-            // replaced idempotently the same way.
-            await session.MatchParticipantKillPositions.DeleteByMatchIdsAsync(appliedMatchIds, ct);
-
             await session.Matches.SetTimelineIngestedAsync(appliedMatchIds, true, ct);
             await session.SaveChangesAsync(ct);
             timelineUpdated += appliedMatchIds.Count;
@@ -163,10 +159,9 @@ public sealed class TimelineIngestionService(
                 : [];
         }
 
-        // Staged, not flushed: WriteAsync issues the batch's two deletes before the
+        // Staged, not flushed: WriteAsync issues the batch's delete before the
         // SaveChanges that inserts these, so the unique-index slots are free by then.
         session.MatchParticipantTimelineSnapshots.AddRange(TimelineSnapshotBuilder.Build(matchId, timeline));
-        session.MatchParticipantKillPositions.AddRange(KillPositionBuilder.Build(matchId, timeline));
 
         return true;
     }

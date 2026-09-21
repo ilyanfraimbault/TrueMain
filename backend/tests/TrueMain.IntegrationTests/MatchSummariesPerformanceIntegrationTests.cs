@@ -118,9 +118,9 @@ public sealed class MatchSummariesPerformanceIntegrationTests
         await using var db = _fixture.CreateDbContext();
         var self = await SelfRowAsync(db);
 
-        // No marks and no kill positions: the lead and roam components drop and
-        // their weight is redistributed, rather than the row failing or the
-        // player being scored a zero for a gap in our data.
+        // No marks at all: the lead components drop and their weight is
+        // redistributed, rather than the row failing or the player being
+        // scored a zero for a gap in our data.
         self.PerformanceScore.Should().BeInRange(1, 100);
         self.Placement.Should().BeInRange(1, 10);
     }
@@ -156,16 +156,15 @@ public sealed class MatchSummariesPerformanceIntegrationTests
     }
 
     /// <summary>
-    /// One complete ranked game: ten participants (one per lane per side),
-    /// timeline snapshots at every canonical mark, and early kill positions.
+    /// One complete ranked game: ten participants (one per lane per side) and
+    /// timeline snapshots at every canonical mark.
     ///
     /// <para>Participant 1 is the tracked player — MIDDLE, blue side, winner,
     /// with the winning side's best raw KDA and nothing else. Participant 2 is
     /// the jungle carry who should take the MVP. Everyone else is filler.</para>
     /// </summary>
     /// <param name="withTimeline">
-    /// When false, no snapshots and no kill positions are written, so the lead
-    /// and roam components drop.
+    /// When false, no snapshots are written, so the lead components drop.
     /// </param>
     private async Task SeedMatchAsync(bool withTimeline = true)
     {
@@ -260,27 +259,6 @@ public sealed class MatchSummariesPerformanceIntegrationTests
                     WardsKilled = 1,
                 });
             }
-
-            // Two early kill participations each: one at home, one away. Mid
-            // lane sits on the map's main diagonal, bot lane on the flat
-            // stretch red side of the river — so the second one is a roam for
-            // everyone whose own lane is not BOT.
-            db.MatchParticipantKillPositions.Add(new MatchParticipantKillPosition
-            {
-                MatchId = MatchId,
-                ParticipantId = participantId,
-                TimestampMs = 300_000,
-                X = 7_400,
-                Y = 7_400,
-            });
-            db.MatchParticipantKillPositions.Add(new MatchParticipantKillPosition
-            {
-                MatchId = MatchId,
-                ParticipantId = participantId,
-                TimestampMs = 600_000,
-                X = 11_000,
-                Y = 1_100,
-            });
         }
 
         await db.SaveChangesAsync();

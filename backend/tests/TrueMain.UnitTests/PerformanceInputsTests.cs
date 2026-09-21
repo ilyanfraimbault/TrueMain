@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using Core.Lol.Map;
 using Core.Lol.Performance;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
@@ -10,14 +9,13 @@ using TrueMain.Services.Truemains.Profile;
 namespace TrueMain.UnitTests;
 
 /// <summary>
-/// The glue that turns stored timeline rows into the two timeline-derived
-/// inputs of <see cref="PerformanceScore"/>. Shared by every scoring surface,
+/// The glue that turns stored timeline rows into the timeline-derived
+/// input of <see cref="PerformanceScore"/>. Shared by every scoring surface,
 /// so its "missing means dropped, not zero" contract is pinned here once.
 /// </summary>
 public sealed class PerformanceInputsTests
 {
     private const int BlueTeamId = 100;
-    private const int RedTeamId = 200;
 
     private static Dictionary<(int ParticipantId, int Minute), TimelineMark> Marks(
         params TimelineMark[] marks)
@@ -118,7 +116,7 @@ public sealed class PerformanceInputsTests
         IReadOnlyList<ScoredParticipant> roster,
         Dictionary<(int ParticipantId, int Minute), TimelineMark> marks)
         => PerformanceInputs
-            .BuildMatchInputs(roster, durationSeconds: 1_800, marks, Array.Empty<KillSpot>())
+            .BuildMatchInputs(roster, durationSeconds: 1_800, marks)
             .First(b => b.Participant.ParticipantId == 1)
             .Input
             .LaneLeads;
@@ -143,73 +141,4 @@ public sealed class PerformanceInputsTests
                 GoldEarned: 12_000,
                 VisionScore: 20))
             .ToList();
-
-    [Fact]
-    public void CountOutOfLaneTakedowns_is_unknown_when_the_match_has_no_coverage()
-    {
-        PerformanceInputs.CountOutOfLaneTakedowns(
-                1, "MIDDLE", BlueTeamId, matchHasKillPositions: false, Array.Empty<KillSpot>())
-            .Should().BeNull();
-    }
-
-    [Fact]
-    public void CountOutOfLaneTakedowns_is_zero_for_a_covered_match_with_no_roam()
-    {
-        // A covered match in which this player never left their lane is a real 0
-        // and must be graded as one — the distinction the score depends on.
-        var midOfMid = MidLaneSpot(1);
-
-        PerformanceInputs.CountOutOfLaneTakedowns(
-                1, "MIDDLE", BlueTeamId, matchHasKillPositions: true, new[] { midOfMid })
-            .Should().Be(0);
-    }
-
-    [Fact]
-    public void CountOutOfLaneTakedowns_counts_only_this_participants_out_of_lane_kills()
-    {
-        var botLaneSpot = BotLaneSpot(1);
-        var otherPlayersBotKill = BotLaneSpot(4);
-
-        PerformanceInputs.CountOutOfLaneTakedowns(
-                1,
-                "MIDDLE",
-                BlueTeamId,
-                matchHasKillPositions: true,
-                new[] { MidLaneSpot(1), botLaneSpot, otherPlayersBotKill })
-            .Should().Be(1);
-    }
-
-    [Fact]
-    public void CountOutOfLaneTakedowns_is_unknown_for_a_jungler()
-    {
-        // A jungler has no own lane, so the classification is meaningless rather
-        // than "everything is a roam".
-        PerformanceInputs.CountOutOfLaneTakedowns(
-                1, "JUNGLE", BlueTeamId, matchHasKillPositions: true, new[] { BotLaneSpot(1) })
-            .Should().BeNull();
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("NONE")]
-    public void CountOutOfLaneTakedowns_is_unknown_for_an_unparsed_position(string position)
-        => PerformanceInputs.CountOutOfLaneTakedowns(
-                1, position, RedTeamId, matchHasKillPositions: true, new[] { BotLaneSpot(1) })
-            .Should().BeNull();
-
-    [Theory]
-    [InlineData("top", MapZone.TopLane)]
-    [InlineData("  MIDDLE ", MapZone.MidLane)]
-    [InlineData("BOTTOM", MapZone.BotLane)]
-    [InlineData("UTILITY", MapZone.BotLane)]
-    [InlineData("JUNGLE", MapZone.Unknown)]
-    [InlineData(null, MapZone.Unknown)]
-    public void OwnLane_maps_a_team_position_to_its_home_lane(string? position, MapZone expected)
-        => PerformanceInputs.OwnLane(position).Should().Be(expected);
-
-    /// <summary>A point on the mid-lane diagonal, well away from either base.</summary>
-    private static KillSpot MidLaneSpot(int participantId) => new(participantId, 7_400, 7_400);
-
-    /// <summary>A point deep in the bot lane, on the flat stretch red side of the river.</summary>
-    private static KillSpot BotLaneSpot(int participantId) => new(participantId, 11_000, 1_100);
 }

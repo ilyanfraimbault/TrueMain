@@ -99,12 +99,6 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
         var laning = response.Components.Single(c => c.Kind == "Laning");
         laning.Games.Should().Be(4, "a game with no timeline lowers the component's sample, not its average");
         laning.Value.Should().NotBeNull();
-
-        // No kill positions were seeded at all, so roam is unknown everywhere —
-        // reported as zero games and a null value rather than a zero grade.
-        var roam = response.Components.Single(c => c.Kind == "Roam");
-        roam.Games.Should().Be(0);
-        roam.Value.Should().BeNull();
     }
 
     [Fact]

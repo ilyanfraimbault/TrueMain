@@ -1,4 +1,3 @@
-using Core.Lol.Map;
 using Core.Lol.Patches;
 using Core.Lol.Performance;
 using Core.Options;
@@ -229,20 +228,6 @@ public sealed class PlayerChampionPerformanceQueryService(
                                 row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
                         }));
 
-        var killRows = await db.MatchParticipantKillPositions
-            .AsNoTracking()
-            .Where(k => matchIds.Contains(k.MatchId))
-            .Select(k => new { k.MatchId, k.ParticipantId, k.X, k.Y })
-            .ToListAsync(ct);
-
-        var killSpotsByMatch = killRows
-            .GroupBy(r => r.MatchId)
-            .ToDictionary(
-                g => g.Key,
-                g => (IReadOnlyList<KillSpot>)g
-                    .Select(r => new KillSpot(r.ParticipantId, r.X, r.Y))
-                    .ToList());
-
         var accumulator = new ScoreAccumulator();
 
         foreach (var group in participants.GroupBy(p => p.MatchId))
@@ -259,8 +244,7 @@ public sealed class PlayerChampionPerformanceQueryService(
             var built = PerformanceInputs.BuildMatchInputs(
                 roster,
                 durationByMatch.GetValueOrDefault(group.Key),
-                marksByMatch.TryGetValue(group.Key, out var mm) ? mm : PerformanceInputs.NoMarks,
-                killSpotsByMatch.TryGetValue(group.Key, out var ks) ? ks : Array.Empty<KillSpot>());
+                marksByMatch.TryGetValue(group.Key, out var mm) ? mm : PerformanceInputs.NoMarks);
 
             var entries = built.Select(b => new MatchPerformanceEntry
             {
