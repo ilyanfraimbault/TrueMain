@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { POSITION_BY_VALUE } from '~/utils/positions'
-import { roamVerdict } from '~/utils/roam-verdict'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = withDefaults(defineProps<{
@@ -26,10 +25,6 @@ const props = withDefaults(defineProps<{
    * champion page), and the line then falls back to the bare count.
    */
   truemainsOnly?: boolean
-  // Average out-of-lane kills + assists by 15 min (#536). Only ever surfaces as
-  // a "Roamer" badge next to the win rate, and only for champions that clear the
-  // threshold — see `roamVerdict`. Undefined where the page doesn't fetch it.
-  roamKp15?: number | null
   // Thin-sample qualifier. When set, a warning icon sits next to the title with
   // this text in its tooltip — mirroring the builder's RecommendationPanel
   // rather than a full-width UAlert.
@@ -55,8 +50,6 @@ const winRate = computed(() => (props.totalGames === 0 ? 0 : props.totalWins / p
 // lane badge everywhere else on the site. The label stays available as the alt
 // text (and in the tooltip) so it's never icon-only for a screen reader.
 const positionOption = computed(() => POSITION_BY_VALUE.get(props.position) ?? null)
-
-const roam = computed(() => roamVerdict(props.roamKp15))
 
 // "played by mains" rather than "truemains only": next to a raw count the phrase
 // has to read as a description of the games, not as the name of a control.
@@ -103,9 +96,9 @@ const populationLabel = computed(() => {
       </div>
       <!-- A div, not a <p>: the lane tooltip renders interactive markup that
            has no business inside a paragraph. -->
-      <!-- `min-h-5`, not a fixed height: it still reserves the skeleton's line
-           so the header doesn't jump when the stats land, but the roam badge is
-           allowed to be a hair taller than the text beside it. -->
+      <!-- `min-h-5`, not a fixed height: it reserves the skeleton's line so the
+           header doesn't jump when the stats land, without pinning the row to a
+           height its contents have to fit. -->
       <div class="flex min-h-5 flex-wrap items-center gap-1.5 text-sm text-muted">
         <USkeleton
           v-if="loading"
@@ -144,22 +137,6 @@ const populationLabel = computed(() => {
                  now applies to the build panel's chips. -->
             · {{ formatPercentage(winRate, 0) }} WR
           </span>
-          <!-- Playstyle flag, not a stat: it only appears for champions that
-               actually roam, so it never competes with the numbers it sits next
-               to. The measurement behind it lives in the tooltip. -->
-          <UTooltip
-            v-if="roam"
-            :text="roam.tooltip"
-            :delay-duration="150"
-          >
-            <UBadge
-              color="primary"
-              variant="soft"
-              size="sm"
-            >
-              {{ roam.label }}
-            </UBadge>
-          </UTooltip>
         </template>
       </div>
     </div>

@@ -1,8 +1,8 @@
 // Dev-only tool: seeds a local Postgres with deterministic, realistic synthetic
 // data across the full champion-stat read path (raw matches/participants/
-// timeline snapshots/kill positions, the #606 matchup pre-aggregation, and the
-// build aggregation) so ChampionRoamQueryService, ChampionScaling-
-// QueryService, ChampionMatchupQueryService, ChampionBuildsQueryService etc. all
+// timeline snapshots, the #606 matchup pre-aggregation, and the build
+// aggregation) so ChampionScalingQueryService,
+// ChampionMatchupQueryService, ChampionBuildsQueryService etc. all
 // have something real to read locally, without waiting on the (rate-limited)
 // Riot ingestion pipeline. See issue #631.
 //
@@ -29,8 +29,6 @@ using Microsoft.Extensions.Configuration;
 using Npgsql;
 
 const string DevSeedAccountPuuid = "DEVSEED0000000000000000000000000000000000000000000000000000001";
-
-MapPoints.AssertValid();
 
 var forceHost = args.Contains("--force-host");
 var forceWipe = args.Contains("--force-wipe");
@@ -113,7 +111,6 @@ foreach (var self in ChampionArchetypes.Seeds)
     db.Matches.AddRange(result.Matches);
     db.MatchParticipants.AddRange(result.Participants);
     db.MatchParticipantTimelineSnapshots.AddRange(result.Snapshots);
-    db.MatchParticipantKillPositions.AddRange(result.KillPositions);
     db.ChampionAggregateScopes.AddRange(result.Scopes);
     db.ChampionAggregatePatterns.AddRange(result.Patterns);
     db.ChampionMatchupStats.AddRange(result.MatchupStats);

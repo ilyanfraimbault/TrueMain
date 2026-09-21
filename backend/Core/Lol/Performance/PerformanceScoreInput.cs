@@ -19,11 +19,9 @@ public readonly record struct LaneLead(int Minute, int GoldDiff, int CsDiff, int
 /// <summary>
 /// Everything <see cref="PerformanceScore"/> needs to grade a single
 /// participant. Deliberately a plain value bag of numbers the database already
-/// stores — end-of-game totals from <c>match_participants</c>, the per-mark
-/// timeline leads derived from <c>match_participant_timeline_snapshots</c>, and
-/// the early out-of-lane takedown count derived from
-/// <c>match_participant_kill_positions</c> — so the scoring stays a pure
-/// function with no persistence or Riot-API coupling.
+/// stores — end-of-game totals from <c>match_participants</c> and the per-mark
+/// timeline leads derived from <c>match_participant_timeline_snapshots</c> — so
+/// the scoring stays a pure function with no persistence or Riot-API coupling.
 /// </summary>
 public sealed record PerformanceScoreInput
 {
@@ -69,17 +67,4 @@ public sealed record PerformanceScoreInput
     /// marks, so the caller does not have to sort or de-duplicate.
     /// </summary>
     public IReadOnlyList<LaneLead> LaneLeads { get; init; } = Array.Empty<LaneLead>();
-
-    /// <summary>
-    /// Kill participations (kills + assists) this player took part in outside
-    /// their own lane during the early game — the same
-    /// <c>Core.Lol.Map.LolMap.IsRoam</c> classification the champion roam panel
-    /// uses, over the bounded <c>match_participant_kill_positions</c> rows.
-    ///
-    /// <para><c>null</c> means "this match has no kill-position coverage", which
-    /// drops the roam component instead of scoring a 0. A match that <em>is</em>
-    /// covered and in which the player never left their lane is a genuine
-    /// <c>0</c>.</para>
-    /// </summary>
-    public int? OutOfLaneTakedowns { get; init; }
 }

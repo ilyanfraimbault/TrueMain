@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("c2912e93-9c85-4abf-8f0b-135d202202c3"), entityTypeCount: 32)
+            : base(skipDetectChanges: false, modelId: new Guid("c2912e93-9c85-4abf-8f0b-135d202202c3"), entityTypeCount: 31)
         {
         }
 
@@ -41,7 +41,6 @@ namespace Data.CompiledModels
             var match = MatchEntityType.Create(this);
             var matchBan = MatchBanEntityType.Create(this);
             var matchParticipant = MatchParticipantEntityType.Create(this);
-            var matchParticipantKillPosition = MatchParticipantKillPositionEntityType.Create(this);
             var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
@@ -61,7 +60,6 @@ namespace Data.CompiledModels
             MatchBanEntityType.CreateForeignKey1(matchBan, match);
             MatchParticipantEntityType.CreateForeignKey1(matchParticipant, match);
             MatchParticipantEntityType.CreateForeignKey2(matchParticipant, riotAccount);
-            MatchParticipantKillPositionEntityType.CreateForeignKey1(matchParticipantKillPosition, match);
             MatchParticipantTimelineSnapshotEntityType.CreateForeignKey1(matchParticipantTimelineSnapshot, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey1(participantPerkSelection, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey2(participantPerkSelection, perkSelectionCatalog);
@@ -91,7 +89,6 @@ namespace Data.CompiledModels
             MatchEntityType.CreateAnnotations(match);
             MatchBanEntityType.CreateAnnotations(matchBan);
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
-            MatchParticipantKillPositionEntityType.CreateAnnotations(matchParticipantKillPosition);
             MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);

@@ -1,4 +1,3 @@
-using Core.Lol.Map;
 using Core.Lol.Performance;
 
 namespace TrueMain.Services.Truemains.PlayerChampions;
@@ -10,12 +9,6 @@ namespace TrueMain.Services.Truemains.PlayerChampions;
 /// <param name="Gold">Total gold at that mark.</param>
 /// <param name="Xp">Experience at that mark.</param>
 public readonly record struct TimelineMark(int ParticipantId, int Minute, int Cs, int Gold, int Xp);
-
-/// <summary>One early kill participation's map position.</summary>
-/// <param name="ParticipantId">The participant who took part in the kill.</param>
-/// <param name="X">Timeline x coordinate.</param>
-/// <param name="Y">Timeline y coordinate.</param>
-public readonly record struct KillSpot(int ParticipantId, int X, int Y);
 
 /// <summary>
 /// The end-of-game half of one participant's scoring inputs, in the shape every
@@ -46,9 +39,9 @@ public readonly record struct ScoredParticipant(
     int VisionScore);
 
 /// <summary>
-/// Turns the raw timeline rows the read paths already load into the two
-/// timeline-derived inputs of <see cref="PerformanceScore"/>: the per-mark leads
-/// over the lane opponent, and the early out-of-lane takedown count.
+/// Turns the raw timeline rows the read paths already load into the
+/// timeline-derived input of <see cref="PerformanceScore"/>: the per-mark leads
+/// over the lane opponent.
 ///
 /// <para>Shared by every surface that scores a match (single-match detail, the
 /// match-history feed, the player-scoped champion page) so all three grade the
@@ -57,33 +50,27 @@ public readonly record struct ScoredParticipant(
 /// </summary>
 public static class PerformanceInputs
 {
-    // Riot team id for the blue side (bottom-left of the map); 200 is red.
-    private const int BlueTeamId = 100;
-
     /// <summary>Shared empty mark set for a match with no timeline coverage.</summary>
     public static readonly IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> NoMarks
         = new Dictionary<(int ParticipantId, int Minute), TimelineMark>();
 
     /// <summary>
     /// Builds the scoring input of every participant of one match: side totals
-    /// for the share components, the lane opponent's timeline marks for the lead
-    /// components, and the match's early kill positions for the roam component.
-    /// One place, so the match feed, the detail page and the player-scoped
-    /// champion panel cannot drift into grading the same game differently.
+    /// for the share components and the lane opponent's timeline marks for the
+    /// lead components. One place, so the match feed, the detail page and the
+    /// player-scoped champion panel cannot drift into grading the same game
+    /// differently.
     /// </summary>
     /// <param name="participants">Every participant of the match.</param>
     /// <param name="durationSeconds">Game length in seconds; 0 disables the per-minute components.</param>
     /// <param name="marks">The match's timeline marks, keyed by (participant, minute).</param>
-    /// <param name="killSpots">The match's early kill participations; empty means no coverage.</param>
     public static IReadOnlyList<(ScoredParticipant Participant, PerformanceScoreInput Input)> BuildMatchInputs(
         IReadOnlyList<ScoredParticipant> participants,
         int durationSeconds,
-        IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> marks,
-        IReadOnlyList<KillSpot> killSpots)
+        IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> marks)
     {
         ArgumentNullException.ThrowIfNull(participants);
         ArgumentNullException.ThrowIfNull(marks);
-        ArgumentNullException.ThrowIfNull(killSpots);
 
         var teamKills = new Dictionary<int, int>();
         var teamDamage = new Dictionary<int, int>();
@@ -96,7 +83,6 @@ public static class PerformanceInputs
         }
 
         var durationMinutes = durationSeconds > 0 ? durationSeconds / 60d : 0d;
-        var hasKillPositions = killSpots.Count > 0;
 
         var built = new List<(ScoredParticipant, PerformanceScoreInput)>(participants.Count);
         foreach (var p in participants)
@@ -116,8 +102,6 @@ public static class PerformanceInputs
                 VisionScore = p.VisionScore,
                 GameDurationMinutes = durationMinutes,
                 LaneLeads = BuildLaneLeads(p.ParticipantId, FindLaneOpponent(participants, p), marks),
-                OutOfLaneTakedowns = CountOutOfLaneTakedowns(
-                    p.ParticipantId, p.TeamPosition, p.TeamId, hasKillPositions, killSpots),
             }));
         }
 
@@ -206,66 +190,6 @@ public static class PerformanceInputs
 
         return leads;
     }
-
-    /// <summary>
-    /// Counts the participant's early kill participations that happened outside
-    /// their own lane, using the same <see cref="LolMap.IsRoam"/> classification
-    /// the champion roam panel uses. The stored rows are already bounded to the
-    /// early game by the ingestor, so no extra time window is applied here.
-    ///
-    /// <para>Returns <c>null</c> — "unknown", which drops the roam component —
-    /// when the match has no kill-position coverage at all, or when the role has
-    /// no own lane to leave (JUNGLE and any unparsed position). Returns <c>0</c>
-    /// for a covered match in which the player never left their lane, which is a
-    /// real result and is graded as one.</para>
-    /// </summary>
-    public static int? CountOutOfLaneTakedowns(
-        int participantId,
-        string? teamPosition,
-        int teamId,
-        bool matchHasKillPositions,
-        IReadOnlyList<KillSpot> killSpots)
-    {
-        ArgumentNullException.ThrowIfNull(killSpots);
-
-        if (!matchHasKillPositions)
-        {
-            return null;
-        }
-
-        var ownLane = OwnLane(teamPosition);
-        if (ownLane is MapZone.Unknown)
-        {
-            return null;
-        }
-
-        var isBlueSide = teamId == BlueTeamId;
-        var count = 0;
-        foreach (var spot in killSpots)
-        {
-            if (spot.ParticipantId == participantId
-                && LolMap.IsRoam(spot.X, spot.Y, ownLane, isBlueSide))
-            {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    /// <summary>
-    /// The map lane a Riot team position calls home. JUNGLE and anything
-    /// unrecognised map to <see cref="MapZone.Unknown"/>: a jungler has no own
-    /// lane, so every gank would read as a roam.
-    /// </summary>
-    public static MapZone OwnLane(string? teamPosition) => teamPosition?.Trim().ToUpperInvariant() switch
-    {
-        "TOP" => MapZone.TopLane,
-        "MIDDLE" => MapZone.MidLane,
-        "BOTTOM" => MapZone.BotLane,
-        "UTILITY" => MapZone.BotLane,
-        _ => MapZone.Unknown,
-    };
 
     /// <summary>
     /// The canonical marks the ingestor stores, in order. Iterating this rather

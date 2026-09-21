@@ -120,21 +120,6 @@ public static class ChampionArchetypes
         new(43, "UTILITY", "enchanter", 8214, 8200, 8300, 0.509, 0.039),
     ];
 
-    /// <summary>
-    /// How much each position roams: out-of-lane KP share used to bias generated
-    /// kill positions. The JUNGLE entry is unused by the current Roam read —
-    /// ChampionRoamQueryService excludes junglers entirely (no meaningful own
-    /// lane) — kept here only so this dictionary stays a complete position map.
-    /// </summary>
-    public static readonly IReadOnlyDictionary<string, double> RoamSharePerPosition = new Dictionary<string, double>
-    {
-        ["TOP"] = 0.14,
-        ["JUNGLE"] = 0.66,
-        ["MIDDLE"] = 0.34,
-        ["BOTTOM"] = 0.17,
-        ["UTILITY"] = 0.46,
-    };
-
     /// <summary>Win-rate slope by game length per archetype — marksmen/mages scale up, assassins/junglers peak early.</summary>
     public static readonly IReadOnlyDictionary<string, double> ScalingSlope = new Dictionary<string, double>
     {

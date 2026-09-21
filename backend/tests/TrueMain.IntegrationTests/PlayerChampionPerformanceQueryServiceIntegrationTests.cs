@@ -88,7 +88,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
 
         // One entry per component of the model, always, so a caller can index
         // them without worrying about which ones this sample happened to have.
-        response.Components.Should().HaveCount(9);
+        response.Components.Should().HaveCount(8);
 
         // Combat needs no timeline, so it covers every game; laning only exists
         // for the four games we gave a @15 snapshot to.
@@ -99,12 +99,6 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
         var laning = response.Components.Single(c => c.Kind == "Laning");
         laning.Games.Should().Be(4, "a game with no timeline lowers the component's sample, not its average");
         laning.Value.Should().NotBeNull();
-
-        // No kill positions were seeded at all, so roam is unknown everywhere —
-        // reported as zero games and a null value rather than a zero grade.
-        var roam = response.Components.Single(c => c.Kind == "Roam");
-        roam.Games.Should().Be(0);
-        roam.Value.Should().BeNull();
     }
 
     [Fact]

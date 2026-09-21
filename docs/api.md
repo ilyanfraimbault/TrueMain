@@ -682,33 +682,6 @@ au plus tardif.
 
 `avgSeconds` = temps de jeu moyen du premier achat de l'item, en secondes.
 
-## `GET /champions/{championId}/roam`
-
-Propension au roam : nombre moyen de participations à des kills (kills + assists)
-hors de la lane par partie, mesuré aux paliers 5/10/15 minutes (cumulatifs).
-Un roam est une participation dans une autre lane, la jungle ennemie ou la base
-ennemie — la rivière et sa propre jungle ne comptent pas.
-
-**Query** — `position` (**requis**, `400` sinon), `patch` (optionnel),
-`eloBracket` (optionnel)
-
-**Réponse `200`** — `ChampionRoamResponse`
-
-```json
-{
-  "championId": 103,
-  "position": "MIDDLE",
-  "patch": "16.4",
-  "games": 1840,
-  "roamKp5": 0.42,
-  "roamKp10": 1.15,
-  "roamKp15": 2.03
-}
-```
-
-`roamKp5/10/15` = moyennes cumulatives par partie ; `null` sous le plancher
-d'échantillon et pour `JUNGLE` (pas de lane propre).
-
 ## `GET /champions/{championId}/mains-comparison`
 
 Face-à-face entre un compte Riot et les mains de ce champion (#528) : winrate,
@@ -1111,19 +1084,18 @@ avec `games` et toutes les moyennes à `null`.
   "topOfTeamRate": 0.36,
   "components": [
     { "kind": "Combat", "weight": 20, "value": 0.74, "games": 14 },
-    { "kind": "KillParticipation", "weight": 14, "value": 0.66, "games": 14 },
+    { "kind": "KillParticipation", "weight": 20, "value": 0.66, "games": 14 },
     { "kind": "DamageShare", "weight": 18, "value": 0.71, "games": 14 },
     { "kind": "GoldShare", "weight": 7, "value": 0.55, "games": 14 },
     { "kind": "Farming", "weight": 14, "value": 0.63, "games": 14 },
     { "kind": "Vision", "weight": 5, "value": 0.40, "games": 14 },
     { "kind": "Laning", "weight": 10, "value": 0.58, "games": 12 },
-    { "kind": "MidGame", "weight": 6, "value": 0.61, "games": 9 },
-    { "kind": "Roam", "weight": 6, "value": 0.44, "games": 11 }
+    { "kind": "MidGame", "weight": 6, "value": 0.61, "games": 9 }
   ]
 }
 ```
 
-- `components` porte **toujours les neuf axes, dans l'ordre de l'énumération**, y
+- `components` porte **toujours les huit axes, dans l'ordre de l'énumération**, y
   compris ceux qui ont été écartés sur l'échantillon — ceux-là sortent avec
   `value: null`. Le tableau ne change donc jamais de longueur ni d'ordre d'un joueur
   à l'autre, et une composante absente est visiblement absente plutôt que silencieuse.
@@ -1132,8 +1104,7 @@ avec `games` et toutes les moyennes à `null`.
 - `games` d'une composante ≤ `games` global : une partie sans couverture timeline
   est **exclue** de la moyenne de la composante au lieu d'y compter zéro.
 - `weight` est le poids nominal du rôle (moyenné si le joueur a changé de lane sur
-  l'échantillon) ; `0` = le rôle ne note pas cette composante (par exemple `Roam`
-  pour un jungler).
+  l'échantillon) ; `0` = le rôle ne note pas cette composante.
 
 ## `GET /truemains/{nameTag}/rank-history`
 
@@ -1388,7 +1359,6 @@ l'échelle `0..100` :
 | `Vision` | vision score/min vs une référence par rôle (0.8 bot … 2.4 support) |
 | `Laning` | avances sur les marques de **phase de lane** (≤ 15 min) |
 | `MidGame` | mêmes avances sur les marques **post-lane** (> 15 min) |
-| `Roam` | participations aux kills prises **hors de sa lane** en début de partie, vs une référence par rôle |
 
 `Laning` et `MidGame` partagent la même construction : chaque marque de timeline
 (5, 10, 15… minutes) mixe les avances or 50 % / cs 25 % / xp 25 %, centrées (lane
@@ -1399,19 +1369,16 @@ qu'ordinaire à 30. Les marques d'une phase sont ensuite moyennées **pondérée
 propre minute**, pour que les marques tardives d'une phase, plus décisives, pèsent
 davantage. `MidGame` tombe quand la partie s'arrête avant la première marque post-lane.
 
-`Roam` tombe pour JUNGLE (sa référence vaut `0` : un jungler n'a pas de lane à
-quitter) et quand le match n'a aucune couverture de positions de kill.
-
 Poids par rôle (somme = 100 ; `teamPosition` vide ou inconnu → profil neutre) :
 
-| Rôle | Combat | KP | Dégâts | Or | Farm | Vision | Lane | MidGame | Roam |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| TOP | 20 | 14 | 16 | 7 | 14 | 5 | 12 | 7 | 5 |
-| JUNGLE | 18 | 18 | 14 | 7 | 14 | 7 | 12 | 10 | 0 |
-| MIDDLE | 20 | 14 | 18 | 7 | 14 | 5 | 10 | 6 | 6 |
-| BOTTOM | 20 | 12 | 20 | 7 | 16 | 4 | 10 | 8 | 3 |
-| UTILITY | 18 | 20 | 7 | 4 | 5 | 24 | 8 | 6 | 8 |
-| neutre | 20 | 16 | 16 | 7 | 12 | 7 | 10 | 8 | 4 |
+| Rôle | Combat | KP | Dégâts | Or | Farm | Vision | Lane | MidGame |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TOP | 20 | 19 | 16 | 7 | 14 | 5 | 12 | 7 |
+| JUNGLE | 18 | 18 | 14 | 7 | 14 | 7 | 12 | 10 |
+| MIDDLE | 20 | 20 | 18 | 7 | 14 | 5 | 10 | 6 |
+| BOTTOM | 20 | 15 | 20 | 7 | 16 | 4 | 10 | 8 |
+| UTILITY | 18 | 28 | 7 | 4 | 5 | 24 | 8 | 6 |
+| neutre | 20 | 20 | 16 | 7 | 12 | 7 | 10 | 8 |
 
 Une composante dont l'entrée manque (pas de snapshot @15, `teamKills` à 0, partie
 de durée nulle…) est **retirée** et son poids redistribué sur les autres — jamais

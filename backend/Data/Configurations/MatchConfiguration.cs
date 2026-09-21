@@ -174,9 +174,8 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .HasFilter("\"ItemContextAggregated\" = false");
 
         // Deliberately Restrict, and the only child of matches that is — match_bans,
-        // match_participant_kill_positions, match_participant_timeline_snapshots and
-        // participant_perk_selections all Cascade, so retention needs no extra arm for
-        // them. Participants are the widest child table by far (ten rows per match, each
+        // match_participant_timeline_snapshots and participant_perk_selections all
+        // Cascade, so retention needs no extra arm for them. Participants are the widest child table by far (ten rows per match, each
         // carrying the ItemEvents/SkillEvents jsonb), and a whole patch dropping out of
         // the window already blew the command timeout once when the delete cascaded
         // unbounded (#988). Restrict forces the caller to delete them itself, in bounded

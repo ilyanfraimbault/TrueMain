@@ -25,19 +25,15 @@ default banker's rounding — so the published score is the one you reproduce by
 hand from the weights. The score is an `int`; there is no decimal part to compare
 against.
 
-Nine components, each normalised to `0..1`. The weights are per-role and sum to
+Eight components, each normalised to `0..1`. The weights are per-role and sum to
 100, so a game with every component available spans the full `0..100` range.
 
 The one structural rule: **a component whose input we do not have is dropped,
 and its weight is redistributed over the survivors** — never scored as a zero.
 A game with no timeline rows, a remake with no team kills, a 14-minute surrender
-with no @20 mark: none of them punish the player for a gap in our data. The
-distinction matters enough that the input carries it explicitly — for roams,
-`null` means "this match has no kill-position coverage" while `0` means "the
-match is covered and the player never left their lane", and only the second is
-graded.
+with no @20 mark: none of them punish the player for a gap in our data.
 
-## The nine components
+## The eight components
 
 | Component | Input | Normalisation |
 |---|---|---|
@@ -49,7 +45,6 @@ graded.
 | `vision` | vision score per minute | against a per-role reference |
 | `laning` | leads over the lane opponent at the marks ≤ 15 | centred, see below |
 | `midGame` | the same at the marks > 15 | centred, see below |
-| `roam` | early kill participations outside the player's own lane | against a per-role reference count |
 
 ### The lead curve
 
@@ -92,28 +87,16 @@ splitting at 15 gives the model a second, separate question: once the lane broke
 did the advantage survive? A game that ends before minute 20 simply has no
 `midGame` mark and drops the component.
 
-### Roam
-
-Out-of-lane kill participations come from `match_participant_kill_positions`, a
-deliberately bounded table (kill participations only, early game only). Each one
-is classified with `LolMap.IsRoam` — the same geometry the champion roam panel
-uses: a play in a *different* lane, the *enemy* jungle or the *enemy* base counts;
-the river and your own side's jungle do not, because they are ordinary lane-phase
-movement.
-
-**JUNGLE is excluded**, with a weight of 0. A jungler has no own lane, so every
-gank would read as a roam and the component would be a free 100%.
-
 ## Role weights
 
-| | Combat | KP | Damage | Gold | Farm | Vision | Laning | MidGame | Roam | cs/min ref | vision/min ref | roam ref |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| TOP | 20 | 14 | 16 | 7 | 14 | 5 | 12 | 7 | 5 | 9.0 | 0.9 | 1.5 |
-| JUNGLE | 18 | 18 | 14 | 7 | 14 | 7 | 12 | 10 | 0 | 6.5 | 1.2 | — |
-| MIDDLE | 20 | 14 | 18 | 7 | 14 | 5 | 10 | 6 | 6 | 9.0 | 0.9 | 2.5 |
-| BOTTOM | 20 | 12 | 20 | 7 | 16 | 4 | 10 | 8 | 3 | 9.5 | 0.8 | 1.0 |
-| UTILITY | 18 | 20 | 7 | 4 | 5 | 24 | 8 | 6 | 8 | 2.0 | 2.4 | 2.5 |
-| *neutral* | 20 | 16 | 16 | 7 | 12 | 7 | 10 | 8 | 4 | 8.0 | 1.0 | 2.0 |
+| | Combat | KP | Damage | Gold | Farm | Vision | Laning | MidGame | cs/min ref | vision/min ref |
+|---|---|---|---|---|---|---|---|---|---|---|
+| TOP | 20 | 19 | 16 | 7 | 14 | 5 | 12 | 7 | 9.0 | 0.9 |
+| JUNGLE | 18 | 18 | 14 | 7 | 14 | 7 | 12 | 10 | 6.5 | 1.2 |
+| MIDDLE | 20 | 20 | 18 | 7 | 14 | 5 | 10 | 6 | 9.0 | 0.9 |
+| BOTTOM | 20 | 15 | 20 | 7 | 16 | 4 | 10 | 8 | 9.5 | 0.8 |
+| UTILITY | 18 | 28 | 7 | 4 | 5 | 24 | 8 | 6 | 2.0 | 2.4 |
+| *neutral* | 20 | 20 | 16 | 7 | 12 | 7 | 10 | 8 | 8.0 | 1.0 |
 
 Each row sums to 100. An empty or unrecognised `teamPosition` (ARAM, an unparsed
 role, a remake) gets the neutral profile — roughly the average of the five lanes,
@@ -125,10 +108,10 @@ one, and the model says so without a special case.
 
 Junglers carry the heaviest `midGame` weight (10) because their lead components
 compare them to the enemy jungler, a comparison that stays meaningful long after
-the lanes have broken. Supports carry the heaviest `roam` weight (8) and the
-heaviest `vision` weight (24) for the obvious reason, and the lightest gold and
-farm weights, because grading a support on income is grading them on the item
-they bought to *not* take income.
+the lanes have broken. Supports carry the heaviest `killParticipation` weight
+(28) and the heaviest `vision` weight (24) for the obvious reason, and the
+lightest gold and farm weights, because grading a support on income is grading
+them on the item they bought to *not* take income.
 
 ## Why a weighted mean over available components
 

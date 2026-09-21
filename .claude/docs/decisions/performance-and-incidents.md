@@ -131,7 +131,7 @@ enumerate or evict. The token read is itself cached for 5 s and single-flighted,
 version probe becoming the new hot query. An empty database is just another version (`none`), so a first-ever
 fold invalidates the empty answers by moving the token.
 
-**For the live folds the backstop *is* the freshness bound, and that is the trade.** Roam, scaling, item
+**For the live folds the backstop *is* the freshness bound, and that is the trade.** Scaling, item
 timings, synergies, the live branch of matchups, mains-comparison and the composition selection
 read `match_participants` directly, so they also move with match ingestion — which since #1374 runs in a lane
 of its own, decoupled from aggregation. The token does not track that, so those answers can sit up to the

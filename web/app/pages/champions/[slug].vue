@@ -236,7 +236,7 @@ const selectedEloBracket = computed<string>(() =>
 )
 
 // The elo filter forwarded to every live panel (matchups / scaling /
-// item-timings / roam). Always a concrete bracket now that the page default is
+// item-timings). Always a concrete bracket now that the page default is
 // Master+ rather than the server's ALL: a panel left to its own default would
 // quietly render every tier beside a header that says Master+.
 const eloBracketParam = computed(() => filters.value.eloBracket)
@@ -295,18 +295,6 @@ const bracketNoticeText = computed<string | null>(() => {
 // Gated on the champion fetch so it fires once with the resolved lane — hence
 // `pending` rather than `status`, same reason as the trend chart above.
 const { data: championScaling, pending: scalingPending } = useChampionScaling(
-  championId,
-  trendPosition,
-  selectedPatch,
-  trendReady,
-  eloBracketParam,
-)
-
-// Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
-// scoping and gating as the other timeline-derived stats. Only the @15 average is
-// read, and only to decide whether the header carries a "Roamer" badge; the @5/@10
-// windows stay in the API for whoever wants the curve later.
-const { data: championRoam } = useChampionRoam(
   championId,
   trendPosition,
   selectedPatch,
@@ -502,7 +490,6 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :patch="selectedPatch"
           :total-games="champion?.totalGames ?? 0"
           :total-wins="champion?.totalWins ?? 0"
-          :roam-kp15="championRoam?.roamKp15 ?? null"
           :low-sample-message="bracketNoticeText"
           :truemains-only="filters.truemainsOnly"
           :loading="!champion"
