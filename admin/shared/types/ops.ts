@@ -1030,9 +1030,8 @@ export interface AggregationsResponse {
 }
 
 /**
- * A detector verdict. `unknown` means the measurement could not be taken — it is
- * never used for "measured and fine", so a card is only green when something was
- * actually checked.
+ * A detector verdict. `unknown` means the measurement could not be taken, never
+ * "measured and fine" — only a real check turns a card green.
  */
 export type DetectorStatus = 'green' | 'amber' | 'red' | 'unknown'
 
@@ -1044,6 +1043,7 @@ export interface DataQualityDetectorRow {
   value: number | null
   /** The number as it should be printed, with its unit; null when unmeasured. */
   valueLabel: string | null
+  valueStatus: DetectorStatus | null // the printed number's own verdict; null when `status` judged it
   note: string | null
 }
 

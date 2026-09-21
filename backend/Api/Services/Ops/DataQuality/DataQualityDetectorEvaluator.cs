@@ -147,6 +147,41 @@ internal static class DataQualityDetectorEvaluator
     }
 
     /// <summary>
+    /// The trend's vote on one orphan row (#1656).
+    ///
+    /// <para>
+    /// The rise is an early warning for a share sliding towards 100%, not a measurement
+    /// in its own right, so it only votes once the level has cleared
+    /// <paramref name="minLevelPercent"/>. Below that floor the level itself is the
+    /// answer: a platform moving from 12% to 17% is inside the noise of a few hundred
+    /// sampled participants, and colouring the card for it is how a detector gets
+    /// ignored.
+    /// </para>
+    ///
+    /// <para>
+    /// A reading with no trend — one empty window — does not vote either. Both cases
+    /// return <see cref="DetectorStatus.Green"/> rather than
+    /// <see cref="DetectorStatus.Unknown"/>: the row's level <em>was</em> measured, and
+    /// an abstaining trend must not drag the card to "not measured".
+    /// </para>
+    /// </summary>
+    public static DetectorStatus ClassifyOrphanRise(
+        OrphanRatioReading reading,
+        double minLevelPercent,
+        double amberAt,
+        double redAt)
+    {
+        ArgumentNullException.ThrowIfNull(reading);
+
+        if (reading.RisePoints is null || reading.Percent is null || reading.Percent.Value < minLevelPercent)
+        {
+            return DetectorStatus.Green;
+        }
+
+        return Classify(reading.RisePoints, amberAt, redAt);
+    }
+
+    /// <summary>
     /// Flags patches whose match count is abnormally thin against the median of the
     /// comparable ones.
     ///
