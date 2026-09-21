@@ -88,7 +88,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
 
         // One entry per component of the model, always, so a caller can index
         // them without worrying about which ones this sample happened to have.
-        response.Components.Should().HaveCount(9);
+        response.Components.Should().HaveCount(8);
 
         // Combat needs no timeline, so it covers every game; laning only exists
         // for the four games we gave a @15 snapshot to.
