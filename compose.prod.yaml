@@ -105,7 +105,7 @@ services:
       - truemain_internal
 
   mongo:
-    image: mongo:8.3.9
+    image: mongo:8.3.11
     container_name: truemain-mongo
     restart: unless-stopped
     environment:
@@ -246,7 +246,7 @@ services:
       - truemain_internal
 
   umami:
-    image: umamisoftware/umami:3.3.1
+    image: umamisoftware/umami:3.4.0
     container_name: truemain-umami
     restart: unless-stopped
     environment:
