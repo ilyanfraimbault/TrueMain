@@ -30,8 +30,6 @@ using Npgsql;
 
 const string DevSeedAccountPuuid = "DEVSEED0000000000000000000000000000000000000000000000000000001";
 
-MapPoints.AssertValid();
-
 var forceHost = args.Contains("--force-host");
 var forceWipe = args.Contains("--force-wipe");
 var gamesPerChampion = ReadIntArg(args, "--games-per-champion");
