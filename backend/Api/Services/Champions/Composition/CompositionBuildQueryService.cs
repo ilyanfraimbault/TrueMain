@@ -68,11 +68,9 @@ public sealed class CompositionBuildQueryService(
             if (!weightByKey.ContainsKey(key))
             {
                 keys.Add(key);
-                // Similarity-proportional vote multiplier: a game reproducing the full
-                // draft weighs 1 + boost, an unrelated one weighs 1.
-                weightByKey[key] = maxPossibleScore <= 0
-                    ? 1d
-                    : 1d + options.SimilarityWeightBoost * match.Score / maxPossibleScore;
+                // Similarity, patch recency and pilot, multiplied (#1659) — the
+                // aggregator applies the win weight on top.
+                weightByKey[key] = CompositionVoteWeight.For(match, maxPossibleScore, options);
             }
         }
 
