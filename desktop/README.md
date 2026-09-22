@@ -16,14 +16,35 @@ Tracking issue: **#1671**.
   select (draft).
 - Draws the draft: your champion and lane, both teams, bans, the phase timer.
 
+- **Resolves the enemy lanes** (#1674) and lets you correct them by drag and
+  drop or by two clicks, pinning your correction so the rest re-solve around it
+  (#1677).
+- **Names your lane opponent**, with how sure it is — a coin flip says so.
+
 ## What it does not do yet
 
-- **The lane opponent is not resolved.** Champion select does not expose enemy
-  roles; the guesser is #1674 and its editable assignment panel is #1677.
-- **No recommendation.** The draft endpoint is #1675.
-- **The dashboard is a placeholder.** It needs #1682 first — our database holds
-  true mains only, so a player we do not track has nothing to render.
+- **No pick, rune or build recommendation on screen.** The endpoint ranks
+  candidates (#1675) but the app sends an empty candidate pool: it does not know
+  the player's champion pool yet, which is #1682.
+- **The rune import is written but not reachable.** Its client-side write path
+  and the rule that protects the player's own pages are implemented and tested
+  (`crates/lcu/src/runes.rs`); there is no button because the draft endpoint does
+  not return a rune page yet (#1678).
+- **The dashboard is a placeholder.** It needs #1682 — our database holds true
+  mains only, so a player we do not track has nothing to render.
 - **No in-game overlay.** That is v2, gated on the spike in #1673.
+
+## Reaching the API
+
+The API has **no public host**: the site reaches it through the web app's Nitro
+proxy, inside the deployment's private network. The desktop app has no Nitro
+server, so it uses that same public proxy (`https://truemain.lol/api`) as its
+entry point, overridable at build time with `TRUEMAIN_API_BASE`.
+
+Those calls go through **Rust**, not the webview's `fetch`. From the webview
+they would be subject to CORS against an origin the site was never configured
+for, and would force the content-security policy open to a remote host. From
+Rust neither applies and the CSP stays closed.
 
 ## Layout
 

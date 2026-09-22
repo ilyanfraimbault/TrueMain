@@ -27,6 +27,12 @@ pub enum Error {
     #[error("the pinned Riot root certificate is unusable: {0}")]
     Certificate(String),
 
+    /// Every rune page slot is taken and none of them is ours. Deliberately its
+    /// own error: the caller must tell the player to free a slot, never resolve
+    /// it by deleting a page they made.
+    #[error("every rune page is in use and none of them is ours")]
+    NoRunePageSlot,
+
     #[error(transparent)]
     Io(#[from] io::Error),
 }
