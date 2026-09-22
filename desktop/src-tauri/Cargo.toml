@@ -1,0 +1,24 @@
+[package]
+name = "truemain-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TrueMain companion app"
+
+[lib]
+name = "truemain_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+lcu = { path = "../crates/lcu" }
+shell-state = { path = "../crates/shell-state" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber = "0.3"
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"

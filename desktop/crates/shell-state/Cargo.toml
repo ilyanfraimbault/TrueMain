@@ -1,0 +1,10 @@
+[package]
+name = "shell-state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The app's state and the rule that maps it onto a screen."
+
+[dependencies]
+lcu = { path = "../lcu" }
+serde.workspace = true

@@ -1,0 +1,29 @@
+name: Desktop
+
+on:
+  pull_request:
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+  push:
+    branches: [develop, master]
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lcu:
+    name: Rust crates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p shell-state -- --check
+      - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p shell-state --all-targets -- -D warnings
+      - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p shell-state

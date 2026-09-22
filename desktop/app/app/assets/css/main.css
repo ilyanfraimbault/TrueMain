@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* The companion app is dark-only, like the site: it sits next to a game. */
+:root {
+  color-scheme: dark;
+}
