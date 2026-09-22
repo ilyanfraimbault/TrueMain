@@ -14,6 +14,8 @@ const props = withDefaults(defineProps<{
   fallbackLabel?: string
   /** True while the summoner-spell static map is still loading — see `SkeletonImage`'s `pending`. */
   pending?: boolean
+  /** The summoner-spell map has resolved, so a still-missing icon is final — see `SkeletonImage`'s `settled`. */
+  settled?: boolean
 }>(), {
   spell: null,
   width: 36,
@@ -21,6 +23,7 @@ const props = withDefaults(defineProps<{
   loading: undefined,
   fallbackLabel: '',
   pending: false,
+  settled: false,
 })
 
 const hasSpell = computed(() => Boolean(props.spell))
@@ -45,6 +48,7 @@ const fallbackText = computed(() => props.fallbackLabel || props.spell?.name || 
       :alt="spell?.name"
       :fallback="fallbackText"
       :pending="pending"
+      :settled="settled"
       :width="width"
       :height="height"
       :loading="loading"

@@ -101,7 +101,8 @@ function spellByKey(key: string) {
               v-for="spellId in [option.spell1Id, option.spell2Id]"
               :key="`sum-${option.spell1Id}-${option.spell2Id}-${spellId}`"
               :spell="summonersMap[spellId] ?? null"
-                  :pending="summonersPending"
+              :pending="summonersPending"
+              :settled="!summonersPending"
               :width="32"
               :height="32"
               class="size-8 rounded"
@@ -137,7 +138,8 @@ function spellByKey(key: string) {
               <div class="relative size-8">
                 <GameTooltipChampionSpellIcon
                   :spell="spellByKey(key)"
-                      :pending="pending"
+                  :pending="pending"
+                  settled
                   :width="32"
                   :height="32"
                   class="size-8 rounded"

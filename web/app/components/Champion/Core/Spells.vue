@@ -32,6 +32,7 @@ defineProps<{
           :key="`sum-${spellId}`"
           :spell="summonersMap[spellId] ?? null"
           :pending="summonersPending"
+          :settled="!summonersPending"
           :width="36"
           :height="36"
           class="size-9 shrink-0 rounded"

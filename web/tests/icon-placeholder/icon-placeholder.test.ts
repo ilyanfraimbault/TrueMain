@@ -33,8 +33,13 @@ describe('iconPlaceholderClass', () => {
 })
 
 describe('isIconUnresolved', () => {
-  it('is false while a source is still being fetched', () => {
-    expect(isIconUnresolved(false, true)).toBe(false)
+  it('is false when the caller has not said the source is final', () => {
+    // The guard that keeps this opt-in. Most call sites never wire their fetch
+    // state — `ChampionBuildTabs`' leading item icon is rendered on ids alone,
+    // because the item map is a deferred client-only fetch that lands after the
+    // builds — and they must keep the loading box through that window. Treating
+    // "said nothing" as "settled" would flash a hollow failed box on every one.
+    expect(isIconUnresolved(false, false)).toBe(false)
   })
 
   it('is false once there is a source', () => {
@@ -42,16 +47,16 @@ describe('isIconUnresolved', () => {
     expect(isIconUnresolved(true, true)).toBe(false)
   })
 
-  it('is true when nothing arrived and nothing is coming', () => {
+  it('is true when the source is final and still empty', () => {
     // The case this exists for: a static-data fetch that *failed* rather than
     // one still in flight. The map then resolves no id, so every icon it backs
     // is sourceless for good — it must read as an empty slot, not as one still
     // filling, and not as the raw Riot id it could not resolve.
-    expect(isIconUnresolved(false, false)).toBe(true)
+    expect(isIconUnresolved(false, true)).toBe(true)
   })
 
   it('draws that state the same as a failed image', () => {
-    expect(iconPlaceholderClass(isIconUnresolved(false, false)))
+    expect(iconPlaceholderClass(isIconUnresolved(false, true)))
       .toBe(iconPlaceholderClass(true))
   })
 })

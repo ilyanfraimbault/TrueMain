@@ -17,18 +17,27 @@
 export const SKELETON_FILL = 'bg-ink-700'
 
 /**
- * Whether an icon has *settled* without one: no source, and nothing still
- * fetching one. Distinct from loading, which is a source on its way.
+ * Whether an icon has *settled* without one: the caller states its source is
+ * final, and there is still nothing to show. Distinct from loading, which is a
+ * source on its way.
  *
  * The case that matters is a static-data fetch that failed rather than one
  * still in flight — the map then resolves no id at all, so every icon it backs
- * has no source, permanently. Before this, those slots either pulsed forever
- * (the 1.20.0 lesson: a dead page must not read as a loading one) or printed
+ * has no source, permanently. Those slots used to pulse forever (the 1.20.0
+ * lesson, one level up: a dead page must not read as a loading one) or print
  * the raw Riot id they could not resolve, "Spell 4", which tells a player
  * nothing.
+ *
+ * `settled` is deliberately opt-in rather than inferred from "no `pending`
+ * prop". Most call sites never wire `pending` at all and lean on the default —
+ * `ChampionBuildTabs`' leading item icon is rendered on ids alone precisely
+ * because the item map is a deferred, client-only fetch that lands after the
+ * builds, and it counts on the loading box meanwhile. Inferring settledness
+ * from an absent prop would turn that window, and every other un-instrumented
+ * consumer of a still-loading map, into a hollow "failed" flash.
  */
-export function isIconUnresolved(hasSrc: boolean, pending: boolean): boolean {
-  return !hasSrc && !pending
+export function isIconUnresolved(hasSrc: boolean, settled: boolean): boolean {
+  return !hasSrc && settled
 }
 
 export function iconPlaceholderClass(failed: boolean): string {

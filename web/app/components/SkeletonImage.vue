@@ -36,6 +36,16 @@ const props = defineProps<{
    * terminal state: the source settled and there is still no icon.
    */
   pending?: boolean
+  /**
+   * The caller knows this icon's source is final: whatever supplies `src` has
+   * resolved, so a still-empty slot will stay empty. Draws the same hollow box
+   * a failed image gets, instead of a skeleton that would pulse forever.
+   *
+   * Opt-in, and must stay so: the absence of this flag means "no statement
+   * either way", which is how every call site that never wires its fetch state
+   * keeps the loading box while its map is in flight.
+   */
+  settled?: boolean
 }>()
 
 const loaded = ref(false)
@@ -146,17 +156,18 @@ onMounted(() => {
            only by animation, so a page whose icons had all failed read as a page
            still loading. The `/_ipx` outage in 1.20.0 was exactly that: every
            icon on the site dead, and the page merely looked slow.
-           A source that never arrives is the same final state: when the static
-           map behind an icon fails to load it resolves no id at all, so the
-           slot has no `src` and nothing is still coming. It gets the hollow box
-           too, rather than pulsing forever.
+           A source that never arrives is the same final state, which is what
+           `settled` says: when the static map behind an icon fails to load it
+           resolves no id at all, so the slot has no `src` and never will. It
+           gets the hollow box too, rather than pulsing forever — but only when
+           the caller states it, never by inference.
            Kept to CSS on the existing element rather than a broken-image glyph:
            a champion page carries ~470 of these, and an extra element or icon
            component each is the cost this component exists to avoid. -->
       <span
         v-else-if="!src || !loaded || failed"
         class="absolute inset-0 size-full rounded-md"
-        :class="iconPlaceholderClass(failed || isIconUnresolved(Boolean(src), Boolean(pending)))"
+        :class="iconPlaceholderClass(failed || isIconUnresolved(Boolean(src), Boolean(settled)))"
       />
       <img
         v-if="src"

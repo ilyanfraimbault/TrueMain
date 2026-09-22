@@ -42,6 +42,7 @@ function spellByKey(key: string) {
             <GameTooltipChampionSpellIcon
               :spell="spellByKey(key)"
               :pending="pending"
+              settled
               :width="36"
               :height="36"
               class="size-9 rounded"
