@@ -97,12 +97,12 @@ const rows = computed(() =>
       </li>
     </ul>
 
-    <p
+    <UEmpty
       v-else
-      class="px-3 py-8 text-center text-sm text-muted"
-    >
-      No champion stats for this patch yet.
-    </p>
+      size="sm"
+      icon="i-lucide-trending-up"
+      description="No champion stats for this patch yet."
+    />
 
     <footer class="mt-auto flex justify-end pt-2">
       <UButton

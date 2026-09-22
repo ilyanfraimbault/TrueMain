@@ -329,6 +329,22 @@ profile fetch is client-only by rule (#862, per-viewer payloads never reach SSR 
 already answered **200** with skeletons and `showError` could not change the status anyway. It would have
 bought a different presentation, not a real 404.
 
-**Still outstanding:** roughly a dozen *one-line* empty states — a bare `<p class="text-muted">` inside a card
-(`Champion/Synergies`, `Champion/Truemains`, `TrendChart`, `ScalingChart`, `GamesDrawer`, the home panels).
-They are a second pass, tracked separately; the cards were the visible half.
+**The second pass finished the one-line states in #1681** — eighteen of them, half again as many as the
+inventory in #1669 had found (it grepped for "No … yet" and missed `MainsComparison`'s four). They were a bare
+`<p class="text-muted">` inside a card; they are `UEmpty` now, description-only and icon-bearing.
+
+- **`size` had to be taught to change the box, not just the type.** Nuxt UI's sizes scale the avatar and the
+  font and leave the root at `p-4 sm:p-6 lg:p-8`, so a "small" empty state was still a full-height block and
+  converting a `py-3` line grew it threefold. `sm` and `xs` carry their own root padding in the theme, which
+  is what makes one usable inside a card body (`sm`) or a compact list (`xs`, no icon — an icon chip in a
+  favorite card is taller than the three match rows it replaces).
+- **All description-only.** These sit inside a `SectionCard`, so `UEmpty`'s `<h2>` title is either an
+  inversion (level 3) or a flat duplicate (level 2); the two that had a bolded pseudo-title keep it as an
+  emphasised first line in `#description`, the same shape `FallbackBuild` uses.
+
+**Three failures had been hiding among them, and #1661 missed all three** — `Couldn't load synergies` /
+`matchups` / `the comparison`, each hand-written as the same muted line as the empty states around it, with
+copy of its own that never saw the real status. The #1661 sweep keyed on `UAlert` and `describeFetchError`
+call sites, and these were neither. They are `FetchErrorAlert`s now. The lesson for the next vocabulary sweep:
+grep the *copy* as well as the components, because the drift that matters is the state rendered with no
+component at all.

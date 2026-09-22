@@ -247,21 +247,24 @@ const thinSides = computed(() => {
         />
       </template>
 
-      <p
+      <FetchErrorAlert
         v-else-if="error"
-        class="py-6 text-center text-sm text-muted"
-      >
-        Couldn't load the comparison. Please try again.
-      </p>
+        :error="error"
+        title="Failed to load the comparison"
+        class="my-2"
+      />
 
       <!-- Nothing submitted yet, or a Riot ID the API can't parse. -->
-      <p
+      <UEmpty
         v-else-if="!comparison"
-        class="py-6 text-center text-sm text-muted"
+        size="sm"
+        icon="i-lucide-user-round-search"
       >
-        Enter a Riot ID as <span class="text-default">Name#TAG</span> to compare it with the players
-        who main this champion.
-      </p>
+        <template #description>
+          Enter a Riot ID as <span class="whitespace-nowrap text-default">Name#TAG</span> to compare it
+          with the players who main this champion.
+        </template>
+      </UEmpty>
 
       <!--
         We only compare accounts already in our database — there is no
@@ -269,65 +272,69 @@ const thinSides = computed(() => {
         normal answer, not an error. Say so plainly and point at the tracked
         list rather than leaving a dead end.
       -->
-      <div
+      <UEmpty
         v-else-if="comparison.status === 'UNKNOWN_ACCOUNT'"
-        class="flex flex-col items-center gap-1 py-6 text-center"
+        size="sm"
+        icon="i-lucide-user-round-x"
       >
-        <p class="text-sm font-medium text-default">
-          We don't track this account yet
-        </p>
-        <p class="text-sm text-muted">
+        <template #description>
+          <span class="block font-medium text-highlighted">We don't track this account yet</span>
           The comparison only covers players already in our database.
-          <NuxtLink
+        </template>
+        <template #actions>
+          <UButton
             to="/truemains"
-            class="rounded text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            Browse the tracked players</NuxtLink>.
-        </p>
-      </div>
+            size="sm"
+            color="neutral"
+            variant="subtle"
+            icon="i-lucide-trophy"
+            label="Browse the tracked players"
+          />
+        </template>
+      </UEmpty>
 
-      <p
+      <UEmpty
         v-else-if="comparison.status === 'UNKNOWN_TARGET'"
-        class="py-6 text-center text-sm text-muted"
-      >
-        We don't track the main you picked. Compare against all mains instead.
-      </p>
+        size="sm"
+        icon="i-lucide-user-round-x"
+        description="We don't track the main you picked. Compare against all mains instead."
+      />
 
       <!--
         Below the games floor on one side or the other. The numbers exist but
         would be noise, so the metrics stay hidden and we say exactly how far
         the sample is from the bar rather than showing an unreliable verdict.
       -->
-      <div
+      <UEmpty
         v-else-if="!showMetrics"
-        class="flex flex-col items-center gap-1 py-6 text-center"
+        size="sm"
+        icon="i-lucide-chart-no-axes-column"
       >
-        <p class="text-sm font-medium text-default">
-          Not enough games to compare
-        </p>
-        <p class="text-sm text-muted">
+        <template #description>
+          <span class="block font-medium text-highlighted">Not enough games to compare</span>
           Each side needs {{ comparison.minGames }} recorded
           {{ comparison.minGames === 1 ? 'game' : 'games' }} on this champion.
-        </p>
+        </template>
+
         <!--
           Every thin side is listed, never just the first: when both are short,
           naming only the account would send the user hunting for more of their
-          own games when the mains pool is the half that's missing.
+          own games when the mains pool is the half that's missing. In `#body`
+          rather than the description so it stays a list.
         -->
-        <ul
-          v-if="thinSides.length"
-          class="flex flex-col gap-0.5"
-        >
-          <li
-            v-for="side in thinSides"
-            :key="side.label"
-            class="text-sm text-muted"
-          >
-            <span class="text-default">{{ side.label }}</span>:
-            {{ side.games }} {{ side.games === 1 ? 'game' : 'games' }}
-          </li>
-        </ul>
-      </div>
+        <template v-if="thinSides.length" #body>
+          <ul class="flex flex-col gap-0.5 text-center">
+            <li
+              v-for="side in thinSides"
+              :key="side.label"
+              class="text-sm text-muted"
+            >
+              <span class="text-default">{{ side.label }}</span>:
+              {{ side.games }} {{ side.games === 1 ? 'game' : 'games' }}
+            </li>
+          </ul>
+        </template>
+      </UEmpty>
 
       <div
         v-else
