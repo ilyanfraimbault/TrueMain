@@ -70,7 +70,7 @@ on macOS.
 
 ```sh
 cd desktop/app && npm install
-npm run tauri build        # bundles into desktop/src-tauri/target/release/bundle
+npm run tauri build        # bundles into desktop/target/release/bundle
 ```
 
 For development, with hot reload and the app pointed at the Nuxt dev server:

@@ -7,7 +7,7 @@
     "generate": "nuxt generate",
     "build": "nuxt generate",
     "typecheck": "nuxt typecheck",
-    "tauri": "tauri"
+    "tauri": "cd .. && tauri"
   },
   "dependencies": {
     "@nuxt/ui": "^4.11.1",
