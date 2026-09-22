@@ -6,8 +6,12 @@ import { loadingOfAlias, splashOfAlias } from '~/composables/useChampionStatics'
  * scrim the text needs. Either a champion id (resolved through Data Dragon) or
  * an alias (for the screens that have no champion of their own).
  *
- * The art fades in once it has decoded: a 1 MB splash arriving mid-draft must
- * not pop into place behind text that is being read.
+ * The art fades in on insertion — a splash arriving mid-draft must not pop
+ * into place behind text that is being read. The fade is a CSS animation on
+ * the element rather than a reaction to `load`: in the packaged app, art
+ * inserted after the first image stayed at opacity 0 while a browser showed
+ * all of it, and a fade that needs no event reaching a listener has one
+ * fewer way to fail.
  */
 const props = withDefaults(defineProps<{
   championId?: number | null
@@ -27,9 +31,6 @@ const source = computed(() => {
   return props.kind === 'loading' ? loadingOf(props.championId) : splashOf(props.championId)
 })
 
-const decoded = ref(false)
-watch(source, () => { decoded.value = false })
-
 const scrim = computed(() => ({
   x: 'art-fade-x',
   y: 'art-fade-y',
@@ -45,11 +46,9 @@ const scrim = computed(() => ({
       :key="source"
       :src="source"
       alt=""
-      class="size-full object-cover transition-opacity duration-700 ease-out"
-      :class="decoded ? 'opacity-100' : 'opacity-0'"
+      class="size-full animate-art-in object-cover"
       :style="{ objectPosition: position }"
       decoding="async"
-      @load="decoded = true"
     >
     <div v-if="scrim" class="absolute inset-0" :class="scrim" />
   </div>
