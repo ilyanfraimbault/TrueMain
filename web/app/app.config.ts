@@ -41,6 +41,35 @@ export default defineAppConfig({
         variant: 'soft',
       },
     },
+    // Every "there is nothing here" state on the site (#1669). Themed rather
+    // than styled per call site for the same reason `card` is: there were a
+    // dozen hand-rolled variants of this card, in three paddings and four title
+    // styles, and the next one would have been a thirteenth.
+    //
+    // `soft` is the default and carries the app-wide `surface` material — and,
+    // exactly like `card` above, its stock `bg-elevated/50` has to be restated
+    // opaque here or the plain utility out-cascades `surface`'s background and
+    // every empty state renders at 50%. Only `soft` is overridden: the one
+    // place that wants a *placeholder* rather than a surface — the matchup
+    // draft stage — asks for `naked` and paints its own dashed, recessed frame
+    // at the call site. `description` drops Nuxt UI's `text-toned` for the
+    // site's own muted/highlighted split.
+    empty: {
+      slots: {
+        root: 'rounded-lg',
+      },
+      variants: {
+        variant: {
+          soft: {
+            root: 'surface bg-elevated',
+            description: 'text-muted',
+          },
+        },
+      },
+      defaultVariants: {
+        variant: 'soft',
+      },
+    },
     // Nuxt UI paints a skeleton `bg-elevated` — which, since #1060, is the exact
     // fill of every `surface` card. A skeleton inside a card was therefore
     // invisible: same colour, no edge, nothing to see while a page loaded.

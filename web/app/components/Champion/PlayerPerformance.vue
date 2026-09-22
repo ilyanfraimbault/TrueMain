@@ -111,18 +111,21 @@ const stats = computed(() => {
     <!-- Honest empty state: the API returns the real counts even when it
          suppresses the averages, so the copy quotes the actual sample instead
          of a vague "not enough data". -->
-    <p
+    <UEmpty
       v-else-if="!data || !hasSample"
-      class="surface rounded-lg px-4 py-8 text-center text-sm text-muted"
+      size="sm"
+      icon="i-lucide-gauge"
     >
-      <template v-if="data && data.games > 0">
-        Only {{ data.games }} {{ data.games === 1 ? 'game' : 'games' }} on record here —
-        we score a champion from {{ data.minGames }} games up, so this one is not rated yet.
+      <template #description>
+        <template v-if="data && data.games > 0">
+          Only {{ data.games }} {{ data.games === 1 ? 'game' : 'games' }} on record here —
+          we score a champion from {{ data.minGames }} games up, so this one is not rated yet.
+        </template>
+        <template v-else>
+          No ranked games on {{ championLabel }} to score yet.
+        </template>
       </template>
-      <template v-else>
-        No ranked games on {{ championLabel }} to score yet.
-      </template>
-    </p>
+    </UEmpty>
 
     <!-- No inner card here: the section is already a card, and the headline is
          all that is left of the panel, so a second frame around it would be

@@ -291,3 +291,44 @@ split out for callers that already hold the number; it is pinned by a test.
 **What is deliberately *not* `FetchErrorAlert`:** the portal's domain-state alerts — "PUUID invalidated",
 "Rejected", a seed request's stored error. Those report a *record's* state, not a failed request, and stay
 plain `UAlert`s. `color="error"` is not by itself the mark of a fetch failure.
+
+## Empty states go through `UEmpty`, themed like the cards (2026-09-22)
+
+**Decided in #1669, the empty-state half of the vocabulary #1661 settled for errors.** The two are deliberately
+separate: an empty state is **not** an error — "no ranked games on this champion yet" is a correct answer, not
+a failure, and the codebase already relied on that distinction (`useChampion` swallows a 404 into
+`notEnoughData` rather than raising it). #1661 therefore left these alone; this entry finishes the job.
+
+There were twelve hand-rolled empty-state *cards* and no component behind any of them — three paddings
+(`px-6 py-12`, `px-6 py-8`, `px-4 py-8`), three card shapes (`surface rounded-lg`, `surface rounded-md`, a
+dashed `rounded-xl border-accented bg-muted`) and four title styles (`text-base font-semibold`,
+`font-medium`, `text-sm font-medium`, none at all). Nuxt UI ships `UEmpty` — `icon` / `avatar` / `title` /
+`description` / `actions` / `variant` / `size` / `loading` — which covers every one of them.
+
+- **Themed once in `app.config.ts`, like `card`**, and for the same reason: the next empty state should
+  inherit the shape rather than copy classes a thirteenth time.
+- **`soft` is the default and had to be restated opaque.** Nuxt UI's stock `soft` is `bg-elevated/50`, and a
+  plain utility out-cascades `@utility surface`'s background — the exact trap the `card` theme already
+  documents. Left alone, every empty state would render at 50 % against the translucency #1060 removed.
+  `description` also drops Nuxt UI's `text-toned` for the site's own muted/highlighted split.
+- **`UEmpty`'s `title` renders an `<h2>`.** That is right where the empty state *is* the page's content
+  (a not-found profile, an empty favorites list), and wrong inside a `SectionCard`, whose own title is an
+  `<h3>` — the prop would invert the outline. Those call sites (`FallbackBuild`, the matchup recommendation
+  card) put both lines in `#description` with the first one emphasised, which is what their markup did
+  anyway. The matchup **draft placeholder** takes the same route for a different reason already on record:
+  it is deliberately unlabelled by a heading so it reads as a placeholder and not as a third panel.
+- **The icon is neutral everywhere now.** It was `text-primary` on favorites and `text-dimmed` on the draft
+  stage. An empty-state icon is decorative, and the accent is scarce by rule — so it goes to the component's
+  neutral avatar in both.
+
+**"Player not found" stays an empty state, not the 404 page.** A Riot ID can name a real player we simply do
+not track: that is "we don't hold this", not "this does not exist". The page keeps its breadcrumb and its
+shareable URL, and the card offers a way onward (`actions`) where `error.vue` offers only a way back. The
+argument for the 404 page — `champion-route.ts` 404s a URL that names nothing — does not transfer: the
+profile fetch is client-only by rule (#862, per-viewer payloads never reach SSR HTML), so the server has
+already answered **200** with skeletons and `showError` could not change the status anyway. It would have
+bought a different presentation, not a real 404.
+
+**Still outstanding:** roughly a dozen *one-line* empty states — a bare `<p class="text-muted">` inside a card
+(`Champion/Synergies`, `Champion/Truemains`, `TrendChart`, `ScalingChart`, `GamesDrawer`, the home panels).
+They are a second pass, tracked separately; the cards were the visible half.
