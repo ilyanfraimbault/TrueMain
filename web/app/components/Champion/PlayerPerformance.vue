@@ -102,12 +102,10 @@ const stats = computed(() => {
       class="h-36 w-full rounded-lg"
     />
 
-    <UAlert
+    <FetchErrorAlert
       v-else-if="error"
-      color="error"
-      variant="soft"
-      title="Failed to load performance"
-      description="The performance score for this champion could not be loaded."
+      :error="error"
+      title="Failed to load the performance score"
     />
 
     <!-- Honest empty state: the API returns the real counts even when it

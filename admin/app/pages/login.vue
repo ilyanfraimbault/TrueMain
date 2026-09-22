@@ -41,7 +41,7 @@ async function onSubmit(_event: FormSubmitEvent<typeof state>) {
   catch (err: unknown) {
     // extractFetchError surfaces the server's actual reason (e.g. the 429
     // rate-limit message) instead of masking every failure as bad credentials.
-    errorMessage.value = extractFetchError(err, 'Could not sign in. Please try again.')
+    errorMessage.value = extractFetchError(err, 'The request did not go through. Please try again.')
   }
   finally {
     loading.value = false
@@ -91,12 +91,10 @@ async function onSubmit(_event: FormSubmitEvent<typeof state>) {
           />
         </UFormField>
 
-        <UAlert
+        <FetchErrorAlert
           v-if="errorMessage"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-circle-alert"
-          :title="errorMessage"
+          title="Could not sign in"
+          :message="errorMessage"
         />
 
         <UButton

@@ -253,7 +253,7 @@ function truemainItemsFor(state: Exclude<TruemainState, { kind: 'idle' }>): Sear
   switch (state.kind) {
     case 'tooShort': return [{ label: TM_TOO_SHORT, icon: 'i-lucide-info', disabled: true }]
     case 'searching': return [{ label: TM_SEARCHING, icon: 'i-lucide-loader-circle', disabled: true }]
-    case 'error': return [{ label: truemainSearchFailedMessage.value, icon: 'i-lucide-alert-triangle', disabled: true }]
+    case 'error': return [{ label: truemainSearchFailedMessage.value, icon: 'i-lucide-triangle-alert', disabled: true }]
     case 'empty': return [{ label: TM_NO_MATCH, icon: 'i-lucide-search-x', disabled: true }]
     case 'refetching': return state.results.map(result => toTruemainItem(result, true))
     case 'results': return state.results.map(result => toTruemainItem(result))

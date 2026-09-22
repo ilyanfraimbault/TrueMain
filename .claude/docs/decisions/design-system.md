@@ -230,3 +230,50 @@ starting at 60 ms — #1621.
   flag in a `beforeResolve`, which always runs later. `definePageMeta` on the page itself would be more direct,
   but `pages/champions/[slug].vue` is over the file-size guardrail's limit and may only shrink. Both the rule and
   the guard's effect are tested (unit test, plus a browser run counting the transitions each navigation starts).
+
+## One error vocabulary: a page for a dead route, an alert for a dead region, a toast for an action (2026-09-22)
+
+**Decided in #1661.** Error reporting had drifted into three overlapping surfaces with no rule about which
+applied when, so the same failure was routinely told twice. Five web pages called `useErrorToast` *and*
+rendered an inline `UAlert` carrying the same `describeFetchError` line; `AccountsSeed` did the same in the
+portal. The composable's own docblock called this deliberate ("complements rather than replaces"), which is
+what let it spread to every page that fetched.
+
+**The rule is one surface per kind of event, and never two surfaces for one event:**
+
+- **Error page (`UError`)** — the route itself cannot exist or cannot render (404, 503, a fatal SSR throw).
+- **Inline alert (`FetchErrorAlert`)** — one *region* of a live page failed and the rest is still usable.
+  Persistent, where the missing content was. This is the default for a fetch failure.
+- **Toast (`useActionToast`)** — the outcome of an action the user just took that would otherwise leave no
+  trace: a link copied, a form submitted, a bulk run finished. **Never a page-load failure.** A toast
+  disappears, and the message a reader most needs to re-read is the one explaining why a panel is empty.
+
+**The carve-out that was considered and found empty.** The one honest case for a toast on a fetch failure is
+a *refetch* — a filter click that fails while the previous content stays on screen, where the action needs an
+answer and the inline alert may be scrolled out of view. It has no call sites: Nuxt's `useAsyncData` resets
+`data` to `options.default()` in its catch (`asyncData.js`), and every one of these templates renders the
+alert as the head of a `v-if` / `v-else-if` chain — so a failed refetch wipes the content and the alert takes
+its place, initial load and refetch alike. Building the mechanism for zero call sites is how a design system
+starts lying about itself; keeping the old rows on a failed refetch is a separate change, tracked on its own.
+
+**Both apps now have an `error.vue`, and both render inside their own chrome.** Web's replaced a hand-rolled
+centred panel that sat outside `AppHeader` / `AppFooter` — it told a visitor they had left the site. The
+portal had **no** `error.vue` at all and fell through to Nuxt's stock page, with no sidebar and no way back;
+it now renders inside `NuxtLayout`, so the nav and the ⌘K palette stay up. (`UError` needs `w-full` there:
+`UDashboardGroup` is a flex row, so the `<main>` shrinks to its content and its `items-center` then centres
+inside that narrow box.)
+
+**The two apps keep opposite copy rules, and that is the point.** The public site derives *everything* from
+the status code — `describeHttpStatus`, the same line the inline alerts read — because a raw `statusMessage`
+carries the request path on a 404 and the proxied backend's detail on a 5xx. The portal shows the real
+reason: the ProblemDetails `detail` and the traceId, because an operator is expected to quote them. Each app
+therefore has its own `FetchErrorAlert` with the same name and shape and a different message source.
+
+**A bug the uniformisation exposed:** `error.vue` is handed a NuxtError that has crossed the SSR payload — a
+*plain object*, so `instanceof Error` is false and `fetchErrorStatus` read no status off it. Every error
+page, 404 included, printed the connectivity line ("Could not reach the server"). `describeHttpStatus` is
+split out for callers that already hold the number; it is pinned by a test.
+
+**What is deliberately *not* `FetchErrorAlert`:** the portal's domain-state alerts — "PUUID invalidated",
+"Rejected", a seed request's stored error. Those report a *record's* state, not a failed request, and stay
+plain `UAlert`s. `color="error"` is not by itself the mark of a fetch failure.

@@ -26,13 +26,10 @@ function formatAge(ageHours: number): string {
     <USkeleton v-for="n in 6" :key="n" class="h-10 w-full" />
   </div>
 
-  <UAlert
+  <FetchErrorAlert
     v-else-if="error"
-    color="error"
-    variant="subtle"
-    icon="i-lucide-triangle-alert"
-    title="Failed to load"
-    :description="error"
+    title="Failed to load aggregate freshness"
+    :message="error"
   />
 
   <div v-else-if="freshness" class="space-y-4">

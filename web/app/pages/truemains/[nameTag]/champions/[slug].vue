@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { POSITION_BY_VALUE } from '~/utils/positions'
-import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import { parseRouteParam } from '~/utils/route-params'
 import { ELO_BRACKET_ALL } from '~/utils/elo-brackets'
@@ -45,8 +44,8 @@ const {
 
 // A 404 here is the expected "not enough games" empty state (handled below),
 // so useChampion never raises it. Anything that does reach championError is a
-// real failure — surface it as a toast on top of the inline alert.
-useErrorToast(championError, { title: 'Failed to load champion' })
+// real failure, and the inline alert below is where it is reported — a
+// page-load failure is never also a toast (#1661).
 
 // Identity for the breadcrumb / header fallback. Cheap and client-cached —
 // the profile page primes the same request, so this rarely hits the network.
@@ -289,12 +288,10 @@ const performanceSnapshot = useLazyHydrationSnapshot(
         source that has the raw matches even when the build aggregate doesn't).
       -->
       <div class="order-2 min-w-0 space-y-6 xl:col-start-2 xl:row-start-1 xl:row-span-3">
-        <UAlert
+        <FetchErrorAlert
           v-if="championError"
-          color="error"
-          variant="soft"
-          title="Failed to load champion"
-          :description="describeFetchError(championError)"
+          :error="championError"
+          title="Failed to load this champion"
         />
 
         <template v-else>

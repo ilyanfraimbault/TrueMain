@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { POSITION_BY_VALUE, type ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
-import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import type {
   ChampionScalingBucket,
@@ -44,11 +43,10 @@ const {
 // header keeps its values so the page doesn't jump under the cursor.
 const championLoading = computed(() => isLoadingStatus(championStatus.value))
 
-// Real load failures (429/500/network) surface as a toast as well as the
-// inline alert below — both read the same line via describeFetchError. A 404
-// (no data for this champion) is not an error: useChampion swallows it into
+// Real load failures (429/500/network) surface as the inline alert below, and
+// only there — a page-load failure is never also a toast (#1661). A 404 (no
+// data for this champion) is not an error at all: useChampion swallows it into
 // notEnoughData and we render a dedicated empty state instead.
-useErrorToast(championError, { title: 'Failed to load champion' })
 
 // Static-data plumbing shared with the player-scoped champion page: the
 // patch-pinned rune tree / items / summoner spells (keys shared with
@@ -371,12 +369,10 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
          across every state (error / no-data / normal) as the first child. -->
     <UBreadcrumb :items="breadcrumbItems" />
 
-    <UAlert
+    <FetchErrorAlert
       v-if="championError"
-      color="error"
-      variant="soft"
-      title="Failed to load champion"
-      :description="describeFetchError(championError)"
+      :error="championError"
+      title="Failed to load this champion"
     />
 
     <!--

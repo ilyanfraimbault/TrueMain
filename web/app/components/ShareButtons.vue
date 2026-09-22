@@ -30,7 +30,7 @@ const props = withDefaults(defineProps<{
 
 const route = useRoute()
 const requestUrl = useRequestURL()
-const toast = useToast()
+const actionToast = useActionToast()
 
 // `useRequestURL()` gives the request origin on the server and
 // `window.location` on the client, so the shared link always points at the host
@@ -101,12 +101,10 @@ async function writeToClipboard(text: string): Promise<boolean> {
 async function copyLink() {
   const ok = await writeToClipboard(shareUrl.value)
   if (!ok) {
-    toast.add({
-      title: 'Could not copy the link',
-      description: 'Your browser blocked clipboard access — copy it from the address bar instead.',
-      color: 'error',
-      icon: 'i-lucide-circle-alert',
-    })
+    actionToast.failure(
+      'Could not copy the link',
+      'Your browser blocked clipboard access — copy it from the address bar instead.',
+    )
     return
   }
 
@@ -116,12 +114,12 @@ async function copyLink() {
     copied.value = false
   }, 2000)
 
-  toast.add({
-    title: 'Link copied',
-    description: 'Paste it in Discord or X — it unfurls with a stats card.',
-    color: 'success',
-    icon: 'i-lucide-link',
-  })
+  // A toast is right here and nowhere near a page load: copying is an action
+  // whose result is otherwise invisible — the clipboard says nothing (#1661).
+  actionToast.success(
+    'Link copied',
+    'Paste it in Discord or X — it unfurls with a stats card.',
+  )
 }
 
 async function nativeShare() {

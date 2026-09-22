@@ -43,7 +43,7 @@ import { formatRiotId, riotIdError, splitRiotId } from '~~/shared/utils/riot-id'
 // own model ref, so an out-of-set value can't slip through there.
 const regionItems = TRACKED_REGION_ITEMS
 
-const toast = useToast()
+const actionToast = useActionToast()
 
 // =============================================================================
 // 1) SINGLE ADD — 3-field form + live status polling
@@ -183,13 +183,10 @@ async function onSubmit(event: FormSubmitEvent<SeedFormState>) {
     startPolling(res.id)
   }
   catch (err: unknown) {
+    // The inline alert below is the whole report: a submit that fails leaves
+    // the form on screen with its error in place, so a toast saying the same
+    // thing was the second telling of a message the operator still has (#1661).
     submitError.value = extractFetchError(err)
-    toast.add({
-      title: 'Seed request failed',
-      description: submitError.value,
-      color: 'error',
-      icon: 'i-lucide-triangle-alert',
-    })
   }
   finally {
     submitting.value = false
@@ -464,12 +461,11 @@ async function seedAll() {
   }
   finally {
     running.value = false
-    toast.add({
-      title: summaryTitle.value,
-      description: summaryDescription.value,
-      color: summaryClean.value ? 'success' : 'warning',
-      icon: summaryClean.value ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert',
-    })
+    // A toast, and legitimately so: a bulk run can finish while the operator is
+    // reading another panel, and its outcome is otherwise only in the summary
+    // alert further down the page (#1661).
+    if (summaryClean.value) actionToast.success(summaryTitle.value, summaryDescription.value)
+    else actionToast.warning(summaryTitle.value, summaryDescription.value)
     // Surface the newly-queued rows at the top of the queue list below.
     refreshFromFirstPage()
   }

@@ -2,7 +2,6 @@
 import type { LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 import { REGION_SLUGS } from '~~/shared/types/leaderboard'
-import { describeFetchError } from '~/utils/errors'
 
 useSeoMeta({
   title: 'OTP Leaderboard',
@@ -96,7 +95,6 @@ const {
 // a page straddling a decade boundary (76…100) would otherwise mix two widths.
 const deepestRank = computed(() => rows.value.reduce((max, row) => Math.max(max, row.rank), 0))
 
-useErrorToast(leaderboardError, { title: 'Failed to load the leaderboard' })
 
 // ─── Static lookups ───────────────────────────────────────────────────────
 // The champion list backs the row's top-3 icon lookup and the header's
@@ -152,12 +150,9 @@ const championsById = useChampionsById(champions)
       />
     </ClientOnly>
 
-    <UAlert
-      v-if="leaderboardError"
-      color="error"
-      icon="i-lucide-alert-triangle"
-      title="Couldn't load the leaderboard"
-      :description="describeFetchError(leaderboardError)"
+    <FetchErrorAlert
+      :error="leaderboardError"
+      title="Failed to load the leaderboard"
     />
 
     <div v-if="leaderboardInitialLoading" class="space-y-1">
