@@ -267,6 +267,17 @@ builder.Services.AddOptions<CompositionSearchOptions>()
         options => options.CandidatePoolCap >= options.TopK,
         "CompositionSearch:CandidatePoolCap must be >= TopK.")
     .Validate(options => options.WinWeight >= 1d, "CompositionSearch:WinWeight must be >= 1.")
+    // Vote multipliers, so zero would silence a whole tier of games rather than
+    // down-weight it, and a current patch worth less than an older one would invert the
+    // recency the recommendation is built on.
+    .Validate(
+        options => options.CurrentPatchWeight > 0d && options.PreviousPatchWeight > 0d
+            && options.CurrentPatchWeight >= options.PreviousPatchWeight,
+        "CompositionSearch:CurrentPatchWeight must be > 0 and >= PreviousPatchWeight (which must be > 0).")
+    .Validate(
+        options => options.MainGameWeight > 0d && options.NonMainGameWeight > 0d
+            && options.MainGameWeight >= options.NonMainGameWeight,
+        "CompositionSearch:MainGameWeight must be > 0 and >= NonMainGameWeight (which must be > 0).")
     // A negative threshold would make every lane "won" and its mirror "lost" at once.
     .Validate(
         options => options.LaneGoldLeadThreshold >= 0,

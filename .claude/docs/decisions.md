@@ -96,6 +96,7 @@ Last verified against `develop` on 2026-09-02.
 - The matchup tool judges the lane over its own sampled games — this finishes #1111's merge
 - `/matchup` carries one line of numbers, not two — and it stores the XP gap beside the gold one — #1098, #976, #1087
 - Column captions head every rendering of the matchup rows, filtered view included, and beat figure-restating tooltips — #1494
+- The role opponent is a database filter, a pinned matchup is used whole, and votes are weighted by patch and pilot — #1659, #563, #923
 
 ## Player profile — [`decisions/product-player-profile.md`](decisions/product-player-profile.md)
 

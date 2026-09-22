@@ -50,7 +50,8 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
         //   unrelated  — Talon mid: no matchup, hard-filtered out
         // The unrelated game is the most recent: with the role opponent
         // pinned, the matchup requirement must drop it entirely instead of
-        // merely out-scoring it.
+        // merely out-scoring it. Since #1659 that happens in SQL, so it never
+        // reaches the pool rather than being scored and discarded.
         await SeedGameAsync("COMP_FULLHIT", daysAgo: 3, win: true, enemyMid: RoleOpponent, enemyTop: EnemyTop, allyJungle: AllyJungle);
         await SeedGameAsync("COMP_LANEONLY", daysAgo: 2, win: false, enemyMid: RoleOpponent);
         await SeedGameAsync("COMP_UNRELATED", daysAgo: 1, win: true, enemyMid: OtherOpponent);
@@ -66,7 +67,7 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
             },
             CancellationToken.None);
 
-        result.CandidatePoolSize.Should().Be(3);
+        result.CandidatePoolSize.Should().Be(2, "the unrelated game is filtered out in SQL");
         result.MaxPossibleScore.Should().Be(16);
         result.MatchupRequested.Should().BeTrue();
         result.MatchupFound.Should().BeTrue();
@@ -123,9 +124,10 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
             },
             CancellationToken.None);
 
-        // The pool was scanned but nothing has the matchup: the caller falls
+        // Nothing has the matchup, so the SQL filter leaves an empty pool (#1659 — it
+        // used to scan the champion's game and discard it in memory): the caller falls
         // back to the champion's baseline build and says so.
-        result.CandidatePoolSize.Should().Be(1);
+        result.CandidatePoolSize.Should().Be(0);
         result.MatchupRequested.Should().BeTrue();
         result.MatchupFound.Should().BeFalse();
         result.Matches.Should().BeEmpty();
@@ -176,7 +178,7 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     }
 
     [Fact]
-    public async Task FindTopMatchesAsync_HonorsPositionQueueAndTopK()
+    public async Task FindTopMatchesAsync_WithAPinnedMatchup_KeepsEveryGameOfIt()
     {
         await _fixture.ResetDatabaseAsync();
 
@@ -200,9 +202,40 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
             CancellationToken.None);
 
         result.CandidatePoolSize.Should().Be(3, "the wrong-lane and wrong-queue games never enter the pool");
-        result.Matches.Should().HaveCount(2, "TopK caps the selection");
+        // TopK is 2, and every one of the three games is still selected: with the matchup
+        // filtered in SQL the pool is the matchup itself, so truncating it would drop
+        // games of the very thing that was asked about (#1659).
+        result.Matches.Should().HaveCount(3);
         result.Matches.Select(m => m.MatchId).Should().Equal(
-            "COMP_KEPT_0", "COMP_KEPT_1"); // equal scores → most recent first
+            "COMP_KEPT_0", "COMP_KEPT_1", "COMP_KEPT_2"); // equal scores → most recent first
+    }
+
+    [Fact]
+    public async Task FindTopMatchesAsync_WithNoPinnedMatchup_CapsTheSelectionAtTopK()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        for (var i = 0; i < 3; i++)
+        {
+            await SeedGameAsync($"COMP_ANY_{i}", daysAgo: 2 + i, win: true, enemyMid: OtherOpponent);
+        }
+
+        await using var db = _fixture.CreateDbContext();
+        var result = await CreateService(db, topK: 2).FindTopMatchesAsync(
+            new CompositionSearchCriteria
+            {
+                ChampionId = Champion,
+                Position = Position,
+                Allies = new Dictionary<string, int> { ["JUNGLE"] = AllyJungle },
+            },
+            CancellationToken.None);
+
+        // No role opponent pinned, so the pool is the champion's recent games rather than
+        // one matchup's: the top-K still bounds what gets hydrated.
+        result.MatchupRequested.Should().BeFalse();
+        result.CandidatePoolSize.Should().Be(3);
+        result.Matches.Should().HaveCount(2, "TopK caps the selection when no matchup is pinned");
+        result.Matches.Select(m => m.MatchId).Should().Equal("COMP_ANY_0", "COMP_ANY_1");
     }
 
     private static CompositionMatchQueryService CreateService(Data.TrueMainDbContext db, int topK = 100)
