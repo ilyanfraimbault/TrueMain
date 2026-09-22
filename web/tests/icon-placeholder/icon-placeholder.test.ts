@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { iconPlaceholderClass, SKELETON_FILL } from '~/utils/icon-placeholder'
+import { iconPlaceholderClass, isIconUnresolved, SKELETON_FILL } from '~/utils/icon-placeholder'
 
 describe('iconPlaceholderClass', () => {
   it('pulses the shared skeleton fill while loading', () => {
@@ -29,5 +29,29 @@ describe('iconPlaceholderClass', () => {
 
     expect(distinguishing.length).toBeGreaterThan(0)
     expect(failed.has(SKELETON_FILL)).toBe(false)
+  })
+})
+
+describe('isIconUnresolved', () => {
+  it('is false while a source is still being fetched', () => {
+    expect(isIconUnresolved(false, true)).toBe(false)
+  })
+
+  it('is false once there is a source', () => {
+    expect(isIconUnresolved(true, false)).toBe(false)
+    expect(isIconUnresolved(true, true)).toBe(false)
+  })
+
+  it('is true when nothing arrived and nothing is coming', () => {
+    // The case this exists for: a static-data fetch that *failed* rather than
+    // one still in flight. The map then resolves no id, so every icon it backs
+    // is sourceless for good — it must read as an empty slot, not as one still
+    // filling, and not as the raw Riot id it could not resolve.
+    expect(isIconUnresolved(false, false)).toBe(true)
+  })
+
+  it('draws that state the same as a failed image', () => {
+    expect(iconPlaceholderClass(isIconUnresolved(false, false)))
+      .toBe(iconPlaceholderClass(true))
   })
 })

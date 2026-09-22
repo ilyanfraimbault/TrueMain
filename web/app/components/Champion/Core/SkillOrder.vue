@@ -41,7 +41,6 @@ function spellByKey(key: string) {
           <div class="relative size-9 shrink-0">
             <GameTooltipChampionSpellIcon
               :spell="spellByKey(key)"
-              :fallback-label="key"
               :pending="pending"
               :width="36"
               :height="36"

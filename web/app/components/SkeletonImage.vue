@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ICON_FETCH_SIZE } from '~/utils/icon-fetch'
-import { iconPlaceholderClass } from '~/utils/icon-placeholder'
+import { iconPlaceholderClass, isIconUnresolved } from '~/utils/icon-placeholder'
 
 defineOptions({ inheritAttrs: false })
 
@@ -146,13 +146,17 @@ onMounted(() => {
            only by animation, so a page whose icons had all failed read as a page
            still loading. The `/_ipx` outage in 1.20.0 was exactly that: every
            icon on the site dead, and the page merely looked slow.
+           A source that never arrives is the same final state: when the static
+           map behind an icon fails to load it resolves no id at all, so the
+           slot has no `src` and nothing is still coming. It gets the hollow box
+           too, rather than pulsing forever.
            Kept to CSS on the existing element rather than a broken-image glyph:
            a champion page carries ~470 of these, and an extra element or icon
            component each is the cost this component exists to avoid. -->
       <span
         v-else-if="!src || !loaded || failed"
         class="absolute inset-0 size-full rounded-md"
-        :class="iconPlaceholderClass(failed)"
+        :class="iconPlaceholderClass(failed || isIconUnresolved(Boolean(src), Boolean(pending)))"
       />
       <img
         v-if="src"

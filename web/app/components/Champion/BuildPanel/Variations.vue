@@ -51,10 +51,6 @@ const hasVariations = computed(() => Boolean(
   || starterItems.value.length,
 ))
 
-function summonerName(id: number): string {
-  return props.summonersMap[id]?.name ?? `Spell ${id}`
-}
-
 // Slots, not resolved items — see `itemSlots`: dropping the ids the map cannot
 // resolve yet emptied these rows down to their bare pickrate badge while the
 // item map was in flight.
@@ -105,8 +101,7 @@ function spellByKey(key: string) {
               v-for="spellId in [option.spell1Id, option.spell2Id]"
               :key="`sum-${option.spell1Id}-${option.spell2Id}-${spellId}`"
               :spell="summonersMap[spellId] ?? null"
-              :fallback-label="summonerName(spellId)"
-              :pending="summonersPending"
+                  :pending="summonersPending"
               :width="32"
               :height="32"
               class="size-8 rounded"
@@ -142,8 +137,7 @@ function spellByKey(key: string) {
               <div class="relative size-8">
                 <GameTooltipChampionSpellIcon
                   :spell="spellByKey(key)"
-                  :fallback-label="key"
-                  :pending="pending"
+                      :pending="pending"
                   :width="32"
                   :height="32"
                   class="size-8 rounded"

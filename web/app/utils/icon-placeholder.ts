@@ -16,6 +16,21 @@
 /** The fill Nuxt UI's own skeletons use, set on `ui.skeleton.base`. */
 export const SKELETON_FILL = 'bg-ink-700'
 
+/**
+ * Whether an icon has *settled* without one: no source, and nothing still
+ * fetching one. Distinct from loading, which is a source on its way.
+ *
+ * The case that matters is a static-data fetch that failed rather than one
+ * still in flight — the map then resolves no id at all, so every icon it backs
+ * has no source, permanently. Before this, those slots either pulsed forever
+ * (the 1.20.0 lesson: a dead page must not read as a loading one) or printed
+ * the raw Riot id they could not resolve, "Spell 4", which tells a player
+ * nothing.
+ */
+export function isIconUnresolved(hasSrc: boolean, pending: boolean): boolean {
+  return !hasSrc && !pending
+}
+
 export function iconPlaceholderClass(failed: boolean): string {
   return failed
     // Hollow and still: a 404 is a final state, and it should read as an empty
