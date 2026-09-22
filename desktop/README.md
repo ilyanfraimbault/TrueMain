@@ -92,7 +92,7 @@ and the last state stays on screen when the tape ends.
 `fixtures/ranked-draft.jsonl` is committed and **synthetic** — a full ranked
 draft written by hand, from bans to the pick that ends it. A tape you record is
 not: it carries your Riot ID and the champions of everyone in your lobby, so
-`recordings/` is gitignored. Only the two endpoints the app acts on are ever
+`recordings/` is gitignored. Only the endpoints the app acts on are ever
 recorded; the client's socket also carries your friends list, your chat and your
 notifications, and none of that is written.
 

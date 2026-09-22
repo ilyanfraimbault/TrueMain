@@ -7,14 +7,15 @@
 //!
 //! A session can also come from a **tape** instead of a client — see
 //! `lcu::tape` for why, and `desktop/README.md` for how. Both paths derive the
-//! state through the same `apply`, so a replay cannot drift from the live path.
+//! state through the same `AppState::apply`, so a replay cannot drift from the
+//! live path.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use lcu::tape::{Reading, Recorder, Tape};
-use lcu::{ChampSelectSession, CurrentSummoner, GameflowPhase, LcuClient, LcuEvent};
+use lcu::{ChampSelectSession, CurrentSummoner, GameflowPhase, LcuClient};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc;
 
@@ -70,34 +71,6 @@ pub async fn run(app: AppHandle, shared: SharedState) {
     }
 }
 
-/// Apply one pushed change. Returns whether the state actually moved.
-///
-/// The one place an event becomes state, shared by the live client and by a
-/// replay — two implementations of this rule would let a tape prove something
-/// the real app does not do.
-fn apply(state: &mut AppState, event: &LcuEvent) -> bool {
-    match event.uri.as_str() {
-        lcu::uri::GAMEFLOW_PHASE => {
-            let phase = GameflowPhase::from_client_value(&event.data.to_string());
-            let changed = phase != state.phase;
-            state.phase = phase;
-            // Leaving champ select must clear the draft, or the panel keeps
-            // showing the draft of a game that already started.
-            if phase != GameflowPhase::ChampSelect {
-                state.draft = None;
-            }
-            changed
-        }
-        lcu::uri::CHAMP_SELECT_SESSION => {
-            state.draft = serde_json::from_value::<ChampSelectSession>(event.data.clone())
-                .ok()
-                .map(|session| session.draft_state());
-            true
-        }
-        _ => false,
-    }
-}
-
 /// One client session: connect, take a first full reading, then follow events
 /// until the socket closes.
 async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
@@ -108,7 +81,13 @@ async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
     // an app started mid-champ-select would otherwise show nothing until the
     // next pick.
     let phase = client.gameflow_phase().await.unwrap_or(GameflowPhase::None);
-    let summoner = client.current_summoner().await.ok();
+    // Empty whenever the app attached before the player logged in — the usual
+    // order. Not an error: the login pushes `CURRENT_SUMMONER`, which fills it.
+    let summoner = client
+        .current_summoner()
+        .await
+        .inspect_err(|error| tracing::debug!(%error, "no summoner yet"))
+        .ok();
     let session = client.champ_select_session().await.ok().flatten();
 
     if let Some(recorder) = &mut recorder {
@@ -136,18 +115,15 @@ async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
     let stream = tokio::spawn(async move { lcu::stream_events(credentials, sender).await });
 
     while let Some(event) = receiver.recv().await {
-        let changed = apply(&mut state, &event);
+        let changed = state.apply(&event);
 
         // Recorded before the `changed` test: an event the state ignores today
         // is still part of what the client sent, and a tape that dropped it
-        // could not be used to investigate why it was ignored. Only the two
+        // could not be used to investigate why it was ignored. Only the
         // endpoints the app acts on are kept — the client's socket also carries
         // the player's friends, chat and notifications.
         if let Some(recorder) = &mut recorder {
-            if matches!(
-                event.uri.as_str(),
-                lcu::uri::GAMEFLOW_PHASE | lcu::uri::CHAMP_SELECT_SESSION
-            ) {
+            if lcu::uri::FOLLOWED.contains(&event.uri.as_str()) {
                 recorder.write(Reading::Event {
                     uri: event.uri.clone(),
                     event_type: event.event_type.clone(),
@@ -197,7 +173,7 @@ async fn replay(app: &AppHandle, shared: &SharedState, path: &Path) -> lcu::Resu
         if speed > 0.0 {
             tokio::time::sleep(gap.div_f64(speed)).await;
         }
-        if apply(&mut state, &event) {
+        if state.apply(&event) {
             publish(app, shared, state.clone());
         }
     }

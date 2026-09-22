@@ -13,7 +13,7 @@
 //! # What is recorded, and what deliberately is not
 //!
 //! The client's WebSocket carries *everything* it does — friends, chat, store,
-//! notifications. The recorder keeps only the two endpoints the supervisor acts
+//! notifications. The recorder keeps only the endpoints the supervisor acts
 //! on, which is what a replay needs and nothing else. A tape still contains the
 //! player's Riot ID and the PUUIDs of everyone in the lobby, so it is personal
 //! data: tapes are gitignored, and the committed fixture is synthetic.

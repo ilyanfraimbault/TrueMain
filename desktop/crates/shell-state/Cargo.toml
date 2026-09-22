@@ -8,3 +8,4 @@ description = "The app's state and the rule that maps it onto a screen."
 [dependencies]
 lcu = { path = "../lcu" }
 serde.workspace = true
+serde_json.workspace = true
