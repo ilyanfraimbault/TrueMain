@@ -56,5 +56,47 @@ export function useChampionStatics() {
     return `https://ddragon.leagueoflegends.com/cdn/${patch.value}/img/champion/${champion.alias}.png`
   }
 
-  return { champions: champions as Ref<Map<number, Champion>>, patch, loaded, nameOf, portraitOf }
+  /**
+   * The wide splash, for a band the text sits over. Filed by alias and not by
+   * patch, so it needs the champion list but not the version.
+   */
+  const splashOf = (id: number): string | null => {
+    const champion = champions.value.get(id)
+    return champion ? splashOfAlias(champion.alias) : null
+  }
+
+  /** The tall "loading screen" art — the shape of a pick card. */
+  const loadingOf = (id: number): string | null => {
+    const champion = champions.value.get(id)
+    return champion ? loadingOfAlias(champion.alias) : null
+  }
+
+  return {
+    champions: champions as Ref<Map<number, Champion>>,
+    patch,
+    loaded,
+    nameOf,
+    portraitOf,
+    splashOf,
+    loadingOf,
+  }
+}
+
+export const splashOfAlias = (alias: string) =>
+  `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${alias}_0.jpg`
+
+export const loadingOfAlias = (alias: string) =>
+  `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${alias}_0.jpg`
+
+/**
+ * The art behind the screens that have no champion of their own — waiting for
+ * the client, the lobby. A short list of splashes that read well dimmed and
+ * cropped, rotated by the day so the app does not open on the same picture
+ * forever. Nothing else is derived from it.
+ */
+const BACKDROPS = ['Ahri', 'Aatrox', 'Kaisa', 'Yone', 'Leona', 'Jinx', 'Sylas', 'Senna']
+
+export function backdropAlias(): string {
+  const day = Math.floor(Date.now() / 86_400_000)
+  return BACKDROPS[day % BACKDROPS.length] ?? 'Ahri'
 }

@@ -4,7 +4,7 @@ import { LANE_ICONS, LANE_LABELS } from '~/types/draft'
 
 const props = defineProps<{
   lanes: EnemyLane[]
-  /** Our own lane, so the row we face can be marked. */
+  /** Our own lane, so the card we face can be marked. */
   myPosition: string
 }>()
 
@@ -24,9 +24,9 @@ function onDrop(lane: Lane) {
 }
 
 /**
- * A guess reads as a guess. The matchup, runes and build below all rest on this
- * assignment, so presenting it with the same weight as a fact would be printing
- * a number we did not measure.
+ * A guess reads as a guess. The matchup, runes and build all rest on this
+ * assignment, so presenting it with the weight of a fact would be printing a
+ * number we did not measure.
  */
 function confidenceLabel(slot: { championId: number | null, confidence: number, pinned: boolean }) {
   if (slot.championId === null) return 'Not picked yet'
@@ -38,11 +38,14 @@ function confidenceLabel(slot: { championId: number | null, confidence: number, 
 </script>
 
 <template>
-  <section class="space-y-2">
+  <section class="space-y-3">
     <header class="flex items-center justify-between gap-2">
-      <h2 class="text-xs font-medium uppercase tracking-wide text-dimmed">
-        Enemy lanes
-      </h2>
+      <div class="flex items-baseline gap-3">
+        <h2 class="text-[11px] font-medium uppercase tracking-[0.14em] text-dimmed">Enemy lanes</h2>
+        <p class="text-xs text-muted">
+          Champion select does not say who plays where — drag a champion onto its lane, or click one then the lane.
+        </p>
+      </div>
       <UButton
         v-if="hasCorrections"
         size="xs"
@@ -54,31 +57,22 @@ function confidenceLabel(slot: { championId: number | null, confidence: number, 
       />
     </header>
 
-    <ul class="space-y-1">
+    <ul class="grid grid-cols-5 gap-3">
       <li
         v-for="slot in slots"
         :key="slot.lane"
-        class="flex items-center gap-3 rounded-md px-2 py-1.5 ring-1 ring-inset transition-colors"
-        :class="[
-          slot.lane === myPosition ? 'bg-elevated ring-accented' : 'ring-transparent',
-          selected === slot.lane && 'ring-primary',
-          dragging && dragging !== slot.lane && 'ring-dashed ring-accented',
-        ]"
         @dragover.prevent
         @drop.prevent="onDrop(slot.lane)"
       >
-        <UIcon :name="LANE_ICONS[slot.lane]" class="size-4 shrink-0 text-dimmed" />
-        <span class="w-16 shrink-0 text-xs text-muted">{{ LANE_LABELS[slot.lane] }}</span>
-
         <!--
-          The whole row is the control: a button, so the click-then-click path
+          The whole card is the control: a button, so the click-then-click path
           is reachable from the keyboard. Drag is the shortcut, not the only way
-          in — a five-row trackpad drag under a champion-select timer is slower
+          in — a five-card trackpad drag under a champion-select timer is slower
           than two clicks, and drag alone cannot be operated without a pointer.
         -->
         <button
           type="button"
-          class="flex flex-1 items-center gap-2 text-left"
+          class="block w-full rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--ui-bg)]"
           :draggable="slot.championId !== null"
           :aria-label="`${LANE_LABELS[slot.lane]}: ${slot.championId ? nameOf(slot.championId) : 'empty'}. ${
             selected ? 'Swap with the selected lane' : 'Select to swap'
@@ -87,30 +81,46 @@ function confidenceLabel(slot: { championId: number | null, confidence: number, 
           @dragstart="dragging = slot.lane"
           @dragend="dragging = null"
         >
-          <ChampionPortrait :champion-id="slot.championId" size="sm" />
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm text-default">
-              {{ slot.championId ? nameOf(slot.championId) : '—' }}
-            </span>
-            <span
-              class="block text-[11px]"
-              :class="slot.pinned ? 'text-primary' : 'text-dimmed'"
-            >
-              {{ confidenceLabel(slot) }}
-            </span>
-          </span>
-          <UIcon
-            v-if="slot.pinned"
-            name="i-lucide-pin"
-            class="size-3.5 shrink-0 text-primary"
-          />
+          <ChampionCard
+            :champion-id="slot.championId"
+            :gold="slot.lane === myPosition"
+            :selected="selected === slot.lane"
+            :drop-target="dragging !== null && dragging !== slot.lane"
+          >
+            <template #top>
+              <span
+                class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide backdrop-blur-sm"
+                :class="slot.lane === myPosition ? 'bg-gold/90 text-ink-950' : 'bg-ink-950/70 text-default'"
+              >
+                <UIcon :name="LANE_ICONS[slot.lane]" class="size-3" />
+                {{ slot.lane === myPosition ? 'Your lane' : LANE_LABELS[slot.lane] }}
+              </span>
+              <UIcon
+                v-if="slot.pinned"
+                name="i-lucide-pin"
+                class="size-3.5 rounded-md bg-ink-950/70 p-0.5 text-primary"
+              />
+            </template>
+
+            <template #bottom>
+              <p class="truncate text-sm font-semibold text-highlighted">
+                {{ slot.championId ? nameOf(slot.championId) : 'Not picked' }}
+              </p>
+              <p class="mt-0.5 text-[11px]" :class="slot.pinned ? 'text-primary' : 'text-muted'">
+                {{ confidenceLabel(slot) }}
+              </p>
+              <!-- The confidence itself, as a meter: a coin flip should look like one. -->
+              <div v-if="slot.championId !== null" class="mt-1.5 h-0.5 overflow-hidden rounded-full bg-ink-100/15">
+                <div
+                  class="h-full rounded-full transition-[width] duration-300"
+                  :class="slot.pinned ? 'bg-primary' : 'bg-rosegold-300'"
+                  :style="{ width: `${Math.round((slot.pinned ? 1 : slot.confidence) * 100)}%` }"
+                />
+              </div>
+            </template>
+          </ChampionCard>
         </button>
       </li>
     </ul>
-
-    <p class="text-[11px] text-dimmed">
-      Champion select does not say who plays where. Drag a champion onto its lane —
-      or click one, then the lane — and the rest re-solve around it.
-    </p>
   </section>
 </template>

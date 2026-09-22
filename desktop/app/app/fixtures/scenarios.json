@@ -2,12 +2,22 @@
   {
     "id": "no-client",
     "label": "No client",
-    "state": { "connected": false, "phase": "None", "riotId": null, "draft": null }
+    "state": {
+      "connected": false,
+      "phase": "None",
+      "riotId": null,
+      "draft": null
+    }
   },
   {
     "id": "lobby",
     "label": "Lobby",
-    "state": { "connected": true, "phase": "Lobby", "riotId": "Synthetic#TAPE", "draft": null }
+    "state": {
+      "connected": true,
+      "phase": "Lobby",
+      "riotId": "Synthetic#TAPE",
+      "draft": null
+    }
   },
   {
     "id": "draft-opening",
@@ -22,7 +32,14 @@
         "myChampionLocked": false,
         "allyChampions": [],
         "enemyChampions": [],
-        "bans": [122, 238, 875, 157, 51, 89],
+        "bans": [
+          122,
+          238,
+          875,
+          157,
+          51,
+          89
+        ],
         "secondsLeft": 30
       }
     }
@@ -38,11 +55,38 @@
         "myPosition": "MIDDLE",
         "myChampion": 103,
         "myChampionLocked": false,
-        "allyChampions": [266],
-        "enemyChampions": [54],
-        "bans": [122, 238, 875, 157, 51, 89],
+        "allyChampions": [
+          266
+        ],
+        "enemyChampions": [
+          54
+        ],
+        "bans": [
+          122,
+          238,
+          875,
+          157,
+          51,
+          89
+        ],
         "secondsLeft": 22
       }
+    },
+    "recommendation": {
+      "position": "MIDDLE",
+      "patch": "16.18",
+      "eloBracket": "EMERALD_PLUS",
+      "enemyLanes": [
+        {
+          "championId": 54,
+          "position": "TOP",
+          "confidence": 0.88,
+          "pinned": false
+        }
+      ],
+      "laneOpponentChampionId": null,
+      "laneOpponentConfidence": 0.0,
+      "candidates": []
     }
   },
   {
@@ -56,11 +100,53 @@
         "myPosition": "MIDDLE",
         "myChampion": 103,
         "myChampionLocked": true,
-        "allyChampions": [266, 254],
-        "enemyChampions": [54, 234, 61],
-        "bans": [122, 238, 875, 157, 51, 89],
+        "allyChampions": [
+          266,
+          254
+        ],
+        "enemyChampions": [
+          54,
+          234,
+          61
+        ],
+        "bans": [
+          122,
+          238,
+          875,
+          157,
+          51,
+          89
+        ],
         "secondsLeft": 9
       }
+    },
+    "recommendation": {
+      "position": "MIDDLE",
+      "patch": "16.18",
+      "eloBracket": "EMERALD_PLUS",
+      "enemyLanes": [
+        {
+          "championId": 54,
+          "position": "TOP",
+          "confidence": 0.91,
+          "pinned": false
+        },
+        {
+          "championId": 234,
+          "position": "JUNGLE",
+          "confidence": 0.96,
+          "pinned": false
+        },
+        {
+          "championId": 61,
+          "position": "MIDDLE",
+          "confidence": 0.74,
+          "pinned": false
+        }
+      ],
+      "laneOpponentChampionId": 61,
+      "laneOpponentConfidence": 0.74,
+      "candidates": []
     }
   },
   {
@@ -74,11 +160,69 @@
         "myPosition": "MIDDLE",
         "myChampion": 103,
         "myChampionLocked": true,
-        "allyChampions": [266, 254, 222, 412],
-        "enemyChampions": [54, 234, 61, 81, 111],
-        "bans": [122, 238, 875, 157, 51, 89],
+        "allyChampions": [
+          266,
+          254,
+          222,
+          412
+        ],
+        "enemyChampions": [
+          54,
+          234,
+          61,
+          81,
+          111
+        ],
+        "bans": [
+          122,
+          238,
+          875,
+          157,
+          51,
+          89
+        ],
         "secondsLeft": 3
       }
+    },
+    "recommendation": {
+      "position": "MIDDLE",
+      "patch": "16.18",
+      "eloBracket": "EMERALD_PLUS",
+      "enemyLanes": [
+        {
+          "championId": 54,
+          "position": "TOP",
+          "confidence": 0.97,
+          "pinned": false
+        },
+        {
+          "championId": 234,
+          "position": "JUNGLE",
+          "confidence": 0.99,
+          "pinned": false
+        },
+        {
+          "championId": 61,
+          "position": "MIDDLE",
+          "confidence": 0.93,
+          "pinned": false
+        },
+        {
+          "championId": 81,
+          "position": "BOTTOM",
+          "confidence": 0.95,
+          "pinned": false
+        },
+        {
+          "championId": 111,
+          "position": "UTILITY",
+          "confidence": 0.98,
+          "pinned": false
+        }
+      ],
+      "laneOpponentChampionId": 61,
+      "laneOpponentConfidence": 0.93,
+      "candidates": []
     }
   },
   {
@@ -92,8 +236,19 @@
         "myPosition": "",
         "myChampion": 103,
         "myChampionLocked": true,
-        "allyChampions": [266, 254, 222, 412],
-        "enemyChampions": [54, 234, 61, 81, 111],
+        "allyChampions": [
+          266,
+          254,
+          222,
+          412
+        ],
+        "enemyChampions": [
+          54,
+          234,
+          61,
+          81,
+          111
+        ],
         "bans": [],
         "secondsLeft": 14
       }
@@ -110,16 +265,48 @@
         "myPosition": "MIDDLE",
         "myChampion": 103,
         "myChampionLocked": true,
-        "allyChampions": [266],
-        "enemyChampions": [234],
-        "bans": [122, 238, 875, 157, 51, 89],
+        "allyChampions": [
+          266
+        ],
+        "enemyChampions": [
+          234
+        ],
+        "bans": [
+          122,
+          238,
+          875,
+          157,
+          51,
+          89
+        ],
         "secondsLeft": 18
       }
+    },
+    "recommendation": {
+      "position": "MIDDLE",
+      "patch": "16.18",
+      "eloBracket": "EMERALD_PLUS",
+      "enemyLanes": [
+        {
+          "championId": 234,
+          "position": "JUNGLE",
+          "confidence": 0.52,
+          "pinned": false
+        }
+      ],
+      "laneOpponentChampionId": null,
+      "laneOpponentConfidence": 0.0,
+      "candidates": []
     }
   },
   {
     "id": "in-game",
     "label": "In game",
-    "state": { "connected": true, "phase": "InProgress", "riotId": "Synthetic#TAPE", "draft": null }
+    "state": {
+      "connected": true,
+      "phase": "InProgress",
+      "riotId": "Synthetic#TAPE",
+      "draft": null
+    }
   }
 ]

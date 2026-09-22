@@ -1,3 +1,4 @@
+import type { DraftRecommendation } from '~/types/draft'
 import type { AppState } from '~/types/lcu'
 import { EMPTY_STATE } from '~/types/lcu'
 
@@ -5,6 +6,8 @@ export interface Scenario {
   id: string
   label: string
   state: AppState
+  /** What the API would have answered for this draft, when the scenario shows the lane panel. */
+  recommendation?: DraftRecommendation
 }
 
 /**
@@ -27,6 +30,7 @@ export function useDevScenarios() {
   const scenarios = useState<Scenario[]>('dev-scenarios', () => [])
   const current = useState<string>('dev-scenario', () => '')
   const state = useState<AppState>('lcu-state', () => ({ ...EMPTY_STATE }))
+  const recommendation = useState<DraftRecommendation | null>('dev-recommendation', () => null)
 
   async function load() {
     if (scenarios.value.length > 0) return
@@ -43,6 +47,7 @@ export function useDevScenarios() {
     // copy is needed at all so editing the state in place cannot corrupt the
     // scenario that is meant to be returned to.
     state.value = found ? JSON.parse(JSON.stringify(found.state)) : { ...EMPTY_STATE }
+    recommendation.value = found?.recommendation ? JSON.parse(JSON.stringify(found.recommendation)) : null
     current.value = found?.id ?? ''
 
     // Kept in the URL so a scenario can be linked to, and so a reload after an
@@ -55,5 +60,5 @@ export function useDevScenarios() {
     }
   }
 
-  return { scenarios, current, load, select }
+  return { scenarios, current, recommendation, load, select }
 }

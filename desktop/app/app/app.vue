@@ -11,7 +11,7 @@ const showScenarioPicker = computed(() => import.meta.dev && !insideTauri())
 
 <template>
   <UApp>
-    <div class="h-screen bg-default text-default">
+    <div class="h-screen bg-default text-default" :class="showScenarioPicker && 'pb-14'">
       <!--
         `ready` covers the gap between mount and the first read of the Rust
         state. Rendering the no-client screen during it would tell the player

@@ -27,7 +27,10 @@ export function useDraftRecommendation(
       recommendation.value = null
       return
     }
-    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
+    if (!insideTauri()) {
+      // No Rust to ask. A dev scenario may carry the answer, so the lane panel
+      // can be worked on in a browser; otherwise there is none.
+      if (import.meta.dev) recommendation.value = useDevScenarios().recommendation.value
       return
     }
 

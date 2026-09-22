@@ -17,12 +17,12 @@ const box = computed(() => ({ sm: 'size-8', md: 'size-12', lg: 'size-16' }[props
 <template>
   <div
     :class="[box, dimmed && 'opacity-40']"
-    class="relative shrink-0 overflow-hidden rounded-md bg-elevated ring-1 ring-inset ring-accented"
+    class="relative shrink-0 overflow-hidden rounded-lg bg-ink-900 ring-1 ring-default"
     :title="label"
   >
     <img v-if="source" :src="source" :alt="label" class="size-full object-cover" loading="lazy">
-    <div v-else class="flex size-full items-center justify-center text-dimmed" aria-label="Not picked yet">
-      <UIcon name="i-lucide-help-circle" class="size-1/2" />
+    <div v-else class="flex size-full items-center justify-center rounded-lg border border-dashed border-accented text-dimmed" aria-label="Not picked yet">
+      <UIcon name="i-lucide-help-circle" class="size-1/2 opacity-60" />
     </div>
   </div>
 </template>
