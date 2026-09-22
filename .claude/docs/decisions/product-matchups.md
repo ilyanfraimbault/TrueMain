@@ -243,3 +243,14 @@ patch ×3, older retained patch ×2, crossed with main ×4 / non-main ×1, on to
 similarity and win weights. Multiplied rather than tiered so no factor silences another — a main's
 game on the previous patch still outvotes a stranger's on the current one — and never zero, because
 down-weighting a game is not the same as dropping it. Chosen by the product owner — #1659.
+
+**A refetch on `/matchup` shows skeletons, not the previous answer dimmed.**
+The page has no submit: every draft edit refires 400 ms later, and until #1659 the panel and the
+four-cell stats strip kept the previous recommendation at 60% opacity while the next one loaded.
+That reads as loading only when loading is brief. Measured on preprod after #1659, a cold
+recommendation still runs 11–25 s, and across that span a dimmed panel reads as a page that dimmed
+itself — while its numbers stay legible enough to be taken for the answer to the draft now on screen,
+which is the one thing the strip must never do (#1117 exists because two populations sat centimetres
+apart). Both surfaces now render the skeletons they already had for the first fetch. The flicker this
+reintroduces on a fast refetch is the accepted cost: it is honest about which numbers are current.
+Decided by the product owner.
