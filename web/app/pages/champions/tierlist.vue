@@ -3,7 +3,6 @@ import type { ChampionTierListResponse } from '~~/shared/types/champions'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
-import { describeFetchError } from '~/utils/errors'
 
 useSeoMeta({
   title: 'Champion Tier List',
@@ -79,7 +78,6 @@ const isPending = computed(() =>
   isLoadingStatus(tierListStatus.value) || isLoadingStatus(staticStatus.value),
 )
 
-useErrorToast(error, { title: 'Failed to load tier list' })
 
 const patchOptions = usePatchOptions(versions, apiPatch, () => filters.value.patch)
 
@@ -172,12 +170,10 @@ function championDestination(entry: { championId: number, position: string }) {
     </header>
 
     <ClientOnly>
-      <UAlert
+      <FetchErrorAlert
         v-if="error"
-        color="error"
-        variant="soft"
-        title="Failed to load tier list"
-        :description="describeFetchError(error)"
+        :error="error"
+        title="Failed to load the tier list"
       />
 
       <TierlistSkeleton v-else-if="isPending" />

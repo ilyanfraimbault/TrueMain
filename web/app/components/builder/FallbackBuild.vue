@@ -2,7 +2,6 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
 import { indexItemContext } from '~~/shared/utils/item-context'
 import { isLoadingStatus } from '~/utils/async-data'
-import { describeFetchError, fetchErrorStatus } from '~/utils/errors'
 
 /**
  * Baseline build fallback of the composition builder: when the requested
@@ -95,12 +94,10 @@ const itemContextIndex = computed(() => indexItemContext(itemContext.value?.item
       </div>
     </template>
     <ChampionBuildCoreSkeleton v-if="status === 'pending'" />
-    <UAlert
+    <FetchErrorAlert
       v-else-if="error"
-      color="error"
-      variant="soft"
-      title="Standard build unavailable"
-      :description="describeFetchError(error)"
+      :error="error"
+      title="Failed to load the standard build"
     />
     <!-- The core block and the build tree, not the champion page's whole build
          panel. This page is read to answer "what do I build into this

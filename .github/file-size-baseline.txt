@@ -1,14 +1,14 @@
 # Files over the size limit, recorded so they can only shrink.
 # Regenerate with .github/scripts/check-file-size.sh --update
 # path<TAB>lines<TAB>limit
-admin/app/components/CrashesPanel.vue	578	400
 admin/app/components/accounts/AccountsPipeline.vue	902	400
-admin/app/components/accounts/AccountsSeed.vue	1096	400
+admin/app/components/accounts/AccountsSeed.vue	1092	400
 admin/app/components/accounts/AccountsTrace.vue	892	400
+admin/app/components/CrashesPanel.vue	578	400
 admin/app/components/processes/ProcessesRiotApi.vue	611	400
 admin/app/composables/useOps.ts	443	300
-admin/app/pages/data-quality.vue	601	400
 admin/app/pages/database.vue	512	400
+admin/app/pages/data-quality.vue	601	400
 admin/app/pages/index.vue	600	400
 admin/app/pages/logs.vue	486	400
 admin/app/pages/processes.vue	1187	400
@@ -31,10 +31,10 @@ web/app/components/AppBackdrop.vue	426	400
 web/app/components/AppSearch.vue	541	400
 web/app/components/leaderboard/LeaderboardRow.vue	481	400
 web/app/components/match/MatchRow.vue	513	400
-web/app/pages/champions/[slug].vue	636	400
-web/app/pages/champions/index.vue	481	400
+web/app/pages/champions/index.vue	477	400
+web/app/pages/champions/[slug].vue	632	400
 web/app/pages/dev/design-system.vue	614	400
-web/app/pages/truemains/[nameTag]/champions/[slug].vue	422	400
+web/app/pages/truemains/[nameTag]/champions/[slug].vue	419	400
 web/app/utils/favorites.ts	332	300
 web/shared/types/champions.ts	473	300
 web/shared/utils/champion-build-summary.ts	400	300

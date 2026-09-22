@@ -18,11 +18,16 @@ no-cross-viewer-SSR rule, not oversights, and "fixing" either by SSR-ing the pro
 Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
 the route is a primary, indexable one — #862.
 
-The rule covers anything else an immediate watcher can trigger, not just fetches: `useErrorToast` registers
-its watcher under `import.meta.client`. Its `if (!value) return` guard made the SSR run a no-op only because
-every error ref wired to it happens to come from a `server: false` fetch — true, unwritten, and untrue the
-day one is pointed at the server-rendered build summary or the leaderboard, where a toast pushed during SSR
-serialises into the payload and pops up unprompted for every visitor served that render — #1234.
+The rule covers anything else an immediate watcher can trigger, not just fetches. Its worked example was
+`useErrorToast`, which registered its watcher under `import.meta.client`: the `if (!value) return` guard made
+the SSR run a no-op only because every error ref wired to it happened to come from a `server: false` fetch —
+true, unwritten, and untrue the day one was pointed at the server-rendered build summary or the leaderboard,
+where a toast pushed during SSR serialises into the payload and pops up unprompted for every visitor served
+that render — #1234. **The composable is gone** (#1661 removed the toast-on-page-load surface entirely), so
+the example is history; the rule it illustrates is not. An immediate watcher that touches `useToast`, a
+cookie or any other client-shaped state still has to be made client-only *structurally* — `import.meta.client`
+is a build-time constant, so the watcher does not exist on the server at all — rather than relying on its
+body happening to no-op there.
 
 **A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own
 `pending`.** `createChampionPatchSlice` and `useChampionTrend` hold their request

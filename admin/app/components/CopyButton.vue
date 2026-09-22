@@ -16,22 +16,14 @@ const props = withDefaults(defineProps<{
 })
 
 const { copy, copied, isSupported } = useClipboard({ legacy: true })
-const toast = useToast()
+const actionToast = useActionToast()
 
 async function onCopy() {
   try {
     await copy(props.text)
-    toast.add({
-      title: 'Copied to clipboard',
-      icon: 'i-lucide-check',
-      color: 'success',
-    })
+    actionToast.success('Copied to clipboard')
   } catch {
-    toast.add({
-      title: 'Could not copy to clipboard',
-      icon: 'i-lucide-x',
-      color: 'error',
-    })
+    actionToast.failure('Could not copy to clipboard')
   }
 }
 </script>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { CompositionBuildRequest, CompositionSlotInput } from '~~/shared/types/composition'
 import { POSITION_OPTIONS, POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
-import { describeFetchError } from '~/utils/errors'
 
 useSeoMeta({
   title: 'Matchup',
@@ -215,12 +214,9 @@ const missingMatchupNotice = computed(() => {
       title="Matchup"
     />
 
-    <UAlert
-      v-if="staticError"
-      color="error"
-      variant="soft"
-      title="Champion list unavailable"
-      :description="describeFetchError(staticError)"
+    <FetchErrorAlert
+      :error="staticError"
+      title="Failed to load the champion list"
     />
 
     <BuilderMatchupStage
@@ -260,12 +256,9 @@ const missingMatchupNotice = computed(() => {
       @clear="resetContext"
     />
 
-    <UAlert
-      v-if="error"
-      color="error"
-      variant="soft"
-      title="Recommendation unavailable"
-      :description="describeFetchError(error)"
+    <FetchErrorAlert
+      :error="error"
+      title="Failed to load the recommendation"
     />
 
     <!-- Any fetch in flight, first or not (#1659 follow-up): the recommendation
