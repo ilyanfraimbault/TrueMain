@@ -49,10 +49,11 @@ export default defineAppConfig({
     // `soft` is the default and carries the app-wide `surface` material — and,
     // exactly like `card` above, its stock `bg-elevated/50` has to be restated
     // opaque here or the plain utility out-cascades `surface`'s background and
-    // every empty state renders at 50%. `outline` is left stock for the one
-    // place a *placeholder* is wanted rather than a surface (the matchup draft
-    // stage), and `description` drops Nuxt UI's `text-toned` for the site's own
-    // muted/highlighted split.
+    // every empty state renders at 50%. Only `soft` is overridden: the one
+    // place that wants a *placeholder* rather than a surface — the matchup
+    // draft stage — asks for `naked` and paints its own dashed, recessed frame
+    // at the call site. `description` drops Nuxt UI's `text-toned` for the
+    // site's own muted/highlighted split.
     empty: {
       slots: {
         root: 'rounded-lg',
