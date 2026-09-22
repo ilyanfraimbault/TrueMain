@@ -159,8 +159,12 @@ const emptyNotice = computed(() => {
     subtitle="The games the build below is computed from, and how the matchup itself goes at 15 minutes."
     :level="2"
   >
+    <!-- Skeleton on every fetch, not only the first (#1659 follow-up). A cold
+         recommendation can take tens of seconds, and a 40%-dimmed strip of real
+         numbers over that long reads as a styling quirk rather than as work in
+         progress — worse, the stale figures stay legible enough to be believed. -->
     <div
-      v-if="recommendation === null"
+      v-if="recommendation === null || loading"
       class="grid grid-cols-2 gap-4 lg:grid-cols-4"
     >
       <div
@@ -182,8 +186,7 @@ const emptyNotice = computed(() => {
 
     <div
       v-else
-      class="grid grid-cols-2 gap-4 transition-opacity duration-200 lg:grid-cols-4"
-      :class="loading ? 'opacity-60' : ''"
+      class="grid grid-cols-2 gap-4 lg:grid-cols-4"
     >
       <div
         v-for="stat in stats"
