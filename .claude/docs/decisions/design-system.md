@@ -123,6 +123,20 @@ what "loading" looks like everywhere. And the distinction has to be pure CSS on 
 exists — a champion page carries ~470 of these, so a broken-image glyph or an extra element each is precisely
 the cost `SkeletonImage` exists to avoid. The rule lives in `app/utils/icon-placeholder.ts` so it is pinned by
 a test rather than by reading a template.
+↳ **An icon whose source never arrives gets that same hollow box, and never a raw Riot id.** The failed state
+covered an image that 404s; it did not cover a slot with no `src` at all, which is what a *failed static-data
+fetch* produces — the map then resolves no id, so every icon it backs is sourceless for good. Those slots
+pulsed forever (the same "broken looks slow" failure, one level up) or printed the id they could not resolve:
+the matchup page showed `Spell 4` and `Spell 12` where the summoner icons belong. `isIconUnresolved` draws
+"final and still empty" like a failed image; the id-derived labels are gone from the summoner and skill-order
+call sites, the latter because `ItemRankBadge` already prints the Q/W/E key beside the icon. A real name is
+still shown when the static data carries one and only the icon URL is missing.
+↳ **Finality is declared by the caller (`settled`), never inferred from the absence of `pending`.** Most call
+sites never wire their fetch state: the build tabs' leading item icon is rendered on ids alone, on purpose,
+because the item map is a deferred client-only fetch that lands after the builds and gating the slots on it
+reflowed the whole bar. Inferring "settled" from a missing prop would have turned that window — and every
+other un-instrumented consumer of a loading map — into a hollow *failed* flash, i.e. the 1.20.0 confusion
+in reverse. Only a caller that owns the fetch state can say the source is final, so only those say it.
 
 ## The activity grid answers presence, not win rate (2026-09-03)
 

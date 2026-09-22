@@ -147,6 +147,7 @@ Last verified against `develop` on 2026-09-02.
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
 - A failed icon is hollow; a loading one is solid and moving (2026-09-02) — #1396
+- An icon whose source never arrives is hollow too, never a raw Riot id — #1665, #1396
 - The activity grid answers presence, not win rate: one rose-gold ramp keyed on games played (2026-09-03) — #1452, #1096, #927
 
 - The rose-gold-only surface rule is reversed: neutral surfaces, a scarce accent, and a data axis of its own (2026-08-10) — #1060, #1059, #927
