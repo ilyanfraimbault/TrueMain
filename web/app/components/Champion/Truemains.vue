@@ -67,12 +67,12 @@ const viewAllHref = computed(() => `/truemains?championId=${props.championId}`)
         class="my-2"
       />
 
-      <p
+      <UEmpty
         v-else-if="rows.length === 0"
-        class="py-6 text-center text-sm text-muted"
-      >
-        No tracked truemains on this champion yet.
-      </p>
+        size="sm"
+        icon="i-lucide-trophy"
+        description="No tracked truemains on this champion yet."
+      />
 
       <template v-else>
         <LeaderboardRow

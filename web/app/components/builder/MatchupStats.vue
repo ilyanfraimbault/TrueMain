@@ -179,12 +179,12 @@ const emptyNotice = computed(() => {
       </div>
     </div>
 
-    <p
+    <UEmpty
       v-else-if="(build?.gamesConsidered ?? 0) === 0"
-      class="text-sm text-muted"
-    >
-      {{ emptyNotice }}
-    </p>
+      size="sm"
+      icon="i-lucide-swords"
+      :description="emptyNotice"
+    />
 
     <div
       v-else

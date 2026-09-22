@@ -210,12 +210,12 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMa
       </li>
     </ul>
 
-    <p
+    <UEmpty
       v-else
-      class="px-3 py-8 text-center text-sm text-muted"
-    >
-      No ranked truemains yet.
-    </p>
+      size="sm"
+      icon="i-lucide-trophy"
+      description="No ranked truemains yet."
+    />
 
     <footer class="mt-auto flex justify-end pt-2">
       <UButton

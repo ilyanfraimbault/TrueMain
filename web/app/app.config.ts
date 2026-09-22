@@ -65,6 +65,15 @@ export default defineAppConfig({
             description: 'text-muted',
           },
         },
+        // Nuxt UI's `size` scales the type and the avatar but not the box, so a
+        // "small" empty state still sat in the full `p-4 sm:p-6 lg:p-8` block.
+        // These two carry the padding that makes one usable inside a card body
+        // or a compact list, which is where most of them live (#1681) — without
+        // it, converting a `py-3` line grew it threefold.
+        size: {
+          sm: { root: 'p-3 sm:p-4 lg:p-5' },
+          xs: { root: 'gap-2 p-2 sm:p-3 lg:p-3' },
+        },
       },
       defaultVariants: {
         variant: 'soft',
