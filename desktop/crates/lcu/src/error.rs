@@ -33,6 +33,12 @@ pub enum Error {
     #[error("every rune page is in use and none of them is ours")]
     NoRunePageSlot,
 
+    /// A recorded session that cannot be read back. Dev tooling, but an error
+    /// rather than a skipped line: a replay that drops a pick is a fixture
+    /// that lies.
+    #[error("the tape is malformed: {0}")]
+    MalformedTape(String),
+
     #[error(transparent)]
     Io(#[from] io::Error),
 }

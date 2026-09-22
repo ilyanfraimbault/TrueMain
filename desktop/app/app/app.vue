@@ -2,6 +2,11 @@
 const { state, screen, ready } = useLcuState()
 
 useHead({ title: 'TrueMain' })
+
+// The scenario picker exists only for `npm run dev` in a browser: inside Tauri
+// the state comes from the client, and in a production build `import.meta.dev`
+// is false so the component and its fixtures are dropped from the bundle.
+const showScenarioPicker = computed(() => import.meta.dev && !insideTauri())
 </script>
 
 <template>
@@ -19,6 +24,8 @@ useHead({ title: 'TrueMain' })
       <NoClientScreen v-else-if="screen === 'no-client'" />
       <DraftScreen v-else-if="screen === 'draft' && state.draft" :draft="state.draft" />
       <DashboardScreen v-else :state="state" />
+
+      <DevScenarioPicker v-if="showScenarioPicker" />
     </div>
   </UApp>
 </template>

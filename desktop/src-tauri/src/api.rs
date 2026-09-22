@@ -22,6 +22,14 @@ use serde::Serialize;
 /// which is the only surface that exists.
 const DEFAULT_API_BASE: &str = "https://truemain.lol/api";
 
+/// The same override, read at startup instead of at compile time.
+///
+/// Both exist because they answer different questions: a build for preprod is
+/// baked once, while someone replaying a tape against a backend they are
+/// editing would otherwise have to rebuild the shell to change one URL. The
+/// runtime value wins, being the more specific of the two.
+const API_BASE_VAR: &str = "TRUEMAIN_API_BASE";
+
 pub struct ApiClient {
     http: reqwest::Client,
     base: String,
@@ -29,8 +37,11 @@ pub struct ApiClient {
 
 impl ApiClient {
     pub fn new() -> Self {
-        let base = option_env!("TRUEMAIN_API_BASE")
-            .unwrap_or(DEFAULT_API_BASE)
+        let base = std::env::var(API_BASE_VAR)
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| option_env!("TRUEMAIN_API_BASE").map(str::to_string))
+            .unwrap_or_else(|| DEFAULT_API_BASE.to_string())
             .trim_end_matches('/')
             .to_string();
 
@@ -56,25 +67,6 @@ impl ApiClient {
             .http
             .post(format!("{}{path}", self.base))
             .json(body)
-            .send()
-            .await
-            .map_err(|e| format!("could not reach TrueMain: {e}"))?;
-
-        let status = response.status();
-        if !status.is_success() {
-            return Err(format!("TrueMain answered {status} for {path}"));
-        }
-
-        response
-            .json::<T>()
-            .await
-            .map_err(|e| format!("could not read TrueMain's answer: {e}"))
-    }
-
-    pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, String> {
-        let response = self
-            .http
-            .get(format!("{}{path}", self.base))
             .send()
             .await
             .map_err(|e| format!("could not reach TrueMain: {e}"))?;

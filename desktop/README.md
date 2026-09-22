@@ -59,9 +59,66 @@ desktop/
 any platform — including Linux CI, where the shell itself cannot build. Run its
 tests with `cargo test -p lcu` from `desktop/`.
 
-The **navigation rule lives in Rust** (`src-tauri/src/state.rs`), not in the
+The **navigation rule lives in Rust** (`crates/shell-state/src/lib.rs`), not in the
 frontend: which screen belongs to which phase is a product decision, and two
 implementations of it would drift.
+
+## Testing without a game
+
+Champion select is the app's subject and the hardest state to reach: it needs a
+real game, it lasts a couple of minutes, and it cannot be paused to look at a
+panel. Two ways in, covering different depths.
+
+### A tape — the whole Rust path, no client
+
+A tape is one recorded champion select, replayed as often as needed. It holds
+the client's own payloads, so a replay goes through the same parsing, the same
+state derivation and the same navigation rule as a live session.
+
+```sh
+# Record the next session you play. Nothing to do while it runs.
+TRUEMAIN_LCU_RECORD=recordings/my-draft.jsonl ./TrueMain.app/Contents/MacOS/truemain-desktop
+
+# Play one back, at the pace it happened.
+TRUEMAIN_LCU_REPLAY=fixtures/ranked-draft.jsonl ./TrueMain.app/Contents/MacOS/truemain-desktop
+
+# `0` skips every wait, which opens the tape on its final state.
+TRUEMAIN_LCU_REPLAY_SPEED=0 TRUEMAIN_LCU_REPLAY=fixtures/ranked-draft.jsonl ...
+```
+
+While replaying, the app never looks for a client: the tape stands in for it,
+and the last state stays on screen when the tape ends.
+
+`fixtures/ranked-draft.jsonl` is committed and **synthetic** — a full ranked
+draft written by hand, from bans to the pick that ends it. A tape you record is
+not: it carries your Riot ID and the champions of everyone in your lobby, so
+`recordings/` is gitignored. Only the two endpoints the app acts on are ever
+recorded; the client's socket also carries your friends list, your chat and your
+notifications, and none of that is written.
+
+Tapes are JSON Lines and meant to be edited: change a champion, delete a pick,
+retime an event. `lcu::tape` describes the format.
+
+Point a replay at a backend you are editing with `TRUEMAIN_API_BASE`, which is
+read at startup and overrides the value baked in at build time:
+
+```sh
+TRUEMAIN_API_BASE=http://localhost:5008 TRUEMAIN_LCU_REPLAY=fixtures/ranked-draft.jsonl ...
+```
+
+### Dev scenarios — the UI alone, in a browser
+
+```sh
+cd desktop/app && npm run dev        # then pick a scenario at the bottom
+```
+
+`npm run dev` outside Tauri has no client and no Rust, so it opens on a picker
+of states the client would have pushed — `?scenario=draft-locked` links to one
+directly. This is for working on the UI with hot reload; it proves nothing below
+the frontend, and the lane assignment panel is absent because it answers through
+Rust. `app/app/fixtures/scenarios.json` holds them. In a production build the picker
+never renders — `import.meta.dev` is false — but Nuxt still bundles it, and the
+fixtures sit in a 2 kB lazy chunk that is never fetched.
 
 ## Building
 

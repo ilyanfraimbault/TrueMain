@@ -1,0 +1,125 @@
+[
+  {
+    "id": "no-client",
+    "label": "No client",
+    "state": { "connected": false, "phase": "None", "riotId": null, "draft": null }
+  },
+  {
+    "id": "lobby",
+    "label": "Lobby",
+    "state": { "connected": true, "phase": "Lobby", "riotId": "Synthetic#TAPE", "draft": null }
+  },
+  {
+    "id": "draft-opening",
+    "label": "Draft — nothing picked",
+    "state": {
+      "connected": true,
+      "phase": "ChampSelect",
+      "riotId": "Synthetic#TAPE",
+      "draft": {
+        "myPosition": "MIDDLE",
+        "myChampion": null,
+        "myChampionLocked": false,
+        "allyChampions": [],
+        "enemyChampions": [],
+        "bans": [122, 238, 875, 157, 51, 89],
+        "secondsLeft": 30
+      }
+    }
+  },
+  {
+    "id": "draft-hovering",
+    "label": "Draft — hovering, one enemy in",
+    "state": {
+      "connected": true,
+      "phase": "ChampSelect",
+      "riotId": "Synthetic#TAPE",
+      "draft": {
+        "myPosition": "MIDDLE",
+        "myChampion": 103,
+        "myChampionLocked": false,
+        "allyChampions": [266],
+        "enemyChampions": [54],
+        "bans": [122, 238, 875, 157, 51, 89],
+        "secondsLeft": 22
+      }
+    }
+  },
+  {
+    "id": "draft-locked",
+    "label": "Draft — locked, three enemies in",
+    "state": {
+      "connected": true,
+      "phase": "ChampSelect",
+      "riotId": "Synthetic#TAPE",
+      "draft": {
+        "myPosition": "MIDDLE",
+        "myChampion": 103,
+        "myChampionLocked": true,
+        "allyChampions": [266, 254],
+        "enemyChampions": [54, 234, 61],
+        "bans": [122, 238, 875, 157, 51, 89],
+        "secondsLeft": 9
+      }
+    }
+  },
+  {
+    "id": "draft-complete",
+    "label": "Draft — both teams full",
+    "state": {
+      "connected": true,
+      "phase": "ChampSelect",
+      "riotId": "Synthetic#TAPE",
+      "draft": {
+        "myPosition": "MIDDLE",
+        "myChampion": 103,
+        "myChampionLocked": true,
+        "allyChampions": [266, 254, 222, 412],
+        "enemyChampions": [54, 234, 61, 81, 111],
+        "bans": [122, 238, 875, 157, 51, 89],
+        "secondsLeft": 3
+      }
+    }
+  },
+  {
+    "id": "draft-unassigned-lane",
+    "label": "Draft — no lane assigned (blind or custom)",
+    "state": {
+      "connected": true,
+      "phase": "ChampSelect",
+      "riotId": "Synthetic#TAPE",
+      "draft": {
+        "myPosition": "",
+        "myChampion": 103,
+        "myChampionLocked": true,
+        "allyChampions": [266, 254, 222, 412],
+        "enemyChampions": [54, 234, 61, 81, 111],
+        "bans": [],
+        "secondsLeft": 14
+      }
+    }
+  },
+  {
+    "id": "draft-one-enemy-mirror",
+    "label": "Draft — one enemy, ambiguous for the guesser",
+    "state": {
+      "connected": true,
+      "phase": "ChampSelect",
+      "riotId": "Synthetic#TAPE",
+      "draft": {
+        "myPosition": "MIDDLE",
+        "myChampion": 103,
+        "myChampionLocked": true,
+        "allyChampions": [266],
+        "enemyChampions": [234],
+        "bans": [122, 238, 875, 157, 51, 89],
+        "secondsLeft": 18
+      }
+    }
+  },
+  {
+    "id": "in-game",
+    "label": "In game",
+    "state": { "connected": true, "phase": "InProgress", "riotId": "Synthetic#TAPE", "draft": null }
+  }
+]

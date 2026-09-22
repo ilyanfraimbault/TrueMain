@@ -1,4 +1,4 @@
-/** Mirrors `AppState` in `src-tauri/src/state.rs`. */
+/** Mirrors `AppState` in `crates/shell-state/src/lib.rs`. */
 export interface DraftState {
   /** Our lane, upper-case (`MIDDLE`); empty in queues that assign none. */
   myPosition: string
@@ -23,7 +23,7 @@ export interface AppState {
   draft: DraftState | null
 }
 
-/** Mirrors `Screen` in `src-tauri/src/state.rs`. */
+/** Mirrors `Screen` in `crates/shell-state/src/lib.rs`. */
 export type Screen = 'no-client' | 'dashboard' | 'draft' | 'in-game'
 
 export const EMPTY_STATE: AppState = {
