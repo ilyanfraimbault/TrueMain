@@ -91,12 +91,12 @@ const tabItems = [
          lurching once the (large) detail fetch resolves. -->
     <MatchDetailSkeleton v-if="isLoading && !detail" />
 
-    <div
+    <UEmpty
       v-else-if="notFound || !detail"
-      class="surface rounded-md p-6 text-center text-sm text-muted"
-    >
-      Match details unavailable.
-    </div>
+      size="sm"
+      icon="i-lucide-file-question"
+      description="Match details unavailable."
+    />
 
     <UTabs
       v-else

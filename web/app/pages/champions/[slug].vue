@@ -404,20 +404,19 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         @update:model-value="value => setFilter({ eloBracket: value })"
       />
 
-      <div class="flex flex-col items-center gap-1 surface rounded-lg px-6 py-12 text-center">
-        <p class="text-sm font-medium text-default">
-          No {{ displayName ?? 'champion' }} games in {{ eloBracketLabel(selectedEloBracket) }} yet
-        </p>
-        <p class="text-sm text-muted">
-          Pick another rank above, or
-          <button
-            type="button"
-            class="rounded text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            @click="setFilter({ eloBracket: ELO_BRACKET_ALL })"
-          >
-            see all ranks</button>.
-        </p>
-      </div>
+      <UEmpty
+        icon="i-lucide-medal"
+        :title="`No ${displayName ?? 'champion'} games in ${eloBracketLabel(selectedEloBracket)} yet`"
+        description="Pick another rank above, or widen the slice to every rank."
+        :actions="[{
+          color: 'neutral',
+          variant: 'subtle',
+          size: 'sm',
+          icon: 'i-lucide-layers',
+          label: 'See all ranks',
+          onClick: () => setFilter({ eloBracket: ELO_BRACKET_ALL }),
+        }]"
+      />
     </div>
 
     <!--
@@ -457,11 +456,10 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         />
       </header>
 
-      <div class="flex flex-col items-center gap-1 surface rounded-lg px-6 py-12 text-center">
-        <p class="text-sm text-muted">
-          Not enough data
-        </p>
-      </div>
+      <UEmpty
+        icon="i-lucide-chart-no-axes-column"
+        description="Not enough data"
+      />
     </template>
 
     <!--

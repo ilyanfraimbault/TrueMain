@@ -32,7 +32,7 @@ web/app/components/AppSearch.vue	541	400
 web/app/components/leaderboard/LeaderboardRow.vue	481	400
 web/app/components/match/MatchRow.vue	513	400
 web/app/pages/champions/index.vue	477	400
-web/app/pages/champions/[slug].vue	632	400
+web/app/pages/champions/[slug].vue	630	400
 web/app/pages/dev/design-system.vue	614	400
 web/app/pages/truemains/[nameTag]/champions/[slug].vue	419	400
 web/app/utils/favorites.ts	332	300

@@ -131,16 +131,18 @@ const itemContextIndex = computed(() => indexItemContext(itemContext.value?.item
         :items-map="itemsMap"
       />
     </div>
-    <div
+    <!-- No `title`: `UEmpty` renders it as an `<h2>`, and this card's own title
+         is an `<h3>`, so the prop would invert the outline. Both lines live in
+         the description, the first one carrying the emphasis the heading would
+         have. Same reason on the matchup page's recommendation card. -->
+    <UEmpty
       v-else
-      class="surface rounded-lg px-6 py-10 text-center"
+      icon="i-lucide-hammer"
     >
-      <p class="font-medium">
-        No build data yet
-      </p>
-      <p class="mt-1 text-sm text-muted">
+      <template #description>
+        <span class="block font-medium text-highlighted">No build data yet</span>
         We hold no recorded games for this champion at this position.
-      </p>
-    </div>
+      </template>
+    </UEmpty>
   </SectionCard>
 </template>

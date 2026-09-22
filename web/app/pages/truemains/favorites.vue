@@ -116,23 +116,19 @@ const runeTree = computed(() => runeTreeData.value ?? null)
       />
     </div>
 
-    <div v-else-if="favorites.length === 0" class="surface rounded-lg px-6 py-12 text-center">
-      <UIcon name="i-lucide-star" class="size-8 text-primary" aria-hidden="true" />
-      <p class="mt-3 text-base font-semibold">
-        No favorites yet
-      </p>
-      <p class="mx-auto mt-1 max-w-md text-sm text-muted">
-        Follow a player from the leaderboard or their profile and their latest games show up here.
-      </p>
-      <UButton
-        to="/truemains"
-        class="mt-4"
-        color="primary"
-        variant="soft"
-        icon="i-lucide-trophy"
-        label="Browse the leaderboard"
-      />
-    </div>
+    <UEmpty
+      v-else-if="favorites.length === 0"
+      icon="i-lucide-star"
+      title="No favorites yet"
+      description="Follow a player from the leaderboard or their profile and their latest games show up here."
+      :actions="[{
+        to: '/truemains',
+        color: 'primary',
+        variant: 'soft',
+        icon: 'i-lucide-trophy',
+        label: 'Browse the leaderboard',
+      }]"
+    />
 
     <div v-else class="space-y-4">
       <FavoritesPlayerCard
