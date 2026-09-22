@@ -131,8 +131,9 @@ const currentDraftRequest = computed<CompositionBuildRequest | null>(() => {
 let refetchTimer: ReturnType<typeof setTimeout> | undefined
 
 // Live mode: every draft edit re-queries after a short debounce — there is no
-// submit button. The previous recommendation stays on screen while the next
-// one loads (the composable also drops out-of-order responses).
+// submit button. The panel and the stats strip fall back to their skeletons
+// while the next answer loads, rather than keeping the previous one dimmed
+// (the composable also drops out-of-order responses).
 watch(
   [playedChampionId, playedPosition, opponentChampionId, allySlots, enemySlots],
   () => {

@@ -6,9 +6,10 @@ import type { CompositionBuildRequest, CompositionBuildResponse } from '~~/share
  * every draft edit, not a cache-keyed read (the 30s response cache lives
  * server-side, keyed on the normalised draft).
  *
- * Tuned for the live-updating builder: the previous recommendation stays on
- * screen while the next one loads (no flash back to the empty state), and a
- * request counter drops out-of-order responses so a slow older query can never
+ * Tuned for the live-updating builder: `data` survives the next request rather
+ * than being cleared on submit, so a consumer can choose to keep rendering it
+ * (the matchup page no longer does — it shows skeletons while `isLoading`), and
+ * a request counter drops out-of-order responses so a slow older query can never
  * overwrite a newer draft's result.
  */
 export function useCompositionBuild() {

@@ -38,9 +38,11 @@ const props = defineProps<{
   /** Null until the recommendation resolves, and on the fallback path. */
   recommendation: CompositionBuildResponse | null
   /**
-   * A refetch is in flight. The strip keeps its previous numbers and dims rather
-   * than emptying, so editing the draft doesn't jump the build below it up the
-   * page — the same treatment the recommendation card gets.
+   * A refetch is in flight. The strip shows its skeleton cells rather than the
+   * previous numbers — the same treatment the recommendation card gets. It used
+   * to keep them, dimmed, to hold the layout steady; over the seconds a cold
+   * recommendation takes, figures that describe the *previous* draft are read as
+   * describing the current one, which is the failure #1117 exists to prevent.
    */
   loading?: boolean
 }>()
