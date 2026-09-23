@@ -266,10 +266,10 @@ await summariesFetch
       </div>
     </PageHeader>
 
-    <!-- Wrap the data-dependent body in `<ClientOnly>` so the four lazy
+    <!-- Wrap the data-dependent body in `<ClientOnly>` so the four
          fetches (all `server: false`) never participate in the SSR render.
          Without this, race conditions between the `static-prefetch.client.ts`
-         plugin priming the payload and the page's own `useLazyAsyncData`
+         plugin priming the payload and the page's own async-data
          setup could leave the server rendering one tree (e.g. `<ul>`) while
          the client expected another (the skeleton), producing the
          hydration node mismatches reported in #149. The `<template #fallback>`
