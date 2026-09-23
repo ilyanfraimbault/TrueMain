@@ -21,6 +21,10 @@ pub struct AppState {
     pub phase: GameflowPhase,
     /// `Name#TAG` of the logged-in player, absent until the client is up.
     pub riot_id: Option<String>,
+    /// The player's icon and level, for the dashboard's profile card. Set and
+    /// cleared together with the Riot ID.
+    pub profile_icon_id: Option<i64>,
+    pub summoner_level: Option<i64>,
     /// Present only in champ select.
     pub draft: Option<DraftState>,
 }
@@ -31,6 +35,8 @@ impl Default for AppState {
             connected: false,
             phase: GameflowPhase::None,
             riot_id: None,
+            profile_icon_id: None,
+            summoner_level: None,
             draft: None,
         }
     }
@@ -66,16 +72,26 @@ impl AppState {
                 // The reading taken at attach is empty whenever the app started
                 // before the player logged in — the usual order — so the Riot ID
                 // arrives through this event, not through that reading.
-                let riot_id = serde_json::from_value::<CurrentSummoner>(event.data.clone())
+                let summoner = serde_json::from_value::<CurrentSummoner>(event.data.clone())
                     .ok()
-                    .filter(|summoner| !summoner.game_name.is_empty())
-                    .map(|summoner| summoner.riot_id());
-                let changed = riot_id != self.riot_id;
-                self.riot_id = riot_id;
-                changed
+                    .filter(|summoner| !summoner.game_name.is_empty());
+                let before = self.identity();
+                self.set_summoner(summoner.as_ref());
+                before != self.identity()
             }
             _ => false,
         }
+    }
+
+    /// Take the player's identity from a summoner reading, or clear it.
+    pub fn set_summoner(&mut self, summoner: Option<&CurrentSummoner>) {
+        self.riot_id = summoner.map(CurrentSummoner::riot_id);
+        self.profile_icon_id = summoner.map(|s| s.profile_icon_id);
+        self.summoner_level = summoner.map(|s| s.summoner_level);
+    }
+
+    fn identity(&self) -> (Option<String>, Option<i64>, Option<i64>) {
+        (self.riot_id.clone(), self.profile_icon_id, self.summoner_level)
     }
 
     /// Which screen the shell should show.
@@ -165,10 +181,17 @@ mod tests {
 
         let changed = state.apply(&event(
             lcu::uri::CURRENT_SUMMONER,
-            serde_json::json!({"gameName": "Phantasm", "tagLine": "EUW"}),
+            serde_json::json!({
+                "gameName": "Phantasm",
+                "tagLine": "EUW",
+                "summonerLevel": 412,
+                "profileIconId": 29
+            }),
         ));
         assert!(changed);
         assert_eq!(state.riot_id.as_deref(), Some("Phantasm#EUW"));
+        assert_eq!(state.profile_icon_id, Some(29));
+        assert_eq!(state.summoner_level, Some(412));
     }
 
     #[test]

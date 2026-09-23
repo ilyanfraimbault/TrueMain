@@ -21,7 +21,7 @@ pub use client::LcuClient;
 pub use credentials::Credentials;
 pub use error::{Error, Result};
 pub use events::{stream_events, LcuEvent};
-pub use model::{ChampSelectSession, CurrentSummoner, DraftState, GameflowPhase};
+pub use model::{ChampSelectSession, CurrentSummoner, DraftState, GameflowPhase, TeamSlot};
 pub use runes::{plan_import, RuneImportPlan, RunePage, RunePageDraft};
 pub use tape::{Reading, Recorder, Tape};
 

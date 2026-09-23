@@ -6,6 +6,8 @@
       "connected": false,
       "phase": "None",
       "riotId": null,
+      "profileIconId": null,
+      "summonerLevel": null,
       "draft": null
     }
   },
@@ -16,6 +18,8 @@
       "connected": true,
       "phase": "Lobby",
       "riotId": "Synthetic#TAPE",
+      "profileIconId": 29,
+      "summonerLevel": 30,
       "draft": null
     }
   },
@@ -26,16 +30,52 @@
       "connected": true,
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
+      "profileIconId": 29,
+      "summonerLevel": 30,
       "draft": {
         "myPosition": "MIDDLE",
         "myChampion": null,
         "myChampionLocked": false,
         "allyChampions": [],
         "enemyChampions": [],
-        "bans": [
+        "myTeam": [
+          {
+            "championId": null,
+            "position": "TOP",
+            "locked": false,
+            "isMe": false
+          },
+          {
+            "championId": null,
+            "position": "JUNGLE",
+            "locked": false,
+            "isMe": false
+          },
+          {
+            "championId": null,
+            "position": "MIDDLE",
+            "locked": false,
+            "isMe": true
+          },
+          {
+            "championId": null,
+            "position": "BOTTOM",
+            "locked": false,
+            "isMe": false
+          },
+          {
+            "championId": null,
+            "position": "UTILITY",
+            "locked": false,
+            "isMe": false
+          }
+        ],
+        "allyBans": [
           122,
           238,
-          875,
+          875
+        ],
+        "enemyBans": [
           157,
           51,
           89
@@ -51,6 +91,8 @@
       "connected": true,
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
+      "profileIconId": 29,
+      "summonerLevel": 30,
       "draft": {
         "myPosition": "MIDDLE",
         "myChampion": 103,
@@ -61,10 +103,44 @@
         "enemyChampions": [
           54
         ],
-        "bans": [
+        "myTeam": [
+          {
+            "championId": 266,
+            "position": "TOP",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": null,
+            "position": "JUNGLE",
+            "locked": false,
+            "isMe": false
+          },
+          {
+            "championId": 103,
+            "position": "MIDDLE",
+            "locked": false,
+            "isMe": true
+          },
+          {
+            "championId": null,
+            "position": "BOTTOM",
+            "locked": false,
+            "isMe": false
+          },
+          {
+            "championId": null,
+            "position": "UTILITY",
+            "locked": false,
+            "isMe": false
+          }
+        ],
+        "allyBans": [
           122,
           238,
-          875,
+          875
+        ],
+        "enemyBans": [
           157,
           51,
           89
@@ -85,7 +161,7 @@
         }
       ],
       "laneOpponentChampionId": null,
-      "laneOpponentConfidence": 0.0,
+      "laneOpponentConfidence": 0,
       "candidates": []
     }
   },
@@ -96,6 +172,8 @@
       "connected": true,
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
+      "profileIconId": 29,
+      "summonerLevel": 30,
       "draft": {
         "myPosition": "MIDDLE",
         "myChampion": 103,
@@ -109,10 +187,44 @@
           234,
           61
         ],
-        "bans": [
+        "myTeam": [
+          {
+            "championId": 266,
+            "position": "TOP",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": 254,
+            "position": "JUNGLE",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": 103,
+            "position": "MIDDLE",
+            "locked": true,
+            "isMe": true
+          },
+          {
+            "championId": null,
+            "position": "BOTTOM",
+            "locked": false,
+            "isMe": false
+          },
+          {
+            "championId": null,
+            "position": "UTILITY",
+            "locked": false,
+            "isMe": false
+          }
+        ],
+        "allyBans": [
           122,
           238,
-          875,
+          875
+        ],
+        "enemyBans": [
           157,
           51,
           89
@@ -156,6 +268,8 @@
       "connected": true,
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
+      "profileIconId": 29,
+      "summonerLevel": 30,
       "draft": {
         "myPosition": "MIDDLE",
         "myChampion": 103,
@@ -173,10 +287,44 @@
           81,
           111
         ],
-        "bans": [
+        "myTeam": [
+          {
+            "championId": 266,
+            "position": "TOP",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": 254,
+            "position": "JUNGLE",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": 103,
+            "position": "MIDDLE",
+            "locked": true,
+            "isMe": true
+          },
+          {
+            "championId": 222,
+            "position": "BOTTOM",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": 412,
+            "position": "UTILITY",
+            "locked": true,
+            "isMe": false
+          }
+        ],
+        "allyBans": [
           122,
           238,
-          875,
+          875
+        ],
+        "enemyBans": [
           157,
           51,
           89
@@ -232,6 +380,8 @@
       "connected": true,
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
+      "profileIconId": 29,
+      "summonerLevel": 30,
       "draft": {
         "myPosition": "",
         "myChampion": 103,
@@ -249,7 +399,40 @@
           81,
           111
         ],
-        "bans": [],
+        "myTeam": [
+          {
+            "championId": 266,
+            "position": "",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": 254,
+            "position": "",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": 103,
+            "position": "",
+            "locked": true,
+            "isMe": true
+          },
+          {
+            "championId": 222,
+            "position": "",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": 412,
+            "position": "",
+            "locked": true,
+            "isMe": false
+          }
+        ],
+        "allyBans": [],
+        "enemyBans": [],
         "secondsLeft": 14
       }
     }
@@ -261,6 +444,8 @@
       "connected": true,
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
+      "profileIconId": 29,
+      "summonerLevel": 30,
       "draft": {
         "myPosition": "MIDDLE",
         "myChampion": 103,
@@ -271,10 +456,44 @@
         "enemyChampions": [
           234
         ],
-        "bans": [
+        "myTeam": [
+          {
+            "championId": 266,
+            "position": "TOP",
+            "locked": true,
+            "isMe": false
+          },
+          {
+            "championId": null,
+            "position": "JUNGLE",
+            "locked": false,
+            "isMe": false
+          },
+          {
+            "championId": 103,
+            "position": "MIDDLE",
+            "locked": true,
+            "isMe": true
+          },
+          {
+            "championId": null,
+            "position": "BOTTOM",
+            "locked": false,
+            "isMe": false
+          },
+          {
+            "championId": null,
+            "position": "UTILITY",
+            "locked": false,
+            "isMe": false
+          }
+        ],
+        "allyBans": [
           122,
           238,
-          875,
+          875
+        ],
+        "enemyBans": [
           157,
           51,
           89
@@ -295,7 +514,7 @@
         }
       ],
       "laneOpponentChampionId": null,
-      "laneOpponentConfidence": 0.0,
+      "laneOpponentConfidence": 0,
       "candidates": []
     }
   },
@@ -306,6 +525,8 @@
       "connected": true,
       "phase": "InProgress",
       "riotId": "Synthetic#TAPE",
+      "profileIconId": 29,
+      "summonerLevel": 30,
       "draft": null
     }
   }

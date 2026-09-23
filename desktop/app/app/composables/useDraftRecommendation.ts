@@ -49,7 +49,7 @@ export function useDraftRecommendation(
             (recommendation.value?.enemyLanes ?? []).map(l => [l.championId, l.position]),
           ),
           allies: {},
-          bans: state.bans,
+          bans: [...state.allyBans, ...state.enemyBans],
           candidates: [],
         },
       })

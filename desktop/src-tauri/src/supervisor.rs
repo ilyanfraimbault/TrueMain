@@ -105,9 +105,10 @@ async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
     let mut state = AppState {
         connected: true,
         phase,
-        riot_id: summoner.map(|s| s.riot_id()),
         draft: session.map(|session| session.draft_state()),
+        ..AppState::default()
     };
+    state.set_summoner(summoner.as_ref().filter(|s| !s.game_name.is_empty()));
     publish(app, shared, state.clone());
 
     let (sender, mut receiver) = mpsc::channel(64);
@@ -154,15 +155,16 @@ async fn replay(app: &AppHandle, shared: &SharedState, path: &Path) -> lcu::Resu
             .phase
             .and_then(|data| serde_json::from_value(data).ok())
             .unwrap_or(GameflowPhase::None),
-        riot_id: initial
-            .summoner
-            .and_then(|data| serde_json::from_value::<CurrentSummoner>(data).ok())
-            .map(|summoner| summoner.riot_id()),
         draft: initial
             .session
             .and_then(|data| serde_json::from_value::<ChampSelectSession>(data).ok())
             .map(|session| session.draft_state()),
+        ..AppState::default()
     };
+    let summoner = initial
+        .summoner
+        .and_then(|data| serde_json::from_value::<CurrentSummoner>(data).ok());
+    state.set_summoner(summoner.as_ref());
     publish(app, shared, state.clone());
 
     let speed = replay_speed();

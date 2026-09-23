@@ -114,8 +114,30 @@ pub struct DraftState {
     /// Enemy champions picked or hovered so far — the guesser's input, and the
     /// reason it must cope with fewer than five.
     pub enemy_champions: Vec<i64>,
-    pub bans: Vec<i64>,
+    /// Every cell of our side, us included, empty ones kept: the panel draws
+    /// the team as five slots, each under the lane the client assigned it.
+    pub my_team: Vec<TeamSlot>,
+    /// Bans per side, so each sits above its own team.
+    pub ally_bans: Vec<i64>,
+    pub enemy_bans: Vec<i64>,
     pub seconds_left: i64,
+}
+
+/// One cell of our side of champion select.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamSlot {
+    pub champion_id: Option<i64>,
+    /// Upper-case lane (`MIDDLE`), empty in queues that assign none.
+    pub position: String,
+    pub locked: bool,
+    pub is_me: bool,
+}
+
+/// The client pads unused ban slots with 0; a zero here would render as a
+/// champion portrait lookup that cannot resolve.
+fn real_bans(bans: &[i64]) -> Vec<i64> {
+    bans.iter().copied().filter(|&champion| champion != 0).collect()
 }
 
 impl ChampSelectSession {
@@ -141,11 +163,16 @@ impl ChampSelectSession {
             .filter_map(ChampSelectPlayer::displayed_champion)
             .collect();
 
-        let mut bans = self.bans.my_team_bans.clone();
-        bans.extend(self.bans.their_team_bans.iter().copied());
-        // The client pads unused ban slots with 0; a zero here would render as
-        // a champion portrait lookup that cannot resolve.
-        bans.retain(|&champion| champion != 0);
+        let my_team = self
+            .my_team
+            .iter()
+            .map(|player| TeamSlot {
+                champion_id: player.displayed_champion(),
+                position: player.assigned_position.to_uppercase(),
+                locked: player.is_locked(),
+                is_me: player.cell_id == self.local_player_cell_id,
+            })
+            .collect();
 
         DraftState {
             my_position: me
@@ -155,7 +182,9 @@ impl ChampSelectSession {
             my_champion_locked: me.is_some_and(ChampSelectPlayer::is_locked),
             ally_champions,
             enemy_champions,
-            bans,
+            my_team,
+            ally_bans: real_bans(&self.bans.my_team_bans),
+            enemy_bans: real_bans(&self.bans.their_team_bans),
             seconds_left: self.timer.adjusted_time_left_in_phase / 1000,
         }
     }
@@ -268,7 +297,32 @@ mod tests {
             vec![157, 64],
             "hovered enemies count, empty slots do not"
         );
-        assert_eq!(draft.bans, vec![1, 2], "padding zeroes are dropped");
+        assert_eq!(draft.ally_bans, vec![1], "padding zeroes are dropped");
+        assert_eq!(draft.enemy_bans, vec![2]);
+        assert_eq!(
+            draft.my_team,
+            vec![
+                TeamSlot {
+                    champion_id: Some(89),
+                    position: "UTILITY".into(),
+                    locked: true,
+                    is_me: false,
+                },
+                TeamSlot {
+                    champion_id: None,
+                    position: "BOTTOM".into(),
+                    locked: false,
+                    is_me: false,
+                },
+                TeamSlot {
+                    champion_id: Some(103),
+                    position: "MIDDLE".into(),
+                    locked: true,
+                    is_me: true,
+                },
+            ],
+            "the team keeps its empty cells and its lanes"
+        );
         assert_eq!(draft.seconds_left, 27);
     }
 
