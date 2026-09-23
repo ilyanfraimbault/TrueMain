@@ -219,6 +219,16 @@ works at all: without them the probe falls back to the heap for every row and th
 the "after" plan still did 20 780 heap fetches and saved nothing; `VACUUM` took it to zero. In production
 autovacuum keeps that true, but a bulk backfill followed by an immediate benchmark will not show the win —
 which is the trap this note exists to spare the next person.
-↳ The migration drops and recreates both indexes in one transaction rather than building `CONCURRENTLY`:
-3.6 s for the larger of the two at this size, so it stays far inside the migrator's command timeout, and the
-unique constraint is never absent to another session. Same reasoning as #563's full-pool index — #1663.
+↳ **The migration builds first and swaps last, because what matters is how long each lock is held.** The
+deploy path applies every pending migration in *one* transaction (`psql --single-transaction`), and Postgres
+releases nothing before commit. `CREATE INDEX` takes SHARE on the table — writes wait, reads flow — while
+`DROP INDEX` takes ACCESS EXCLUSIVE, which blocks reads too. The shape EF generates for an `INCLUDE` change
+drops first, which would have held ACCESS EXCLUSIVE through both builds and stalled every page the outgoing
+release was still serving. So the covering indexes are built under temporary names, and the old ones dropped
+and the new ones renamed into place as the last statements. Checked on the bench, with a read fired mid-
+transaction under a 1 s timeout: drop-first → blocked, build-first → answered. This was *not* the same case
+as #563's precedent, which was a bare `CREATE INDEX` with no drop — reasoning that initially claimed it was,
+and review caught it. `CONCURRENTLY` stays unavailable: the idempotent script wraps every statement in a
+`DO` block, where Postgres rejects it (#1227). What remains is the brief queue any ACCESS EXCLUSIVE acquisition
+causes behind reads already in flight, and a write stall for the length of the builds — longer in production
+(~11 GB) than the bench's 3.6 s — #1663.
