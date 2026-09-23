@@ -325,3 +325,26 @@ skeleton after it — #1689.
   reason to lengthen the wait.
 - **Consequence for page transitions**: the View Transitions API freezes the frame for the whole wait, bar
   included, so the transition moved to Vue's `<Transition>` — see `design-system.md`.
+
+## A patch Data Dragon has not published yet falls back to its newest version (2026-09-23)
+
+**Decision:** `/api/static/*` resolves the requested patch against DDragon's published version list before
+building a CDN URL — the newest build of the requested `major.minor` when there is one, DDragon's newest
+version otherwise — instead of trusting `normalizeDataDragonPatch`'s `major.minor.1` guess — #1693.
+
+- **Why.** Riot ships a patch hours to days before DDragon publishes it, and the front end asks for the patch
+  the *API* reports, i.e. the live game patch. The unpublished CDN path does not 404, it answers the bucket's
+  **403 AccessDenied**, and `/api/static/{items,champions,summoner-spells}` all failed at once. The champions
+  page blanks when any one of its four static sources errors, so the whole page read "Failed to load the
+  champion list" for the first part of every patch cycle — which is exactly when a build site is most useful.
+- **Stale assets beat no page.** Item names, champion names and icons barely move between two patches; the
+  numbers on the page are the API's and stay on the requested patch either way.
+- **Not new thinking**: the ingestor already does this for champion statics
+  (`Data/Statics/DataDragonChampionStaticsProvider`) and `api/static/rune-tree.get.ts` does it for
+  CommunityDragon's mirror-image lag. The DDragon side of the web app was the one that never got it.
+- **A patch DDragon does publish is still pinned** to that exact version — the fallback must not become a
+  silent upgrade to latest, or an older patch's page would render with current assets.
+- **Matching on `major.minor`**, not on the exact string, also covers DDragon numbering a build something other
+  than `.1`.
+- **One cached version list** (`loadDDragonVersions`, SWR, hours) now backs the resolution *and*
+  `/api/static/versions`, so the patch selector can only ever offer patches resolution is done against.

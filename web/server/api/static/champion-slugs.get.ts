@@ -1,6 +1,6 @@
 import type { ChampionSlugMap } from '~~/shared/types/static-data'
 import { isLiveChampionId, toChampionSlug } from '~~/shared/utils/ddragon'
-import { resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
+import { resolveDDragonVersion } from '~~/server/utils/ddragon-patch'
 
 /**
  * `championId → url slug` for every live champion (#1124).
@@ -44,5 +44,5 @@ const loadChampionSlugs = defineCachedFunction(
 )
 
 export default defineEventHandler(async (): Promise<ChampionSlugMap> => {
-  return loadChampionSlugs(await resolveLatestDDragonPatch())
+  return loadChampionSlugs(await resolveDDragonVersion(null))
 })
