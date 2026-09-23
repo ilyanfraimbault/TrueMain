@@ -1,59 +1,63 @@
 <script setup lang="ts">
-import type { AppState } from '~/types/lcu'
+import type { AppState, GameflowPhase } from '~/types/lcu'
 import { backdropAlias } from '~/composables/useChampionStatics'
 
-defineProps<{ state: AppState }>()
+const props = defineProps<{ state: AppState }>()
 
 const alias = backdropAlias()
+const { profileIconOf } = useChampionStatics()
 
-/** What the dashboard will hold — #1683, once the player identity work in #1682 lands. */
-const upcoming = [
-  { icon: 'i-lucide-trending-up', title: 'Recent form', text: 'How your last games went, lane by lane.' },
-  { icon: 'i-lucide-swords', title: 'Your champions', text: 'Win rate and matchups on what you actually play.' },
-  { icon: 'i-lucide-history', title: 'Last games', text: 'Each one against what the numbers expected.' },
-]
+const name = computed(() => props.state.riotId?.split('#')[0] ?? null)
+const tag = computed(() => props.state.riotId?.split('#')[1] ?? null)
+const icon = computed(() => (props.state.profileIconId !== null ? profileIconOf(props.state.profileIconId) : null))
+
+/** The client's phase in the player's words. `live` phases pulse. */
+const STATUS: Partial<Record<GameflowPhase, { label: string, live?: boolean }>> = {
+  Lobby: { label: 'In lobby' },
+  Matchmaking: { label: 'In queue', live: true },
+  ReadyCheck: { label: 'Match found', live: true },
+  InProgress: { label: 'In game', live: true },
+  Reconnect: { label: 'Reconnecting', live: true },
+  WaitingForStats: { label: 'Post-game' },
+  PreEndOfGame: { label: 'Post-game' },
+  EndOfGame: { label: 'Post-game' },
+}
+const status = computed(() => STATUS[props.state.phase] ?? { label: 'Online' })
 </script>
 
 <template>
-  <div class="flex h-full flex-col overflow-y-auto">
-    <header class="relative h-44 shrink-0 overflow-hidden">
-      <ChampionArt :alias="alias" fade="x" position="75% 20%" />
-      <div class="relative flex h-full flex-col justify-between p-6">
-        <AppWordmark class="text-base" />
-        <div class="flex items-end justify-between gap-4">
-          <div>
-            <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-dimmed">Signed in as</p>
-            <h1 class="mt-1 text-3xl font-semibold tracking-tight text-highlighted">
-              {{ state.riotId ?? 'Unknown player' }}
-            </h1>
-          </div>
-          <UBadge color="neutral" size="sm" class="mb-1 tabular-nums">
-            {{ state.phase }}
-          </UBadge>
-        </div>
+  <div class="relative flex h-full flex-col overflow-hidden">
+    <ChampionArt :alias="alias" fade="vignette" position="70% 20%" />
+
+    <header class="relative flex items-center justify-between px-6 py-5">
+      <AppWordmark class="text-base" />
+      <div class="flex items-center gap-2 rounded-full border border-default bg-ink-950/60 px-3 py-1.5 text-sm backdrop-blur">
+        <span class="relative flex size-2">
+          <span v-if="status.live" class="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
+          <span class="relative inline-flex size-2 rounded-full" :class="status.live ? 'bg-primary' : 'bg-success'" />
+        </span>
+        <span class="font-medium text-highlighted">{{ status.label }}</span>
       </div>
     </header>
 
-    <!--
-      The dashboard's real content is #1683 and needs the player identity work in
-      #1682 first: our database holds true mains only, so there is nothing to draw
-      for a player we do not track yet. Saying what is coming beats an empty shell
-      that reads as a bug.
-    -->
-    <section class="flex flex-1 flex-col gap-5 p-6">
-      <div class="flex items-baseline justify-between">
-        <h2 class="text-[11px] font-medium uppercase tracking-[0.14em] text-dimmed">Dashboard</h2>
-        <p class="text-xs text-muted">Queue up — this window switches to champion select on its own.</p>
+    <section class="relative mt-auto flex items-end gap-5 p-8">
+      <div class="relative shrink-0">
+        <div class="size-24 overflow-hidden rounded-2xl bg-ink-900 ring-2 ring-primary/60 shadow-lg">
+          <img v-if="icon" :src="icon" alt="" class="size-full object-cover">
+        </div>
+        <span
+          v-if="state.summonerLevel !== null"
+          class="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-default bg-ink-950 px-2 py-0.5 text-xs font-semibold tabular-nums text-highlighted"
+        >
+          {{ state.summonerLevel }}
+        </span>
       </div>
 
-      <ul class="grid grid-cols-3 gap-3">
-        <li v-for="item in upcoming" :key="item.title" class="surface rounded-xl p-4">
-          <UIcon :name="item.icon" class="size-5 text-primary" />
-          <p class="mt-3 text-sm font-semibold text-highlighted">{{ item.title }}</p>
-          <p class="mt-1 text-xs leading-relaxed text-muted">{{ item.text }}</p>
-          <p class="mt-3 text-[11px] font-medium uppercase tracking-wide text-dimmed">Not built yet</p>
-        </li>
-      </ul>
+      <div class="min-w-0 pb-1">
+        <h1 class="truncate text-4xl font-semibold tracking-tight text-highlighted">
+          {{ name ?? 'Logging in…' }}<span v-if="tag" class="ml-1 text-2xl font-medium text-dimmed">#{{ tag }}</span>
+        </h1>
+      </div>
     </section>
   </div>
 </template>
