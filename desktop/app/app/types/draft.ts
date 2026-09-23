@@ -40,10 +40,7 @@ export const LANE_LABELS: Record<Lane, string> = {
   UTILITY: 'Support',
 }
 
-export const LANE_ICONS: Record<Lane, string> = {
-  TOP: 'i-lucide-chevrons-up',
-  JUNGLE: 'i-lucide-trees',
-  MIDDLE: 'i-lucide-slash',
-  BOTTOM: 'i-lucide-chevrons-down',
-  UTILITY: 'i-lucide-heart-pulse',
+/** Riot's own lane icons, copied from the site's `public/positions`. */
+export function laneIconUrl(lane: string): string {
+  return `positions/icon-position-${lane.toLowerCase()}.png`
 }

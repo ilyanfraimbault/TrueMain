@@ -48,12 +48,19 @@ export function useChampionStatics() {
 
   onMounted(load)
 
+  const aliasOf = (id: number) => champions.value.get(id)?.alias ?? null
+
   const nameOf = (id: number) => champions.value.get(id)?.name ?? `Champion ${id}`
 
   const portraitOf = (id: number): string | null => {
     const champion = champions.value.get(id)
     if (!champion || !patch.value) return null
     return `https://ddragon.leagueoflegends.com/cdn/${patch.value}/img/champion/${champion.alias}.png`
+  }
+
+  const profileIconOf = (id: number): string | null => {
+    if (!patch.value) return null
+    return `https://ddragon.leagueoflegends.com/cdn/${patch.value}/img/profileicon/${id}.png`
   }
 
   /**
@@ -75,8 +82,10 @@ export function useChampionStatics() {
     champions: champions as Ref<Map<number, Champion>>,
     patch,
     loaded,
+    aliasOf,
     nameOf,
     portraitOf,
+    profileIconOf,
     splashOf,
     loadingOf,
   }

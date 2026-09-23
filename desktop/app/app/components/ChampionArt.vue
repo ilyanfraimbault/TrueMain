@@ -32,10 +32,10 @@ const source = computed(() => {
 })
 
 const scrim = computed(() => ({
-  x: 'art-fade-x',
-  y: 'art-fade-y',
-  vignette: 'art-vignette',
-  none: '',
+  'x': 'art-fade-x',
+  'y': 'art-fade-y',
+  'vignette': 'art-vignette',
+  'none': '',
 }[props.fade]))
 </script>
 

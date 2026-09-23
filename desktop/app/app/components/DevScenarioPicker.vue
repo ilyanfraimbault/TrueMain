@@ -1,23 +1,18 @@
 <script setup lang="ts">
 // Dev-only: `app.vue` renders this behind `import.meta.dev` and only outside
-// Tauri, where there is no client to read a real state from.
+// Tauri, where there is no client to read a real state from. Kept to a corner
+// select so it does not cover the screen being worked on.
 const { scenarios, current, select } = useDevScenarios()
+
+const items = computed(() => scenarios.value.map(scenario => ({ label: scenario.label, value: scenario.id })))
+const model = computed({
+  get: () => current.value,
+  set: (id: string) => select(id),
+})
 </script>
 
 <template>
-  <div class="fixed bottom-3 left-1/2 z-50 -translate-x-1/2">
-    <div class="flex flex-wrap items-center gap-1 rounded-full border border-default bg-elevated/90 px-2 py-1 backdrop-blur">
-      <span class="px-1 text-xs uppercase tracking-wide text-dimmed">Scenario</span>
-      <UButton
-        v-for="scenario in scenarios"
-        :key="scenario.id"
-        size="xs"
-        :variant="current === scenario.id ? 'solid' : 'ghost'"
-        :color="current === scenario.id ? 'primary' : 'neutral'"
-        @click="select(scenario.id)"
-      >
-        {{ scenario.label }}
-      </UButton>
-    </div>
+  <div class="fixed bottom-3 right-3 z-50">
+    <USelect v-model="model" :items="items" size="xs" icon="i-lucide-flask-conical" class="w-64" />
   </div>
 </template>

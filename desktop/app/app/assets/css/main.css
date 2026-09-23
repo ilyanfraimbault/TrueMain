@@ -44,6 +44,19 @@
   --color-ink-950: #0b0b0d;
 
   --color-gold: #d9b676;
+
+  /* The two sides of a draft, in the client's own convention: blue is us, red
+     is them. Tints and hairlines only — never a fill behind text. */
+  /* The measurement axis, as the site defines it: rose gold above average,
+     ink below it. Every rate goes through these, never a raw rosegold. */
+  --color-data-good: #e58f83;
+  --color-data-good-dim: #b88d8c;
+  --color-data-mid: #8b8b95;
+  --color-data-bad-dim: #7b7b85;
+  --color-data-bad: #6a6a74;
+
+  --color-ally: #4f8fff;
+  --color-enemy: #ff4d5e;
 }
 
 @theme {
@@ -122,4 +135,40 @@
 
 @utility animate-tm-pulse {
   animation: tm-pulse 2.2s ease-in-out infinite;
+}
+
+/* A rune tree shows every option; the ones not taken step back. Same pair as
+   the site's core view (`web/app/assets/css/main.css`). */
+@utility deselected {
+  @apply scale-90 opacity-30 grayscale;
+}
+
+@utility selected-perk {
+  @apply ring-1 ring-primary/60;
+}
+
+/* The pending bar: a highlight sweeping across, left to right. */
+@keyframes tm-scan {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+/*
+ * The companion's panel material: a pane of smoked glass over the champion art,
+ * so the screen has depth instead of one flat charcoal. A top highlight and a
+ * long soft drop are what lift it off the backdrop.
+ */
+@utility glass {
+  background-color: color-mix(in oklch, var(--color-ink-950) 58%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid color-mix(in oklch, white 8%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklch, white 7%, transparent),
+    0 24px 48px -16px color-mix(in oklch, black 70%, transparent);
+}
+
+/* A panel inside a panel: one step lighter, no blur of its own. */
+@utility well {
+  background-color: color-mix(in oklch, white 3.5%, transparent);
+  border: 1px solid color-mix(in oklch, white 5%, transparent);
 }

@@ -4,7 +4,9 @@ const props = withDefaults(defineProps<{
   championId?: number | null
   size?: 'sm' | 'md' | 'lg'
   dimmed?: boolean
-}>(), { championId: null, size: 'md', dimmed: false })
+  /** The "?" in an empty slot. Off where an empty slot is not a question — a ban not cast. */
+  emptyIcon?: boolean
+}>(), { championId: null, size: 'md', dimmed: false, emptyIcon: true })
 
 const { nameOf, portraitOf } = useChampionStatics()
 
@@ -22,7 +24,7 @@ const box = computed(() => ({ sm: 'size-8', md: 'size-12', lg: 'size-16' }[props
   >
     <img v-if="source" :src="source" :alt="label" class="size-full object-cover" loading="lazy">
     <div v-else class="flex size-full items-center justify-center rounded-lg border border-dashed border-accented text-dimmed" aria-label="Not picked yet">
-      <UIcon name="i-lucide-help-circle" class="size-1/2 opacity-60" />
+      <UIcon v-if="emptyIcon" name="i-lucide-help-circle" class="size-1/2 opacity-60" />
     </div>
   </div>
 </template>

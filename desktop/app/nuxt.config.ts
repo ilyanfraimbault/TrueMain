@@ -10,6 +10,12 @@ export default defineNuxtConfig({
   // Tauri serves the bundle from a custom protocol; hashed asset names at the
   // root keep every reference relative to it.
   app: { baseURL: './' },
-  nitro: { preset: 'static' },
+  nitro: {
+    preset: 'static',
+    // `npm run dev` in a browser has no Rust to proxy API calls through, so the
+    // dev server does it instead, against the same public entry point. Dev
+    // only: a static build has no server, and the packaged app asks Rust.
+    devProxy: { '/api': { target: 'https://truemain.lol/api', changeOrigin: true } },
+  },
   devtools: { enabled: false },
 })

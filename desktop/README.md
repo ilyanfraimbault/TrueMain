@@ -14,18 +14,33 @@ Tracking issue: **#1671**.
   picks land rather than on a poll.
 - Switches screen on the **gameflow phase**: no client, lobby (dashboard), champion
   select (draft).
-- Draws the draft: your champion and lane, both teams, bans, the phase timer.
+- Draws the draft: both teams as splash banners on their lanes (lane icons on
+  empty slots too), each side's bans, the phase timer.
+- **Shows the build to run against the draft as it stands** — runes, summoner
+  spells, skill order, starter, boots, build path and build tree — from the
+  endpoint behind the site's matchup page (`POST /champions/{id}/composition-build`),
+  fed every locked pick of both teams on its lane. It re-asks on every lock, and
+  a lock landing while a request is out aborts that request (in Rust, and through
+  the fetch signal in a browser) rather than queueing behind it. A matchup never
+  recorded falls back to the lane's standard build, labelled as such.
+- **Says how hard the lane is**: the site's own verdict (`laneVerdict`, gold gap
+  at 15 over the same sampled games), with the lane win rate beside it.
+- **Reads any champion's build**: clicking a pick shows that champion's build
+  from its own side of the draft; a second click comes back to ours.
 
-- **Resolves the enemy lanes** (#1674) and lets you correct them by drag and
-  drop or by two clicks, pinning your correction so the rest re-solve around it
-  (#1677).
+- **Resolves the enemy lanes** (#1674) and lets you correct them by dragging
+  one enemy onto another, pinning your correction so the rest re-solve around
+  it (#1677). A click on an enemy now reads its build instead.
 - **Names your lane opponent**, with how sure it is — a coin flip says so.
 
 ## What it does not do yet
 
-- **No pick, rune or build recommendation on screen.** The endpoint ranks
-  candidates (#1675) but the app sends an empty candidate pool: it does not know
-  the player's champion pool yet, which is #1682.
+- **No pick recommendation on screen.** The endpoint ranks candidates (#1675)
+  but the app sends an empty candidate pool: it does not know the player's
+  champion pool yet, which is #1682.
+- **The build view is a copy of the site's**, not the site's own components:
+  `BuildTree`, `ItemRankBadge` and the lane verdict are ported by hand, and the
+  icons carry no tooltip. Sharing them through a Nuxt layer is #1687.
 - **The rune import is written but not reachable.** Its client-side write path
   and the rule that protects the player's own pages are implemented and tested
   (`crates/lcu/src/runes.rs`); there is no button because the draft endpoint does
@@ -115,8 +130,10 @@ cd desktop/app && npm run dev        # then pick a scenario at the bottom
 `npm run dev` outside Tauri has no client and no Rust, so it opens on a picker
 of states the client would have pushed — `?scenario=draft-locked` links to one
 directly. This is for working on the UI with hot reload; it proves nothing below
-the frontend, and the lane assignment panel is absent because it answers through
-Rust. `app/app/fixtures/scenarios.json` holds them. In a production build the picker
+the frontend. `app/app/fixtures/scenarios.json` holds the states, and the lane
+answer each draft scenario shows. The build is real data: the dev server proxies
+`/api` to `https://truemain.lol/api` (`nuxt.config.ts`, dev only), since there
+is no Rust to ask. In a production build the picker
 never renders — `import.meta.dev` is false — but Nuxt still bundles it, and the
 fixtures sit in a 2 kB lazy chunk that is never fetched.
 
