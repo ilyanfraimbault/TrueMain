@@ -457,57 +457,42 @@ html {
 }
 
 /*
- * Page transitions (#1621) — the browser's View Transitions API, switched on
- * by `experimental.viewTransition` in nuxt.config.ts. Nuxt starts one only
- * when the page component changes: a query-only navigation (the champion
- * page's filters, the pagers) re-renders in place, and `prefers-reduced-motion:
- * reduce` skips it entirely.
+ * Page transitions (#1621, #1689) — `app.pageTransition` in nuxt.config.ts, a
+ * Vue `<Transition name="page" mode="out-in">` around the page's `<Suspense>`.
+ * It only plays once the destination has resolved the data it awaits in setup:
+ * until then the outgoing page stays live under the loading bar
+ * (`AppLoadingBar`). It plays only when the page component changes — a
+ * query-only navigation (the champion page's filters, the pagers) re-renders
+ * in place — and not at all under `prefers-reduced-motion: reduce`.
  *
  * Restrained on purpose — this is a dense data UI, and the transition's only
- * job is to say "the page changed" rather than "it re-rendered". The content
- * region (`#main-content`, the `UMain` in app.vue) is its own layer: the
- * outgoing page fades out quickly, the incoming one fades in with a 6px rise,
- * starting once the old one is half gone — a plain cross-fade shows two dense
- * tables on top of each other mid-way, which reads as noise, not motion.
- * The shell (header, footer) stays in the root layer, where the stock
- * cross-fade of two near-identical frames only shows the nav highlight moving.
- *
- * The group's size morph is turned off: two pages rarely share a height, and a
- * box stretching between them reads as layout jank, not motion. The fade-in is
- * short enough to be over before a client-side fetch lands, so a page that
- * opens on skeletons fills in afterwards as an update, not as a second
- * navigation.
+ * job is to say "the page changed" rather than "it re-rendered". Only the
+ * content region animates; the shell (header, footer) sits outside
+ * `<NuxtPage>`. The outgoing page fades out quickly, then the incoming one
+ * fades in with a 6px rise: `out-in` never shows the two at once, where a plain
+ * cross-fade put two dense tables on top of each other mid-way, which read as
+ * noise, not motion.
  */
-#main-content {
-  view-transition-name: page;
+.page-leave-active {
+  transition: opacity 90ms ease-in;
 }
 
-::view-transition-group(page) {
-  animation: none;
+.page-enter-active {
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
 }
 
-::view-transition-old(page) {
-  animation: 90ms ease-in both page-out;
+.page-leave-to,
+.page-enter-from {
+  opacity: 0;
 }
 
-::view-transition-new(page) {
-  animation: 180ms ease-out 60ms both page-in;
+.page-enter-from {
+  transform: translateY(6px);
 }
 
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 150ms;
-}
-
-@keyframes page-out {
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes page-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
+@media (prefers-reduced-motion: reduce) {
+  .page-leave-active,
+  .page-enter-active {
+    transition: none;
   }
 }
