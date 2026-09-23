@@ -32,11 +32,7 @@ const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.va
 // (`server: false`) to keep the SSR shell deterministic, mirroring the
 // /champions directory page.
 const apiFetch = useApiFetch()
-const {
-  data: tierList,
-  error: tierListError,
-  status: tierListStatus,
-} = useLazyAsyncData<ChampionTierListResponse>(
+const tierListFetch = useAsyncData<ChampionTierListResponse>(
   () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}`
     + `-${filters.value.eloBracket ?? 'all'}-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
   () => {
@@ -60,6 +56,7 @@ const {
     default: () => ({ patchVersion: '', position: null, tiers: [] }),
   },
 )
+const { data: tierList, error: tierListError, status: tierListStatus } = tierListFetch
 
 // Static champion list (names + icons) — shared composable so navigating between
 // /champions and the tier list pays the fetch once (same key + options).
@@ -130,6 +127,10 @@ function championDestination(entry: { championId: number, position: string }) {
     },
   }
 }
+
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the tier list is in (#1689); the static lookups keep their skeleton.
+await tierListFetch
 </script>
 
 <template>

@@ -14,7 +14,7 @@ export function useTruemainRankHistory(
 
   const data = ref<RankHistoryResponse | null>(null)
 
-  const { isLoading, isInitialLoading, notFound, error } = useTruemainFetch<RankHistoryResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<RankHistoryResponse>(nameTag, {
     watch: [daysRef],
     request: tag => $fetch<RankHistoryResponse | null>(
       `/api/truemains/${encodeURIComponent(tag)}/rank-history`,
@@ -35,5 +35,6 @@ export function useTruemainRankHistory(
     isInitialLoading,
     notFound,
     error,
+    ready,
   }
 }

@@ -40,7 +40,7 @@ const { currentPage, setPage } = useRoutePage()
 // stay client-side too and the user can paginate filtered subsets without
 // extra round-trips.
 const apiFetch = useApiFetch()
-const { data: summaries, error: summariesError, status: summariesStatus } = useLazyAsyncData<ChampionSummaryResponse[]>(
+const summariesFetch = useAsyncData<ChampionSummaryResponse[]>(
   () => `champions-list-${filters.value.patch ?? 'latest'}-${filters.value.eloBracket ?? 'ALL'}`
     + `-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
   () => {
@@ -67,6 +67,7 @@ const { data: summaries, error: summariesError, status: summariesStatus } = useL
     default: () => [],
   },
 )
+const { data: summaries, error: summariesError, status: summariesStatus } = summariesFetch
 // Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
 // closure can call `markStaticFetched` after the network round trip — the
 // `useFetch` wrapper hides that hook. `getCachedData` reuses entries across
@@ -81,11 +82,9 @@ const { data: versions } = useDDragonVersions()
 const apiPatch = computed(() => summaries.value?.[0]?.patchVersion ?? '')
 const selectedPatch = computed(() => filters.value.patch || apiPatch.value || '')
 
-// Item icons are patch-specific (new items + visual refreshes ship with a
-// patch), so the fetch must follow whichever patch the list is currently
-// showing. `immediate: false` + the watcher below defers the first fetch until
-// `selectedPatch` is known, so we don't issue a redundant `static-items-latest`
-// round-trip and then immediately refetch under the resolved patch key.
+// Item icons are patch-specific, so the fetch follows the patch the list shows.
+// `immediate: false` + the watcher defers it until `selectedPatch` is known,
+// rather than fetching `static-items-latest` and refetching under the patch.
 const {
   data: itemsMap,
   error: itemsError,
@@ -96,10 +95,8 @@ watch(selectedPatch, (patch) => {
   if (patch) void fetchItems()
 }, { immediate: true })
 
-// Pin rune-tree to the same patch as the list so the icon URLs we hand to
-// IPX hit CommunityDragon's per-patch (year-cacheable) tree instead of
-// `latest` (short TTL + moving target). Cache key includes the patch so
-// switching the dropdown swaps payloads cleanly.
+// Rune tree pinned to the list's patch: IPX then hits CommunityDragon's
+// per-patch (year-cacheable) tree instead of `latest`, a moving target.
 const {
   data: runeTree,
   error: runeTreeError,
@@ -215,6 +212,9 @@ function onRowActivate(row: { championId: number, position: string }) {
 // Resolve build ids the same way the leaderboard surfaces do. `item` keeps
 // its historical `staticItem` name at the template call sites.
 const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsMap)
+
+// A client-side navigation waits under the loading bar for the directory (#1689).
+await summariesFetch
 </script>
 
 <template>

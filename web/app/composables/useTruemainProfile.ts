@@ -20,7 +20,7 @@ export function useTruemainProfile(
 ) {
   const data = ref<ProfileResponse | null>(null)
 
-  const { isLoading, isInitialLoading, notFound, error, execute } = useTruemainFetch<ProfileResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<ProfileResponse>(nameTag, {
     enabled: options.enabled,
     request: tag => $fetch<ProfileResponse | null>(
       `/api/truemains/${encodeURIComponent(tag)}/profile`,
@@ -50,6 +50,7 @@ export function useTruemainProfile(
     isInitialLoading,
     notFound,
     error,
+    ready,
     refresh,
   }
 }

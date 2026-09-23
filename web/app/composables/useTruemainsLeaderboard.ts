@@ -99,7 +99,7 @@ export function useTruemainsLeaderboard(
   // signature rather than the request URL — keeps the key stable and explicit,
   // and the watcher list below drives the refetch. The key is shared across
   // the SSR payload and the client so hydration reuses the server's rows.
-  const { data, status, error, refresh } = useAsyncData<LeaderboardResponse>(
+  const leaderboardFetch = useAsyncData<LeaderboardResponse>(
     () => {
       const region = regionRef.value ?? 'all'
       const position = positionRef.value ?? 'all'
@@ -124,6 +124,7 @@ export function useTruemainsLeaderboard(
       }),
     },
   )
+  const { data, status, error, refresh } = leaderboardFetch
 
   const rows = computed<LeaderboardRowResponse[]>(() => data.value?.rows ?? [])
   const total = computed(() => data.value?.total ?? 0)
@@ -171,5 +172,9 @@ export function useTruemainsLeaderboard(
     isInitialLoading,
     error,
     refresh,
+    // Settles once the first page has (at once on a hydration, which reuses the
+    // SSR payload): a page awaiting it in setup keeps the outgoing page under
+    // the loading bar on a client-side navigation (#1689).
+    ready: leaderboardFetch.then(() => undefined),
   }
 }
