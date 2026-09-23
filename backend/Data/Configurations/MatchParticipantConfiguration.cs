@@ -169,8 +169,30 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         entity.HasIndex(e => new { e.Puuid, e.MatchId })
             .HasDatabaseName("IX_match_participants_puuid_match");
 
+        // The natural key, and — since #1663 — the index that answers "who played what in
+        // this match" without touching the table. Every live read of a draft probes
+        // participants by MatchId and needs only these few narrow columns; carrying them
+        // here turns those probes into index-only scans.
+        //
+        // Measured locally on a 2M-row / 776 MB reconstruction of the table, cold page
+        // cache, the composition recommender's pinned-matchup query: 24 556 buffers read
+        // and ~700 ms before, 1 715 and ~100 ms after (both on a vacuumed table, so the
+        // gain is the index, not the vacuum). The scans it replaced read all ten
+        // participants of a candidate match from the heap to keep one.
+        //
+        // `Puuid` and `Win` are the costly pair to carry and the reason it works: without
+        // them the probe still falls back to the heap for every row. The whole set adds
+        // ~25% to the table's total size, bought back many times over on every draft edit.
         entity.HasIndex(e => new { e.MatchId, e.ParticipantId })
-            .IsUnique();
+            .IsUnique()
+            .IncludeProperties(e => new
+            {
+                e.TeamId,
+                e.TeamPosition,
+                e.ChampionId,
+                e.Win,
+                e.Puuid,
+            });
 
         entity.HasIndex(e => e.RiotAccountId);
 
@@ -198,8 +220,21 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         // pre-created out-of-band (CREATE INDEX CONCURRENTLY) — the migration is
         // IF NOT EXISTS so startup stays a fast no-op.
         entity.HasIndex(
-            e => new { e.ChampionId, e.TeamPosition, e.EloBracket },
-            "IX_match_participants_champion_position_full");
+                e => new { e.ChampionId, e.TeamPosition, e.EloBracket },
+                "IX_match_participants_champion_position_full")
+            // Covering since #1663, for the same reason as the unique index above: the
+            // selection reads a champion's rows by (champion, lane) and needs only these
+            // columns from them. Measured on the same reconstruction, the *unpinned*
+            // composition read — where the pool is the champion's own history rather than
+            // one matchup's — went 307 ms -> 211 ms cold with this on top of the other.
+            .IncludeProperties(e => new
+            {
+                e.MatchId,
+                e.ParticipantId,
+                e.TeamId,
+                e.Win,
+                e.Puuid,
+            });
 
         // The role-bound backfill's work queue (#1612): bot-lane rows ingested before
         // the column existed. Partial, so it holds only what is left to drain and the
