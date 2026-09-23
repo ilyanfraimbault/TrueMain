@@ -300,3 +300,28 @@ tried first (#1617) and rejected.
   cached page is never staler than a freshly rendered one.
 - **Measured**: served locally, a cached response answers in ~3.5 ms against ~117 ms for a full render, and
   the env, version, Umami host/id and canonical URL are the running container's.
+
+## A page awaits its API data in setup; the loading bar covers the wait (2026-09-23)
+
+**Decision:** on a client-side navigation, each page awaits the TrueMain API fetch it renders from before it
+mounts — `await` in `<script setup>`, on a non-`lazy` `useAsyncData` or a composable's `ready` promise — and
+`AppLoadingBar` (Nuxt's `useLoadingIndicator`, under the sticky header) is the feedback for that wait. The
+destination opens on its data; only the static-data phase (DDragon / CommunityDragon lookups and icons) keeps a
+skeleton after it — #1689.
+
+- **Why.** A navigation used to swap to the destination at once and play its skeletons twice — once for the
+  API, once for the statics and icons — so every page change flashed an empty page between two real ones. This
+  is Nuxt's documented blocking-fetch model: `<NuxtPage>` wraps the page in `<Suspense>`, and the old page stays
+  mounted until the new one's setup settles.
+- **Hard loads are unchanged.** `server: false` fetches resolve at once during hydration (Nuxt defers the
+  request to `onBeforeMount`), so SSR and the first client render still agree on the skeleton. `useTruemainFetch`
+  runs its first request during setup only when nothing is being hydrated, and after mount otherwise — the
+  per-viewer payload still never reaches the server render (#862).
+- **Await at the end of setup.** Every fetch is started first and the page awaits them together as its last
+  statement: an `await` in the middle would start whatever follows only after it resolves.
+- **What does not wait.** Static lookups, the champion page's secondary panels (lazy, hydrate-on-visible), the
+  favorites cards (bounded fan-out, #872) and same-page refetches (filters, pagers — no `<Suspense>` involved)
+  keep their own skeletons. `useChampionSeoName` stays awaited on the server only: a `<head>`-only value is no
+  reason to lengthen the wait.
+- **Consequence for page transitions**: the View Transitions API freezes the frame for the whole wait, bar
+  included, so the transition moved to Vue's `<Transition>` — see `design-system.md`.

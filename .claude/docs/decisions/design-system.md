@@ -221,29 +221,24 @@ shape to compare against.
 
 ## Page transitions are a staggered fade of the content only (2026-09-18)
 
-**Decision:** page changes use the browser's View Transitions API through `experimental.viewTransition: true`,
-animating only `#main-content`: the old page fades out in 90 ms, the new one fades in over 180 ms with a 6 px rise,
-starting at 60 ms — #1621.
+**Decision:** page changes animate only the page content: the old page fades out in 90 ms, then the new one fades
+in over 180 ms with a 6 px rise — #1621. Since #1689 (2026-09-23) this runs on Vue's `<Transition>` through
+`app.pageTransition` (`name: 'page'`, `mode: 'out-in'`), no longer on the View Transitions API
+(`experimental.viewTransition`).
 
-- **Content only.** The header and footer stay in the root layer, whose stock cross-fade of two near-identical
-  frames only shows the nav highlight moving. The content group's size morph is disabled: two pages rarely share a
-  height, and a stretching box reads as jank.
+- **Why the mechanism changed (#1689).** Every page now awaits its API data in setup, under a loading bar (see
+  `web-frontend-rules.md`). A view transition starts in the router's `beforeResolve` and freezes the whole frame
+  until `page:finish` — the loading bar included — and drops the animation after 4 s; it had already been opted
+  out on the champion page for that reason. Vue's `<Transition>` wraps the page `<Suspense>` and only plays once
+  the destination has resolved, so the old page and the bar stay live through the wait, and the champion-page
+  opt-out (`utils/view-transition.ts`, `plugins/view-transition.client.ts`) is gone.
+- **Content only.** The header and footer sit outside `<NuxtPage>`, so they never move.
 - **Staggered, not a cross-fade.** A plain cross-fade shows two dense tables on top of each other half-way through,
-  which reads as noise on this UI (observed on paused frames).
-- **Where it does not run.** Nuxt starts a transition only when the page component changes, so the champion page's
-  filter clicks and the pagers (same-path `router.replace`) never animate; `true` rather than `'always'` skips it
-  under `prefers-reduced-motion: reduce`. Both verified in the browser.
-- **The champion page opts out of arriving.** The browser freezes the old frame from the start of the navigation
-  until Nuxt's `page:finish`, and aborts the animation after 4 s. The champion page awaits its build summary in
-  setup, so a cold navigation into it showed a frozen directory for 4 s and then no animation at all — worse than
-  no transition, where the old page at least stays live (hover states, pulsing skeletons). The rule is about the
-  *destination*, so leaving the champion page still animates; any future page that awaits data in setup is opted
-  out the same way, rather than shortening the animation for everyone.
-- **Where the opt-out lives**: the destination paths are listed in `utils/view-transition.ts` and applied by
-  `plugins/view-transition.client.ts`, which clears `to.meta.viewTransition` in a `beforeEach` — Nuxt reads that
-  flag in a `beforeResolve`, which always runs later. `definePageMeta` on the page itself would be more direct,
-  but `pages/champions/[slug].vue` is over the file-size guardrail's limit and may only shrink. Both the rule and
-  the guard's effect are tested (unit test, plus a browser run counting the transitions each navigation starts).
+  which reads as noise on this UI (observed on paused frames). `out-in` never shows the two at once; the new page
+  starts at 90 ms instead of the View Transitions version's 60 ms.
+- **Where it does not run.** Nuxt keys the page on its path, so the champion page's filter clicks and the pagers
+  (same-path `router.replace`) never animate; a `prefers-reduced-motion: reduce` media query drops both
+  transitions, and `<Transition>` then swaps at once.
 
 ## One error vocabulary: a page for a dead route, an alert for a dead region, a toast for an action (2026-09-22)
 
