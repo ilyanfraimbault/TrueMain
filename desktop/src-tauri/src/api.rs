@@ -30,6 +30,8 @@ const DEFAULT_API_BASE: &str = "https://truemain.lol/api";
 /// runtime value wins, being the more specific of the two.
 const API_BASE_VAR: &str = "TRUEMAIN_API_BASE";
 
+/// Cheap to clone: `reqwest::Client` is a handle onto one shared pool.
+#[derive(Clone)]
 pub struct ApiClient {
     http: reqwest::Client,
     base: String,
@@ -63,10 +65,40 @@ impl ApiClient {
         path: &str,
         body: &B,
     ) -> Result<T, String> {
-        let response = self
+        let request = self.http.post(format!("{}{path}", self.base)).json(body);
+        Self::read(request, path).await
+    }
+
+    /// `post` with its own deadline, for an endpoint known to run longer than
+    /// the client-wide one.
+    pub async fn post_within<B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &B,
+        timeout: Duration,
+    ) -> Result<T, String> {
+        let request = self
             .http
             .post(format!("{}{path}", self.base))
             .json(body)
+            .timeout(timeout);
+        Self::read(request, path).await
+    }
+
+    pub async fn get<Q: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &Q,
+    ) -> Result<T, String> {
+        let request = self.http.get(format!("{}{path}", self.base)).query(query);
+        Self::read(request, path).await
+    }
+
+    async fn read<T: DeserializeOwned>(
+        request: reqwest::RequestBuilder,
+        path: &str,
+    ) -> Result<T, String> {
+        let response = request
             .send()
             .await
             .map_err(|e| format!("could not reach TrueMain: {e}"))?;

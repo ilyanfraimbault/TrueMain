@@ -44,6 +44,76 @@ async fn draft_recommendation(
     client.post("/champions/draft", &request).await
 }
 
+/// The composition build request currently in flight, if any.
+#[derive(Default)]
+struct BuildInFlight(Mutex<Option<tokio::task::AbortHandle>>);
+
+/// The build for one champion against the draft as it stands — both teams'
+/// locked picks, each on its lane — from the endpoint behind the site's
+/// matchup page.
+///
+/// Champion select moves faster than the API answers: a lock landing while a
+/// request is out makes that request's answer obsolete. So each call aborts the
+/// one before it rather than queueing behind it, and the superseded call
+/// returns an error the frontend recognises and drops.
+#[tauri::command]
+async fn composition_build(
+    client: tauri::State<'_, ApiClient>,
+    in_flight: tauri::State<'_, BuildInFlight>,
+    champion_id: i64,
+    request: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let client = client.inner().clone();
+    let path = format!("/champions/{champion_id}/composition-build");
+    let task = tokio::spawn(async move {
+        client.post_within(&path, &request, COMPOSITION_TIMEOUT).await
+    });
+
+    let previous = in_flight
+        .0
+        .lock()
+        .expect("in-flight mutex poisoned")
+        .replace(task.abort_handle());
+    if let Some(previous) = previous {
+        previous.abort();
+    }
+
+    match task.await {
+        Ok(answer) => answer,
+        Err(error) if error.is_cancelled() => Err(SUPERSEDED.to_string()),
+        Err(error) => Err(format!("the build request failed: {error}")),
+    }
+}
+
+/// A full ten-pick composition is the slowest query the API runs, and an
+/// uncached one can take well past the client-wide eight seconds. Failing it
+/// would drop the very drafts that matter most; a newer lock aborts a slow
+/// request anyway, so a long deadline never leaves the panel waiting on a
+/// draft that no longer exists.
+const COMPOSITION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What a request replaced by a newer one answers. Matched by the frontend.
+const SUPERSEDED: &str = "superseded";
+
+/// The build, runes and summoner spells for one champion on one lane —
+/// narrowed to the lane opponent when there is one.
+///
+/// Answered by the same endpoint as the site's champion page, so the desktop
+/// shows the build the site shows.
+#[tauri::command]
+async fn champion_build(
+    client: tauri::State<'_, ApiClient>,
+    champion_id: i64,
+    position: String,
+    opponent_champion_id: Option<i64>,
+) -> Result<serde_json::Value, String> {
+    let mut query = vec![("position", position)];
+    if let Some(opponent) = opponent_champion_id {
+        query.push(("opponentChampionId", opponent.to_string()));
+    }
+    client.get(&format!("/champions/{champion_id}"), &query).await
+}
+
 pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -58,7 +128,14 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(shared.clone())
         .manage(ApiClient::new())
-        .invoke_handler(tauri::generate_handler![current_state, current_screen, draft_recommendation])
+        .manage(BuildInFlight::default())
+        .invoke_handler(tauri::generate_handler![
+            current_state,
+            current_screen,
+            draft_recommendation,
+            champion_build,
+            composition_build
+        ])
         .setup(move |app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(supervisor::run(handle, shared));
