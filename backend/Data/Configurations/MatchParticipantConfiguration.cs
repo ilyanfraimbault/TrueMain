@@ -199,8 +199,9 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         // The champion-page reads (builds, matchups, scaling, leads, item-timings)
         // all filter the tracked-account rows by champion + lane. A partial
         // index on those columns (only the tracked rows, ~1/10 of the table) turns
-        // those filters into an index seek instead of a scan of the full 35 GB
-        // match_participants table. EloBracket is the trailing column so the same
+        // those filters into an index seek instead of a scan of the whole
+        // match_participants table — ~2M rows / ~11 GB since #680 drained the
+        // non-ranked rows. EloBracket is the trailing column so the same
         // index serves both the unfiltered (champion, lane) prefix reads and the
         // rank-filtered (champion, lane, band) reads.
         // Both indexes below share the same columns, so each needs an explicit
