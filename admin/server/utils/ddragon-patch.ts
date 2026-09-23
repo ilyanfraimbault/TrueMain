@@ -13,47 +13,80 @@ import { normalizeDataDragonPatch, PATCH_PATTERN } from '~~/shared/utils/ddragon
 const VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json'
 
 /**
- * Resolve the latest DDragon version (`16.5.1` form).
+ * DDragon's published versions, newest first (`["16.5.1", "16.4.1", …]`).
  *
- * `/api/static/champions` falls back to this when the caller supplies no
- * `?patch=`, and `useChampionStatic()` never sends one — so this is the nominal
- * path behind /champions, /candidates, /accounts, /patch-coverage and
- * /data-quality, not an edge case. The champion payload it feeds is cached for
- * an hour; before #1226 this lookup in front of it was not, so an uncached
- * external round trip ran on *every* call — and the admin renders client-side
- * (`ssr: false`), so that is once per page load. #947 measured the same round
- * trip at 2–7 s warm on the web side.
+ * The single upstream read behind every patch decision in this app.
+ * `/api/static/champions` resolves against it, and `useChampionStatic()` never
+ * sends a `?patch=` — so this is the nominal path behind /champions,
+ * /candidates, /accounts, /patch-coverage and /data-quality, not an edge case.
+ * The champion payload it feeds is cached for an hour; before #1226 this lookup
+ * in front of it was not, so an uncached external round trip ran on *every*
+ * call — and the admin renders client-side (`ssr: false`), so that is once per
+ * page load. #947 measured the same round trip at 2–7 s warm on the web side.
  *
  * Riot ships a patch every ~2 weeks, so the TTL here can be much longer than
  * the 1 h payload TTL. `defineCachedFunction` is stale-while-revalidate by
  * default: once the entry ages out, the request that trips it still gets the
- * previous patch immediately and the refresh happens in the background, so a
+ * previous list immediately and the refresh happens in the background, so a
  * new patch never puts the round trip back on the critical path. The cost is
  * that a freshly released patch surfaces up to one TTL late, which is why this
  * is hours and not days.
  *
- * Failure contract: throws a 502. The static endpoints cannot answer without a
- * patch, and failing once beats caching a bad answer for hours.
+ * Failure contract: throws a 502 rather than answering an empty list, so a
+ * transient outage isn't cached for hours as "there are no patches".
  */
-export const resolveLatestDDragonPatch = defineCachedFunction(
-  async (): Promise<string> => {
+export const loadDDragonVersions = defineCachedFunction(
+  async (): Promise<string[]> => {
     const versions = await $fetch<string[]>(VERSIONS_URL)
-    const latest = versions[0]
-    if (!latest) {
+    if (!versions.length) {
       throw createError({ statusCode: 502, statusMessage: 'DDragon returned no versions' })
     }
-    return latest
+    return versions
   },
   {
     maxAge: 6 * 60 * 60,
-    name: 'ddragon-latest-patch',
-    getKey: () => 'latest',
+    name: 'ddragon-versions',
+    getKey: () => 'versions',
   },
 )
 
 /**
+ * Map a requested game patch onto a version DDragon has actually published.
+ *
+ * **Riot ships a patch hours to days before DDragon publishes it**, and the
+ * callers here pass the patch the *API* reports — the live game patch. Pinning
+ * the CDN path to a version that does not exist yet does not 404, it answers
+ * the bucket's **403 AccessDenied**, which blanked the public champions page
+ * for the first part of every patch cycle (#1693).
+ *
+ * So: the newest published build of the requested `major.minor` when DDragon
+ * has one — which also covers DDragon numbering a build something other than
+ * the `.1` `normalizeDataDragonPatch` assumes — and its newest version overall
+ * otherwise. Champion names and icons barely move between two patches; a page
+ * rendered from the previous patch's assets is a far better answer than no
+ * page. This mirrors what the ingestor already does for champion statics
+ * (`Data/Statics/DataDragonChampionStaticsProvider`).
+ *
+ * Takes an already-normalized patch (see {@link normalizeRequestedPatch}), so
+ * validation stays at the edge where a bad `?patch=` can still be rejected with
+ * a 400 rather than degraded into a fallback. `null` — no `?patch=` at all —
+ * resolves to the latest version.
+ */
+export async function resolveDDragonVersion(normalizedPatch: string | null): Promise<string> {
+  const versions = await loadDDragonVersions()
+  const latest = versions[0]
+  if (!latest) {
+    throw createError({ statusCode: 502, statusMessage: 'DDragon returned no versions' })
+  }
+  if (!normalizedPatch) return latest
+
+  const [major, minor] = normalizedPatch.split('.')
+  return versions.find(version => version.startsWith(`${major}.${minor}.`)) ?? latest
+}
+
+/**
  * Normalize a caller-supplied `?patch=`, or `null` when none was supplied (the
- * caller then falls back to `resolveLatestDDragonPatch`).
+ * caller then falls back to the latest version).
  *
  * Anything that is not a `major.minor.patch` patch is rejected with a 400
  * *before* it reaches a CDN URL or a cache key — see `PATCH_PATTERN`. Kept here

@@ -1,4 +1,4 @@
-import { DDRAGON_VERSIONS_URL } from '~~/server/utils/ddragon-patch'
+import { loadDDragonVersions } from '~~/server/utils/ddragon-patch'
 
 /**
  * DDragon's version list, newest first (`["16.5.1", "16.4.1", …]`).
@@ -8,28 +8,18 @@ import { DDRAGON_VERSIONS_URL } from '~~/server/utils/ddragon-patch'
  * at a third-party CDN, on nearly every page — no shared cache, one visitor's
  * fetch warming nothing for the next, and a DDragon outage surfacing as a
  * visitor-visible failure instead of a server-side cache miss. Behind this
- * handler it is one upstream call per hour per instance, exactly like its
- * `/api/static/*` siblings.
+ * handler it is one upstream call per TTL per instance, shared with every
+ * `/api/static/*` sibling.
  *
  * Not patch-scoped, obviously — this is the list the patch is picked *from*.
- * Cached at the handler rather than through a `defineCachedFunction` because
- * there is no argument to key on: same TTL, one less indirection.
+ * A thin pass-through over `loadDDragonVersions` rather than a second cached
+ * fetch of its own: the resolver behind `/api/static/*` reads the same list to
+ * decide which version a requested patch maps to, and the selector must offer
+ * patches from exactly the list that resolution is done against. One cache
+ * entry, one upstream call.
  *
- * Failure contract matches `resolveLatestDDragonPatch`: throw rather than
- * answer an empty array, so a transient outage isn't cached for an hour as
- * "there are no patches". Callers default to `[]` on their side.
+ * Failure contract lives in `loadDDragonVersions`: it throws rather than
+ * answering an empty array, so a transient outage isn't cached as "there are no
+ * patches". Callers default to `[]` on their side.
  */
-export default defineCachedEventHandler(
-  async (): Promise<string[]> => {
-    const versions = await $fetch<string[]>(DDRAGON_VERSIONS_URL)
-    if (!versions.length) {
-      throw createError({ statusCode: 502, statusMessage: 'DDragon returned no versions' })
-    }
-    return versions
-  },
-  {
-    maxAge: 60 * 60,
-    name: 'ddragon-versions',
-    getKey: () => 'versions',
-  },
-)
+export default defineEventHandler((): Promise<string[]> => loadDDragonVersions())

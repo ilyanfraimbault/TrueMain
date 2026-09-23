@@ -1,6 +1,6 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { isLiveChampionId } from '~~/shared/utils/ddragon'
-import { normalizeRequestedPatch, resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
+import { normalizeRequestedPatch, resolveDDragonVersion } from '~~/server/utils/ddragon-patch'
 
 /**
  * Synchronised copy of `admin/server/api/static/champions.get.ts` (#1226). The
@@ -41,9 +41,9 @@ export default defineEventHandler(async (event): Promise<ChampionStaticListItem[
   const { patch } = getQuery(event) as { patch?: string }
   // Backend scopes expose patches in the short "16.5" form; DDragon CDN paths
   // need "16.5.1". Normalize (and validate) here so a caller can pass the patch
-  // straight from a champion summary. Fall back to the latest DDragon version
-  // when none is supplied so a new Riot patch invalidates the cache key
-  // naturally.
-  const resolved = normalizeRequestedPatch(patch) ?? await resolveLatestDDragonPatch()
+  // straight from a champion summary, then resolve it against the versions
+  // DDragon actually publishes — none supplied means the latest, and a patch
+  // Riot has shipped but DDragon has not falls back rather than 403ing (#1693).
+  const resolved = await resolveDDragonVersion(normalizeRequestedPatch(patch))
   return loadChampionsForPatch(resolved)
 })
