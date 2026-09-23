@@ -187,3 +187,48 @@ environment (prod 3; preprod 1 since 2026-09-16, its host being shared) — #157
 - **Accepted cost.** In-memory caches (`/_ipx` bytes, Nitro cached functions) are per worker: colder caches
   and more memory, bounded by the caches' own caps.
 
+
+## The live draft reads never touch the table's heap (2026-09-23)
+
+**#1659 moved the composition recommender's role-opponent filter into SQL, and cold responses on preprod
+still ran 11–25 s.** The second request for the same champion answered in ~1 s, on all five pairs benched,
+whichever draft variant went first — and since the two variants have different cache keys, that second call
+ran the query in full. What made it fast was Postgres' buffer cache, so what remained was disk reads, not
+computation. Filtering the matchup in SQL had made the *result* small, not the *scan*.
+
+Reconstructed locally at production scale — 200k matches, 2M participants, 776 MB, rows padded to the real
+main-tuple width — the plan says where it goes: the planner drives from the rarer side (the opponent's
+`(champion, lane)` index), and then, for each candidate match, reads **all ten participant rows from the heap**
+to find the one it wants. The indexes carried no payload, so every probe was a random heap fetch.
+
+**Both indexes on `match_participants` now carry the columns those reads project**, making the probes
+index-only. Measured cold (server restarted, OS page cache dropped) on the same vacuumed table, so the gain
+is the index and not the vacuum:
+
+| | buffers read | cold |
+|---|---|---|
+| before | 24 556 | 699 / 718 ms |
+| after | 1 715 | 101 / 100 ms |
+
+The unpinned read — where the pool is the champion's own history rather than one matchup's — goes 405 ms →
+307 ms with the co-participant index alone, → 211 ms once the `(champion, lane)` index is covering too, which
+is what earns that second one its place. `Puuid` and `Win` are the expensive pair to carry and the reason it
+works at all: without them the probe falls back to the heap for every row and the plan gains nothing. Cost is
+~25% on the table's total size.
+↳ **An index-only scan is only index-only once the visibility map is set.** On the freshly loaded bench table
+the "after" plan still did 20 780 heap fetches and saved nothing; `VACUUM` took it to zero. In production
+autovacuum keeps that true, but a bulk backfill followed by an immediate benchmark will not show the win —
+which is the trap this note exists to spare the next person.
+↳ **The migration builds first and swaps last, because what matters is how long each lock is held.** The
+deploy path applies every pending migration in *one* transaction (`psql --single-transaction`), and Postgres
+releases nothing before commit. `CREATE INDEX` takes SHARE on the table — writes wait, reads flow — while
+`DROP INDEX` takes ACCESS EXCLUSIVE, which blocks reads too. The shape EF generates for an `INCLUDE` change
+drops first, which would have held ACCESS EXCLUSIVE through both builds and stalled every page the outgoing
+release was still serving. So the covering indexes are built under temporary names, and the old ones dropped
+and the new ones renamed into place as the last statements. Checked on the bench, with a read fired mid-
+transaction under a 1 s timeout: drop-first → blocked, build-first → answered. This was *not* the same case
+as #563's precedent, which was a bare `CREATE INDEX` with no drop — reasoning that initially claimed it was,
+and review caught it. `CONCURRENTLY` stays unavailable: the idempotent script wraps every statement in a
+`DO` block, where Postgres rejects it (#1227). What remains is the brief queue any ACCESS EXCLUSIVE acquisition
+causes behind reads already in flight, and a write stall for the length of the builds — longer in production
+(~11 GB) than the bench's 3.6 s — #1663.

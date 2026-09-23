@@ -218,6 +218,8 @@ Last verified against `develop` on 2026-09-02.
 
 ## Performance, caching and incidents — [`decisions/performance-and-incidents.md`](decisions/performance-and-incidents.md)
 
+- The live draft reads never touch the table's heap: both `match_participants` indexes are covering — #1663, #1659
+
 - An expensive read path behind a TTL cache needs a single-flight, not a lock — #870
 - Postgres runs with `max_parallel_workers_per_gather=0` in every compose file — do not re-enable — #589
 - Consequence: every heavy aggregate runs single-threaded, so batch work must be chunked — #603, #594, #632
