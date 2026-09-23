@@ -156,6 +156,12 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
       ],
     },
+    // Page transitions (#1621, #1689); the motion itself is in main.css. A Vue
+    // `<Transition>` around the page's `<Suspense>`, not the View Transitions
+    // API: it only starts once the destination has resolved its awaited data,
+    // so the outgoing page and the loading bar stay live during the wait,
+    // where a view transition freezes the whole frame until `page:finish`.
+    pageTransition: { name: 'page', mode: 'out-in' },
   },
   // `~/…`, not a root-relative `./app/…`: since the Nuxt 4.5 / Vite 8.2 bump
   // the relative form is resolved against the build dir (`.nuxt/`) in dev, so
@@ -185,12 +191,6 @@ export default defineNuxtConfig({
   },
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
-  experimental: {
-    // Page transitions through the View Transitions API (#1621); the motion
-    // itself is in main.css. `true`, not `'always'`: Nuxt then skips the
-    // transition for visitors who ask for reduced motion.
-    viewTransition: true,
-  },
   // Dark-only: there is no colour-mode toggle in the header any more. The
   // module stays installed because @nuxt/ui depends on it, and it has no
   // "forced" switch — `preference` is only a *default*, and a returning visitor

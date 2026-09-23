@@ -47,7 +47,7 @@ export function useTruemainMatches(
   const total = ref(0)
   const pageSize = ref(options.pageSize ?? 20)
 
-  const { isLoading, isInitialLoading, notFound, error, execute } = useTruemainFetch<MatchSummariesResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<MatchSummariesResponse>(nameTag, {
     enabled: options.enabled,
     watch: [pageRef, positionRef, championIdRef],
     request: (tag) => {
@@ -88,6 +88,7 @@ export function useTruemainMatches(
     isInitialLoading,
     notFound,
     error,
+    ready,
     refresh: execute,
   }
 }

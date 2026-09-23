@@ -7,6 +7,7 @@ import { MAIN_CONTENT_ID } from '~/utils/route-focus'
     <NuxtRouteAnnouncer />
     <AppSkipLink />
     <AppHeader />
+    <AppLoadingBar />
 
     <!-- `tabindex="-1"`: focusable by the skip link and after a navigation
          (#1616), never a tab stop. The focus ring is dropped because it would

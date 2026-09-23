@@ -14,10 +14,9 @@ import type { ChampionStaticData } from '~~/shared/types/static-data'
  * `defineCachedEventHandler` (1h TTL) as `useChampionStatic`, so it's a cache
  * hit, not an extra DDragon round trip.
  *
- * Awaited server-side only — hence the `async` signature: the app has no
- * NuxtLoadingIndicator/Suspense fallback on `<NuxtPage>`, so awaiting on the
- * client would freeze the outgoing page with no feedback on every client-side
- * champion navigation, purely for a `<head>`-only value.
+ * Awaited server-side only — hence the `async` signature. A client-side
+ * navigation holds the outgoing page under the loading bar only for the data
+ * the page renders (#1689); a `<head>`-only value is no reason to lengthen it.
  *
  * The patch travels as a **reactive** query, not a value read once at setup.
  * `selectedPatch` starts empty and resolves a tick later; unwrapping it into a

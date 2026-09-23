@@ -82,6 +82,7 @@ const {
   isInitialLoading: leaderboardInitialLoading,
   isLoading: leaderboardLoading,
   error: leaderboardError,
+  ready: leaderboardReady,
 } = useTruemainsLeaderboard(currentPage, {
   pageSize: LEADERBOARD_PAGE_SIZE,
   region: filterRegion,
@@ -110,6 +111,10 @@ const { runeTree, itemsMap } = useBuildAssets(latestPatch)
 
 // Map keyed lookup for the row's top-3 — avoids a linear scan per icon.
 const championsById = useChampionsById(champions)
+
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the leaderboard is in (#1689); the static lookups keep their skeleton.
+await leaderboardReady
 </script>
 
 <template>

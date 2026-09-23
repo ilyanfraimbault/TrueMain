@@ -16,7 +16,8 @@ useSeoMeta({
 // (`GET /champions/overview`) rather than the full ~500-row `/champions`
 // directory, so the homepage never fetches or sorts data it only shows 8
 // rows and two numbers of.
-const { data: overview, status: overviewStatus } = useChampionOverview()
+const overviewFetch = useChampionOverview()
+const { data: overview, status: overviewStatus } = overviewFetch
 
 // Shared static list (champion id/name/icon) — same cache key as the unified
 // search and the other pages, so the prefetch-warmed payload is reused.
@@ -43,6 +44,7 @@ const {
   rows: truemainRows,
   total: truemainsTotal,
   isInitialLoading: truemainsInitialLoading,
+  ready: truemainsReady,
 } = useTruemainsLeaderboard(1, { pageSize: TRUEMAINS_TEASER_ROWS })
 
 const trackedTruemains = computed(() =>
@@ -61,6 +63,9 @@ const overviewPending = computed(() => isLoadingStatus(overviewStatus.value))
 // reads as data loss. This one only grows.
 const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
 
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the API has answered (#1689); the static lookups keep their skeleton.
+await Promise.all([overviewFetch, truemainsReady])
 </script>
 
 <template>

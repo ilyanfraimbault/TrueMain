@@ -33,12 +33,12 @@ const {
   error: championError,
   status: championStatus,
   notEnoughData,
+  ready: championReady,
 } = useChampion(championId, filters)
 
 // A filter change keeps the previous payload on screen while the new one loads
-// (useLazyAsyncData holds `data`), so without this the build sections silently
-// showed the *old* slice — the matchup filter made that obvious, since the
-// numbers stayed put after picking an opponent. Render the same skeleton as a
+// (useAsyncData holds `data`), so the build sections silently showed the *old*
+// slice — the matchup filter made that obvious. Render the same skeleton as a
 // cold load while the champion fetch is in flight. Only the data area: the
 // header keeps its values so the page doesn't jump under the cursor.
 const championLoading = computed(() => isLoadingStatus(championStatus.value))
@@ -121,9 +121,9 @@ const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.valu
 // are identical on the server and at hydration, and the endpoint resolves the
 // same defaults the aggregate does, so both describe the same slice.
 //
-// Awaited server-side only (see `seoStaticFetch`: no Suspense fallback on
-// `<NuxtPage>`, so a client await freezes the outgoing page). `useApiFetch`
-// carries the visitor's X-Forwarded-For into the SSR call (#1557).
+// Awaited with the champion fetch: for the HTML on the server, under the loading
+// bar on a client-side navigation (#1689). `useApiFetch` carries the visitor's
+// X-Forwarded-For into the SSR call (#1557).
 const apiFetch = useApiFetch()
 const buildSummaryFetch = useAsyncData(
   () => [
@@ -163,7 +163,7 @@ const buildSummaryFetch = useAsyncData(
     default: () => null,
   },
 )
-if (import.meta.server) await buildSummaryFetch
+await Promise.all([buildSummaryFetch, championReady])
 const { data: buildSummary } = buildSummaryFetch
 
 useSeoMeta({

@@ -49,9 +49,11 @@ interface UseTruemainFetchOptions<TResponse> {
  * carry: only the newest request may write the refs, so a slow older response
  * can never land under newer inputs.
  *
- * Must be called from a component `setup()`: the initial run hangs off
- * `onMounted`, which is what makes "client-only" true rather than merely
- * intended (see the comment on that call).
+ * Must be called from a component `setup()`: on a server render or a
+ * hydration the initial run hangs off `onMounted`, which is what makes
+ * "client-only" true rather than merely intended (see the comment on that
+ * call). On a client-side navigation it runs during setup instead, and `ready`
+ * resolves once it has settled, so a page can await it (#1689).
  */
 export function useTruemainFetch<TResponse>(
   nameTag: MaybeRefOrGetter<string>,
@@ -144,7 +146,14 @@ export function useTruemainFetch<TResponse>(
   // (always the loading state), hydration is exact, and the per-viewer payload
   // stays out of shared HTML — which is what the no-cross-viewer-SSR rule on
   // profiles asked for in the first place.
-  onMounted(() => { void execute() })
+  //
+  // A client-side navigation hydrates nothing, so the first request runs right
+  // away and `ready` hands it to the page: a page that awaits it in setup keeps
+  // the outgoing page on screen under the loading bar until the answer is in,
+  // and opens on its data rather than its skeleton (#1689).
+  const hydrating = !import.meta.client || useNuxtApp().isHydrating
+  const ready = hydrating ? Promise.resolve() : execute()
+  if (hydrating) onMounted(() => { void execute() })
   // `enabledRef` is watched too, so a gate opening after mount runs the fetch
   // mount skipped.
   watch([nameTagRef, enabledRef, ...(options.watch ?? [])], () => { void execute() })
@@ -155,5 +164,6 @@ export function useTruemainFetch<TResponse>(
     notFound,
     error,
     execute,
+    ready,
   }
 }
