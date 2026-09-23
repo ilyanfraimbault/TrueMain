@@ -43,6 +43,8 @@ export function useChampionMainsComparison(
   })
   const positionRef = computed(() => toValue(options.position) ?? null)
 
+  const apiFetch = useApiFetch()
+
   return useLazyAsyncData<ChampionMainsComparison | null>(
     () => [
       'champion-mains-comparison',
@@ -60,8 +62,8 @@ export function useChampionMainsComparison(
       if (positionRef.value) query.position = positionRef.value
 
       try {
-        return await $fetch<ChampionMainsComparison>(
-          `/api/champions/${championIdRef.value}/mains-comparison`,
+        return await apiFetch<ChampionMainsComparison>(
+          `/champions/${championIdRef.value}/mains-comparison`,
           { query },
         )
       }

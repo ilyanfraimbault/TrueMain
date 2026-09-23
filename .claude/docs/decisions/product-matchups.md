@@ -217,3 +217,40 @@ line, since one tone cannot speak for two numbers pointing opposite ways.
 It was nearly free to do here: #1087's own wipe had not yet reached production, so the two migrations apply back
 to back and prod re-folds its window **once**, with gold and XP together. Preprod, which had already consumed
 #1087, paid a second re-fold of its single retained patch — #1111.
+
+**The role opponent is a database filter, and a pinned matchup is used whole.**
+Measured from outside on production, a cold `composition-build` answered in 1–43 s, and cold is the
+common case: the cache is keyed on the exact draft, so every slot edit is a fresh entry and the page
+refires 400 ms later. The draft slots were not the cost — opponent-only and full-draft timed the same,
+because the composition only scores rows already loaded. The cost was that the role opponent, although
+a *hard* requirement since #563's revision, was applied in memory: the request loaded the champion's
+whole retained history, sorted it to keep the 5 000 most recent, and then threw away everything that
+was not this matchup. The filter now runs in SQL, in `Data.Queries.MatchupParticipantQuery` — shared
+with the matchup-scoped champion page (#923) so "facing X" cannot mean two things.
+↳ **The pool cap stopped being the selection rule and became a guardrail.** A pinned matchup holds 4
+games at the median and 1 562 at the measured maximum, so there is nothing to truncate: the selection
+keeps *every* game of the matchup the retained window holds, and `CandidatePoolCap` (5 000) is there
+only so an unexpectedly huge pair cannot turn a page view into an unbounded fold. `TopK` (100) still
+applies when no opponent is pinned, where the pool is the champion's recent games and past the first
+hundred similarity decides nothing.
+↳ **Recency ordering *is* patch ordering**, so asking for "every game of the two retained patches"
+needed no new sort: patches are chronological and retention keeps two
+(`MatchDataRetention:RetainedPatchCount`), so the table already holds exactly that window.
+↳ **`candidatePoolSize` changed meaning** for a pinned draft — it counts the games of the matchup, not
+the champion's games scanned to find them. The confidence block reads as a smaller, truer number.
+↳ **Votes are weighted by patch and by pilot, multiplicatively** (`CompositionVoteWeight`): current
+patch ×3, older retained patch ×2, crossed with main ×4 / non-main ×1, on top of the existing
+similarity and win weights. Multiplied rather than tiered so no factor silences another — a main's
+game on the previous patch still outvotes a stranger's on the current one — and never zero, because
+down-weighting a game is not the same as dropping it. Chosen by the product owner — #1659.
+
+**A refetch on `/matchup` shows skeletons, not the previous answer dimmed.**
+The page has no submit: every draft edit refires 400 ms later, and until #1659 the panel and the
+four-cell stats strip kept the previous recommendation at 60% opacity while the next one loaded.
+That reads as loading only when loading is brief. Measured on preprod after #1659, a cold
+recommendation still runs 11–25 s, and across that span a dimmed panel reads as a page that dimmed
+itself — while its numbers stay legible enough to be taken for the answer to the draft now on screen,
+which is the one thing the strip must never do (#1117 exists because two populations sat centimetres
+apart). Both surfaces now render the skeletons they already had for the first fetch. The flicker this
+reintroduces on a fast refetch is the accepted cost: it is honest about which numbers are current.
+Decided by the product owner.

@@ -22,7 +22,7 @@ namespace TrueMain.UnitTests;
 /// </summary>
 public sealed class ChampionReadCacheTests
 {
-    private const string Key = "champions:roam:103:MIDDLE:16.4:ALL";
+    private const string Key = "champions:scaling:103:MIDDLE:16.4:ALL";
 
     private static readonly DateTime FirstCycle = new(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime SecondCycle = new(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
@@ -191,7 +191,7 @@ public sealed class ChampionReadCacheTests
             return 7;
         }
 
-        var owner = subject.GetOrComputeAsync("champions:roam:cancel", Slow, abandoned.Token);
+        var owner = subject.GetOrComputeAsync("champions:scaling:cancel", Slow, abandoned.Token);
         await abandoned.CancelAsync();
         release.SetResult();
 

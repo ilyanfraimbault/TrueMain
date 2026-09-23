@@ -9,7 +9,6 @@ import type {
 import type { CompositionGamePilot } from '~~/shared/types/composition'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { favoriteNameTag } from '~/utils/favorites'
-import { describeFetchError } from '~/utils/errors'
 
 /**
  * Provenance drawer for the composition recommendation (#940): the games the
@@ -158,12 +157,9 @@ function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
         ref="listEl"
         class="flex h-full flex-col gap-2 overflow-y-auto pb-1"
       >
-        <UAlert
-          v-if="error"
-          color="error"
-          variant="soft"
-          title="Games unavailable"
-          :description="describeFetchError(error)"
+        <FetchErrorAlert
+          :error="error"
+          title="Failed to load the games"
         />
 
         <!-- Skeletons on *every* fetch, not just the first: a page change goes
@@ -175,12 +171,12 @@ function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
         </template>
 
         <template v-else-if="data">
-          <p
+          <UEmpty
             v-if="data.games.length === 0"
-            class="py-8 text-center text-sm text-muted"
-          >
-            No sampled games to show.
-          </p>
+            size="sm"
+            icon="i-lucide-list-x"
+            description="No sampled games to show."
+          />
 
           <div
             v-for="game in data.games"

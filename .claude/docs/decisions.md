@@ -51,7 +51,7 @@ Last verified against `develop` on 2026-09-02.
 - `hydrate-on-visible` does not make a panel free — it defers hydration, not server rendering — #1123, #1231
 - The build paragraph is typeset, and rune trees get Riot's colours to do it — #1123, #1143
 - The paragraph's hover cards are resolved client-side, not carried in its payload — #1147, #1145
-- Roaming is a badge in the header, not a panel — #536
+- Roaming is gone: no badge, no endpoint, no kill-position table — #536
 - A variation card only exists when there is a variation; a settled build says so by being short — #1466
 - The panel answers before it nuances, and the build tree is a picture, not a card — #1466
 - The build paragraph is collapsed, moved to the foot of the sidebar, and no longer restates the icon grid — #1466, #1123, #1143
@@ -96,6 +96,8 @@ Last verified against `develop` on 2026-09-02.
 - The matchup tool judges the lane over its own sampled games — this finishes #1111's merge
 - `/matchup` carries one line of numbers, not two — and it stores the XP gap beside the gold one — #1098, #976, #1087
 - Column captions head every rendering of the matchup rows, filtered view included, and beat figure-restating tooltips — #1494
+- The role opponent is a database filter, a pinned matchup is used whole, and votes are weighted by patch and pilot — #1659, #563, #923
+- A refetch on `/matchup` shows skeletons rather than the previous answer dimmed — #1659, #1117
 
 ## Player profile — [`decisions/product-player-profile.md`](decisions/product-player-profile.md)
 
@@ -134,18 +136,28 @@ Last verified against `develop` on 2026-09-02.
 - `SkeletonImage` serves WebP; `RankIcon` deliberately does not
 - Every icon URL is built by one helper, so one asset is one cache entry — #1000
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
-- `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26) — #1226, #947, #966
+- `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26); a local Nuxt layer was rejected for now (2026-09-17) and a CI drift check is planned — #1226, #947, #966, #1623, #1625
 - SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14) — #1557, #1546
 - Static game data is cached by the browser for the hour the server caches it (2026-09-15) — #1584
+- Focus moves to the content only when the path changes; the shell owns the single `<main>` (2026-09-17) — #1616, #1615
+- Render-time behaviour is tested inside the Nuxt runtime, in a vitest project of its own (2026-09-17) — #1620
+- Backend calls go through `useApi` / `useApiFetch`, not a bare `$fetch('/api/…')` (2026-09-17) — #1619, #1557
+- The three text pages are cached at runtime (`swr`), never prerendered — a prerendered page freezes the build's runtime config (2026-09-18) — #1617
+- A page awaits its API data in setup; a loading bar under the header covers the wait, only statics keep a skeleton (2026-09-23) — #1689
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
 - A failed icon is hollow; a loading one is solid and moving (2026-09-02) — #1396
+- An icon whose source never arrives is hollow too, never a raw Riot id — #1665, #1396
 - The activity grid answers presence, not win rate: one rose-gold ramp keyed on games played (2026-09-03) — #1452, #1096, #927
 
 - The rose-gold-only surface rule is reversed: neutral surfaces, a scarce accent, and a data axis of its own (2026-08-10) — #1060, #1059, #927
 - Measurements are rose gold again: the cold→warm data axis is withdrawn (2026-08-11) — #1096, #1060, #927
 - Measurements are set in Inter again: the mono stat face is withdrawn — #1060, #1111
+- Long-form text uses Nuxt UI's prose layer, themed to the site's scale; non-global components, +3.6 KB gzip CSS accepted (2026-09-17) — #1624
+- Page transitions are a staggered fade of the content only, run by Vue's `<Transition>` once the destination has resolved; none on query-only navigations or reduced motion (2026-09-18, 2026-09-23) — #1621, #1689
+- One error vocabulary: `UError` for a dead route, `FetchErrorAlert` for a dead region, a toast only for an action — never two surfaces for one failure (2026-09-22) — #1661, #1234
+- Empty states go through `UEmpty`, themed like the cards; an empty state is not an error, and "player not found" stays one (2026-09-22) — #1669, #1681, #1661, #862
 
 ## Aggregates, retention and the schema — [`decisions/data-aggregation.md`](decisions/data-aggregation.md)
 
@@ -169,6 +181,7 @@ Last verified against `develop` on 2026-09-02.
 - PUUID indexing is intentional — do not propose dropping it or migrating to `RiotAccountId`-only — #123, #124
 - Pattern aggregates use a junction model (`champion_aggregate_patterns` + globally deduplicated `champion_dim_*`)
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
+- A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
 
 ## Backend code conventions — [`decisions/backend-conventions.md`](decisions/backend-conventions.md)
 
@@ -205,6 +218,8 @@ Last verified against `develop` on 2026-09-02.
 - Jungle first-clear tracking was built, then removed entirely (2026-08-24) — #1186, #1195, #535
 
 ## Performance, caching and incidents — [`decisions/performance-and-incidents.md`](decisions/performance-and-incidents.md)
+
+- The live draft reads never touch the table's heap: both `match_participants` indexes are covering — #1663, #1659
 
 - An expensive read path behind a TTL cache needs a single-flight, not a lock — #870
 - Postgres runs with `max_parallel_workers_per_gather=0` in every compose file — do not re-enable — #589

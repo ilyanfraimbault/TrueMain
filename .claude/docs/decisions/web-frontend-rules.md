@@ -18,11 +18,16 @@ no-cross-viewer-SSR rule, not oversights, and "fixing" either by SSR-ing the pro
 Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
 the route is a primary, indexable one — #862.
 
-The rule covers anything else an immediate watcher can trigger, not just fetches: `useErrorToast` registers
-its watcher under `import.meta.client`. Its `if (!value) return` guard made the SSR run a no-op only because
-every error ref wired to it happens to come from a `server: false` fetch — true, unwritten, and untrue the
-day one is pointed at the server-rendered build summary or the leaderboard, where a toast pushed during SSR
-serialises into the payload and pops up unprompted for every visitor served that render — #1234.
+The rule covers anything else an immediate watcher can trigger, not just fetches. Its worked example was
+`useErrorToast`, which registered its watcher under `import.meta.client`: the `if (!value) return` guard made
+the SSR run a no-op only because every error ref wired to it happened to come from a `server: false` fetch —
+true, unwritten, and untrue the day one was pointed at the server-rendered build summary or the leaderboard,
+where a toast pushed during SSR serialises into the payload and pops up unprompted for every visitor served
+that render — #1234. **The composable is gone** (#1661 removed the toast-on-page-load surface entirely), so
+the example is history; the rule it illustrates is not. An immediate watcher that touches `useToast`, a
+cookie or any other client-shaped state still has to be made client-only *structurally* — `import.meta.client`
+is a build-time constant, so the watcher does not exist on the server at all — rather than relying on its
+body happening to no-op there.
 
 **A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own
 `pending`.** `createChampionPatchSlice` and `useChampionTrend` hold their request
@@ -146,6 +151,20 @@ the behaviour it encodes is pinned by a test in *both* suites. Labelled copies a
 `server/utils/ddragon-patch.ts` and `server/api/static/champions.get.ts`; the champion handlers differ only by
 the admin's `requireUserSession` gate, so any other difference in a diff is a regression, not a variant.
 
+**A local Nuxt layer was weighed and rejected for now (2026-09-17, #1623).** The argument against a package does
+not apply to a layer: a local layer has no version and is never published. The layer loses on build plumbing
+instead. The images build from `./web` and `./admin` contexts, so a root-level `layers/` directory is invisible
+to both Docker builds. Each app also has its own `node_modules` and the repo root has none, so bare imports inside
+layer files have nothing to resolve against. Adopting a layer would mean moving both production builds to the
+repo root, giving the layer its own dependency story, and making the CI `changes` gate run both apps for it. All
+of that to share about 300 near-identical, rarely touched lines (`proxy-path`, `abandoned-request`,
+`log-forwarder`, `log-forwarding`). The pairs that really drifted need their differences reconciled whatever the
+mechanism, and a layer does not do that for them. Worth revisiting if the shared surface grows substantially, or
+if the image builds move to the repo root for another reason.
+
+The guard against drift will be a CI check (#1625, not yet shipped): the twin pairs are declared, and a pair that differs outside
+lines marked app-specific fails the build.
+
 `PATCH_PATTERN` (`^\d+\.\d+\.\d+$`) sits next to `normalizeDataDragonPatch`, which produces the value it
 validates — that function expands the short `16.5` form the backend scopes expose and passes everything else
 through untouched, so it is a shape fixer and never a guard. Every static endpoint interpolates the result into
@@ -206,3 +225,103 @@ rune and spell icon tooltips mount on the first hover — #1585.
 - **Kept after first open**, so switching back to a tab is instant and keeps its state; a new set of builds
   starts over on its first tab.
 
+
+## Focus moves to the content only when the path changes (2026-09-17)
+
+**Decision:** after a client-side navigation, focus moves to `#main-content` (the `UMain` in `app.vue`) only when
+the path changed and the navigation is not the initial one; the skip link focuses the same region without writing a
+hash to the URL — #1616.
+
+- **Why path, not any navigation.** The champion page's filters, the leaderboard pager and the player page's match
+  filters are `router.replace` calls on the same path. Moving focus there would pull the keyboard out of the control
+  the reader is still operating, one click at a time.
+- **After `page:finish`, not in `afterEach`.** The guard runs before the new page is mounted; focusing then parks the
+  keyboard in front of the outgoing page.
+- **`preventScroll` on both paths.** `<main>` starts under the sticky header, so `focus()` with scrolling aligned its
+  top with the viewport's and hid the page's first row behind the header; the next Tab scrolls to its own target.
+- **One `<main>`, owned by the shell** (#1615). Pages render a single non-landmark root: two nested `main` landmarks
+  made "jump to main" ambiguous, and page transitions need a single root element.
+
+## Render-time behaviour is tested inside the Nuxt runtime, in a vitest project of its own (2026-09-17)
+
+**Decision:** `web/` runs two vitest projects from one `npm test`: `unit` (pure functions, bare happy-dom, no
+Nuxt) and `nuxt` (`@nuxt/test-utils`, `defineVitestProject`), whose tests live in `web/tests/nuxt/` — #1620.
+
+- **Why.** The bugs that cost the most on this app were render-time ones — lazy-hydration mismatches
+  (#834/#837), an immediate watcher firing during SSR (#1234) — and the unit suite has no runtime to mount a
+  component in, so none of them could be asserted.
+- **Separate projects**, so the runtime's boot cost never lands on the fast suite and a runtime flake never
+  blocks a pure-function test.
+- **What the runtime suite pins today**: the champion build section's skeleton → tabs transition, driven by
+  the real `useChampion`, and `useLazyHydrationSnapshot` hydrating against its SSR value — with a control test
+  proving the harness does report a mismatch when the live value is bound directly.
+- **A test that needs auto-imports, `#components`, `useState`, routing or a hydration path goes in
+  `tests/nuxt/`**; everything else stays a unit test.
+
+## Backend calls go through `useApi` / `useApiFetch`, not a bare `$fetch('/api/…')` (2026-09-17)
+
+**Decision:** `app/composables/useApi.ts` holds the one way the web app calls the backend — #1619.
+`useApi` (built with `createUseFetch`) is the default for a declarative call; `useApiFetch()`, called in setup,
+is the fetcher for a `useAsyncData` handler that needs logic (a 404 that means "empty", a gate resolving a
+placeholder). Paths are relative to `/api`, which both helpers own and a caller cannot override.
+
+- **Why.** The #1557 rule (an SSR-capable call must go through `useRequestFetch()` so the visitor's
+  `X-Forwarded-For` reaches the API's rate limiter) was enforced by memory. Both helpers resolve
+  `useRequestFetch()` themselves, so a new call site forwards by default. `tests/nuxt/use-api.test.ts` pins it
+  by swapping `useRequestFetch` for a spy, and `tests/api-fetch/no-bare-api-fetch.test.ts` fails on any new bare
+  `$fetch('/api/…')` outside a list that may only shrink.
+- **Errors are normalised once, after ofetch's retry.** An HTTP failure is rethrown with its status and the
+  `describeFetchError` copy as its message — never the proxied URL or the backend's body — so a stray
+  `{{ error.message }}` or `error.vue` cannot print either. The status survives, so handlers still branch on
+  `fetchErrorStatus`. A failure without a status (network drop, abort) passes through untouched: Nuxt recognises a
+  superseded request by its `AbortError`. Normalising in an `onResponseError` hook was rejected — throwing there
+  skips ofetch's retry of a 5xx / 429 GET.
+- **Keys are unchanged by a migration.** A migrated call passes its old key explicitly (`useApi(…, { key })`), and
+  calls sharing a key keep identical options (Nuxt 4's singleton data-fetching rule).
+- **The hand-rolled fetchers stay apart** — `useTruemainFetch` and its consumers, `useCompositionBuild`,
+  `useCompositionBuildGames`, `useTruemainSearch`: per-viewer payloads, client-only by construction, with
+  monotonic request tokens. `useFetch`'s shared payload is exactly what they must never enter (#862, #1234).
+
+## The three text pages are cached at runtime (`swr`), never prerendered (2026-09-18)
+
+**Decision:** `/about`, `/privacy` and `/terms` carry a `swr` route rule of one hour — Nitro renders them once
+per container and serves the cached HTML afterwards, revalidating in the background. `prerender: true` was
+tried first (#1617) and rejected.
+
+- **Why not prerender.** Nuxt inlines `runtimeConfig.public` into the rendered HTML, so a page emitted by
+  `nuxt build` carries the *build* environment's config and the client keeps it for the whole visit. Measured
+  on a production build served with preprod's env: a visit landing on `/about` loaded no Umami script on that
+  page *or any page reached from it*, lost the footer's `env · version` stamp, and emitted the prod canonical
+  URL. That reverses the promotable-image decision (`runtimeConfig.public` is read at runtime so one image
+  moves from preprod to prod) — re-reading each value on the client instead would leave the same trap for the
+  next `runtimeConfig.public` consumer.
+- **Why one hour.** The TTL matches the champion slug map's own server cache
+  (`server/api/static/champion-slugs.get.ts`), the only backend-derived value in these pages' payload, so a
+  cached page is never staler than a freshly rendered one.
+- **Measured**: served locally, a cached response answers in ~3.5 ms against ~117 ms for a full render, and
+  the env, version, Umami host/id and canonical URL are the running container's.
+
+## A page awaits its API data in setup; the loading bar covers the wait (2026-09-23)
+
+**Decision:** on a client-side navigation, each page awaits the TrueMain API fetch it renders from before it
+mounts — `await` in `<script setup>`, on a non-`lazy` `useAsyncData` or a composable's `ready` promise — and
+`AppLoadingBar` (Nuxt's `useLoadingIndicator`, under the sticky header) is the feedback for that wait. The
+destination opens on its data; only the static-data phase (DDragon / CommunityDragon lookups and icons) keeps a
+skeleton after it — #1689.
+
+- **Why.** A navigation used to swap to the destination at once and play its skeletons twice — once for the
+  API, once for the statics and icons — so every page change flashed an empty page between two real ones. This
+  is Nuxt's documented blocking-fetch model: `<NuxtPage>` wraps the page in `<Suspense>`, and the old page stays
+  mounted until the new one's setup settles.
+- **Hard loads are unchanged.** `server: false` fetches resolve at once during hydration (Nuxt defers the
+  request to `onBeforeMount`), so SSR and the first client render still agree on the skeleton. `useTruemainFetch`
+  runs its first request during setup only when nothing is being hydrated, and after mount otherwise — the
+  per-viewer payload still never reaches the server render (#862).
+- **Await at the end of setup.** Every fetch is started first and the page awaits them together as its last
+  statement: an `await` in the middle would start whatever follows only after it resolves.
+- **What does not wait.** Static lookups, the champion page's secondary panels (lazy, hydrate-on-visible), the
+  favorites cards (bounded fan-out, #872) and same-page refetches (filters, pagers — no `<Suspense>` involved)
+  keep their own skeletons. `useChampionSeoName` stays awaited on the server only: a `<head>`-only value is no
+  reason to lengthen the wait.
+- **Consequence for page transitions**: the View Transitions API freezes the frame for the whole wait, bar
+  included, so the transition moved to Vue's `<Transition>` — see `design-system.md`.

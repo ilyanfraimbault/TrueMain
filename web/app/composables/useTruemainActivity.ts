@@ -15,7 +15,7 @@ import type { TruemainActivityResponse } from '~~/shared/types/activity'
 export function useTruemainActivity(nameTag: MaybeRefOrGetter<string>) {
   const data = ref<TruemainActivityResponse | null>(null)
 
-  const { isLoading, isInitialLoading, notFound, error } = useTruemainFetch<TruemainActivityResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<TruemainActivityResponse>(nameTag, {
     request: tag => $fetch<TruemainActivityResponse | null>(
       `/api/truemains/${encodeURIComponent(tag)}/activity`,
       { ignoreResponseError: true },
@@ -42,5 +42,6 @@ export function useTruemainActivity(nameTag: MaybeRefOrGetter<string>) {
     isInitialLoading,
     notFound,
     error,
+    ready,
   }
 }

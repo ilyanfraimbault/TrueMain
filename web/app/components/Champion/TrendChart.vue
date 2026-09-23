@@ -119,14 +119,14 @@ const chartGridClass = computed(() =>
       class="h-[220px] w-full rounded-lg"
     />
 
-    <p
+    <UEmpty
       v-else-if="!hasTrend"
-      class="py-8 text-center text-sm text-muted"
-    >
-      {{ hasData
+      size="sm"
+      icon="i-lucide-trending-up"
+      :description="hasData
         ? 'Only one patch of data so far — not enough history to chart a trend.'
-        : 'No patch history yet for this champion and lane.' }}
-    </p>
+        : 'No patch history yet for this champion and lane.'"
+    />
 
     <div v-else :class="chartGridClass">
       <div class="flex flex-col gap-1.5">

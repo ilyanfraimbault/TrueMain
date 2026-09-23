@@ -3,7 +3,6 @@ import type { ChampionTierListResponse } from '~~/shared/types/champions'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
-import { describeFetchError } from '~/utils/errors'
 
 useSeoMeta({
   title: 'Champion Tier List',
@@ -32,11 +31,8 @@ const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.va
 // elo bracket and the backend does the per-role tiering. Client-only
 // (`server: false`) to keep the SSR shell deterministic, mirroring the
 // /champions directory page.
-const {
-  data: tierList,
-  error: tierListError,
-  status: tierListStatus,
-} = useLazyAsyncData<ChampionTierListResponse>(
+const apiFetch = useApiFetch()
+const tierListFetch = useAsyncData<ChampionTierListResponse>(
   () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}`
     + `-${filters.value.eloBracket ?? 'all'}-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
   () => {
@@ -47,7 +43,7 @@ const {
     // Sent only when off: true is the API default, so pinning it would just make
     // every resting request carry a redundant param.
     if (!filters.value.truemainsOnly) query.truemainsOnly = 'false'
-    return $fetch<ChampionTierListResponse>('/api/champions/tierlist', { query })
+    return apiFetch<ChampionTierListResponse>('/champions/tierlist', { query })
   },
   {
     watch: [
@@ -60,6 +56,7 @@ const {
     default: () => ({ patchVersion: '', position: null, tiers: [] }),
   },
 )
+const { data: tierList, error: tierListError, status: tierListStatus } = tierListFetch
 
 // Static champion list (names + icons) — shared composable so navigating between
 // /champions and the tier list pays the fetch once (same key + options).
@@ -78,7 +75,6 @@ const isPending = computed(() =>
   isLoadingStatus(tierListStatus.value) || isLoadingStatus(staticStatus.value),
 )
 
-useErrorToast(error, { title: 'Failed to load tier list' })
 
 const patchOptions = usePatchOptions(versions, apiPatch, () => filters.value.patch)
 
@@ -131,10 +127,14 @@ function championDestination(entry: { championId: number, position: string }) {
     },
   }
 }
+
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the tier list is in (#1689); the static lookups keep their skeleton.
+await tierListFetch
 </script>
 
 <template>
-  <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
     <header class="space-y-3">
       <h1 class="text-2xl font-semibold">
         Tier List
@@ -171,12 +171,10 @@ function championDestination(entry: { championId: number, position: string }) {
     </header>
 
     <ClientOnly>
-      <UAlert
+      <FetchErrorAlert
         v-if="error"
-        color="error"
-        variant="soft"
-        title="Failed to load tier list"
-        :description="describeFetchError(error)"
+        :error="error"
+        title="Failed to load the tier list"
       />
 
       <TierlistSkeleton v-else-if="isPending" />
@@ -228,5 +226,5 @@ function championDestination(entry: { championId: number, position: string }) {
         <TierlistSkeleton />
       </template>
     </ClientOnly>
-  </main>
+  </div>
 </template>

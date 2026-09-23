@@ -7,8 +7,6 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 
-definePageMeta({ layout: 'default' })
-
 useSeoMeta({
   title: 'MatchRow playground',
   description: 'Isolated visual review of the match history row component.',
@@ -19,27 +17,28 @@ useSeoMeta({
 // honest about the resolved icon URLs and lets us spot wiring problems here
 // before they hit the live page.
 
+const apiFetch = useApiFetch()
 const { data: champions } = useLazyAsyncData<ChampionStaticListItem[]>(
   'dev-match-row-champions',
-  () => $fetch<ChampionStaticListItem[]>('/api/static/champions'),
+  () => apiFetch<ChampionStaticListItem[]>('/static/champions'),
   { default: () => [], server: false },
 )
 
 const { data: items } = useLazyAsyncData<Record<number, StaticItemData>>(
   'dev-match-row-items',
-  () => $fetch<Record<number, StaticItemData>>('/api/static/items', { query: {} }),
+  () => apiFetch<Record<number, StaticItemData>>('/static/items', { query: {} }),
   { default: () => ({}), server: false },
 )
 
 const { data: summonerSpells } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
   'dev-match-row-summoner-spells',
-  () => $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', { query: {} }),
+  () => apiFetch<Record<number, StaticSummonerSpellData>>('/static/summoner-spells', { query: {} }),
   { default: () => ({}), server: false },
 )
 
 const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
   'dev-match-row-rune-tree',
-  () => $fetch<RuneTreeResponse>('/api/static/rune-tree', { query: {} }),
+  () => apiFetch<RuneTreeResponse>('/static/rune-tree', { query: {} }),
   { default: () => ({ styles: [], perks: {}, perkStyles: {}, shardSlots: [] }), server: false },
 )
 
@@ -93,6 +92,8 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       killParticipation: 0.67,
       items: [3031, 3046, 3036, 3072, 3009, 3026],
       trinketItemId: 3340,
+      // Recorded before the role-bound slot existed: the boots sit in slot 4.
+      roleBoundItemId: 0,
       teamId: 100,
       position: 'TOP',
       win: true,
@@ -123,9 +124,11 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       assists: 5,
       cs: 263,
       killParticipation: 0.67,
-      items: [6672, 3094, 3006, 3031, 3036, 0],
+      // Bot laner past the role quest: six items, the boots in the role-bound slot.
+      items: [6672, 3094, 3031, 3036, 3072, 3033],
       // Herald eye in the trinket slot — must be filtered out (not a build item).
       trinketItemId: 3513,
+      roleBoundItemId: 3006,
       // Team 100 to line up with the shared participants fixture, where
       // champion 222 sits on the blue side.
       teamId: 100,
@@ -161,6 +164,8 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       // Herald eye sitting among the inventory items — must be filtered from the grid.
       items: [6655, 3020, 3157, 3165, 3513, 0],
       trinketItemId: 3340,
+      // Mid lane quest reward.
+      roleBoundItemId: 1206,
       teamId: 100,
       position: 'MIDDLE',
       win: false,

@@ -9,9 +9,8 @@ namespace DevSeed;
 /// Generates one deterministic dataset per <see cref="ChampionSeed"/>, covering
 /// every read path the champion page exercises:
 ///
-/// - Raw <c>matches</c> / <c>match_participants</c> / timeline snapshots / kill
-///   positions, for the live-computed reads (Roam, Scaling, the live matchup
-///   fallback).
+/// - Raw <c>matches</c> / <c>match_participants</c> / timeline snapshots, for
+///   the live-computed reads (Scaling, the live matchup fallback).
 /// - <c>champion_matchup_stats</c> (#606 pre-aggregation), accumulated from the
 ///   very same synthetic games so the live and pre-aggregated numbers agree, and
 ///   split per (patch, elo bracket) like the real fold — the matchups panel is
@@ -64,7 +63,6 @@ public sealed class SeedGenerator(
         List<Match> Matches,
         List<MatchParticipant> Participants,
         List<MatchParticipantTimelineSnapshot> Snapshots,
-        List<MatchParticipantKillPosition> KillPositions,
         List<ChampionAggregateScope> Scopes,
         List<ChampionAggregatePattern> Patterns,
         List<ChampionMatchupStat> MatchupStats);
@@ -77,7 +75,6 @@ public sealed class SeedGenerator(
         var matches = new List<Match>();
         var participants = new List<MatchParticipant>();
         var snapshots = new List<MatchParticipantTimelineSnapshot>();
-        var killPositions = new List<MatchParticipantKillPosition>();
         var scopes = new List<ChampionAggregateScope>();
         var patterns = new List<ChampionAggregatePattern>();
 
@@ -104,7 +101,7 @@ public sealed class SeedGenerator(
             for (var i = 0; i < gamesPerPatch; i++)
             {
                 var opponent = laneOpponentPool[rng.NextInt(0, laneOpponentPool.Count)];
-                GenerateMatch(self, opponent, archetype, patch, rng, nowUtc, matches, participants, snapshots, killPositions,
+                GenerateMatch(self, opponent, archetype, patch, rng, nowUtc, matches, participants, snapshots,
                     matchupTotals);
             }
         }
@@ -133,7 +130,7 @@ public sealed class SeedGenerator(
             AggregatedAtUtc = nowUtc,
         }).ToList();
 
-        return new GenerationResult(matches, participants, snapshots, killPositions, scopes, patterns, matchupStats);
+        return new GenerationResult(matches, participants, snapshots, scopes, patterns, matchupStats);
     }
 
     private (List<ChampionAggregateScope> Scopes, List<ChampionAggregatePattern> Patterns) BuildAggregateForPatch(
@@ -270,7 +267,6 @@ public sealed class SeedGenerator(
         List<Match> matches,
         List<MatchParticipant> participants,
         List<MatchParticipantTimelineSnapshot> snapshots,
-        List<MatchParticipantKillPosition> killPositions,
         Dictionary<MatchupKey, MatchupTotals> matchupTotals)
     {
         var matchId = $"DEVSEED_{_matchCounter++:D8}";
@@ -314,9 +310,6 @@ public sealed class SeedGenerator(
         var selfParticipantId = 1;
         var opponentParticipantId = 2;
 
-        // Bias so the position's roam tendency shows up in the Roam metric:
-        // supports/mids read as roamers, side lanes stay lane-bound.
-        var roamShare = ChampionArchetypes.RoamSharePerPosition.GetValueOrDefault(self.Position, 0.25);
         var itemEvents = BuildItemEvents(archetype, rng);
 
         var selfKills = rng.NextInt(0, 12);
@@ -468,25 +461,6 @@ public sealed class SeedGenerator(
                 DamageToChampions = Math.Max(0, selfDamage - damageDiff),
                 WardsPlaced = minute / 3,
                 WardsKilled = minute / 6,
-            });
-        }
-
-        // Kill positions before the 15-minute cutoff: a mix of in-lane and
-        // out-of-lane (roam) participations, biased by the position's roam share.
-        var killCount = selfKills + selfAssists > 0 ? rng.NextInt(1, 6) : 0;
-        for (var i = 0; i < killCount; i++)
-        {
-            var timestampMs = rng.NextInt(30_000, 900_000);
-            var isRoam = rng.NextDouble() < roamShare;
-            var (x, y) = isRoam ? MapPoints.EnemyJungle(selfIsBlue) : MapPoints.OwnLane(self.Position);
-            killPositions.Add(new MatchParticipantKillPosition
-            {
-                Id = Guid.NewGuid(),
-                MatchId = matchId,
-                ParticipantId = selfParticipantId,
-                TimestampMs = timestampMs,
-                X = x,
-                Y = y,
             });
         }
 

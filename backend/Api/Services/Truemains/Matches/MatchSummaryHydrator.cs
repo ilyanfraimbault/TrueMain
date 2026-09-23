@@ -84,6 +84,7 @@ public sealed class MatchSummaryHydrator(
                 p.Item4,
                 p.Item5,
                 p.TrinketItemId,
+                p.RoleBoundItemId,
                 p.PrimaryStyleId,
                 p.SubStyleId,
                 p.Summoner1Id,
@@ -189,20 +190,6 @@ public sealed class MatchSummaryHydrator(
                                 row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
                         }));
 
-        var killRows = await db.MatchParticipantKillPositions
-            .AsNoTracking()
-            .Where(k => matchIds.Contains(k.MatchId))
-            .Select(k => new { k.MatchId, k.ParticipantId, k.X, k.Y })
-            .ToListAsync(ct);
-
-        var killSpotsByMatch = killRows
-            .GroupBy(r => r.MatchId)
-            .ToDictionary(
-                g => g.Key,
-                g => (IReadOnlyList<KillSpot>)g
-                    .Select(r => new KillSpot(r.ParticipantId, r.X, r.Y))
-                    .ToList());
-
         var participantsByMatch = participants
             .GroupBy(p => p.MatchId)
             .ToDictionary(g => g.Key, g => g.ToList());
@@ -238,7 +225,6 @@ public sealed class MatchSummaryHydrator(
                 self,
                 partList,
                 marksByMatch.TryGetValue(match.Id, out var mm) ? mm : PerformanceInputs.NoMarks,
-                killSpotsByMatch.TryGetValue(match.Id, out var ks) ? ks : Array.Empty<KillSpot>(),
                 keystoneByKey,
                 accountsById);
         }
@@ -251,7 +237,6 @@ public sealed class MatchSummaryHydrator(
         ParticipantRow self,
         List<ParticipantRow> partList,
         IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> matchMarks,
-        IReadOnlyList<KillSpot> matchKillSpots,
         IReadOnlyDictionary<(string MatchId, int ParticipantId, int StyleId), int> keystoneByKey,
         IReadOnlyDictionary<Guid, (string GameName, string? TagLine)> accountsById)
     {
@@ -266,7 +251,7 @@ public sealed class MatchSummaryHydrator(
         // match. MVP / ACE and the placement are read off that ranking — the
         // row and the detail panel therefore always tell the same story.
         var placements = MatchPerformanceRanker.Rank(ScoreMatch(
-            partList, match.GameDurationSeconds, matchMarks, matchKillSpots));
+            partList, match.GameDurationSeconds, matchMarks));
 
         var selfPlacement = placements[self.ParticipantId];
 
@@ -326,6 +311,7 @@ public sealed class MatchSummaryHydrator(
                     self.Item3, self.Item4, self.Item5,
                 },
                 TrinketItemId = self.TrinketItemId,
+                RoleBoundItemId = self.RoleBoundItemId ?? 0,
                 TeamId = self.TeamId,
                 Position = string.IsNullOrEmpty(self.TeamPosition) ? null : self.TeamPosition,
                 Win = self.Win,
@@ -346,12 +332,10 @@ public sealed class MatchSummaryHydrator(
     /// <param name="partList">All participants of the match.</param>
     /// <param name="durationSeconds">Game length in seconds; 0 disables the per-minute components.</param>
     /// <param name="marks">Timeline marks of the match, keyed by (participant, minute).</param>
-    /// <param name="killSpots">Early kill participations of the match; empty means no coverage.</param>
     private static IEnumerable<MatchPerformanceEntry> ScoreMatch(
         List<ParticipantRow> partList,
         int durationSeconds,
-        IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> marks,
-        IReadOnlyList<KillSpot> killSpots)
+        IReadOnlyDictionary<(int ParticipantId, int Minute), TimelineMark> marks)
     {
         var scored = partList
             .Select(p => new ScoredParticipant(
@@ -369,7 +353,7 @@ public sealed class MatchSummaryHydrator(
             .ToList();
 
         return PerformanceInputs
-            .BuildMatchInputs(scored, durationSeconds, marks, killSpots)
+            .BuildMatchInputs(scored, durationSeconds, marks)
             .Select(built => new MatchPerformanceEntry
             {
                 ParticipantId = built.Participant.ParticipantId,
@@ -411,6 +395,7 @@ public sealed class MatchSummaryHydrator(
         int Item4,
         int Item5,
         int TrinketItemId,
+        int? RoleBoundItemId,
         int PrimaryStyleId,
         int SubStyleId,
         int Summoner1Id,

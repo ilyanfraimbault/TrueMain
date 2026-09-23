@@ -88,14 +88,14 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
       class="h-[220px] w-full rounded-lg"
     />
 
-    <p
+    <UEmpty
       v-else-if="!hasTrend"
-      class="py-8 text-center text-sm text-muted"
-    >
-      {{ hasData
+      size="sm"
+      icon="i-lucide-clock"
+      :description="hasData
         ? 'Only one duration bucket has enough games — not enough to chart scaling.'
-        : 'No game-length data yet for this champion and lane.' }}
-    </p>
+        : 'No game-length data yet for this champion and lane.'"
+    />
 
     <ChartsAreaChart
       v-else

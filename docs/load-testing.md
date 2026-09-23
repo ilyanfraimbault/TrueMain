@@ -52,7 +52,7 @@ A session is 3 to 6 page views, with 5 to 20 seconds of reading between them, dr
 
 | Journey | Share | Requests after the HTML |
 | --- | ---: | --- |
-| champion page | 40 % | champion, trend, scaling, roam, item context, matchups, synergies |
+| champion page | 40 % | champion, trend, scaling, item context, matchups, synergies |
 | home | 20 % | overview, leaderboard teaser |
 | tier list | 15 % | tier list for a random lane and bracket |
 | champions list | 10 % | directory for a random bracket |

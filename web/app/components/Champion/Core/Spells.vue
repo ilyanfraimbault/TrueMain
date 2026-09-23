@@ -2,22 +2,18 @@
 import type { BuildSummonerSpells } from '~~/shared/types/champions'
 import type { StaticSummonerSpellData } from '~~/shared/types/static-data'
 
-const props = defineProps<{
+defineProps<{
   summoners: BuildSummonerSpells | null
   summonersMap: Record<number, StaticSummonerSpellData>
   /**
    * True while the summoner-spell static map is still in flight. It is fetched
    * separately from the build (and only once the patch resolves), so it always
    * lands after the ids it resolves — without this the icons spend that window
-   * showing `summonerName`'s "Spell 4" placeholder next to skeletons. See
-   * `SkeletonImage`'s `pending`.
+   * looking settled-and-empty next to skeletons. See `SkeletonImage`'s
+   * `pending`.
    */
   summonersPending?: boolean
 }>()
-
-function summonerName(id: number): string {
-  return props.summonersMap[id]?.name ?? `Spell ${id}`
-}
 </script>
 
 <template>
@@ -35,8 +31,8 @@ function summonerName(id: number): string {
           v-for="spellId in [summoners.spell1Id, summoners.spell2Id]"
           :key="`sum-${spellId}`"
           :spell="summonersMap[spellId] ?? null"
-          :fallback-label="summonerName(spellId)"
           :pending="summonersPending"
+          :settled="!summonersPending"
           :width="36"
           :height="36"
           class="size-9 shrink-0 rounded"

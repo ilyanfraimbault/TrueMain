@@ -44,6 +44,9 @@ public static class JobModeSequence
         // RiotMatchMapper already self-heals newly-ingested matches, so
         // steady-state this only drains the pre-existing backlog.
         JobMode.TeamPositionCorrectionOnly,
+        // Infers the role-bound boots of bot-lane rows ingested before the slot was
+        // recorded (#1612). After the lane fix, because it selects on TeamPosition.
+        JobMode.RoleBoundItemBackfillOnly,
         JobMode.MainAnalysisOnly,
         // Stamps match_participants.elo_bracket from the nearest rank snapshot
         // BEFORE the champion aggregations, so they (and the live panel reads) can
@@ -116,6 +119,7 @@ public static class JobModeSequence
     private static readonly ReadOnlyCollection<JobMode> AggregateLanePipeline = Array.AsReadOnly<JobMode>(
     [
         JobMode.TeamPositionCorrectionOnly,
+        JobMode.RoleBoundItemBackfillOnly,
         JobMode.MainAnalysisOnly,
         JobMode.EloBracketEnrichmentOnly,
         JobMode.PatternAggregationOnly,

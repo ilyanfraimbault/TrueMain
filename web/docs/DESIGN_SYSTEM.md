@@ -122,6 +122,24 @@ preference:
   per-colour (pick vs. win) distinction those badges carry. This is the one place translucency survived the
   removal of `glass` — a badge is a tint on a known fill, not a pane with something behind it.
 
+## Long-form text is written with `Prose*` components
+
+`ui.prose` is enabled (`nuxt.config.ts`), and text pages — `/about`, `/privacy`, `/terms` — are written with
+`ProseH2`, `ProseP`, `ProseUl` / `ProseLi`, `ProseA` and `ProseStrong` rather than hand-classed `h2` / `p` / `a`.
+The theme lives under `ui.prose` in `app.config.ts` and follows this site's scale, not Nuxt UI's documentation
+defaults: `text-sm` `text-muted` body, `text-lg` semibold `text-highlighted` h2, a 12 px rhythm between blocks,
+links at body weight, `strong` as one weight step plus `text-default`.
+
+- **The page owns the shell, prose owns the text.** Keep the `surface` card and `PageHeader`; don't restate
+  text size, colour or spacing on a `Prose*` call site. A one-off (the Riot disclaimer's `text-xs text-dimmed`)
+  goes on the component as a class — it merges over the theme.
+- **Outer margins are trimmed** (`first:mt-0` / `last:mb-0`), so a block that opens or closes a padded card adds
+  nothing to the padding. Sections are spaced by the page (`space-y-8`); an h2 that is not first in its parent
+  carries the same 32 px itself.
+- **Before adding a new `Prose*` component to a page**, check its default in Nuxt UI's theme — the unthemed ones
+  (`h3`, `ol`, `hr`, `code`, …) still carry documentation-page sizes and margins, and need an entry next to the
+  others first.
+
 ## A stat is a pair, and the pair has a house style
 
 **Inter carries everything the reader reads**, measurements included. Geist Mono is kept only where monospace

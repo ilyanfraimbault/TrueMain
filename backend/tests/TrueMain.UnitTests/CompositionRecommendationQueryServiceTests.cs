@@ -176,6 +176,7 @@ public sealed class CompositionRecommendationQueryServiceTests
                 GameStartTimeUtc = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc).AddHours(-i),
                 Puuid = $"puuid-{i}",
                 IsTruemain = i == 0,
+                IsCurrentPatch = true,
             })
             .ToList();
 

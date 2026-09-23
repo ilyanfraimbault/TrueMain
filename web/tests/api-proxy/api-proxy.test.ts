@@ -79,14 +79,14 @@ describe('api proxy handler', () => {
     [429, 'Warning'],
   ])('reports a %i from the API per route template', async (status, level) => {
     const handler = await loadHandler()
-    await handler(eventAt('/api/champions/103/roam?position=MIDDLE'))
+    await handler(eventAt('/api/champions/103/scaling?position=MIDDLE'))
 
-    onResponseOfFirstCall()(eventAt('/api/champions/103/roam?position=MIDDLE'), new Response(null, { status }))
+    onResponseOfFirstCall()(eventAt('/api/champions/103/scaling?position=MIDDLE'), new Response(null, { status }))
 
     expect(reportToOpsLogs).toHaveBeenCalledWith(expect.objectContaining({
       level,
       eventType: 'FrontendUpstreamErrors',
-      requestPath: '/api/champions/{n}/roam',
+      requestPath: '/api/champions/{n}/scaling',
       statusCode: status,
     }))
   })
@@ -104,7 +104,7 @@ describe('api proxy handler', () => {
   // not a proxy failure.
   it('cancels the API call when the visitor leaves, and returns quietly', async () => {
     const handler = await loadHandler()
-    const { event, res } = eventWithResponseAt('/api/champions/103/roam')
+    const { event, res } = eventWithResponseAt('/api/champions/103/scaling')
     proxyRequest.mockImplementation(async (_event, _target, options: { fetchOptions: { signal: AbortSignal } }) => {
       res.emit('close')
       expect(options.fetchOptions.signal.aborted).toBe(true)
@@ -116,7 +116,7 @@ describe('api proxy handler', () => {
 
   it('still fails when the API call fails with the visitor waiting', async () => {
     const handler = await loadHandler()
-    const { event } = eventWithResponseAt('/api/champions/103/roam')
+    const { event } = eventWithResponseAt('/api/champions/103/scaling')
     proxyRequest.mockRejectedValue(Object.assign(new Error('Bad Gateway'), { statusCode: 502 }))
 
     await expect(handler(event)).rejects.toMatchObject({ statusCode: 502 })

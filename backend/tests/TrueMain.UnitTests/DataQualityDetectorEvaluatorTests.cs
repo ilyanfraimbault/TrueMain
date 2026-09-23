@@ -122,6 +122,40 @@ public sealed class DataQualityDetectorEvaluatorTests
     }
 
     [Fact]
+    public void ClassifyOrphanRise_IgnoresTheTrend_WhileTheShareIsHealthy()
+    {
+        // The live panel's false alarm (#1656): ~12% orphaned, a window-over-window swing
+        // of +11 points, and nothing wrong — that swing is sampling noise on a few
+        // hundred participants, not attribution falling over.
+        var reading = DataQualityDetectorEvaluator.ReadOrphanRatio(79, 300, 47, 300);
+
+        reading.RisePoints.Should().BeApproximately(10.7, 0.1);
+        DataQualityDetectorEvaluator.ClassifyOrphanRise(reading, 60, 8, 20)
+            .Should().Be(DetectorStatus.Green);
+    }
+
+    [Fact]
+    public void ClassifyOrphanRise_JudgesTheTrend_OnceTheShareIsHighEnough()
+    {
+        var reading = DataQualityDetectorEvaluator.ReadOrphanRatio(255, 300, 225, 300);
+
+        reading.Percent.Should().Be(85);
+        DataQualityDetectorEvaluator.ClassifyOrphanRise(reading, 60, 8, 20)
+            .Should().Be(DetectorStatus.Amber);
+    }
+
+    [Fact]
+    public void ClassifyOrphanRise_ReadsGreen_WhenThereIsNoTrendToJudge()
+    {
+        // No previous window is a thin corpus, not an unmeasured level: the trend
+        // abstains rather than dragging the row to unknown.
+        var reading = DataQualityDetectorEvaluator.ReadOrphanRatio(290, 300, 0, 0);
+
+        DataQualityDetectorEvaluator.ClassifyOrphanRise(reading, 60, 8, 20)
+            .Should().Be(DetectorStatus.Green);
+    }
+
+    [Fact]
     public void ReadPatchVolumes_NeverJudgesTheNewestOrTheOldestPatch()
     {
         // The newest is still filling and the oldest is being retention-trimmed, so both

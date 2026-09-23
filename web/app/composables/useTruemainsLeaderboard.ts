@@ -90,18 +90,16 @@ export function useTruemainsLeaderboard(
   const fallbackPageSize = options.pageSize ?? 25
   const serverFetch = options.server ?? true
 
-  // The initial render fetches on the server, where a bare `$fetch('/api/…')` is
-  // an in-process call that carries none of the visitor's headers: the API would
-  // key it on the web container, one rate-limit bucket for every visitor at once
-  // (#1557). `useRequestFetch` forwards the incoming request's `X-Forwarded-For`,
-  // and is the plain `$fetch` in the browser.
-  const requestFetch = useRequestFetch()
+  // The initial render fetches on the server, where the visitor has to be forwarded
+  // or the API puts every visitor's SSR call in one rate-limit bucket (#1557) —
+  // `useApiFetch` does that.
+  const apiFetch = useApiFetch()
 
   // `useAsyncData` (not `useFetch`) so the cache key is the page + filter
   // signature rather than the request URL — keeps the key stable and explicit,
   // and the watcher list below drives the refetch. The key is shared across
   // the SSR payload and the client so hydration reuses the server's rows.
-  const { data, status, error, refresh } = useAsyncData<LeaderboardResponse>(
+  const leaderboardFetch = useAsyncData<LeaderboardResponse>(
     () => {
       const region = regionRef.value ?? 'all'
       const position = positionRef.value ?? 'all'
@@ -112,7 +110,7 @@ export function useTruemainsLeaderboard(
       // would hydrate the full leaderboard from the teaser's 5 cached rows.
       return `truemains-leaderboard-${pageRef.value}-${fallbackPageSize}-${region}-${position}-${championId}-${otpOnly}-${sortRef.value}`
     },
-    () => requestFetch<LeaderboardResponse>('/api/truemains', { query: buildQuery() }),
+    () => apiFetch<LeaderboardResponse>('/truemains', { query: buildQuery() }),
     {
       server: serverFetch,
       watch: [pageRef, regionRef, positionRef, championIdRef, otpOnlyRef, sortRef],
@@ -126,6 +124,7 @@ export function useTruemainsLeaderboard(
       }),
     },
   )
+  const { data, status, error, refresh } = leaderboardFetch
 
   const rows = computed<LeaderboardRowResponse[]>(() => data.value?.rows ?? [])
   const total = computed(() => data.value?.total ?? 0)
@@ -173,5 +172,9 @@ export function useTruemainsLeaderboard(
     isInitialLoading,
     error,
     refresh,
+    // Settles once the first page has (at once on a hydration, which reuses the
+    // SSR payload): a page awaiting it in setup keeps the outgoing page under
+    // the loading bar on a client-side navigation (#1689).
+    ready: leaderboardFetch.then(() => undefined),
   }
 }

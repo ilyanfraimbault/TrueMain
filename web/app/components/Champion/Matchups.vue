@@ -138,12 +138,12 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
         <USkeleton v-for="i in 6" :key="`mu-skel-${i}`" class="h-8 w-full rounded-md" />
       </template>
 
-      <p
+      <FetchErrorAlert
         v-else-if="error"
-        class="py-6 text-center text-sm text-muted"
-      >
-        Couldn't load matchups. Please try again.
-      </p>
+        :error="error"
+        title="Failed to load the matchups"
+        class="my-2"
+      />
 
       <!-- Opponent search: just the picked champion's row (or a games-floor note). -->
       <template v-else-if="selectedOpponentId !== null">
@@ -155,20 +155,20 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
             :to="matchupToolLink(searched.opponentChampionId)"
           />
         </div>
-        <p
+        <UEmpty
           v-else
-          class="py-6 text-center text-sm text-muted"
-        >
-          No recorded games against {{ searchedOpponent?.name ?? 'this opponent' }} {{ scopeSuffix }} yet.
-        </p>
+          size="sm"
+          icon="i-lucide-swords"
+          :description="`No recorded games against ${searchedOpponent?.name ?? 'this opponent'} ${scopeSuffix} yet.`"
+        />
       </template>
 
-      <p
+      <UEmpty
         v-else-if="!hasAny"
-        class="py-6 text-center text-sm text-muted"
-      >
-        No matchups with enough games {{ scopeSuffix }} yet.
-      </p>
+        size="sm"
+        icon="i-lucide-swords"
+        :description="`No matchups with enough games ${scopeSuffix} yet.`"
+      />
 
       <!-- Default: best / worst leaderboard. -->
       <template v-else>

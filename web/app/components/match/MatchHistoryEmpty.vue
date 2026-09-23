@@ -17,13 +17,13 @@ defineProps<{
 </script>
 
 <template>
-  <div class="surface rounded-lg px-6 py-12 text-center">
-    <p class="text-base font-semibold">
-      {{ notFound ? 'Player not found' : filtered ? 'No matches found' : 'No matches yet' }}
-    </p>
-    <p class="mt-1 text-sm text-muted">
+  <UEmpty
+    :icon="notFound ? 'i-lucide-user-round-search' : filtered ? 'i-lucide-filter-x' : 'i-lucide-swords'"
+    :title="notFound ? 'Player not found' : filtered ? 'No matches found' : 'No matches yet'"
+  >
+    <template #description>
       <template v-if="notFound">
-        Check the spelling — the Riot ID should be <code>GameName-TagLine</code>.
+        Check the spelling — the Riot ID should be <code class="whitespace-nowrap">GameName-TagLine</code>.
       </template>
       <template v-else-if="filtered">
         No tracked matches for the selected filters — try clearing them.
@@ -31,6 +31,6 @@ defineProps<{
       <template v-else>
         Their tracked match history is empty. Play a ranked game and check back later.
       </template>
-    </p>
-  </div>
+    </template>
+  </UEmpty>
 </template>

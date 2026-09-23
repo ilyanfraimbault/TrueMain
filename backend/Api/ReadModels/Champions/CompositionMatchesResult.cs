@@ -54,8 +54,10 @@ public sealed class CompositionMatchesResult
     public required bool MatchupFound { get; init; }
 
     /// <summary>
-    /// Selected games: mains of the champion first, then best score, recency
-    /// breaking ties.
+    /// Selected games. With a pinned role opponent that is every game of the matchup the
+    /// retained window holds, newest first, bounded by the pool cap; without one, the
+    /// most similar games of the champion at the position — mains first, then best score,
+    /// recency breaking ties.
     /// </summary>
     public required IReadOnlyList<CompositionMatchRef> Matches { get; init; }
 }
@@ -83,8 +85,16 @@ public sealed class CompositionMatchRef
     public required string Puuid { get; init; }
 
     /// <summary>
-    /// True when <see cref="Puuid"/> is an active main of the champion — the
-    /// first selection tier (see <c>CompositionMatchQueryService</c>).
+    /// True when <see cref="Puuid"/> is an active main of the champion. Worth a vote
+    /// multiplier in the aggregation, and the first selection tier when the pool is
+    /// capped (see <c>CompositionMatchQueryService</c>).
     /// </summary>
     public required bool IsTruemain { get; init; }
+
+    /// <summary>
+    /// True when the game was played on the patch the recommendation is for (#1659).
+    /// Carries the patch vote multiplier without making the aggregation re-derive a
+    /// patch from a game version.
+    /// </summary>
+    public required bool IsCurrentPatch { get; init; }
 }

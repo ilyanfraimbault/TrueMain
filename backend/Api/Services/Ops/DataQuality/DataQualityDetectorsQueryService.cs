@@ -396,26 +396,23 @@ public sealed class DataQualityDetectorsQueryService(
                 settings.OrphanRatioAmberPercent,
                 settings.OrphanRatioRedPercent);
 
-            // As with the duplicate card: the trend votes only when there is one. A
-            // platform with fewer matches than the sample window has no previous half to
-            // compare against, and that is a thin corpus, not an unmeasured level.
-            var statuses = reading.RisePoints is null
-                ? new[] { levelStatus }
-                :
-                [
-                    levelStatus,
-                    DataQualityDetectorEvaluator.Classify(
-                        reading.RisePoints,
-                        settings.OrphanRatioRiseAmberPoints,
-                        settings.OrphanRatioRiseRedPoints)
-                ];
+            // The trend votes only when there is one to read and the share is already
+            // high enough for a rise to mean a regression rather than noise (#1656).
+            var riseStatus = DataQualityDetectorEvaluator.ClassifyOrphanRise(
+                reading,
+                settings.OrphanRatioRiseMinLevelPercent,
+                settings.OrphanRatioRiseAmberPoints,
+                settings.OrphanRatioRiseRedPoints);
 
             rows.Add(new DataQualityDetectorRowReadModel
             {
                 Label = sample.PlatformId,
-                Status = DataQualityDetectorEvaluator.Worst(statuses).ToWireName(),
+                Status = DataQualityDetectorEvaluator.Worst([levelStatus, riseStatus]).ToWireName(),
                 Value = reading.Percent,
                 ValueLabel = FormatPercent(reading.Percent),
+                // The printed number is the level, so it carries the level's verdict:
+                // a row amber on its trend used to colour the number that was fine.
+                ValueStatus = levelStatus.ToWireName(),
                 Note = FormatOrphanTrend(reading, sample)
             });
         }
@@ -463,12 +460,12 @@ public sealed class DataQualityDetectorsQueryService(
                 CultureInfo.InvariantCulture,
                 // One interpolated literal, not a concatenation: string.Create takes an
                 // interpolated-string handler by ref, which a `+` expression cannot satisfy.
-                $"Newest {sampleSize} ranked matches per platform (an index range on IX_matches_platform_queue_game_start), split into two windows of {half} for the trend. A high orphan share is normal — one tracked player contributes one tracked row and nine untracked ones; the anomaly is the approach to 100%."),
+                $"Newest {sampleSize} ranked matches per platform (an index range on IX_matches_platform_queue_game_start), split into two windows of {half} for the trend. A high orphan share is normal — one tracked player contributes one tracked row and nine untracked ones; the anomaly is the approach to 100%. The trend is only judged once the share passes {settings.OrphanRatioRiseMinLevelPercent:0.#}%, below which a window-to-window move is sampling noise."),
             Rows = rows,
             Thresholds =
             [
                 Threshold("orphan share", settings.OrphanRatioAmberPercent, settings.OrphanRatioRedPercent, "percent"),
-                Threshold("rise vs previous window", settings.OrphanRatioRiseAmberPoints, settings.OrphanRatioRiseRedPoints, "percent"),
+                Threshold("rise vs previous window, once the share is already high", settings.OrphanRatioRiseAmberPoints, settings.OrphanRatioRiseRedPoints, "percent"),
                 Threshold("time since last Harvest", settings.HarvestStaleAmberHours, settings.HarvestStaleRedHours, "hours")
             ]
         };

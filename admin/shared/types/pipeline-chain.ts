@@ -26,6 +26,7 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'MainActivity',
   'MatchIngestion',
   'MatchTeamPositionCorrection',
+  'MatchRoleBoundItemBackfill',
   'MainAnalysis',
   'MatchParticipantEloBracketEnrichment',
   'RunePageDeduplication',
@@ -93,6 +94,7 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'Everything that only reads and writes Postgres: it folds the matches already downloaded into the stats the site serves, then prunes what is no longer needed.',
     steps: [
       'MatchTeamPositionCorrection',
+      'MatchRoleBoundItemBackfill',
       'MainAnalysis',
       'MatchParticipantEloBracketEnrichment',
       'RunePageDeduplication',
@@ -168,6 +170,11 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Lane Position Fix',
     description:
       'Fills in the lane of a participant Riot left blank, for the unambiguous case where only one position in the team is missing.',
+  },
+  MatchRoleBoundItemBackfill: {
+    label: 'Role Slot Backfill',
+    description:
+      'Recovers the boots of bot laners stored before Riot\'s role-bound slot was recorded, from their item timeline.',
   },
   MainAnalysis: {
     label: 'Main Analysis',

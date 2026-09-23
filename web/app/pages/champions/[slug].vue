@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { POSITION_BY_VALUE, type ChampionPosition } from '~/utils/positions'
 import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
-import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import type {
   ChampionScalingBucket,
@@ -34,21 +33,20 @@ const {
   error: championError,
   status: championStatus,
   notEnoughData,
+  ready: championReady,
 } = useChampion(championId, filters)
 
 // A filter change keeps the previous payload on screen while the new one loads
-// (useLazyAsyncData holds `data`), so without this the build sections silently
-// showed the *old* slice — the matchup filter made that obvious, since the
-// numbers stayed put after picking an opponent. Render the same skeleton as a
+// (useAsyncData holds `data`), so the build sections silently showed the *old*
+// slice — the matchup filter made that obvious. Render the same skeleton as a
 // cold load while the champion fetch is in flight. Only the data area: the
 // header keeps its values so the page doesn't jump under the cursor.
 const championLoading = computed(() => isLoadingStatus(championStatus.value))
 
-// Real load failures (429/500/network) surface as a toast as well as the
-// inline alert below — both read the same line via describeFetchError. A 404
-// (no data for this champion) is not an error: useChampion swallows it into
+// Real load failures (429/500/network) surface as the inline alert below, and
+// only there — a page-load failure is never also a toast (#1661). A 404 (no
+// data for this champion) is not an error at all: useChampion swallows it into
 // notEnoughData and we render a dedicated empty state instead.
-useErrorToast(championError, { title: 'Failed to load champion' })
 
 // Static-data plumbing shared with the player-scoped champion page: the
 // patch-pinned rune tree / items / summoner spells (keys shared with
@@ -123,10 +121,10 @@ const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.valu
 // are identical on the server and at hydration, and the endpoint resolves the
 // same defaults the aggregate does, so both describe the same slice.
 //
-// Awaited server-side only (see `seoStaticFetch`: no Suspense fallback on
-// `<NuxtPage>`, so a client await freezes the outgoing page). `useRequestFetch`
-// carries the visitor's X-Forwarded-For into the SSR call (#1557).
-const requestFetch = useRequestFetch()
+// Awaited with the champion fetch: for the HTML on the server, under the loading
+// bar on a client-side navigation (#1689). `useApiFetch` carries the visitor's
+// X-Forwarded-For into the SSR call (#1557).
+const apiFetch = useApiFetch()
 const buildSummaryFetch = useAsyncData(
   () => [
     'champion-build-summary',
@@ -142,7 +140,7 @@ const buildSummaryFetch = useAsyncData(
     // the key is what SSR payload reuse keys on.
     filters.value.truemainsOnly ? 'truemains' : 'everyone',
   ].join('-'),
-  () => requestFetch<ChampionBuildSummary>(`/api/champion-summary/${championId.value}`, {
+  () => apiFetch<ChampionBuildSummary>(`/champion-summary/${championId.value}`, {
     query: {
       patch: filters.value.patch || undefined,
       position: filters.value.position || undefined,
@@ -165,7 +163,7 @@ const buildSummaryFetch = useAsyncData(
     default: () => null,
   },
 )
-if (import.meta.server) await buildSummaryFetch
+await Promise.all([buildSummaryFetch, championReady])
 const { data: buildSummary } = buildSummaryFetch
 
 useSeoMeta({
@@ -236,7 +234,7 @@ const selectedEloBracket = computed<string>(() =>
 )
 
 // The elo filter forwarded to every live panel (matchups / scaling /
-// item-timings / roam). Always a concrete bracket now that the page default is
+// item-timings). Always a concrete bracket now that the page default is
 // Master+ rather than the server's ALL: a panel left to its own default would
 // quietly render every tier beside a header that says Master+.
 const eloBracketParam = computed(() => filters.value.eloBracket)
@@ -295,18 +293,6 @@ const bracketNoticeText = computed<string | null>(() => {
 // Gated on the champion fetch so it fires once with the resolved lane — hence
 // `pending` rather than `status`, same reason as the trend chart above.
 const { data: championScaling, pending: scalingPending } = useChampionScaling(
-  championId,
-  trendPosition,
-  selectedPatch,
-  trendReady,
-  eloBracketParam,
-)
-
-// Roam metric — out-of-lane early kill participations (issue #536). Same lane/patch
-// scoping and gating as the other timeline-derived stats. Only the @15 average is
-// read, and only to decide whether the header carries a "Roamer" badge; the @5/@10
-// windows stay in the API for whoever wants the curve later.
-const { data: championRoam } = useChampionRoam(
   championId,
   trendPosition,
   selectedPatch,
@@ -378,17 +364,15 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
+  <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <!-- Champions > {champion}, mirroring the schema.org breadcrumb. Shown
          across every state (error / no-data / normal) as the first child. -->
     <UBreadcrumb :items="breadcrumbItems" />
 
-    <UAlert
+    <FetchErrorAlert
       v-if="championError"
-      color="error"
-      variant="soft"
-      title="Failed to load champion"
-      :description="describeFetchError(championError)"
+      :error="championError"
+      title="Failed to load this champion"
     />
 
     <!--
@@ -420,20 +404,19 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         @update:model-value="value => setFilter({ eloBracket: value })"
       />
 
-      <div class="flex flex-col items-center gap-1 surface rounded-lg px-6 py-12 text-center">
-        <p class="text-sm font-medium text-default">
-          No {{ displayName ?? 'champion' }} games in {{ eloBracketLabel(selectedEloBracket) }} yet
-        </p>
-        <p class="text-sm text-muted">
-          Pick another rank above, or
-          <button
-            type="button"
-            class="rounded text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            @click="setFilter({ eloBracket: ELO_BRACKET_ALL })"
-          >
-            see all ranks</button>.
-        </p>
-      </div>
+      <UEmpty
+        icon="i-lucide-medal"
+        :title="`No ${displayName ?? 'champion'} games in ${eloBracketLabel(selectedEloBracket)} yet`"
+        description="Pick another rank above, or widen the slice to every rank."
+        :actions="[{
+          color: 'neutral',
+          variant: 'subtle',
+          size: 'sm',
+          icon: 'i-lucide-layers',
+          label: 'See all ranks',
+          onClick: () => setFilter({ eloBracket: ELO_BRACKET_ALL }),
+        }]"
+      />
     </div>
 
     <!--
@@ -473,11 +456,10 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         />
       </header>
 
-      <div class="flex flex-col items-center gap-1 surface rounded-lg px-6 py-12 text-center">
-        <p class="text-sm text-muted">
-          Not enough data
-        </p>
-      </div>
+      <UEmpty
+        icon="i-lucide-chart-no-axes-column"
+        description="Not enough data"
+      />
     </template>
 
     <!--
@@ -502,7 +484,6 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
           :patch="selectedPatch"
           :total-games="champion?.totalGames ?? 0"
           :total-wins="champion?.totalWins ?? 0"
-          :roam-kp15="championRoam?.roamKp15 ?? null"
           :low-sample-message="bracketNoticeText"
           :truemains-only="filters.truemainsOnly"
           :loading="!champion"
@@ -645,5 +626,5 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         </aside>
       </div>
     </template>
-  </main>
+  </div>
 </template>

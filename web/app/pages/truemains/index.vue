@@ -2,7 +2,6 @@
 import type { LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
 import type { ChampionPosition } from '~/utils/positions'
 import { REGION_SLUGS } from '~~/shared/types/leaderboard'
-import { describeFetchError } from '~/utils/errors'
 
 useSeoMeta({
   title: 'OTP Leaderboard',
@@ -83,6 +82,7 @@ const {
   isInitialLoading: leaderboardInitialLoading,
   isLoading: leaderboardLoading,
   error: leaderboardError,
+  ready: leaderboardReady,
 } = useTruemainsLeaderboard(currentPage, {
   pageSize: LEADERBOARD_PAGE_SIZE,
   region: filterRegion,
@@ -96,7 +96,6 @@ const {
 // a page straddling a decade boundary (76…100) would otherwise mix two widths.
 const deepestRank = computed(() => rows.value.reduce((max, row) => Math.max(max, row.rank), 0))
 
-useErrorToast(leaderboardError, { title: 'Failed to load the leaderboard' })
 
 // ─── Static lookups ───────────────────────────────────────────────────────
 // The champion list backs the row's top-3 icon lookup and the header's
@@ -112,10 +111,14 @@ const { runeTree, itemsMap } = useBuildAssets(latestPatch)
 
 // Map keyed lookup for the row's top-3 — avoids a linear scan per icon.
 const championsById = useChampionsById(champions)
+
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the leaderboard is in (#1689); the static lookups keep their skeleton.
+await leaderboardReady
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
     <PageHeader
       eyebrow="Leaderboard"
       title="Truemains"
@@ -152,21 +155,21 @@ const championsById = useChampionsById(champions)
       />
     </ClientOnly>
 
-    <UAlert
-      v-if="leaderboardError"
-      color="error"
-      icon="i-lucide-alert-triangle"
-      title="Couldn't load the leaderboard"
-      :description="describeFetchError(leaderboardError)"
+    <FetchErrorAlert
+      :error="leaderboardError"
+      title="Failed to load the leaderboard"
     />
 
     <div v-if="leaderboardInitialLoading" class="space-y-1">
       <LeaderboardRowSkeleton v-for="i in LEADERBOARD_PAGE_SIZE" :key="`skel-${i}`" />
     </div>
 
-    <div v-else-if="rows.length === 0 && !leaderboardError" class="surface rounded-md px-4 py-8 text-center text-sm text-muted">
-      No truemains match these filters yet.
-    </div>
+    <UEmpty
+      v-else-if="rows.length === 0 && !leaderboardError"
+      size="sm"
+      icon="i-lucide-filter-x"
+      description="No truemains match these filters yet."
+    />
 
     <div v-else class="space-y-1">
       <LeaderboardRow
@@ -195,5 +198,5 @@ const championsById = useChampionsById(champions)
         @update:page="setPage"
       />
     </div>
-  </main>
+  </div>
 </template>

@@ -41,8 +41,8 @@ public sealed class CompositionBuildApiIntegrationTests
 
         // Two wins vs the requested role opponent on the same build, one loss
         // vs another mid on a different build. The role opponent is a hard
-        // requirement: only the two matchup games enter the sample, and the
-        // win build carries the recommendation.
+        // requirement, applied in SQL since #1659: only the two matchup games are
+        // scanned at all, and the win build carries the recommendation.
         await SeedGameAsync("COMPE_WIN1", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
         await SeedGameAsync("COMPE_WIN2", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
         await SeedGameAsync("COMPE_LOSS", win: false, enemyMid: OtherOpponent, buildOrder: [3072, 3026]);
@@ -69,7 +69,8 @@ public sealed class CompositionBuildApiIntegrationTests
         result.MatchupFound.Should().BeTrue();
 
         result.Confidence.SampleSize.Should().Be(2, "the non-matchup loss is hard-filtered out");
-        result.Confidence.CandidatePoolSize.Should().Be(3);
+        result.Confidence.CandidatePoolSize.Should().Be(
+            2, "the pool counts the games of the matchup, not the champion's games scanned to find them");
         result.Confidence.MaxPossibleScore.Should().Be(10, "one lane-opponent slot was requested");
         result.Confidence.MeanSimilarity.Should().BeApproximately(1d, 1e-9);
 

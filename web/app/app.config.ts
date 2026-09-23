@@ -41,6 +41,44 @@ export default defineAppConfig({
         variant: 'soft',
       },
     },
+    // Every "there is nothing here" state on the site (#1669). Themed rather
+    // than styled per call site for the same reason `card` is: there were a
+    // dozen hand-rolled variants of this card, in three paddings and four title
+    // styles, and the next one would have been a thirteenth.
+    //
+    // `soft` is the default and carries the app-wide `surface` material — and,
+    // exactly like `card` above, its stock `bg-elevated/50` has to be restated
+    // opaque here or the plain utility out-cascades `surface`'s background and
+    // every empty state renders at 50%. Only `soft` is overridden: the one
+    // place that wants a *placeholder* rather than a surface — the matchup
+    // draft stage — asks for `naked` and paints its own dashed, recessed frame
+    // at the call site. `description` drops Nuxt UI's `text-toned` for the
+    // site's own muted/highlighted split.
+    empty: {
+      slots: {
+        root: 'rounded-lg',
+      },
+      variants: {
+        variant: {
+          soft: {
+            root: 'surface bg-elevated',
+            description: 'text-muted',
+          },
+        },
+        // Nuxt UI's `size` scales the type and the avatar but not the box, so a
+        // "small" empty state still sat in the full `p-4 sm:p-6 lg:p-8` block.
+        // These two carry the padding that makes one usable inside a card body
+        // or a compact list, which is where most of them live (#1681) — without
+        // it, converting a `py-3` line grew it threefold.
+        size: {
+          sm: { root: 'p-3 sm:p-4 lg:p-5' },
+          xs: { root: 'gap-2 p-2 sm:p-3 lg:p-3' },
+        },
+      },
+      defaultVariants: {
+        variant: 'soft',
+      },
+    },
     // Nuxt UI paints a skeleton `bg-elevated` — which, since #1060, is the exact
     // fill of every `surface` card. A skeleton inside a card was therefore
     // invisible: same colour, no edge, nothing to see while a page loaded.
@@ -63,6 +101,45 @@ export default defineAppConfig({
     badge: {
       defaultVariants: {
         variant: 'subtle',
+      },
+    },
+    // Long-form text (#1624) — `/about`, `/privacy`, `/terms`. Nuxt UI's prose
+    // defaults are tuned for documentation pages (a `text-2xl` bold h2, 20px
+    // paragraph gaps, `text-base` body); this app's prose sits inside a
+    // `surface` card and follows the site's own scale instead: `text-sm`
+    // `text-muted` body, `text-lg` semibold `text-highlighted` headings — the
+    // muted/highlighted split from DESIGN_SYSTEM.md.
+    //
+    // Spacing is a 12px rhythm (`my-3`, collapsing between siblings) with the
+    // outer margins trimmed by `first:` / `last:`, so a block placed first or
+    // last in a padded card adds nothing to the padding. A page grouping its
+    // text into `<section>`s spaces those itself (`space-y-8`); an h2 that is
+    // not first in its parent brings the same 32px on its own.
+    //
+    // `text-wrap` restores normal wrapping over the default `text-pretty`, and
+    // links keep the body weight (the default is `font-medium`): both keep the
+    // pages exactly as they were set before the migration. `strong` is the
+    // site's emphasis — one weight step and the default text colour, not bold.
+    prose: {
+      h2: {
+        slots: {
+          base: 'text-lg font-semibold mt-8 mb-3 first:mt-0',
+        },
+      },
+      p: {
+        base: 'my-3 first:mt-0 last:mb-0 text-sm leading-relaxed text-muted text-wrap',
+      },
+      ul: {
+        base: 'my-3 first:mt-0 last:mb-0 ps-5 text-sm text-muted marker:text-muted',
+      },
+      li: {
+        base: 'my-1 ps-0 leading-relaxed',
+      },
+      a: {
+        base: 'font-normal',
+      },
+      strong: {
+        base: 'font-medium text-default',
       },
     },
   },

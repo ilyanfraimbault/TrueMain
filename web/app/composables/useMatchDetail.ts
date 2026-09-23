@@ -19,13 +19,15 @@ export function useMatchDetail(
 
   const key = computed(() => `match-detail-${nameTagRef.value}-${matchIdRef.value}`)
 
+  const apiFetch = useApiFetch()
+
   const { data, status, error, refresh } = useLazyAsyncData<MatchDetailResponse | null>(
     key,
     async () => {
       if (!nameTagRef.value || !matchIdRef.value) return null
 
-      const response = await $fetch<MatchDetailResponse | null>(
-        `/api/truemains/${encodeURIComponent(nameTagRef.value)}/matches/${encodeURIComponent(matchIdRef.value)}`,
+      const response = await apiFetch<MatchDetailResponse | null>(
+        `/truemains/${encodeURIComponent(nameTagRef.value)}/matches/${encodeURIComponent(matchIdRef.value)}`,
         { ignoreResponseError: true },
       )
 

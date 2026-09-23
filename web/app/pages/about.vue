@@ -13,62 +13,59 @@ useSeoMeta({
 </script>
 
 <template>
-  <main class="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
     <PageHeader
       eyebrow="About"
       title="About TrueMain"
       description="Champion data from the players who actually main the champion."
     />
 
-    <article class="surface space-y-8 rounded-xl p-5 text-sm leading-relaxed text-muted sm:p-8">
-      <section class="space-y-3">
-        <h2 class="text-lg font-semibold text-highlighted">
+    <article class="surface space-y-8 rounded-xl p-5 sm:p-8">
+      <section>
+        <ProseH2>
           What TrueMain is
-        </h2>
-        <p>
+        </ProseH2>
+        <ProseP>
           TrueMain is a free League of Legends statistics site. It shows champion
           builds, runes, skill orders, matchups and tier lists — the same
           questions every stats site answers, but computed over a deliberately
           narrower set of games.
-        </p>
-        <p>
+        </ProseP>
+        <ProseP>
           Most champion statistics average every player who locked the champion
           in: the specialist with six hundred games and the player picking it for
           the first time count the same. Those two are not playing the same
           champion. TrueMain weights the games of players who main it.
-        </p>
+        </ProseP>
       </section>
 
-      <section class="space-y-3">
-        <h2 class="text-lg font-semibold text-highlighted">
+      <section>
+        <ProseH2>
           What a "true main" is
-        </h2>
-        <p>
+        </ProseH2>
+        <ProseP>
           A true main is a player whose record on a champion shows genuine
           commitment rather than a good week. TrueMain scores that commitment —
-          the <span class="font-medium text-default">dedication score</span> — from
+          the <ProseStrong>dedication score</ProseStrong> — from
           public ranked history: how much of their play the champion accounts
           for, over how long, and at what rank. One-tricks score highest, but the
           score is a gradient, not a label.
-        </p>
-        <p>
+        </ProseP>
+        <ProseP>
           The tracked players are browsable: the
-          <NuxtLink
-            to="/truemains"
-            class="text-primary hover:underline"
-          >
+          <ProseA href="/truemains">
             truemains leaderboard
-          </NuxtLink>
+          </ProseA>
           ranks them by LP or by dedication, and each champion page lists its own
           top mains.
-        </p>
+        </ProseP>
       </section>
 
-      <section class="space-y-3">
-        <h2 class="text-lg font-semibold text-highlighted">
+      <section>
+        <ProseH2>
           Where the data comes from
-        </h2>
-        <p>
+        </ProseH2>
+        <ProseP>
           Everything on TrueMain is derived from public data served by the
           official Riot Games API — ranked ladders, match history and match
           timelines. Nothing is hand-written, estimated or sourced from an
@@ -76,92 +73,71 @@ useSeoMeta({
           over, and every figure on the site carries the sample it was measured
           on, so a percentage from eleven games is never presented as if it came
           from a thousand.
-        </p>
+        </ProseP>
       </section>
 
-      <section class="space-y-3">
-        <h2 class="text-lg font-semibold text-highlighted">
+      <section>
+        <ProseH2>
           What you can do here
-        </h2>
-        <ul class="list-disc space-y-1 pl-5">
-          <li>
-            <NuxtLink
-              to="/champions"
-              class="text-primary hover:underline"
-            >
+        </ProseH2>
+        <ProseUl>
+          <ProseLi>
+            <ProseA href="/champions">
               Champions
-            </NuxtLink>
+            </ProseA>
             — every champion and lane, with its consensus build, runes, win rate
             and pick rate.
-          </li>
-          <li>
-            <NuxtLink
-              to="/champions/tierlist"
-              class="text-primary hover:underline"
-            >
+          </ProseLi>
+          <ProseLi>
+            <ProseA href="/champions/tierlist">
               Tier list
-            </NuxtLink>
+            </ProseA>
             — champions ranked within their own lane, on presence as well as win
             rate.
-          </li>
-          <li>
-            <NuxtLink
-              to="/matchup"
-              class="text-primary hover:underline"
-            >
+          </ProseLi>
+          <ProseLi>
+            <ProseA href="/matchup">
               Matchup
-            </NuxtLink>
+            </ProseA>
             — pick your champion, your role and your opponent, and get the build
             from the games where that matchup actually happened.
-          </li>
-          <li>
-            <NuxtLink
-              to="/truemains"
-              class="text-primary hover:underline"
-            >
+          </ProseLi>
+          <ProseLi>
+            <ProseA href="/truemains">
               Truemains
-            </NuxtLink>
+            </ProseA>
             — the tracked specialists, their ranks, their champions and their
             games.
-          </li>
-        </ul>
+          </ProseLi>
+        </ProseUl>
       </section>
 
-      <section class="space-y-3">
-        <h2 class="text-lg font-semibold text-highlighted">
+      <section>
+        <ProseH2>
           Contact
-        </h2>
-        <p>
+        </ProseH2>
+        <ProseP>
           TrueMain is run independently and carries no advertising. Questions,
           corrections and removal requests go to
-          <a
-            href="mailto:contact@truemain.lol"
-            class="text-primary hover:underline"
-          >contact@truemain.lol</a>. See also the
-          <NuxtLink
-            to="/privacy"
-            class="text-primary hover:underline"
-          >
+          <ProseA href="mailto:contact@truemain.lol">contact@truemain.lol</ProseA>. See also the
+          <ProseA href="/privacy">
             privacy policy
-          </NuxtLink>
+          </ProseA>
           and the
-          <NuxtLink
-            to="/terms"
-            class="text-primary hover:underline"
-          >
+          <ProseA href="/terms">
             terms
-          </NuxtLink>.
-        </p>
+          </ProseA>.
+        </ProseP>
       </section>
 
-      <section class="space-y-3 border-t border-default pt-6 text-xs text-dimmed">
-        <p>
+      <section class="border-t border-default pt-6">
+        <ProseP class="text-xs text-dimmed">
           TrueMain isn't endorsed by Riot Games and doesn't reflect the views or
           opinions of Riot Games or anyone officially involved in producing or
           managing Riot Games properties. Riot Games and all associated properties
           are trademarks or registered trademarks of Riot Games, Inc.
-        </p>
+        </ProseP>
       </section>
     </article>
-  </main>
+  </div>
 </template>

@@ -13,8 +13,6 @@ import type {
 } from '~~/shared/types/static-data'
 import { groupMatchesByDay } from '~/utils/match-history'
 
-definePageMeta({ layout: 'default' })
-
 useSeoMeta({
   title: 'Profile playground',
   description: 'Isolated visual review of the truemain profile page with mock fixtures.',
@@ -24,24 +22,25 @@ useSeoMeta({
 const { data: versions } = useDDragonVersions()
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
+const apiFetch = useApiFetch()
 const { data: champions } = useLazyAsyncData<ChampionStaticListItem[]>(
   'dev-profile-champions',
-  () => $fetch<ChampionStaticListItem[]>('/api/static/champions'),
+  () => apiFetch<ChampionStaticListItem[]>('/static/champions'),
   { default: () => [], server: false },
 )
 const { data: items } = useLazyAsyncData<Record<number, StaticItemData>>(
   () => `dev-profile-items-${latestPatch.value ?? ''}`,
-  () => $fetch<Record<number, StaticItemData>>('/api/static/items', { query: { patch: latestPatch.value ?? '' } }),
+  () => apiFetch<Record<number, StaticItemData>>('/static/items', { query: { patch: latestPatch.value ?? '' } }),
   { default: () => ({}), server: false, watch: [latestPatch] },
 )
 const { data: summonerSpells } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
   () => `dev-profile-summoner-spells-${latestPatch.value ?? ''}`,
-  () => $fetch<Record<number, StaticSummonerSpellData>>('/api/static/summoner-spells', { query: { patch: latestPatch.value ?? '' } }),
+  () => apiFetch<Record<number, StaticSummonerSpellData>>('/static/summoner-spells', { query: { patch: latestPatch.value ?? '' } }),
   { default: () => ({}), server: false, watch: [latestPatch] },
 )
 const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
   () => `dev-profile-rune-tree-${latestPatch.value ?? ''}`,
-  () => $fetch<RuneTreeResponse>('/api/static/rune-tree', { query: { patch: latestPatch.value ?? '' } }),
+  () => apiFetch<RuneTreeResponse>('/static/rune-tree', { query: { patch: latestPatch.value ?? '' } }),
   { default: () => ({ styles: [], perks: {}, perkStyles: {}, shardSlots: [] }), server: false, watch: [latestPatch] },
 )
 
@@ -257,6 +256,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       killParticipation: 0.67,
       items: [3031, 3046, 3036, 3072, 3009, 3026],
       trinketItemId: 3340,
+      roleBoundItemId: 0,
       teamId: 100,
       position: 'TOP',
       win: true,
@@ -289,6 +289,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
       killParticipation: 0.42,
       items: [6655, 3020, 3157, 3165, 0, 0],
       trinketItemId: 3340,
+      roleBoundItemId: 0,
       teamId: 200,
       position: 'MIDDLE',
       win: false,
@@ -305,7 +306,7 @@ const mockMatchDays = computed(() => groupMatchesByDay(mockMatches.value))
 </script>
 
 <template>
-  <main class="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
+  <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
     <header class="flex flex-col gap-1">
       <p class="text-xs font-semibold uppercase tracking-wide text-muted">
         Dev playground
@@ -355,5 +356,5 @@ const mockMatchDays = computed(() => groupMatchesByDay(mockMatches.value))
         <MatchRowSkeleton v-for="i in 2" :key="i" />
       </template>
     </section>
-  </main>
+  </div>
 </template>

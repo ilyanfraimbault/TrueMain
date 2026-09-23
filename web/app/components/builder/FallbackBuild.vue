@@ -2,7 +2,6 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
 import { indexItemContext } from '~~/shared/utils/item-context'
 import { isLoadingStatus } from '~/utils/async-data'
-import { describeFetchError, fetchErrorStatus } from '~/utils/errors'
 
 /**
  * Baseline build fallback of the composition builder: when the requested
@@ -23,11 +22,13 @@ const props = defineProps<{
   notice?: string | null
 }>()
 
+const apiFetch = useApiFetch()
+
 const { data: champion, status, error } = useLazyAsyncData<ChampionResponse | null>(
   () => `builder-fallback-${props.championId}-${props.position}`,
   async () => {
     try {
-      return await $fetch<ChampionResponse>(`/api/champions/${props.championId}`, {
+      return await apiFetch<ChampionResponse>(`/champions/${props.championId}`, {
         query: { position: props.position },
       })
     }
@@ -93,12 +94,10 @@ const itemContextIndex = computed(() => indexItemContext(itemContext.value?.item
       </div>
     </template>
     <ChampionBuildCoreSkeleton v-if="status === 'pending'" />
-    <UAlert
+    <FetchErrorAlert
       v-else-if="error"
-      color="error"
-      variant="soft"
-      title="Standard build unavailable"
-      :description="describeFetchError(error)"
+      :error="error"
+      title="Failed to load the standard build"
     />
     <!-- The core block and the build tree, not the champion page's whole build
          panel. This page is read to answer "what do I build into this
@@ -132,16 +131,18 @@ const itemContextIndex = computed(() => indexItemContext(itemContext.value?.item
         :items-map="itemsMap"
       />
     </div>
-    <div
+    <!-- No `title`: `UEmpty` renders it as an `<h2>`, and this card's own title
+         is an `<h3>`, so the prop would invert the outline. Both lines live in
+         the description, the first one carrying the emphasis the heading would
+         have. Same reason on the matchup page's recommendation card. -->
+    <UEmpty
       v-else
-      class="surface rounded-lg px-6 py-10 text-center"
+      icon="i-lucide-hammer"
     >
-      <p class="font-medium">
-        No build data yet
-      </p>
-      <p class="mt-1 text-sm text-muted">
+      <template #description>
+        <span class="block font-medium text-highlighted">No build data yet</span>
         We hold no recorded games for this champion at this position.
-      </p>
-    </div>
+      </template>
+    </UEmpty>
   </SectionCard>
 </template>

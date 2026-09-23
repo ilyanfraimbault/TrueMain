@@ -58,6 +58,7 @@ export interface CdragonPerkStyleRow {
   id: number
   name: string
   iconPath: string
+  tooltip?: string
 }
 
 type ChampionListResponse = { data: Record<string, { id: string, key: string, name: string, image: { full: string } }> }
@@ -127,6 +128,8 @@ export function buildPerkStyleMap(styles: CdragonPerkStyleRow[], patch?: string 
       id: style.id,
       name: style.name,
       iconUrl: rewriteCdragonAsset(style.iconPath, patch),
+      // CDragon pads some summaries with a trailing space.
+      tooltip: style.tooltip?.trim() || undefined,
     }]),
   )
 }

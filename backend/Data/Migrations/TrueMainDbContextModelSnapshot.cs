@@ -1332,6 +1332,9 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<int?>("RoleBoundItemId")
+                        .HasColumnType("integer");
+
                     b.Property<List<SkillEvent>>("SkillEvents")
                         .IsRequired()
                         .HasColumnType("jsonb");
@@ -1408,45 +1411,22 @@ namespace Data.Migrations
                     b.HasIndex("MatchId", "ParticipantId")
                         .IsUnique();
 
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("MatchId", "ParticipantId"), new[] { "TeamId", "TeamPosition", "ChampionId", "Win", "Puuid" });
+
                     b.HasIndex("Puuid", "MatchId")
                         .HasDatabaseName("IX_match_participants_puuid_match");
 
                     b.HasIndex(new[] { "ChampionId", "TeamPosition", "EloBracket" }, "IX_match_participants_champion_position_full");
 
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex(new[] { "ChampionId", "TeamPosition", "EloBracket" }, "IX_match_participants_champion_position_full"), new[] { "MatchId", "ParticipantId", "TeamId", "Win", "Puuid" });
+
                     b.HasIndex(new[] { "ChampionId", "TeamPosition", "EloBracket" }, "IX_match_participants_champion_position_tracked")
                         .HasFilter("\"RiotAccountId\" IS NOT NULL");
 
+                    b.HasIndex(new[] { "Id" }, "IX_match_participants_role_bound_pending")
+                        .HasFilter("\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
+
                     b.ToTable("match_participants", (string)null);
-                });
-
-            modelBuilder.Entity("Data.Entities.MatchParticipantKillPosition", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("MatchId")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<int>("ParticipantId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TimestampMs")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("X")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Y")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MatchId", "ParticipantId");
-
-                    b.ToTable("match_participant_kill_positions", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.MatchParticipantTimelineSnapshot", b =>
@@ -1921,15 +1901,6 @@ namespace Data.Migrations
                     b.Navigation("Match");
 
                     b.Navigation("RiotAccount");
-                });
-
-            modelBuilder.Entity("Data.Entities.MatchParticipantKillPosition", b =>
-                {
-                    b.HasOne("Data.Entities.Match", null)
-                        .WithMany()
-                        .HasForeignKey("MatchId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Data.Entities.MatchParticipantTimelineSnapshot", b =>

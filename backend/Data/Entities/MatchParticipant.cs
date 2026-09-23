@@ -106,6 +106,15 @@ public class MatchParticipant
 
     public int TrinketItemId { get; set; }
 
+    /// <summary>
+    /// Riot's <c>roleBoundItem</c>: the slot outside the six inventory slots and the
+    /// trinket. A bot laner's boots always live there; the other roles get their quest
+    /// reward. 0 = empty. <c>null</c> = never recorded (ingested before the column):
+    /// <c>MatchRoleBoundItemBackfillProcess</c> infers a bot laner's boots from the item
+    /// timeline, the other roles stay unknown and read as empty.
+    /// </summary>
+    public int? RoleBoundItemId { get; set; }
+
     public int PerksDefense { get; set; }
 
     public int PerksFlex { get; set; }

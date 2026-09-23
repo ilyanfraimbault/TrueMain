@@ -8,8 +8,7 @@ import type {
   StaticPerkStyleData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
-import { isBootsItem, isNonBuildItem } from '~~/shared/utils/build'
+import { getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '~/utils/positions'
 import { formatDuration } from '~/utils/relativeTime'
 
@@ -110,56 +109,6 @@ const subStyle: ComputedRef<StaticPerkStyleData | null> = computed(() => {
   return props.runeTree.perkStyles[self.value.subStyleId] ?? null
 })
 
-// Inventory slots: three-state model so the row can tell apart a slot the
-// player never bought (Item* = 0 in the DB — render an invisible same-sized
-// placeholder) from one whose static data hasn't resolved yet (id > 0 but no
-// entry in the items map — keep the skeleton, that's a real loading state).
-// Without this distinction, every zero in the participant row renders as a
-// "skeleton" square and looks like the page is stuck loading half the items.
-//
-// Real items are left-aligned and the remaining cells become invisible
-// placeholders so the six-slot grid stays the same width on every row — the
-// trinket column lines up vertically across the whole match history even
-// when a row only has three items.
-type InventorySlot =
-  | { kind: 'empty' }
-  | { kind: 'loading' }
-  | { kind: 'item', item: StaticItemData }
-
-const INVENTORY_SLOT_COUNT = 6
-
-// The boots are pulled out of the six inventory slots into their own cell
-// under the trinket (scoreboard convention), so the main grid holds only the
-// non-boots items. The Eye of the Herald — a Rift Herald summon that sits in
-// the trinket slot, never a real build item — is dropped everywhere.
-const bootsItem = computed<StaticItemData | null>(() => {
-  for (const id of self.value.items) {
-    const item = props.items[id]
-    if (item && isBootsItem(item)) return item
-  }
-  return null
-})
-
-const inventoryItems = computed<InventorySlot[]>(() => {
-  const bootsId = bootsItem.value?.id
-  const filled: InventorySlot[] = self.value.items
-    .filter(id => id > 0 && id !== bootsId && !isNonBuildItem(id))
-    .map((id) => {
-      const item = props.items[id]
-      return item ? { kind: 'item', item } : { kind: 'loading' }
-    })
-  const empties: InventorySlot[] = Array.from(
-    { length: Math.max(0, INVENTORY_SLOT_COUNT - filled.length) },
-    () => ({ kind: 'empty' }),
-  )
-  return [...filled, ...empties]
-})
-const trinket = computed<StaticItemData | null>(() => {
-  const id = self.value.trinketItemId
-  if (id <= 0 || isNonBuildItem(id)) return null
-  return props.items[id] ?? null
-})
-
 // The viewing player's assigned role, taken straight from the PUUID-matched
 // self read-model so the portrait can badge a position icon instead of the
 // champion level. Null when Riot never assigned one (old rows, non-SR modes) —
@@ -199,16 +148,21 @@ const csPerMin = computed(() => {
   return (self.value.cs / minutes).toFixed(1)
 })
 
-const kpPercent = computed(() => formatPercentage(self.value.killParticipation, 0))
-
-// Performance score (#918): the number the MVP/ACE crown two columns right is
-// derived from, printed so the badge stops being the only way to read it — and
-// so a good game that just missed the crown still shows as one. Same value the
-// expanded detail panel shows for this player.
+// Performance score (#918), in the right-edge slot it shares with the MVP/ACE
+// accolade derived from it: a crowned game shows the crown with the score in its
+// tooltip, any other game prints the score.
 const perfScore = computed(() => self.value.performanceScore)
 
-const perfTooltip = computed(() =>
-  `Performance score ${perfScore.value}/100 — ${ordinal(self.value.placement)} of 10 in this game`)
+const accolade = computed(() => {
+  if (self.value.isMvp) return 'MVP'
+  if (self.value.isAce) return 'ACE'
+  return null
+})
+
+const perfTooltip = computed(() => {
+  const detail = `Performance score ${perfScore.value}/100 — ${ordinal(self.value.placement)} of 10 in this game`
+  return accolade.value ? `${accolade.value} · ${detail}` : detail
+})
 
 function ordinal(n: number): string {
   const rest = n % 100
@@ -286,7 +240,7 @@ const rowTint = computed(() =>
         :role="canExpand ? 'button' : undefined"
         :tabindex="canExpand ? 0 : undefined"
         :aria-expanded="canExpand ? expanded : undefined"
-        class="flex flex-1 flex-wrap items-center gap-2 px-2 py-2 @md:flex-nowrap @2xl:gap-3 @2xl:px-3 @2xl:py-2.5"
+        class="flex flex-1 flex-wrap items-center gap-2 px-2 py-2 @md:flex-nowrap @md:justify-between @2xl:gap-3 @2xl:px-3 @2xl:py-2.5"
         :class="canExpand ? 'cursor-pointer' : ''"
         @click="toggle"
         @keydown.enter.prevent="toggle"
@@ -299,53 +253,56 @@ const rowTint = computed(() =>
              only consumer the colour alone doesn't serve. Duration and LP
              delta moved into the stats cluster below. -->
 
-        <!-- Champion portrait, badged with the player's role (or the champion
-             level when Riot assigned no position). Summoner spells and runes
-             used to sit next to it; they now live just left of the item block
-             (see below) so the whole loadout — spells, runes, items — reads as
-             one continuous strip, matching the scoreboard layout. -->
-        <div class="relative shrink-0 @2xl:ml-1">
-          <SkeletonImage
-            :src="championIconUrl"
-            :alt="championName"
-            :title="championName"
-            loading="lazy"
-            class="size-10 rounded @2xl:size-12"
-          />
-          <span
-            class="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-default ring-1 ring-default"
-            :class="selfPosition
-              ? 'size-4 @2xl:size-5'
-              : 'size-3.5 text-[9px] font-bold leading-none @2xl:size-4 @2xl:text-[10px]'"
-            :title="selfPosition ? (POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition) : undefined"
-          >
-            <img
-              v-if="selfPosition"
-              :src="canonicalIcon(getPositionIconUrl(selfPosition))"
+        <!-- From @md up every column is fixed-width and the row is
+             `justify-between`: free width is shared evenly between columns
+             instead of pooling as two dead gaps around the build (#1610).
+             Portrait + KDA stay wrapped so the spread never splits them. -->
+        <div class="flex shrink-0 items-center gap-2 @2xl:gap-3">
+          <!-- Champion portrait, badged with the player's role (or the champion
+               level when Riot assigned no position). Summoner spells and runes
+               used to sit next to it; they now live just left of the item block
+               (see below) so the whole loadout — spells, runes, items — reads as
+               one continuous strip, matching the scoreboard layout. -->
+          <div class="relative shrink-0 @2xl:ml-1">
+            <SkeletonImage
+              :src="championIconUrl"
+              :alt="championName"
+              :title="championName"
               loading="lazy"
-              :alt="POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition"
-              class="size-3 @2xl:size-3.5"
+              class="size-10 rounded @2xl:size-12"
+            />
+            <span
+              class="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-default ring-1 ring-default"
+              :class="selfPosition
+                ? 'size-4 @2xl:size-5'
+                : 'size-3.5 text-[9px] font-bold leading-none @2xl:size-4 @2xl:text-[10px]'"
+              :title="selfPosition ? (POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition) : undefined"
             >
-            <template v-else>{{ self.championLevel }}</template>
-          </span>
-        </div>
+              <img
+                v-if="selfPosition"
+                :src="canonicalIcon(getPositionIconUrl(selfPosition))"
+                loading="lazy"
+                :alt="POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition"
+                class="size-3 @2xl:size-3.5"
+              >
+              <template v-else>{{ self.championLevel }}</template>
+            </span>
+          </div>
 
-        <!-- KDA + stats: two-column block. KDA on top with the ratio under
-             it; CS/m and KP stacked to the right so they share the vertical
-             rhythm of the KDA cluster. Tabular-nums everywhere so digits
-             never jitter, and the whole block is a fixed width (not just
-             min-width) — a 12/2/15 game and a 4/8/8 game must occupy the
-             exact same box, or everything to its right (the centred
-             loadout, the right-edge group) drifts left/right row to row and
-             the columns stop lining up down the list. -->
-        <div class="flex w-28 shrink-0 items-center gap-2 @3xl:w-52 @3xl:gap-3">
-          <div class="flex w-28 flex-col items-center">
-            <div class="whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
-              {{ self.kills }}
+          <!-- KDA cluster: KDA on top with the ratio under it. Tabular-nums
+               everywhere so digits never jitter, and the column is a fixed
+               width (not just min-width) — a 12/2/15 game and a 4/8/8 game
+               must occupy the exact same box, or every column to its right
+               drifts row to row and the columns stop lining up down the
+               list. The same holds for the stats column below. -->
+          <div class="flex w-28 shrink-0 flex-col items-center">
+            <!-- Explicit gap: whitespace between inline spans spaced the slashes unevenly. -->
+            <div class="flex items-baseline gap-1 whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
+              <span>{{ self.kills }}</span>
               <span class="text-muted/70">/</span>
               <span class="text-red-400">{{ self.deaths }}</span>
               <span class="text-muted/70">/</span>
-              {{ self.assists }}
+              <span>{{ self.assists }}</span>
             </div>
             <div class="text-[11px] font-semibold tabular-nums" :class="kdaColor">
               {{ kdaRatio }}
@@ -363,46 +320,38 @@ const rowTint = computed(() =>
             >
               {{ lpDeltaText }}
             </div>
-            <!-- Duration lives under KP in the stats stack, which only exists
+            <!-- Duration lives under CS/m in the stats stack, which only exists
                  from @3xl — below that it falls back here so a drawer or a
                  phone doesn't lose it entirely. -->
             <div class="text-[11px] text-muted tabular-nums @3xl:hidden">
               {{ durationLabel }}
             </div>
           </div>
-          <!-- Secondary stats only once the row clears @3xl — the last thing
-               to come back, because the 4rem they cost is exactly what the
-               team compositions (added at @xl) need. Below that the KDA
-               cluster, the build and the compositions are the scan targets.
-               Centred (not left-aligned) inside the track it shares with the
-               KDA cluster: the four lines are one stacked measurement block,
-               and ragged-left they read as a column that lost its column. -->
-          <div class="hidden flex-1 flex-col items-center gap-0.5 text-[11px] text-muted tabular-nums @3xl:flex">
-            <UTooltip :text="perfTooltip">
-              <span class="font-semibold" :class="perfColor">
-                {{ perfScore }} PERF
-              </span>
-            </UTooltip>
-            <span>{{ csPerMin }} CS/m</span>
-            <span>{{ kpPercent }} KP</span>
-            <span>{{ durationLabel }}</span>
-          </div>
+        </div>
+
+        <!-- Secondary stats only once the row clears @3xl — the last thing
+             to come back, because the 4rem they cost is exactly what the
+             team compositions (added at @xl) need. Below that the KDA
+             cluster, the build and the compositions are the scan targets.
+             Centred (not left-aligned) in its own fixed-width column, like the
+             KDA cluster. Kill participation is left to the scoreboard: it
+             says little on its own, and the performance score moved to the
+             right edge. -->
+        <div class="hidden w-14 shrink-0 flex-col items-center gap-0.5 text-[11px] text-muted tabular-nums @3xl:flex">
+          <span>{{ csPerMin }} CS/m</span>
+          <span>{{ durationLabel }}</span>
         </div>
 
         <!-- Loadout strip: summoner spells + runes + item block, tightly
              grouped (small internal gaps) so spells → runes → items read
-             left-to-right as one continuous build. Centred inside its flex-1
-             track (between the KDA cluster and the right-edge group, which
-             already reserves its own space via the row's flex layout) —
-             flush-left here left a wide dead gap in front of the team
-             compositions on anything wider than the drawer. Summoners and
-             runes each stack 2-high to match the two rows of the item grid. -->
+             left-to-right as one continuous build. Summoners and runes each
+             stack 2-high to match the two rows of the item grid. -->
         <!-- Below @md the loadout wraps onto its own line (`order-last` keeps
              it under the row rather than between the KDA and the accolade).
              A phone can't hold meta + portrait + KDA + a 9rem build strip on
              one line, and the alternative — dropping half the build — throws
              away the thing the row exists to show. -->
-        <div class="order-last flex w-full grow items-center justify-center @md:order-none @md:w-auto @md:flex-1">
+        <div class="order-last flex w-full items-center justify-center @md:order-none @md:w-auto @md:shrink-0">
           <div class="flex shrink-0 items-center gap-1">
             <div class="flex flex-col gap-0.5">
               <GameTooltipSummonerSpellIcon
@@ -437,68 +386,22 @@ const rowTint = computed(() =>
               />
             </div>
 
-            <!-- Items: dark inset (scoreboard-style) with the six inventory
-                 slots as a 3×2 grid, then a trailing column stacking the trinket
-                 over the boots — boots are pulled out of the grid so they line up
-                 with the trinket the way trackers show them. Empty slots stay as
-                 transparent placeholders so the grid keeps its shape. The Eye of
-                 the Herald is filtered out upstream (it's not a build item). -->
-            <div class="flex items-center gap-1 rounded-lg bg-black/25 p-1 ring-1 ring-white/5 @2xl:gap-1.5 @2xl:p-1.5">
-              <div class="grid grid-cols-3 gap-0.5 @2xl:gap-1">
-                <template
-                  v-for="(slot, idx) in inventoryItems"
-                  :key="`item-${idx}`"
-                >
-                  <div
-                    v-if="slot.kind === 'empty'"
-                    class="size-5 shrink-0 rounded bg-white/5 @2xl:size-6"
-                    aria-hidden="true"
-                  />
-                  <GameTooltipItemIcon
-                    v-else
-                    :item="slot.kind === 'item' ? slot.item : null"
-                    :width="24"
-                    :height="24"
-                    class="size-5 rounded @2xl:size-6"
-                  />
-                </template>
-              </div>
-              <div class="flex flex-col gap-0.5 @2xl:gap-1">
-                <GameTooltipItemIcon
-                  :item="trinket"
-                  :width="24"
-                  :height="24"
-                  loading="lazy"
-                  class="size-5 rounded-full @2xl:size-6"
-                />
-                <div
-                  v-if="bootsItem"
-                  class="size-5 @2xl:size-6"
-                >
-                  <GameTooltipItemIcon
-                    :item="bootsItem"
-                    :width="24"
-                    :height="24"
-                    class="size-5 rounded @2xl:size-6"
-                  />
-                </div>
-                <div
-                  v-else
-                  class="size-5 @2xl:size-6"
-                  aria-hidden="true"
-                />
-              </div>
-            </div>
+            <!-- Items: the shared inventory block the scoreboard draws per player. -->
+            <MatchItemGrid
+              :item-ids="self.items"
+              :trinket-item-id="self.trinketItemId"
+              :role-bound-item-id="self.roleBoundItemId"
+              :items="items"
+            />
           </div>
         </div>
 
         <!-- Right-edge group: team compositions + MVP/ACE accolade + expand
              chevron, pinned together as one unit. From @md up no margin is
-             needed — the loadout's flex-1 track above already claims all of
-             the row's free space, so this group lands flush against the right
-             edge right after it. Below @md the loadout has wrapped away onto
-             its own line, taking that slack with it, so the group needs
-             `ml-auto` to stay on the edge instead of hugging the KDA. -->
+             needed — the row's `justify-between` already puts the last column
+             flush against the right edge. Below @md the loadout has wrapped
+             away onto its own line and the row keeps its default justification,
+             so the group needs `ml-auto` to stay on the edge. -->
         <div class="ml-auto flex shrink-0 items-center gap-2 @md:ml-0 @2xl:gap-3">
           <!-- Team compositions: two horizontal rows of 5, allies over
                enemies, each sorted TOP → SUPPORT so a column pairs
@@ -544,30 +447,28 @@ const rowTint = computed(() =>
             </div>
           </div>
 
-          <!--
-            MVP / ACE accolade + expand chevron. MVP = a crown in the brand
-            `gold` accent (best player of the game); ACE = an award rosette in
-            the rose `primary` (best player of the losing team). Distinct icon
-            *and* colour so the two never blur together, and the same two
-            tokens the expanded MatchDetailScoreboard uses, so the collapsed
-            crown and the scoreboard crown are the same gold. A UTooltip
-            spells out which accolade it is on hover/focus. Chevron rotates
-            180°. The accolade sits in a fixed-size slot (rendered empty
-            rather than omitted when there's no MVP/ACE) so the chevron next
-            to it — and everything left of this group — lines up at the same
-            spot whether or not a given row has a badge. -->
+          <!-- Performance slot + chevron: MVP crown (`gold`) or ACE rosette
+               (`primary`, as in the scoreboard) with the score in the
+               tooltip, otherwise the graded score. Fixed width so the columns
+               line up down the list. -->
           <div class="flex shrink-0 items-center gap-1 @2xl:gap-2">
-            <div class="flex size-5 shrink-0 items-center justify-center">
-              <UTooltip
-                v-if="self.isMvp || self.isAce"
-                :text="self.isMvp ? 'MVP' : 'ACE'"
-              >
+            <div class="flex w-7 shrink-0 items-center justify-center">
+              <UTooltip :text="perfTooltip">
                 <UIcon
+                  v-if="accolade"
                   :name="self.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
                   class="size-5 drop-shadow"
                   :class="self.isMvp ? 'text-gold' : 'text-primary'"
-                  :aria-label="self.isMvp ? 'MVP' : 'ACE'"
+                  :aria-label="`${accolade}, performance score ${perfScore}`"
                 />
+                <span
+                  v-else
+                  class="text-sm font-bold tabular-nums"
+                  :class="perfColor"
+                  :aria-label="`Performance score ${perfScore}`"
+                >
+                  {{ perfScore }}
+                </span>
               </UTooltip>
             </div>
             <UIcon

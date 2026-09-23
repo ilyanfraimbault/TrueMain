@@ -150,20 +150,6 @@ public sealed class MatchDetailQueryService(
                         row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
                 });
 
-        // Early kill participations with a map position. Bounded by the ingestor
-        // to the early game, so the whole set is the roam window. An empty set
-        // means the match has no coverage at all, which drops the roam component
-        // instead of scoring every player a 0.
-        var killRows = await db.MatchParticipantKillPositions
-            .AsNoTracking()
-            .Where(k => k.MatchId == matchId)
-            .Select(k => new { k.ParticipantId, k.X, k.Y })
-            .ToListAsync(ct);
-
-        var killSpots = killRows
-            .Select(k => new KillSpot(k.ParticipantId, k.X, k.Y))
-            .ToList();
-
         // Nearest rank snapshot per tracked account, by absolute distance from
         // the game's start time. One LINQ pass: for each participant's account
         // pick the snapshot whose CapturedAtUtc is closest to GameStartTimeUtc.
@@ -262,8 +248,7 @@ public sealed class MatchDetailQueryService(
                     p.VisionScore))
                 .ToList(),
             match.GameDurationSeconds,
-            marksByKey,
-            killSpots);
+            marksByKey);
 
         var laning15ByParticipant = scoringInputs.ToDictionary(
             built => built.Participant.ParticipantId,
@@ -375,12 +360,9 @@ public sealed class MatchDetailQueryService(
                     Kills = p.Kills,
                     Deaths = p.Deaths,
                     Assists = p.Assists,
-                    Items = new[]
-                    {
-                        p.Item0, p.Item1, p.Item2,
-                        p.Item3, p.Item4, p.Item5, p.Item6,
-                    },
+                    Items = new[] { p.Item0, p.Item1, p.Item2, p.Item3, p.Item4, p.Item5 },
                     TrinketItemId = p.TrinketItemId,
+                    RoleBoundItemId = p.RoleBoundItemId ?? 0,
                     Summoner1Id = p.Summoner1Id,
                     Summoner2Id = p.Summoner2Id,
                     PrimaryStyleId = p.PrimaryStyleId,

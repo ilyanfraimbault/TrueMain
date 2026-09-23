@@ -36,11 +36,13 @@ const {
   data: profile,
   isInitialLoading: profileLoading,
   notFound: profileNotFound,
+  ready: profileReady,
 } = useTruemainProfile(nameTag)
 
 const {
   data: rankHistory,
   isInitialLoading: rankHistoryLoading,
+  ready: rankHistoryReady,
 } = useTruemainRankHistory(nameTag)
 
 // Activity grid under the LP curve (#927). One request covers all four
@@ -49,6 +51,7 @@ const {
 const {
   data: activity,
   isInitialLoading: activityLoading,
+  ready: activityReady,
 } = useTruemainActivity(nameTag)
 
 // Human label for the breadcrumb / SEO title — `gameName#tagLine`, falling
@@ -95,6 +98,7 @@ const {
   pageSize: matchesPageSize,
   isInitialLoading: matchesInitialLoading,
   notFound: matchesNotFound,
+  ready: matchesReady,
 } = useTruemainMatches(nameTag, currentMatchesPage, {
   pageSize: MATCHES_PAGE_SIZE,
   position: filterPosition,
@@ -132,20 +136,25 @@ const staticBundleReady = computed(() =>
 )
 
 const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
+
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the API has answered, so this page opens on its data (#1689). Resolves at
+// once on a server render and a hydration, which keep their skeletons.
+await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
 </script>
 
 <template>
-  <!--
-    Two-column layout on lg+. Left rail (20rem) collects the player-level
-    summary (identity, ranked, mains, roles); the right rail is the match
-    feed and stretches into the rest of the viewport. On smaller screens
-    everything stacks naturally — the grid collapses to a single column.
+  <div class="mx-auto w-full max-w-7xl p-4 md:p-6">
+    <!--
+      Two-column layout on lg+. Left rail (20rem) collects the player-level
+      summary (identity, ranked, mains, roles); the right rail is the match
+      feed and stretches into the rest of the viewport. On smaller screens
+      everything stacks naturally — the grid collapses to a single column.
 
-    The container caps at 7xl (1280px); going wider starts to feel sparse
-    on ultrawide screens where the match rows can't get any denser without
-    more data per row.
-  -->
-  <main class="mx-auto w-full max-w-7xl p-4 md:p-6">
+      The container caps at 7xl (1280px); going wider starts to feel sparse
+      on ultrawide screens where the match rows can't get any denser without
+      more data per row.
+    -->
     <!-- Truemains > {player}, linking back to the OTP leaderboard. The share
          controls (#926) sit on the same row so they stay above the fold on
          mobile, where the left rail pushes everything else down. Rendered in
@@ -278,5 +287,5 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
         </template>
       </section>
     </div>
-  </main>
+  </div>
 </template>

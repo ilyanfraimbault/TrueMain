@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { describeFetchError } from '~/utils/errors'
 
 // Top truemains on this champion — the same rows as /truemains filtered by
 // championId, capped at the first page with a link through to the full
@@ -58,19 +57,22 @@ const viewAllHref = computed(() => `/truemains?championId=${props.championId}`)
         />
       </template>
 
-      <p
+      <!-- An alert, not the muted line the empty state below uses: rendered in
+           the same grey, "this failed" and "there is nothing here" were the same
+           panel to a reader (#1661). -->
+      <FetchErrorAlert
         v-else-if="error"
-        class="py-6 text-center text-sm text-muted"
-      >
-        {{ describeFetchError(error) }}
-      </p>
+        :error="error"
+        title="Failed to load the truemains"
+        class="my-2"
+      />
 
-      <p
+      <UEmpty
         v-else-if="rows.length === 0"
-        class="py-6 text-center text-sm text-muted"
-      >
-        No tracked truemains on this champion yet.
-      </p>
+        size="sm"
+        icon="i-lucide-trophy"
+        description="No tracked truemains on this champion yet."
+      />
 
       <template v-else>
         <LeaderboardRow

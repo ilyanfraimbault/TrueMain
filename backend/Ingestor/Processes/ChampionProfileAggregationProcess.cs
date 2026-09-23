@@ -158,7 +158,7 @@ public sealed class ChampionProfileAggregationProcess(
                 p.TeamId,
                 p.TeamPosition,
                 p.Win,
-                p.Item0, p.Item1, p.Item2, p.Item3, p.Item4, p.Item5,
+                p.Item0, p.Item1, p.Item2, p.Item3, p.Item4, p.Item5, p.RoleBoundItemId,
                 p.PhysicalDamageDealtToChampions,
                 p.MagicDamageDealtToChampions,
                 p.TrueDamageDealtToChampions,
@@ -277,7 +277,8 @@ public sealed class ChampionProfileAggregationProcess(
 
                 acc.ItemGames++;
                 var archetypes = ItemArchetypes.ClassifyInventory(
-                    [self.Item0, self.Item1, self.Item2, self.Item3, self.Item4, self.Item5], itemMetadata);
+                    FinalInventory.Of(self.Item0, self.Item1, self.Item2, self.Item3, self.Item4, self.Item5, self.RoleBoundItemId),
+                    itemMetadata);
                 acc.CritGames += archetypes.HasFlag(ItemArchetype.Crit) ? 1 : 0;
                 acc.ArmorPenetrationGames += archetypes.HasFlag(ItemArchetype.ArmorPenetration) ? 1 : 0;
                 acc.OnHitGames += archetypes.HasFlag(ItemArchetype.OnHit) ? 1 : 0;
@@ -356,7 +357,7 @@ public sealed class ChampionProfileAggregationProcess(
         int TeamId,
         string TeamPosition,
         bool Win,
-        int Item0, int Item1, int Item2, int Item3, int Item4, int Item5,
+        int Item0, int Item1, int Item2, int Item3, int Item4, int Item5, int? RoleBoundItemId,
         int? PhysicalDamage,
         int? MagicDamage,
         int? TrueDamage,

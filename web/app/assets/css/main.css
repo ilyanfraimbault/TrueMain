@@ -455,3 +455,44 @@ html {
   --vis-tooltip-border-radius: 0;
   --vis-tooltip-box-shadow: none;
 }
+
+/*
+ * Page transitions (#1621, #1689) — `app.pageTransition` in nuxt.config.ts, a
+ * Vue `<Transition name="page" mode="out-in">` around the page's `<Suspense>`.
+ * It only plays once the destination has resolved the data it awaits in setup:
+ * until then the outgoing page stays live under the loading bar
+ * (`AppLoadingBar`). It plays only when the page component changes — a
+ * query-only navigation (the champion page's filters, the pagers) re-renders
+ * in place — and not at all under `prefers-reduced-motion: reduce`.
+ *
+ * Restrained on purpose — this is a dense data UI, and the transition's only
+ * job is to say "the page changed" rather than "it re-rendered". Only the
+ * content region animates; the shell (header, footer) sits outside
+ * `<NuxtPage>`. The outgoing page fades out quickly, then the incoming one
+ * fades in with a 6px rise: `out-in` never shows the two at once, where a plain
+ * cross-fade put two dense tables on top of each other mid-way, which read as
+ * noise, not motion.
+ */
+.page-leave-active {
+  transition: opacity 90ms ease-in;
+}
+
+.page-enter-active {
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
+}
+
+.page-leave-to,
+.page-enter-from {
+  opacity: 0;
+}
+
+.page-enter-from {
+  transform: translateY(6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-leave-active,
+  .page-enter-active {
+    transition: none;
+  }
+}

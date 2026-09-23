@@ -6,13 +6,11 @@ using TrueMain.Services.Champions.Progression;
 namespace TrueMain.Controllers.Champions;
 
 /// <summary>
-/// How a champion's game unfolds rather than how it ends: win rate against game length and roams
-/// out of lane at the early marks. Both read the timeline side of a match, and both take the same
-/// champion + position + scope, which is what makes them one controller.
+/// How a champion's game unfolds rather than how it ends: win rate against game length. Reads the
+/// timeline side of a match, scoped by champion + position + scope.
 /// </summary>
 public sealed class ChampionProgressionController(
-    IChampionScalingQueryService scalingQueryService,
-    IChampionRoamQueryService roamQueryService) : ChampionsControllerBase
+    IChampionScalingQueryService scalingQueryService) : ChampionsControllerBase
 {
     /// <summary>
     /// How a champion's win rate scales with game length at a position: win rate
@@ -44,44 +42,6 @@ public sealed class ChampionProgressionController(
         }
 
         var response = await scalingQueryService.GetAsync(
-            championId,
-            normalizedPosition,
-            normalizedPatch,
-            normalizedBracket,
-            ct);
-
-        return Ok(response);
-    }
-
-    /// <summary>
-    /// How much a champion roams at a position: the average number of out-of-lane
-    /// kill participations per game at the 5/10/15-minute marks, computed live from
-    /// the stored kill positions. <paramref name="position"/> is the required Riot
-    /// team position; an unrecognised position is a 400. Always 200; the per-game
-    /// averages are null below the sample floor and for JUNGLE (no own lane).
-    /// </summary>
-    [HttpGet("{championId:int}/roam")]
-    [ProducesResponseType(typeof(ChampionRoamResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ChampionRoamResponse>> GetChampionRoamAsync(
-        int championId,
-        [FromQuery] string? position,
-        [FromQuery] string? patch,
-        [FromQuery] string? eloBracket,
-        CancellationToken ct = default)
-    {
-        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
-        {
-            return problem;
-        }
-
-        var normalizedPatch = PatchParameter.Normalize(patch);
-        if (!this.TryNormalizeOptionalEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
-        {
-            return bracketProblem;
-        }
-
-        var response = await roamQueryService.GetAsync(
             championId,
             normalizedPosition,
             normalizedPatch,

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { CompositionBuildRequest, CompositionSlotInput } from '~~/shared/types/composition'
 import { POSITION_OPTIONS, POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
-import { describeFetchError } from '~/utils/errors'
 
 useSeoMeta({
   title: 'Matchup',
@@ -131,8 +130,9 @@ const currentDraftRequest = computed<CompositionBuildRequest | null>(() => {
 let refetchTimer: ReturnType<typeof setTimeout> | undefined
 
 // Live mode: every draft edit re-queries after a short debounce — there is no
-// submit button. The previous recommendation stays on screen while the next
-// one loads (the composable also drops out-of-order responses).
+// submit button. The panel and the stats strip fall back to their skeletons
+// while the next answer loads, rather than keeping the previous one dimmed
+// (the composable also drops out-of-order responses).
 watch(
   [playedChampionId, playedPosition, opponentChampionId, allySlots, enemySlots],
   () => {
@@ -208,18 +208,15 @@ const missingMatchupNotice = computed(() => {
 </script>
 
 <template>
-  <main class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
+  <div class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
     <PageHeader
       eyebrow="Draft tools"
       title="Matchup"
     />
 
-    <UAlert
-      v-if="staticError"
-      color="error"
-      variant="soft"
-      title="Champion list unavailable"
-      :description="describeFetchError(staticError)"
+    <FetchErrorAlert
+      :error="staticError"
+      title="Failed to load the champion list"
     />
 
     <BuilderMatchupStage
@@ -259,15 +256,33 @@ const missingMatchupNotice = computed(() => {
       @clear="resetContext"
     />
 
-    <UAlert
-      v-if="error"
-      color="error"
-      variant="soft"
-      title="Recommendation unavailable"
-      :description="describeFetchError(error)"
+    <FetchErrorAlert
+      :error="error"
+      title="Failed to load the recommendation"
     />
 
-    <template v-if="recommendation && isDraftReady">
+    <!-- Any fetch in flight, first or not (#1659 follow-up): the recommendation
+         panel's own layout with nothing resolved in it, rather than the previous
+         answer dimmed. A cold recommendation runs for tens of seconds, and over
+         that span a dimmed panel does not read as loading — it reads as a page
+         that dimmed itself, while its stale numbers stay legible enough to be
+         taken for the new ones. The header is scaffolded here because the panel
+         owning it is what we're waiting for. -->
+    <SectionCard v-if="isDraftReady && isLoading">
+      <template #title>
+        <div
+          class="flex flex-wrap items-center gap-x-2.5 gap-y-1"
+          aria-hidden="true"
+        >
+          <USkeleton class="size-7 rounded-lg" />
+          <USkeleton class="h-4 w-56" />
+          <USkeleton class="size-7 rounded-lg" />
+        </div>
+      </template>
+      <ChampionBuildCoreSkeleton />
+    </SectionCard>
+
+    <template v-else-if="recommendation && isDraftReady">
       <!-- Matchup pinned but never recorded: there is no matchup build to
            render, so this falls back to the champion's baseline one. The whole
            explanation rides in the card's warning-icon tooltip — a banner here
@@ -284,71 +299,43 @@ const missingMatchupNotice = computed(() => {
         v-else-if="recommendation.build.gamesConsidered === 0"
         :title="playedChampion ? `Recommended for ${playedChampion.name}` : 'Recommendation'"
       >
-        <div class="surface rounded-lg px-6 py-12 text-center">
-          <p class="font-medium">
-            No similar games found
-          </p>
-          <p class="mt-1 text-sm text-muted">
+        <!-- Description-only: this card's title is an `<h3>` and `UEmpty`'s
+             `title` prop renders an `<h2>` — see FallbackBuild.vue. -->
+        <UEmpty icon="i-lucide-search-x">
+          <template #description>
+            <span class="block font-medium text-highlighted">No similar games found</span>
             Nothing recorded for this champion at this position yet.
-          </p>
-        </div>
+          </template>
+        </UEmpty>
       </SectionCard>
 
       <!-- Any matchup with at least one game: shown, however thin. The panel
            carries its own low-sample warning icon, so nothing is added here. -->
-      <template v-else>
-        <div
-          class="transition-opacity duration-200"
-          :class="isLoading ? 'opacity-60' : ''"
-        >
-          <BuilderRecommendationPanel
-            :recommendation="recommendation"
-            :champion-name="playedChampion?.name ?? null"
-            :champion-icon-url="playedChampion?.iconUrl ?? null"
-            :opponent-name="opponentChampion?.name ?? null"
-            :opponent-icon-url="opponentChampion?.iconUrl ?? null"
-            :draft-request="currentDraftRequest"
-            :champions="champions"
-            :games-drawer-open="gamesDrawerOpen"
-            @update:games-drawer-open="gamesDrawerOpen = $event"
-          />
-        </div>
-      </template>
+      <BuilderRecommendationPanel
+        v-else
+        :recommendation="recommendation"
+        :champion-name="playedChampion?.name ?? null"
+        :champion-icon-url="playedChampion?.iconUrl ?? null"
+        :opponent-name="opponentChampion?.name ?? null"
+        :opponent-icon-url="opponentChampion?.iconUrl ?? null"
+        :draft-request="currentDraftRequest"
+        :champions="champions"
+        :games-drawer-open="gamesDrawerOpen"
+        @update:games-drawer-open="gamesDrawerOpen = $event"
+      />
     </template>
-
-    <!-- First fetch after the pick: the recommendation panel's own layout with
-         nothing resolved in it (see `ChampionBuildCoreSkeleton`), rather than a
-         blank page. The header is scaffolded here because the panel owning it
-         is what we're waiting for. -->
-    <SectionCard v-else-if="isDraftReady && isLoading">
-      <template #title>
-        <div
-          class="flex flex-wrap items-center gap-x-2.5 gap-y-1"
-          aria-hidden="true"
-        >
-          <USkeleton class="size-7 rounded-lg" />
-          <USkeleton class="h-4 w-56" />
-          <USkeleton class="size-7 rounded-lg" />
-        </div>
-      </template>
-      <ChampionBuildCoreSkeleton />
-    </SectionCard>
 
     <!-- Nothing picked yet. Without this the page is a stage floating over a
          screen of empty background — it reads as broken rather than as waiting
          for input. Dashed, recessed and unlabelled by a heading so it stays a
          placeholder and not a third panel to parse. -->
-    <div
+    <UEmpty
       v-if="!isDraftReady"
-      class="rounded-xl border border-dashed border-accented bg-muted px-6 py-12 text-center"
-    >
-      <UIcon
-        name="i-lucide-swords"
-        class="size-8 text-dimmed"
-      />
-      <p class="mt-3 font-medium text-highlighted">
-        Pick a champion and a role
-      </p>
-    </div>
-  </main>
+      variant="naked"
+      icon="i-lucide-swords"
+      description="Pick a champion and a role"
+      class="rounded-xl border border-dashed border-accented bg-muted"
+      :ui="{ description: 'font-medium text-highlighted' }"
+    />
+  </div>
 </template>

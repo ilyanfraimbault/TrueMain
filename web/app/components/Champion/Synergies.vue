@@ -115,19 +115,32 @@ watch(() => [props.championId, props.position], () => {
         <USkeleton v-for="i in 6" :key="`syn-skel-${i}`" class="h-8 w-full rounded-md" />
       </template>
 
-      <p v-else-if="error" class="py-6 text-center text-sm text-muted">
-        Couldn't load synergies. Please try again.
-      </p>
+      <!-- A failure, not an empty state: it had been hand-written as the same
+           muted line as the two below, with copy of its own that never saw the
+           real status — the #1661 sweep missed it because it was neither a
+           `UAlert` nor a `describeFetchError` call. -->
+      <FetchErrorAlert
+        v-else-if="error"
+        :error="error"
+        title="Failed to load the synergies"
+        class="my-2"
+      />
 
       <!-- No usable baseline for the champion itself: say so with the real
            count instead of showing a ranking built on nothing. -->
-      <p v-else-if="!hasChampionSample" class="py-6 text-center text-sm text-muted">
-        Not enough recorded games on {{ championName }} in this lane yet to measure synergies.
-      </p>
+      <UEmpty
+        v-else-if="!hasChampionSample"
+        size="sm"
+        icon="i-lucide-users-round"
+        :description="`Not enough recorded games on ${championName} in this lane yet to measure synergies.`"
+      />
 
-      <p v-else-if="noPartners" class="py-6 text-center text-sm text-muted">
-        No teammate has reached {{ data?.minGames ?? 0 }} shared games with {{ championName }} yet.
-      </p>
+      <UEmpty
+        v-else-if="noPartners"
+        size="sm"
+        icon="i-lucide-users-round"
+        :description="`No teammate has reached ${data?.minGames ?? 0} shared games with ${championName} yet.`"
+      />
 
       <template v-else>
         <!-- Column key. "Synergy" is points of win rate above expectation, so it
@@ -176,17 +189,26 @@ watch(() => [props.championId, props.position], () => {
           <USkeleton v-for="i in 3" :key="`trio-skel-${i}`" class="h-8 w-full rounded-md" />
         </template>
 
-        <p v-else-if="trioError" class="py-4 text-center text-sm text-muted">
-          Couldn't load trio suggestions. Please try again.
-        </p>
+        <FetchErrorAlert
+          v-else-if="trioError"
+          :error="trioError"
+          title="Failed to load the trio suggestions"
+          class="my-2"
+        />
 
         <!-- A duo's games are the ceiling for every trio drawn from it, so a thin
              duo cannot support a third dimension. Show the real count. -->
-        <p v-else-if="completions.length === 0" class="py-4 text-center text-sm text-muted">
-          {{ championName }} and {{ selectedPartnerName }} share
-          {{ (trioData?.pairGames ?? 0).toLocaleString('en-US') }} games — not enough to suggest a third pick
-          (minimum {{ trioData?.minGames ?? 0 }} games together with the same teammate).
-        </p>
+        <UEmpty
+          v-else-if="completions.length === 0"
+          size="xs"
+          icon="i-lucide-users-round"
+        >
+          <template #description>
+            {{ championName }} and {{ selectedPartnerName }} share
+            {{ (trioData?.pairGames ?? 0).toLocaleString('en-US') }} games — not enough to suggest a third pick
+            (minimum {{ trioData?.minGames ?? 0 }} games together with the same teammate).
+          </template>
+        </UEmpty>
 
         <template v-else>
           <div class="flex flex-col gap-1">

@@ -73,6 +73,10 @@ internal static class ItemMetadataFixtures
         [3031] = new(3031, 3000, true, false, false, false, true, false),
         [3085] = new(3085, 3000, true, false, false, false, true, false),
         [3153] = new(3153, 3200, true, false, false, false, true, false),
-        [6672] = new(6672, 3000, true, false, false, false, true, false)
+        [6672] = new(6672, 3000, true, false, false, false, true, false),
+        [3072] = new(3072, 3400, true, false, false, false, true, false),
+        // 1209 = Jungle Quest Reward, what Riot's role-bound slot holds for a jungler:
+        // nothing builds out of it, but it is never in the store.
+        [1209] = new(1209, 0, false, false, false, false, true, false)
     };
 }

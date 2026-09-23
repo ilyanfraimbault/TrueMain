@@ -73,6 +73,12 @@ public sealed record MatchSummarySelfReadModel
 
     public int TrinketItemId { get; init; }
 
+    /// <summary>
+    /// Riot's role-bound slot, outside the six inventory slots: a bot laner's boots once the
+    /// role quest is done, the other roles' quest reward. 0 when empty or not recorded.
+    /// </summary>
+    public int RoleBoundItemId { get; init; }
+
     /// <summary>100 = blue side, 200 = red side.</summary>
     public int TeamId { get; init; }
 
@@ -96,7 +102,7 @@ public sealed record MatchSummarySelfReadModel
 
     /// <summary>
     /// TrueMain performance score for this game, 0–100 — the role-aware blend of
-    /// end-of-game stats, the timeline lead curve and early roams described in
+    /// end-of-game stats and the timeline lead curve described in
     /// <c>Core.Lol.Performance.PerformanceScore</c>. Computed with the same
     /// scorer and the same inputs as the match detail payload, so the collapsed
     /// row and the expanded panel always agree.

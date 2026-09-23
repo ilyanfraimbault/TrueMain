@@ -64,10 +64,16 @@ public sealed record MatchDetailParticipantReadModel
 
     public int Assists { get; init; }
 
-    /// <summary>Inventory slots 0..6 (length 7). The trinket is in <see cref="TrinketItemId"/>.</summary>
+    /// <summary>Inventory slots 0..5 (length 6) — the trinket is in <see cref="TrinketItemId"/>.</summary>
     public IReadOnlyList<int> Items { get; init; } = Array.Empty<int>();
 
     public int TrinketItemId { get; init; }
+
+    /// <summary>
+    /// Riot's role-bound slot, outside the six inventory slots: a bot laner's boots once the
+    /// role quest is done, the other roles' quest reward. 0 when empty or not recorded.
+    /// </summary>
+    public int RoleBoundItemId { get; init; }
 
     public int Summoner1Id { get; init; }
 

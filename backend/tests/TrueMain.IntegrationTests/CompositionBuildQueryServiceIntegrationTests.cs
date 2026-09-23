@@ -174,6 +174,10 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
             GameStartTimeUtc = DateTime.UtcNow.AddDays(-1),
             Puuid = $"puuid-{matchId}",
             IsTruemain = false,
+            // Uniform across the refs these tests build, so the patch/pilot multipliers
+            // scale every vote identically and the assertions below stay about the
+            // aggregation itself.
+            IsCurrentPatch = true,
         };
 
     /// <summary>

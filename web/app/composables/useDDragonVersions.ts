@@ -21,10 +21,11 @@ export const DDRAGON_VERSIONS_KEY = 'ddragon-versions'
  */
 export function useDDragonVersions() {
   const nuxtApp = useNuxtApp()
+  const apiFetch = useApiFetch()
   return useLazyAsyncData<string[]>(
     DDRAGON_VERSIONS_KEY,
     async () => {
-      const data = await $fetch<string[]>('/api/static/versions')
+      const data = await apiFetch<string[]>('/static/versions')
       markStaticFetched(DDRAGON_VERSIONS_KEY, nuxtApp)
       return data
     },

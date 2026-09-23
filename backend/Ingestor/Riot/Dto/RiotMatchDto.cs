@@ -195,6 +195,9 @@ public class RiotParticipantDto
     [JsonPropertyName("item6")]
     public int Item6 { get; set; }
 
+    [JsonPropertyName("roleBoundItem")]
+    public int RoleBoundItem { get; set; }
+
     [JsonPropertyName("summoner1Id")]
     public int Summoner1Id { get; set; }
 

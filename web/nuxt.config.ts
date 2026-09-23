@@ -3,6 +3,10 @@ import { fileURLToPath } from 'node:url'
 import { addServerHandler, defineNuxtModule } from '@nuxt/kit'
 import { IPX_CACHE_SECONDS, IPX_ROUTE_BASE } from './shared/utils/ipx'
 
+// How long a rendered text page stays in the Nitro cache before it is
+// re-rendered in the background (see the `routeRules` entries below).
+const STATIC_PAGE_SWR_SECONDS = 60 * 60 // 1 hour
+
 // Claims `/_ipx/**` before @nuxt/image sets up its own handler. The module
 // checks `nuxt.options.serverHandlers` for the route and steps aside when it
 // finds one (`hasUserProvidedIPX`), which is exactly what we want: everything
@@ -134,7 +138,7 @@ export default defineNuxtConfig({
   // wrappers (e.g. `components/charts/LineChart.vue` → `<ChartsLineChart>`)
   // can use the upstream chart in their template without colliding with
   // their own auto-resolved name.
-  nuxtCharts: {
+  nuxtChartsLegacy: {
     prefix: 'Nc',
   },
   app: {
@@ -152,12 +156,39 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
       ],
     },
+    // Page transitions (#1621, #1689); the motion itself is in main.css. A Vue
+    // `<Transition>` around the page's `<Suspense>`, not the View Transitions
+    // API: it only starts once the destination has resolved its awaited data,
+    // so the outgoing page and the loading bar stay live during the wait,
+    // where a view transition freezes the whole frame until `page:finish`.
+    pageTransition: { name: 'page', mode: 'out-in' },
   },
   // `~/…`, not a root-relative `./app/…`: since the Nuxt 4.5 / Vite 8.2 bump
   // the relative form is resolved against the build dir (`.nuxt/`) in dev, so
   // `nuxt dev` failed to resolve the stylesheet at all on a clean install and
   // the client bundle never booted. The alias resolves off srcDir in both.
   css: ['~/assets/css/main.css'],
+  // Registers Nuxt UI's `Prose*` components without @nuxt/content (#1624):
+  // the text pages (/about, /privacy, /terms) are written with them, so their
+  // typography is themed once under `ui.prose` in `app.config.ts`.
+  ui: {
+    prose: true,
+  },
+  hooks: {
+    // Nuxt UI registers the ~45 `Prose*` components as *global*, which is what
+    // MDC needs to resolve them by name at runtime — and which puts one lazy
+    // registration per component in the entry script of every page (+2.5 kB
+    // gzip, measured). Nothing here renders MDC: the pages name the components
+    // in their templates, so plain auto-imports resolve them at compile time
+    // and only the pages that use them pay for them.
+    'components:extend'(components) {
+      for (const component of components) {
+        if (component.pascalName.startsWith('Prose')) {
+          component.global = false
+        }
+      }
+    },
+  },
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
   // Dark-only: there is no colour-mode toggle in the header any more. The
@@ -202,6 +233,19 @@ export default defineNuxtConfig({
         'cache-control': `public, max-age=${IPX_CACHE_SECONDS}, immutable`,
       },
     },
+    // The three text pages fetch nothing of their own, so their HTML only
+    // depends on the shell: render it once, then serve it from the Nitro cache
+    // and re-render in the background when the entry ages out (#1617).
+    // `swr` rather than `prerender` on purpose: a prerendered page would carry
+    // the *build* environment's `runtimeConfig.public` — no Umami, no version
+    // stamp, the prod canonical URL on preprod — for the whole visit that lands
+    // on it, which is exactly what the runtime-config decision below avoids.
+    // The TTL matches the champion slug map's own server cache
+    // (`server/api/static/champion-slugs.get.ts`), so a cached page is never
+    // staler than an SSR one.
+    '/about': { swr: STATIC_PAGE_SWR_SECONDS },
+    '/privacy': { swr: STATIC_PAGE_SWR_SECONDS },
+    '/terms': { swr: STATIC_PAGE_SWR_SECONDS },
   },
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL

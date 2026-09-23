@@ -139,18 +139,23 @@ const staticBundleReady = computed(() =>
 
     <!-- Latest games -->
     <div class="space-y-1.5 p-2">
+      <!-- `xs` and no icon: this card holds three match rows in a narrow
+           column, and an icon chip plus the default block padding would make
+           the empty state taller than the list it replaces. -->
       <template v-if="profileNotFound">
-        <p class="px-1 py-3 text-center text-sm text-muted">
-          This player is no longer tracked. Unfollow them to clean up the list.
-        </p>
+        <UEmpty
+          size="xs"
+          description="This player is no longer tracked. Unfollow them to clean up the list."
+        />
       </template>
       <template v-else-if="matchesLoading || !staticBundleReady">
         <MatchRowSkeleton v-for="i in matchCount" :key="`fav-skel-${i}`" />
       </template>
       <template v-else-if="matchesNotFound || matches.length === 0">
-        <p class="px-1 py-3 text-center text-sm text-muted">
-          No tracked matches yet.
-        </p>
+        <UEmpty
+          size="xs"
+          description="No tracked matches yet."
+        />
       </template>
       <template v-else>
         <MatchRow

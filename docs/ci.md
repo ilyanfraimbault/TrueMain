@@ -76,6 +76,13 @@ files are generated with (`npx npm@11.13.0 install` locally, see `CLAUDE.md`).
 `nuxt typecheck` can pass on stale `.nuxt` types while `nuxt build` fails, so
 the job runs typecheck, the vitest suite and a fresh build.
 
+The web app's vitest config holds two projects (#1620), both run by the one
+`npm run test` step: `unit`, the pure-function tests in a bare happy-dom
+environment, and `nuxt`, the tests under `web/tests/nuxt/` that boot the real
+Nuxt runtime through `@nuxt/test-utils` to mount components and exercise
+hydration paths. They live under `web/**`, so the `web` path filter already
+covers them.
+
 ### File sizes
 
 The frontends carry no linter and the backend analyzers have no file-length
@@ -385,3 +392,32 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
   no server started.
 - The ingestor's tuning knobs on prod (`ManualSeed__BatchSize`,
   `MatchIngestion__BatchSize`…) are documented in `docs/prod.md`.
+
+### CPU caps and probe cadence on preprod
+
+The preprod host is a 2 vCPU VPS shared with other stacks, and its provider throttles the whole
+machine to 20 % of its CPU when it stays saturated for long enough — which it did on 2026-09-18,
+for hours, with a load average of 28 and 90 % steal. Nothing in the stack had a CPU limit, so any
+one container could take the machine down with it.
+
+- Every service in `compose.preprod.yaml` carries `cpus` (a hard ceiling) and `cpu_shares` (its
+  weight when everything wants CPU at once). The ceilings deliberately add up to more than 2: they
+  cap a runaway, while the shares decide who yields under contention. The ordering is what matters,
+  not the exact numbers, which the compose file holds: Postgres alone at the top, because every
+  other service waits on it; the rest of the request path below it; and last the services a visitor
+  never waits on — the admin, the analytics stack, pgAdmin, the cleanup sidecar. `cpu_shares` has
+  no `deploy.resources` equivalent, which is why these are the flat Compose keys and not a
+  `deploy:` block.
+- `compose.prod.yaml` gets no caps: its host is not shared and sizing one machine's limits from
+  another's symptoms would be guesswork.
+- Health probes ran every 10 s on eleven containers. The probe itself is cheap; the `runc exec`
+  Docker spawns to run it is not, and on 2 vCPU the exec machinery was measurably ahead of the
+  services it was checking. Postgres and pgbouncer now probe every 30 s, Mongo and the Umami
+  database every 60 s — `mongosh` is the expensive one, it boots a full Node runtime per probe.
+  `start_period` absorbs the slower startup detection, so `depends_on: service_healthy` still
+  gates correctly; boot just takes up to a probe interval longer to be noticed.
+- `web/Dockerfile` and `admin/Dockerfile` probe every 30 s for the same reason. Their interval
+  lives in the image, so it applies to every stack at once and cannot be re-tuned per environment
+  without overriding the whole `healthcheck` block.
+- Builds do not run on the preprod host. Images are built in CI and pulled; a `nuxt build` there
+  saturates both cores for minutes and is what tipped the machine into the throttle.

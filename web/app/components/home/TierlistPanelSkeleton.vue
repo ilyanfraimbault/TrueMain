@@ -9,21 +9,13 @@ const ROW_COUNT = 8
 
 <template>
   <section
-    class="surface rounded-2xl p-3 sm:p-4"
+    class="surface flex flex-col rounded-2xl p-3 sm:p-4"
     aria-hidden="true"
   >
-    <header class="flex items-center justify-between gap-3 pb-3">
+    <header class="pb-2">
       <span class="text-sm font-semibold text-default">Tier list</span>
-      <UButton
-        to="/champions"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        trailing-icon="i-lucide-arrow-right"
-        label="Full tier list"
-      />
     </header>
-    <div class="space-y-1">
+    <div class="space-y-0.5">
       <div
         v-for="i in ROW_COUNT"
         :key="i"
@@ -34,5 +26,15 @@ const ROW_COUNT = 8
         <USkeleton class="ml-auto h-4 w-24" />
       </div>
     </div>
+    <footer class="mt-auto flex justify-end pt-2">
+      <UButton
+        to="/champions"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+        trailing-icon="i-lucide-arrow-right"
+        label="Full tier list"
+      />
+    </footer>
   </section>
 </template>

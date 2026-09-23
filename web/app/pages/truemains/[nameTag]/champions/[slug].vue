@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { POSITION_BY_VALUE } from '~/utils/positions'
-import { describeFetchError } from '~/utils/errors'
 import { isLoadingStatus } from '~/utils/async-data'
 import { parseRouteParam } from '~/utils/route-params'
 import { ELO_BRACKET_ALL } from '~/utils/elo-brackets'
@@ -41,16 +40,15 @@ const {
   error: championError,
   status: championStatus,
   notEnoughData,
+  ready: championReady,
 } = useChampion(championId, filters, { nameTag })
 
-// A 404 here is the expected "not enough games" empty state (handled below),
-// so useChampion never raises it. Anything that does reach championError is a
-// real failure — surface it as a toast on top of the inline alert.
-useErrorToast(championError, { title: 'Failed to load champion' })
+// A 404 is the "not enough games" empty state below, never an error; anything
+// reaching championError is real, and reported inline only — no toast (#1661).
 
 // Identity for the breadcrumb / header fallback. Cheap and client-cached —
 // the profile page primes the same request, so this rarely hits the network.
-const { data: profile } = useTruemainProfile(nameTag)
+const { data: profile, ready: profileReady } = useTruemainProfile(nameTag)
 
 // The LP curve under the identity, same card as the profile page. It is about
 // the account, not the champion, so nothing here is scoped by championId —
@@ -59,6 +57,7 @@ const { data: profile } = useTruemainProfile(nameTag)
 const {
   data: rankHistory,
   isInitialLoading: rankHistoryLoading,
+  ready: rankHistoryReady,
 } = useTruemainRankHistory(nameTag)
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
@@ -143,11 +142,9 @@ const isRefetching = computed(() =>
 // Patch for the profile icon in the player header.
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
-// Thin-sample caution. The backend renders a build for any number of games
-// (down to one) rather than 404-ing, flagging small samples with
-// minSampleMet=false. Surface that as a warning icon next to the champion title
-// — like the builder's RecommendationPanel — so a build inferred from a handful
-// of games reads as a rough personal signal, not an authoritative meta build.
+// Thin-sample caution: the backend builds from any number of games, flagging
+// small samples with minSampleMet=false. Surfaced as a warning icon by the title
+// so a handful of games reads as a rough personal signal, not a meta build.
 const lowSampleMessage = computed(() => {
   if (!champion.value || champion.value.minSampleMet)
     return null
@@ -157,12 +154,10 @@ const lowSampleMessage = computed(() => {
 })
 
 // ─── Empty slice ───────────────────────────────────────────────────────────
-// The build filters keep working when the slice they select is empty. Picking a
-// lane the player never played 404s the aggregate (`notEnoughData`), and the
-// header used to be hidden along with the build — which took the pickers off
-// the page at the one moment the reader needs them, leaving "back to the global
-// build" as the only way out of a filter they set themselves. The header now
-// renders in that state too, over a zero-game slice.
+// The build filters keep working when the slice they select is empty: a lane the
+// player never played 404s the aggregate (`notEnoughData`), and the header — its
+// pickers included — still renders over the zero-game slice, so the reader can
+// undo a filter they set in place.
 
 // Human-readable list of the filters currently narrowing the page, so the empty
 // notice can say what emptied it. Only the ones this page actually renders — it
@@ -212,10 +207,14 @@ const performanceSnapshot = useLazyHydrationSnapshot(
     championName: displayName.value ?? null,
   }),
 )
+
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the API has answered, so this page opens on its data (#1689).
+await Promise.all([championReady, profileReady, rankHistoryReady])
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
+  <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <!-- Truemains > {player} > {champion}, linking back to the leaderboard and
          the player's profile. -->
     <UBreadcrumb :items="breadcrumbItems" />
@@ -289,12 +288,10 @@ const performanceSnapshot = useLazyHydrationSnapshot(
         source that has the raw matches even when the build aggregate doesn't).
       -->
       <div class="order-2 min-w-0 space-y-6 xl:col-start-2 xl:row-start-1 xl:row-span-3">
-        <UAlert
+        <FetchErrorAlert
           v-if="championError"
-          color="error"
-          variant="soft"
-          title="Failed to load champion"
-          :description="describeFetchError(championError)"
+          :error="championError"
+          title="Failed to load this champion"
         />
 
         <template v-else>
@@ -418,5 +415,5 @@ const performanceSnapshot = useLazyHydrationSnapshot(
         />
       </aside>
     </div>
-  </main>
+  </div>
 </template>

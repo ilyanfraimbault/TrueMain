@@ -26,7 +26,6 @@ import type {
   ChampionMatchups,
   ChampionOverviewResponse,
   ChampionResponse,
-  ChampionRoamResponse,
   ChampionScalingResponse,
   ChampionSummaryResponse,
   ChampionSynergies,
@@ -689,47 +688,6 @@ async function mockScaling(id: number): Promise<ChampionScalingResponse | null> 
   }
 }
 
-const ROAM_SHARE: Record<string, number> = { TOP: 0.14, JUNGLE: 0.66, MIDDLE: 0.34, BOTTOM: 0.17, UTILITY: 0.46 }
-
-async function mockRoam(id: number): Promise<ChampionRoamResponse | null> {
-  const s = seedsById.get(id)
-  if (!s) return null
-  // JUNGLE has no own lane, so the real backend (ChampionRoamQueryService)
-  // returns null roamKp for it — mirror that so junglers render the empty
-  // state rather than a fabricated roamer verdict, per the ChampionRoamResponse
-  // contract ("null ... for JUNGLE").
-  if (s.position === 'JUNGLE') {
-    return {
-      championId: s.id,
-      position: s.position,
-      patch: await latestShortPatch(),
-      games: 0,
-      roamKp5: null,
-      roamKp10: null,
-      roamKp15: null,
-    }
-  }
-  const rng = mulberry32(s.id * 503)
-  const games = Math.max(120, Math.round(s.pr * POOL_GAMES))
-  // Cumulative out-of-lane kills + assists per game at each minute mark
-  // (@15 ≥ @10 ≥ @5), scaled off the position's roam tendency so supports read
-  // as roamers and side lanes stay lane-bound — lining up with the verdict
-  // thresholds the component applies to @15.
-  const roamBias = ROAM_SHARE[s.position] ?? 0.25
-  const roamKp15 = round3(Math.max(0.05, roamBias * 3.0 + (rng() - 0.5) * 0.4))
-  const roamKp10 = round3(roamKp15 * (0.55 + rng() * 0.12))
-  const roamKp5 = round3(roamKp15 * (0.25 + rng() * 0.1))
-  return {
-    championId: s.id,
-    position: s.position,
-    patch: await latestShortPatch(),
-    games,
-    roamKp5,
-    roamKp10,
-    roamKp15,
-  }
-}
-
 async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
   const s = seedsById.get(id)
   if (!s) return null
@@ -987,11 +945,11 @@ function mockPlayerPerformance(
 
   // Backend role profiles, in PERFORMANCE_COMPONENT_KINDS order.
   const WEIGHTS: Record<string, number[]> = {
-    TOP: [20, 14, 16, 7, 14, 5, 12, 7, 5],
-    JUNGLE: [18, 18, 14, 7, 14, 7, 12, 10, 0],
-    MIDDLE: [20, 14, 18, 7, 14, 5, 10, 6, 6],
-    BOTTOM: [20, 12, 20, 7, 16, 4, 10, 8, 3],
-    UTILITY: [18, 20, 7, 4, 5, 24, 8, 6, 8],
+    TOP: [20, 19, 16, 7, 14, 5, 12, 7],
+    JUNGLE: [18, 18, 14, 7, 14, 7, 12, 10],
+    MIDDLE: [20, 20, 18, 7, 14, 5, 10, 6],
+    BOTTOM: [20, 15, 20, 7, 16, 4, 10, 8],
+    UTILITY: [18, 28, 7, 4, 5, 24, 8, 6],
   }
   const weights = WEIGHTS[lane] ?? WEIGHTS.MIDDLE!
 
@@ -1001,7 +959,7 @@ function mockPlayerPerformance(
     // smaller sample — the "n/N games" note has to be reachable in mock mode.
     const componentGames = kind === 'MidGame'
       ? Math.max(1, Math.round(games * 0.6))
-      : kind === 'Laning' || kind === 'Roam'
+      : kind === 'Laning'
         ? Math.max(1, Math.round(games * 0.85))
         : games
     return {
@@ -1502,6 +1460,7 @@ function mockMatchSummary(player: MockPlayer, index: number): MatchSummaryRespon
       killParticipation: round3(Math.min(0.9, 0.3 + rng() * 0.5)),
       items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
       trinketItemId: 3364,
+      roleBoundItemId: 0,
       teamId: selfTeam,
       position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[index % 5]!,
       win,
@@ -1653,8 +1612,9 @@ async function mockMatchDetail(player: MockPlayer, matchId: string): Promise<Mat
       kills,
       deaths,
       assists,
-      items: [...archetype.items.slice(0, 5), archetype.boots[0]!, 0],
+      items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
       trinketItemId: 3364,
+      roleBoundItemId: 0,
       summoner1Id: archetype.spells[0],
       summoner2Id: archetype.spells[1],
       primaryStyleId: seedForChamp.primaryStyle,
@@ -2114,6 +2074,7 @@ async function mockCompositionBuildGames(id: number, body: unknown, query: Recor
         killParticipation: round3(Math.min(0.9, 0.3 + gameRng() * 0.5)),
         items: [...archetype.items.slice(0, 5), archetype.boots[0]!],
         trinketItemId: 3364,
+        roleBoundItemId: 0,
         teamId: selfTeam,
         position,
         win,
@@ -2286,7 +2247,6 @@ export async function resolveDevApiMock(
       : sub === 'trend' ? mockTrend(id)
       : sub === 'scaling' ? mockScaling(id)
       : sub === 'item-context' ? mockItemContext(id, position)
-      : sub === 'roam' ? mockRoam(id)
       : sub === 'matchups' ? mockMatchups(id)
       : sub === 'synergies' ? mockSynergies(
           id,

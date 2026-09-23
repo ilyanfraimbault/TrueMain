@@ -26,15 +26,14 @@ public sealed class PerformanceScoreTests
         VisionScore = 25,
         GameDurationMinutes = 25d,
         LaneLeads = new[] { new LaneLead(15, GoldDiff: 750, CsDiff: 15, XpDiff: 750) },
-        OutOfLaneTakedowns = 2,
     };
 
     [Fact]
     public void Compute_matches_the_hand_computed_reference_vector()
     {
         // Golden vector — the whole point of the model being documented is that
-        // a reader can reproduce it by hand. MIDDLE weights are combat 20 / kp 14 /
-        // damage 18 / gold 7 / farm 14 / vision 5 / laning 10 / midgame 6 / roam 6.
+        // a reader can reproduce it by hand. MIDDLE weights are combat 20 / kp 20 /
+        // damage 18 / gold 7 / farm 14 / vision 5 / laning 10 / midgame 6.
         //
         //   combat  = (10 + 10) / 2 = 10 KDA, capped at 6 →              1.0000
         //   kp      = 20 / 30 →                                          0.6667
@@ -46,11 +45,10 @@ public sealed class PerformanceScoreTests
         //             ±1500 g, ±30 cs, ±1500 xp at that mark. +750/+15/+750
         //             → 0.75 on all three →                              0.7500
         //   midgame = no mark past 15 → dropped, weight redistributed
-        //   roam    = 2 out-of-lane takedowns, MIDDLE ref 2.5 →          0.8000
         //
-        //   weighted = 20 + 9.3333 + 15 + 5.25 + 14 + 5 + 7.5 + 4.8 = 80.8833
-        //   over a surviving weight of 94 → 86.05 → 86
-        PerformanceScore.Compute(Reference()).Should().Be(86);
+        //   weighted = 20 + 13.3333 + 15 + 5.25 + 14 + 5 + 7.5 = 80.0833
+        //   over a surviving weight of 94 → 85.20 → 85
+        PerformanceScore.Compute(Reference()).Should().Be(85);
     }
 
     [Fact]
@@ -67,12 +65,12 @@ public sealed class PerformanceScoreTests
     {
         // Missing data must never be scored as a zero — the laning weight is
         // redistributed over the surviving components instead. For this
-        // above-average line that means the score goes *up* (86 → 87), not down.
+        // above-average line that means the score goes *up* (85 → 86), not down.
         //
-        //   weighted without laning = 73.3833 over a total weight of 84 → 87.36 → 87
+        //   weighted without laning = 72.5833 over a total weight of 84 → 86.41 → 86
         var withoutLaning = Reference() with { LaneLeads = Array.Empty<LaneLead>() };
 
-        PerformanceScore.Compute(withoutLaning).Should().Be(87);
+        PerformanceScore.Compute(withoutLaning).Should().Be(86);
     }
 
     [Fact]
@@ -183,45 +181,6 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_distinguishes_an_uncovered_roam_from_a_zero_roam()
-    {
-        // null = "this match has no kill-position rows" → drop the component.
-        // 0 = "the match is covered and the player never left lane" → grade it 0.
-        var uncovered = Reference() with { OutOfLaneTakedowns = null };
-        var neverRoamed = Reference() with { OutOfLaneTakedowns = 0 };
-
-        PerformanceScore.Compute(uncovered)
-            .Should().BeGreaterThan(PerformanceScore.Compute(neverRoamed));
-    }
-
-    [Fact]
-    public void Compute_drops_the_roam_component_for_a_jungler()
-    {
-        // A jungler has no own lane, so every gank would read as a roam. The
-        // JUNGLE profile zeroes the component, which makes the takedown count
-        // irrelevant to the score instead of a free 100%.
-        var homebody = new PerformanceScoreInput
-        {
-            TeamPosition = "JUNGLE",
-            Kills = 5,
-            Deaths = 4,
-            Assists = 12,
-            TeamKills = 30,
-            DamageToChampions = 18_000,
-            TeamDamageToChampions = 100_000,
-            GoldEarned = 12_000,
-            TeamGoldEarned = 60_000,
-            Cs = 160,
-            VisionScore = 30,
-            GameDurationMinutes = 25d,
-            OutOfLaneTakedowns = 0,
-        };
-
-        PerformanceScore.Compute(homebody with { OutOfLaneTakedowns = 12 })
-            .Should().Be(PerformanceScore.Compute(homebody));
-    }
-
-    [Fact]
     public void Compute_is_monotonic_in_deaths()
     {
         var clean = Reference() with { Deaths = 1 };
@@ -264,7 +223,6 @@ public sealed class PerformanceScoreTests
             VisionScore = 200,
             GameDurationMinutes = 30d,
             LaneLeads = dominant,
-            OutOfLaneTakedowns = 20,
         };
 
         var hopeless = new PerformanceScoreInput
@@ -282,7 +240,6 @@ public sealed class PerformanceScoreTests
             VisionScore = 0,
             GameDurationMinutes = 30d,
             LaneLeads = dominant.Select(l => new LaneLead(l.Minute, -l.GoldDiff, -l.CsDiff, -l.XpDiff)).ToList(),
-            OutOfLaneTakedowns = 0,
         };
 
         PerformanceScore.Compute(perfect).Should().Be(100);
@@ -309,7 +266,6 @@ public sealed class PerformanceScoreTests
             VisionScore = 63,
             GameDurationMinutes = 25d,
             LaneLeads = new[] { new LaneLead(15, GoldDiff: 150, CsDiff: 2, XpDiff: 100) },
-            OutOfLaneTakedowns = 3,
         };
 
         var sameLineAsMid = support with { TeamPosition = "MIDDLE" };

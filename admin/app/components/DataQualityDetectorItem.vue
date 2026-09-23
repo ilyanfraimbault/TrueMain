@@ -11,7 +11,7 @@
 // Deliberately generic, as before: the backend words every detector, so adding
 // the next one stays a backend-only change and this component never branches on
 // `key`.
-import type { DataQualityDetector, DataQualityThreshold, DetectorStatus } from '~~/shared/types/ops'
+import type { DataQualityDetector, DataQualityDetectorRow, DataQualityThreshold, DetectorStatus } from '~~/shared/types/ops'
 // One dot, one colour, one word — the status vocabulary is shared with the health
 // cockpit's tiles (#1031) so the two panels cannot drift apart on what amber means.
 import { detectorStatusMeta, detectorValueClass } from '~~/shared/utils/detector-status'
@@ -34,8 +34,16 @@ const meta = computed(() => detectorStatusMeta(props.detector.status))
 const notableRows = computed(() => props.detector.rows.filter(row => row.status !== 'green'))
 const visibleRows = computed(() => (expanded.value ? props.detector.rows : notableRows.value))
 
-function rowValueClass(status: DetectorStatus): string {
-  return detectorValueClass(status)
+// The row's verdict can come from a measure the row does not print — the orphan
+// card is amber on its *trend* while printing its share (#1656). So the number
+// carries its own verdict and the row's is shown as a dot next to the label,
+// instead of colouring a reading that is fine.
+function rowValueClass(row: DataQualityDetectorRow): string {
+  return detectorValueClass(row.valueStatus ?? row.status)
+}
+
+function rowDotClass(status: DetectorStatus): string {
+  return detectorStatusMeta(status).dot
 }
 
 function formatLevel(value: number, unit: DataQualityThreshold['unit']): string {
@@ -109,13 +117,22 @@ function describeThreshold(threshold: DataQualityThreshold): string {
         :key="row.label"
         class="flex items-start justify-between gap-3"
       >
-        <span class="min-w-0">
-          <span class="block font-mono text-xs text-highlighted">{{ row.label }}</span>
-          <span v-if="row.note" class="block text-xs text-dimmed">{{ row.note }}</span>
+        <span class="flex min-w-0 items-start gap-2">
+          <!-- The row's own verdict, so a row flagged on something other than the
+               number it prints still reads as flagged. -->
+          <span
+            v-if="row.status !== 'green'"
+            class="mt-1 size-1.5 shrink-0 rounded-full"
+            :class="rowDotClass(row.status)"
+          />
+          <span class="min-w-0">
+            <span class="block font-mono text-xs text-highlighted">{{ row.label }}</span>
+            <span v-if="row.note" class="block text-xs text-dimmed">{{ row.note }}</span>
+          </span>
         </span>
         <span
           class="text-xs whitespace-nowrap tabular-nums"
-          :class="rowValueClass(row.status)"
+          :class="rowValueClass(row)"
         >{{ row.valueLabel ?? 'not measured' }}</span>
       </li>
     </ul>

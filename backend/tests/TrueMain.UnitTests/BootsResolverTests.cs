@@ -1,3 +1,4 @@
+using Core.Lol.Items;
 using Data.BuildFacts;
 using Data.Entities;
 using AwesomeAssertions;
@@ -41,5 +42,17 @@ public sealed class BootsResolverTests
         ], [3153, 3124, 3302, 3082, 0, 0, 0], [], Metadata);
 
         bootsItemId.Should().Be(0);
+    }
+
+    [Fact]
+    public void Resolve_finds_boots_held_in_the_role_bound_slot_of_a_full_inventory()
+    {
+        var bootsItemId = BootsResolver.Resolve(
+            [],
+            FinalInventory.Of(3153, 3031, 3085, 6672, 3072, LolItemIds.Manamune, LolItemIds.TierTwoBoots.BerserkersGreaves),
+            [],
+            Metadata);
+
+        bootsItemId.Should().Be(LolItemIds.TierTwoBoots.BerserkersGreaves);
     }
 }

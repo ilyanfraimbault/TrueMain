@@ -8,7 +8,7 @@ namespace TrueMain.UnitTests;
 /// Locks the timeline mapping (issue #538): per-frame participant state
 /// (position, gold, CS, jungle, damage to champions), event positions and kill
 /// participants must survive into the internal <see cref="MatchTimelineDto"/> so
-/// downstream analytics (#525 leads, #535 jungle pathing, #536 roam) can consume them.
+/// downstream analytics (#525 leads, #535 jungle pathing) can consume them.
 /// </summary>
 public sealed class RiotTimelineMapperTests
 {
