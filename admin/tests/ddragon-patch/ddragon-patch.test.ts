@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // regression #947 fixed on the web side, so the caching contract is pinned on
 // both sides now.
 //
-// `resolveLatestDDragonPatch` is built at import time by the auto-imported
+// `loadDDragonVersions` is built at import time by the auto-imported
 // `defineCachedFunction`, so the globals have to be stubbed before the module
 // is loaded — hence the dynamic import. Nitro owns the memoization itself;
 // what these tests pin is the resolver's own behaviour and the cache options
@@ -29,7 +29,8 @@ async function loadResolver(fetchImpl: () => Promise<string[]>) {
   })
   const mod = await import('~~/server/utils/ddragon-patch')
   return {
-    resolve: mod.resolveLatestDDragonPatch,
+    loadVersions: mod.loadDDragonVersions,
+    resolveVersion: mod.resolveDDragonVersion,
     normalizeRequested: mod.normalizeRequestedPatch,
     registration: registrations[0],
   }
@@ -39,25 +40,59 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('resolveLatestDDragonPatch', () => {
-  it('returns the newest version DDragon lists', async () => {
-    const { resolve } = await loadResolver(async () => ['16.5.1', '16.4.1'])
-    await expect(resolve()).resolves.toBe('16.5.1')
+describe('loadDDragonVersions', () => {
+  it('returns the versions DDragon lists, newest first', async () => {
+    const { loadVersions } = await loadResolver(async () => ['16.5.1', '16.4.1'])
+    await expect(loadVersions()).resolves.toEqual(['16.5.1', '16.4.1'])
   })
 
   it('throws a 502 when DDragon returns no versions', async () => {
-    const { resolve } = await loadResolver(async () => [])
-    await expect(resolve()).rejects.toMatchObject({ statusCode: 502 })
+    const { loadVersions } = await loadResolver(async () => [])
+    await expect(loadVersions()).rejects.toMatchObject({ statusCode: 502 })
   })
 
   it('is cached under a constant key, well beyond the 1 h payload TTL', async () => {
     const { registration } = await loadResolver(async () => ['16.5.1'])
-    // A per-call key would defeat the cache: the resolver takes no arguments,
+    // A per-call key would defeat the cache: the loader takes no arguments,
     // so every static endpoint must land on the same entry.
-    expect(registration?.options.getKey?.()).toBe('latest')
+    expect(registration?.options.getKey?.()).toBe('versions')
     // Patches ship every ~2 weeks. Anything at or under the payload TTL would
     // leave the lookup on the critical path roughly as often as before.
     expect(registration?.options.maxAge).toBeGreaterThan(60 * 60)
+  })
+})
+
+describe('resolveDDragonVersion', () => {
+  it('resolves the newest version when no patch was requested', async () => {
+    const { resolveVersion } = await loadResolver(async () => ['16.5.1', '16.4.1'])
+    await expect(resolveVersion(null)).resolves.toBe('16.5.1')
+  })
+
+  it('pins a patch DDragon publishes to that exact version', async () => {
+    const { resolveVersion } = await loadResolver(async () => ['16.5.1', '16.4.1', '16.3.1'])
+    // A patch the caller asked for and DDragon has must never be silently
+    // upgraded to the latest — the page would then show current assets under an
+    // older patch's numbers.
+    await expect(resolveVersion('16.4.1')).resolves.toBe('16.4.1')
+  })
+
+  it('falls back to the newest version for a patch DDragon has not published yet', async () => {
+    const { resolveVersion } = await loadResolver(async () => ['16.18.1', '16.17.1'])
+    // The #1693 case: Riot ships 16.19 and match data reports it days before
+    // DDragon publishes the folder, whose pinned URL answers 403, not 404.
+    await expect(resolveVersion('16.19.1')).resolves.toBe('16.18.1')
+  })
+
+  it('matches on major.minor, whatever build number DDragon gave the patch', async () => {
+    const { resolveVersion } = await loadResolver(async () => ['16.5.2', '16.4.1'])
+    // `normalizeDataDragonPatch` expands "16.5" to "16.5.1", but DDragon
+    // occasionally ships a second build — the `.1` guess must not miss it.
+    await expect(resolveVersion('16.5.1')).resolves.toBe('16.5.2')
+  })
+
+  it('throws a 502 when DDragon returns no versions', async () => {
+    const { resolveVersion } = await loadResolver(async () => [])
+    await expect(resolveVersion('16.5.1')).rejects.toMatchObject({ statusCode: 502 })
   })
 })
 

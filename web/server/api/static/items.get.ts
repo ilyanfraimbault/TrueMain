@@ -1,5 +1,5 @@
 import type { StaticItemData } from '~~/shared/types/static-data'
-import { normalizeRequestedPatch, resolveLatestDDragonPatch } from '~~/server/utils/ddragon-patch'
+import { normalizeRequestedPatch, resolveDDragonVersion } from '~~/server/utils/ddragon-patch'
 
 interface ItemListResponse {
   data: Record<string, {
@@ -46,6 +46,6 @@ const loadItemsForPatch = defineCachedFunction(
 
 export default defineEventHandler(async (event): Promise<Record<number, StaticItemData>> => {
   const { patch } = getQuery(event) as { patch?: string }
-  const resolved = normalizeRequestedPatch(patch) ?? await resolveLatestDDragonPatch()
+  const resolved = await resolveDDragonVersion(normalizeRequestedPatch(patch))
   return loadItemsForPatch(resolved)
 })
