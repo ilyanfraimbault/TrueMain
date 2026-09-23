@@ -6,12 +6,13 @@ import { loadingOfAlias, splashOfAlias } from '~/composables/useChampionStatics'
  * scrim the text needs. Either a champion id (resolved through Data Dragon) or
  * an alias (for the screens that have no champion of their own).
  *
- * The art fades in on insertion — a splash arriving mid-draft must not pop
- * into place behind text that is being read. The fade is a CSS animation on
- * the element rather than a reaction to `load`: in the packaged app, art
- * inserted after the first image stayed at opacity 0 while a browser showed
- * all of it, and a fade that needs no event reaching a listener has one
- * fewer way to fail.
+ * The art is drawn as soon as it decodes, with **no fade in**. Two attempts at
+ * one were reverted for the same reason: both started the image at opacity 0
+ * and waited for something to reveal it — first the `load` event, then a CSS
+ * animation. In the packaged app neither reached art inserted after the first
+ * image, and WKWebView left every later splash invisible for good while a
+ * browser showed all of them. A picture that is either there or not cannot
+ * fail that way, and a pick landing is abrupt in champion select anyway.
  */
 const props = withDefaults(defineProps<{
   championId?: number | null
@@ -46,7 +47,7 @@ const scrim = computed(() => ({
       :key="source"
       :src="source"
       alt=""
-      class="size-full animate-art-in object-cover"
+      class="size-full object-cover"
       :style="{ objectPosition: position }"
       decoding="async"
     >

@@ -115,17 +115,6 @@
     linear-gradient(to bottom, color-mix(in oklch, var(--ui-bg) 40%, transparent), var(--ui-bg) 100%);
 }
 
-/* Art fading in as it is inserted. Runs on the element itself so it does not
-   depend on a `load` event reaching a listener. */
-@keyframes tm-art-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@utility animate-art-in {
-  animation: tm-art-in 700ms ease-out both;
-}
-
 /* The pulse under "waiting for the client": a heartbeat, not a spinner —
    nothing is loading, we are listening. */
 @keyframes tm-pulse {
