@@ -315,7 +315,7 @@ the review's `commit_id` against the head SHA before acting on it.
 One weekly PR per ecosystem groups every minor and patch update; majors stay
 individual so a breaking change is reviewed on its own. `docker-compose`
 watches the third-party images pinned in the stacks (postgres, pgbouncer,
-mongo, umami, caddy, pgadmin), which no Dockerfile references; our own
+mongo, umami, caddy), which no Dockerfile references; our own
 `ghcr.io/ilyanfraimbault/truemain-*` images are ignored there because their
 tag is chosen by the deploy, not by a registry lookup. Every stream targets
 `develop`.
@@ -370,6 +370,18 @@ tag is chosen by the deploy, not by a registry lookup. Every stream targets
   deploy ships the compose file alone (`docs/preprod.md`, #1558). It requires
   `PREPROD_SITE_URL` and `PREPROD_ADMIN_URL`, which is why the compose-config
   job sets both.
+- Both deployed stacks publish the API's port on the loopback interface only
+  (`127.0.0.1:8080:8080` on prod, `127.0.0.1:8081:8080` on preprod). Nothing
+  external needs it: web and admin reach the API over the internal network as
+  `http://api:8080`, and Caddy proxies to web/admin, never to the API directly.
+  Binding to loopback keeps host-local diagnostics (`curl localhost:8080` over
+  SSH) working while taking the API off the public interface, so the edge is
+  the only public entry and app-layer defences no longer lean on the host
+  firewall alone.
+- pgAdmin was removed from every stack: the DB console it exposed added a
+  password-only, internet-reachable surface on preprod (`0.0.0.0:5051`) for no
+  benefit over `psql` on the loopback Postgres port. Its `PGADMIN_*` env vars
+  are gone from the `.env` examples too.
 - Both ingestor lanes carry `stop_grace_period: 120s` on the deployed stacks
   (#1513). Docker's default is 10 s, and a pass runs for many minutes, so every
   redeploy SIGKILLed the work in flight: the in-flight transaction rolled back and
@@ -405,7 +417,7 @@ one container could take the machine down with it.
   cap a runaway, while the shares decide who yields under contention. The ordering is what matters,
   not the exact numbers, which the compose file holds: Postgres alone at the top, because every
   other service waits on it; the rest of the request path below it; and last the services a visitor
-  never waits on — the admin, the analytics stack, pgAdmin, the cleanup sidecar. `cpu_shares` has
+  never waits on — the admin, the analytics stack, the cleanup sidecar. `cpu_shares` has
   no `deploy.resources` equivalent, which is why these are the flat Compose keys and not a
   `deploy:` block.
 - `compose.prod.yaml` gets no caps: its host is not shared and sizing one machine's limits from

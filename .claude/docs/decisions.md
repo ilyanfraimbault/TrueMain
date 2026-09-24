@@ -254,6 +254,8 @@ Last verified against `develop` on 2026-09-02.
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
 - Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
+- The edge Caddy sets the security response headers the app frameworks did not (HSTS, CSP per vhost, X-Frame-Options, nosniff, Referrer/Permissions-Policy); preprod carries the non-CSP subset — 2026-09-24
+- The API port is published on loopback only (not `0.0.0.0`), and pgAdmin was removed from every stack — 2026-09-24
 
 ## Admin portal — observability data — [`decisions/admin-observability.md`](decisions/admin-observability.md)
 
