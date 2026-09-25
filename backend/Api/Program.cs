@@ -18,6 +18,7 @@ using TrueMain.Services.Champions.Mains;
 using TrueMain.Services.Champions.Matchups;
 using TrueMain.Services.Champions.Progression;
 using TrueMain.Services.Champions.Scopes;
+using TrueMain.Services.Champions.Draft;
 using TrueMain.Services.Champions.Synergies;
 using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Ops.Candidates;
@@ -321,6 +322,12 @@ builder.Services.AddScoped<IChampionMatchupBuildsQueryService, ChampionMatchupBu
 builder.Services.AddScoped<ICompositionGamesQueryService, CompositionGamesQueryService>();
 builder.Services.AddScoped<ICompositionLaneOutcomeQueryService, CompositionLaneOutcomeQueryService>();
 builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRecommendationQueryService>();
+// The draft assistant (#1674, #1675). Its lane prior reads the ALLY synergy
+// baselines rather than the scope table, which only covers champions our
+// population mains — a champion nobody mains would otherwise have no lane
+// distribution at all, exactly on the rare picks a guess is most needed for.
+builder.Services.AddScoped<ILanePriorQueryService, LanePriorQueryService>();
+builder.Services.AddScoped<IDraftRecommendationQueryService, DraftRecommendationQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
 // identically. Patch-cached inside the provider, which clocks how long a

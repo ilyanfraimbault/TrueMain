@@ -875,6 +875,75 @@ le monde (#940).
 - `pilot` est `null` quand le participant ne porte pas de compte Riot résolu (des
   lignes harvestées peuvent précéder la résolution des comptes).
 
+## `POST /champions/draft`
+
+L'assistant de draft de l'app compagnon (#1674, #1675) : à partir d'un état de
+champion select, **place les ennemis sur leurs lanes** et **classe les picks candidats**
+du joueur. `POST` parce que l'entrée — deux équipes, bans, lanes épinglées, pool de
+candidats — ne tient pas dans une query string, et qu'elle change à chaque pick.
+
+**Body** — `DraftRequest`
+
+```json
+{
+  "position": "MIDDLE",
+  "enemyChampions": [141, 157, 51],
+  "pinnedEnemyLanes": { "51": "BOTTOM" },
+  "previousEnemyLanes": { "141": "JUNGLE", "157": "MIDDLE" },
+  "allies": { "JUNGLE": 64 },
+  "bans": [122, 238],
+  "candidates": [103, 134, 61],
+  "patch": "16.4",
+  "eloBracket": "GOLD_PLUS"
+}
+```
+
+- `position` est **requise** (`400` sinon) ; tout le reste est optionnel, la draft
+  étant partielle la plupart du temps.
+- `pinnedEnemyLanes` sont des **contraintes dures** : les corrections faites à la
+  main par l'utilisateur, autour desquelles les autres lanes se re-résolvent.
+- `previousEnemyLanes` est le placement affiché : à qualité égale, le solveur le
+  conserve pour ne pas remélanger le panneau entre deux picks.
+- `candidates` est le pool du joueur (40 max, le surplus est ignoré), pas le roster.
+
+**Réponse `200`** — `DraftRecommendationResponse`
+
+```json
+{
+  "position": "MIDDLE",
+  "patch": "16.4",
+  "eloBracket": "GOLD_PLUS",
+  "enemyLanes": [
+    { "championId": 141, "position": "JUNGLE", "confidence": 0.97, "pinned": false },
+    { "championId": 157, "position": "MIDDLE", "confidence": 0.71, "pinned": false },
+    { "championId": 51, "position": "BOTTOM", "confidence": 1.0, "pinned": true }
+  ],
+  "laneOpponentChampionId": 157,
+  "laneOpponentConfidence": 0.71,
+  "candidates": [
+    { "championId": 103, "matchupDelta": 0.031, "matchupGames": 412, "synergyDelta": 0.012, "synergyGames": 280, "score": 0.043, "thinSample": false }
+  ]
+}
+```
+
+- Le placement est un **problème d'affectation**, pas cinq arg-max indépendants :
+  les 120 placements possibles sont énumérés et le meilleur est pris, sinon deux
+  champions finissent mid et personne jungle. Le prior lit les baselines de synergie
+  côté allié plutôt que la table des scopes, qui ne couvre que les champions que
+  notre population *main* — un champion que personne ne main n'aurait sinon aucune
+  distribution de lane, précisément sur les picks rares où le devin sert le plus.
+- `confidence` ∈ [0, 1] mesure de combien la draft se lit moins bien si le champion
+  change de lane ; **0,5 est un pile ou face** entre deux lectures, pas "à moitié
+  juste". `laneOpponentChampionId` est `null` tant qu'aucun ennemi n'est placé sur
+  la lane du joueur — état normal en début de draft, pas une erreur.
+- `score` = `matchupDelta` + `synergyDelta`, deux **différences mesurées** (win rate
+  contre l'adversaire résolu moins win rate à la lane ; observé moins attendu avec
+  les alliés verrouillés) gardées séparées jusqu'au client, qui peut dire *laquelle*
+  porte un pick. Ce n'est pas une probabilité de victoire. `thinSample` signale
+  qu'aucune moitié n'atteint son plancher de parties : le candidat est renvoyé
+  quand même, chiffres compris, pour être affiché comme non prouvé plutôt que
+  retiré en silence.
+
 ---
 
 # Truemains — `/truemains`

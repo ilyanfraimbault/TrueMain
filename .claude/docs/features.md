@@ -187,9 +187,10 @@ mounted components (`ProcessSummaryView`, `PanelTitle`). No page-level tests.
 ## backend/ — .NET 10 solution
 
 ### Api
-Three controllers, all delegating to injected `I*QueryService` — no EF types cross the controller boundary; read models are `sealed record`s under `Api/ReadModels/`.
+Four controllers, all delegating to injected `I*QueryService` — no EF types cross the controller boundary; read models are `sealed record`s under `Api/ReadModels/`.
 
 - **`ChampionsController`** (public): list, tierlist, `overview` (#972 — homepage snapshot: lifetime games-analyzed total + top rows), detail, trend, matchups, synergies, synergies/trios, scaling, item-timings, mains-comparison, `POST composition-build`, and `POST composition-build/games` (#940 — the recommendation's provenance drawer, paged).
+- **`ChampionDraftController`** (public, #1674/#1675): `POST champions/draft` — the desktop companion app's draft assistant. Resolves which enemy champion holds which lane (an assignment problem solved by exact enumeration of the ≤120 placements, priors from the ally synergy baselines decaying over four patches, a logistic confidence where 0.5 is a coin flip; user pins are hard constraints, ties break towards the placement on screen) and ranks the player's candidate picks by two measured deltas — matchup into the resolved opponent, synergy with the locked allies — kept separate in the response, with `thinSample` flagging rather than hiding a pick under the games floor. `Api/Services/Champions/Draft/`.
 - **`TruemainsController`** (public): search, leaderboard, profile, player-scoped champion + matchups + **performance**, rank-history, **activity** (#927/#1473/#1483 — the four windows of the day-unit grid in one payload, no mode param), matches, match detail.
 - **`OpsController`** (`X-Ops-Key` auth): 28 endpoints backing the admin portal.
 
