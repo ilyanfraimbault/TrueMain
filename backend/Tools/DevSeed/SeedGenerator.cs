@@ -429,7 +429,6 @@ public sealed class SeedGenerator(
 
             snapshots.Add(new MatchParticipantTimelineSnapshot
             {
-                Id = Guid.NewGuid(),
                 MatchId = matchId,
                 ParticipantId = selfParticipantId,
                 IntervalMinute = minute,
@@ -447,7 +446,6 @@ public sealed class SeedGenerator(
 
             snapshots.Add(new MatchParticipantTimelineSnapshot
             {
-                Id = Guid.NewGuid(),
                 MatchId = matchId,
                 ParticipantId = opponentParticipantId,
                 IntervalMinute = minute,
