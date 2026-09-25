@@ -167,6 +167,19 @@ function onDrop(lane: Lane | null) {
       <section class="glass relative flex flex-col gap-2.5 self-start rounded-2xl px-4 py-3">
         <span class="absolute inset-x-0 top-0 h-0.5 rounded-t-2xl bg-gradient-to-l from-enemy to-enemy/0" />
         <DraftBans :bans="draft.enemyBans" mirrored class="mb-1" />
+        <!--
+          Without a lane answer the rows are the picks in the order they landed,
+          and our column beside them is lane-ordered: the same row would read
+          as a lane. Say what the order is before anyone reads it as one.
+        -->
+        <p
+          v-if="!recommendation && draft.enemyChampions.length > 0"
+          class="flex items-center justify-end gap-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.1em] text-dimmed"
+          :title="error ? `Lanes could not be resolved: ${error}` : 'Lanes not resolved yet'"
+        >
+          <UIcon v-if="error" name="i-lucide-wifi-off" class="size-3" />
+          Pick order · no lanes
+        </p>
         <div
           v-for="(slot, index) in enemyRows"
           :key="`enemy-${index}`"
@@ -206,8 +219,7 @@ function onDrop(lane: Lane | null) {
             </PickRow>
           </button>
         </div>
-        <div v-if="error || hasCorrections" class="flex shrink-0 items-center justify-end gap-1">
-          <UIcon v-if="error" name="i-lucide-wifi-off" class="size-4 text-dimmed" :title="error" />
+        <div v-if="hasCorrections" class="flex shrink-0 items-center justify-end gap-1">
           <UButton
             v-if="hasCorrections"
             size="xs"
