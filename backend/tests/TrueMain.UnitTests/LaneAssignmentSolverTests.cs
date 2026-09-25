@@ -181,6 +181,25 @@ public class LaneAssignmentSolverTests
     }
 
     [Fact]
+    public void AChampionSeenOnlyOutsideThePatchWindowReadsAsUnseenNotAsImpossibleEverywhere()
+    {
+        // The prior keeps `Games` for evidence but empties the map when every
+        // row is older than the window. That must cost the same as an unknown
+        // champion — a flat constant — not the lane floor on every lane.
+        var stale = new LanePrior { ChampionId = 1, ByLane = new Dictionary<string, double>(), Games = 500 };
+        var unseen = new LanePrior { ChampionId = 1, ByLane = new Dictionary<string, double>(), Games = 0 };
+
+        var withStale = LaneAssignmentSolver.Solve([1, 2], Priors(stale, Dedicated(2, "MIDDLE")));
+        var withUnseen = LaneAssignmentSolver.Solve([1, 2], Priors(unseen, Dedicated(2, "MIDDLE")));
+
+        Assert.Equal("MIDDLE", withStale.Single(a => a.ChampionId == 2).Position);
+        Assert.Equal(
+            withUnseen.Single(a => a.ChampionId == 1).Confidence,
+            withStale.Single(a => a.ChampionId == 1).Confidence,
+            precision: 9);
+    }
+
+    [Fact]
     public void MoreChampionsThanLanesYieldsNoPlacementRatherThanThrowing()
     {
         var result = LaneAssignmentSolver.Solve([1, 2, 3, 4, 5, 6], Priors());
