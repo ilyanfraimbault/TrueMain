@@ -43,7 +43,8 @@ public interface IDraftRecommendationQueryService
 public sealed class DraftRecommendationQueryService(
     TrueMainDbContext db,
     ILanePriorQueryService lanePriors,
-    IChampionSynergyQueryService synergies)
+    IChampionSynergyQueryService synergies,
+    IChampionReadCache cache)
     : IDraftRecommendationQueryService
 {
     /// <summary>One half of a candidate's score, with the evidence behind it.</summary>
@@ -104,7 +105,14 @@ public sealed class DraftRecommendationQueryService(
             return [];
         }
 
-        var priors = await lanePriors.GetAsync(criteria.EnemyChampions, patch, ct);
+        // The priors are the only table read of the placement, and the same five
+        // champions are asked about on every pick and every correction of one
+        // draft: cached and coalesced like every other champion read.
+        var enemies = criteria.EnemyChampions.Distinct().Order().ToList();
+        var priors = await cache.GetOrComputeAsync(
+            $"champions:draft:lane-priors:{string.Join(',', enemies)}:{patch ?? "all"}",
+            token => lanePriors.GetAsync(enemies, patch, token),
+            ct);
         var assignments = LaneAssignmentSolver.Solve(
             criteria.EnemyChampions,
             priors,
@@ -197,13 +205,27 @@ public sealed class DraftRecommendationQueryService(
             return [];
         }
 
+        var pool = candidates.Order().ToList();
+        return await cache.GetOrComputeAsync(
+            $"champions:draft:matchups:{position}:{opponentChampionId}:{string.Join(',', pool)}:{patch ?? "all"}",
+            token => ComputeMatchupDeltasAsync(pool, position, opponentChampionId.Value, patch, token),
+            ct);
+    }
+
+    private async Task<Dictionary<int, Component>> ComputeMatchupDeltasAsync(
+        IReadOnlyList<int> candidates,
+        string position,
+        int opponentChampionId,
+        string? patch,
+        CancellationToken ct)
+    {
         var query = db.ChampionMatchupStats
             .AsNoTracking()
             .Where(m => m.TeamPosition == position && candidates.Contains(m.ChampionId));
 
         if (patch is not null)
         {
-            query = query.Where(m => m.Patch.StartsWith(patch));
+            query = query.Where(m => m.Patch == patch);
         }
 
         var rows = await query
