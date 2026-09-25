@@ -7,6 +7,7 @@ using Data.Entities;
 using Data.ItemContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -15,9 +16,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260925100324_AddMasteryToMainChampionStats")]
+    partial class AddMasteryToMainChampionStats
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1440,17 +1443,14 @@ namespace Data.Migrations
 
             modelBuilder.Entity("Data.Entities.MatchParticipantTimelineSnapshot", b =>
                 {
-                    b.Property<string>("MatchId")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
-                    b.Property<int>("ParticipantId")
+                    b.Property<int>("DamageToChampions")
                         .HasColumnType("integer");
 
                     b.Property<int>("IntervalMinute")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("DamageToChampions")
                         .HasColumnType("integer");
 
                     b.Property<int>("JungleMinionsKilled")
@@ -1462,7 +1462,15 @@ namespace Data.Migrations
                     b.Property<int>("Level")
                         .HasColumnType("integer");
 
+                    b.Property<string>("MatchId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<int>("MinionsKilled")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParticipantId")
                         .HasColumnType("integer");
 
                     b.Property<int>("TimestampMs")
@@ -1480,7 +1488,10 @@ namespace Data.Migrations
                     b.Property<int>("Xp")
                         .HasColumnType("integer");
 
-                    b.HasKey("MatchId", "ParticipantId", "IntervalMinute");
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchId", "ParticipantId", "IntervalMinute")
+                        .IsUnique();
 
                     b.ToTable("match_participant_timeline_snapshots", (string)null);
                 });

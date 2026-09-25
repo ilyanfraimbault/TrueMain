@@ -89,7 +89,7 @@ defineOgImageComponent('Truemain', { nameTag })
 // `playerLabel` falls back to the raw slug while the profile is in flight, so
 // the share text is always something a human can read.
 const shareTitle = computed(() => `${playerLabel.value} on TrueMain`)
-const SHARE_DESCRIPTION = 'Rank, main champions and dedication score — tracked as a true main.'
+const SHARE_DESCRIPTION = 'Rank, main champions and Truemain score — tracked as a true main.'
 
 // ─── Matches fetch ─────────────────────────────────────────────────────────
 const {

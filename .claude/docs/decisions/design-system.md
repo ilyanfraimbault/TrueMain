@@ -59,8 +59,8 @@ the site should read as rose gold and should not carry a cyan it never wanted. R
   `TierBadge` all read the same tokens, so this was a token edit, not a component sweep.
 - **The medal ladder is back** (rose gold → gold → silver → bronze → iron). #1060 retired it on the grounds
   that gold and bronze are amber and amber meant "bad"; with the warm end of the axis gone, the collision it
-  was avoiding no longer exists. `dedication.ts` and `PlayerPerformance.vue` read `--color-tier-*` directly,
-  so the dedication ranks and performance verdicts followed for free.
+  was avoiding no longer exists. `PlayerPerformance.vue` reads `--color-tier-*` directly, so the performance
+  verdicts followed for free (the dedication ranks did too, until #1701 dropped them for the OTP/Main verdict).
 - **The activity heatmap returns to rose gold / neutral**, which is where #927 had it. The sign of a period is
   now carried by *accent vs grey* rather than by two opposed hues, which puts more weight on intensity: a
   one-game losing period is a faint grey cell. That is the intended read — it is barely a signal.

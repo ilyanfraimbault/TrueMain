@@ -1001,14 +1001,12 @@ const PLAYER_COUNT = 120
 // pagination clamping and the OTP threshold above) because the mock has to
 // produce a payload the real backend could have produced — see
 // docs/dedication-score.md for the formula and the constants.
-const DEDICATION_COMMITMENT_WEIGHT = 0.45
-const DEDICATION_SPAN_WEIGHT = 0.20
-const DEDICATION_VOLUME_WEIGHT = 0.20
-const DEDICATION_RECENCY_WEIGHT = 0.15
+const DEDICATION_COMMITMENT_WEIGHT = 0.55
+const DEDICATION_MASTERY_WEIGHT = 0.30
+const DEDICATION_MASTERY_RANK_WEIGHT = 0.15
 const DEDICATION_COMMITMENT_FLOOR = 0.12
-const DEDICATION_SPAN_TARGET_PATCHES = 6
-const DEDICATION_VOLUME_TARGET_GAMES = 200
-const DEDICATION_RECENCY_HALF_LIFE_DAYS = 21
+const DEDICATION_MASTERY_FLOOR_POINTS = 50_000
+const DEDICATION_MASTERY_TARGET_POINTS = 3_000_000
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value))
@@ -1017,32 +1015,37 @@ function clamp01(value: number): number {
 function mockDedication(
   championId: number,
   playRate: number,
-  careerGames: number,
-  patchSpan: number,
-  daysSinceLastGame: number,
+  isOtp: boolean,
+  championGames: number,
+  recentGames: number,
+  masteryPoints: number,
+  masteryRank: number,
+  daysSinceLastPlayed: number,
 ): TruemainDedication {
   const commitment = clamp01((playRate - DEDICATION_COMMITMENT_FLOOR) / (1 - DEDICATION_COMMITMENT_FLOOR))
-  const span = clamp01(patchSpan / DEDICATION_SPAN_TARGET_PATCHES)
-  const volume = clamp01(Math.log(1 + careerGames) / Math.log(1 + DEDICATION_VOLUME_TARGET_GAMES))
-  const recency = clamp01(0.5 ** (Math.max(0, daysSinceLastGame) / DEDICATION_RECENCY_HALF_LIFE_DAYS))
-  const score = 100 * clamp01(
-    DEDICATION_COMMITMENT_WEIGHT * commitment
-    + DEDICATION_SPAN_WEIGHT * span
-    + DEDICATION_VOLUME_WEIGHT * volume
-    + DEDICATION_RECENCY_WEIGHT * recency,
-  )
+  const mastery = masteryPoints <= DEDICATION_MASTERY_FLOOR_POINTS
+    ? 0
+    : clamp01(Math.log(masteryPoints / DEDICATION_MASTERY_FLOOR_POINTS)
+      / Math.log(DEDICATION_MASTERY_TARGET_POINTS / DEDICATION_MASTERY_FLOOR_POINTS))
+  const rank = masteryRank >= 1 ? 1 / masteryRank : 0
+  const parts = [
+    { key: 'playRate' as const, points: 100 * DEDICATION_COMMITMENT_WEIGHT * commitment, maxPoints: 100 * DEDICATION_COMMITMENT_WEIGHT },
+    { key: 'mastery' as const, points: 100 * DEDICATION_MASTERY_WEIGHT * mastery, maxPoints: 100 * DEDICATION_MASTERY_WEIGHT },
+    { key: 'masteryRank' as const, points: 100 * DEDICATION_MASTERY_RANK_WEIGHT * rank, maxPoints: 100 * DEDICATION_MASTERY_RANK_WEIGHT },
+  ]
+  const score = clamp01(parts.reduce((sum, part) => sum + part.points, 0) / 100) * 100
 
   return {
     score: Math.round(score * 10) / 10,
     championId,
-    commitment: round3(commitment),
-    span: round3(span),
-    volume: round3(volume),
-    recency: round3(recency),
+    isOtp,
     playRate: round3(playRate),
-    careerGames,
-    patchSpan,
-    daysSinceLastGame,
+    championGames,
+    recentGames,
+    masteryPoints,
+    masteryRank,
+    daysSinceLastPlayed,
+    parts: parts.map(part => ({ ...part, points: round3(part.points) })),
   }
 }
 
@@ -1091,16 +1094,19 @@ function buildPlayers(): MockPlayer[] {
       }
     })
 
-    // Dedication on the signature champion (the top main), with a deterministic
-    // history: more patches and fresher games the higher up the ladder a player
+    // Truemain score on the signature champion (the top main), with
+    // deterministic mastery: bigger pools the higher up the ladder a player
     // sits, so the mocked leaderboard reorders visibly under ?sort=dedication.
     const signature = topChampions[0]!
     const dedication = mockDedication(
       signature.championId,
       signature.playRate,
+      signature.isOtp,
       signature.games,
-      1 + Math.floor(rng() * 9),
-      Math.floor(rng() * 40),
+      games,
+      Math.round(80_000 + rng() * 2_800_000 * Math.exp(-i / 60)),
+      1 + Math.floor(rng() * rng() * 4),
+      Math.floor(rng() * 25),
     )
 
     players.push({

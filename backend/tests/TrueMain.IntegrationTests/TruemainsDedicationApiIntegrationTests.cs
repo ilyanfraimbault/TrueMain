@@ -10,11 +10,11 @@ using TrueMain.ReadModels.Truemains;
 namespace TrueMain.IntegrationTests;
 
 /// <summary>
-/// End-to-end cover for the dedication score (#530). The scoring maths itself is
-/// unit-tested (<c>DedicationScoreTests</c>); what needs a real Postgres is the
-/// query behind it — the <c>DISTINCT ON</c> that picks the signature champion and
-/// the <c>LEFT JOIN LATERAL</c> that measures its career over
-/// <c>champion_aggregate_scopes</c> — plus the in-memory ranking the
+/// End-to-end cover for the truemain score (#530, reworked in #1701). The scoring
+/// maths itself is unit-tested (<c>DedicationScoreTests</c>); what needs a real
+/// Postgres is the query behind it — the <c>DISTINCT ON</c> that picks the
+/// signature champion and reads its play rate and mastery off the same
+/// <c>main_champion_stats</c> row — plus the in-memory ranking the
 /// <c>?sort=dedication</c> path pages on.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
@@ -28,7 +28,7 @@ public sealed class TruemainsDedicationApiIntegrationTests
     }
 
     [Fact]
-    public async Task Profile_scores_the_signature_champion_from_its_aggregate_history()
+    public async Task Profile_scores_the_signature_champion_from_its_play_rate_and_mastery()
     {
         await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
@@ -40,22 +40,14 @@ public sealed class TruemainsDedicationApiIntegrationTests
             db.RankSnapshots.Add(Snapshot(account, "DIAMOND", "I", 40, now));
 
             // Signature champion: Yasuo at 0.7 play rate. Ahri is also a main but
-            // sits lower, so the score must be about Yasuo.
-            db.MainChampionStats.Add(MainStat(account, championId: 157, playRate: 0.7d, now));
-            db.MainChampionStats.Add(MainStat(account, championId: 103, playRate: 0.2d, now));
-
-            // Yasuo career: 3 patches, 60 games, last played 2 days ago. The
-            // three scope rows must be summed, and the patches counted distinct.
-            db.ChampionAggregateScopes.AddRange(
-                Scope(account.Id, 157, "15.1.1", games: 20, now.AddDays(-30)),
-                Scope(account.Id, 157, "15.2.1", games: 25, now.AddDays(-10)),
-                Scope(account.Id, 157, "15.3.1", games: 15, now.AddDays(-2)));
-            // Ahri career — must not leak into Yasuo's totals.
-            db.ChampionAggregateScopes.Add(Scope(account.Id, 103, "15.3.1", games: 40, now.AddDays(-1)));
-            // A different queue on the signature champion: out of scope.
-            var otherQueue = Scope(account.Id, 157, "15.3.1", games: 500, now);
-            otherQueue.QueueId = 400;
-            db.ChampionAggregateScopes.Add(otherQueue);
+            // sits lower — with more mastery — so the score must be about Yasuo
+            // and read Yasuo's mastery, not Ahri's.
+            db.MainChampionStats.Add(MainStat(
+                account, championId: 157, playRate: 0.7d, now,
+                masteryPoints: 900_000, masteryRank: 2, masteryLastPlayUtc: now.AddDays(-2).AddHours(-1)));
+            db.MainChampionStats.Add(MainStat(
+                account, championId: 103, playRate: 0.2d, now,
+                masteryPoints: 2_000_000, masteryRank: 1, masteryLastPlayUtc: now.AddDays(-1)));
 
             await db.SaveChangesAsync();
         }
@@ -70,30 +62,31 @@ public sealed class TruemainsDedicationApiIntegrationTests
         var dedication = profile.Dedication!;
 
         dedication.ChampionId.Should().Be(157, "Yasuo is the top main by play rate");
+        dedication.IsOtp.Should().BeFalse();
         dedication.PlayRate.Should().BeApproximately(0.7d, 1e-9);
-        dedication.CareerGames.Should().Be(60, "the three ranked-solo Yasuo scopes sum to 60");
-        dedication.PatchSpan.Should().Be(3, "three distinct game versions carry Yasuo games");
-        dedication.DaysSinceLastGame.Should().Be(2);
+        dedication.ChampionGames.Should().Be(35);
+        dedication.RecentGames.Should().Be(50);
+        dedication.MasteryPoints.Should().Be(900_000);
+        dedication.MasteryRank.Should().Be(2);
+        dedication.DaysSinceLastPlayed.Should().Be(2);
 
         // The endpoint must return exactly what the pure function produces for
         // those inputs — the read model is a projection, not a second formula.
-        var expected = DedicationScore.Compute(new DedicationInputs(
-            PlayRate: 0.7d,
-            CareerGames: 60,
-            PatchSpan: 3,
-            DaysSinceLastGame: dedication.DaysSinceLastGame!.Value));
+        var expected = DedicationScore.Compute(new DedicationInputs(0.7d, 900_000, 2));
+        dedication.Score.Should().Be(expected.Score);
 
-        dedication.Commitment.Should().BeApproximately(expected.Commitment, 1e-9);
-        dedication.Span.Should().BeApproximately(expected.Span, 1e-9);
-        dedication.Volume.Should().BeApproximately(expected.Volume, 1e-9);
-        // Recency is derived from a live clock, so the day count is pinned above
-        // and the component only has to land in the same neighbourhood.
-        dedication.Recency.Should().BeApproximately(expected.Recency, 0.01d);
-        dedication.Score.Should().BeApproximately(expected.Score, 1d);
+        dedication.Parts.Select(part => part.Key).Should().Equal(
+            DedicationPartKeys.PlayRate, DedicationPartKeys.Mastery, DedicationPartKeys.MasteryRank);
+        dedication.Parts[0].Points.Should().BeApproximately(100d * DedicationScore.CommitmentWeight * expected.Commitment, 1e-9);
+        dedication.Parts[1].Points.Should().BeApproximately(100d * DedicationScore.MasteryWeight * expected.Mastery, 1e-9);
+        dedication.Parts[2].Points.Should().BeApproximately(100d * DedicationScore.MasteryRankWeight * expected.MasteryRank, 1e-9);
+        dedication.Parts.Sum(part => part.MaxPoints).Should().BeApproximately(100d, 1e-9);
+        dedication.Parts.Sum(part => part.Points).Should().BeApproximately(dedication.Score, 0.05d,
+            "the parts are what the UI adds up in front of the reader");
     }
 
     [Fact]
-    public async Task Profile_scores_a_main_with_no_aggregates_on_commitment_alone()
+    public async Task Profile_scores_a_main_with_unread_mastery_on_play_rate_alone()
     {
         await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
@@ -113,12 +106,12 @@ public sealed class TruemainsDedicationApiIntegrationTests
         var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Fresh-EUW1/profile");
 
         profile!.Dedication.Should().NotBeNull();
-        // The LEFT JOIN LATERAL yields NULLs, which must coalesce to a scoreable
-        // zero rather than dropping the row or throwing.
-        profile.Dedication!.CareerGames.Should().Be(0);
-        profile.Dedication.PatchSpan.Should().Be(0);
-        profile.Dedication.DaysSinceLastGame.Should().BeNull();
-        profile.Dedication.Recency.Should().Be(0d);
+        // Null mastery columns must come through as null ("not read yet"), not as
+        // a fabricated zero, and must still leave the row scoreable.
+        profile.Dedication!.MasteryPoints.Should().BeNull();
+        profile.Dedication.MasteryRank.Should().BeNull();
+        profile.Dedication.DaysSinceLastPlayed.Should().BeNull();
+        profile.Dedication.IsOtp.Should().BeTrue();
         profile.Dedication.Score.Should().BeApproximately(100d * DedicationScore.CommitmentWeight, 0.05d);
     }
 
@@ -141,14 +134,8 @@ public sealed class TruemainsDedicationApiIntegrationTests
                 Snapshot(lowerOneTrick, "DIAMOND", "IV", 0, now));
 
             db.MainChampionStats.AddRange(
-                MainStat(apexDabbler, championId: 103, playRate: 0.22d, now),
-                MainStat(lowerOneTrick, championId: 157, playRate: 0.95d, now));
-
-            db.ChampionAggregateScopes.AddRange(
-                Scope(apexDabbler.Id, 103, "15.3.1", games: 12, now.AddDays(-20)),
-                Scope(lowerOneTrick.Id, 157, "15.1.1", games: 90, now.AddDays(-25)),
-                Scope(lowerOneTrick.Id, 157, "15.2.1", games: 90, now.AddDays(-12)),
-                Scope(lowerOneTrick.Id, 157, "15.3.1", games: 90, now));
+                MainStat(apexDabbler, championId: 103, playRate: 0.22d, now, masteryPoints: 120_000, masteryRank: 4),
+                MainStat(lowerOneTrick, championId: 157, playRate: 0.95d, now, masteryPoints: 2_400_000, masteryRank: 1));
 
             await db.SaveChangesAsync();
         }
@@ -175,8 +162,8 @@ public sealed class TruemainsDedicationApiIntegrationTests
         otpByRank.Should().NotBeNull();
         otpByDedication.Should().NotBeNull();
         otpByDedication!.Score.Should().Be(otpByRank!.Score);
-        otpByDedication.CareerGames.Should().Be(270);
-        otpByDedication.PatchSpan.Should().Be(3);
+        otpByDedication.MasteryPoints.Should().Be(2_400_000);
+        otpByDedication.IsOtp.Should().BeTrue();
     }
 
     [Fact]
@@ -191,11 +178,8 @@ public sealed class TruemainsDedicationApiIntegrationTests
             db.RiotAccounts.Add(account);
             db.RankSnapshots.Add(Snapshot(account, "DIAMOND", "I", 40, now));
             db.MainChampionStats.AddRange(
-                MainStat(account, championId: 157, playRate: 0.6d, now),
-                MainStat(account, championId: 103, playRate: 0.3d, now));
-            db.ChampionAggregateScopes.AddRange(
-                Scope(account.Id, 157, "15.3.1", games: 60, now),
-                Scope(account.Id, 103, "15.3.1", games: 30, now));
+                MainStat(account, championId: 157, playRate: 0.6d, now, masteryPoints: 1_000_000, masteryRank: 1),
+                MainStat(account, championId: 103, playRate: 0.3d, now, masteryPoints: 400_000, masteryRank: 3));
             await db.SaveChangesAsync();
         }
 
@@ -211,7 +195,8 @@ public sealed class TruemainsDedicationApiIntegrationTests
         var dedication = filtered!.Rows.Single().Dedication;
         dedication!.ChampionId.Should().Be(103);
         dedication.PlayRate.Should().BeApproximately(0.3d, 1e-9);
-        dedication.CareerGames.Should().Be(30);
+        dedication.MasteryPoints.Should().Be(400_000);
+        dedication.MasteryRank.Should().Be(3);
     }
 
     /// <summary>
@@ -237,11 +222,8 @@ public sealed class TruemainsDedicationApiIntegrationTests
             db.RiotAccounts.Add(account);
             db.RankSnapshots.Add(Snapshot(account, "DIAMOND", "I", 40, now));
             db.MainChampionStats.AddRange(
-                MainStat(account, championId: 122, playRate: 0.5d, now, position: "TOP"),
-                MainStat(account, championId: 103, playRate: 0.3d, now, position: "MIDDLE"));
-            db.ChampionAggregateScopes.AddRange(
-                Scope(account.Id, 122, "15.3.1", games: 50, now),
-                Scope(account.Id, 103, "15.3.1", games: 30, now));
+                MainStat(account, championId: 122, playRate: 0.5d, now, position: "TOP", masteryPoints: 700_000, masteryRank: 1),
+                MainStat(account, championId: 103, playRate: 0.3d, now, position: "MIDDLE", masteryPoints: 300_000, masteryRank: 2));
             await db.SaveChangesAsync();
         }
 
@@ -266,7 +248,7 @@ public sealed class TruemainsDedicationApiIntegrationTests
             rankDedication!.ChampionId,
             "the scored champion must not depend on which sort is active");
         sortedDedication.Score.Should().Be(rankDedication.Score);
-        sortedDedication.CareerGames.Should().Be(rankDedication.CareerGames);
+        sortedDedication.MasteryPoints.Should().Be(rankDedication.MasteryPoints);
 
         // ... and it is the same champion the profile card shows.
         profile!.Dedication!.ChampionId.Should().Be(122, "Darius is the top main by play rate");
@@ -286,8 +268,8 @@ public sealed class TruemainsDedicationApiIntegrationTests
         await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
-        // Three accounts, descending dedication: play rate carries the heaviest
-        // weight and the careers are identical, so the order is deterministic.
+        // Three accounts, descending score: play rate carries the heaviest
+        // weight and the mastery is identical, so the order is deterministic.
         var first = Account("first-puuid", "FirstMain", "EUW1");
         var second = Account("second-puuid", "SecondMain", "EUW1");
         var third = Account("third-puuid", "ThirdMain", "EUW1");
@@ -300,13 +282,9 @@ public sealed class TruemainsDedicationApiIntegrationTests
                 Snapshot(second, "DIAMOND", "I", 20, now),
                 Snapshot(third, "DIAMOND", "I", 10, now));
             db.MainChampionStats.AddRange(
-                MainStat(first, championId: 157, playRate: 0.9d, now),
-                MainStat(second, championId: 103, playRate: 0.6d, now),
-                MainStat(third, championId: 64, playRate: 0.3d, now));
-            db.ChampionAggregateScopes.AddRange(
-                Scope(first.Id, 157, "15.3.1", games: 40, now),
-                Scope(second.Id, 103, "15.3.1", games: 40, now),
-                Scope(third.Id, 64, "15.3.1", games: 40, now));
+                MainStat(first, championId: 157, playRate: 0.9d, now, masteryPoints: 500_000, masteryRank: 1),
+                MainStat(second, championId: 103, playRate: 0.6d, now, masteryPoints: 500_000, masteryRank: 1),
+                MainStat(third, championId: 64, playRate: 0.3d, now, masteryPoints: 500_000, masteryRank: 1));
             await db.SaveChangesAsync();
         }
 
@@ -328,8 +306,8 @@ public sealed class TruemainsDedicationApiIntegrationTests
             var latecomer = Account("late-puuid", "Latecomer", "EUW1");
             db.RiotAccounts.Add(latecomer);
             db.RankSnapshots.Add(Snapshot(latecomer, "DIAMOND", "I", 40, now));
-            db.MainChampionStats.Add(MainStat(latecomer, championId: 84, playRate: 0.99d, now));
-            db.ChampionAggregateScopes.Add(Scope(latecomer.Id, 84, "15.3.1", games: 200, now));
+            db.MainChampionStats.Add(MainStat(
+                latecomer, championId: 84, playRate: 0.99d, now, masteryPoints: 3_000_000, masteryRank: 1));
             await db.SaveChangesAsync();
         }
 
@@ -414,7 +392,10 @@ public sealed class TruemainsDedicationApiIntegrationTests
         int championId,
         double playRate,
         DateTime now,
-        string position = "MIDDLE")
+        string position = "MIDDLE",
+        long? masteryPoints = null,
+        int? masteryRank = null,
+        DateTime? masteryLastPlayUtc = null)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -430,31 +411,10 @@ public sealed class TruemainsDedicationApiIntegrationTests
             // A single-lane breakdown (rate 1.0) so the champion cleanly clears
             // that lane's share floor and no other.
             PositionBreakdown = [new PositionStat { Position = position, Games = 50, Rate = 1d }],
+            MasteryPoints = masteryPoints,
+            MasteryRank = masteryRank,
+            MasteryLastPlayUtc = masteryLastPlayUtc,
             CalculatedAtUtc = now,
-        };
-
-    private static ChampionAggregateScope Scope(Guid riotAccountId, int championId, string patch, int games, DateTime lastGameUtc)
-        => new()
-        {
-            Id = Guid.NewGuid(),
-            RiotAccountId = riotAccountId,
-            ChampionId = championId,
-            GameVersion = patch,
-            PlatformId = "EUW1",
-            QueueId = 420,
-            Position = "MIDDLE",
-            EloBracket = EloBracket.Diamond,
-            // Mains: the population these fixtures have always described; a
-            // non-nullable bool is always written, so the column default never
-            // applies and an unset flag would seed a non-main (#1346).
-            IsMain = true,
-            Games = games,
-            Wins = games / 2,
-            Kills = games,
-            Deaths = games,
-            Assists = games,
-            LastGameStartTimeUtc = lastGameUtc,
-            AggregatedAtUtc = lastGameUtc,
         };
 
     private ApiWebApplicationFactory CreateFactory() => new(_fixture);

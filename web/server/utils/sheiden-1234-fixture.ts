@@ -40,20 +40,24 @@ export const SHEIDEN_PROFILE: ProfileResponse = {
     { championId: 121, games: 96, sampleMatches: 600, playRate: 0.16, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
     { championId: 11, games: 70, sampleMatches: 600, playRate: 0.12, primaryPosition: 'JUNGLE', isOtp: false, isSampleRetired: false, measuredAtUtc: FIXTURE_MEASURED_AT },
   ],
-  // Dedication on the top main (Kha'Zix): a wide-pool jungler, so commitment is
-  // modest while span / volume / recency are strong. Values mirror what
+  // Truemain score on the top main (Kha'Zix): a wide-pool jungler, so the play
+  // rate is modest while the mastery is strong. Values mirror what
   // backend/Core/Truemains/DedicationScore.cs would produce for these inputs.
   dedication: {
-    score: 62.9,
+    score: 50.7,
     championId: 64,
-    commitment: 0.205,
-    span: 1,
-    volume: 0.98,
-    recency: 0.936,
+    isOtp: false,
     playRate: 0.30,
-    careerGames: 180,
-    patchSpan: 7,
-    daysSinceLastGame: 2,
+    championGames: 180,
+    recentGames: 600,
+    masteryPoints: 1_400_000,
+    masteryRank: 1,
+    daysSinceLastPlayed: 2,
+    parts: [
+      { key: 'playRate', points: 11.25, maxPoints: 55 },
+      { key: 'mastery', points: 24.416, maxPoints: 30 },
+      { key: 'masteryRank', points: 15, maxPoints: 15 },
+    ],
   },
   positions: [
     { position: 'JUNGLE', games: 520, rate: 520 / 600 },
