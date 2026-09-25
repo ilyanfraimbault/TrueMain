@@ -214,3 +214,21 @@ produce.
 **Splitting those nine was deliberately excluded from #1520.** Each is behaviour-carrying work over
 non-trivial SQL that needs its own reasoning and its own review; folded into a 200-file structural
 move, neither the move nor the splits would have been reviewable.
+
+## A child table with a natural key uses it as its primary key — no surrogate `Guid` beside it (2026-09-25)
+
+**When every row of a table is identified by columns it already carries — `(MatchId, ParticipantId,
+IntervalMinute)` for timeline snapshots, `(MatchId, TeamId, PickTurn)` for bans — that tuple is the composite
+primary key.** No extra `Guid Id` is added "because the other entities have one".
+
+`match_participant_timeline_snapshots` (#541) was created with both: a `Guid Id` primary key copied from the
+default entity shape, and a unique index on the natural key that every reader and the re-ingestion dedup
+actually use. The Guid PK was never scanned once, yet cost 16 bytes per row and a whole B-tree over random
+UUIDs on one of the largest tables in the database — and, B-trees never shrinking on disk, it stayed at the
+size of the retired per-minute grid (#1599) long after the rows were gone. #1697 promoted the unique index to
+the primary key (`ADD CONSTRAINT ... PRIMARY KEY USING INDEX`: no index build, no table rewrite) and dropped
+the column.
+
+A surrogate key still earns its place where rows have no stable natural identity, or where other tables
+reference the row and a wide composite FK would be copied into each of them. A leaf table nobody references
+is not that case.
