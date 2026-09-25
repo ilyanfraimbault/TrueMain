@@ -152,7 +152,8 @@ public sealed class DraftRecommendationQueryService(
         string? patch,
         CancellationToken ct)
     {
-        var matchups = await ReadMatchupDeltasAsync(candidates, position, opponentChampionId, patch, ct);
+        var matchups = await ReadMatchupDeltasAsync(
+            candidates, position, opponentChampionId, patch, criteria.EloBracket, ct);
         var synergy = await ReadSynergyDeltasAsync(candidates, position, criteria, patch, ct);
 
         return candidates
@@ -198,6 +199,7 @@ public sealed class DraftRecommendationQueryService(
         string position,
         int? opponentChampionId,
         string? patch,
+        string? eloBracket,
         CancellationToken ct)
     {
         if (opponentChampionId is null)
@@ -206,9 +208,12 @@ public sealed class DraftRecommendationQueryService(
         }
 
         var pool = candidates.Order().ToList();
+        // Null = every band, no clause — the same resolution the matchup page uses.
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
         return await cache.GetOrComputeAsync(
-            $"champions:draft:matchups:{position}:{opponentChampionId}:{string.Join(',', pool)}:{patch ?? "all"}",
-            token => ComputeMatchupDeltasAsync(pool, position, opponentChampionId.Value, patch, token),
+            $"champions:draft:matchups:{position}:{opponentChampionId}:{string.Join(',', pool)}"
+                + $":{patch ?? "all"}:{EloBracket.ResolveToken(eloBracket)}",
+            token => ComputeMatchupDeltasAsync(pool, position, opponentChampionId.Value, patch, bands, token),
             ct);
     }
 
@@ -217,6 +222,7 @@ public sealed class DraftRecommendationQueryService(
         string position,
         int opponentChampionId,
         string? patch,
+        IReadOnlyCollection<string>? bands,
         CancellationToken ct)
     {
         var query = db.ChampionMatchupStats
@@ -226,6 +232,11 @@ public sealed class DraftRecommendationQueryService(
         if (patch is not null)
         {
             query = query.Where(m => m.Patch == patch);
+        }
+
+        if (bands is not null)
+        {
+            query = query.Where(m => bands.Contains(m.EloBracket));
         }
 
         var rows = await query
