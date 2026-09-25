@@ -15,9 +15,9 @@ defineProps<{
 
 <template>
   <div class="well flex min-w-0 flex-col rounded-xl p-3">
-    <div class="flex items-baseline justify-between gap-3">
-      <h3 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{{ title }}</h3>
-      <span v-if="rate" class="text-[11px] tabular-nums text-dimmed">{{ rate }}</span>
+    <div class="flex min-w-0 items-baseline justify-between gap-3">
+      <h3 class="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{{ title }}</h3>
+      <span v-if="rate" class="shrink-0 text-[11px] tabular-nums text-dimmed">{{ rate }}</span>
     </div>
     <div
       class="mt-2 flex flex-1 items-center justify-center gap-1"

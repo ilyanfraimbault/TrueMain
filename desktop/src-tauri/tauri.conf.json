@@ -13,11 +13,10 @@
     "windows": [
       {
         "title": "TrueMain",
-        "width": 1040,
-        "height": 720,
-        "minWidth": 820,
-        "minHeight": 560,
-        "resizable": true,
+        "width": 1180,
+        "height": 760,
+        "resizable": false,
+        "maximizable": false,
         "decorations": true
       }
     ],
