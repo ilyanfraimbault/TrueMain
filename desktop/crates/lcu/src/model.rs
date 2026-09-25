@@ -89,6 +89,21 @@ pub struct ChampSelectBans {
     pub their_team_bans: Vec<i64>,
 }
 
+/// One step of the draft — a ban or a pick — by one cell. The client groups
+/// them by turn, so the session carries a list of lists.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ChampSelectAction {
+    pub actor_cell_id: i64,
+    /// Zero until the actor commits, or when a ban turn is skipped.
+    pub champion_id: i64,
+    pub completed: bool,
+    pub is_ally_action: bool,
+    /// `"ban"` or `"pick"`.
+    #[serde(rename = "type")]
+    pub kind: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampSelectSession {
@@ -96,6 +111,7 @@ pub struct ChampSelectSession {
     pub my_team: Vec<ChampSelectPlayer>,
     pub their_team: Vec<ChampSelectPlayer>,
     pub bans: ChampSelectBans,
+    pub actions: Vec<Vec<ChampSelectAction>>,
     pub timer: ChampSelectTimer,
 }
 
@@ -137,7 +153,10 @@ pub struct TeamSlot {
 /// The client pads unused ban slots with 0; a zero here would render as a
 /// champion portrait lookup that cannot resolve.
 fn real_bans(bans: &[i64]) -> Vec<i64> {
-    bans.iter().copied().filter(|&champion| champion != 0).collect()
+    bans.iter()
+        .copied()
+        .filter(|&champion| champion != 0)
+        .collect()
 }
 
 impl ChampSelectSession {
@@ -145,6 +164,34 @@ impl ChampSelectSession {
         self.my_team
             .iter()
             .find(|player| player.cell_id == self.local_player_cell_id)
+    }
+
+    /// One side's bans, in the order they were made.
+    ///
+    /// The client writes a ban in two places — the `bans` summary and the
+    /// completed ban action — and does not always fill the summary: a ranked
+    /// draft with ten bans on the client's screen has reached the app with both
+    /// summary lists empty. Read both and keep each champion once.
+    fn bans(&self, ally: bool) -> Vec<i64> {
+        let listed = if ally {
+            &self.bans.my_team_bans
+        } else {
+            &self.bans.their_team_bans
+        };
+        let mut bans = real_bans(listed);
+        let banned = self
+            .actions
+            .iter()
+            .flatten()
+            .filter(|action| action.kind == "ban" && action.completed)
+            .filter(|action| action.is_ally_action == ally && action.champion_id != 0)
+            .map(|action| action.champion_id);
+        for champion in banned {
+            if !bans.contains(&champion) {
+                bans.push(champion);
+            }
+        }
+        bans
     }
 
     pub fn draft_state(&self) -> DraftState {
@@ -183,8 +230,8 @@ impl ChampSelectSession {
             ally_champions,
             enemy_champions,
             my_team,
-            ally_bans: real_bans(&self.bans.my_team_bans),
-            enemy_bans: real_bans(&self.bans.their_team_bans),
+            ally_bans: self.bans(true),
+            enemy_bans: self.bans(false),
             seconds_left: self.timer.adjusted_time_left_in_phase / 1000,
         }
     }
@@ -274,6 +321,7 @@ mod tests {
                 my_team_bans: vec![1, 0],
                 their_team_bans: vec![2],
             },
+            actions: vec![],
             timer: ChampSelectTimer {
                 adjusted_time_left_in_phase: 27_000,
                 phase: "BAN_PICK".into(),
@@ -324,6 +372,57 @@ mod tests {
             "the team keeps its empty cells and its lanes"
         );
         assert_eq!(draft.seconds_left, 27);
+    }
+
+    fn ban(champion_id: i64, completed: bool, is_ally_action: bool) -> ChampSelectAction {
+        ChampSelectAction {
+            champion_id,
+            completed,
+            is_ally_action,
+            kind: "ban".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn bans_are_read_from_the_completed_ban_actions_when_the_summary_is_empty() {
+        // A ranked draft: ten bans on the client's screen, both summary lists
+        // empty. The actions are the only record of them.
+        let session = ChampSelectSession {
+            actions: vec![
+                vec![ban(122, true, true), ban(157, true, false)],
+                // A ban still being hovered is not a ban yet; a skipped turn
+                // completes with champion zero.
+                vec![ban(238, false, true), ban(0, true, false)],
+                // A pick is not a ban, whatever champion it names.
+                vec![ChampSelectAction {
+                    champion_id: 51,
+                    completed: true,
+                    is_ally_action: true,
+                    kind: "pick".into(),
+                    ..Default::default()
+                }],
+            ],
+            ..Default::default()
+        };
+
+        let draft = session.draft_state();
+        assert_eq!(draft.ally_bans, vec![122]);
+        assert_eq!(draft.enemy_bans, vec![157]);
+    }
+
+    #[test]
+    fn a_ban_listed_in_both_places_is_counted_once() {
+        let session = ChampSelectSession {
+            bans: ChampSelectBans {
+                my_team_bans: vec![122, 0],
+                their_team_bans: vec![],
+            },
+            actions: vec![vec![ban(122, true, true), ban(875, true, true)]],
+            ..Default::default()
+        };
+
+        assert_eq!(session.draft_state().ally_bans, vec![122, 875]);
     }
 
     #[test]
