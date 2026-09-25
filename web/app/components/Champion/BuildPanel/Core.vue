@@ -68,11 +68,12 @@ withDefaults(defineProps<{
 }>(), {
   summonersPending: false,
   // Sized to fill the column rather than to overflow it: measured, the block
-  // runs ~148 px at 36/39 against the ~148 px of the summoners/skill/build-path
-  // side, where 32/35 left ~24 px of the column empty under it. Deliberately
-  // sized to just under rather than over — past this the runes drive the row
-  // height and the *left* side is the one with dead space, which is the same
-  // complaint mirrored. The wrapper width below follows from these.
+  // runs ~152 px at 36/39 (148 px of runes + the 4 px of ring padding) against
+  // the ~148 px of the summoners/skill/build-path side, where 32/35 left ~24 px
+  // of the column empty under it. Deliberately sized to land on rather than
+  // over — past this the runes drive the row height and the *left* side is the
+  // one with dead space, which is the same complaint mirrored. The wrapper
+  // width below follows from these.
   runeSize: 36,
   keystoneSize: 39,
   noRunesMessage: null,
@@ -89,18 +90,20 @@ withDefaults(defineProps<{
        anyway and drove Boots straight through the runes block. -->
   <div class="@container">
     <!-- Outer grid: left column is flexible, right Runes column is a fixed
-         268 px so the left column never resizes when rune layouts change
-         between builds/positions. 268 px fits the widest primary tree
+         272 px so the left column never resizes when rune layouts change
+         between builds/positions. 272 px fits the widest primary tree
          (4 keystones, e.g. Precision): 4 × 39 px keystones + 3 × 2 px gaps =
          162 px, + 24 px gutter + 80 px secondary/shard column (3 × 24 px +
-         2 × 4 px gaps) = 266 px, plus a 2 px safety margin. It was 240 px at
-         the old 35 px keystone; the extra 28 px is what the runes grew by to
-         stop leaving a quarter of their column empty, and it comes out of the
-         flexible left column, which has slack the runes column does not.
+         2 × 4 px gaps) = 266 px, + the rune block's own 2 × 2 px padding (the
+         room its selection ring needs, see `ChampionCoreRunes`) = 270 px, plus
+         a 2 px safety margin. It was 240 px at the old 35 px keystone; the
+         extra is what the runes grew by to stop leaving a quarter of their
+         column empty, and it comes out of the flexible left column, which has
+         slack the runes column does not.
          Trees with only 3 keystones leave a little trailing space — the
          trade-off for a stable, non-shifting layout (sizing to content would
          shift the left column when switching builds/positions). -->
-    <div class="grid gap-x-6 gap-y-5 @3xl:grid-cols-[minmax(0,1fr)_268px]">
+    <div class="grid gap-x-6 gap-y-5 @3xl:grid-cols-[minmax(0,1fr)_272px]">
       <!-- Section A: everything except runes -->
       <div class="flex flex-col gap-5 @lg:flex-row @lg:items-start">
         <!-- A1: Summoners + Starter, stacked, left-aligned.
@@ -145,12 +148,12 @@ withDefaults(defineProps<{
           </div>
         </div>
       </div>
-      <!-- Runes column — fixed 268 px wrapper at lg+ keeps the left column
+      <!-- Runes column — fixed 272 px wrapper at lg+ keeps the left column
            stable in the two-column layout. Below lg the core view is a single
            column, so the wrapper stays full-width to avoid regressing mobile.
            The wrapper is always present (even with no rune data) so the grid
            track doesn't collapse and cause a reflow. -->
-      <div class="w-full shrink-0 overflow-hidden @3xl:w-[268px]">
+      <div class="w-full shrink-0 overflow-hidden @3xl:w-[272px]">
         <ChampionCoreRunes
           v-if="runePage && runeTree"
           :page="runePage"
