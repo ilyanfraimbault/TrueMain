@@ -120,6 +120,13 @@ public static class LaneAssignmentSolver
             pinned = new Dictionary<int, string>();
         }
 
+        if (placements.Count == 0)
+        {
+            // More champions than lanes: there is no placement to score, and
+            // "none" is the honest answer rather than an exception.
+            return [];
+        }
+
         var scored = placements
             .Select(placement => (placement, score: Score(placement, priors)))
             .ToList();

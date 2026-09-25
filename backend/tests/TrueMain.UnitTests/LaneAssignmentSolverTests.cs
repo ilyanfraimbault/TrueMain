@@ -179,4 +179,12 @@ public class LaneAssignmentSolverTests
 
         Assert.Single(result);
     }
+
+    [Fact]
+    public void MoreChampionsThanLanesYieldsNoPlacementRatherThanThrowing()
+    {
+        var result = LaneAssignmentSolver.Solve([1, 2, 3, 4, 5, 6], Priors());
+
+        Assert.Empty(result);
+    }
 }
