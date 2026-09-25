@@ -67,6 +67,14 @@ write its rows under a pager reading 4 — #1234.
   on the element it keeps for good, and it opens on `pointermove`, so the resting pointer opens it on its next
   move and nothing is opened by hand.
 
+- **Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25, #1698).**
+  `GameTooltip/LazyTooltip.vue` defaults `content` to `{ side: 'top' }` for every item, rune and spell card.
+  Nuxt UI's own default is `bottom`, and Reka's collision avoidance flips a card that does not fit — so a card
+  up to `70vh` tall opened below or above the same icon depending on the scroll position, and two icons of one
+  build path could open on opposite sides. Collision avoidance stays on: forcing a side
+  (`avoidCollisions: false`) would clip the tall cards at the viewport edge. A side placement (`right`, which
+  also keeps the neighbouring icons of a row uncovered) was offered and the product owner chose the top.
+
 - **A skeleton is the real component in `pending` mode, not a drawing of it.** The champion page's build
   section has two loading phases it cannot merge: the aggregate and the patch-pinned static bundles are
   separate fetches, and the ~95 DDragon icons only start downloading once the ids they resolve are mounted.

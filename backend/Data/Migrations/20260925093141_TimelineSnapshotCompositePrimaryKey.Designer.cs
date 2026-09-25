@@ -7,6 +7,7 @@ using Data.Entities;
 using Data.ItemContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -15,9 +16,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260925093141_TimelineSnapshotCompositePrimaryKey")]
+    partial class TimelineSnapshotCompositePrimaryKey
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1035,15 +1038,6 @@ namespace Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
-
-                    b.Property<DateTime?>("MasteryLastPlayUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("MasteryPoints")
-                        .HasColumnType("bigint");
-
-                    b.Property<int?>("MasteryRank")
-                        .HasColumnType("integer");
 
                     b.Property<string>("PlatformId")
                         .IsRequired()

@@ -130,6 +130,7 @@ Last verified against `develop` on 2026-09-02.
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
 - A row rendered on more than one surface sizes off its own width, not the viewport — #967
 - A tooltip trigger keeps the same DOM element for the life of the component
+- Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698
 - A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15) — #1585
 - A skeleton is the real component in `pending` mode, not a drawing of it
 - Icon slots are rendered from the ids, never gated on a resolved static lookup
@@ -195,6 +196,7 @@ Last verified against `develop` on 2026-09-02.
 - Configuration defaults live in the class, and the two champion games floors are two keys — #1034, #860, #889
 - A unit of work covers the writes and nothing else (2026-08-28) — #264, #1229
 - `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07) — #1520, #1451
+- A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
