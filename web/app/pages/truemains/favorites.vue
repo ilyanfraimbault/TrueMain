@@ -79,7 +79,7 @@ const runeTree = computed(() => runeTreeData.value ?? null)
     <PageHeader
       eyebrow="Truemains"
       title="Favorites"
-      description="Players you follow, with their latest ranked games. Saved in this browser only — signing in with Riot will sync them across devices later."
+      description="Saved in this browser only."
     >
       <div v-if="hydrated && count > 0" class="flex flex-wrap items-center gap-3">
         <span class="text-sm text-muted tabular-nums">{{ count }} followed</span>

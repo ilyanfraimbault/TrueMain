@@ -26,12 +26,8 @@ const TOP_N = 5
 const selectedOpponentId = ref<number | null>(null)
 
 // Jungle has no lane opponent — the matchup is the enemy jungler across the map —
-// so the copy says "role"/"jungle" there and "lane" for the four lanes.
+// so the empty-state notes say "in the jungle" there and "on this lane" for the four lanes.
 const isJungle = computed(() => props.position === 'JUNGLE')
-const subtitle = computed(() =>
-  isJungle.value ? 'Best and worst jungle matchups.' : 'Best and worst lane matchups.',
-)
-// Suffix for the empty-state notes, matched to the same scope.
 const scopeSuffix = computed(() => (isJungle.value ? 'in the jungle' : 'on this lane'))
 
 const { data, status, error } = useChampionMatchups(
@@ -120,7 +116,6 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
   <SectionCard
     :level="2"
     title="Matchups"
-    :subtitle="subtitle"
     :ui="{ header: 'p-2 sm:px-2.5 sm:py-2', body: 'p-1.5 sm:p-2' }"
   >
     <template #actions>

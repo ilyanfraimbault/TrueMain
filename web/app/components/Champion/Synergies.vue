@@ -100,7 +100,6 @@ watch(() => [props.championId, props.position], () => {
   <SectionCard
     :level="2"
     title="Synergies"
-    subtitle="Teammates you win more with than their own win rates predict — not simply the ones who win a lot."
   >
     <template #actions>
       <RolePicker
@@ -144,14 +143,18 @@ watch(() => [props.championId, props.position], () => {
 
       <template v-else>
         <!-- Column key. "Synergy" is points of win rate above expectation, so it
-             needs naming — a bare signed number would read as a win-rate delta. -->
+             needs naming — a bare signed number would read as a win-rate delta.
+             The definition sits in the header's tooltip, not in a footnote. -->
         <div class="flex items-center gap-3 px-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-dimmed">
           <span class="size-8 shrink-0" aria-hidden="true" />
           <span class="size-4 shrink-0" aria-hidden="true" />
           <span class="min-w-0 flex-1">Partner</span>
           <span class="shrink-0">Sample</span>
           <span class="w-12 shrink-0 text-right">WR</span>
-          <span class="w-14 shrink-0 text-right">Synergy</span>
+          <span
+            class="w-14 shrink-0 text-right"
+            :title="`Win rate minus what ${championName}'s and the partner's own win rates predicted, in points.`"
+          >Synergy</span>
         </div>
 
         <div class="flex flex-col gap-1">
@@ -171,12 +174,6 @@ watch(() => [props.championId, props.position], () => {
             @select="togglePartner(partner)"
           />
         </div>
-
-        <p class="px-2 text-xs text-muted">
-          Synergy is win rate minus what {{ championName }}'s and the partner's own win rates predicted, in points.
-          Measured over {{ (data?.championGames ?? 0).toLocaleString('en-US') }} games on {{ championName }}.
-          Pick a partner to see the best third pick.
-        </p>
       </template>
 
       <!-- Trio completions for the chosen duo. -->
@@ -223,10 +220,6 @@ watch(() => [props.championId, props.position], () => {
               :synergy="completion.synergy"
             />
           </div>
-          <p class="px-2 text-xs text-muted">
-            Out of {{ (trioData?.pairGames ?? 0).toLocaleString('en-US') }} games where
-            {{ championName }} and {{ selectedPartnerName }} played together.
-          </p>
         </template>
       </div>
     </div>

@@ -46,7 +46,6 @@ const viewAllHref = computed(() => `/truemains?championId=${props.championId}`)
   <SectionCard
     :level="2"
     title="Truemains"
-    subtitle="Top tracked players on this champion."
     :ui="{ header: 'p-2 sm:px-2.5 sm:py-2', body: 'p-1.5 sm:p-2' }"
   >
     <div class="flex flex-col gap-1">
