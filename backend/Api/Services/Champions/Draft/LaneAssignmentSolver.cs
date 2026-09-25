@@ -107,7 +107,12 @@ public static class LaneAssignmentSolver
             return [];
         }
 
-        pinned ??= new Dictionary<int, string>();
+        // A pin outlives the pick it was made on — an enemy un-hovers, the
+        // client still sends the correction — and must not take the other pins
+        // down with it: only pins on champions actually in the draft count.
+        pinned = (pinned ?? new Dictionary<int, string>())
+            .Where(pin => champions.Contains(pin.Key))
+            .ToDictionary(pin => pin.Key, pin => pin.Value);
 
         var lanes = QueueDataQualityProfile.LanePositions;
         var placements = EnumeratePlacements(champions, lanes, pinned);
