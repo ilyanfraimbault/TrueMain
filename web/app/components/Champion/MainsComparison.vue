@@ -206,7 +206,6 @@ const thinSides = computed(() => {
   <SectionCard
     :level="2"
     title="Compare with the mains"
-    subtitle="See how any tracked account stacks up against this champion's mains."
   >
     <div class="flex flex-col gap-3">
       <form
@@ -378,10 +377,6 @@ const thinSides = computed(() => {
             </span>
           </template>
         </div>
-
-        <p class="text-xs text-dimmed">
-          Ranked solo/duo games we hold for both sides{{ comparison.position ? `, ${comparison.position.toLowerCase()} only` : '' }}.
-        </p>
       </div>
     </div>
   </SectionCard>

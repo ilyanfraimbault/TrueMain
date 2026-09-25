@@ -348,3 +348,16 @@ version otherwise — instead of trusting `normalizeDataDragonPatch`'s `major.mi
   than `.1`.
 - **One cached version list** (`loadDDragonVersions`, SWR, hours) now backs the resolution *and*
   `/api/static/versions`, so the patch selector can only ever offer patches resolution is done against.
+
+**A public section card is its title and its content — no explanatory subtitle, no method footnote (2026-09-25).**
+`SectionCard` still takes a `subtitle` prop, but no public page passes one any more: the champion page's
+Trend / Scaling / Synergies / Matchups / Truemains / mains-comparison cards, the builder's "This matchup"
+strip, and the intro lines of `/champions/tierlist` and `/truemains` all printed a sentence restating what the
+section obviously was ("Win rate by game length. A rising line means…"), and the synergies card added a
+three-line method footnote plus a sample line under the trio list. The product owner judged them noise on
+every visit for information nobody reads. Where a term genuinely needs defining, the definition goes one
+hover away (the `Synergy` column header's `title`, the builder stats' hints), never printed under the
+section. A functional caveat the reader would otherwise get wrong survives as the one short line it needs
+(favorites: "Saved in this browser only."). The internal `/dev/design-system` page keeps its subtitles — it
+is documentation. Same direction as the player performance panel (#918 follow-up) and the "why this item"
+card (#1465) — #1699.

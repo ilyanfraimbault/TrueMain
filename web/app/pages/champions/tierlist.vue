@@ -139,10 +139,6 @@ await tierListFetch
       <h1 class="text-2xl font-semibold">
         Tier List
       </h1>
-      <p class="text-sm text-muted">
-        Champions ranked into S–D tiers by winrate and pickrate for the current patch, per role.
-        Hover a champion for its win, pick and ban rate.
-      </p>
 
       <div class="flex flex-wrap items-center justify-between gap-3">
         <RolePicker

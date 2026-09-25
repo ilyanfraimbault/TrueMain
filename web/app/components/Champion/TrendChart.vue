@@ -97,12 +97,6 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
 const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 const banRateFormatter = (value: number): string => formatPercentage(value, 1)
 
-const subtitle = computed(() =>
-  hasBanTrend.value
-    ? 'Win rate, pick rate and ban rate over the last five patches with data.'
-    : 'Win rate and pick rate over the last five patches with data.',
-)
-
 const chartGridClass = computed(() =>
   hasBanTrend.value ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' : 'grid gap-4 sm:grid-cols-2',
 )
@@ -112,7 +106,6 @@ const chartGridClass = computed(() =>
   <SectionCard
     :level="2"
     title="Trend by patch"
-    :subtitle="subtitle"
   >
     <USkeleton
       v-if="loading"
