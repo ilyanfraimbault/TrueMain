@@ -97,9 +97,8 @@ impl Tape {
             if line.is_empty() {
                 continue;
             }
-            let entry: Entry = serde_json::from_str(line).map_err(|error| {
-                Error::MalformedTape(format!("line {}: {error}", index + 1))
-            })?;
+            let entry: Entry = serde_json::from_str(line)
+                .map_err(|error| Error::MalformedTape(format!("line {}: {error}", index + 1)))?;
             entries.push(entry);
         }
         Ok(Self { entries })
@@ -230,7 +229,11 @@ mod tests {
     fn keeps_the_events_in_order_with_the_gap_between_them() {
         let events = Tape::parse(TAPE).unwrap().events();
         assert_eq!(events.len(), 2);
-        assert_eq!(events[0].0, Duration::ZERO, "the first event waits for nothing");
+        assert_eq!(
+            events[0].0,
+            Duration::ZERO,
+            "the first event waits for nothing"
+        );
         assert_eq!(events[0].1.uri, "/lol-champ-select/v1/session");
         assert_eq!(events[1].0, Duration::from_millis(500));
         assert_eq!(events[1].1.data, "InProgress");
@@ -262,8 +265,7 @@ mod tests {
 
     #[test]
     fn event_type_defaults_so_a_tape_can_be_written_without_it() {
-        let tape =
-            Tape::parse(r#"{"at_ms":0,"kind":"event","uri":"/x","data":null}"#).unwrap();
+        let tape = Tape::parse(r#"{"at_ms":0,"kind":"event","uri":"/x","data":null}"#).unwrap();
         assert_eq!(tape.events()[0].1.event_type, "Update");
     }
 

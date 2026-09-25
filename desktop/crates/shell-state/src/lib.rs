@@ -91,7 +91,11 @@ impl AppState {
     }
 
     fn identity(&self) -> (Option<String>, Option<i64>, Option<i64>) {
-        (self.riot_id.clone(), self.profile_icon_id, self.summoner_level)
+        (
+            self.riot_id.clone(),
+            self.profile_icon_id,
+            self.summoner_level,
+        )
     }
 
     /// Which screen the shell should show.
@@ -215,7 +219,10 @@ mod tests {
         ));
         assert!(state.draft.is_some());
 
-        state.apply(&event(lcu::uri::GAMEFLOW_PHASE, serde_json::json!("InProgress")));
+        state.apply(&event(
+            lcu::uri::GAMEFLOW_PHASE,
+            serde_json::json!("InProgress"),
+        ));
         assert_eq!(state.phase, GameflowPhase::InProgress);
         assert!(state.draft.is_none());
     }
