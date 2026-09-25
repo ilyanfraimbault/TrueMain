@@ -216,10 +216,13 @@ public static class LaneAssignmentSolver
         string lane,
         IReadOnlyDictionary<int, LanePrior> priors)
     {
-        if (!priors.TryGetValue(championId, out var prior) || prior.Games == 0)
+        // Never seen — or seen only on patches outside the prior's window, which
+        // leaves `Games` counted but the map empty: every lane equally likely, so
+        // this champion adds a constant and lets the others decide the placement.
+        // Falling through would floor every lane instead, and punish a stale
+        // champion far harder than an unknown one.
+        if (!priors.TryGetValue(championId, out var prior) || prior.Games == 0 || prior.ByLane.Count == 0)
         {
-            // Never seen: every lane equally likely, so this champion adds a
-            // constant and lets the others decide the placement.
             return 1d / QueueDataQualityProfile.LanePositions.Count;
         }
 
