@@ -23,6 +23,13 @@ public sealed class ChampionDraftController(IDraftRecommendationQueryService dra
     private const int MaxCandidates = 40;
 
     /// <summary>
+    /// A side has five cells. The solver enumerates placements into five lanes
+    /// and has none to offer a sixth champion, so a client sending more is cut
+    /// to the first five rather than answered with a 500.
+    /// </summary>
+    private const int MaxEnemies = 5;
+
+    /// <summary>
     /// Resolve the enemy lanes and rank the candidate picks for one draft.
     /// </summary>
     [HttpPost("draft")]
@@ -46,7 +53,7 @@ public sealed class ChampionDraftController(IDraftRecommendationQueryService dra
         var criteria = new DraftCriteria
         {
             Position = position,
-            EnemyChampions = request.EnemyChampions ?? [],
+            EnemyChampions = (request.EnemyChampions ?? []).Distinct().Take(MaxEnemies).ToList(),
             PinnedEnemyLanes = Normalize(request.PinnedEnemyLanes),
             PreviousEnemyLanes = request.PreviousEnemyLanes is null
                 ? null
