@@ -12,7 +12,8 @@ Last verified against `develop` on 2026-09-02.
 ## Mains, dedication and candidate intake — [`decisions/product-mains.md`](decisions/product-mains.md)
 
 - Ranked solo/duo (queue 420) is the only queue stored; match history is solo/duo-only by design — #680
-- Dedication score (0–100) is the signature metric, always scoped to one champion — #530
+- The Truemain score (0–100) is the signature metric, always scoped to one champion — #530
+- The score reads the player, not our tracking: play rate + Riot mastery, activity as a gate, `IsOtp` as the verdict — #1701
 - The `/truemains` leaderboard is strictly `IsMain=true` — #184
 - Leaderboard games/KDA/WR come from frozen aggregate scopes, not live `match_participants` — #719
 - Inactive mains are retired via champion-mastery `lastPlayTime`; intake favours depth over breadth — #900
@@ -90,6 +91,9 @@ Last verified against `develop` on 2026-09-02.
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
+- The draft assistant's lane guess is an assignment solved by exact enumeration — not per-champion arg-maxes, not Hungarian — #1674, #1706
+- Lane priors read the ally synergy baselines, not the scope table, and decay over four patches rather than switching — #1674, #1706
+- Draft candidates are ranked by two measured deltas kept separate, never a fabricated win probability — #1675, #1706
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
 - The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent — #939
 - The recommendation shows no situational-items row — #921, #939
@@ -129,6 +133,7 @@ Last verified against `develop` on 2026-09-02.
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
 - A row rendered on more than one surface sizes off its own width, not the viewport — #967
 - A tooltip trigger keeps the same DOM element for the life of the component
+- Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698
 - A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15) — #1585
 - A skeleton is the real component in `pending` mode, not a drawing of it
 - Icon slots are rendered from the ids, never gated on a resolved static lookup
@@ -138,6 +143,7 @@ Last verified against `develop` on 2026-09-02.
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
 - `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26); a local Nuxt layer was rejected for now (2026-09-17) and a CI drift check is planned — #1226, #947, #966, #1623, #1625
 - SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14) — #1557, #1546
+- A public section card is its title and its content — no explanatory subtitle, no method footnote; definitions go in a hover (2026-09-25) — #1699
 - Static game data is cached by the browser for the hour the server caches it (2026-09-15) — #1584
 - A patch Data Dragon has not published yet falls back to its newest version; a published one stays pinned (2026-09-23) — #1693
 - Focus moves to the content only when the path changes; the shell owns the single `<main>` (2026-09-17) — #1616, #1615
@@ -193,6 +199,7 @@ Last verified against `develop` on 2026-09-02.
 - Configuration defaults live in the class, and the two champion games floors are two keys — #1034, #860, #889
 - A unit of work covers the writes and nothing else (2026-08-28) — #264, #1229
 - `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07) — #1520, #1451
+- A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
@@ -254,6 +261,8 @@ Last verified against `develop` on 2026-09-02.
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
 - Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
+- The edge Caddy sets the security response headers the app frameworks did not (HSTS, CSP per vhost, X-Frame-Options, nosniff, Referrer/Permissions-Policy); preprod carries the non-CSP subset — 2026-09-24
+- The API port is published on loopback only (not `0.0.0.0`), and pgAdmin was removed from every stack — 2026-09-24
 
 ## Admin portal — observability data — [`decisions/admin-observability.md`](decisions/admin-observability.md)
 

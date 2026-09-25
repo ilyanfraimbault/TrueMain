@@ -117,9 +117,8 @@ Exposed ports (HTTP, no TLS — restrict by firewall to trusted IPs):
 | ----------------------- | ---- |
 | web (through `caddy`)   | 3001 |
 | admin (through `caddy`) | 3002 |
-| api                     | 8081 |
+| api                     | 8081 (loopback only) |
 | umami-proxy             | 3100 |
-| pgadmin                 | 5051 |
 | postgres                | 5432 (loopback only) |
 
 `umami-proxy` is the one entry in that table that cannot be narrowed to
@@ -330,8 +329,7 @@ What cannot be the same on two environments: the Riot API key and the database
 it is paired with, container, volume and network names, host ports, image tags,
 secrets, the public origins (`PREPROD_SITE_URL`, `PREPROD_ADMIN_URL`, Umami's
 URLs), `NUXT_PUBLIC_APP_ENV`, and TLS (see [Edge proxy](#edge-proxy)). Preprod
-also publishes two debugging aids prod does not have: pgAdmin, and Postgres on
-loopback.
+also publishes a debugging aid prod does not have: Postgres on loopback.
 
 ### Trials
 

@@ -335,7 +335,6 @@ public sealed class MatchDetailApiIntegrationTests
             // 500 gold / 500 xp.
             db.MatchParticipantTimelineSnapshots.Add(new MatchParticipantTimelineSnapshot
             {
-                Id = Guid.NewGuid(),
                 MatchId = MatchId,
                 ParticipantId = participantId,
                 IntervalMinute = 15,

@@ -1036,6 +1036,15 @@ namespace Data.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<DateTime?>("MasteryLastPlayUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("MasteryPoints")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("MasteryRank")
+                        .HasColumnType("integer");
+
                     b.Property<string>("PlatformId")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -1431,14 +1440,17 @@ namespace Data.Migrations
 
             modelBuilder.Entity("Data.Entities.MatchParticipantTimelineSnapshot", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                    b.Property<string>("MatchId")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
-                    b.Property<int>("DamageToChampions")
+                    b.Property<int>("ParticipantId")
                         .HasColumnType("integer");
 
                     b.Property<int>("IntervalMinute")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DamageToChampions")
                         .HasColumnType("integer");
 
                     b.Property<int>("JungleMinionsKilled")
@@ -1450,15 +1462,7 @@ namespace Data.Migrations
                     b.Property<int>("Level")
                         .HasColumnType("integer");
 
-                    b.Property<string>("MatchId")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
                     b.Property<int>("MinionsKilled")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ParticipantId")
                         .HasColumnType("integer");
 
                     b.Property<int>("TimestampMs")
@@ -1476,10 +1480,7 @@ namespace Data.Migrations
                     b.Property<int>("Xp")
                         .HasColumnType("integer");
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("MatchId", "ParticipantId", "IntervalMinute")
-                        .IsUnique();
+                    b.HasKey("MatchId", "ParticipantId", "IntervalMinute");
 
                     b.ToTable("match_participant_timeline_snapshots", (string)null);
                 });

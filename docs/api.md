@@ -875,6 +875,75 @@ le monde (#940).
 - `pilot` est `null` quand le participant ne porte pas de compte Riot résolu (des
   lignes harvestées peuvent précéder la résolution des comptes).
 
+## `POST /champions/draft`
+
+L'assistant de draft de l'app compagnon (#1674, #1675) : à partir d'un état de
+champion select, **place les ennemis sur leurs lanes** et **classe les picks candidats**
+du joueur. `POST` parce que l'entrée — deux équipes, bans, lanes épinglées, pool de
+candidats — ne tient pas dans une query string, et qu'elle change à chaque pick.
+
+**Body** — `DraftRequest`
+
+```json
+{
+  "position": "MIDDLE",
+  "enemyChampions": [141, 157, 51],
+  "pinnedEnemyLanes": { "51": "BOTTOM" },
+  "previousEnemyLanes": { "141": "JUNGLE", "157": "MIDDLE" },
+  "allies": { "JUNGLE": 64 },
+  "bans": [122, 238],
+  "candidates": [103, 134, 61],
+  "patch": "16.4",
+  "eloBracket": "GOLD_PLUS"
+}
+```
+
+- `position` est **requise** (`400` sinon) ; tout le reste est optionnel, la draft
+  étant partielle la plupart du temps.
+- `pinnedEnemyLanes` sont des **contraintes dures** : les corrections faites à la
+  main par l'utilisateur, autour desquelles les autres lanes se re-résolvent.
+- `previousEnemyLanes` est le placement affiché : à qualité égale, le solveur le
+  conserve pour ne pas remélanger le panneau entre deux picks.
+- `candidates` est le pool du joueur (40 max, le surplus est ignoré), pas le roster.
+
+**Réponse `200`** — `DraftRecommendationResponse`
+
+```json
+{
+  "position": "MIDDLE",
+  "patch": "16.4",
+  "eloBracket": "GOLD_PLUS",
+  "enemyLanes": [
+    { "championId": 141, "position": "JUNGLE", "confidence": 0.97, "pinned": false },
+    { "championId": 157, "position": "MIDDLE", "confidence": 0.71, "pinned": false },
+    { "championId": 51, "position": "BOTTOM", "confidence": 1.0, "pinned": true }
+  ],
+  "laneOpponentChampionId": 157,
+  "laneOpponentConfidence": 0.71,
+  "candidates": [
+    { "championId": 103, "matchupDelta": 0.031, "matchupGames": 412, "synergyDelta": 0.012, "synergyGames": 280, "score": 0.043, "thinSample": false }
+  ]
+}
+```
+
+- Le placement est un **problème d'affectation**, pas cinq arg-max indépendants :
+  les 120 placements possibles sont énumérés et le meilleur est pris, sinon deux
+  champions finissent mid et personne jungle. Le prior lit les baselines de synergie
+  côté allié plutôt que la table des scopes, qui ne couvre que les champions que
+  notre population *main* — un champion que personne ne main n'aurait sinon aucune
+  distribution de lane, précisément sur les picks rares où le devin sert le plus.
+- `confidence` ∈ [0, 1] mesure de combien la draft se lit moins bien si le champion
+  change de lane ; **0,5 est un pile ou face** entre deux lectures, pas "à moitié
+  juste". `laneOpponentChampionId` est `null` tant qu'aucun ennemi n'est placé sur
+  la lane du joueur — état normal en début de draft, pas une erreur.
+- `score` = `matchupDelta` + `synergyDelta`, deux **différences mesurées** (win rate
+  contre l'adversaire résolu moins win rate à la lane ; observé moins attendu avec
+  les alliés verrouillés) gardées séparées jusqu'au client, qui peut dire *laquelle*
+  porte un pick. Ce n'est pas une probabilité de victoire. `thinSample` signale
+  qu'aucune moitié n'atteint son plancher de parties : le candidat est renvoyé
+  quand même, chiffres compris, pour être affiché comme non prouvé plutôt que
+  retiré en silence.
+
 ---
 
 # Truemains — `/truemains`
@@ -939,7 +1008,7 @@ Leaderboard paginé des truemains. Pose un en-tête
 | `position`   | string | non    | toutes | Filtre position. Valeur non reconnue également ignorée. |
 | `championId` | int    | non    | tous   | Filtre champion principal. |
 | `otpOnly`    | bool   | non    | false  | Restreint aux one-tricks. |
-| `sort`       | string | non    | `rank` | `dedication` classe par score de dédication ; toute autre valeur retombe sur le classement par rang. |
+| `sort`       | string | non    | `rank` | `dedication` classe par Truemain score ; toute autre valeur retombe sur le classement par rang. |
 
 **Réponse `200`** — `LeaderboardResponse`
 
@@ -957,9 +1026,14 @@ Leaderboard paginé des truemains. Pose un en-tête
       ],
       "positions": { "primary": "MIDDLE", "secondary": "TOP" },
       "dedication": {
-        "score": 78.4, "championId": 103,
-        "commitment": 0.193, "span": 1, "volume": 0.912, "recency": 0.968,
-        "playRate": 0.29, "careerGames": 120, "patchSpan": 7, "daysSinceLastGame": 1
+        "score": 52.1, "championId": 103, "isOtp": false,
+        "playRate": 0.29, "championGames": 120, "recentGames": 412,
+        "masteryPoints": 1850000, "masteryRank": 1, "daysSinceLastPlayed": 1,
+        "parts": [
+          { "key": "playRate", "points": 10.6, "maxPoints": 55 },
+          { "key": "mastery", "points": 26.5, "maxPoints": 30 },
+          { "key": "masteryRank", "points": 15, "maxPoints": 15 }
+        ]
       }
     }
   ],
@@ -981,8 +1055,13 @@ Leaderboard paginé des truemains. Pose un en-tête
   tourné, pour que l'UI omette les icônes de rôle au lieu d'en inventer une.
 - `topChampions[].primaryKeystoneId` / `secondaryStyleId` / `firstItemId` sont `null`
   quand aucun build agrégé n'existe pour le joueur sur ce champion.
-- `dedication` : score de dédication (0..100) du champion signature de la ligne,
-  avec ses quatre composantes et leurs entrées brutes. `null` si l'analyse des
+- `dedication` : **Truemain score** (0..100) du champion signature de la ligne —
+  le nom filaire reste `dedication` pour ne pas casser les liens `?sort=dedication`
+  (#1701). Porte le verdict `isOtp` (le même drapeau que le badge OTP et le filtre
+  `otpOnly`), les faits bruts (play rate, mastery Riot, rang de mastery, jours
+  depuis la dernière partie) et `parts`, la contribution de chaque critère en
+  points de score (leur somme vaut `score`). Les champs de mastery sont `null` tant
+  que `MainActivity` n'a pas lu la mastery du compte. `null` si l'analyse des
   mains n'a pas encore tourné. `championId` est le **seul** filtre qui déplace le
   score sur un autre champion ; `position`, `otpOnly` et le plancher
   `MinRankedGames` ne font que restreindre la population — un toplaner qui main
@@ -1009,9 +1088,14 @@ Profil d'un joueur. `nameTag` est le slug `Name-TAG` (cf. l'entête de section).
     }
   ],
   "dedication": {
-    "score": 78.4, "championId": 103,
-    "commitment": 0.193, "span": 1, "volume": 0.912, "recency": 0.968,
-    "playRate": 0.29, "careerGames": 120, "patchSpan": 7, "daysSinceLastGame": 1
+    "score": 52.1, "championId": 103, "isOtp": false,
+    "playRate": 0.29, "championGames": 120, "recentGames": 412,
+    "masteryPoints": 1850000, "masteryRank": 1, "daysSinceLastPlayed": 1,
+    "parts": [
+      { "key": "playRate", "points": 10.6, "maxPoints": 55 },
+      { "key": "mastery", "points": 26.5, "maxPoints": 30 },
+      { "key": "masteryRank", "points": 15, "maxPoints": 15 }
+    ]
   },
   "positions": [
     { "position": "MIDDLE", "games": 300, "rate": 0.72 },
@@ -1182,7 +1266,7 @@ n'a qu'un grain (compte, champion, patch).
 - `source` / `scope` / `retentionBounded` : `game`/`day`/`week` lisent les lignes de
   match vivantes, tous champions confondus, et s'arrêtent à la fenêtre de
   rétention. `patch` lit l'agrégat gelé, **uniquement sur le champion signature**
-  (celui de la carte dédication — même sélection, mêmes lignes sommées).
+  (le même champion que la carte Truemain score).
 - `coverageFromUtc` / `coverageToUtc` : la période dont la série peut réellement
   parler. Les séries calendaires **n'émettent pas** de cellule avant la plus vieille
   partie encore stockée : une période effacée n'est pas une période sans jeu, donc
@@ -1194,8 +1278,6 @@ n'a qu'un grain (compte, champion, patch).
 - Les jours et les semaines sont **UTC** (lundi 00:00 UTC pour les semaines), comme
   le reste du pipeline (#907) : une partie de fin de soirée peut donc tomber sur la
   cellule du lendemain pour un joueur loin d'UTC.
-- Invariants vérifiables à l'œil sur la page : `patch.games ==
-  dedication.careerGames` et `patch.buckets.length == dedication.patchSpan`.
 - `championId` de cellule n'est renseigné que sur la série `game` (une cellule =
   une partie).
 - Les fenêtres des séries calendaires sont fixes avant le rabot de la rétention :

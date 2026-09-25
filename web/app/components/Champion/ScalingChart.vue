@@ -77,7 +77,6 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
   <SectionCard
     :level="2"
     title="Scaling"
-    subtitle="Win rate by game length. A rising line means the champion scales into the late game."
   >
     <template v-if="verdict" #actions>
       <span class="text-xs font-medium" :class="verdict.tone">{{ verdict.label }}</span>

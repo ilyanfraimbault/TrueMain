@@ -262,27 +262,9 @@ services:
     networks:
       - truemain_dev_internal
 
-  pgadmin:
-    image: dpage/pgadmin4:9.17
-    container_name: truemain-dev-pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    ports:
-      - "5050:80"
-    volumes:
-      - truemain_dev_pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - truemain_dev_internal
-
 volumes:
   truemain_dev_db_data:
   truemain_dev_mongo_data:
-  truemain_dev_pgadmin_data:
   truemain_dev_api_nuget:
   truemain_dev_ingestor_nuget:
   truemain_dev_web_node_modules:

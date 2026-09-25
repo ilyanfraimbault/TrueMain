@@ -123,19 +123,11 @@ function positionLabel(position: string): string {
   return POSITION_BY_VALUE.get(position)?.label ?? position
 }
 
-// Dedication score for the row's signature champion. Every figure here comes
-// straight from the API payload — the breakdown is never recomputed client-side,
-// so the tooltip can't drift from the number the backend ranked on.
+// Truemain score for the row's signature champion (#1701). Every figure here
+// comes straight from the API payload — the parts are never recomputed
+// client-side, so the tooltip can't drift from the number the backend ranked on.
 const dedicationLabel = computed(() =>
   props.row.dedication === null ? null : formatDedicationScore(props.row.dedication.score))
-
-// Tier word + colour replace the old static "dedication" caption, so the
-// score reads (rose-gold→iron, best→worst) without needing the hover below.
-const dedicationTierLabel = computed(() =>
-  props.row.dedication === null ? null : dedicationTier(props.row.dedication.score))
-
-const dedicationColorClass = computed(() =>
-  props.row.dedication === null ? 'text-muted' : dedicationTierColor(props.row.dedication.score))
 
 const dedicationChampionName = computed(() => {
   const dedication = props.row.dedication
@@ -144,11 +136,11 @@ const dedicationChampionName = computed(() => {
 
 const dedicationBreakdown = computed(() => {
   const dedication = props.row.dedication
-  return dedication ? dedicationComponents(dedication) : []
+  return dedication ? dedicationParts(dedication) : []
 })
 
-const dedicationScoreLabel = computed(() =>
-  props.row.dedication === null ? null : props.row.dedication.score.toFixed(1))
+const dedicationLastPlayed = computed(() =>
+  props.row.dedication === null ? null : formatDedicationLastPlayed(props.row.dedication.daysSinceLastPlayed))
 
 // Sub-mains shown beside the signature champion. The API returns up to three
 // top champions, so there are always exactly two slots here — padded with
@@ -353,38 +345,40 @@ const positionIcons = computed(() => {
       </div>
     </div>
 
-    <!-- Dedication. Always reserved (empty slot when the account has no
+    <!-- Truemain score. Always reserved (empty slot when the account has no
          main-champion analysis yet) so the LP and stat columns never shift.
          Kept visible at every row width, unlike the games/KDA/WR cluster: it is
          the leaderboard's signature column, and the sort key when the board is
-         ranked by it. Coloured by tier (rose-gold→iron, same scale as
-         `TierBadge`'s S..D) so the score reads without a hover; the tooltip
-         underneath still carries the full component breakdown. `relative z-10`
-         lifts the trigger above the stretched profile-link overlay — like the
-         champion column below — so it actually receives the hover/focus that
-         opens it. -->
+         ranked by it. No verdict word under the number: the OTP pill next to
+         the name already says it, from the same flag; the tooltip carries the
+         verdict, the facts and the points each one added. `relative z-10` lifts the trigger above the stretched
+         profile-link overlay — like the champion column below — so it actually
+         receives the hover/focus that opens it. -->
     <UTooltip
       v-if="row.dedication"
       :delay-duration="150"
       :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
     >
-      <div class="relative z-10 flex w-14 shrink-0 flex-col items-end @xl:w-16">
+      <div class="relative z-10 flex w-14 shrink-0 flex-col items-end @xl:w-16" data-testid="truemain-score">
         <span
-          class="text-sm font-semibold tabular-nums"
-          :class="[dedicationColorClass, { 'underline decoration-dotted underline-offset-2': highlightDedication }]"
+          class="text-sm font-semibold tabular-nums text-default"
+          :class="{ 'underline decoration-dotted underline-offset-2': highlightDedication }"
         >{{ dedicationLabel }}</span>
-        <span
-          class="text-[10px] font-medium"
-          :class="dedicationColorClass"
-        >{{ dedicationTierLabel }}</span>
+        <span class="mt-0.5 text-[10px] font-normal uppercase tracking-wide text-muted">Score</span>
       </div>
 
       <template #content>
         <GameTooltipSurface>
-          <p class="mb-2 text-xs font-semibold text-default">
-            Dedication {{ dedicationScoreLabel }}/100 · {{ dedicationChampionName }}
+          <div class="mb-2 flex w-64 items-center gap-2">
+            <p class="min-w-0 flex-1 truncate text-xs font-semibold text-default">
+              {{ TRUEMAIN_SCORE_LABEL }} {{ dedicationLabel }} · {{ dedicationChampionName }}
+            </p>
+            <DedicationVerdict :dedication="row.dedication" />
+          </div>
+          <DedicationBreakdown :parts="dedicationBreakdown" />
+          <p v-if="dedicationLastPlayed" class="mt-2 text-[10px] text-muted">
+            {{ dedicationLastPlayed }}
           </p>
-          <DedicationBreakdown :components="dedicationBreakdown" />
         </GameTooltipSurface>
       </template>
     </UTooltip>

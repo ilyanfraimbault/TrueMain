@@ -254,3 +254,30 @@ which is the one thing the strip must never do (#1117 exists because two populat
 apart). Both surfaces now render the skeletons they already had for the first fetch. The flicker this
 reintroduces on a fast refetch is the accepted cost: it is honest about which numbers are current.
 Decided by the product owner.
+
+**The draft assistant's lane guess is an assignment solved by exact enumeration, not per-champion
+arg-maxes and not Hungarian.** Independent arg-maxes put two champions mid and nobody jungle, and then
+hand the wrong opponent to whoever asks. Five lanes give at most 120 placements, so enumerating them is
+exact, free, and obviously correct on inspection, where a hand-written Hungarian's bugs are silent. The
+user's pins are hard constraints the rest re-solves around (one correction fixes several slots); a pin
+on a champion no longer in the draft is ignored on its own, not taken as a contradiction; equally-good
+placements break towards the one already on screen, because a panel that reshuffles under a timer is
+worse than one slightly wrong. `LaneAssignmentSolver` — #1674, #1706.
+
+**Lane priors read the ally synergy baselines, not the scope table, and decay over four patches rather
+than switching.** Scopes only cover champions our population mains, so a champion nobody mains would
+have no lane distribution at all — precisely the rare picks a guess is most needed for. A fresh patch is
+empty for hours while the fold drains, and a current-patch-only reading would be blind on the one day
+lanes move. `Games` keeps counting every patch as the evidence behind a prior; a champion seen only
+outside the window reads as unseen (uniform), never as impossible on every lane. `LanePriorQueryService`
+— #1674, #1706.
+
+**Draft candidates are ranked by two measured deltas kept separate, never a fabricated win
+probability.** The reference apps show a probability out of a black box; we have no trained composition
+model, and inventing one breaks the rule that every number on the site comes from a measurement. The
+score is the matchup delta (win rate into the resolved opponent minus the champion's rate at the lane,
+both from `champion_matchup_stats`, scoped to the requested bracket) plus the synergy delta (observed
+minus expected with the locked allies, through the synergy service the champion page uses), auditable
+down to the games and kept separate so the client can say which one carries a pick. A candidate under
+the games floor is flagged `thinSample` and still returned — hiding a pick the player owns would hide
+the decision, not inform it. `DraftRecommendationQueryService` — #1675, #1706.

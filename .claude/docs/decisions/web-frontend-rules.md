@@ -67,6 +67,14 @@ write its rows under a pager reading 4 — #1234.
   on the element it keeps for good, and it opens on `pointermove`, so the resting pointer opens it on its next
   move and nothing is opened by hand.
 
+- **Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25, #1698).**
+  `GameTooltip/LazyTooltip.vue` defaults `content` to `{ side: 'top' }` for every item, rune and spell card.
+  Nuxt UI's own default is `bottom`, and Reka's collision avoidance flips a card that does not fit — so a card
+  up to `70vh` tall opened below or above the same icon depending on the scroll position, and two icons of one
+  build path could open on opposite sides. Collision avoidance stays on: forcing a side
+  (`avoidCollisions: false`) would clip the tall cards at the viewport edge. A side placement (`right`, which
+  also keeps the neighbouring icons of a row uncovered) was offered and the product owner chose the top.
+
 - **A skeleton is the real component in `pending` mode, not a drawing of it.** The champion page's build
   section has two loading phases it cannot merge: the aggregate and the patch-pinned static bundles are
   separate fetches, and the ~95 DDragon icons only start downloading once the ids they resolve are mounted.
@@ -348,3 +356,16 @@ version otherwise — instead of trusting `normalizeDataDragonPatch`'s `major.mi
   than `.1`.
 - **One cached version list** (`loadDDragonVersions`, SWR, hours) now backs the resolution *and*
   `/api/static/versions`, so the patch selector can only ever offer patches resolution is done against.
+
+**A public section card is its title and its content — no explanatory subtitle, no method footnote (2026-09-25).**
+`SectionCard` still takes a `subtitle` prop, but no public page passes one any more: the champion page's
+Trend / Scaling / Synergies / Matchups / Truemains / mains-comparison cards, the builder's "This matchup"
+strip, and the intro lines of `/champions/tierlist` and `/truemains` all printed a sentence restating what the
+section obviously was ("Win rate by game length. A rising line means…"), and the synergies card added a
+three-line method footnote plus a sample line under the trio list. The product owner judged them noise on
+every visit for information nobody reads. Where a term genuinely needs defining, the definition goes one
+hover away (the `Synergy` column header's `title`, the builder stats' hints), never printed under the
+section. A functional caveat the reader would otherwise get wrong survives as the one short line it needs
+(favorites: "Saved in this browser only."). The internal `/dev/design-system` page keeps its subtitles — it
+is documentation. Same direction as the player performance panel (#918 follow-up) and the "why this item"
+card (#1465) — #1699.

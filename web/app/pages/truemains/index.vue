@@ -122,9 +122,6 @@ await leaderboardReady
     <PageHeader
       eyebrow="Leaderboard"
       title="Truemains"
-      :description="sort === 'dedication'
-        ? 'Tracked players ranked by dedication — how devoted each one is to their signature champion.'
-        : 'Tracked players ranked by current LP. Higher tier wins below Master; Master+ are ordered by raw LP.'"
     />
 
     <AppSearch

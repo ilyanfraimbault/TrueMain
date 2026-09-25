@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { TooltipProps } from '@nuxt/ui'
+
 /**
  * A `UTooltip` that only exists once the pointer has been over its trigger (#1585).
  *
@@ -17,9 +19,16 @@
  */
 defineOptions({ inheritAttrs: false })
 
-defineProps<{
+// Above by default (#1698): Nuxt UI prefers below, and Reka flips a card that does
+// not fit, so a tall card opened below or above depending on the scroll position.
+// Reka still flips this one below when the icon sits at the top edge.
+withDefaults(defineProps<{
   disabled?: boolean
-}>()
+  content?: TooltipProps['content']
+}>(), {
+  disabled: false,
+  content: () => ({ side: 'top' }),
+})
 
 // Armed on any hover, even while `disabled`: the icon's data (item, rune and spell
 // maps) can land after the pointer arrived, and a pointer resting on the icon sends
@@ -37,6 +46,7 @@ function arm() {
     v-if="armed"
     v-bind="$attrs"
     :disabled="disabled"
+    :content="content"
   >
     <slot />
     <template

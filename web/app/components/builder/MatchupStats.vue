@@ -158,7 +158,6 @@ const emptyNotice = computed(() => {
 <template>
   <SectionCard
     title="This matchup"
-    subtitle="The games the build below is computed from, and how the matchup itself goes at 15 minutes."
     :level="2"
   >
     <!-- Skeleton on every fetch, not only the first (#1659 follow-up). A cold
