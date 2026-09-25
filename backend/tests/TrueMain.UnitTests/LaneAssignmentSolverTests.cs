@@ -200,6 +200,24 @@ public class LaneAssignmentSolverTests
     }
 
     [Fact]
+    public void APinOnAChampionNoLongerInTheDraftDoesNotDiscardTheOtherPins()
+    {
+        // Champion 1 wants MIDDLE; the user pinned it TOP, and also pinned a
+        // champion that has since left the draft. The stale pin is ignored on
+        // its own; the live one still holds.
+        var priors = Priors(Dedicated(1, "MIDDLE"), Dedicated(2, "JUNGLE"));
+
+        var result = LaneAssignmentSolver.Solve(
+            [1, 2],
+            priors,
+            pinned: new Dictionary<int, string> { [1] = "TOP", [99] = "BOTTOM" });
+
+        var first = result.Single(a => a.ChampionId == 1);
+        Assert.Equal("TOP", first.Position);
+        Assert.True(first.Pinned);
+    }
+
+    [Fact]
     public void MoreChampionsThanLanesYieldsNoPlacementRatherThanThrowing()
     {
         var result = LaneAssignmentSolver.Solve([1, 2, 3, 4, 5, 6], Priors());
