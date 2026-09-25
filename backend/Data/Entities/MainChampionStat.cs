@@ -57,6 +57,23 @@ public class MainChampionStat
     /// </summary>
     public bool IsExtendedSample { get; set; }
 
+    /// <summary>
+    /// Riot champion-mastery points on this champion, written by
+    /// <c>MainActivityProcess</c> from the mastery-v4 call it already makes
+    /// (#1701). 0 when Riot has no mastery entry for the champion; null until
+    /// the mastery has been read for this row. Feeds the truemain score.
+    /// </summary>
+    public long? MasteryPoints { get; set; }
+
+    /// <summary>
+    /// 1-based rank of this champion in the player's mastery list by points
+    /// (1 = most-played ever). Null until read, or when Riot has no entry for it.
+    /// </summary>
+    public int? MasteryRank { get; set; }
+
+    /// <summary>Riot mastery <c>lastPlayTime</c> for this champion, as of the last mastery read. Null until read, or when Riot has no entry for it.</summary>
+    public DateTime? MasteryLastPlayUtc { get; set; }
+
     public string PrimaryPosition { get; set; } = string.Empty;
 
     public List<PositionStat> PositionBreakdown { get; set; } = new();

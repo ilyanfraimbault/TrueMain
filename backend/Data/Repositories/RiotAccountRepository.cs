@@ -284,25 +284,25 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
 
     public Task<List<AccountKey>> GetAccountsForActivityCheckAsync(DateTime cutoff, int batchSize, CancellationToken ct)
     {
-        // Deliberately NOT filtered on IsActive: an already-deactivated main is
-        // excluded from match ingestion and from main analysis, so this mastery
-        // check is its only way back (#900). Dropping it here would make
-        // deactivation permanent.
+        // Deliberately NOT filtered on IsActive: an already-deactivated main is excluded from
+        // match ingestion and from main analysis, so this mastery check is its only way back
+        // (#900). Dropping it here would make deactivation permanent.
         var accounts = db.RiotAccounts
             .AsNoTracking()
             .Where(account => account.Status == RiotAccountStatus.Active
                               && db.MainChampionStats.Any(stat =>
-                                  stat.PlatformId == account.PlatformId
-                                  && stat.Puuid == account.Puuid
-                                  && stat.IsMain));
+                                  stat.PlatformId == account.PlatformId && stat.Puuid == account.Puuid && stat.IsMain));
 
         if (cutoff > DateTime.MinValue)
         {
             accounts = accounts.Where(a => a.LastActivityCheckAtUtc == null || a.LastActivityCheckAtUtc < cutoff);
         }
 
+        // Within the due set, a main never mastery-read goes first: the truemain score needs it (#1701).
         return accounts
             .OrderBy(a => a.LastActivityCheckAtUtc == null ? 0 : 1)
+            .ThenBy(a => db.MainChampionStats.Any(s =>
+                s.PlatformId == a.PlatformId && s.Puuid == a.Puuid && s.IsMain && s.MasteryPoints == null) ? 0 : 1)
             .ThenBy(a => a.LastActivityCheckAtUtc)
             .Take(Math.Max(1, batchSize))
             .Select(a => new AccountKey(a.PlatformId, a.Puuid))

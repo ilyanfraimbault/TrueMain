@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.MainChampionStat",
                 typeof(MainChampionStat),
                 baseEntityType,
-                propertyCount: 15,
+                propertyCount: 18,
                 unnamedIndexCount: 3,
                 keyCount: 1);
 
@@ -104,6 +104,30 @@ namespace Data.CompiledModels
                 sentinel: false);
             isSampleRetired.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             isSampleRetired.AddAnnotation("Relational:DefaultValue", false);
+
+            var masteryLastPlayUtc = runtimeEntityType.AddProperty(
+                "MasteryLastPlayUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(MainChampionStat).GetProperty("MasteryLastPlayUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainChampionStat).GetField("<MasteryLastPlayUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            masteryLastPlayUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var masteryPoints = runtimeEntityType.AddProperty(
+                "MasteryPoints",
+                typeof(long?),
+                propertyInfo: typeof(MainChampionStat).GetProperty("MasteryPoints", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainChampionStat).GetField("<MasteryPoints>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            masteryPoints.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var masteryRank = runtimeEntityType.AddProperty(
+                "MasteryRank",
+                typeof(int?),
+                propertyInfo: typeof(MainChampionStat).GetProperty("MasteryRank", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MainChampionStat).GetField("<MasteryRank>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            masteryRank.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var platformId = runtimeEntityType.AddProperty(
                 "PlatformId",

@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Repositories;
 using Data.Ops.Mongo;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
@@ -87,6 +88,67 @@ public sealed class MainActivityProcessIntegrationTests
 
         stats[22].Should().BeFalse();
         stats[51].Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldRecordMasteryPointsRankAndLastPlay()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMainAsync("puuid-mastery-1", championId: 22, isActive: true, lastActivityCheckAtUtc: null);
+        await AddMainStatAsync("puuid-mastery-1", championId: 51);
+        await AddMainStatAsync("puuid-mastery-1", championId: 99);
+
+        // Champion 7 is not a tracked stat but outranks 22 on points: the rank is
+        // the champion's place in the player's whole mastery, not among our rows.
+        var process = BuildProcess(new FakeRiotPlatformClient(
+            Mastery(7, daysAgo: 3, points: 2_000_000),
+            Mastery(22, daysAgo: 5, points: 800_000),
+            Mastery(51, daysAgo: 2, points: 1_200_000)));
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        var stats = db.MainChampionStats
+            .Where(s => s.Puuid == "puuid-mastery-1")
+            .ToDictionary(s => s.ChampionId);
+
+        stats[51].MasteryPoints.Should().Be(1_200_000);
+        stats[51].MasteryRank.Should().Be(2);
+        stats[22].MasteryPoints.Should().Be(800_000);
+        stats[22].MasteryRank.Should().Be(3);
+        stats[22].MasteryLastPlayUtc.Should().BeCloseTo(DateTime.UtcNow.AddDays(-5), TimeSpan.FromMinutes(5));
+
+        // No mastery entry: a measured zero, distinct from null ("never read").
+        stats[99].MasteryPoints.Should().Be(0);
+        stats[99].MasteryRank.Should().BeNull();
+        stats[99].MasteryLastPlayUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldCheckAccountsWithUnreadMasteryFirst()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var longAgo = DateTime.UtcNow.AddDays(-10);
+        var lessLongAgo = DateTime.UtcNow.AddDays(-5);
+
+        // Checked longer ago, but its mastery is already known ...
+        await SeedMainAsync("puuid-known-1", championId: 22, isActive: true, lastActivityCheckAtUtc: longAgo);
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var stat = db.MainChampionStats.Single(s => s.Puuid == "puuid-known-1");
+            stat.MasteryPoints = 500_000;
+            stat.MasteryRank = 1;
+            await db.SaveChangesAsync();
+        }
+
+        // ... while this one was checked more recently but never had it read (#1701).
+        await SeedMainAsync("puuid-unread-1", championId: 22, isActive: true, lastActivityCheckAtUtc: lessLongAgo);
+
+        await using var selection = _fixture.CreateDbContext();
+        var due = await new RiotAccountRepository(selection)
+            .GetAccountsForActivityCheckAsync(DateTime.UtcNow.AddHours(-24), batchSize: 1, CancellationToken.None);
+
+        due.Should().ContainSingle().Which.Puuid.Should().Be("puuid-unread-1");
     }
 
     [Fact]
@@ -202,11 +264,11 @@ public sealed class MainActivityProcessIntegrationTests
             CalculatedAtUtc = DateTime.UtcNow.AddDays(-2)
         };
 
-    private static RiotChampionMasteryDto Mastery(int championId, int daysAgo)
+    private static RiotChampionMasteryDto Mastery(int championId, int daysAgo, long points = 500_000)
         => new()
         {
             ChampionId = championId,
-            ChampionPoints = 500_000,
+            ChampionPoints = points,
             // champion-mastery lastPlayTime is epoch milliseconds.
             LastPlayTime = new DateTimeOffset(DateTime.UtcNow.AddDays(-daysAgo)).ToUnixTimeMilliseconds()
         };

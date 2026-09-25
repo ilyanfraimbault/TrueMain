@@ -1,33 +1,40 @@
-# Dedication score
+# Truemain score
 
-TrueMain's signature metric: **how devoted a player is to one champion**, on a
-0..100 scale. It is what makes a "truemain" different from a high-LP account —
-LP measures how good you are, dedication measures how much the champion is
-*yours*.
+TrueMain's signature metric: **how much of a truemain a player is on one
+champion**, on a 0..100 scale. It is what makes a "truemain" different from a
+high-LP account — LP measures how good you are, this score measures how much the
+champion is *yours*.
+
+It shipped as the "dedication score" (#530) and was reworked and renamed by
+issue #1701. The **code and the wire keep the `dedication` name** — `DedicationScore`,
+`DedicationReadModel`, the `dedication` payload field and `?sort=dedication` —
+so shared leaderboard links keep working; only what a reader sees says
+"Truemain score".
 
 - Formula: [`backend/Core/Truemains/DedicationScore.cs`](../backend/Core/Truemains/DedicationScore.cs)
   (pure, unit-tested in `backend/tests/TrueMain.UnitTests/DedicationScoreTests.cs`).
-- Data loading: [`backend/Api/Services/Truemains/MainDedication.cs`](../backend/Api/Services/Truemains/MainDedication.cs).
+- Data loading: [`backend/Api/Services/Truemains/Leaderboard/MainDedication.cs`](../backend/Api/Services/Truemains/Leaderboard/MainDedication.cs).
+- Mastery inputs: written by `MainActivityProcess` (`backend/Ingestor/Processes/MainActivityProcess.cs`).
 - Exposed on `GET /truemains/{nameTag}/profile` and on every row of
   `GET /truemains`, which also accepts `?sort=dedication`.
 
 ## The formula
 
 ```text
-score = 100 × ( 0.45 × commitment
-              + 0.20 × span
-              + 0.20 × volume
-              + 0.15 × recency )
+score = 100 × ( 0.55 × commitment
+              + 0.30 × mastery
+              + 0.15 × masteryRank )
 
-commitment = clamp01( (playRate − 0.12) / (1 − 0.12) )
-span       = clamp01( patchSpan / 6 )
-volume     = clamp01( ln(1 + careerGames) / ln(1 + 200) )
-recency    = clamp01( 0.5 ^ (daysSinceLastGame / 21) )
+commitment  = clamp01( (playRate − 0.12) / (1 − 0.12) )
+mastery     = clamp01( ln(masteryPoints / 50 000) / ln(3 000 000 / 50 000) )
+masteryRank = 1 / rank            (0 when unknown)
 ```
 
 Each component is normalised to `0..1`, the weights sum to `1`, so the score
 spans the full `0..100` range. It is rounded to one decimal — the number the
-leaderboard sorts on is the number it prints.
+leaderboard sorts on. The payload also ships each part's contribution in score
+points (`parts[]`: `points` out of `maxPoints` = weight × 100), so the UI prints
+figures that add up to the score instead of normalised bars.
 
 ### Which champion is scored
 
@@ -73,88 +80,101 @@ champion, which made `?position=X` score a *different* champion depending on
 which sort was active; `TruemainsDedicationApiIntegrationTests` now pins the
 invariant.
 
-## The four components
+## The inputs
 
-| Component | Weight | Input | Source |
+Every input lives on the signature champion's `main_champion_stats` row — the
+score reads nothing else.
+
+| Part | Weight | Input | Written by |
 |---|---|---|---|
-| `commitment` | 0.45 | share of the player's recent ranked games on the champion | `main_champion_stats.PlayRate` |
-| `span` | 0.20 | distinct patches we have seen them play it on | `COUNT(DISTINCT GameVersion)` over `champion_aggregate_scopes` |
-| `volume` | 0.20 | tracked ranked games on the champion | `SUM(Games)` over the same scopes |
-| `recency` | 0.15 | days since the last tracked game on it | `MAX(LastGameStartTimeUtc)` over the same scopes |
+| Play rate (`commitment`) | 0.55 | share of the player's recent ranked games on the champion | main analysis → `PlayRate` |
+| Mastery | 0.30 | Riot champion-mastery points on the champion | `MainActivityProcess` → `MasteryPoints` |
+| Mastery rank | 0.15 | the champion's place in the player's mastery by points (1 = most-played ever) | `MainActivityProcess` → `MasteryRank` |
 
-### Why a weighted mean, not a product
+Also shipped, but **not scored**: `MasteryLastPlayUtc` as "last played N days
+ago", and `IsOtp` as the verdict.
 
-No single missing signal should zero a player out.
+## What it answers, and what it deliberately doesn't
 
-- A genuine one-trick whose aggregates have not been built yet (`span` and
-  `volume` still 0) keeps the commitment points they earned.
-- A long-tracked veteran who took a break keeps their span and volume while
-  only the recency term decays.
+Two questions: does the player give this champion their games **now** (play
+rate), and has it been **theirs for a long time** (mastery points and rank).
 
-That last property also matters operationally: recency is the one component that
-moves when *nothing about the player* changes. If ingestion stalls (a dead Riot
-key, a crashed process), a product-shaped formula would collapse every score at
-once. With a 0.15 weight, a full stall costs everyone the same 15 points and the
-ranking survives.
+**Nothing depends on how long TrueMain has tracked the account.** The previous
+formula spent 40% of its weight on `span` (distinct *tracked* patches) and
+`volume` (*tracked* games) from `champion_aggregate_scopes`. Both grew with our
+observation window, not with the player: a years-long one-trick discovered last
+month scored like a dabbler. Riot mastery is lifetime and all-queue, so it
+measures the player from their first read.
+
+**Activity is a gate, not a component.** The old `recency` term (15%) mostly
+handed every main the same free points — play rate is already measured over
+recent games, so a main has always played recently — and it was the one term
+that moved when ingestion stalled. Inactive mains are already excluded upstream
+through `IsActive` (mastery `lastPlayTime`, #900), so the score no longer decays;
+the last-played date is shown as a fact.
+
+**The verdict is `IsOtp`, not a score band.** The badge next to the name, the
+`otpOnly` filter and the verdict pill in the tooltip all read the same
+`main_champion_stats.IsOtp` flag (play rate ≥ `MainAnalysis:OtpPlayRateThreshold`),
+so they cannot disagree. The old Devoted/Committed/Invested/Casual/Dabbling bands
+were a second vocabulary for the same idea and were dropped.
 
 ### Why these shapes
 
-**`commitment` is rescaled from 0.12, not from 0.** Main analysis relaxes its
-play-rate threshold down to `MainAnalysis:PlayRateFloor` (0.12) for
-under-covered champions, so no classified main can sit under it. Rescaling
-spends the whole 0..1 range on the interval that actually occurs instead of
-leaving the bottom eighth of the scale unreachable.
+**Play rate stays dominant and is rescaled from 0.12, not from 0.** Main analysis
+relaxes its play-rate threshold down to `MainAnalysis:PlayRateFloor` (0.12) for
+under-covered champions, so no classified main can sit under it. Rescaling spends
+the whole 0..1 range on the interval that actually occurs. The UI never draws
+the rescaled value against the raw percentage: it prints the raw play rate and
+the points it earned.
 
-**`span` counts patches, not calendar days.** A player who stuck with the
-champion across six patches has survived six rounds of balance changes, which is
-the honest measure of "still their champion" — calendar time would reward an
-account that was simply *discovered* early.
+**Mastery is logarithmic between 50k and 3M points.** Going from 100k to 200k
+points says as much about ownership as going from 1M to 2M. The bounds bracket
+the mains population measured when the formula was calibrated: 50k sits near
+its bottom and 3M past its 90th percentile, so the curve spreads the population
+instead of saturating it.
 
-**`volume` is logarithmic.** The difference between 10 and 60 games says far
-more about devotion than the difference between 400 and 450, and a log curve
-keeps a high-volume outlier from flattening everyone else.
+**Mastery rank is `1 / rank`.** Whether this is the champion the player has
+played most, ever, is the sharpest single signal of a main; the reciprocal keeps
+a second or third champion meaningful without letting it rival the first.
 
-**`recency` is a half-life, not a cliff.** A player slides down the board
-gradually instead of dropping off it the day after an arbitrary cutoff. Three
-weeks is long enough to ignore a holiday, short enough that a stale main reads
-as stale.
+**Unread mastery scores 0 on those parts and says so.** A main `MainActivity`
+has not reached yet shows "not checked yet" rather than an invented value.
+Accounts with such a main are checked first (`GetAccountsForActivityCheckAsync`),
+and the migration that added the columns seeded them from the mastery Discovery
+had already stored on the matching candidate, so this is a short transition, not
+a steady state. A champion with **no** mastery entry is a measured 0 points and
+no rank — distinct from null.
 
 ## Calibration constants
 
 | Constant | Value | Meaning |
 |---|---|---|
-| `CommitmentFloor` | 0.12 (default; the live value is `MainAnalysis:PlayRateFloor`) | play rate at which `commitment` reads 0 |
-| `SpanTargetPatches` | 6 | patch count at which `span` saturates |
-| `VolumeTargetGames` | 200 | career games at which `volume` saturates |
-| `RecencyHalfLifeDays` | 21 | days of inactivity that halve `recency` |
+| `CommitmentWeight` / `MasteryWeight` / `MasteryRankWeight` | 0.55 / 0.30 / 0.15 | part weights |
+| `CommitmentFloor` | 0.12 (default; the live value is `MainAnalysis:PlayRateFloor`) | play rate at which commitment reads 0 |
+| `MasteryFloorPoints` | 50 000 | mastery points at which `mastery` reads 0 |
+| `MasteryTargetPoints` | 3 000 000 | mastery points at which `mastery` saturates |
 
-All four live as `public const` on `DedicationScore`, and they are the calibration
+All live as `public const` on `DedicationScore`, and they are the calibration
 surface: changing one changes every score, including the leaderboard order, so
 treat a change as a product decision and not a tweak.
 
-Three of them — `SpanTargetPatches`, `VolumeTargetGames`, `RecencyHalfLifeDays` —
-are closed constants, and the const *is* the single source of truth. The
-commitment floor is not. `DedicationScore.Compute` and `DedicationScore.Commitment`
-take it as an optional parameter, and every real caller passes the live
-`MainAnalysis:PlayRateFloor` instead of the default — the leaderboard query
-service and `MainDedication.Project` both read it from configuration. The const is
-only the fallback, and it is also that option's own default. Editing
+The commitment floor is the one that is not closed. `DedicationScore.Compute`
+and `DedicationScore.Commitment` take it as an optional parameter, and every real
+caller passes the live `MainAnalysis:PlayRateFloor` instead of the default. The
+const is only the fallback, and it is also that option's own default. Editing
 `CommitmentFloor` alone therefore changes no score in production: the floor
 follows the mains-classification configuration, deliberately, so that retuning
-what counts as a main moves the dedication scale with it (#869).
+what counts as a main moves the score with it (#869).
 
 ## Known limits
 
-- **We can only measure what we have tracked.** `span` and `volume` come from
-  TrueMain's own aggregates, so an account discovered last week scores low on
-  both even if the player has one-tricked for years. This is a floor that lifts
-  as the account is observed, not a permanent verdict.
-- **Retention does not erode the score.** The career figures deliberately read
-  `champion_aggregate_scopes` rather than `match_participants`: retention
-  hard-deletes participants beyond the last couple of patches, while old-patch
-  scopes stay frozen (#466). A veteran's history therefore survives.
-- **Queue 420 only.** Career totals count ranked solo/duo, matching the queue
-  main analysis measures the play rate over.
+- **Mastery is as fresh as the last activity check.** `MainActivityProcess`
+  re-reads it every `MainActivity:RecheckAfterHours` at best; a full pass over
+  the population takes longer, bounded by its batch size and run interval.
+- **Mastery counts every queue.** Points earned in normals or ARAM count towards
+  ownership. That is intended: the question is whether the champion is the
+  player's, not how they queue. Play rate stays ranked solo/duo only.
 
 ## Ranking by dedication (`?sort=dedication`)
 
@@ -168,7 +188,7 @@ separate phases:
    ranking counts with, so the total and the ranked slice always agree.
 2. **Scoring** — the *same* `MainDedication.FetchAsync` the rank-sorted
    leaderboard and the profile call, which picks the signature champion and
-   measures its career. The filters from phase 1 do not reach it.
+   reads its inputs. The filters from phase 1 do not reach it.
 
 Then the candidates are sorted in memory (score desc, account id as a stable
 tiebreak), the page is sliced, and only those ~25 rows are hydrated — exactly as

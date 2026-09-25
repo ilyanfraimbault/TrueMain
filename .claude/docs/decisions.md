@@ -12,7 +12,8 @@ Last verified against `develop` on 2026-09-02.
 ## Mains, dedication and candidate intake — [`decisions/product-mains.md`](decisions/product-mains.md)
 
 - Ranked solo/duo (queue 420) is the only queue stored; match history is solo/duo-only by design — #680
-- Dedication score (0–100) is the signature metric, always scoped to one champion — #530
+- The Truemain score (0–100) is the signature metric, always scoped to one champion — #530
+- The score reads the player, not our tracking: play rate + Riot mastery, activity as a gate, `IsOtp` as the verdict — #1701
 - The `/truemains` leaderboard is strictly `IsMain=true` — #184
 - Leaderboard games/KDA/WR come from frozen aggregate scopes, not live `match_participants` — #719
 - Inactive mains are retired via champion-mastery `lastPlayTime`; intake favours depth over breadth — #900
