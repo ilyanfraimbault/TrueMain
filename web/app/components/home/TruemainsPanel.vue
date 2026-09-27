@@ -82,12 +82,12 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMa
     aria-labelledby="home-truemains-title"
   >
     <header class="pb-2">
-      <h2
+      <h3
         id="home-truemains-title"
-        class="text-sm font-semibold text-default"
+        class="text-sm font-medium text-highlighted"
       >
         Top truemains
-      </h2>
+      </h3>
     </header>
 
     <div
@@ -204,7 +204,7 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMa
             class="w-10 shrink-0 text-right text-sm font-semibold tabular-nums"
           >
             {{ winRateLabel }}
-            <span class="block text-[10px] font-normal uppercase tracking-wide text-muted">WR</span>
+            <span class="stat-label block">WR</span>
           </span>
         </NuxtLink>
       </li>

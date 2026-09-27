@@ -41,6 +41,19 @@ export default defineAppConfig({
         variant: 'soft',
       },
     },
+    // Filled buttons carry the same keycap edge as the cards they sit on, so a
+    // control reads as a key rather than a flat swatch. Only the variants that
+    // paint a fill: on `ghost` / `link` / `outline` there is no surface for a
+    // lit top edge to belong to, and it would float as a stray hairline.
+    button: {
+      variants: {
+        variant: {
+          solid: 'keycap',
+          soft: 'keycap',
+          subtle: 'keycap',
+        },
+      },
+    },
     // Every "there is nothing here" state on the site (#1669). Themed rather
     // than styled per call site for the same reason `card` is: there were a
     // dozen hand-rolled variants of this card, in three paddings and four title

@@ -55,7 +55,7 @@ const headingId = useId()
               v-if="title"
               :is="`h${level}`"
               :id="headingId"
-              class="text-sm font-medium text-default"
+              class="text-sm font-medium text-highlighted"
             >
               {{ title }}
             </component>

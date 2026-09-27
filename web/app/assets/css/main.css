@@ -307,8 +307,15 @@ html {
   --shadow-key: inset 0 1px 0 0 rgb(255 255 255 / 0.05), inset 0 -1px 0 0 rgb(0 0 0 / 0.2);
 }
 
+/*
+ * Routed through Tailwind's own `--tw-inset-shadow` slot rather than a bare
+ * `box-shadow`, so it composes with `ring-*` and `shadow-*` on the same element:
+ * a subtle button's inset ring and a focus-visible ring both keep drawing. A
+ * plain `box-shadow` here would win or lose against `ring` by stylesheet order.
+ */
 @utility keycap {
-  box-shadow: var(--shadow-key);
+  --tw-inset-shadow: var(--shadow-key);
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
 }
 
 /*
@@ -350,7 +357,9 @@ html {
 }
 
 /*
- * The `glass` utility that used to live here is gone. It was kept at first for
+ * The general-purpose `glass` utility that used to live here is gone; the one
+ * translucent material left is `glass-bar` above, scoped to the header (#1709).
+ * `glass` was kept at first for
  * the home hero — the one place an animated backdrop still sits behind a panel
  * and there is therefore something to blur — but the hero's own search field
  * reads better solid against the eclipse, the way the reference designs stack a
