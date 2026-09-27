@@ -114,6 +114,25 @@ async fn champion_build(
     client.get(&format!("/champions/{champion_id}"), &query).await
 }
 
+/// The reads the pages outside the draft make — the tier list, the true mains
+/// leaderboard and its search. Listed rather than open: the shell forwards
+/// these and nothing else, so the webview cannot turn it into a general proxy
+/// onto the API.
+const READABLE_PATHS: &[&str] = &["/champions/tierlist", "/truemains", "/truemains/search"];
+
+/// One read-only GET from `READABLE_PATHS`, with its query as key/value pairs.
+#[tauri::command]
+async fn api_get(
+    client: tauri::State<'_, ApiClient>,
+    path: String,
+    query: Vec<(String, String)>,
+) -> Result<serde_json::Value, String> {
+    if !READABLE_PATHS.contains(&path.as_str()) {
+        return Err(format!("{path} is not readable from the app"));
+    }
+    client.get(&path, &query).await
+}
+
 pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -134,7 +153,8 @@ pub fn run() {
             current_screen,
             draft_recommendation,
             champion_build,
-            composition_build
+            composition_build,
+            api_get
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

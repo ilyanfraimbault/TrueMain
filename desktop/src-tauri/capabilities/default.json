@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the webview is allowed to ask the shell for: read the state the supervisor publishes, and nothing else.",
+  "description": "What the webview is allowed to ask the shell for: read the state the supervisor publishes, and open a truemain.lol page in the player's browser (the URL rule is `plugins.shell.open` in tauri.conf.json).",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "shell:allow-open"]
 }

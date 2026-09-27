@@ -37,5 +37,10 @@
     "macOS": {
       "minimumSystemVersion": "13.3"
     }
+  },
+  "plugins": {
+    "shell": {
+      "open": "^https://truemain\\.lol/"
+    }
   }
 }
