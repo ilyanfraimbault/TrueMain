@@ -10,6 +10,15 @@ export default defineNuxtConfig({
   // Tauri serves the bundle from a custom protocol; hashed asset names at the
   // root keep every reference relative to it.
   app: { baseURL: './' },
+  // The route lives in the hash: the custom protocol serves files, not an SPA
+  // fallback, so a history-mode path would 404 on a reload.
+  router: { options: { hashMode: true } },
+  // No server to resolve an icon at runtime and a CSP that only reaches Data
+  // Dragon: every icon the source names is bundled at build time instead.
+  icon: {
+    provider: 'none',
+    clientBundle: { scan: true },
+  },
   nitro: {
     preset: 'static',
     // `npm run dev` in a browser has no Rust to proxy API calls through, so the

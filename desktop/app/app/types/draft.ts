@@ -29,6 +29,22 @@ export interface DraftRecommendation {
   candidates: DraftCandidate[]
 }
 
+/** Which champions the draft endpoint is asked to rank: the lane's meta picks, or the ones below them. */
+export type DraftPool = 'meta' | 'offmeta'
+
+/** One slot of a team, as the draft screen hands it over. */
+export interface TeamRow {
+  championId: number | null
+  lane: Lane | null
+  /** A pick locked in; false while it is only hovered. */
+  locked: boolean
+  me?: boolean
+  /** The guesser's certainty about an enemy's lane, 0..1. */
+  confidence?: number
+  /** An enemy lane the player set by hand. */
+  pinned?: boolean
+}
+
 export const LANES = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const
 export type Lane = (typeof LANES)[number]
 

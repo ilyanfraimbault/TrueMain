@@ -21,8 +21,16 @@ export function insideTauri() {
 export function useLcuState() {
   const state = useState<AppState>('lcu-state', () => ({ ...EMPTY_STATE }))
   const ready = useState<boolean>('lcu-ready', () => false)
+  // Every component that reads the state calls this; only the first one —
+  // `app.vue`, which lives as long as the window — subscribes.
+  const subscribed = useState<boolean>('lcu-subscribed', () => false)
 
-  onMounted(async () => {
+  if (!subscribed.value) {
+    subscribed.value = true
+    onMounted(subscribe)
+  }
+
+  async function subscribe() {
     if (!insideTauri()) {
       if (import.meta.dev) {
         const { load, select } = useDevScenarios()
@@ -45,7 +53,7 @@ export function useLcuState() {
 
     state.value = await invoke<AppState>('current_state')
     ready.value = true
-  })
+  }
 
   /**
    * Which screen to show. Mirrors `AppState::screen()` in Rust, which is the

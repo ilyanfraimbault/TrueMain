@@ -126,3 +126,21 @@ export interface CompositionLane {
   averageGoldDiffAt15: number | null
   averageXpDiffAt15: number | null
 }
+
+/**
+ * One build a build view can show — the one computed for the draft, or one of
+ * the champion's lane builds — in the shape the view draws, whichever
+ * endpoint it came from.
+ */
+export interface BuildOption {
+  /** `draft`, or `lane-{firstItemId}-{keystoneId}` — the site groups lane builds by both. */
+  key: string
+  core: BuildCoreView
+  firstItemId: number
+  keystoneId: number | null
+  buildTree: BuildTreeNode[]
+  games: number
+  winRate: number | null
+  /** The draft's build fell back to the lane's standard one: the matchup was never recorded. */
+  standard?: boolean
+}

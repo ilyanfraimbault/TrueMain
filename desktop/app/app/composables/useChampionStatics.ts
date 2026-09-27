@@ -15,13 +15,21 @@ export interface Champion {
  * held for the session — the set only changes on a patch, and a champ select
  * is not the moment to discover a cache miss.
  */
+let inFlight: Promise<void> | null = null
+
 export function useChampionStatics() {
   const champions = useState<Map<number, Champion>>('ddragon-champions', () => new Map())
   const patch = useState<string>('ddragon-patch', () => '')
   const loaded = useState<boolean>('ddragon-loaded', () => false)
 
-  async function load() {
-    if (loaded.value) return
+  /** Every card on screen asks at mount; they share the one request in flight. */
+  function load() {
+    if (loaded.value) return Promise.resolve()
+    inFlight ??= fetchChampions().finally(() => (inFlight = null))
+    return inFlight
+  }
+
+  async function fetchChampions() {
     try {
       const versions = await $fetch<string[]>('https://ddragon.leagueoflegends.com/api/versions.json')
       const latest = versions[0]
