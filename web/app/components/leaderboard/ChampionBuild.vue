@@ -116,7 +116,7 @@ const showPlayRateSlot = computed(() => playRatePct.value !== null || props.rese
           class="font-semibold tabular-nums"
           :class="compact ? 'text-xs' : 'text-sm'"
         >{{ playRatePct }}</span>
-        <span class="mt-0.5 text-[10px] font-normal uppercase tracking-wide text-muted">PR</span>
+        <span class="stat-label mt-0.5">PR</span>
       </template>
     </div>
 

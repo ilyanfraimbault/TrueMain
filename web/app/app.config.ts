@@ -25,7 +25,7 @@ export default defineAppConfig({
     // restates the value `surface` was going to paint.
     card: {
       slots: {
-        root: 'surface rounded-xl',
+        root: 'surface rounded-2xl',
         header: 'p-3 sm:px-4 sm:py-3.5',
         body: 'p-3 sm:p-4',
         footer: 'p-3 sm:px-4',
@@ -39,6 +39,19 @@ export default defineAppConfig({
       },
       defaultVariants: {
         variant: 'soft',
+      },
+    },
+    // Filled buttons carry the same keycap edge as the cards they sit on, so a
+    // control reads as a key rather than a flat swatch. Only the variants that
+    // paint a fill: on `ghost` / `link` / `outline` there is no surface for a
+    // lit top edge to belong to, and it would float as a stray hairline.
+    button: {
+      variants: {
+        variant: {
+          solid: 'keycap',
+          soft: 'keycap',
+          subtle: 'keycap',
+        },
       },
     },
     // Every "there is nothing here" state on the site (#1669). Themed rather

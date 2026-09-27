@@ -343,3 +343,26 @@ copy of its own that never saw the real status. The #1661 sweep keyed on `UAlert
 call sites, and these were neither. They are `FetchErrorAlert`s now. The lesson for the next vocabulary sweep:
 grep the *copy* as well as the components, because the drift that matters is the state rendered with no
 component at all.
+
+## Keycap surfaces and one translucent bar; the type stays Inter (2026-09-27)
+
+**Decided by the product owner in #1709, amending one point of #1060.**
+The components borrow the Raycast site's material language — not its look: the rose-gold accent, the `ink`
+surfaces and the eclipse hero all stay, and Raycast's animated banded backdrop was mocked up and dropped.
+
+- **Surfaces get a keycap edge** (`--shadow-key`: inset lit top, inset shaded bottom), on every `surface` and on
+  filled buttons. It gives a card and a control a physical edge without an outer shadow muddying the four-step
+  opaque ladder, which is untouched.
+- **Translucency returns for the header bar only** (`glass-bar`). #1060 removed `glass` because translucency
+  *everywhere* meant nothing was ever on top of anything. A floating header is the one surface content really
+  scrolls behind, so the argument does not apply to it — and it applies to every other surface as much as
+  before: `glass-bar` is not a panel material.
+- **Typography stays Inter, set tight, and eyebrows stay rose gold.** The pass first moved eyebrows to Geist Mono
+  uppercase in `text-dimmed` and set headings lighter (medium) with default tracking. The product owner withdrew
+  both after seeing them: the mono label read as a foreign typeface and the loose headings lost the site's voice.
+  Five alternatives (Geist, Space Grotesk, Sora, Bricolage Grotesque, an Instrument Serif accent word) were
+  compared and rejected in favour of the previous setting. Mono stays where it *is* the meaning — the footer's
+  build stamp, tier letters.
+- **Primary buttons stay rose gold.** Raycast's CTAs are neutral light-grey; adopting that would remove the
+  accent from the one place it means "act here". Only the keycap edge is borrowed.
+

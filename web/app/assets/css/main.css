@@ -292,7 +292,57 @@ html {
 @utility surface {
   background-color: var(--ui-bg-elevated);
   border: 1px solid var(--ui-border);
-  box-shadow: 0 1px 2px 0 color-mix(in oklch, black 40%, transparent);
+  box-shadow: var(--shadow-key), 0 1px 2px 0 color-mix(in oklch, black 40%, transparent);
+}
+
+/*
+ * ─── Keycap edge ───────────────────────────────────────────────────────────
+ * A one-pixel lit top edge and a one-pixel shade on the bottom, both inset:
+ * the surface reads as a pressed key rather than a flat fill, and it does so
+ * without an outer drop shadow that would muddy the elevation ladder below.
+ * `surface` carries it everywhere; `keycap` is the same edge on its own, for
+ * controls that sit in a recessed well (the search field, keyboard hints).
+ */
+@theme {
+  --shadow-key: inset 0 1px 0 0 rgb(255 255 255 / 0.05), inset 0 -1px 0 0 rgb(0 0 0 / 0.2);
+}
+
+/*
+ * Routed through Tailwind's own `--tw-inset-shadow` slot rather than a bare
+ * `box-shadow`, so it composes with `ring-*` and `shadow-*` on the same element:
+ * a subtle button's inset ring and a focus-visible ring both keep drawing. A
+ * plain `box-shadow` here would win or lose against `ring` by stylesheet order.
+ */
+@utility keycap {
+  --tw-inset-shadow: var(--shadow-key);
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+}
+
+/*
+ * The floating header bar — the one translucent material on the site. It is
+ * the only surface that page content actually scrolls *behind*, so it is the
+ * one place a blur has something to show. Everything else stays opaque (see
+ * the note on `glass` below). Unprefixed `backdrop-filter` only.
+ */
+@utility glass-bar {
+  background-color: color-mix(in oklch, var(--ui-bg) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid color-mix(in oklch, white 8%, transparent);
+  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.06), 0 8px 32px -8px rgb(0 0 0 / 0.6);
+}
+
+/*
+ * Section eyebrow: the short label above a page or section heading, in the
+ * site's own face — Inter, medium, sentence case, rose gold. A mono uppercase
+ * version was tried in #1709 and withdrawn: it read as a second typeface
+ * rather than as a label. One utility so every eyebrow moves together.
+ */
+@utility eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  font-weight: 500;
+  color: var(--ui-primary);
 }
 
 @utility surface-hover {
@@ -306,7 +356,9 @@ html {
 }
 
 /*
- * The `glass` utility that used to live here is gone. It was kept at first for
+ * The general-purpose `glass` utility that used to live here is gone; the one
+ * translucent material left is `glass-bar` above, scoped to the header (#1709).
+ * `glass` was kept at first for
  * the home hero — the one place an animated backdrop still sits behind a panel
  * and there is therefore something to blur — but the hero's own search field
  * reads better solid against the eclipse, the way the reference designs stack a

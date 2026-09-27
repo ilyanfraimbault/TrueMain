@@ -165,6 +165,7 @@ Last verified against `develop` on 2026-09-02.
 - Page transitions are a staggered fade of the content only, run by Vue's `<Transition>` once the destination has resolved; none on query-only navigations or reduced motion (2026-09-18, 2026-09-23) — #1621, #1689
 - One error vocabulary: `UError` for a dead route, `FetchErrorAlert` for a dead region, a toast only for an action — never two surfaces for one failure (2026-09-22) — #1661, #1234
 - Empty states go through `UEmpty`, themed like the cards; an empty state is not an error, and "player not found" stays one (2026-09-22) — #1669, #1681, #1661, #862
+- Keycap edge on surfaces and filled buttons; translucency returns for the floating header only; type stays Inter set tight with rose eyebrows, primary buttons stay rose gold (2026-09-27) — #1709, #1060
 
 ## Aggregates, retention and the schema — [`decisions/data-aggregation.md`](decisions/data-aggregation.md)
 

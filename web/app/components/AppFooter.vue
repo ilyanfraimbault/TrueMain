@@ -27,12 +27,12 @@ const buildLabel = formatBuildLabel({ env: appEnv, version: appVersion })
     }"
   >
     <template #left>
-      <p class="text-sm text-dimmed">
+      <p class="font-mono text-xs text-dimmed">
         TrueMain · {{ year }}
         <!-- Deliberately quiet: this is a build stamp for us, not copy for the
              reader. Absent entirely in dev, and on preprod it is the one thing
              on the page that says which build you are looking at. -->
-        <span v-if="buildLabel" class="ml-1 text-xs opacity-70">{{ buildLabel }}</span>
+        <span v-if="buildLabel" class="opacity-70"><span class="mx-2 text-muted" aria-hidden="true">|</span>{{ buildLabel }}</span>
       </p>
     </template>
 

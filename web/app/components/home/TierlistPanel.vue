@@ -38,12 +38,12 @@ const rows = computed(() =>
     aria-labelledby="home-tierlist-title"
   >
     <header class="pb-2">
-      <h2
+      <h3
         id="home-tierlist-title"
-        class="text-sm font-semibold text-default"
+        class="text-sm font-medium text-highlighted"
       >
         Tier list
-      </h2>
+      </h3>
     </header>
 
     <ul
@@ -87,11 +87,11 @@ const rows = computed(() =>
 
           <span class="w-14 shrink-0 text-right text-sm font-semibold tabular-nums">
             {{ formatPercentage(row.winRate) }}
-            <span class="block text-[10px] font-normal uppercase tracking-wide text-muted">WR</span>
+            <span class="stat-label block">WR</span>
           </span>
           <span class="hidden w-14 shrink-0 text-right text-sm font-semibold tabular-nums text-muted sm:block">
             {{ formatPercentage(row.pickRate) }}
-            <span class="block text-[10px] font-normal uppercase tracking-wide text-muted">PR</span>
+            <span class="stat-label block">PR</span>
           </span>
         </NuxtLink>
       </li>
