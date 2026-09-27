@@ -51,6 +51,11 @@ pub struct Entry {
 pub enum Reading {
     /// `/lol-summoner/v1/current-summoner`, read once at attach.
     Summoner { data: serde_json::Value },
+    /// `/lol-champion-mastery/v1/local-player/champion-mastery`, read once per
+    /// login: at attach when the player is already logged in, otherwise just
+    /// after the login event, which puts it mid-tape (see
+    /// [`Tape::later_masteries`]).
+    Mastery { data: serde_json::Value },
     /// `/lol-gameflow/v1/gameflow-phase`, read once at attach. The raw client
     /// value, quoted exactly as the client sends it.
     Phase { data: serde_json::Value },
@@ -74,6 +79,10 @@ fn update() -> String {
 #[derive(Debug, Clone, Default)]
 pub struct Initial {
     pub summoner: Option<serde_json::Value>,
+    /// Absent when nobody was logged in at attach — the reading then follows
+    /// the login, see [`Tape::later_masteries`] — and from every tape recorded
+    /// before the app read mastery, which replays with an empty pool.
+    pub mastery: Option<serde_json::Value>,
     pub phase: Option<serde_json::Value>,
     pub session: Option<serde_json::Value>,
 }
@@ -117,12 +126,31 @@ impl Tape {
         for entry in &self.entries {
             match &entry.reading {
                 Reading::Summoner { data } => initial.summoner = Some(data.clone()),
+                Reading::Mastery { data } => initial.mastery = Some(data.clone()),
                 Reading::Phase { data } => initial.phase = Some(data.clone()),
                 Reading::Session { data } => initial.session = Some(data.clone()),
                 Reading::Event { .. } => break,
             }
         }
         initial
+    }
+
+    /// Mastery readings taken after the opening, in the order they were taken.
+    ///
+    /// The live app attaches before the player logs in more often than not, so
+    /// on a recorded tape the mastery reading usually sits after the login
+    /// event rather than in the opening. A replay hands these out one per
+    /// login, on the same rule the live app reads them on, instead of opening
+    /// on a pool the app could not have known yet.
+    pub fn later_masteries(&self) -> Vec<serde_json::Value> {
+        self.entries
+            .iter()
+            .skip_while(|entry| !matches!(entry.reading, Reading::Event { .. }))
+            .filter_map(|entry| match &entry.reading {
+                Reading::Mastery { data } => Some(data.clone()),
+                _ => None,
+            })
+            .collect()
     }
 
     /// The pushed events, each with the delay to wait before delivering it.
@@ -211,6 +239,7 @@ mod tests {
 
     const TAPE: &str = r#"
 {"at_ms":0,"kind":"summoner","data":{"gameName":"Tester","tagLine":"EUW"}}
+{"at_ms":0,"kind":"mastery","data":[{"championId":103,"championPoints":1200}]}
 {"at_ms":0,"kind":"phase","data":"ChampSelect"}
 {"at_ms":0,"kind":"session","data":{"myTeam":[]}}
 {"at_ms":1000,"kind":"event","uri":"/lol-champ-select/v1/session","event_type":"Update","data":{"myTeam":[{"cellId":0}]}}
@@ -221,8 +250,64 @@ mod tests {
     fn reads_the_attach_readings_back() {
         let initial = Tape::parse(TAPE).unwrap().initial();
         assert_eq!(initial.summoner.unwrap()["gameName"], "Tester");
+        assert_eq!(initial.mastery.unwrap()[0]["championId"], 103);
         assert_eq!(initial.phase.unwrap(), "ChampSelect");
         assert!(initial.session.is_some());
+    }
+
+    #[test]
+    fn the_committed_fixture_parses_and_opens_on_a_pool() {
+        let tape = Tape::parse(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/ranked-draft.jsonl"
+        )))
+        .unwrap();
+        let mastery: Vec<crate::ChampionMastery> =
+            serde_json::from_value(tape.initial().mastery.unwrap()).unwrap();
+        assert_eq!(mastery.len(), 12);
+        assert!(!tape.events().is_empty());
+    }
+
+    #[test]
+    fn a_mastery_reading_in_the_opening_is_not_handed_out_again_later() {
+        assert!(Tape::parse(TAPE).unwrap().later_masteries().is_empty());
+    }
+
+    #[test]
+    fn a_tape_recorded_before_mastery_was_read_still_replays() {
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"summoner","data":{"gameName":"Tester","tagLine":"EUW"}}
+{"at_ms":0,"kind":"phase","data":"ChampSelect"}
+{"at_ms":10,"kind":"event","uri":"/lol-gameflow/v1/gameflow-phase","data":"InProgress"}"#,
+        )
+        .unwrap();
+        let initial = tape.initial();
+        assert!(initial.summoner.is_some());
+        assert!(initial.mastery.is_none());
+        assert!(tape.later_masteries().is_empty());
+        assert_eq!(tape.events().len(), 1);
+    }
+
+    #[test]
+    fn a_mastery_read_after_a_login_is_kept_for_that_login_rather_than_the_opening() {
+        // The usual recording: attached at the login screen, the login arrives
+        // as an event, and the mastery read it triggered follows it.
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"phase","data":"None"}
+{"at_ms":10,"kind":"event","uri":"/lol-summoner/v1/current-summoner","data":{"gameName":"Late","tagLine":"EUW"}}
+{"at_ms":20,"kind":"mastery","data":[{"championId":61,"championPoints":900}]}
+{"at_ms":30,"kind":"event","uri":"/lol-gameflow/v1/gameflow-phase","data":"Lobby"}"#,
+        )
+        .unwrap();
+        assert!(tape.initial().mastery.is_none());
+        let later = tape.later_masteries();
+        assert_eq!(later.len(), 1);
+        assert_eq!(later[0][0]["championId"], 61);
+        assert_eq!(
+            tape.events().len(),
+            2,
+            "a reading is not an event to deliver"
+        );
     }
 
     #[test]

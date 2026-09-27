@@ -253,6 +253,19 @@ impl CurrentSummoner {
     }
 }
 
+/// The logged-in player's mastery on one champion — how the app learns their
+/// pool without asking them for it.
+///
+/// Only the two fields the pool ranking reads. The client's entry also carries
+/// the player's PUUID, and a tape records this model rather than the raw body,
+/// so keeping the struct this narrow is what keeps that id off disk.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ChampionMastery {
+    pub champion_id: i64,
+    pub champion_points: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -447,5 +460,23 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(summoner.riot_id(), "Phantasm#EUW");
+    }
+
+    #[test]
+    fn a_mastery_entry_keeps_only_the_champion_and_its_points() {
+        let entries: Vec<ChampionMastery> = serde_json::from_str(
+            r#"[{"championId":103,"championLevel":7,"championPoints":241337,
+                "puuid":"not-kept","lastPlayTime":1700000000000}]"#,
+        )
+        .unwrap();
+        assert_eq!(
+            entries,
+            vec![ChampionMastery {
+                champion_id: 103,
+                champion_points: 241_337,
+            }]
+        );
+        let recorded = serde_json::to_value(&entries[0]).unwrap();
+        assert!(recorded.get("puuid").is_none(), "{recorded}");
     }
 }

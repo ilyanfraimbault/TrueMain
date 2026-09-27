@@ -4,7 +4,7 @@ use serde::de::DeserializeOwned;
 
 use crate::credentials::Credentials;
 use crate::error::{Error, Result};
-use crate::model::{ChampSelectSession, CurrentSummoner, GameflowPhase};
+use crate::model::{ChampSelectSession, ChampionMastery, CurrentSummoner, GameflowPhase};
 use crate::runes::{plan_import, RuneImportPlan, RunePage, RunePageDraft};
 use crate::tls;
 
@@ -92,6 +92,13 @@ impl LcuClient {
     /// with no input from the player.
     pub async fn current_summoner(&self) -> Result<CurrentSummoner> {
         self.get_json("/lol-summoner/v1/current-summoner").await
+    }
+
+    /// The logged-in player's mastery on every champion they have played, in
+    /// no particular order. What the draft ranks the player's own pool from.
+    pub async fn champion_mastery(&self) -> Result<Vec<ChampionMastery>> {
+        self.get_json("/lol-champion-mastery/v1/local-player/champion-mastery")
+            .await
     }
 }
 

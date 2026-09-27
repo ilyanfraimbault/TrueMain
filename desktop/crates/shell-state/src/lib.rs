@@ -5,7 +5,9 @@
 //! needs a platform webview). Here, the navigation rule is covered by tests
 //! that run anywhere.
 
-use lcu::{ChampSelectSession, CurrentSummoner, DraftState, GameflowPhase, LcuEvent};
+use lcu::{
+    ChampSelectSession, ChampionMastery, CurrentSummoner, DraftState, GameflowPhase, LcuEvent,
+};
 use serde::{Deserialize, Serialize};
 
 /// The app's whole view of the world, pushed to the frontend on every change.
@@ -25,6 +27,12 @@ pub struct AppState {
     /// cleared together with the Riot ID.
     pub profile_icon_id: Option<i64>,
     pub summoner_level: Option<i64>,
+    /// The player's own pool: every champion they have mastery points on, most
+    /// points first. The draft ranks it rather than asking the player what they
+    /// play. Empty until read, and emptied whenever the Riot ID changes, so a
+    /// relog never shows the previous account's pool.
+    #[serde(default)]
+    pub champion_pool: Vec<i64>,
     /// Present only in champ select.
     pub draft: Option<DraftState>,
 }
@@ -37,6 +45,7 @@ impl Default for AppState {
             riot_id: None,
             profile_icon_id: None,
             summoner_level: None,
+            champion_pool: Vec::new(),
             draft: None,
         }
     }
@@ -84,10 +93,51 @@ impl AppState {
     }
 
     /// Take the player's identity from a summoner reading, or clear it.
+    ///
+    /// The pool belongs to the Riot ID, so it goes when the Riot ID changes —
+    /// here, the one place that can change it. A level or an icon changing is
+    /// the same player and keeps it.
     pub fn set_summoner(&mut self, summoner: Option<&CurrentSummoner>) {
-        self.riot_id = summoner.map(CurrentSummoner::riot_id);
+        let riot_id = summoner.map(CurrentSummoner::riot_id);
+        if riot_id != self.riot_id {
+            self.champion_pool.clear();
+        }
+        self.riot_id = riot_id;
         self.profile_icon_id = summoner.map(|s| s.profile_icon_id);
         self.summoner_level = summoner.map(|s| s.summoner_level);
+    }
+
+    /// Take the player's pool from a mastery reading.
+    ///
+    /// Ties go to the lower champion id, so two readings of the same account
+    /// always rank the same way. A champion with no points was never played
+    /// and is not part of the pool.
+    pub fn set_mastery(&mut self, mastery: &[ChampionMastery]) {
+        let mut played: Vec<&ChampionMastery> = mastery
+            .iter()
+            .filter(|entry| entry.champion_points > 0)
+            .collect();
+        played.sort_by(|a, b| {
+            b.champion_points
+                .cmp(&a.champion_points)
+                .then(a.champion_id.cmp(&b.champion_id))
+        });
+        self.champion_pool = played.iter().map(|entry| entry.champion_id).collect();
+    }
+
+    /// Whether the pool should be read now: a player is logged in, their pool
+    /// is empty, and it was not already read for them. `read_for` is the Riot
+    /// ID of the last read, kept by the caller.
+    ///
+    /// Once per Riot ID, not until it succeeds: a new account has no mastery at
+    /// all, and re-reading on every event would ask the client again on each
+    /// hover of a champion select. A relog to another account, or back, is a
+    /// new Riot ID and reads again. Shared by the live path and a replay, so a
+    /// tape hands out its readings exactly when the client was asked.
+    pub fn wants_mastery(&self, read_for: Option<&str>) -> bool {
+        self.riot_id.is_some()
+            && self.champion_pool.is_empty()
+            && self.riot_id.as_deref() != read_for
     }
 
     fn identity(&self) -> (Option<String>, Option<i64>, Option<i64>) {
@@ -196,6 +246,108 @@ mod tests {
         assert_eq!(state.riot_id.as_deref(), Some("Phantasm#EUW"));
         assert_eq!(state.profile_icon_id, Some(29));
         assert_eq!(state.summoner_level, Some(412));
+    }
+
+    fn mastery(champion_id: i64, champion_points: i64) -> ChampionMastery {
+        ChampionMastery {
+            champion_id,
+            champion_points,
+        }
+    }
+
+    fn logged_in(game_name: &str) -> AppState {
+        let mut state = connected(GameflowPhase::Lobby);
+        state.apply(&event(
+            lcu::uri::CURRENT_SUMMONER,
+            serde_json::json!({"gameName": game_name, "tagLine": "EUW"}),
+        ));
+        state
+    }
+
+    #[test]
+    fn the_pool_is_ranked_by_mastery_points_most_first() {
+        let mut state = logged_in("Phantasm");
+        state.set_mastery(&[
+            mastery(61, 40_000),
+            mastery(103, 250_000),
+            // The client lists champions that were never played, at zero.
+            mastery(1, 0),
+            mastery(134, 90_000),
+            // Tied with Orianna: the lower id goes first, so the order does
+            // not depend on how the client happened to list them.
+            mastery(7, 40_000),
+        ]);
+        assert_eq!(state.champion_pool, vec![103, 134, 7, 61]);
+    }
+
+    #[test]
+    fn the_pool_serialises_under_the_name_the_frontend_reads() {
+        let mut state = logged_in("Phantasm");
+        state.set_mastery(&[mastery(103, 10)]);
+        let payload = serde_json::to_value(&state).unwrap();
+        assert_eq!(payload["championPool"], serde_json::json!([103]));
+    }
+
+    #[test]
+    fn a_relog_to_another_account_drops_the_previous_pool() {
+        let mut state = logged_in("Phantasm");
+        state.set_mastery(&[mastery(103, 250_000)]);
+
+        let changed = state.apply(&event(
+            lcu::uri::CURRENT_SUMMONER,
+            serde_json::json!({"gameName": "Smurf", "tagLine": "EUW"}),
+        ));
+        assert!(changed);
+        assert!(state.champion_pool.is_empty());
+    }
+
+    #[test]
+    fn a_logout_drops_the_pool_with_the_riot_id() {
+        let mut state = logged_in("Phantasm");
+        state.set_mastery(&[mastery(103, 250_000)]);
+
+        state.apply(&event(
+            lcu::uri::CURRENT_SUMMONER,
+            serde_json::json!({"gameName": "", "tagLine": ""}),
+        ));
+        assert!(state.riot_id.is_none());
+        assert!(state.champion_pool.is_empty());
+    }
+
+    #[test]
+    fn a_level_up_is_the_same_player_and_keeps_the_pool() {
+        let mut state = logged_in("Phantasm");
+        state.set_mastery(&[mastery(103, 250_000)]);
+
+        state.apply(&event(
+            lcu::uri::CURRENT_SUMMONER,
+            serde_json::json!({"gameName": "Phantasm", "tagLine": "EUW", "summonerLevel": 413}),
+        ));
+        assert_eq!(state.champion_pool, vec![103]);
+    }
+
+    #[test]
+    fn mastery_is_wanted_once_per_riot_id() {
+        assert!(
+            !connected(GameflowPhase::None).wants_mastery(None),
+            "nobody is logged in yet"
+        );
+
+        let mut state = logged_in("Phantasm");
+        assert!(state.wants_mastery(None));
+        // Read, and it came back empty: a new account. Asking again on every
+        // event would not change that.
+        assert!(!state.wants_mastery(Some("Phantasm#EUW")));
+
+        // A relog is a new player, whose pool has not been read.
+        state.apply(&event(
+            lcu::uri::CURRENT_SUMMONER,
+            serde_json::json!({"gameName": "Smurf", "tagLine": "EUW"}),
+        ));
+        assert!(state.wants_mastery(Some("Phantasm#EUW")));
+
+        state.set_mastery(&[mastery(103, 10)]);
+        assert!(!state.wants_mastery(None), "a pool is already there");
     }
 
     #[test]

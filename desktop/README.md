@@ -32,6 +32,8 @@ Tracking issue: **#1671**.
   one enemy onto another, pinning your correction so the rest re-solve around
   it (#1677). A click on an enemy now reads its build instead.
 - **Names your lane opponent**, with how sure it is — a coin flip says so.
+- **Reads your champion mastery** once per login, to rank your own pool
+  (`championPool`, most points first) without asking what you play.
 
 ## What it does not do yet
 

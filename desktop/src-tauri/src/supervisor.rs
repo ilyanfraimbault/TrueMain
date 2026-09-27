@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use lcu::tape::{Reading, Recorder, Tape};
-use lcu::{ChampSelectSession, CurrentSummoner, GameflowPhase, LcuClient};
+use lcu::{ChampSelectSession, ChampionMastery, CurrentSummoner, GameflowPhase, LcuClient};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc;
 
@@ -109,6 +109,11 @@ async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
         ..AppState::default()
     };
     state.set_summoner(summoner.as_ref().filter(|s| !s.game_name.is_empty()));
+    // Only when a player is already logged in; otherwise the login event
+    // triggers the same read in the loop below. Before the first publish, so
+    // the draft never opens on an empty pool that fills a moment later.
+    let mut mastery_read_for = None;
+    refresh_pool(&client, &mut state, &mut mastery_read_for, &mut recorder).await;
     publish(app, shared, state.clone());
 
     let (sender, mut receiver) = mpsc::channel(64);
@@ -116,7 +121,7 @@ async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
     let stream = tokio::spawn(async move { lcu::stream_events(credentials, sender).await });
 
     while let Some(event) = receiver.recv().await {
-        let changed = state.apply(&event);
+        let mut changed = state.apply(&event);
 
         // Recorded before the `changed` test: an event the state ignores today
         // is still part of what the client sent, and a tape that dropped it
@@ -133,6 +138,10 @@ async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
             }
         }
 
+        // After the event is recorded, so a tape keeps the login ahead of the
+        // read it triggered — the order a replay hands readings out in.
+        changed |= refresh_pool(&client, &mut state, &mut mastery_read_for, &mut recorder).await;
+
         if changed {
             publish(app, shared, state.clone());
         }
@@ -140,6 +149,38 @@ async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
 
     stream.abort();
     Ok(())
+}
+
+/// Read the player's pool when `AppState::wants_mastery` says it is due — once
+/// per Riot ID. Returns whether the state changed.
+///
+/// Awaited inside the event loop rather than spawned: it runs once per login,
+/// the events that arrive meanwhile wait in the channel, and a spawned read
+/// could land after a relog and hand one account the other's pool.
+async fn refresh_pool(
+    client: &LcuClient,
+    state: &mut AppState,
+    read_for: &mut Option<String>,
+    recorder: &mut Option<Recorder>,
+) -> bool {
+    if !state.wants_mastery(read_for.as_deref()) {
+        return false;
+    }
+    read_for.clone_from(&state.riot_id);
+
+    // A failed read is an empty pool, not a failed attach: the draft works
+    // without it and only ranks less personally.
+    let mastery = client
+        .champion_mastery()
+        .await
+        .inspect_err(|error| tracing::debug!(%error, "no champion mastery"))
+        .unwrap_or_default();
+    if let Some(recorder) = recorder {
+        record_reading(recorder, |data| Reading::Mastery { data }, &mastery);
+    }
+    state.set_mastery(&mastery);
+    // The pool was empty for the rule to fire, so it moved only if it filled.
+    !state.champion_pool.is_empty()
 }
 
 /// One session read from a tape: open on its first reading, then deliver its
@@ -165,6 +206,17 @@ async fn replay(app: &AppHandle, shared: &SharedState, path: &Path) -> lcu::Resu
         .summoner
         .and_then(|data| serde_json::from_value::<CurrentSummoner>(data).ok());
     state.set_summoner(summoner.as_ref());
+
+    // The live rule decides when a pool is read; the tape only stands in for
+    // the client's answers, handed out in the order they were recorded. A tape
+    // recorded before the app read mastery has none, and replays with an empty
+    // pool.
+    let mut masteries = initial.mastery.into_iter().chain(tape.later_masteries());
+    let mut mastery_read_for = None;
+    if state.wants_mastery(None) {
+        mastery_read_for.clone_from(&state.riot_id);
+        state.set_mastery(&tape_mastery(masteries.next()));
+    }
     publish(app, shared, state.clone());
 
     let speed = replay_speed();
@@ -175,12 +227,23 @@ async fn replay(app: &AppHandle, shared: &SharedState, path: &Path) -> lcu::Resu
         if speed > 0.0 {
             tokio::time::sleep(gap.div_f64(speed)).await;
         }
-        if state.apply(&event) {
+        let mut changed = state.apply(&event);
+        if state.wants_mastery(mastery_read_for.as_deref()) {
+            mastery_read_for.clone_from(&state.riot_id);
+            state.set_mastery(&tape_mastery(masteries.next()));
+            changed |= !state.champion_pool.is_empty();
+        }
+        if changed {
             publish(app, shared, state.clone());
         }
     }
 
     Ok(())
+}
+
+fn tape_mastery(data: Option<serde_json::Value>) -> Vec<ChampionMastery> {
+    data.and_then(|data| serde_json::from_value(data).ok())
+        .unwrap_or_default()
 }
 
 fn open_recorder() -> Option<Recorder> {
