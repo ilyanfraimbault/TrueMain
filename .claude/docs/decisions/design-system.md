@@ -219,12 +219,11 @@ shape to compare against.
   `@source not` was rejected: it would silently leave the next `Prose*` component a page adopts unstyled — the
   static-extraction trap `DESIGN_SYSTEM.md` already warns about.
 
-## Page transitions are a staggered fade of the content only (2026-09-18)
+## Page transitions are a fade-in of the content only (2026-09-18, 2026-09-27)
 
-**Decision:** page changes animate only the page content: the old page fades out in 90 ms, then the new one fades
-in over 180 ms with a 6 px rise — #1621. Since #1689 (2026-09-23) this runs on Vue's `<Transition>` through
-`app.pageTransition` (`name: 'page'`, `mode: 'out-in'`), no longer on the View Transitions API
-(`experimental.viewTransition`).
+**Decision:** page changes animate only the page content: the new page fades in over 180 ms with a 6 px rise,
+the old one leaves at once — #1621, #1714. Since #1689 (2026-09-23) this runs on Vue's `<Transition>` through
+`app.pageTransition` (`name: 'page'`), no longer on the View Transitions API (`experimental.viewTransition`).
 
 - **Why the mechanism changed (#1689).** Every page now awaits its API data in setup, under a loading bar (see
   `web-frontend-rules.md`). A view transition starts in the router's `beforeResolve` and freezes the whole frame
@@ -233,12 +232,16 @@ in over 180 ms with a 6 px rise — #1621. Since #1689 (2026-09-23) this runs on
   the destination has resolved, so the old page and the bar stay live through the wait, and the champion-page
   opt-out (`utils/view-transition.ts`, `plugins/view-transition.client.ts`) is gone.
 - **Content only.** The header and footer sit outside `<NuxtPage>`, so they never move.
-- **Staggered, not a cross-fade.** A plain cross-fade shows two dense tables on top of each other half-way through,
-  which reads as noise on this UI (observed on paused frames). `out-in` never shows the two at once; the new page
-  starts at 90 ms instead of the View Transitions version's 60 ms.
+- **Never two pages at once, and no `out-in` (#1714, 2026-09-27).** A plain cross-fade shows two dense tables on
+  top of each other half-way through, which reads as noise on this UI (observed on paused frames). The first
+  answer was `mode: 'out-in'` with a 90 ms fade-out, but `out-in` only renders the incoming page from the
+  outgoing one's `afterLeave`, and `<Suspense>` drops that callback when another navigation starts during the
+  leave: clicking through the header quickly left `<main>` empty for good, in most runs of a fast tab sequence
+  on production. The leave is now `display: none` — instant, so there is no window to interrupt and still no
+  frame holding both pages (checked frame by frame). The 90 ms fade-out is the price.
 - **Where it does not run.** Nuxt keys the page on its path, so the champion page's filter clicks and the pagers
-  (same-path `router.replace`) never animate; a `prefers-reduced-motion: reduce` media query drops both
-  transitions, and `<Transition>` then swaps at once.
+  (same-path `router.replace`) never animate; a `prefers-reduced-motion: reduce` media query drops the fade-in,
+  and `<Transition>` then swaps at once.
 
 ## One error vocabulary: a page for a dead route, an alert for a dead region, a toast for an action (2026-09-22)
 
