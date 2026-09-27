@@ -44,6 +44,17 @@ activity / matches) all drop a response whose token is no longer the newest. Wit
 — which refires on page, position and championId — can let a slow page-3 response land after page 4's and
 write its rows under a pager reading 4 — #1234.
 
+**A backend request nobody waits for any more is cancelled, not left to run (2026-09-27).** Nuxt hands every
+`useAsyncData` handler a `signal` and aborts it on unmount, on a key change and on a superseding refresh, but
+the request only stops if the handler forwards it — none did, so clicking through pages or tabs left every
+request of every page already left running to completion, backend reads included. Every handler now passes
+`signal` to `apiFetch`, and the hand-rolled fetchers (`useTruemainFetch`, `useCompositionBuild`,
+`useCompositionBuildGames`) abort their previous request when a new one starts, on `clear()` and on scope
+dispose. The request token above still decides which response may be *written*; the signal decides which
+request is still *worth fetching*. The Nitro proxy already aborts the upstream call when the browser drops
+one, so the cancellation reaches the API. `tests/api-fetch/abort-signal.test.ts` fails on a backend call that
+forwards no signal — #1712.
+
 - **A row rendered on more than one surface sizes off its own width, not the viewport** (#967).
   `MatchRow` and `LeaderboardRow` are `@container`s. The same row sits full-width on a page, in a ~33rem
   drawer and in a sidebar, so a viewport `xl:` breakpoint told the narrow copy it owned the page and its

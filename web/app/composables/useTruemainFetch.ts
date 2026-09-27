@@ -4,9 +4,10 @@ interface UseTruemainFetchOptions<TResponse> {
   /**
    * Issue the request for the current reactive state. Called with the
    * resolved (non-empty) name tag; expected to pass `ignoreResponseError`
-   * so a controller 404 resolves to a null body instead of throwing.
+   * so a controller 404 resolves to a null body instead of throwing, and to
+   * forward `signal` so a superseded or abandoned request is cancelled.
    */
-  request: (nameTag: string) => Promise<TResponse | null>
+  request: (nameTag: string, signal: AbortSignal) => Promise<TResponse | null>
   /**
    * Shape check on the raw response. `ignoreResponseError` turns a 404 into
    * a null body, so the only way to tell "not found" apart from "no body"
@@ -75,6 +76,16 @@ export function useTruemainFetch<TResponse>(
   // pager reading 4. Bumped before *any* work — including the cleared path —
   // so clearing also invalidates whatever is still in flight.
   let requestSeq = 0
+  // The newest request's controller. The token above only stops a stale
+  // response from being *written*; aborting stops it from being *fetched* —
+  // stepping through pages or leaving the profile otherwise leaves every
+  // superseded request running to completion (#1712).
+  let controller: AbortController | null = null
+
+  function abortInFlight() {
+    controller?.abort()
+    controller = null
+  }
 
   async function execute() {
     // Gated: leave every ref untouched, so the consumer still reads
@@ -82,6 +93,7 @@ export function useTruemainFetch<TResponse>(
     if (!enabledRef.value) return
 
     const seq = ++requestSeq
+    abortInFlight()
 
     if (!nameTagRef.value) {
       options.onClear()
@@ -92,8 +104,9 @@ export function useTruemainFetch<TResponse>(
 
     isLoading.value = true
     error.value = null
+    controller = new AbortController()
     try {
-      const response = await options.request(nameTagRef.value)
+      const response = await options.request(nameTagRef.value, controller.signal)
 
       // Superseded while in flight: a newer request owns the refs now, and
       // it also owns the loading flags (see `finally`).
@@ -157,6 +170,12 @@ export function useTruemainFetch<TResponse>(
   // `enabledRef` is watched too, so a gate opening after mount runs the fetch
   // mount skipped.
   watch([nameTagRef, enabledRef, ...(options.watch ?? [])], () => { void execute() })
+  // Bumping the token first makes the aborted request's rejection a stale one,
+  // so it never lands in `error`.
+  onScopeDispose(() => {
+    requestSeq++
+    abortInFlight()
+  })
 
   return {
     isLoading,

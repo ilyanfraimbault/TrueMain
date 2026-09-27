@@ -131,6 +131,7 @@ Last verified against `develop` on 2026-09-02.
 - "Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only — #862, #1234
 - A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own `pending` — #1234
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
+- A backend request nobody waits for any more is cancelled: every fetch forwards an abort signal (2026-09-27) — #1712
 - A row rendered on more than one surface sizes off its own width, not the viewport — #967
 - A tooltip trigger keeps the same DOM element for the life of the component
 - Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698

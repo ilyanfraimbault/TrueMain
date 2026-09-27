@@ -26,10 +26,11 @@ const apiFetch = useApiFetch()
 
 const { data: champion, status, error } = useLazyAsyncData<ChampionResponse | null>(
   () => `builder-fallback-${props.championId}-${props.position}`,
-  async () => {
+  async (_nuxtApp, { signal }) => {
     try {
       return await apiFetch<ChampionResponse>(`/champions/${props.championId}`, {
         query: { position: props.position },
+        signal,
       })
     }
     catch (err) {

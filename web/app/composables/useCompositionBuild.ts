@@ -17,15 +17,26 @@ export function useCompositionBuild() {
   const isLoading = ref(false)
   const error = ref<unknown>(null)
   let requestSeq = 0
+  // The token only stops a superseded response from being written; aborting
+  // stops it from being fetched at all, so a burst of draft edits no longer
+  // leaves every older request running to completion (#1712).
+  let controller: AbortController | null = null
+
+  function abortInFlight() {
+    controller?.abort()
+    controller = null
+  }
 
   async function submit(championId: number, body: CompositionBuildRequest) {
     const seq = ++requestSeq
+    abortInFlight()
+    controller = new AbortController()
     isLoading.value = true
     error.value = null
     try {
       const response = await $fetch<CompositionBuildResponse>(
         `/api/champions/${championId}/composition-build`,
-        { method: 'POST', body },
+        { method: 'POST', body, signal: controller.signal },
       )
       if (seq === requestSeq) {
         data.value = response
@@ -46,10 +57,18 @@ export function useCompositionBuild() {
 
   function clear() {
     requestSeq++
+    abortInFlight()
     data.value = null
     error.value = null
     isLoading.value = false
   }
+
+  // Leaving the page cancels whatever is still in flight. Bumping the token
+  // first keeps the aborted request's rejection out of `error`.
+  onScopeDispose(() => {
+    requestSeq++
+    abortInFlight()
+  })
 
   return { data, isLoading, error, submit, clear }
 }

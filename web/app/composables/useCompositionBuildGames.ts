@@ -16,9 +16,20 @@ export function useCompositionBuildGames() {
   const isLoading = ref(false)
   const error = ref<unknown>(null)
   let requestSeq = 0
+  // The token only stops a superseded response from being written; aborting
+  // stops it from being fetched at all, so a burst of draft edits no longer
+  // leaves every older request running to completion (#1712).
+  let controller: AbortController | null = null
+
+  function abortInFlight() {
+    controller?.abort()
+    controller = null
+  }
 
   async function fetchPage(championId: number, body: CompositionBuildRequest, page: number, pageSize?: number) {
     const seq = ++requestSeq
+    abortInFlight()
+    controller = new AbortController()
     isLoading.value = true
     error.value = null
     try {
@@ -28,6 +39,7 @@ export function useCompositionBuildGames() {
           method: 'POST',
           body,
           query: { page, ...(pageSize ? { pageSize } : {}) },
+          signal: controller.signal,
         },
       )
       if (seq === requestSeq) {
@@ -49,10 +61,18 @@ export function useCompositionBuildGames() {
 
   function clear() {
     requestSeq++
+    abortInFlight()
     data.value = null
     error.value = null
     isLoading.value = false
   }
+
+  // Leaving the page cancels whatever is still in flight. Bumping the token
+  // first keeps the aborted request's rejection out of `error`.
+  onScopeDispose(() => {
+    requestSeq++
+    abortInFlight()
+  })
 
   return { data, isLoading, error, fetchPage, clear }
 }

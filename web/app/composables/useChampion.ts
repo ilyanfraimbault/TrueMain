@@ -90,7 +90,7 @@ export function useChampion(
         f.opponentChampionId ? String(f.opponentChampionId) : '',
         f.truemainsOnly)
     },
-    async () => {
+    async (_nuxtApp, { signal }) => {
       const id = championIdRef.value
       const f = filters.value
       const nameTag = nameTagRef.value
@@ -116,7 +116,7 @@ export function useChampion(
             // renders no rank or population control, so forwarding `eloBracket`
             // / `truemainsOnly` sent dead params that read as if the toggle
             // reached this page.
-            { query: { patch: f.patch, position: f.position } },
+            { query: { patch: f.patch, position: f.position }, signal },
           )
         }
         catch (error: unknown) {
@@ -139,7 +139,7 @@ export function useChampion(
       // `buildKey('', '')`) `getCachedData` reuses this identical response
       // instead of triggering a second no-filter fetch (and its loading flash).
       const outcome = await resolveGlobalChampion(
-        query => apiFetch<ChampionResponse>(`/champions/${id}`, { query }),
+        query => apiFetch<ChampionResponse>(`/champions/${id}`, { query, signal }),
         f,
       )
       if (outcome.fallbackData !== null) nuxtApp.static.data[unfilteredKey] = outcome.fallbackData

@@ -16,9 +16,9 @@ export function useTruemainActivity(nameTag: MaybeRefOrGetter<string>) {
   const data = ref<TruemainActivityResponse | null>(null)
 
   const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<TruemainActivityResponse>(nameTag, {
-    request: tag => $fetch<TruemainActivityResponse | null>(
+    request: (tag, signal) => $fetch<TruemainActivityResponse | null>(
       `/api/truemains/${encodeURIComponent(tag)}/activity`,
-      { ignoreResponseError: true },
+      { ignoreResponseError: true, signal },
     ),
     // `ignoreResponseError` turns a 404 into a null body, so the shape check is
     // the only way to tell "not found" from "no data": a real payload always

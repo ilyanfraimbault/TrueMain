@@ -57,7 +57,7 @@ export function createChampionPatchSlice<T>(config: ChampionPatchSliceConfig<T>)
 
     const result = useLazyAsyncData<T>(
       () => `${config.keyPrefix}|${championIdRef.value}|${positionRef.value ?? ''}|${patchRef.value ?? ''}|${eloBracketRef.value ?? ''}`,
-      () => {
+      (_nuxtApp, { signal }) => {
         // `gated` already covers the missing lane; the second half of the
         // condition is what narrows it to a string for the query below.
         const resolvedPosition = positionRef.value
@@ -73,7 +73,7 @@ export function createChampionPatchSlice<T>(config: ChampionPatchSliceConfig<T>)
         if (eloBracketRef.value) query.eloBracket = eloBracketRef.value
         return apiFetch<T>(
           `/champions/${championIdRef.value}/${config.endpoint}`,
-          { query },
+          { query, signal },
         )
       },
       { watch: [championIdRef, positionRef, patchRef, enabledRef, eloBracketRef], server: false },

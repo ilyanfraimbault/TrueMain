@@ -121,9 +121,8 @@ const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.valu
 // are identical on the server and at hydration, and the endpoint resolves the
 // same defaults the aggregate does, so both describe the same slice.
 //
-// Awaited with the champion fetch: for the HTML on the server, under the loading
-// bar on a client-side navigation (#1689). `useApiFetch` carries the visitor's
-// X-Forwarded-For into the SSR call (#1557).
+// Awaited with the champion fetch: for the HTML on the server, under the loading bar on a
+// client-side navigation (#1689). `useApiFetch` forwards the visitor during SSR (#1557).
 const apiFetch = useApiFetch()
 const buildSummaryFetch = useAsyncData(
   () => [
@@ -140,7 +139,7 @@ const buildSummaryFetch = useAsyncData(
     // the key is what SSR payload reuse keys on.
     filters.value.truemainsOnly ? 'truemains' : 'everyone',
   ].join('-'),
-  () => apiFetch<ChampionBuildSummary>(`/champion-summary/${championId.value}`, {
+  (_nuxtApp, { signal }) => apiFetch<ChampionBuildSummary>(`/champion-summary/${championId.value}`, {
     query: {
       patch: filters.value.patch || undefined,
       position: filters.value.position || undefined,
@@ -153,6 +152,7 @@ const buildSummaryFetch = useAsyncData(
       // under panels showing the matchup's.
       opponentChampionId: filters.value.opponentChampionId || undefined,
     },
+    signal,
   }),
   {
     watch: [championId, filters],
