@@ -332,18 +332,17 @@ html {
 }
 
 /*
- * Section eyebrow: a short technical label above a heading — mono, uppercase,
- * tracked out, quiet. It names the section; the heading under it makes the
- * statement, so the eyebrow never takes the accent.
+ * Section eyebrow: the short label above a page or section heading, in the
+ * site's own face — Inter, medium, sentence case, rose gold. A mono uppercase
+ * version was tried in #1709 and withdrawn: it read as a second typeface
+ * rather than as a label. One utility so every eyebrow moves together.
  */
 @utility eyebrow {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.2;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ui-text-dimmed);
+  color: var(--ui-primary);
 }
 
 @utility surface-hover {

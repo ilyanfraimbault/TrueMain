@@ -89,7 +89,7 @@ await Promise.all([overviewFetch, truemainsReady])
         <p class="eyebrow">
           Champion intelligence
         </p>
-        <h1 class="mt-5 text-4xl font-semibold leading-[1.05] text-highlighted sm:text-6xl">
+        <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-tighter text-highlighted sm:text-6xl">
           Real builds from<br>
           <span class="text-primary">real mains</span>.
         </h1>
@@ -166,7 +166,7 @@ await Promise.all([overviewFetch, truemainsReady])
         <p class="eyebrow">
           This patch
         </p>
-        <h2 class="mt-3 max-w-2xl text-2xl font-medium text-balance text-highlighted sm:text-4xl">
+        <h2 class="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
           The strongest picks, and the players who main them.
         </h2>
       </div>
@@ -201,7 +201,7 @@ await Promise.all([overviewFetch, truemainsReady])
         <p class="eyebrow">
           Your champion
         </p>
-        <h2 class="mt-3 text-3xl font-medium text-balance sm:text-5xl">
+        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
           Find <span class="text-primary">your</span> real build.
         </h2>
         <p class="mx-auto mt-3 max-w-xl text-base text-muted">

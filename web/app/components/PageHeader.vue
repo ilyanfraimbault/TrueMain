@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Shared page-level heading: mono eyebrow + display title (+ optional
+// Shared page-level heading: rose eyebrow + display title (+ optional
 // description), with a default slot below for filter strips. Keeps the
 // champions / truemains headers in lockstep instead of duplicating the
 // eyebrow markup per page.
@@ -16,7 +16,7 @@ defineProps<{
       <p class="eyebrow">
         {{ eyebrow }}
       </p>
-      <h1 class="text-2xl font-medium text-highlighted text-balance sm:text-4xl">
+      <h1 class="text-2xl font-semibold tracking-tight text-highlighted text-balance sm:text-3xl">
         {{ title }}
       </h1>
       <p

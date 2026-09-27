@@ -86,9 +86,9 @@ Reach for the material utilities rather than composing a surface by hand:
   page content actually scrolls behind, so it is the one place a blur has something to show. Do not reuse it
   for panels. The general-purpose `glass` is gone — the home hero's search field reads better solid against
   the eclipse.
-- **`eyebrow`** — the short label above a page or section heading: Geist Mono, 11 px, uppercase, tracked,
-  `text-dimmed`. It names the section; the heading under it makes the statement, so the eyebrow never takes
-  the accent. Headings under an eyebrow are medium weight and large (`text-2xl` → `sm:text-4xl`).
+- **`eyebrow`** — the short label above a page or section heading: Inter `text-sm`, medium, sentence case,
+  rose gold. Headings under it are Inter semibold with tight tracking (`tracking-tight`, `tracking-tighter`
+  on the home hero). A mono uppercase eyebrow and lighter, looser headings were tried in #1709 and withdrawn.
 
 **`surface` owns `background-color` and `border` — don't restate them.** Writing `class="surface border
 border-default/60 bg-elevated/60"` is not merely redundant: a plain utility out-cascades a `@utility`
