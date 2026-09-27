@@ -343,3 +343,23 @@ copy of its own that never saw the real status. The #1661 sweep keyed on `UAlert
 call sites, and these were neither. They are `FetchErrorAlert`s now. The lesson for the next vocabulary sweep:
 grep the *copy* as well as the components, because the drift that matters is the state rendered with no
 component at all.
+
+## Keycap surfaces, one translucent bar, quiet eyebrows (2026-09-27)
+
+**Decided by the product owner in #1709, amending two points of #1060 and the rose-gold eyebrow convention.**
+The components borrow the Raycast site's material language — not its look: the rose-gold accent, the `ink`
+surfaces and the eclipse hero all stay, and Raycast's animated banded backdrop was mocked up and dropped.
+
+- **Surfaces get a keycap edge** (`--shadow-key`: inset lit top, inset shaded bottom), on every `surface` and on
+  filled buttons. It gives a card and a control a physical edge without an outer shadow muddying the four-step
+  opaque ladder, which is untouched.
+- **Translucency returns for the header bar only** (`glass-bar`). #1060 removed `glass` because translucency
+  *everywhere* meant nothing was ever on top of anything. A floating header is the one surface content really
+  scrolls behind, so the argument does not apply to it — and it applies to every other surface as much as
+  before: `glass-bar` is not a panel material.
+- **Eyebrows are no longer rose gold**: mono, uppercase, `text-dimmed`. The accent was being spent on a label
+  that only names a section; the heading beneath it (and its accent word) makes the statement. Scarcity is the
+  #1060 mechanism, applied one level further.
+- **Primary buttons stay rose gold.** Raycast's CTAs are neutral light-grey; adopting that would remove the
+  accent from the one place it means "act here". Only the keycap edge is borrowed.
+
