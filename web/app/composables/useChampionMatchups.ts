@@ -70,7 +70,7 @@ export function useChampionMatchups(
       nameTagRef.value ? '' : eloBracketRef.value ?? '',
       patchRef.value ?? '',
     ].join('-'),
-    async () => {
+    async (_nuxtApp, { signal }) => {
       const position = positionRef.value
       if (!position) return null
 
@@ -88,7 +88,7 @@ export function useChampionMatchups(
         : `/champions/${championIdRef.value}/matchups`
 
       try {
-        return await apiFetch<ChampionMatchups>(path, { query })
+        return await apiFetch<ChampionMatchups>(path, { query, signal })
       }
       catch (error: unknown) {
         // Unknown player (player-scoped route) → empty state, not an error.

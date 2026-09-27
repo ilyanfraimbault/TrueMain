@@ -21,12 +21,13 @@ export function useChampionStatic(
 
   return useLazyAsyncData<ChampionStaticData>(
     () => keyRef.value,
-    async () => {
+    async (_nuxtApp, { signal }) => {
       const id = toValue(championId)
       const resolvedPatch = toValue(patch) ?? ''
       const key = keyRef.value
       const data = await apiFetch<ChampionStaticData>(`/static/${id}`, {
         query: { patch: resolvedPatch },
+        signal,
       })
       markStaticFetched(key, nuxtApp)
       return data

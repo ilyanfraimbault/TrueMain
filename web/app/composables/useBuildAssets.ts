@@ -107,10 +107,11 @@ function useStaticFetch<T>(
 
   return useLazyAsyncData<T>(
     () => keyRef.value,
-    async () => {
+    async (_nuxtApp, { signal }) => {
       const key = keyRef.value
       const data = await apiFetch<T>(endpoint, {
         query: patchRef.value ? { patch: patchRef.value } : {},
+        signal,
       })
       markStaticFetched(key, nuxtApp)
       return data

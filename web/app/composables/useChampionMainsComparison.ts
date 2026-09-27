@@ -53,7 +53,7 @@ export function useChampionMainsComparison(
       mainRiotIdRef.value ?? '',
       positionRef.value ?? '',
     ].join('-'),
-    async () => {
+    async (_nuxtApp, { signal }) => {
       const account = riotIdRef.value
       if (!account) return null
 
@@ -64,7 +64,7 @@ export function useChampionMainsComparison(
       try {
         return await apiFetch<ChampionMainsComparison>(
           `/champions/${championIdRef.value}/mains-comparison`,
-          { query },
+          { query, signal },
         )
       }
       catch (error: unknown) {

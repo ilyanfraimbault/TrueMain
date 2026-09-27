@@ -50,7 +50,7 @@ export function useTruemainMatches(
   const { isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<MatchSummariesResponse>(nameTag, {
     enabled: options.enabled,
     watch: [pageRef, positionRef, championIdRef],
-    request: (tag) => {
+    request: (tag, signal) => {
       const query: Record<string, string | number> = {
         page: pageRef.value,
       }
@@ -63,6 +63,7 @@ export function useTruemainMatches(
         {
           query,
           ignoreResponseError: true,
+          signal,
         },
       )
     },

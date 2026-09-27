@@ -35,7 +35,7 @@ const apiFetch = useApiFetch()
 const tierListFetch = useAsyncData<ChampionTierListResponse>(
   () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}`
     + `-${filters.value.eloBracket ?? 'all'}-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
-  () => {
+  (_nuxtApp, { signal }) => {
     const query: Record<string, string> = {}
     if (filters.value.patch) query.patch = filters.value.patch
     if (selectedPosition.value) query.position = selectedPosition.value
@@ -43,7 +43,7 @@ const tierListFetch = useAsyncData<ChampionTierListResponse>(
     // Sent only when off: true is the API default, so pinning it would just make
     // every resting request carry a redundant param.
     if (!filters.value.truemainsOnly) query.truemainsOnly = 'false'
-    return apiFetch<ChampionTierListResponse>('/champions/tierlist', { query })
+    return apiFetch<ChampionTierListResponse>('/champions/tierlist', { query, signal })
   },
   {
     watch: [
