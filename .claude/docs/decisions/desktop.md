@@ -27,7 +27,11 @@ twin rule (`web-frontend-rules.md`): a header names the twin, differences are ma
 behaviour sits in shims beside them (`useSiteShims.ts`, `utils/static-data.ts`) so the copies stay verbatim. The
 shared types and utils live under `desktop/app/shared/` at the site's paths so `~~/shared` imports resolve
 unchanged. A verbatim copy over the size limit (`LeaderboardRow.vue`) is recorded in the size baseline beside its
-twin rather than split away from it. The layer that would end the copies is #1687 (2026-09-27).
+twin rather than split away from it. The app's window is fixed and narrower than the site's pages, so where a site
+row does not fit, the twin carries marked width adjustments (the leaderboard row gives the Riot ID its content width
+and reserves the sub-mains column only where it shows) and the draft's 22rem column uses the site's compact
+home-page row instead — a truncated name was the first thing reported. The layer that would end the copies is #1687
+(2026-09-27).
 
 **Icons are bundled at build time, routes live in the hash, and images are drawn without a `load` gate.** The
 packaged app has no server to resolve an icon and a CSP that reaches only Data Dragon and Community Dragon

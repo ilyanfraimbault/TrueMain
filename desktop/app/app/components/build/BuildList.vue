@@ -46,14 +46,17 @@ function label(option: BuildOption) {
         </p>
         <p class="mt-0.5 text-[11px] tabular-nums text-dimmed">{{ option.games.toLocaleString('en-US') }} games</p>
       </div>
-      <div class="flex shrink-0 -space-x-1">
+      <!-- A gap, not an overlap: the site's tooltip icons sit in a `display: contents` wrapper
+           until first hovered, which a `space-x` margin skips — the hovered icon would then
+           jump under its neighbour. A gap lays both states out the same. -->
+      <div class="flex shrink-0 gap-0.5">
         <GameTooltipItemIcon
           v-for="(id, index) in (option.core.itemPath?.itemIds ?? [option.firstItemId]).slice(0, 3)"
           :key="index"
           :item="items[id] ?? null"
           :width="24"
           :height="24"
-          class="size-6 rounded ring-1 ring-ink-950"
+          class="size-6 shrink-0 rounded"
         />
       </div>
       <span class="w-10 shrink-0 text-right text-xs font-semibold tabular-nums" :class="winRateTone(option.winRate)">

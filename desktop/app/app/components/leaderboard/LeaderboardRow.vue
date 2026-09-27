@@ -1,7 +1,9 @@
 <!--
   Twin of `web/app/components/leaderboard/LeaderboardRow.vue`, copied verbatim
   until the shared layer (#1687) except where marked "App-specific": the
-  profile overlay opens the site. Keep everything else identical.
+  profile overlay opens the site, and two widths give the Riot ID its room in
+  the app's fixed window, where a row is ~930 px instead of the site's 1,100+.
+  Keep everything else identical.
 -->
 <script setup lang="ts">
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
@@ -252,7 +254,9 @@ const positionIcons = computed(() => {
          roughly half the free space (fitting untruncated) while the spacers
          still keep the champion roughly centred. Capped so it can't run away on
          ultra-wide screens. -->
-    <div class="min-w-0 flex-[3] @2xl:max-w-72 @4xl:max-w-80 @5xl:max-w-96">
+    <!-- App-specific: `flex-[3_1_auto]` rather than `flex-[3]`, so the Riot ID takes its own width
+         before the spacers share what is left; at ~930 px a zero basis left it 89 px. -->
+    <div class="min-w-0 flex-[3_1_auto] @2xl:max-w-72 @4xl:max-w-80 @5xl:max-w-96">
       <!-- Game name and tag are one identifier, so the tag never truncates: it
            holds its width (`shrink-0`) and the name absorbs the clipping. The
            name is set a notch below the row's body size and the tag a notch
@@ -309,7 +313,9 @@ const positionIcons = computed(() => {
          the outer 16rem was not enough: a narrower cluster centred itself
          differently, which moved the signature champion out of line down the
          list. -->
-    <div class="relative z-10 hidden w-64 shrink-0 items-center justify-center gap-3 overflow-hidden @2xl:flex">
+    <!-- App-specific: the column reserves the sub-mains' width only where they show (@5xl); below it
+         that is 112 px of nothing, which the Riot ID needs at the app's width. -->
+    <div class="relative z-10 hidden w-36 shrink-0 items-center justify-center gap-3 overflow-hidden @2xl:flex @5xl:w-64">
       <!-- 9rem: 30px icon + 40px play rate + two 22px build icons + the three
            0.5rem gaps between them, i.e. the cluster at its widest. -->
       <div class="flex w-36 shrink-0 justify-center">
