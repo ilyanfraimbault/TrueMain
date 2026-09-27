@@ -292,7 +292,51 @@ html {
 @utility surface {
   background-color: var(--ui-bg-elevated);
   border: 1px solid var(--ui-border);
-  box-shadow: 0 1px 2px 0 color-mix(in oklch, black 40%, transparent);
+  box-shadow: var(--shadow-key), 0 1px 2px 0 color-mix(in oklch, black 40%, transparent);
+}
+
+/*
+ * ─── Keycap edge ───────────────────────────────────────────────────────────
+ * A one-pixel lit top edge and a one-pixel shade on the bottom, both inset:
+ * the surface reads as a pressed key rather than a flat fill, and it does so
+ * without an outer drop shadow that would muddy the elevation ladder below.
+ * `surface` carries it everywhere; `keycap` is the same edge on its own, for
+ * controls that sit in a recessed well (the search field, keyboard hints).
+ */
+@theme {
+  --shadow-key: inset 0 1px 0 0 rgb(255 255 255 / 0.05), inset 0 -1px 0 0 rgb(0 0 0 / 0.2);
+}
+
+@utility keycap {
+  box-shadow: var(--shadow-key);
+}
+
+/*
+ * The floating header bar — the one translucent material on the site. It is
+ * the only surface that page content actually scrolls *behind*, so it is the
+ * one place a blur has something to show. Everything else stays opaque (see
+ * the note on `glass` below). Unprefixed `backdrop-filter` only.
+ */
+@utility glass-bar {
+  background-color: color-mix(in oklch, var(--ui-bg) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid color-mix(in oklch, white 8%, transparent);
+  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.06), 0 8px 32px -8px rgb(0 0 0 / 0.6);
+}
+
+/*
+ * Section eyebrow: a short technical label above a heading — mono, uppercase,
+ * tracked out, quiet. It names the section; the heading under it makes the
+ * statement, so the eyebrow never takes the accent.
+ */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ui-text-dimmed);
 }
 
 @utility surface-hover {

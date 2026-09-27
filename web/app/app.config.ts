@@ -25,7 +25,7 @@ export default defineAppConfig({
     // restates the value `surface` was going to paint.
     card: {
       slots: {
-        root: 'surface rounded-xl',
+        root: 'surface rounded-2xl',
         header: 'p-3 sm:px-4 sm:py-3.5',
         body: 'p-3 sm:p-4',
         footer: 'p-3 sm:px-4',
