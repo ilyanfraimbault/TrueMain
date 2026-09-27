@@ -4,11 +4,7 @@
  * (`--color-tier-*`, the medal ladder), "tier" under it. The tier itself is the
  * site's, computed server-side — this only draws it.
  */
-const props = defineProps<{
-  tier: string
-  /** The letter alone, for a table cell. */
-  compact?: boolean
-}>()
+const props = defineProps<{ tier: string }>()
 
 const letter = computed(() => props.tier.toUpperCase())
 const known = computed(() => ['S', 'A', 'B', 'C', 'D'].includes(letter.value))
@@ -21,7 +17,7 @@ const known = computed(() => ['S', 'A', 'B', 'C', 'D'].includes(letter.value))
     :style="{ color: `var(--color-tier-${letter.toLowerCase()})` }"
     :aria-label="`Tier ${letter}`"
   >
-    <span class="font-mono font-bold tracking-tight drop-shadow-[0_1px_2px_rgb(0_0_0/0.8)]" :class="compact ? 'text-base' : 'text-[22px]'">{{ letter }}</span>
-    <span v-if="!compact" class="mt-0.5 text-[9px] font-medium uppercase tracking-[0.14em] text-default/80">tier</span>
+    <span class="font-mono text-[22px] font-bold tracking-tight drop-shadow-[0_1px_2px_rgb(0_0_0/0.8)]">{{ letter }}</span>
+    <span class="mt-0.5 text-[9px] font-medium uppercase tracking-[0.14em] text-default/80">tier</span>
   </span>
 </template>

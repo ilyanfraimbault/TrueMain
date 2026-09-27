@@ -66,7 +66,9 @@ async fn composition_build(
     let client = client.inner().clone();
     let path = format!("/champions/{champion_id}/composition-build");
     let task = tokio::spawn(async move {
-        client.post_within(&path, &request, COMPOSITION_TIMEOUT).await
+        client
+            .post_within(&path, &request, COMPOSITION_TIMEOUT)
+            .await
     });
 
     let previous = in_flight
@@ -111,7 +113,9 @@ async fn champion_build(
     if let Some(opponent) = opponent_champion_id {
         query.push(("opponentChampionId", opponent.to_string()));
     }
-    client.get(&format!("/champions/{champion_id}"), &query).await
+    client
+        .get(&format!("/champions/{champion_id}"), &query)
+        .await
 }
 
 /// The reads the pages outside the draft make — the tier list, the true mains

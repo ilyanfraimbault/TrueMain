@@ -183,6 +183,28 @@ mounted components (`ProcessSummaryView`, `PanelTitle`). No page-level tests.
 
 ---
 
+## desktop/ — companion app (Tauri v2 + Nuxt 4, `ssr: false`, #1671)
+
+Reads the local League client (LCU) in Rust; the webview renders the state. Details and dev workflow in
+`desktop/README.md`; decisions in [`decisions/desktop.md`](decisions/desktop.md).
+
+- **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select, Draft simulator),
+  player card (Riot ID, level, client status), top bar with history and a ⌘K champion search. Hash routing; the
+  gameflow phase opens `/draft` on its own.
+- **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
+  guessed and correctable by drag, the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
+  ten most-mastered champions on the lane, or every champion on the lane). Once locked (or on a click): the build view —
+  the draft's composition build and the lane builds, the champion's true mains, the site's core view and build tree.
+- **Draft simulator** (`/simulator`) — a ranked draft played by hand (side, lane, pick order, bans, 1-2-2-2-2-1 picks,
+  hover then lock, undo, auto-fill) through the same draft screen and the real API.
+- **Site sections** — tier list, champion grid, champion page (lane picker, stats, build view), matchup (champion vs
+  opponent on a lane, composition build), truemains leaderboard (the site's rows), favorites kept on this machine.
+  A player row opens their page on truemain.lol.
+- **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), the player's own
+  stats on the dashboard (#1682/#1683).
+
+---
+
 ## backend/ — .NET 10 solution
 
 ### Api

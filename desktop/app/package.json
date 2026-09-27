@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@nuxt/ui": "^4.11.1",
-    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/api": "~2.11.1",
     "@tauri-apps/plugin-shell": "~2.3.0",
     "nuxt": "^4.5.2",
     "vue": "^3.5.43"

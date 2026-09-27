@@ -16,11 +16,12 @@ const props = defineProps<{
 
 const selected = defineModel<string | null>({ default: null })
 
-const { item, perk } = useBuildStatics()
+const { items, runeTree } = useStaticData()
+const perk = (id: number | null) => (id !== null ? runeTree.value?.perks[id] ?? null : null)
 
 function label(option: BuildOption) {
   if (option.key === 'draft') return option.standard ? 'Standard build' : (props.draftLabel ?? 'This draft')
-  return item(option.firstItemId)?.name || 'Build'
+  return items.value[option.firstItemId]?.name || 'Build'
 }
 </script>
 
@@ -40,13 +41,20 @@ function label(option: BuildOption) {
       <div class="min-w-0 flex-1 leading-tight">
         <p class="flex items-center gap-1.5 truncate text-[13px] font-semibold" :class="selected === option.key ? 'text-highlighted' : 'text-default'">
           <UIcon v-if="option.key === 'draft'" name="i-lucide-sparkles" class="size-3.5 shrink-0 text-primary" />
-          <GameIcon v-else-if="option.keystoneId" :source="perk(option.keystoneId)" size="size-4" round class="shrink-0" />
+          <GameTooltipPerkIcon v-else-if="option.keystoneId" :perk="perk(option.keystoneId)" :width="16" :height="16" class="size-4 shrink-0 rounded-full" />
           <span class="truncate">{{ label(option) }}</span>
         </p>
         <p class="mt-0.5 text-[11px] tabular-nums text-dimmed">{{ option.games.toLocaleString('en-US') }} games</p>
       </div>
       <div class="flex shrink-0 -space-x-1">
-        <GameIcon v-for="(id, index) in (option.core.itemPath?.itemIds ?? [option.firstItemId]).slice(0, 3)" :key="index" :source="item(id)" size="size-6" class="ring-1 ring-ink-950" />
+        <GameTooltipItemIcon
+          v-for="(id, index) in (option.core.itemPath?.itemIds ?? [option.firstItemId]).slice(0, 3)"
+          :key="index"
+          :item="items[id] ?? null"
+          :width="24"
+          :height="24"
+          class="size-6 rounded ring-1 ring-ink-950"
+        />
       </div>
       <span class="w-10 shrink-0 text-right text-xs font-semibold tabular-nums" :class="winRateTone(option.winRate)">
         {{ option.winRate === null ? '—' : `${Math.round(option.winRate * 100)}%` }}

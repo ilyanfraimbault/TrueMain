@@ -14,10 +14,7 @@ const columns = computed(() => LANES.map(lane => ({ lane, top: laneEntries(lane)
 <template>
   <div class="grid grid-cols-5 gap-3">
     <div v-for="column in columns" :key="column.lane" class="surface flex flex-col gap-2 rounded-xl p-3">
-      <div class="flex items-center gap-2">
-        <img :src="laneIconUrl(column.lane)" alt="" class="size-4">
-        <span class="stat-label">{{ LANE_LABELS[column.lane] }}</span>
-      </div>
+      <img :src="laneIconUrl(column.lane)" :alt="LANE_LABELS[column.lane]" :title="LANE_LABELS[column.lane]" class="size-5">
       <NuxtLink
         v-for="entry in column.top"
         :key="entry.championId"
@@ -29,7 +26,7 @@ const columns = computed(() => LANES.map(lane => ({ lane, top: laneEntries(lane)
           <span class="block truncate text-[13px] font-semibold text-highlighted">{{ nameOf(entry.championId) }}</span>
           <span class="text-[11px] font-medium tabular-nums" :class="winRateTone(entry.winRate)">{{ (entry.winRate * 100).toFixed(1) }}%</span>
         </span>
-        <TierMark :tier="entry.tier" compact />
+        <TierBadge :tier="entry.tier" />
       </NuxtLink>
       <template v-if="status === 'pending' && !column.top.length">
         <USkeleton v-for="index in 3" :key="index" class="h-10 w-full" />

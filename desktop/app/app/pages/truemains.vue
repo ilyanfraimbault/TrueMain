@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import type { Lane } from '~/types/draft'
-import type { LeaderboardResponse, TruemainRow } from '~/types/truemains'
+import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import type { ChampionPosition } from '~/utils/positions'
 
 /**
- * The site's leaderboard of true mains, by lane, a page at a time. A row opens
- * the player's page on the site; a champion opens its builds here.
+ * The site's leaderboard of true mains, by lane, a page at a time, in the
+ * site's own rows. A row opens the player's page on the site; a champion opens
+ * its builds here.
  */
 const PAGE_SIZE = 25
 
-const lane = ref<Lane | null>(null)
-const rows = ref<TruemainRow[]>([])
+const lane = ref<ChampionPosition | null>(null)
+const rows = ref<LeaderboardRowResponse[]>([])
 const total = ref(0)
 const page = ref(0)
 const pending = ref(false)
@@ -39,6 +40,11 @@ async function load(next: number) {
 watch(lane, () => load(1), { immediate: true })
 
 const more = computed(() => rows.value.length < total.value)
+const deepestRank = computed(() => rows.value.reduce((max, row) => Math.max(max, row.rank), 0))
+
+const championsById = useChampionsById()
+const { runeTree, items } = useStaticData()
+const { patch } = useChampionStatics()
 </script>
 
 <template>
@@ -47,29 +53,27 @@ const more = computed(() => rows.value.length < total.value)
       <span v-if="total" class="stat-label tabular-nums">{{ total.toLocaleString('en-US') }} players</span>
     </PageHeader>
 
-    <LaneTabs v-model="lane" all labels class="self-start" />
+    <RolePicker v-model:position="lane" class="self-start" />
 
-    <div class="surface flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl">
-      <div class="grid grid-cols-[2.5rem_minmax(0,1fr)_10rem_7.5rem_9rem_2rem] items-center gap-3 border-b border-default px-4 py-2.5">
-        <span class="stat-label">#</span>
-        <span class="stat-label">Player</span>
-        <span class="stat-label">Rank</span>
-        <span class="stat-label">Season</span>
-        <span class="stat-label">Mains</span>
-        <span />
-      </div>
+    <div class="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
+      <LeaderboardRow
+        v-for="row in rows"
+        :key="`${row.region}-${row.identity.gameName}-${row.identity.tagLine}`"
+        :row="row"
+        :champions-by-id="championsById"
+        :rune-tree="runeTree"
+        :items-map="items"
+        :patch="patch"
+        :max-rank="deepestRank"
+      />
 
-      <div class="min-h-0 flex-1 overflow-y-auto">
-        <TruemainRow v-for="row in rows" :key="`${row.identity.platformId}-${row.identity.gameName}-${row.identity.tagLine}`" :row="row" />
+      <template v-if="pending && !rows.length">
+        <LeaderboardRowSkeleton v-for="index in 8" :key="index" />
+      </template>
+      <p v-else-if="failed && !rows.length" class="p-8 text-center text-sm text-muted">The leaderboard could not be loaded</p>
 
-        <div v-if="pending && !rows.length" class="flex flex-col gap-2 p-4">
-          <USkeleton v-for="index in 8" :key="index" class="h-11 w-full" />
-        </div>
-        <p v-else-if="failed && !rows.length" class="p-8 text-center text-sm text-muted">The leaderboard could not be loaded</p>
-
-        <div v-if="more && rows.length" class="flex justify-center p-3">
-          <UButton label="Load more" color="neutral" variant="subtle" size="sm" :loading="pending" @click="load(page + 1)" />
-        </div>
+      <div v-if="more && rows.length" class="flex justify-center p-3">
+        <UButton label="Load more" color="neutral" variant="subtle" size="sm" :loading="pending" @click="load(page + 1)" />
       </div>
     </div>
   </div>

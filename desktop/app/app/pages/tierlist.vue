@@ -30,7 +30,7 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
     </PageHeader>
 
     <div class="flex items-center gap-3">
-      <LaneTabs v-model="lane" all labels />
+      <RolePicker v-model:position="lane" />
       <UInput v-model="search" icon="i-lucide-search" placeholder="Search a champion" size="sm" class="ml-auto w-56" />
     </div>
 
@@ -59,7 +59,7 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
             <span class="truncate text-sm font-semibold text-highlighted">{{ nameOf(entry.championId) }}</span>
           </span>
           <img :src="laneIconUrl(entry.position)" :alt="LANE_LABELS[entry.position as Lane]" :title="LANE_LABELS[entry.position as Lane]" class="mx-auto size-5">
-          <span class="flex justify-center"><TierMark :tier="entry.tier" compact /></span>
+          <span class="flex justify-center"><TierBadge :tier="entry.tier" /></span>
           <span class="text-right text-sm font-semibold tabular-nums" :class="winRateTone(entry.winRate)">{{ percent(entry.winRate) }}</span>
           <span class="text-right text-sm tabular-nums text-default">{{ percent(entry.pickRate) }}</span>
           <span class="text-right text-sm tabular-nums text-default">{{ percent(entry.banRate) }}</span>

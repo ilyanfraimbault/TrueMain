@@ -1,0 +1,159 @@
+<!-- Twin of `web/app/components/Champion/Core/Runes.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
+<script setup lang="ts">
+import type { BuildRunePage } from '~~/shared/types/champions'
+import type { RuneTreeResponse, RuneTreeStyle } from '~~/shared/types/static-data'
+
+const props = defineProps<{
+  page: BuildRunePage
+  tree: RuneTreeResponse
+  /** Base size (px) for the regular perks. Other rows scale from this. */
+  size?: number
+  /** Override the keystone row size independently of `size`. Useful when the
+   *  surrounding layout wants emphasised keystones but smaller perk rows
+   *  (e.g. the rune-variations panel). Defaults to `size`. */
+  keystoneSize?: number
+}>()
+
+const baseSize = computed(() => props.size ?? 32)
+const keystoneSize = computed(() => props.keystoneSize ?? baseSize.value)
+// The keystone leads the block by being the only row at full size; the rows
+// below step down instead of the keystone stepping up, which keeps the whole
+// panel compact. Secondary and shard rows stop shrinking at their legibility
+// floor — they are already the smallest readable icons on the page.
+const perkSize = computed(() => Math.max(20, baseSize.value - 8))
+const secondarySize = computed(() => Math.max(16, baseSize.value - 12))
+const shardSize = computed(() => Math.max(12, baseSize.value - 16))
+
+const primary = computed<RuneTreeStyle | null>(() =>
+  props.tree.styles.find(s => s.styleId === props.page.primaryStyleId) ?? null,
+)
+
+const secondary = computed<RuneTreeStyle | null>(() =>
+  props.tree.styles.find(s => s.styleId === props.page.secondaryStyleId) ?? null,
+)
+
+const selectedPrimary = computed(() => new Set([
+  props.page.primaryKeystoneId,
+  props.page.primaryPerk1Id,
+  props.page.primaryPerk2Id,
+  props.page.primaryPerk3Id,
+]))
+
+const selectedSecondary = computed(() => new Set([
+  props.page.secondaryPerk1Id,
+  props.page.secondaryPerk2Id,
+]))
+
+const selectedShards = computed(() => [
+  props.page.statOffense,
+  props.page.statFlex,
+  props.page.statDefense,
+])
+</script>
+
+<template>
+  <!-- `p-0.5` is the room the `selected-perk` ring needs: it is a 1 px ring
+       drawn *outside* the icon's box, so a picked keystone on the top row or a
+       picked shard on the last row painted 1 px past this block's own edge and
+       got sliced off by the runes column's `overflow-hidden`. The padding is
+       what keeps the ring inside the frame; the column width accounts for it.
+
+       `items-stretch` + `justify-between` on the primary section: the right
+       column (secondary tree + shards) is the taller of the two, and the
+       primary tree used to pack its rows at the top and leave the difference as
+       dead space under the last row. Stretched and spread, both columns start
+       and end on the same line. -->
+  <div class="flex flex-wrap items-stretch gap-x-6 gap-y-4 p-0.5">
+    <!-- Primary tree (left) -->
+    <section
+      v-if="primary"
+      class="flex flex-col items-center justify-between gap-1"
+    >
+      <!-- Keystone row -->
+      <div class="flex items-center gap-0.5">
+        <GameTooltipPerkIcon
+          v-for="id in primary.keystones"
+          :key="`pk-${id}`"
+          :perk="tree.perks[id] ?? null"
+          :width="keystoneSize"
+          :height="keystoneSize"
+          :style="{ width: `${keystoneSize}px`, height: `${keystoneSize}px` }"
+          :class="[
+            'rounded-full transition',
+            id === page.primaryKeystoneId ? 'selected-perk' : 'deselected',
+          ]"
+        />
+      </div>
+
+      <!-- 3 sub-rows of 3 perks -->
+      <div
+        v-for="(row, rowIndex) in primary.subRows"
+        :key="`prow-${rowIndex}`"
+        class="flex items-center gap-1"
+      >
+        <GameTooltipPerkIcon
+          v-for="id in row"
+          :key="`pp-${rowIndex}-${id}`"
+          :perk="tree.perks[id] ?? null"
+          :width="perkSize"
+          :height="perkSize"
+          :style="{ width: `${perkSize}px`, height: `${perkSize}px` }"
+          :class="[
+            'rounded-full transition',
+            selectedPrimary.has(id) ? 'selected-perk' : 'deselected',
+          ]"
+        />
+      </div>
+    </section>
+
+    <!-- Right column: secondary on top + shards on bottom -->
+    <div class="flex flex-col justify-between">
+      <!-- Secondary tree (3 rows of 3, no keystone) -->
+      <section
+        v-if="secondary"
+        class="flex flex-col items-center gap-1"
+      >
+        <div
+          v-for="(row, rowIndex) in secondary.subRows"
+          :key="`srow-${rowIndex}`"
+          class="flex items-center gap-1"
+        >
+          <GameTooltipPerkIcon
+            v-for="id in row"
+            :key="`sp-${rowIndex}-${id}`"
+            :perk="tree.perks[id] ?? null"
+            :width="secondarySize"
+            :height="secondarySize"
+            :style="{ width: `${secondarySize}px`, height: `${secondarySize}px` }"
+            :class="[
+              'rounded-full transition',
+              selectedSecondary.has(id) ? 'selected-perk' : 'deselected',
+            ]"
+          />
+        </div>
+      </section>
+
+      <!-- Stat shards -->
+      <section class="flex flex-col items-center gap-1">
+        <div
+          v-for="(row, rowIndex) in tree.shardSlots"
+          :key="`shard-row-${rowIndex}`"
+          class="flex items-center gap-1"
+        >
+          <GameTooltipPerkIcon
+            v-for="id in row"
+            :key="`shard-${rowIndex}-${id}`"
+            :perk="tree.perks[id] ?? null"
+            :width="shardSize"
+            :height="shardSize"
+            :style="{ width: `${shardSize}px`, height: `${shardSize}px` }"
+            :class="[
+              'rounded-full transition',
+              selectedShards[rowIndex] === id ? 'selected-perk' : 'deselected',
+            ]"
+          />
+        </div>
+      </section>
+    </div>
+  </div>
+</template>

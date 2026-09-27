@@ -66,7 +66,7 @@ const { build, pending, error } = useDraftBuild(subject)
         <USelectMenu v-model="championId" :items="items" value-key="value" placeholder="Your champion" size="sm" class="w-44" :avatar="championId ? { src: portraitOf(championId) ?? undefined } : undefined" />
         <span class="text-xs font-semibold uppercase tracking-widest text-dimmed">vs</span>
         <USelectMenu v-model="opponentId" :items="items" value-key="value" placeholder="Opponent" size="sm" class="w-44" :avatar="opponentId ? { src: portraitOf(opponentId) ?? undefined } : undefined" />
-        <LaneTabs v-model="lane" />
+        <RolePicker v-model:position="lane" hide-all />
       </div>
     </div>
 

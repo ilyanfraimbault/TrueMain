@@ -33,7 +33,7 @@ const list = computed(() => {
     <PageHeader title="Champions" icon="i-lucide-swords" />
 
     <div class="flex items-center gap-3">
-      <LaneTabs v-model="lane" all labels />
+      <RolePicker v-model:position="lane" />
       <UInput v-model="search" icon="i-lucide-search" placeholder="Search a champion" size="sm" class="ml-auto w-56" autofocus />
     </div>
 
@@ -47,11 +47,10 @@ const list = computed(() => {
         >
           <div class="relative">
             <img v-if="portraitOf(champion.id)" :src="portraitOf(champion.id)!" :alt="champion.name" class="size-14 rounded-lg ring-1 ring-default transition group-hover:ring-primary/60" loading="lazy">
-            <TierMark
+            <TierBadge
               v-if="lane && tiers.get(`${champion.id}:${lane}`)"
               :tier="tiers.get(`${champion.id}:${lane}`)!"
-              compact
-              class="absolute -bottom-1 -right-1 rounded bg-ink-950/90 px-1"
+              class="absolute -bottom-1 -right-1 h-5! min-w-5! rounded bg-ink-950/90"
             />
           </div>
           <span class="w-full truncate text-center text-xs text-default">{{ champion.name }}</span>

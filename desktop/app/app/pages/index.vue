@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardResponse, TruemainRow } from '~/types/truemains'
+import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 
 /**
  * Home: the player first — who the client is logged in as and where it is —
@@ -14,8 +14,11 @@ const name = computed(() => state.value.riotId?.split('#')[0] ?? null)
 const tag = computed(() => state.value.riotId?.split('#')[1] ?? null)
 const icon = computed(() => (state.value.profileIconId !== null ? profileIconOf(state.value.profileIconId) : null))
 
-const mains = ref<TruemainRow[]>([])
+const mains = ref<LeaderboardRowResponse[]>([])
 const mainsFailed = ref(false)
+const championsById = useChampionsById()
+const { runeTree, items } = useStaticData()
+const { patch } = useChampionStatics()
 onMounted(async () => {
   try {
     mains.value = (await apiGet<LeaderboardResponse>('/truemains', { pageSize: 5 })).rows
@@ -92,12 +95,21 @@ onMounted(async () => {
         <h2 class="text-sm font-semibold text-highlighted">Top true mains</h2>
         <UButton to="/truemains" label="Leaderboard" trailing-icon="i-lucide-chevron-right" color="neutral" variant="link" size="xs" />
       </div>
-      <div class="surface overflow-hidden rounded-xl">
-        <TruemainRow v-for="row in mains" :key="`${row.identity.platformId}-${row.identity.gameName}-${row.identity.tagLine}`" :row="row" />
+      <div class="flex flex-col gap-1.5">
+        <LeaderboardRow
+          v-for="row in mains"
+          :key="`${row.region}-${row.identity.gameName}-${row.identity.tagLine}`"
+          :row="row"
+          :champions-by-id="championsById"
+          :rune-tree="runeTree"
+          :items-map="items"
+          :patch="patch"
+          :max-rank="5"
+        />
         <p v-if="mainsFailed" class="p-4 text-center text-sm text-muted">The leaderboard could not be loaded</p>
-        <div v-else-if="!mains.length" class="flex flex-col gap-2 p-3">
-          <USkeleton v-for="index in 3" :key="index" class="h-10 w-full" />
-        </div>
+        <template v-else-if="!mains.length">
+          <LeaderboardRowSkeleton v-for="index in 3" :key="index" />
+        </template>
       </div>
     </section>
   </div>

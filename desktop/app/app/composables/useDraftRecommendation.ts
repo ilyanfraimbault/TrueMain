@@ -1,8 +1,20 @@
-import type { DraftRecommendation } from '~/types/draft'
+import type { DraftCandidate, DraftRecommendation } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 
 /** Picks and corrections landing together collapse into one request. */
 const DEBOUNCE_MS = 120
+
+/** What the endpoint scores in one request (`MaxCandidates` on the API). */
+const CANDIDATES_PER_REQUEST = 40
+
+/**
+ * The endpoint's own order, restated for answers merged from several requests:
+ * a proven pick before an unproven one, then the score, then the id. Each
+ * candidate's score depends on it alone, so batches merge without distortion.
+ */
+function byServerOrder(a: DraftCandidate, b: DraftCandidate) {
+  return Number(a.thinSample) - Number(b.thinSample) || b.score - a.score || a.championId - b.championId
+}
 
 /**
  * The draft answer for the current champion select: the enemy lanes, our lane
@@ -52,22 +64,32 @@ export function useDraftRecommendation(
     pending.value = true
     error.value = null
 
-    try {
-      const answer = await ask({
-        position: state.myPosition,
-        enemyChampions: state.enemyChampions,
-        pinnedEnemyLanes: pinnedLanes.value,
-        previousEnemyLanes: Object.fromEntries(
-          (recommendation.value?.enemyLanes ?? []).map(lane => [lane.championId, lane.position]),
-        ),
-        allies: allies.value,
-        bans: [...state.allyBans, ...state.enemyBans],
-        candidates: candidates.value,
-      })
+    const base = {
+      position: state.myPosition,
+      enemyChampions: state.enemyChampions,
+      pinnedEnemyLanes: pinnedLanes.value,
+      previousEnemyLanes: Object.fromEntries(
+        (recommendation.value?.enemyLanes ?? []).map(lane => [lane.championId, lane.position]),
+      ),
+      allies: allies.value,
+      bans: [...state.allyBans, ...state.enemyBans],
+    }
+    // A pool wider than one request is split, and the answers merged: the
+    // lanes come from the first, the candidates from all of them.
+    const batches: number[][] = []
+    for (let start = 0; start < candidates.value.length; start += CANDIDATES_PER_REQUEST) {
+      batches.push(candidates.value.slice(start, start + CANDIDATES_PER_REQUEST))
+    }
+    if (!batches.length) batches.push([])
 
+    try {
+      const answers = await Promise.all(batches.map(batch => ask({ ...base, candidates: batch })))
+      const [first] = answers
       // A stale answer must not overwrite a fresher one; champion select fires
       // these faster than they come back.
-      if (requestId === latestRequest) recommendation.value = answer
+      if (first && requestId === latestRequest) {
+        recommendation.value = { ...first, candidates: answers.flatMap(answer => answer.candidates).sort(byServerOrder) }
+      }
     }
     catch (cause) {
       if (requestId !== latestRequest) return

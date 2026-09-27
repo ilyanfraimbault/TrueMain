@@ -29,9 +29,6 @@ export interface DraftRecommendation {
   candidates: DraftCandidate[]
 }
 
-/** Which champions the draft endpoint is asked to rank: the lane's meta picks, or the ones below them. */
-export type DraftPool = 'meta' | 'offmeta'
-
 /** One slot of a team, as the draft screen hands it over. */
 export interface TeamRow {
   championId: number | null

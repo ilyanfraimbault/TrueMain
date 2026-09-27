@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { DraftPool, Lane, TeamRow } from '~/types/draft'
+import type { Lane, TeamRow } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 import type { ViewedPick } from '~/composables/useDraftSubject'
 import { LANES, LANE_LABELS } from '~/types/draft'
@@ -19,13 +19,22 @@ const props = withDefaults(defineProps<{
 }>(), { label: 'Champion select', activeSlot: null })
 
 const { nameOf } = useChampionStatics()
-const { laneEntries } = useTierList()
+const { laneEntries, entryOf } = useTierList()
+const { state: lcu } = useLcuState()
 
 const draft = toRef(props, 'draft')
 
 // ─── The pool, and the answer for it ────────────────────────────────────────
 
-const poolKind = ref<DraftPool>('meta')
+/** How many of the player's own champions are ranked: their ten most played on the lane. */
+const POOL_SIZE = 10
+
+/** The player's champions, most mastery first — empty until the client has said. */
+const championPool = computed(() => lcu.value.championPool ?? [])
+const hasPool = computed(() => championPool.value.length > 0)
+
+/** Rank the player's own champions, or every champion played on the lane. On by default when there is a pool. */
+const myPool = ref(true)
 
 /** Champions nobody can pick any more: banned, or locked on either side. */
 const unavailable = computed(() => new Set([
@@ -35,11 +44,21 @@ const unavailable = computed(() => new Set([
   ...props.draft.myTeam.filter(slot => slot.locked && !slot.isMe && slot.championId !== null).map(slot => slot.championId!),
 ]))
 
-/** The lane's tier list, best first: the forty the endpoint scores at most, or the forty after them. */
+/**
+ * What the endpoint ranks. Our pool: the player's most-mastered champions that
+ * are played on our lane, the first ten still available. Otherwise every
+ * champion the tier list has on the lane — split into several requests when
+ * it is more than one can score.
+ */
 const candidates = computed(() => {
-  if (!props.draft.myPosition) return []
-  const lane = laneEntries(props.draft.myPosition).filter(entry => !unavailable.value.has(entry.championId))
-  return (poolKind.value === 'meta' ? lane.slice(0, 40) : lane.slice(40, 80)).map(entry => entry.championId)
+  const position = props.draft.myPosition
+  if (!position) return []
+  if (myPool.value && hasPool.value) {
+    return championPool.value
+      .filter(id => !unavailable.value.has(id) && entryOf(id, position) !== null)
+      .slice(0, POOL_SIZE)
+  }
+  return laneEntries(position).filter(entry => !unavailable.value.has(entry.championId)).map(entry => entry.championId)
 })
 
 const pinnedLanes = ref<Record<number, string>>({})
@@ -196,7 +215,8 @@ const opponentId = computed(() => {
     <div class="min-h-0 flex-1">
       <DraftSuggestions
         v-if="mode === 'pick'"
-        v-model:pool-kind="poolKind"
+        v-model:my-pool="myPool"
+        :has-pool="hasPool"
         :pool="candidates"
         :candidates="recommendation?.candidates ?? []"
         :pending="ranking"

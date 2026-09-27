@@ -42,7 +42,7 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
         <div class="min-w-0">
           <h1 class="truncate text-3xl font-semibold tracking-tight text-highlighted">{{ nameOf(championId) }}</h1>
           <div class="mt-2 flex items-center gap-3">
-            <LaneTabs v-if="lanes.length" v-model="lane" :lanes="lanes" labels />
+            <RolePicker v-if="lanes.length" v-model:position="lane" hide-all />
             <span v-else class="text-sm text-dimmed">Not tiered on any lane this patch</span>
           </div>
         </div>

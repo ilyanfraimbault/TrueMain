@@ -66,11 +66,48 @@
 }
 
 @theme {
-  /* Inter is not fetched: the app has no font-src and must not depend on the
-     network for its own chrome. The system face is the fallback by design. */
+  /* Inter is bundled by @nuxt/fonts at build time: the app has no font-src and
+     must not depend on the network for its own chrome. */
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* The core view's fixed row widths, as the site names them. */
+  --width-build-path: 336px;
+  --width-starter-items: 116px;
+
+  /*
+   * The site's stat and damage-type colours for game-entity tooltips — Riot's
+   * in-client vocabulary, text emphasis only. Copied from
+   * `web/app/assets/css/main.css`; keep the two in step.
+   */
+  --color-stat-health: #24a564;
+  --color-stat-armor: #f3c057;
+  --color-stat-mr: #54e6ff;
+  --color-stat-tenacity: #8c72ff;
+  --color-stat-hsp: #6be695;
+  --color-stat-heal-reduction: #8d5874;
+  --color-stat-mana: #00a6ed;
+  --color-stat-haste: #ede2cf;
+  --color-stat-speed: #ffffff;
+  --color-stat-ad: #f19425;
+  --color-stat-lethality: #f65e57;
+  --color-stat-crit: #ee2a00;
+  --color-stat-as: #ffe991;
+  --color-stat-ap: #7e78ff;
+  --color-stat-magicpen: #cc6efc;
+  --color-stat-vamp: #d70045;
+  --color-stat-true: #f5f5f5;
+  --color-stat-adaptive: #48c4b7;
+  --color-stat-status: #9366a9;
+  --color-stat-stealth: #b472a6;
+  --color-stat-shield: #e0c56e;
+  --color-stat-gold: #c8aa6e;
+  --color-stat-passive: #ffffff;
+  --color-stat-active: #f3c057;
 }
+
+/* The tag-class maps of the twinned tooltip parser live outside the app dir. */
+@source "../../../shared/utils/**/*.ts";
 
 html {
   font-family: var(--font-sans);

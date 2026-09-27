@@ -12,44 +12,73 @@ Tracking issue: **#1671**.
   a new port.
 - Follows the client's **WebSocket event stream**, so champion select updates as
   picks land rather than on a poll.
-- Switches screen on the **gameflow phase**: no client, lobby (dashboard), champion
-  select (draft).
-- Draws the draft: both teams as splash banners on their lanes (lane icons on
-  empty slots too), each side's bans, the phase timer.
-- **Shows the build to run against the draft as it stands** — runes, summoner
-  spells, skill order, starter, boots, build path and build tree — from the
-  endpoint behind the site's matchup page (`POST /champions/{id}/composition-build`),
-  fed every locked pick of both teams on its lane. It re-asks on every lock, and
-  a lock landing while a request is out aborts that request (in Rust, and through
-  the fetch signal in a browser) rather than queueing behind it. A matchup never
-  recorded falls back to the lane's standard build, labelled as such.
-- **Says how hard the lane is**: the site's own verdict (`laneVerdict`, gold gap
-  at 15 over the same sampled games), with the lane win rate beside it.
+- **A sidebar to every section the site has** — dashboard, champions, tier list,
+  matchup, truemains, favorites — plus the live draft and a draft simulator. The
+  **gameflow phase still drives the screen**: champion select opens the draft on
+  its own, and leaving it goes back home (only from the draft, never from a page
+  the player opened by hand).
+- **Draws the draft like the reference client**: each side's bans and the phase
+  clock over the two teams as tall pick cards with their tier on their lane, our
+  lane duel between them (champion vs opponent, and the lane win rate over the
+  games behind the build).
+- **Ranks the picks while ours is open**: "My pool" asks the draft endpoint
+  (#1675) about the player's ten most-mastered champions played on the lane;
+  off, every champion the tier list has on the lane (split into requests of 40,
+  the endpoint's ceiling). Before any enemy pick or locked ally there is nothing
+  to measure, so the podium shows win rates on the lane instead of "+0.0%".
+- **Shows the build to run against the draft as it stands** once the pick is
+  locked (or on a click), from the endpoint behind the site's matchup page
+  (`POST /champions/{id}/composition-build`), fed every locked pick of both teams
+  on its lane, next to the champion's lane builds and its best true mains. It
+  re-asks on every lock, and a lock landing while a request is out aborts that
+  request (in Rust, and through the fetch signal in a browser) rather than
+  queueing behind it. A matchup never recorded falls back to the lane's
+  standard build, labelled as such.
 - **Reads any champion's build**: clicking a pick shows that champion's build
   from its own side of the draft; a second click comes back to ours.
-
 - **Resolves the enemy lanes** (#1674) and lets you correct them by dragging
   one enemy onto another, pinning your correction so the rest re-solve around
-  it (#1677). A click on an enemy now reads its build instead.
-- **Names your lane opponent**, with how sure it is — a coin flip says so.
+  it (#1677).
 - **Reads your champion mastery** once per login, to rank your own pool
   (`championPool`, most points first) without asking what you play.
+- **Uses the site's own components** for everything the site already draws —
+  the build core view and tree, the game-entity tooltips, the leaderboard row,
+  rank and region marks, the role picker — as labelled twin copies (see
+  "Sharing with the site" below).
 
 ## What it does not do yet
 
-- **No pick recommendation on screen.** The endpoint ranks candidates (#1675)
-  but the app sends an empty candidate pool: it does not know the player's
-  champion pool yet, which is #1682.
-- **The build view is a copy of the site's**, not the site's own components:
-  `BuildTree`, `ItemRankBadge` and the lane verdict are ported by hand, and the
-  icons carry no tooltip. Sharing them through a Nuxt layer is #1687.
+- **The ranking sees the lane opponent and our locked allies, not the rest of
+  the enemy team**, and weighs the two equally. Both are backend work: #1713.
+- **No win probability.** The reference apps show one out of a model we do not
+  have; the draft strip carries the clock instead (#1671).
 - **The rune import is written but not reachable.** Its client-side write path
   and the rule that protects the player's own pages are implemented and tested
   (`crates/lcu/src/runes.rs`); there is no button because the draft endpoint does
   not return a rune page yet (#1678).
-- **The dashboard is a placeholder.** It needs #1682 — our database holds true
-  mains only, so a player we do not track has nothing to render.
+- **The dashboard knows the player only by what the client says.** Their own
+  numbers need #1682 — our database holds true mains only.
 - **No in-game overlay.** That is v2, gated on the spike in #1673.
+
+## Sharing with the site
+
+The app is its own Nuxt project, so the site's components reach it as **twin
+copies** — the repo's rule for a file two apps need (`decisions/web-frontend-rules.md`):
+each copied file says so in a header naming its twin, and stays identical to it
+except for lines marked app-specific. The shared types and utilities sit under
+`app/shared/` at the same paths as `web/shared/`, so the copies keep their
+`~~/shared/...` imports unchanged. What the app does differently lives beside
+them, not inside them:
+
+- `composables/useSiteShims.ts` answers the site composables the copies call
+  (`useChampionSlugs`, `useBuildResolvers`, `useCanonicalIcon`) for an app with
+  no image server and no player pages;
+- `utils/static-data.ts` builds the site's static-data shapes from Data Dragon
+  and Community Dragon in the webview, where the site does it in Nitro;
+- `SkeletonImage`, `RankIcon`, `FavoriteToggle` and `LeaderboardRow` carry the
+  app-specific differences, each stated in its header.
+
+A Nuxt layer would replace the copies; that is #1687.
 
 ## Reaching the API
 
@@ -61,7 +90,15 @@ entry point, overridable at build time with `TRUEMAIN_API_BASE`.
 Those calls go through **Rust**, not the webview's `fetch`. From the webview
 they would be subject to CORS against an origin the site was never configured
 for, and would force the content-security policy open to a remote host. From
-Rust neither applies and the CSP stays closed.
+Rust neither applies and the CSP stays closed. The draft and build calls have a
+command each; the pages' reads go through `api_get`, which forwards a short
+allow-list of read-only paths (tier list, truemains leaderboard and search) and
+nothing else.
+
+Static game data is the exception: the webview fetches Data Dragon and Community
+Dragon itself (the CSP lets those two hosts through), the same files the site's
+static endpoints read. A true main's page opens on truemain.lol in the player's
+browser — the shell's `open` is scoped to that origin.
 
 ## Layout
 
@@ -130,14 +167,25 @@ cd desktop/app && npm run dev        # then pick a scenario at the bottom
 ```
 
 `npm run dev` outside Tauri has no client and no Rust, so it opens on a picker
-of states the client would have pushed — `?scenario=draft-locked` links to one
-directly. This is for working on the UI with hot reload; it proves nothing below
-the frontend. `app/app/fixtures/scenarios.json` holds the states, and the lane
-answer each draft scenario shows. The build is real data: the dev server proxies
-`/api` to `https://truemain.lol/api` (`nuxt.config.ts`, dev only), since there
-is no Rust to ask. In a production build the picker
-never renders — `import.meta.dev` is false — but Nuxt still bundles it, and the
-fixtures sit in a 2 kB lazy chunk that is never fetched.
+of states the client would have pushed — `?scenario=draft-locked#/draft` links
+to one directly (the route is in the hash). This is for working on the UI with
+hot reload; it proves nothing below the frontend. `app/app/fixtures/scenarios.json`
+holds the states. Everything else is real data: the dev server proxies `/api`
+to `https://truemain.lol/api` (`nuxt.config.ts`, dev only), since there is no
+Rust to ask. In a production build the picker never renders — `import.meta.dev`
+is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chunk
+that is never fetched.
+
+### The draft simulator — a whole champion select, by hand
+
+The **Draft simulator** entry of the sidebar plays a ranked draft one action at
+a time through the same draft screen: pick the side, your lane and your pick
+order, then each ban and pick in the client's order (both sides' bans, then
+1-2-2-2-2-1). Type a champion and press Enter; your own pick lands as a hover
+first, like in the client, until **Lock in**. **Auto-fill** plays forward with
+plausible bans and meta picks up to your turn, then to the end; **Undo** takes
+one action back. It works in the packaged app and in `npm run dev`, with or
+without a client — with one, "My pool" ranks the logged-in player's champions.
 
 ## Building
 

@@ -1,25 +1,28 @@
 <script setup lang="ts">
-import type { DraftCandidate, DraftPool } from '~/types/draft'
+import type { DraftCandidate } from '~/types/draft'
 
 /**
  * "Your pick": the candidates the draft endpoint ranked for our lane, best
  * first, as a podium of posters. A click on one opens its build against this
  * draft — the app never picks; the player does, in the client.
  *
- * The pool is the lane's tier list — the meta picks, or the ones below them —
- * until the app knows the player's own pool (#1682), which is why "My pool"
- * is there and not yet on.
+ * "My pool" ranks the player's own champions (their most-mastered on the
+ * lane); off, every champion played on the lane. Either way the ranking is the
+ * endpoint's: the matchup against the lane opponent, and the pairing with the
+ * allies already locked.
  */
 const props = defineProps<{
   candidates: DraftCandidate[]
-  /** The pool as it was asked for — the lane's tier-list order. */
+  /** The pool as it was asked for — mastery order for ours, tier-list order for the lane's. */
   pool: number[]
+  /** The client has told us the player's champions: "My pool" can be on. */
+  hasPool: boolean
   pending: boolean
   position: string
   error: string | null
 }>()
 
-const poolKind = defineModel<DraftPool>('poolKind', { default: 'meta' })
+const myPool = defineModel<boolean>('myPool', { default: true })
 const emit = defineEmits<{ preview: [championId: number] }>()
 
 const { nameOf } = useChampionStatics()
@@ -31,8 +34,8 @@ const hovered = ref<number | null>(null)
 /**
  * Whether the draft gave the endpoint anything to measure. With no lane
  * opponent resolved and no ally locked, every score is a zero over no games —
- * so the podium shows the lane's tier-list order and win rates instead of a
- * row of "+0.0%".
+ * so the podium keeps the pool's own order and shows each champion's win rate
+ * on the lane instead of a row of "+0.0%".
  */
 const measured = computed(() => props.candidates.some(candidate => candidate.matchupGames > 0 || candidate.synergyGames > 0))
 
@@ -52,27 +55,27 @@ const focused = computed(() => hovered.value ?? shown.value[0]?.championId ?? nu
 
 /** The podium: the best card full height, each next one a step lower, down to a floor. */
 const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
-
-const pools = [
-  { label: 'Meta', value: 'meta' },
-  { label: 'Off-meta', value: 'offmeta' },
-]
 </script>
 
 <template>
   <section class="flex h-full min-h-0 flex-col gap-3">
     <header class="flex items-center gap-4">
       <h2 class="text-base font-semibold text-highlighted">Your pick</h2>
-      <UTooltip v-if="!measured && candidates.length" text="Nothing to measure against yet: the lane's tier list, until an enemy picks or an ally locks in">
-        <UBadge color="neutral" variant="soft" size="sm" icon="i-lucide-trending-up">Lane meta</UBadge>
+      <UTooltip v-if="!measured && candidates.length" text="Nothing to measure against yet: win rates on the lane, until an enemy picks or an ally locks in">
+        <UBadge color="neutral" variant="soft" size="sm" icon="i-lucide-hourglass">Before the enemy picks</UBadge>
       </UTooltip>
       <UIcon v-if="pending" name="i-lucide-loader-circle" class="size-4 text-dimmed" />
 
       <div class="ml-auto flex items-center gap-3">
-        <span class="stat-label">Pool</span>
-        <UTabs v-model="poolKind" :items="pools" :content="false" size="xs" color="neutral" :ui="{ list: 'bg-elevated' }" />
-        <UTooltip text="Soon: ranks the champions you play">
-          <USwitch label="My pool" size="sm" disabled :ui="{ label: 'stat-label' }" />
+        <UTooltip :text="hasPool ? 'Your ten most-played champions on this lane' : 'Needs the League client: your champions come from it'">
+          <USwitch
+            :model-value="myPool && hasPool"
+            label="My pool"
+            size="sm"
+            :disabled="!hasPool"
+            :ui="{ label: 'stat-label' }"
+            @update:model-value="myPool = $event"
+          />
         </UTooltip>
         <UInput v-model="search" icon="i-lucide-search" placeholder="Search a champion" size="sm" class="w-48" />
       </div>

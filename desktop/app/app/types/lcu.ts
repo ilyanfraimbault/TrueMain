@@ -34,6 +34,8 @@ export interface AppState {
   riotId: string | null
   profileIconId: number | null
   summonerLevel: number | null
+  /** Champions the player has mastery points on, most first — their pick pool. Empty until read. */
+  championPool: number[]
   draft: DraftState | null
 }
 
@@ -46,5 +48,6 @@ export const EMPTY_STATE: AppState = {
   riotId: null,
   profileIconId: null,
   summonerLevel: null,
+  championPool: [],
   draft: null,
 }
