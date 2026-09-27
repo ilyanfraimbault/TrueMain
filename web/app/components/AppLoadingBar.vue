@@ -6,7 +6,9 @@
  * viewport's top edge with inline styles, above the header; this one reads the
  * same `useLoadingIndicator` singleton — started on `page:loading:start`,
  * finished once the destination page has resolved what it awaits in setup —
- * and sits on the header's bottom edge instead.
+ * and sits on the header's bottom edge instead. The header floats (#1709): its
+ * root adds `pt-3` above the bar itself, so the offset is the header height
+ * plus that 0.75rem — change the two together.
  *
  * Shown on every page change, fast ones included: the outgoing page stays on
  * screen until the destination has its data, so the bar is the only sign the
@@ -26,7 +28,7 @@ const { progress, isLoading, error } = useLoadingIndicator({ throttle: 50 })
 <template>
   <div
     aria-hidden="true"
-    class="pointer-events-none fixed inset-x-0 top-(--ui-header-height) z-50 h-0.5 origin-left"
+    class="pointer-events-none fixed inset-x-0 top-[calc(var(--ui-header-height)+0.75rem)] z-50 h-0.5 origin-left"
     :class="error ? 'bg-error' : 'bg-primary'"
     :style="{
       opacity: isLoading ? 1 : 0,
