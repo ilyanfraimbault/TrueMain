@@ -76,18 +76,20 @@ await Promise.all([overviewFetch, truemainsReady])
          tables and made rows change luminance down the length of the list.
          `relative` + `overflow-hidden` give the absolutely-positioned backdrop
          its bounds, and the fade below hands off to the flat page background so
-         the corona doesn't stop at a hard edge. -->
-    <section class="relative overflow-hidden">
+         the corona doesn't stop at a hard edge. The negative top margin (the
+         floating header's full height) slides the hero up under that bar, so
+         the eclipse runs to the top of the viewport behind it. -->
+    <section class="relative -mt-19 overflow-hidden">
       <AppBackdrop />
       <div
         aria-hidden="true"
         class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-32 bg-gradient-to-b from-transparent to-default"
       />
-      <div class="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-16 pt-20 text-center sm:pb-24 sm:pt-28">
-        <p class="text-sm font-medium text-primary">
+      <div class="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-16 pt-36 text-center sm:pb-24 sm:pt-44">
+        <p class="eyebrow">
           Champion intelligence
         </p>
-        <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-tighter text-highlighted sm:text-6xl">
+        <h1 class="mt-5 text-4xl font-semibold leading-[1.05] text-highlighted sm:text-6xl">
           Real builds from<br>
           <span class="text-primary">real mains</span>.
         </h1>
@@ -159,34 +161,47 @@ await Promise.all([overviewFetch, truemainsReady])
     <!-- Live data panels — equal-width halves so the two read as a balanced
          pair and the truemains rows have room for champion + play-rate
          without truncating names. -->
-    <section class="mx-auto grid max-w-6xl gap-6 px-4 pb-20 md:px-6 lg:grid-cols-2">
-      <!-- Tier list: rendered eagerly (no chunk to fetch on demand, no
-           intersection-observer gate — #972), so there is no window where
-           neither the skeleton nor the real panel is on screen. -->
-      <HomeTierlistPanelSkeleton v-if="tierlistPending" />
-      <HomeTierlistPanel
-        v-else
-        :top-rows="overview?.topRows ?? []"
-        :champions-by-id="championsById"
-      />
-      <!-- Truemains teaser stays eagerly SSR'd + immediately hydrated: its rows
-           come from a `server: true` fetch, and its profile-icon `v-if`/`v-else`
-           and champion enrichment resolve from `server: false` sources, so
-           delaying its hydration would flip those branches after the data lands
-           and cause a structural hydration mismatch. The ~373 KiB item map it
-           needs is instead deferred inside the panel (visibility-gated fetch). -->
-      <HomeTruemainsPanel
-        :rows="truemainRows"
-        :champions-by-id="championsById"
-        :initial-loading="truemainsInitialLoading"
-        :patch="ddragonPatch"
-      />
+    <section class="mx-auto max-w-6xl px-4 pb-20 md:px-6">
+      <div class="mb-8">
+        <p class="eyebrow">
+          This patch
+        </p>
+        <h2 class="mt-3 max-w-2xl text-2xl font-medium text-balance text-highlighted sm:text-4xl">
+          The strongest picks, and the players who main them.
+        </h2>
+      </div>
+      <div class="grid gap-6 lg:grid-cols-2">
+        <!-- Tier list: rendered eagerly (no chunk to fetch on demand, no
+             intersection-observer gate — #972), so there is no window where
+             neither the skeleton nor the real panel is on screen. -->
+        <HomeTierlistPanelSkeleton v-if="tierlistPending" />
+        <HomeTierlistPanel
+          v-else
+          :top-rows="overview?.topRows ?? []"
+          :champions-by-id="championsById"
+        />
+        <!-- Truemains teaser stays eagerly SSR'd + immediately hydrated: its rows
+             come from a `server: true` fetch, and its profile-icon `v-if`/`v-else`
+             and champion enrichment resolve from `server: false` sources, so
+             delaying its hydration would flip those branches after the data lands
+             and cause a structural hydration mismatch. The ~373 KiB item map it
+             needs is instead deferred inside the panel (visibility-gated fetch). -->
+        <HomeTruemainsPanel
+          :rows="truemainRows"
+          :champions-by-id="championsById"
+          :initial-loading="truemainsInitialLoading"
+          :patch="ddragonPatch"
+        />
+      </div>
     </section>
 
     <!-- CTA -->
     <section class="border-t border-default/60">
       <div class="mx-auto max-w-3xl px-6 py-16 text-center sm:py-20">
-        <h2 class="text-2xl font-semibold tracking-tight sm:text-3xl">
+        <p class="eyebrow">
+          Your champion
+        </p>
+        <h2 class="mt-3 text-3xl font-medium text-balance sm:text-5xl">
           Find <span class="text-primary">your</span> real build.
         </h2>
         <p class="mx-auto mt-3 max-w-xl text-base text-muted">

@@ -77,8 +77,18 @@ Reach for the material utilities rather than composing a surface by hand:
   artwork alone is not a reliable signal (a selected grey rune reads exactly like its unpicked neighbours), so
   the ring carries the state independently of the icon. Low-contrast on purpose: a highlight, not a border.
 
-There is no translucent material. The former `glass` was removed once the last call site went opaque —
-including the home hero's search field, which reads better solid against the eclipse.
+- **`keycap`** — the edge `surface` already carries, on its own: a one-pixel lit top edge and a one-pixel
+  shade at the bottom, both inset (`--shadow-key`). It makes a panel or a control read as a key rather than a
+  flat swatch. It goes through Tailwind's `--tw-inset-shadow` slot, so it stacks with `ring-*` and focus rings
+  instead of replacing them. Filled buttons (`solid` / `soft` / `subtle`) get it from `app.config.ts`; the
+  recessed search field wears it on `bg-muted`.
+- **`glass-bar`** — the **only** translucent material, reserved for the floating header: it is the one surface
+  page content actually scrolls behind, so it is the one place a blur has something to show. Do not reuse it
+  for panels. The general-purpose `glass` is gone — the home hero's search field reads better solid against
+  the eclipse.
+- **`eyebrow`** — the short label above a page or section heading: Geist Mono, 11 px, uppercase, tracked,
+  `text-dimmed`. It names the section; the heading under it makes the statement, so the eyebrow never takes
+  the accent. Headings under an eyebrow are medium weight and large (`text-2xl` → `sm:text-4xl`).
 
 **`surface` owns `background-color` and `border` — don't restate them.** Writing `class="surface border
 border-default/60 bg-elevated/60"` is not merely redundant: a plain utility out-cascades a `@utility`
@@ -111,11 +121,13 @@ Not every token is a colour. `main.css` also owns:
   build-path and starter-item strips, used as `sm:w-build-path` / `sm:w-starter-items`. Named so the
   item-count math lives in one place instead of an arbitrary `w-[…]` at each call site.
 
-`app.config.ts` sets three app-wide component defaults, each of which is a design decision, not a
+`app.config.ts` sets four app-wide component defaults, each of which is a design decision, not a
 preference:
 
-- **`card`** — every `UCard` is `surface rounded-xl` with trimmed padding, and the `soft` variant's stock
+- **`card`** — every `UCard` is `surface rounded-2xl` with trimmed padding, and the `soft` variant's stock
   `bg-elevated/50` is restated as the opaque `bg-elevated` (see the cascade trap below).
+- **`button.variant`** — `solid`, `soft` and `subtle` carry `keycap`; `ghost`, `link` and `outline` do not,
+  because they paint no fill for a lit edge to belong to. Primary buttons stay rose gold.
 - **`skeleton.base`** — `bg-ink-700`, per the section above.
 - **`badge.variant`** — `subtle` rather than Nuxt UI's `solid`. `subtle` is a translucent `bg-{color}/10`
   plus a matching `ring-inset ring-{color}/25`: it tints without becoming a surface of its own, and keeps the
