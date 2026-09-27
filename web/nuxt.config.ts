@@ -161,7 +161,9 @@ export default defineNuxtConfig({
     // API: it only starts once the destination has resolved its awaited data,
     // so the outgoing page and the loading bar stay live during the wait,
     // where a view transition freezes the whole frame until `page:finish`.
-    pageTransition: { name: 'page', mode: 'out-in' },
+    // No `mode: 'out-in'`: a navigation during its leave left a blank page for
+    // good (#1714) — main.css makes the leave instant instead.
+    pageTransition: { name: 'page' },
   },
   // `~/…`, not a root-relative `./app/…`: since the Nuxt 4.5 / Vite 8.2 bump
   // the relative form is resolved against the build dir (`.nuxt/`) in dev, so
