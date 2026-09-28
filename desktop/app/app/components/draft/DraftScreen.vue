@@ -165,6 +165,15 @@ const selectedCell = computed(() => {
   const index = rows.findIndex(row => row.championId === shown.championId)
   return shown.team === 'ally' ? { ally: index, enemy: -1 } : { ally: -1, enemy: index }
 })
+
+/** Its lane opponent, marked on the other side so the duel reads across the board. */
+const opponentCell = computed(() => {
+  const id = duel.value.opponentId
+  if (id === null) return { ally: -1, enemy: -1 }
+  const onAllies = shownView.value?.team === 'enemy'
+  const index = (onAllies ? allyRows.value : enemyRows.value).findIndex(row => row.championId === id)
+  return onAllies ? { ally: index, enemy: -1 } : { ally: -1, enemy: index }
+})
 function back() {
   viewed.value = null
   previewed.value = null
@@ -183,6 +192,7 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         team="ally"
         :rows="allyRows"
         :selected-cell="selectedCell.ally"
+        :opponent-cell="opponentCell.ally"
         :active-cell="activeAllyCell"
         :suggested="suggested"
         @view="view('ally', $event)"
@@ -202,6 +212,7 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
           team="enemy"
           :rows="enemyRows"
           :selected-cell="selectedCell.enemy"
+          :opponent-cell="opponentCell.enemy"
           :active-cell="activeEnemyCell"
           :correctable="recommendation !== null"
           @view="view('enemy', $event)"

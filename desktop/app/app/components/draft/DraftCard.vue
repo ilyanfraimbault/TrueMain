@@ -7,7 +7,9 @@ import { laneIconUrl } from '~/types/draft'
  * that tier's colour. A hairline in the side's colour says whose it is.
  *
  * One ring, in TrueMain's colour, marks the card whose build and lane are on
- * screen (`selected`); a dragged enemy shows its drop targets dashed. The slot
+ * screen (`selected`); a faint one of the same colour marks its lane opponent
+ * across the board, so the duel reads as a pair rather than as a second
+ * selection. A dragged enemy shows its drop targets. The slot
  * being filled is not a ring — two would read as two selections — but its
  * side's hairline, thickened and pulsing.
  */
@@ -23,6 +25,8 @@ const props = withDefaults(defineProps<{
   active?: boolean
   /** Its build and lane are the ones on screen. */
   selected?: boolean
+  /** The selected champion's lane opponent. */
+  opponent?: boolean
   dropTarget?: boolean
   /** Portraits to suggest in our own empty slot. */
   suggested?: number[]
@@ -31,8 +35,9 @@ const props = withDefaults(defineProps<{
 const { nameOf, portraitOf } = useChampionStatics()
 
 const ring = computed(() => {
-  if (props.dropTarget) return 'ring-2 ring-dashed ring-accented'
+  if (props.dropTarget) return 'ring-2 ring-accented'
   if (props.selected) return 'ring-2 ring-primary shadow-[0_0_20px_-8px_var(--color-rosegold-400)]'
+  if (props.opponent) return 'ring-2 ring-primary/35'
   return 'ring-1 ring-white/5'
 })
 

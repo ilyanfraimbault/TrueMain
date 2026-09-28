@@ -13,13 +13,15 @@ const props = withDefaults(defineProps<{
   rows: TeamRow[]
   /** The card whose build is on screen, ringed. */
   selectedCell?: number | null
+  /** The selected champion's lane opponent, when it is on this side. */
+  opponentCell?: number | null
   /** The cell the simulator is filling. */
   activeCell?: number | null
   /** Portraits to suggest in our own empty slot. */
   suggested?: number[]
   /** Enemy lanes resolved: the cards can be dragged to correct them. */
   correctable?: boolean
-}>(), { selectedCell: null, activeCell: null, suggested: () => [], correctable: false })
+}>(), { selectedCell: null, opponentCell: null, activeCell: null, suggested: () => [], correctable: false })
 
 const emit = defineEmits<{ view: [championId: number], swap: [from: Lane, to: Lane] }>()
 
@@ -77,6 +79,7 @@ function label(row: TeamRow) {
           :tier="tierOf(row)"
           :lane="row.lane"
           :selected="selectedCell === index"
+          :opponent="opponentCell === index"
           :tentative="row.championId !== null && !row.locked"
           :active="activeCell === index"
           :drop-target="dragging !== null && row.lane !== null && dragging !== row.lane"

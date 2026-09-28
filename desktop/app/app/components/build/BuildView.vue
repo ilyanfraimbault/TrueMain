@@ -67,7 +67,7 @@ const waiting = computed(() => !shown.value && (lanePending.value || props.draft
 </script>
 
 <template>
-  <div class="surface relative grid h-full min-h-0 grid-cols-[22rem_minmax(0,1fr)] overflow-hidden rounded-xl">
+  <div class="surface relative grid h-full min-h-0 grid-cols-[18rem_minmax(0,1fr)] overflow-hidden rounded-xl">
     <!-- The thin bar that says a newer draft is being asked for, without hiding the answer on screen. -->
     <div v-if="draft?.pending && shown" class="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden">
       <div class="h-full w-1/3 animate-[tm-scan_1.1s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-primary to-transparent" />

@@ -10,7 +10,7 @@ import { itemSlots } from '~~/shared/utils/build'
  * 768 px container; the pane is ~560 px, so there the runes fell under
  * everything and pushed the build tree off screen. Here the rest is a 2 × 2
  * grid over the build path, drawn at 30 px, and the runes stand to its right,
- * stretched to the same height, so the tree starts right under both.
+ * centred on its height, so the tree starts right under both.
  *
  * Every icon is the site's own — tooltips, the Q/W/E badge, the rune block —
  * only the arrangement and the size are the app's.
@@ -127,9 +127,9 @@ const path = computed(() => itemSlots(props.itemPath?.itemIds, props.itemsMap))
         </section>
       </div>
 
-      <!-- As tall as the column beside it: the rune rows spread over its height. -->
-      <div class="flex min-w-0 justify-center overflow-hidden">
-        <ChampionCoreRunes v-if="runePage && runeTree" :page="runePage" :tree="runeTree" :size="32" :keystone-size="34" class="h-full" />
+      <!-- The site's rune block at the site's own size and spacing, centred against the column beside it. -->
+      <div class="flex min-w-0 items-center justify-center overflow-hidden">
+        <ChampionCoreRunes v-if="runePage && runeTree" :page="runePage" :tree="runeTree" :size="36" :keystone-size="39" />
         <p v-else-if="!runePage && noRunesMessage" class="text-sm text-muted">{{ noRunesMessage }}</p>
       </div>
     </div>

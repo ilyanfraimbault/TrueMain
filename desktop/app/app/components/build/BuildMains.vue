@@ -6,7 +6,8 @@ import { isApexTier } from '~/utils/tiers'
 /**
  * The champion's best true mains — what the reference client lists as pro
  * builds. The row is the site's compact one (the home page's "Top truemains",
- * `home/TruemainsPanel.vue`), fitted to a 22rem column: every row mains the
+ * `home/TruemainsPanel.vue`), fitted to the build view's narrow column — the
+ * tag under the name, beside the flag, so the name keeps the width: every row mains the
  * champion on screen, so its icon gives way to the keystone and first item the
  * main runs on it, and the Riot ID keeps the width it needs. The full
  * leaderboard row does not fit here — it would leave the name 50 px. A row
@@ -77,12 +78,13 @@ const profilePath = (row: LeaderboardRowResponse) =>
           height="32"
           class="size-8 shrink-0 rounded-lg"
         />
-        <div class="min-w-0 flex-1">
-          <div class="flex items-baseline gap-1 truncate">
-            <span class="truncate text-sm font-semibold text-default">{{ row.identity.gameName }}</span>
-            <span v-if="row.identity.tagLine" class="shrink-0 text-xs text-muted">#{{ row.identity.tagLine }}</span>
+        <!-- The tag goes under the name, beside the flag: the narrow column keeps its width for the name. -->
+        <div class="min-w-0 flex-1 leading-tight">
+          <p class="truncate text-[13px] font-semibold text-default">{{ row.identity.gameName }}</p>
+          <div class="mt-0.5 flex items-center gap-1">
+            <LeaderboardRegionFlag :region="row.region" :width="14" />
+            <span v-if="row.identity.tagLine" class="truncate text-[11px] text-muted">#{{ row.identity.tagLine }}</span>
           </div>
-          <LeaderboardRegionFlag :region="row.region" :width="16" class="mt-0.5" />
         </div>
         <div class="relative z-10 flex shrink-0 items-center gap-0.5">
           <GameTooltipPerkIcon :perk="perk(onChampion(row)?.primaryKeystoneId)" :width="22" :height="22" class="size-[22px] shrink-0 rounded-full" />
