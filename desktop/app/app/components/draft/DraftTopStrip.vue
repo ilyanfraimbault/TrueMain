@@ -5,15 +5,20 @@
  *
  * The reference apps put a win probability here. We do not have a model that
  * produces one, and a number that comes from neither an endpoint nor a
- * measurement is not one this app shows (#1671) — so the middle is the clock.
+ * measurement is not one this app shows (#1671) — so the middle is the clock,
+ * or, on a board filled by hand, whatever the page puts there (its `center`).
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   allyBans: number[]
   enemyBans: number[]
   secondsLeft: number
   /** What the draft is waiting for, in the player's words. */
   label: string
-}>()
+  /** A board filled by hand: an empty ban slot takes a champion, a filled one comes off on a click. */
+  editable?: boolean
+}>(), { editable: false })
+
+const emit = defineEmits<{ ban: [team: 'ally' | 'enemy'], unban: [championId: number] }>()
 
 const { nameOf, portraitOf } = useChampionStatics()
 
@@ -38,20 +43,34 @@ const urgent = computed(() => props.secondsLeft > 0 && props.secondsLeft <= 10)
   <div class="grid grid-cols-[1fr_minmax(0,18rem)_1fr] items-center gap-4">
     <div v-for="(side, sideIndex) in [pad(allyBans), pad(enemyBans)]" :key="sideIndex" class="flex items-center gap-1" :class="sideIndex === 1 && 'order-3 flex-row-reverse'">
       <template v-for="(champion, index) in side" :key="index">
-        <img
-          v-if="champion !== null && portraitOf(champion)"
-          :src="portraitOf(champion)!"
-          :alt="`${nameOf(champion)} banned`"
-          :title="`${nameOf(champion)} banned`"
-          class="size-8 rounded-md object-cover opacity-60 grayscale"
+        <component
+          :is="editable ? 'button' : 'span'"
+          :type="editable ? 'button' : undefined"
+          class="group relative flex size-8 items-center justify-center overflow-hidden rounded-md"
+          :class="[
+            champion === null && 'bg-elevated ring-1 ring-inset ring-default',
+            editable && 'cursor-pointer outline-none transition hover:ring-accented focus-visible:ring-2 focus-visible:ring-primary',
+          ]"
+          :aria-label="editable ? (champion === null ? `Add a ban for ${sideIndex === 0 ? 'your team' : 'the enemy'}` : `Remove the ${nameOf(champion)} ban`) : undefined"
+          :title="champion !== null ? `${nameOf(champion)} banned` : undefined"
+          @click="editable && (champion === null ? emit('ban', sideIndex === 0 ? 'ally' : 'enemy') : emit('unban', champion))"
         >
-        <span v-else class="flex size-8 items-center justify-center rounded-md bg-elevated ring-1 ring-inset ring-default">
-          <UIcon name="i-lucide-ban" class="size-3.5 text-ink-700" />
-        </span>
+          <img
+            v-if="champion !== null && portraitOf(champion)"
+            :src="portraitOf(champion)!"
+            :alt="`${nameOf(champion)} banned`"
+            class="size-full object-cover opacity-60 grayscale"
+          >
+          <UIcon v-else name="i-lucide-ban" class="size-3.5 text-ink-700" :class="editable && 'group-hover:hidden'" />
+          <UIcon v-if="editable" :name="champion === null ? 'i-lucide-plus' : 'i-lucide-x'" class="absolute hidden size-3.5 text-highlighted group-hover:block" />
+        </component>
       </template>
     </div>
 
-    <div class="order-2 flex flex-col gap-1.5">
+    <div v-if="$slots.center" class="order-2">
+      <slot name="center" />
+    </div>
+    <div v-else class="order-2 flex flex-col gap-1.5">
       <div class="flex items-baseline justify-between">
         <span class="stat-label">{{ label }}</span>
         <span

@@ -71,7 +71,12 @@ export function useDraftSubject(
   /** The champion the build is for, and the one it faces on its lane. */
   const duel = computed(() => {
     const current = subject.value
-    if (!current) return { championId: draft.value.myChampion, opponentId: null, position: draft.value.myPosition || null }
+    if (!current) {
+      // No pick of ours yet: the lane is still ours, and whoever already stands on it is who we will face.
+      const position = draft.value.myPosition || null
+      const opponentId = position ? enemyPicks.value.find(pick => pick.position === position)?.championId ?? null : null
+      return { championId: draft.value.myChampion, opponentId, position }
+    }
     const position = current.request.position
     const opponentId = current.request.enemies.find(pick => pick.position === position)?.championId ?? null
     return { championId: current.championId, opponentId, position }

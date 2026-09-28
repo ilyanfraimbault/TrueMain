@@ -9,14 +9,32 @@ import { LANES, LANE_LABELS } from '~/types/draft'
  * the clock over the two teams, our lane duel between them, and under them
  * what the draft is for right now — the picks worth making while ours is
  * open, the build to run once it is locked.
+ *
+ * The same screen reads a board the player fills by hand (`editable`): every
+ * card and ban slot takes a champion, the enemies stand where they were put
+ * rather than where the guesser would put them, and a suggestion clicked is
+ * placed as our pick. The page owns that board; this screen only says what
+ * was asked of it.
  */
 const props = withDefaults(defineProps<{
   draft: DraftState
   /** What the strip says the draft is waiting for. */
   label?: string
-  /** The slot the simulator is filling: our lane, or the enemy's next pick. */
-  activeSlot?: { team: 'ally' | 'enemy', lane?: Lane | null } | null
-}>(), { label: 'Champion select', activeSlot: null })
+  /** A board filled by hand rather than a live champion select. */
+  editable?: boolean
+  /** On such a board, the lane each enemy was placed on: drawn as placed, and pinned for the ranking. */
+  placedEnemies?: Record<number, string> | null
+}>(), { label: 'Champion select', editable: false, placedEnemies: null })
+
+const emit = defineEmits<{
+  /** Put a champion on a lane's card, on either side. */
+  place: [team: 'ally' | 'enemy', lane: Lane]
+  remove: [team: 'ally' | 'enemy', lane: Lane]
+  ban: [team: 'ally' | 'enemy']
+  unban: [championId: number]
+  /** A suggestion clicked on a board: it becomes our pick. */
+  pick: [championId: number]
+}>()
 
 const { nameOf } = useChampionStatics()
 const { laneEntries, entryOf } = useTierList()
@@ -64,9 +82,12 @@ const candidates = computed(() => {
 const pinnedLanes = ref<Record<number, string>>({})
 const { recommendation, pending: ranking, error: rankError } = useDraftRecommendation(draft, pinnedLanes, candidates)
 
-const enemyLanes = computed(() => recommendation.value?.enemyLanes ?? [])
+/** Where the enemies stand: as placed on a board, as the guesser (and the player's drags) resolved them otherwise. */
+const enemyLanes = computed(() => (props.placedEnemies
+  ? Object.entries(props.placedEnemies).map(([id, position]) => ({ championId: Number(id), position, confidence: 1, pinned: true }))
+  : recommendation.value?.enemyLanes ?? []))
 const { slots, pinned, hasCorrections, swap, reset } = useLaneAssignment(enemyLanes)
-watch(pinned, value => (pinnedLanes.value = value), { deep: true })
+watch([pinned, () => props.placedEnemies], () => (pinnedLanes.value = { ...pinned.value, ...(props.placedEnemies ?? {}) }), { deep: true, immediate: true })
 
 // ─── The two teams ──────────────────────────────────────────────────────────
 
@@ -92,6 +113,11 @@ const allyRows = computed<TeamRow[]>(() => {
  * in the order they picked, and only an empty board carries the lanes.
  */
 const enemyRows = computed<TeamRow[]>(() => {
+  const placed = props.placedEnemies
+  if (placed) {
+    const onLane = new Map(Object.entries(placed).map(([id, lane]) => [lane, Number(id)]))
+    return LANES.map(lane => ({ championId: onLane.get(lane) ?? null, lane, locked: true }))
+  }
   if (recommendation.value) {
     return slots.value.map(slot => ({
       championId: slot.championId !== null && props.draft.enemyChampions.includes(slot.championId) ? slot.championId : null,
@@ -109,11 +135,6 @@ const enemyRows = computed<TeamRow[]>(() => {
   }))
 })
 
-const activeAllyCell = computed(() => {
-  const slot = props.activeSlot
-  return slot?.team === 'ally' ? allyRows.value.findIndex(row => row.lane === slot.lane) : null
-})
-const activeEnemyCell = computed(() => (props.activeSlot?.team === 'enemy' ? enemyRows.value.findIndex(row => row.championId === null) : null))
 
 // ─── Whose build, and which half of the screen ──────────────────────────────
 
@@ -185,7 +206,19 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
 
 <template>
   <div class="flex h-full flex-col gap-3 px-4 pb-4 pt-3">
-    <DraftTopStrip :ally-bans="draft.allyBans" :enemy-bans="draft.enemyBans" :seconds-left="draft.secondsLeft" :label="label" />
+    <DraftTopStrip
+      :ally-bans="draft.allyBans"
+      :enemy-bans="draft.enemyBans"
+      :seconds-left="draft.secondsLeft"
+      :label="label"
+      :editable="editable"
+      @ban="emit('ban', $event)"
+      @unban="emit('unban', $event)"
+    >
+      <template v-if="$slots['strip-center']" #center>
+        <slot name="strip-center" />
+      </template>
+    </DraftTopStrip>
 
     <div class="grid grid-cols-[minmax(0,1fr)_8.5rem_minmax(0,1fr)] gap-3">
       <DraftTeam
@@ -193,9 +226,11 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         :rows="allyRows"
         :selected-cell="selectedCell.ally"
         :opponent-cell="opponentCell.ally"
-        :active-cell="activeAllyCell"
         :suggested="suggested"
+        :editable="editable"
         @view="view('ally', $event)"
+        @place="emit('place', 'ally', $event)"
+        @remove="emit('remove', 'ally', $event)"
       />
 
       <DraftLaneDuel
@@ -213,10 +248,12 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
           :rows="enemyRows"
           :selected-cell="selectedCell.enemy"
           :opponent-cell="opponentCell.enemy"
-          :active-cell="activeEnemyCell"
-          :correctable="recommendation !== null"
+          :correctable="!editable && recommendation !== null"
+          :editable="editable"
           @view="view('enemy', $event)"
           @swap="swap"
+          @place="emit('place', 'enemy', $event)"
+          @remove="emit('remove', 'enemy', $event)"
         />
         <UButton
           v-if="hasCorrections"
@@ -241,7 +278,7 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         :pending="ranking"
         :error="rankError"
         :position="draft.myPosition"
-        @preview="previewed = $event"
+        @preview="editable ? emit('pick', $event) : (previewed = $event)"
       />
 
       <BuildView
