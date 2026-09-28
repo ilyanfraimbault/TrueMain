@@ -40,7 +40,7 @@ export function usePlayerChampionPerformance(
       patchRef.value ?? '',
       positionRef.value ?? '',
     ].join('-'),
-    async () => {
+    async (_nuxtApp, { signal }) => {
       if (!nameTagRef.value) return null
 
       const query: Record<string, string> = {}
@@ -50,7 +50,7 @@ export function usePlayerChampionPerformance(
       try {
         return await apiFetch<PlayerChampionPerformanceResponse>(
           `/truemains/${encodeURIComponent(nameTagRef.value)}/champions/${championIdRef.value}/performance`,
-          { query },
+          { query, signal },
         )
       }
       catch (error: unknown) {

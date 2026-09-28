@@ -20,11 +20,11 @@ export function useTruemainProfile(
 ) {
   const data = ref<ProfileResponse | null>(null)
 
-  const { isLoading, isInitialLoading, notFound, error, execute } = useTruemainFetch<ProfileResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<ProfileResponse>(nameTag, {
     enabled: options.enabled,
-    request: tag => $fetch<ProfileResponse | null>(
+    request: (tag, signal) => $fetch<ProfileResponse | null>(
       `/api/truemains/${encodeURIComponent(tag)}/profile`,
-      { ignoreResponseError: true },
+      { ignoreResponseError: true, signal },
     ),
     // Anything missing the identity object we treat as a 404.
     validate: (response): response is ProfileResponse =>
@@ -50,6 +50,7 @@ export function useTruemainProfile(
     isInitialLoading,
     notFound,
     error,
+    ready,
     refresh,
   }
 }

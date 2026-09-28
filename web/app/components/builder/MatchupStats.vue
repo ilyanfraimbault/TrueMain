@@ -158,7 +158,6 @@ const emptyNotice = computed(() => {
 <template>
   <SectionCard
     title="This matchup"
-    subtitle="The games the build below is computed from, and how the matchup itself goes at 15 minutes."
     :level="2"
   >
     <!-- Skeleton on every fetch, not only the first (#1659 follow-up). A cold
@@ -179,12 +178,12 @@ const emptyNotice = computed(() => {
       </div>
     </div>
 
-    <p
+    <UEmpty
       v-else-if="(build?.gamesConsidered ?? 0) === 0"
-      class="text-sm text-muted"
-    >
-      {{ emptyNotice }}
-    </p>
+      size="sm"
+      icon="i-lucide-swords"
+      :description="emptyNotice"
+    />
 
     <div
       v-else

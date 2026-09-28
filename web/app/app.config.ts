@@ -25,7 +25,7 @@ export default defineAppConfig({
     // restates the value `surface` was going to paint.
     card: {
       slots: {
-        root: 'surface rounded-xl',
+        root: 'surface rounded-2xl',
         header: 'p-3 sm:px-4 sm:py-3.5',
         body: 'p-3 sm:p-4',
         footer: 'p-3 sm:px-4',
@@ -35,6 +35,57 @@ export default defineAppConfig({
           soft: {
             root: 'bg-elevated divide-y divide-default',
           },
+        },
+      },
+      defaultVariants: {
+        variant: 'soft',
+      },
+    },
+    // Filled buttons carry the same keycap edge as the cards they sit on, so a
+    // control reads as a key rather than a flat swatch. Only the variants that
+    // paint a fill: on `ghost` / `link` / `outline` there is no surface for a
+    // lit top edge to belong to, and it would float as a stray hairline.
+    button: {
+      variants: {
+        variant: {
+          solid: 'keycap',
+          soft: 'keycap',
+          subtle: 'keycap',
+        },
+      },
+    },
+    // Every "there is nothing here" state on the site (#1669). Themed rather
+    // than styled per call site for the same reason `card` is: there were a
+    // dozen hand-rolled variants of this card, in three paddings and four title
+    // styles, and the next one would have been a thirteenth.
+    //
+    // `soft` is the default and carries the app-wide `surface` material — and,
+    // exactly like `card` above, its stock `bg-elevated/50` has to be restated
+    // opaque here or the plain utility out-cascades `surface`'s background and
+    // every empty state renders at 50%. Only `soft` is overridden: the one
+    // place that wants a *placeholder* rather than a surface — the matchup
+    // draft stage — asks for `naked` and paints its own dashed, recessed frame
+    // at the call site. `description` drops Nuxt UI's `text-toned` for the
+    // site's own muted/highlighted split.
+    empty: {
+      slots: {
+        root: 'rounded-lg',
+      },
+      variants: {
+        variant: {
+          soft: {
+            root: 'surface bg-elevated',
+            description: 'text-muted',
+          },
+        },
+        // Nuxt UI's `size` scales the type and the avatar but not the box, so a
+        // "small" empty state still sat in the full `p-4 sm:p-6 lg:p-8` block.
+        // These two carry the padding that makes one usable inside a card body
+        // or a compact list, which is where most of them live (#1681) — without
+        // it, converting a `py-3` line grew it threefold.
+        size: {
+          sm: { root: 'p-3 sm:p-4 lg:p-5' },
+          xs: { root: 'gap-2 p-2 sm:p-3 lg:p-3' },
         },
       },
       defaultVariants: {

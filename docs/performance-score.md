@@ -1,7 +1,7 @@
 # Performance score
 
 TrueMain's **per-match** metric: how well one player played one game, on a
-0..100 scale. Where the [dedication score](dedication-score.md) is about a
+0..100 scale. Where the [Truemain score](dedication-score.md) is about a
 player's relationship to a champion over months, this one is about a single
 game — and it is what decides the **MVP / ACE** accolade on a match row.
 
@@ -115,7 +115,7 @@ them on the item they bought to *not* take income.
 
 ## Why a weighted mean over available components
 
-Same reasoning as the dedication score: no single missing signal should zero a
+Same reasoning as the Truemain score: no single missing signal should zero a
 player out, and no single blowout stat should decide the game.
 
 - **Missing never means bad.** Roughly the whole point of the drop-and-

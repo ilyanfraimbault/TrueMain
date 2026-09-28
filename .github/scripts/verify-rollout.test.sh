@@ -55,7 +55,7 @@ projects() {
     $(container "ghcr.io/owner/truemain-ingestor:${tag}" running healthy),
     $(container "ghcr.io/owner/truemain-ingestor:${tag}" running healthy),
     $(container "postgres:17.2" running healthy),
-    $(container "dpage/pgadmin4:9.17" running "")
+    $(container "caddy:2-alpine" running "")
   ]}
 ]
 JSON
@@ -121,7 +121,7 @@ expect_fail "a container still starting fails" "$(projects 2.0.0 running startin
 expect_fail "an exited container fails" "$(projects 2.0.0 exited "")" "exited"
 
 # A container with no healthcheck reports an empty health and must not be read
-# as unhealthy; pgadmin and the umami sidecars are in that state permanently.
+# as unhealthy; the edge Caddy and the umami sidecars are in that state permanently.
 expect_pass "a container with no healthcheck of its own passes" "$(projects 2.0.0 running "")"
 
 PROJECT_NAME=truemain-absent expect_fail "a project the API does not know fails" \

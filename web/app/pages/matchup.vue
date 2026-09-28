@@ -299,14 +299,14 @@ const missingMatchupNotice = computed(() => {
         v-else-if="recommendation.build.gamesConsidered === 0"
         :title="playedChampion ? `Recommended for ${playedChampion.name}` : 'Recommendation'"
       >
-        <div class="surface rounded-lg px-6 py-12 text-center">
-          <p class="font-medium">
-            No similar games found
-          </p>
-          <p class="mt-1 text-sm text-muted">
+        <!-- Description-only: this card's title is an `<h3>` and `UEmpty`'s
+             `title` prop renders an `<h2>` — see FallbackBuild.vue. -->
+        <UEmpty icon="i-lucide-search-x">
+          <template #description>
+            <span class="block font-medium text-highlighted">No similar games found</span>
             Nothing recorded for this champion at this position yet.
-          </p>
-        </div>
+          </template>
+        </UEmpty>
       </SectionCard>
 
       <!-- Any matchup with at least one game: shown, however thin. The panel
@@ -329,17 +329,13 @@ const missingMatchupNotice = computed(() => {
          screen of empty background — it reads as broken rather than as waiting
          for input. Dashed, recessed and unlabelled by a heading so it stays a
          placeholder and not a third panel to parse. -->
-    <div
+    <UEmpty
       v-if="!isDraftReady"
-      class="rounded-xl border border-dashed border-accented bg-muted px-6 py-12 text-center"
-    >
-      <UIcon
-        name="i-lucide-swords"
-        class="size-8 text-dimmed"
-      />
-      <p class="mt-3 font-medium text-highlighted">
-        Pick a champion and a role
-      </p>
-    </div>
+      variant="naked"
+      icon="i-lucide-swords"
+      description="Pick a champion and a role"
+      class="rounded-xl border border-dashed border-accented bg-muted"
+      :ui="{ description: 'font-medium text-highlighted' }"
+    />
   </div>
 </template>

@@ -14,13 +14,14 @@ export function useTruemainRankHistory(
 
   const data = ref<RankHistoryResponse | null>(null)
 
-  const { isLoading, isInitialLoading, notFound, error } = useTruemainFetch<RankHistoryResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<RankHistoryResponse>(nameTag, {
     watch: [daysRef],
-    request: tag => $fetch<RankHistoryResponse | null>(
+    request: (tag, signal) => $fetch<RankHistoryResponse | null>(
       `/api/truemains/${encodeURIComponent(tag)}/rank-history`,
       {
         query: { days: daysRef.value },
         ignoreResponseError: true,
+        signal,
       },
     ),
     validate: (response): response is RankHistoryResponse =>
@@ -35,5 +36,6 @@ export function useTruemainRankHistory(
     isInitialLoading,
     notFound,
     error,
+    ready,
   }
 }

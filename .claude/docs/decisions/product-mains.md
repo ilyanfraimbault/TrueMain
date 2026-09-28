@@ -7,10 +7,19 @@ Prod Postgres reached 68 GB and filled the VPS disk (Mongo SIGSEGV mid-write, AP
 Retention only pruned 420, so flex/normal/arena accumulated forever. Every aggregate and query service was
 already hard-scoped to 420, so non-420 had no consumer except player match history — accepted — #680.
 
-**Dedication score (0–100) is the signature metric, always scoped to one champion.**
-LP measures skill, dedication measures *ownership* of a champion. Weights 0.45 commitment / 0.20 span /
-0.20 volume / 0.15 recency. Unfiltered, it scores the player's signature champion; filtered by `championId`,
-it scores that one — `docs/dedication-score.md`, #530.
+**The Truemain score (0–100) is the signature metric, always scoped to one champion.**
+LP measures skill, the Truemain score measures *ownership* of a champion. Unfiltered, it scores the player's
+signature champion; filtered by `championId`, it scores that one — `docs/dedication-score.md`, #530.
+
+**The score reads the player, not our tracking: play rate + Riot mastery, activity as a gate, `IsOtp` as the verdict.**
+Weights 0.55 play rate / 0.30 mastery points (log, 50k→3M) / 0.15 mastery rank (1/rank). The #530 formula
+(0.45 commitment / 0.20 span / 0.20 volume / 0.15 recency) spent 40% on *tracked* patches and games, so a
+long-time one-trick discovered last month scored like a dabbler, and its recency term handed every main the
+same free points while inactive mains were already gated by `IsActive`. Mastery is lifetime and all-queue and
+comes from the mastery-v4 call `MainActivityProcess` already made — no extra Riot budget. The verdict is the
+`IsOtp` flag the badge and `otpOnly` filter read, so the three cannot disagree; the Devoted→Dabbling bands
+were dropped as a second vocabulary. Renamed "Truemain score" for readers; code and wire keep `dedication` so
+`?sort=dedication` links survive. Unread mastery scores 0 and says "not checked yet" — #1701.
 
 **The `/truemains` leaderboard is strictly `IsMain=true`.**
 The `EXISTS` used to short-circuit without champion/position filters, so freshly ingested un-analysed accounts

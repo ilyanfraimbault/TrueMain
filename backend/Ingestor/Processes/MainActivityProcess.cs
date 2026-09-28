@@ -13,6 +13,8 @@ namespace Ingestor.Processes;
 
 /// <summary>
 /// Retires mains whose player stopped playing, and brings back the ones who returned (#900).
+/// Also records each champion's mastery points, rank and last-play time on the stat rows,
+/// the longevity half of the truemain score (#1701).
 /// </summary>
 /// <remarks>
 /// Activity is read from champion-mastery-v4 (<c>lastPlayTime</c>): one call per account,
@@ -106,8 +108,8 @@ public sealed class MainActivityProcess(
         var summary = new ActivitySummary();
         await using var session = await sessionFactory.CreateAsync(ct);
 
-        // Tracked on purpose: the IsActive flips and the LastActivityCheckAtUtc stamps
-        // below are change-tracked mutations of these very entities, flushed once at the
+        // Tracked on purpose: the IsActive flips, the mastery facts and the
+        // LastActivityCheckAtUtc stamps below are change-tracked mutations of these very entities, flushed once at the
         // end of the run.
         var statsByAccount = await session.MainChampionStats.GetByAccountsAsync(accounts, ct);
         var accountEntitiesByKey = await session.RiotAccounts.GetByKeysAsync(accounts, ct);
@@ -182,14 +184,27 @@ public sealed class MainActivityProcess(
         DateTime inactiveBefore,
         ActivitySummary summary)
     {
-        var lastPlayByChampion = masteries
-            .GroupBy(mastery => mastery.ChampionId)
-            .ToDictionary(
-                group => group.Key,
-                group => DateTimeOffset.FromUnixTimeMilliseconds(group.Max(m => m.LastPlayTime)).UtcDateTime);
+        var masteryByChampion = MasteryByChampion(masteries);
 
         foreach (var stat in stats)
         {
+            // Mastery facts feed the truemain score (#1701), so every row gets
+            // them, main or not — a row promoted to main later is scored at once.
+            // No entry means Riot has no record of the player on the champion:
+            // 0 points and no rank, which is a measurement, unlike null ("not read").
+            if (masteryByChampion.TryGetValue(stat.ChampionId, out var mastery))
+            {
+                stat.MasteryPoints = mastery.Points;
+                stat.MasteryRank = mastery.Rank;
+                stat.MasteryLastPlayUtc = mastery.LastPlayUtc;
+            }
+            else
+            {
+                stat.MasteryPoints = 0;
+                stat.MasteryRank = null;
+                stat.MasteryLastPlayUtc = null;
+            }
+
             if (!stat.IsMain)
             {
                 continue;
@@ -198,8 +213,7 @@ public sealed class MainActivityProcess(
             // No mastery entry for a champion the player is a main on means Riot has no
             // record of them playing it at all — treat it as inactive rather than as a
             // reason to keep the row forever.
-            var isActive = lastPlayByChampion.TryGetValue(stat.ChampionId, out var lastPlay)
-                           && lastPlay >= inactiveBefore;
+            var isActive = mastery is not null && mastery.LastPlayUtc >= inactiveBefore;
 
             if (isActive == stat.IsActive)
             {
@@ -217,6 +231,27 @@ public sealed class MainActivityProcess(
             }
         }
     }
+
+    /// <summary>
+    /// One mastery fact per champion, ranked by points (1 = the player's
+    /// most-played champion ever) — the same ordering Discovery ranks its
+    /// candidates by, so a seeded rank and a refreshed one mean the same thing.
+    /// </summary>
+    internal static Dictionary<int, ChampionMastery> MasteryByChampion(IReadOnlyCollection<RiotChampionMasteryDto> masteries)
+        => masteries
+            .GroupBy(mastery => mastery.ChampionId)
+            .Select(group => new
+            {
+                ChampionId = group.Key,
+                Points = group.Max(m => m.ChampionPoints),
+                LastPlayUtc = DateTimeOffset.FromUnixTimeMilliseconds(group.Max(m => m.LastPlayTime)).UtcDateTime,
+            })
+            .OrderByDescending(entry => entry.Points)
+            .ThenBy(entry => entry.ChampionId)
+            .Select((entry, index) => new ChampionMastery(entry.ChampionId, entry.Points, index + 1, entry.LastPlayUtc))
+            .ToDictionary(entry => entry.ChampionId);
+
+    internal sealed record ChampionMastery(int ChampionId, long Points, int Rank, DateTime LastPlayUtc);
 
     private sealed class ActivitySummary
     {

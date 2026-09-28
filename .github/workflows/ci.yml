@@ -288,7 +288,6 @@ jobs:
     if: needs.changes.outputs.compose == 'true'
 
     env:
-      PGADMIN_DEFAULT_PASSWORD: admin
       OPS_API_KEY: ci-ops-api-key-min-32-characters-padding
       ADMIN_SESSION_PASSWORD: ci-admin-session-min-32-characters-padding
       ADMIN_USERNAME: truemain
@@ -306,10 +305,10 @@ jobs:
           set -uo pipefail
           failed=""
           validate() {
-            local file="$1" stack="$2" riot_key="$3" pgadmin_email="$4"
+            local file="$1" stack="$2" riot_key="$3"
             if POSTGRES_USER="$stack" POSTGRES_PASSWORD="$stack" POSTGRES_DB="$stack" \
                MONGO_USER="$stack" MONGO_PASSWORD="$stack" UMAMI_DB_PASSWORD="$stack" \
-               RIOT_API_KEY="$riot_key" PGADMIN_DEFAULT_EMAIL="$pgadmin_email" \
+               RIOT_API_KEY="$riot_key" \
                docker compose -f "$file" config > /dev/null; then
               echo "ok: $file"
             else
@@ -317,10 +316,10 @@ jobs:
               failed="${failed} ${file}"
             fi
           }
-          validate compose.yaml truemain RGAPI-REPLACE_ME admin@truemain.dev
-          validate compose.dev.yaml truemain RGAPI-REPLACE_ME admin@truemain.dev
-          validate compose.prod.yaml truemain RGAPI-REPLACE_ME admin@truemain.dev
-          validate compose.preprod.yaml truemain_preprod RGAPI-REPLACE_ME_PREPROD admin@truemain-preprod.dev
+          validate compose.yaml truemain RGAPI-REPLACE_ME
+          validate compose.dev.yaml truemain RGAPI-REPLACE_ME
+          validate compose.prod.yaml truemain RGAPI-REPLACE_ME
+          validate compose.preprod.yaml truemain_preprod RGAPI-REPLACE_ME_PREPROD
           if [ -n "$failed" ]; then
             echo "::error::Invalid compose files:${failed}"
             exit 1

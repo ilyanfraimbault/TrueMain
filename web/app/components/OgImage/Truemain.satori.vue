@@ -77,7 +77,7 @@ const recordLine = computed(() => {
 const tiles = computed(() => {
   const entries: Array<{ label: string, value: string, accent: boolean }> = []
   if (card?.dedicationScore !== null && card?.dedicationScore !== undefined) {
-    entries.push({ label: 'DEDICATION', value: formatDedicationScore(card.dedicationScore), accent: true })
+    entries.push({ label: 'TRUEMAIN SCORE', value: formatDedicationScore(card.dedicationScore), accent: true })
   }
   const m = main.value
   if (m) {
@@ -239,7 +239,7 @@ const tiles = computed(() => {
       }"
     >
       <div :style="{ display: 'flex' }">
-        {{ riotId ? 'Tracked as a true main on TrueMain' : 'The OTP leaderboard, ranked by dedication' }}
+        {{ riotId ? 'Tracked as a true main on TrueMain' : 'The OTP leaderboard, ranked by Truemain score' }}
       </div>
       <div :style="{ display: 'flex', fontWeight: 600, color: TEXT_MUTED }">
         truemain.lol

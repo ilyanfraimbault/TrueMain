@@ -33,12 +33,12 @@ const {
   error: championError,
   status: championStatus,
   notEnoughData,
+  ready: championReady,
 } = useChampion(championId, filters)
 
 // A filter change keeps the previous payload on screen while the new one loads
-// (useLazyAsyncData holds `data`), so without this the build sections silently
-// showed the *old* slice — the matchup filter made that obvious, since the
-// numbers stayed put after picking an opponent. Render the same skeleton as a
+// (useAsyncData holds `data`), so the build sections silently showed the *old*
+// slice — the matchup filter made that obvious. Render the same skeleton as a
 // cold load while the champion fetch is in flight. Only the data area: the
 // header keeps its values so the page doesn't jump under the cursor.
 const championLoading = computed(() => isLoadingStatus(championStatus.value))
@@ -121,9 +121,8 @@ const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.valu
 // are identical on the server and at hydration, and the endpoint resolves the
 // same defaults the aggregate does, so both describe the same slice.
 //
-// Awaited server-side only (see `seoStaticFetch`: no Suspense fallback on
-// `<NuxtPage>`, so a client await freezes the outgoing page). `useApiFetch`
-// carries the visitor's X-Forwarded-For into the SSR call (#1557).
+// Awaited with the champion fetch: for the HTML on the server, under the loading bar on a
+// client-side navigation (#1689). `useApiFetch` forwards the visitor during SSR (#1557).
 const apiFetch = useApiFetch()
 const buildSummaryFetch = useAsyncData(
   () => [
@@ -140,7 +139,7 @@ const buildSummaryFetch = useAsyncData(
     // the key is what SSR payload reuse keys on.
     filters.value.truemainsOnly ? 'truemains' : 'everyone',
   ].join('-'),
-  () => apiFetch<ChampionBuildSummary>(`/champion-summary/${championId.value}`, {
+  (_nuxtApp, { signal }) => apiFetch<ChampionBuildSummary>(`/champion-summary/${championId.value}`, {
     query: {
       patch: filters.value.patch || undefined,
       position: filters.value.position || undefined,
@@ -153,6 +152,7 @@ const buildSummaryFetch = useAsyncData(
       // under panels showing the matchup's.
       opponentChampionId: filters.value.opponentChampionId || undefined,
     },
+    signal,
   }),
   {
     watch: [championId, filters],
@@ -163,7 +163,7 @@ const buildSummaryFetch = useAsyncData(
     default: () => null,
   },
 )
-if (import.meta.server) await buildSummaryFetch
+await Promise.all([buildSummaryFetch, championReady])
 const { data: buildSummary } = buildSummaryFetch
 
 useSeoMeta({
@@ -404,20 +404,19 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         @update:model-value="value => setFilter({ eloBracket: value })"
       />
 
-      <div class="flex flex-col items-center gap-1 surface rounded-lg px-6 py-12 text-center">
-        <p class="text-sm font-medium text-default">
-          No {{ displayName ?? 'champion' }} games in {{ eloBracketLabel(selectedEloBracket) }} yet
-        </p>
-        <p class="text-sm text-muted">
-          Pick another rank above, or
-          <button
-            type="button"
-            class="rounded text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            @click="setFilter({ eloBracket: ELO_BRACKET_ALL })"
-          >
-            see all ranks</button>.
-        </p>
-      </div>
+      <UEmpty
+        icon="i-lucide-medal"
+        :title="`No ${displayName ?? 'champion'} games in ${eloBracketLabel(selectedEloBracket)} yet`"
+        description="Pick another rank above, or widen the slice to every rank."
+        :actions="[{
+          color: 'neutral',
+          variant: 'subtle',
+          size: 'sm',
+          icon: 'i-lucide-layers',
+          label: 'See all ranks',
+          onClick: () => setFilter({ eloBracket: ELO_BRACKET_ALL }),
+        }]"
+      />
     </div>
 
     <!--
@@ -457,11 +456,10 @@ const synergiesSnapshot = useLazyHydrationSnapshot(
         />
       </header>
 
-      <div class="flex flex-col items-center gap-1 surface rounded-lg px-6 py-12 text-center">
-        <p class="text-sm text-muted">
-          Not enough data
-        </p>
-      </div>
+      <UEmpty
+        icon="i-lucide-chart-no-axes-column"
+        description="Not enough data"
+      />
     </template>
 
     <!--

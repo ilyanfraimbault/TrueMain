@@ -36,11 +36,13 @@ const {
   data: profile,
   isInitialLoading: profileLoading,
   notFound: profileNotFound,
+  ready: profileReady,
 } = useTruemainProfile(nameTag)
 
 const {
   data: rankHistory,
   isInitialLoading: rankHistoryLoading,
+  ready: rankHistoryReady,
 } = useTruemainRankHistory(nameTag)
 
 // Activity grid under the LP curve (#927). One request covers all four
@@ -49,6 +51,7 @@ const {
 const {
   data: activity,
   isInitialLoading: activityLoading,
+  ready: activityReady,
 } = useTruemainActivity(nameTag)
 
 // Human label for the breadcrumb / SEO title — `gameName#tagLine`, falling
@@ -86,7 +89,7 @@ defineOgImageComponent('Truemain', { nameTag })
 // `playerLabel` falls back to the raw slug while the profile is in flight, so
 // the share text is always something a human can read.
 const shareTitle = computed(() => `${playerLabel.value} on TrueMain`)
-const SHARE_DESCRIPTION = 'Rank, main champions and dedication score — tracked as a true main.'
+const SHARE_DESCRIPTION = 'Rank, main champions and Truemain score — tracked as a true main.'
 
 // ─── Matches fetch ─────────────────────────────────────────────────────────
 const {
@@ -95,6 +98,7 @@ const {
   pageSize: matchesPageSize,
   isInitialLoading: matchesInitialLoading,
   notFound: matchesNotFound,
+  ready: matchesReady,
 } = useTruemainMatches(nameTag, currentMatchesPage, {
   pageSize: MATCHES_PAGE_SIZE,
   position: filterPosition,
@@ -132,6 +136,11 @@ const staticBundleReady = computed(() =>
 )
 
 const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
+
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the API has answered, so this page opens on its data (#1689). Resolves at
+// once on a server render and a hydration, which keep their skeletons.
+await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
 </script>
 
 <template>

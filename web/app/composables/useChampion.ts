@@ -60,7 +60,7 @@ export function useChampion(
   // The population (#1346) is part of the key for the same reason the bracket
   // is: truemains-only and everyone are two different answers to the same
   // (patch, position, rank), and sharing one entry would both serve one under
-  // the other's filter and — since the key is what `useLazyAsyncData` watches —
+  // the other's filter and — since the key is what `useAsyncData` watches —
   // skip the refetch entirely when the toggle flips.
   const buildKey = (
     patch: string,
@@ -82,7 +82,7 @@ export function useChampion(
 
   const apiFetch = useApiFetch()
 
-  const result = useLazyAsyncData<ChampionResponse | null>(
+  const result = useAsyncData<ChampionResponse | null>(
     () => {
       const f = filters.value
       return buildKey(
@@ -90,7 +90,7 @@ export function useChampion(
         f.opponentChampionId ? String(f.opponentChampionId) : '',
         f.truemainsOnly)
     },
-    async () => {
+    async (_nuxtApp, { signal }) => {
       const id = championIdRef.value
       const f = filters.value
       const nameTag = nameTagRef.value
@@ -116,7 +116,7 @@ export function useChampion(
             // renders no rank or population control, so forwarding `eloBracket`
             // / `truemainsOnly` sent dead params that read as if the toggle
             // reached this page.
-            { query: { patch: f.patch, position: f.position } },
+            { query: { patch: f.patch, position: f.position }, signal },
           )
         }
         catch (error: unknown) {
@@ -139,7 +139,7 @@ export function useChampion(
       // `buildKey('', '')`) `getCachedData` reuses this identical response
       // instead of triggering a second no-filter fetch (and its loading flash).
       const outcome = await resolveGlobalChampion(
-        query => apiFetch<ChampionResponse>(`/champions/${id}`, { query }),
+        query => apiFetch<ChampionResponse>(`/champions/${id}`, { query, signal }),
         f,
       )
       if (outcome.fallbackData !== null) nuxtApp.static.data[unfilteredKey] = outcome.fallbackData
@@ -179,5 +179,12 @@ export function useChampion(
     () => result.data.value === null && result.status.value === 'success',
   )
 
-  return { ...result, notEnoughData }
+  // Not lazy, so this settles only once the first fetch has: a page that
+  // awaits it in setup keeps the outgoing page under the loading bar on a
+  // client-side navigation, and opens on its data rather than its skeleton
+  // (#1689). `server: false` still defers the fetch past hydration, so a hard
+  // load resolves this at once and keeps its skeleton.
+  const ready = result.then(() => undefined)
+
+  return { ...result, notEnoughData, ready }
 }

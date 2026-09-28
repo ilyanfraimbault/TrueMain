@@ -36,7 +36,7 @@ export function useChampionTrend(
 
   const result = useLazyAsyncData<ChampionTrendResponse>(
     () => ['champion-trend', championIdRef.value, positionRef.value ?? ''].join('-'),
-    () => {
+    (_nuxtApp, { signal }) => {
       // Hold an empty series until the gate opens so we never fire a throwaway
       // request with a not-yet-resolved lane.
       if (!enabledRef.value) {
@@ -44,6 +44,7 @@ export function useChampionTrend(
       }
       return apiFetch<ChampionTrendResponse>(`/champions/${championIdRef.value}/trend`, {
         query: positionRef.value ? { position: positionRef.value } : {},
+        signal,
       })
     },
     { watch: [championIdRef, positionRef, enabledRef], server: false },

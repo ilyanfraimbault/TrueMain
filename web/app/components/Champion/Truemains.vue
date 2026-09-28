@@ -46,7 +46,6 @@ const viewAllHref = computed(() => `/truemains?championId=${props.championId}`)
   <SectionCard
     :level="2"
     title="Truemains"
-    subtitle="Top tracked players on this champion."
     :ui="{ header: 'p-2 sm:px-2.5 sm:py-2', body: 'p-1.5 sm:p-2' }"
   >
     <div class="flex flex-col gap-1">
@@ -67,12 +66,12 @@ const viewAllHref = computed(() => `/truemains?championId=${props.championId}`)
         class="my-2"
       />
 
-      <p
+      <UEmpty
         v-else-if="rows.length === 0"
-        class="py-6 text-center text-sm text-muted"
-      >
-        No tracked truemains on this champion yet.
-      </p>
+        size="sm"
+        icon="i-lucide-trophy"
+        description="No tracked truemains on this champion yet."
+      />
 
       <template v-else>
         <LeaderboardRow

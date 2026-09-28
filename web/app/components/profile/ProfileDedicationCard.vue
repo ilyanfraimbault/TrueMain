@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { TruemainDedication } from '~~/shared/types/dedication'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { dedicationComponents, dedicationTier, dedicationTierColor } from '~/utils/dedication'
+import { TRUEMAIN_SCORE_LABEL, dedicationParts, formatDedicationLastPlayed, formatDedicationScore } from '~/utils/dedication'
 
-// TrueMain's signature metric, on the player's signature champion. Every figure
-// on this card — the score, the four components, the raw counts — comes from
+// TrueMain's signature metric — the Truemain score (#1701) — on the player's
+// signature champion. Every figure on this card — the score, the verdict, the
+// parts and the facts behind them — comes from
 // `GET /truemains/{nameTag}/profile`; nothing is derived or estimated here, so
 // the card can't disagree with the leaderboard column.
 const props = defineProps<{
@@ -25,23 +26,19 @@ const { truemainPathFor } = useChampionSlugs()
 const championHref = computed(() =>
   truemainPathFor(props.nameTag, props.dedication.championId))
 
-const components = computed(() => dedicationComponents(props.dedication))
+const parts = computed(() => dedicationParts(props.dedication))
 
-const tierLabel = computed(() => dedicationTier(props.dedication.score))
+const lastPlayed = computed(() => formatDedicationLastPlayed(props.dedication.daysSinceLastPlayed))
 
-// Colours the score by its own tier so the card reads at a glance, no hover
-// needed — the same rose-gold→iron scale `TierBadge` uses for S..D.
-const tierColorClass = computed(() => dedicationTierColor(props.dedication.score))
-
-// One decimal, matching what the backend ranks on — the leaderboard cell
-// rounds harder because it has a fifth of the room.
-const scoreLabel = computed(() => props.dedication.score.toFixed(1))
+// Whole number, like the leaderboard: the parts below are whole points and
+// must add up to it.
+const scoreLabel = computed(() => formatDedicationScore(props.dedication.score))
 </script>
 
 <template>
   <section class="flex flex-col gap-2">
     <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-      Dedication
+      {{ TRUEMAIN_SCORE_LABEL }}
     </h2>
 
     <div class="surface flex flex-col gap-3 rounded-lg p-3">
@@ -49,19 +46,11 @@ const scoreLabel = computed(() => props.dedication.score.toFixed(1))
            player's own build page for it, which is the natural next click. -->
       <div class="flex items-center gap-3">
         <div class="flex flex-col">
-          <div class="flex items-baseline gap-1.5">
-            <span
-              class="text-3xl font-bold leading-none tabular-nums"
-              :class="tierColorClass"
-            >
+          <div class="flex items-center gap-2">
+            <span class="text-3xl font-bold leading-none tabular-nums text-default">
               {{ scoreLabel }}
             </span>
-            <span
-              class="text-xs font-semibold uppercase tracking-wide"
-              :class="tierColorClass"
-            >
-              {{ tierLabel }}
-            </span>
+            <DedicationVerdict :dedication="dedication" />
           </div>
           <span class="mt-1 text-[10px] uppercase tracking-wide text-muted">
             out of 100
@@ -81,14 +70,13 @@ const scoreLabel = computed(() => props.dedication.score.toFixed(1))
         </NuxtLink>
       </div>
 
-      <!-- The four components, so the score is readable rather than asserted.
-           Each bar is the normalised component; the caption is the raw figure
-           behind it. Shared with the leaderboard row's tooltip. -->
-      <DedicationBreakdown :components="components" />
+      <!-- The parts, so the score is readable rather than asserted: each line
+           is the raw fact and the points it added. Shared with the leaderboard
+           row's tooltip. -->
+      <DedicationBreakdown :parts="parts" />
 
-      <p class="text-[10px] leading-snug text-muted">
-        Weighted from the share of games on the champion, the patches played,
-        the tracked volume and how recently it was played.
+      <p v-if="lastPlayed" class="text-[10px] leading-snug text-muted">
+        {{ lastPlayed }}
       </p>
     </div>
   </section>

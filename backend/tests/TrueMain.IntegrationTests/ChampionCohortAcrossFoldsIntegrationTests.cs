@@ -263,7 +263,6 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
         string matchId, int participantId, int minute, int gold, int damage)
         => new()
         {
-            Id = Guid.NewGuid(),
             MatchId = matchId,
             ParticipantId = participantId,
             IntervalMinute = minute,

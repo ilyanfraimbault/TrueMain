@@ -46,17 +46,17 @@ useSeoMeta({
         <ProseP>
           A true main is a player whose record on a champion shows genuine
           commitment rather than a good week. TrueMain scores that commitment —
-          the <ProseStrong>dedication score</ProseStrong> — from
-          public ranked history: how much of their play the champion accounts
-          for, over how long, and at what rank. One-tricks score highest, but the
-          score is a gradient, not a label.
+          the <ProseStrong>Truemain score</ProseStrong> — from two things: how
+          much of their recent ranked play the champion accounts for, and how
+          long it has been theirs, read from Riot champion mastery. One-tricks
+          score highest, but the score is a gradient, not a label.
         </ProseP>
         <ProseP>
           The tracked players are browsable: the
           <ProseA href="/truemains">
             truemains leaderboard
           </ProseA>
-          ranks them by LP or by dedication, and each champion page lists its own
+          ranks them by LP or by Truemain score, and each champion page lists its own
           top mains.
         </ProseP>
       </section>

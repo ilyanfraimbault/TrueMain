@@ -77,19 +77,23 @@ const mockProfile: ProfileResponse = {
     // player whose matches have aged out of retention.
     { championId: 222, games: 20, sampleMatches: 200, playRate: 0.1, primaryPosition: 'BOTTOM', isOtp: false, isSampleRetired: true, measuredAtUtc: '2026-07-02T10:00:00Z' },
   ],
-  // Dedication on the top main (Yasuo). Values mirror what
+  // Truemain score on the top main (Yasuo). Values mirror what
   // backend/Core/Truemains/DedicationScore.cs would produce for these inputs.
   dedication: {
-    score: 56.1,
+    score: 53.3,
     championId: 157,
-    commitment: 0.318,
-    span: 0.667,
-    volume: 0.829,
-    recency: 0.794,
+    isOtp: false,
     playRate: 0.4,
-    careerGames: 80,
-    patchSpan: 4,
-    daysSinceLastGame: 7,
+    championGames: 80,
+    recentGames: 200,
+    masteryPoints: 850_000,
+    masteryRank: 1,
+    daysSinceLastPlayed: 7,
+    parts: [
+      { key: 'playRate', points: 17.5, maxPoints: 55 },
+      { key: 'mastery', points: 20.759, maxPoints: 30 },
+      { key: 'masteryRank', points: 15, maxPoints: 15 },
+    ],
   },
   positions: [
     { position: 'MIDDLE', games: 170, rate: 170 / 190 },

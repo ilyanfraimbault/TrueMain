@@ -1,105 +1,118 @@
-import type { TruemainDedication } from '~~/shared/types/dedication'
-import { formatCount } from '~~/shared/utils/counts'
+import type { TruemainDedication, TruemainScorePartKey } from '~~/shared/types/dedication'
+import { formatCompactCount } from '~~/shared/utils/counts'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
-// Presentation helpers for the dedication score. Formatting only — the score
-// and every component are computed by the backend
-// (backend/Core/Truemains/DedicationScore.cs) and shipped in the payload, so
-// nothing here derives a number the API didn't send. See docs/dedication-score.md.
+// Presentation helpers for the Truemain score (the `dedication` payload,
+// #1701). Formatting only — the score and every part are computed by the
+// backend (backend/Core/Truemains/DedicationScore.cs) and shipped in the
+// payload, so nothing here derives a number the API didn't send. See
+// docs/dedication-score.md.
 
-/** The four components, in the order the UI lists them (heaviest weight first). */
-export interface DedicationComponent {
-  key: 'commitment' | 'span' | 'volume' | 'recency'
+/** The metric's name wherever a reader sees it. */
+export const TRUEMAIN_SCORE_LABEL = 'Truemain score'
+
+/** One part of the score, ready to render: the fact behind it and what it added. */
+export interface TruemainScorePartView {
+  key: TruemainScorePartKey
   label: string
-  /** Normalised 0..1 value straight from the payload. */
-  value: number
-  /** The raw figure behind the component, phrased for a human. */
+  /** The raw fact, phrased for a human. */
   detail: string
+  /** Contribution in whole score points; the parts add up to the displayed score. */
+  points: number
+  /** The most this part can contribute, in whole score points. */
+  maxPoints: number
 }
 
 /**
- * The score as displayed: no decimal point. The backend already rounds to one
- * decimal, so this only drops the tenths for the compact leaderboard cell —
- * the tooltip and the profile card keep the precise value.
+ * The score as displayed: a whole number, everywhere. The parts are shown in
+ * whole points too and must add up to it in front of the reader, which a
+ * decimal on the total alone would break.
  */
 export function formatDedicationScore(score: number): string {
   return Math.round(score).toString()
 }
 
 /**
- * One-word verdict bands for a score. Presentation-only: they exist so a
- * reader can place a number without knowing the scale, and they never feed
- * back into ordering. `colorClass` reuses the app's S/A/B/C/D performance-tier
- * palette (see `--color-tier-*` in main.css, already worn by `TierBadge`) so
- * the same rose-gold→iron read that means "best→worst" elsewhere in the app
- * means the same thing here, without inventing a second colour language.
+ * The verdict, in one word. Read straight off `isOtp` — the flag the OTP badge
+ * and the `otpOnly` filter use — so the three can never disagree. Every scored
+ * champion is a main, so the only other answer is "Main".
  */
-const DEDICATION_TIERS = [
-  { min: 85, label: 'Devoted', colorClass: 'text-tier-s' },
-  { min: 70, label: 'Committed', colorClass: 'text-tier-a' },
-  { min: 50, label: 'Invested', colorClass: 'text-tier-b' },
-  { min: 30, label: 'Casual', colorClass: 'text-tier-c' },
-  { min: 0, label: 'Dabbling', colorClass: 'text-tier-d' },
-] as const
-
-function dedicationTierEntry(score: number): typeof DEDICATION_TIERS[number] {
-  // The `min: 0` band matches any score >= 0, so the fallback below is only
-  // reachable for a negative score (unexpected, but not worth widening the
-  // return type over) — non-null because the last array element always exists.
-  return DEDICATION_TIERS.find(tier => score >= tier.min) ?? DEDICATION_TIERS[DEDICATION_TIERS.length - 1]!
+export function dedicationVerdict(dedication: TruemainDedication): 'OTP' | 'Main' {
+  return dedication.isOtp ? 'OTP' : 'Main'
 }
 
-/** A one-word verdict for a score — see {@link DEDICATION_TIERS}. */
-export function dedicationTier(score: number): string {
-  return dedicationTierEntry(score).label
+/** Days-since-last-played phrased for a human; null when mastery has not been read yet. */
+export function formatDedicationLastPlayed(days: number | null): string | null {
+  if (days === null) return null
+  if (days <= 0) return 'Last played today'
+  if (days === 1) return 'Last played yesterday'
+  return `Last played ${days} days ago`
 }
 
-/** Tailwind text-colour utility for a score's tier — see {@link DEDICATION_TIERS}. */
-export function dedicationTierColor(score: number): string {
-  return dedicationTierEntry(score).colorClass
+const NOT_CHECKED = 'not checked yet'
+
+function masteryPointsDetail(points: number | null): string {
+  if (points === null) return NOT_CHECKED
+  if (points === 0) return 'no mastery'
+  return `${formatCompactCount(points)} points`
 }
 
-/** Days-since-last-game phrased for a human; null when nothing is tracked yet. */
-export function formatDedicationLastPlayed(days: number | null): string {
-  if (days === null) return 'no tracked game yet'
-  if (days <= 0) return 'played today'
-  if (days === 1) return 'played yesterday'
-  return `played ${days} days ago`
+function masteryRankDetail(dedication: TruemainDedication): string {
+  if (dedication.masteryPoints === null) return NOT_CHECKED
+  if (dedication.masteryRank === null) return 'no mastery'
+  if (dedication.masteryRank === 1) return 'their most-played ever'
+  return `#${dedication.masteryRank} in their mastery`
 }
 
-/** The four components with their raw inputs, ready to render as bars or a list. */
-export function dedicationComponents(dedication: TruemainDedication): DedicationComponent[] {
-  return [
-    {
-      key: 'commitment',
-      // Labelled "Play rate" rather than "Commitment" so it reads distinctly
-      // from the parent "Dedication" score it feeds into — the two words were
-      // near-synonyms, which made the breakdown confusing rather than
-      // explanatory. The field name (`commitment`) and its weight are
-      // unchanged; this is a display label only.
-      label: 'Play rate',
-      value: dedication.commitment,
-      detail: `${formatPercentage(dedication.playRate, 0)} of recent ranked games`,
-    },
-    {
-      key: 'span',
-      label: 'Span',
-      value: dedication.span,
-      detail: dedication.patchSpan === 1
-        ? '1 tracked patch'
-        : `${dedication.patchSpan} tracked patches`,
-    },
-    {
-      key: 'volume',
-      label: 'Volume',
-      value: dedication.volume,
-      detail: `${formatCount(dedication.careerGames)} tracked games`,
-    },
-    {
-      key: 'recency',
-      label: 'Recency',
-      value: dedication.recency,
-      detail: formatDedicationLastPlayed(dedication.daysSinceLastGame),
-    },
-  ]
+function partDetail(key: TruemainScorePartKey, dedication: TruemainDedication): string {
+  switch (key) {
+    case 'playRate':
+      return `${formatPercentage(dedication.playRate, 0)} of last ${dedication.recentGames} ranked`
+    case 'mastery':
+      return masteryPointsDetail(dedication.masteryPoints)
+    case 'masteryRank':
+      return masteryRankDetail(dedication)
+  }
+}
+
+const PART_LABELS: Record<TruemainScorePartKey, string> = {
+  playRate: 'Play rate',
+  mastery: 'Mastery',
+  masteryRank: 'Mastery rank',
+}
+
+/**
+ * Whole-point contributions that add up exactly to the rounded score
+ * (largest-remainder rounding). Rounding each part on its own could print
+ * 28 + 18 + 15 under a total of 62.
+ */
+function wholePoints(points: number[], total: number): number[] {
+  const floors = points.map(Math.floor)
+  let missing = total - floors.reduce((sum, value) => sum + value, 0)
+  const byRemainder = points
+    .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
+    .sort((a, b) => b.remainder - a.remainder)
+
+  for (const { index } of byRemainder) {
+    if (missing <= 0) break
+    floors[index]! += 1
+    missing -= 1
+  }
+  return floors
+}
+
+/** The parts with their facts, in payload order (heaviest first). */
+export function dedicationParts(dedication: TruemainDedication): TruemainScorePartView[] {
+  const points = wholePoints(
+    dedication.parts.map(part => part.points),
+    Math.round(dedication.score),
+  )
+
+  return dedication.parts.map((part, index) => ({
+    key: part.key,
+    label: PART_LABELS[part.key],
+    detail: partDetail(part.key, dedication),
+    points: points[index]!,
+    maxPoints: Math.round(part.maxPoints),
+  }))
 }

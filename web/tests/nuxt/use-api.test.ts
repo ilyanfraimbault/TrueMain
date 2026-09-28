@@ -48,6 +48,9 @@ describe('useApiFetch', () => {
     expect(requestFetch).toHaveBeenCalledWith('/champions/266/trend', {
       baseURL: '/api',
       query: { position: 'TOP' },
+      // Nuxt's cancellation signal reaches the request, so leaving the page
+      // aborts it instead of letting it run to completion (#1712).
+      signal: expect.any(AbortSignal),
     })
   })
 
@@ -58,7 +61,7 @@ describe('useApiFetch', () => {
     await mountSuspended(component)
     await flushPromises()
 
-    expect(requestFetch).toHaveBeenCalledWith('/truemains', { baseURL: '/api', query: { page: 1 } })
+    expect(requestFetch).toHaveBeenCalledWith('/truemains', { baseURL: '/api', query: { page: 1 }, signal: expect.any(AbortSignal) })
   })
 
   it('keeps the status a handler branches on, so a 404 still means "empty"', async () => {

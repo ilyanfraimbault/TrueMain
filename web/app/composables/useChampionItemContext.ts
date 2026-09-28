@@ -32,7 +32,7 @@ export function useChampionItemContext(
 
   return useLazyAsyncData<ChampionItemContextResponse>(
     () => `champion-item-context|${championIdRef.value}|${positionRef.value ?? ''}|${patchRef.value ?? ''}`,
-    () => {
+    (_nuxtApp, { signal }) => {
       // The lane is required server-side, so hold rather than fire a 400 while the
       // champion page is still resolving which lane it is showing.
       if (!championIdRef.value || !positionRef.value) {
@@ -44,7 +44,7 @@ export function useChampionItemContext(
 
       return apiFetch<ChampionItemContextResponse>(
         `/champions/${championIdRef.value}/item-context`,
-        { query },
+        { query, signal },
       )
     },
     {

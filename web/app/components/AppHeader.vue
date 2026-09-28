@@ -43,17 +43,30 @@ const items = computed<NavigationMenuItem[]>(() => [
     active: route.path === '/truemains/favorites',
   },
 ])
+
+// A floating bar rather than a full-width strip: the root is a transparent
+// sticky frame and the container carries the only translucent material on the
+// site, so page content visibly slides under it. The desktop menu is text-only
+// — the icons stay in the mobile drawer, where the list needs them to scan.
+const desktopItems = computed(() => items.value.map(({ icon: _icon, ...item }) => item))
 </script>
 
 <template>
-  <UHeader title="TrueMain">
+  <UHeader
+    title="TrueMain"
+    :ui="{
+      root: 'bg-transparent backdrop-blur-none border-b-0 h-auto pt-3 px-3',
+      container: 'glass-bar rounded-2xl h-(--ui-header-height) max-w-6xl',
+    }"
+  >
     <template #title>
       <AppLogo class="text-lg" />
     </template>
 
     <UNavigationMenu
-      :items="items"
+      :items="desktopItems"
       variant="link"
+      :ui="{ link: 'text-[13px] font-medium' }"
     />
 
     <template #right>

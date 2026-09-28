@@ -44,6 +44,17 @@ activity / matches) all drop a response whose token is no longer the newest. Wit
 — which refires on page, position and championId — can let a slow page-3 response land after page 4's and
 write its rows under a pager reading 4 — #1234.
 
+**A backend request nobody waits for any more is cancelled, not left to run (2026-09-27).** Nuxt hands every
+`useAsyncData` handler a `signal` and aborts it on unmount, on a key change and on a superseding refresh, but
+the request only stops if the handler forwards it — none did, so clicking through pages or tabs left every
+request of every page already left running to completion, backend reads included. Every handler now passes
+`signal` to `apiFetch`, and the hand-rolled fetchers (`useTruemainFetch`, `useCompositionBuild`,
+`useCompositionBuildGames`) abort their previous request when a new one starts, on `clear()` and on scope
+dispose. The request token above still decides which response may be *written*; the signal decides which
+request is still *worth fetching*. The Nitro proxy already aborts the upstream call when the browser drops
+one, so the cancellation reaches the API. `tests/api-fetch/abort-signal.test.ts` fails on a backend call that
+forwards no signal — #1712.
+
 - **A row rendered on more than one surface sizes off its own width, not the viewport** (#967).
   `MatchRow` and `LeaderboardRow` are `@container`s. The same row sits full-width on a page, in a ~33rem
   drawer and in a sidebar, so a viewport `xl:` breakpoint told the narrow copy it owned the page and its
@@ -66,6 +77,14 @@ write its rows under a pager reading 4 — #1234.
   (`GameTooltip/LazyTooltip.vue`). That keeps this rule: Reka takes its snapshot when the tooltip mounts, once,
   on the element it keeps for good, and it opens on `pointermove`, so the resting pointer opens it on its next
   move and nothing is opened by hand.
+
+- **Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25, #1698).**
+  `GameTooltip/LazyTooltip.vue` defaults `content` to `{ side: 'top' }` for every item, rune and spell card.
+  Nuxt UI's own default is `bottom`, and Reka's collision avoidance flips a card that does not fit — so a card
+  up to `70vh` tall opened below or above the same icon depending on the scroll position, and two icons of one
+  build path could open on opposite sides. Collision avoidance stays on: forcing a side
+  (`avoidCollisions: false`) would clip the tall cards at the viewport edge. A side placement (`right`, which
+  also keeps the neighbouring icons of a row uncovered) was offered and the product owner chose the top.
 
 - **A skeleton is the real component in `pending` mode, not a drawing of it.** The champion page's build
   section has two loading phases it cannot merge: the aggregate and the patch-pinned static bundles are
@@ -300,3 +319,64 @@ tried first (#1617) and rejected.
   cached page is never staler than a freshly rendered one.
 - **Measured**: served locally, a cached response answers in ~3.5 ms against ~117 ms for a full render, and
   the env, version, Umami host/id and canonical URL are the running container's.
+
+## A page awaits its API data in setup; the loading bar covers the wait (2026-09-23)
+
+**Decision:** on a client-side navigation, each page awaits the TrueMain API fetch it renders from before it
+mounts — `await` in `<script setup>`, on a non-`lazy` `useAsyncData` or a composable's `ready` promise — and
+`AppLoadingBar` (Nuxt's `useLoadingIndicator`, under the sticky header) is the feedback for that wait. The
+destination opens on its data; only the static-data phase (DDragon / CommunityDragon lookups and icons) keeps a
+skeleton after it — #1689.
+
+- **Why.** A navigation used to swap to the destination at once and play its skeletons twice — once for the
+  API, once for the statics and icons — so every page change flashed an empty page between two real ones. This
+  is Nuxt's documented blocking-fetch model: `<NuxtPage>` wraps the page in `<Suspense>`, and the old page stays
+  mounted until the new one's setup settles.
+- **Hard loads are unchanged.** `server: false` fetches resolve at once during hydration (Nuxt defers the
+  request to `onBeforeMount`), so SSR and the first client render still agree on the skeleton. `useTruemainFetch`
+  runs its first request during setup only when nothing is being hydrated, and after mount otherwise — the
+  per-viewer payload still never reaches the server render (#862).
+- **Await at the end of setup.** Every fetch is started first and the page awaits them together as its last
+  statement: an `await` in the middle would start whatever follows only after it resolves.
+- **What does not wait.** Static lookups, the champion page's secondary panels (lazy, hydrate-on-visible), the
+  favorites cards (bounded fan-out, #872) and same-page refetches (filters, pagers — no `<Suspense>` involved)
+  keep their own skeletons. `useChampionSeoName` stays awaited on the server only: a `<head>`-only value is no
+  reason to lengthen the wait.
+- **Consequence for page transitions**: the View Transitions API freezes the frame for the whole wait, bar
+  included, so the transition moved to Vue's `<Transition>` — see `design-system.md`.
+
+## A patch Data Dragon has not published yet falls back to its newest version (2026-09-23)
+
+**Decision:** `/api/static/*` resolves the requested patch against DDragon's published version list before
+building a CDN URL — the newest build of the requested `major.minor` when there is one, DDragon's newest
+version otherwise — instead of trusting `normalizeDataDragonPatch`'s `major.minor.1` guess — #1693.
+
+- **Why.** Riot ships a patch hours to days before DDragon publishes it, and the front end asks for the patch
+  the *API* reports, i.e. the live game patch. The unpublished CDN path does not 404, it answers the bucket's
+  **403 AccessDenied**, and `/api/static/{items,champions,summoner-spells}` all failed at once. The champions
+  page blanks when any one of its four static sources errors, so the whole page read "Failed to load the
+  champion list" for the first part of every patch cycle — which is exactly when a build site is most useful.
+- **Stale assets beat no page.** Item names, champion names and icons barely move between two patches; the
+  numbers on the page are the API's and stay on the requested patch either way.
+- **Not new thinking**: the ingestor already does this for champion statics
+  (`Data/Statics/DataDragonChampionStaticsProvider`) and `api/static/rune-tree.get.ts` does it for
+  CommunityDragon's mirror-image lag. The DDragon side of the web app was the one that never got it.
+- **A patch DDragon does publish is still pinned** to that exact version — the fallback must not become a
+  silent upgrade to latest, or an older patch's page would render with current assets.
+- **Matching on `major.minor`**, not on the exact string, also covers DDragon numbering a build something other
+  than `.1`.
+- **One cached version list** (`loadDDragonVersions`, SWR, hours) now backs the resolution *and*
+  `/api/static/versions`, so the patch selector can only ever offer patches resolution is done against.
+
+**A public section card is its title and its content — no explanatory subtitle, no method footnote (2026-09-25).**
+`SectionCard` still takes a `subtitle` prop, but no public page passes one any more: the champion page's
+Trend / Scaling / Synergies / Matchups / Truemains / mains-comparison cards, the builder's "This matchup"
+strip, and the intro lines of `/champions/tierlist` and `/truemains` all printed a sentence restating what the
+section obviously was ("Win rate by game length. A rising line means…"), and the synergies card added a
+three-line method footnote plus a sample line under the trio list. The product owner judged them noise on
+every visit for information nobody reads. Where a term genuinely needs defining, the definition goes one
+hover away (the `Synergy` column header's `title`, the builder stats' hints), never printed under the
+section. A functional caveat the reader would otherwise get wrong survives as the one short line it needs
+(favorites: "Saved in this browser only."). The internal `/dev/design-system` page keeps its subtitles — it
+is documentation. Same direction as the player performance panel (#918 follow-up) and the "why this item"
+card (#1465) — #1699.

@@ -82,6 +82,7 @@ const {
   isInitialLoading: leaderboardInitialLoading,
   isLoading: leaderboardLoading,
   error: leaderboardError,
+  ready: leaderboardReady,
 } = useTruemainsLeaderboard(currentPage, {
   pageSize: LEADERBOARD_PAGE_SIZE,
   region: filterRegion,
@@ -110,6 +111,10 @@ const { runeTree, itemsMap } = useBuildAssets(latestPatch)
 
 // Map keyed lookup for the row's top-3 — avoids a linear scan per icon.
 const championsById = useChampionsById(champions)
+
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the leaderboard is in (#1689); the static lookups keep their skeleton.
+await leaderboardReady
 </script>
 
 <template>
@@ -117,9 +122,6 @@ const championsById = useChampionsById(champions)
     <PageHeader
       eyebrow="Leaderboard"
       title="Truemains"
-      :description="sort === 'dedication'
-        ? 'Tracked players ranked by dedication — how devoted each one is to their signature champion.'
-        : 'Tracked players ranked by current LP. Higher tier wins below Master; Master+ are ordered by raw LP.'"
     />
 
     <AppSearch
@@ -159,9 +161,12 @@ const championsById = useChampionsById(champions)
       <LeaderboardRowSkeleton v-for="i in LEADERBOARD_PAGE_SIZE" :key="`skel-${i}`" />
     </div>
 
-    <div v-else-if="rows.length === 0 && !leaderboardError" class="surface rounded-md px-4 py-8 text-center text-sm text-muted">
-      No truemains match these filters yet.
-    </div>
+    <UEmpty
+      v-else-if="rows.length === 0 && !leaderboardError"
+      size="sm"
+      icon="i-lucide-filter-x"
+      description="No truemains match these filters yet."
+    />
 
     <div v-else class="space-y-1">
       <LeaderboardRow

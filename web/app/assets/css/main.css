@@ -292,7 +292,57 @@ html {
 @utility surface {
   background-color: var(--ui-bg-elevated);
   border: 1px solid var(--ui-border);
-  box-shadow: 0 1px 2px 0 color-mix(in oklch, black 40%, transparent);
+  box-shadow: var(--shadow-key), 0 1px 2px 0 color-mix(in oklch, black 40%, transparent);
+}
+
+/*
+ * ─── Keycap edge ───────────────────────────────────────────────────────────
+ * A one-pixel lit top edge and a one-pixel shade on the bottom, both inset:
+ * the surface reads as a pressed key rather than a flat fill, and it does so
+ * without an outer drop shadow that would muddy the elevation ladder below.
+ * `surface` carries it everywhere; `keycap` is the same edge on its own, for
+ * controls that sit in a recessed well (the search field, keyboard hints).
+ */
+@theme {
+  --shadow-key: inset 0 1px 0 0 rgb(255 255 255 / 0.05), inset 0 -1px 0 0 rgb(0 0 0 / 0.2);
+}
+
+/*
+ * Routed through Tailwind's own `--tw-inset-shadow` slot rather than a bare
+ * `box-shadow`, so it composes with `ring-*` and `shadow-*` on the same element:
+ * a subtle button's inset ring and a focus-visible ring both keep drawing. A
+ * plain `box-shadow` here would win or lose against `ring` by stylesheet order.
+ */
+@utility keycap {
+  --tw-inset-shadow: var(--shadow-key);
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+}
+
+/*
+ * The floating header bar — the one translucent material on the site. It is
+ * the only surface that page content actually scrolls *behind*, so it is the
+ * one place a blur has something to show. Everything else stays opaque (see
+ * the note on `glass` below). Unprefixed `backdrop-filter` only.
+ */
+@utility glass-bar {
+  background-color: color-mix(in oklch, var(--ui-bg) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid color-mix(in oklch, white 8%, transparent);
+  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.06), 0 8px 32px -8px rgb(0 0 0 / 0.6);
+}
+
+/*
+ * Section eyebrow: the short label above a page or section heading, in the
+ * site's own face — Inter, medium, sentence case, rose gold. A mono uppercase
+ * version was tried in #1709 and withdrawn: it read as a second typeface
+ * rather than as a label. One utility so every eyebrow moves together.
+ */
+@utility eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  font-weight: 500;
+  color: var(--ui-primary);
 }
 
 @utility surface-hover {
@@ -306,7 +356,9 @@ html {
 }
 
 /*
- * The `glass` utility that used to live here is gone. It was kept at first for
+ * The general-purpose `glass` utility that used to live here is gone; the one
+ * translucent material left is `glass-bar` above, scoped to the header (#1709).
+ * `glass` was kept at first for
  * the home hero — the one place an animated backdrop still sits behind a panel
  * and there is therefore something to blur — but the hero's own search field
  * reads better solid against the eclipse, the way the reference designs stack a
@@ -457,57 +509,43 @@ html {
 }
 
 /*
- * Page transitions (#1621) — the browser's View Transitions API, switched on
- * by `experimental.viewTransition` in nuxt.config.ts. Nuxt starts one only
- * when the page component changes: a query-only navigation (the champion
- * page's filters, the pagers) re-renders in place, and `prefers-reduced-motion:
- * reduce` skips it entirely.
+ * Page transitions (#1621, #1689, #1714) — `app.pageTransition` in
+ * nuxt.config.ts, a Vue `<Transition name="page">` around the page's
+ * `<Suspense>`. It only plays once the destination has resolved the data it
+ * awaits in setup: until then `<Suspense>` keeps the outgoing page live under
+ * the loading bar (`AppLoadingBar`). It plays only when the page component
+ * changes — a query-only navigation (the champion page's filters, the pagers)
+ * re-renders in place — and not at all under `prefers-reduced-motion: reduce`.
  *
  * Restrained on purpose — this is a dense data UI, and the transition's only
- * job is to say "the page changed" rather than "it re-rendered". The content
- * region (`#main-content`, the `UMain` in app.vue) is its own layer: the
- * outgoing page fades out quickly, the incoming one fades in with a 6px rise,
- * starting once the old one is half gone — a plain cross-fade shows two dense
- * tables on top of each other mid-way, which reads as noise, not motion.
- * The shell (header, footer) stays in the root layer, where the stock
- * cross-fade of two near-identical frames only shows the nav highlight moving.
+ * job is to say "the page changed" rather than "it re-rendered". Only the
+ * content region animates; the shell (header, footer) sits outside
+ * `<NuxtPage>`. The incoming page fades in with a 6px rise; the outgoing one
+ * leaves at once (`display: none`), so the two are never on screen together —
+ * a cross-fade put two dense tables on top of each other mid-way, which read
+ * as noise, not motion.
  *
- * The group's size morph is turned off: two pages rarely share a height, and a
- * box stretching between them reads as layout jank, not motion. The fade-in is
- * short enough to be over before a client-side fetch lands, so a page that
- * opens on skeletons fills in afterwards as an update, not as a second
- * navigation.
+ * Not `mode="out-in"`, which used to give the outgoing page a 90ms fade first:
+ * `out-in` only renders the incoming page from the outgoing one's `afterLeave`,
+ * and `<Suspense>` drops that callback when another navigation starts during
+ * the leave — clicking through the header quickly then left `<main>` empty for
+ * good (#1714). An instant leave has no window to interrupt.
  */
-#main-content {
-  view-transition-name: page;
+.page-leave-active {
+  display: none;
 }
 
-::view-transition-group(page) {
-  animation: none;
+.page-enter-active {
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
 }
 
-::view-transition-old(page) {
-  animation: 90ms ease-in both page-out;
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
-::view-transition-new(page) {
-  animation: 180ms ease-out 60ms both page-in;
-}
-
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 150ms;
-}
-
-@keyframes page-out {
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes page-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active {
+    transition: none;
   }
 }

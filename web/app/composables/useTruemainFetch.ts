@@ -4,9 +4,10 @@ interface UseTruemainFetchOptions<TResponse> {
   /**
    * Issue the request for the current reactive state. Called with the
    * resolved (non-empty) name tag; expected to pass `ignoreResponseError`
-   * so a controller 404 resolves to a null body instead of throwing.
+   * so a controller 404 resolves to a null body instead of throwing, and to
+   * forward `signal` so a superseded or abandoned request is cancelled.
    */
-  request: (nameTag: string) => Promise<TResponse | null>
+  request: (nameTag: string, signal: AbortSignal) => Promise<TResponse | null>
   /**
    * Shape check on the raw response. `ignoreResponseError` turns a 404 into
    * a null body, so the only way to tell "not found" apart from "no body"
@@ -49,9 +50,11 @@ interface UseTruemainFetchOptions<TResponse> {
  * carry: only the newest request may write the refs, so a slow older response
  * can never land under newer inputs.
  *
- * Must be called from a component `setup()`: the initial run hangs off
- * `onMounted`, which is what makes "client-only" true rather than merely
- * intended (see the comment on that call).
+ * Must be called from a component `setup()`: on a server render or a
+ * hydration the initial run hangs off `onMounted`, which is what makes
+ * "client-only" true rather than merely intended (see the comment on that
+ * call). On a client-side navigation it runs during setup instead, and `ready`
+ * resolves once it has settled, so a page can await it (#1689).
  */
 export function useTruemainFetch<TResponse>(
   nameTag: MaybeRefOrGetter<string>,
@@ -73,6 +76,16 @@ export function useTruemainFetch<TResponse>(
   // pager reading 4. Bumped before *any* work — including the cleared path —
   // so clearing also invalidates whatever is still in flight.
   let requestSeq = 0
+  // The newest request's controller. The token above only stops a stale
+  // response from being *written*; aborting stops it from being *fetched* —
+  // stepping through pages or leaving the profile otherwise leaves every
+  // superseded request running to completion (#1712).
+  let controller: AbortController | null = null
+
+  function abortInFlight() {
+    controller?.abort()
+    controller = null
+  }
 
   async function execute() {
     // Gated: leave every ref untouched, so the consumer still reads
@@ -80,6 +93,7 @@ export function useTruemainFetch<TResponse>(
     if (!enabledRef.value) return
 
     const seq = ++requestSeq
+    abortInFlight()
 
     if (!nameTagRef.value) {
       options.onClear()
@@ -90,8 +104,9 @@ export function useTruemainFetch<TResponse>(
 
     isLoading.value = true
     error.value = null
+    controller = new AbortController()
     try {
-      const response = await options.request(nameTagRef.value)
+      const response = await options.request(nameTagRef.value, controller.signal)
 
       // Superseded while in flight: a newer request owns the refs now, and
       // it also owns the loading flags (see `finally`).
@@ -144,10 +159,23 @@ export function useTruemainFetch<TResponse>(
   // (always the loading state), hydration is exact, and the per-viewer payload
   // stays out of shared HTML — which is what the no-cross-viewer-SSR rule on
   // profiles asked for in the first place.
-  onMounted(() => { void execute() })
+  //
+  // A client-side navigation hydrates nothing, so the first request runs right
+  // away and `ready` hands it to the page: a page that awaits it in setup keeps
+  // the outgoing page on screen under the loading bar until the answer is in,
+  // and opens on its data rather than its skeleton (#1689).
+  const hydrating = !import.meta.client || useNuxtApp().isHydrating
+  const ready = hydrating ? Promise.resolve() : execute()
+  if (hydrating) onMounted(() => { void execute() })
   // `enabledRef` is watched too, so a gate opening after mount runs the fetch
   // mount skipped.
   watch([nameTagRef, enabledRef, ...(options.watch ?? [])], () => { void execute() })
+  // Bumping the token first makes the aborted request's rejection a stale one,
+  // so it never lands in `error`.
+  onScopeDispose(() => {
+    requestSeq++
+    abortInFlight()
+  })
 
   return {
     isLoading,
@@ -155,5 +183,6 @@ export function useTruemainFetch<TResponse>(
     notFound,
     error,
     execute,
+    ready,
   }
 }

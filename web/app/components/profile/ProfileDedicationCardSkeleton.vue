@@ -1,5 +1,5 @@
 <template>
-  <!-- Same block shape as ProfileDedicationCard.vue (score row + four component
+  <!-- Same block shape as ProfileDedicationCard.vue (score row + three part
        rows) so the left rail doesn't shift when the profile resolves. -->
   <section class="flex flex-col gap-2" aria-hidden="true">
     <USkeleton class="h-3 w-24" />
@@ -14,7 +14,7 @@
           <USkeleton class="h-4 w-20" />
         </div>
       </div>
-      <div v-for="i in 4" :key="i" class="flex flex-col gap-1">
+      <div v-for="i in 3" :key="i" class="flex flex-col gap-1">
         <div class="flex items-center justify-between gap-2">
           <USkeleton class="h-3 w-16" />
           <USkeleton class="h-3 w-24" />

@@ -21,20 +21,36 @@ namespace Data.CompiledModels
                 "Data.Entities.MatchParticipantTimelineSnapshot",
                 typeof(MatchParticipantTimelineSnapshot),
                 baseEntityType,
-                propertyCount: 14,
+                propertyCount: 13,
                 foreignKeyCount: 1,
-                unnamedIndexCount: 1,
                 keyCount: 1);
 
-            var id = runtimeEntityType.AddProperty(
-                "Id",
-                typeof(Guid),
-                propertyInfo: typeof(MatchParticipantTimelineSnapshot).GetProperty("Id", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(MatchParticipantTimelineSnapshot).GetField("<Id>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                valueGenerated: ValueGenerated.OnAdd,
+            var matchId = runtimeEntityType.AddProperty(
+                "MatchId",
+                typeof(string),
+                propertyInfo: typeof(MatchParticipantTimelineSnapshot).GetProperty("MatchId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipantTimelineSnapshot).GetField("<MatchId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 afterSaveBehavior: PropertySaveBehavior.Throw,
-                sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
-            id.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+                maxLength: 32);
+            matchId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var participantId = runtimeEntityType.AddProperty(
+                "ParticipantId",
+                typeof(int),
+                propertyInfo: typeof(MatchParticipantTimelineSnapshot).GetProperty("ParticipantId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipantTimelineSnapshot).GetField("<ParticipantId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                afterSaveBehavior: PropertySaveBehavior.Throw,
+                sentinel: 0);
+            participantId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var intervalMinute = runtimeEntityType.AddProperty(
+                "IntervalMinute",
+                typeof(int),
+                propertyInfo: typeof(MatchParticipantTimelineSnapshot).GetProperty("IntervalMinute", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(MatchParticipantTimelineSnapshot).GetField("<IntervalMinute>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                afterSaveBehavior: PropertySaveBehavior.Throw,
+                sentinel: 0);
+            intervalMinute.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var damageToChampions = runtimeEntityType.AddProperty(
                 "DamageToChampions",
@@ -43,14 +59,6 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MatchParticipantTimelineSnapshot).GetField("<DamageToChampions>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             damageToChampions.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-
-            var intervalMinute = runtimeEntityType.AddProperty(
-                "IntervalMinute",
-                typeof(int),
-                propertyInfo: typeof(MatchParticipantTimelineSnapshot).GetProperty("IntervalMinute", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(MatchParticipantTimelineSnapshot).GetField("<IntervalMinute>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                sentinel: 0);
-            intervalMinute.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var jungleMinionsKilled = runtimeEntityType.AddProperty(
                 "JungleMinionsKilled",
@@ -76,14 +84,6 @@ namespace Data.CompiledModels
                 sentinel: 0);
             level.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
-            var matchId = runtimeEntityType.AddProperty(
-                "MatchId",
-                typeof(string),
-                propertyInfo: typeof(MatchParticipantTimelineSnapshot).GetProperty("MatchId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(MatchParticipantTimelineSnapshot).GetField("<MatchId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                maxLength: 32);
-            matchId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-
             var minionsKilled = runtimeEntityType.AddProperty(
                 "MinionsKilled",
                 typeof(int),
@@ -91,14 +91,6 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(MatchParticipantTimelineSnapshot).GetField("<MinionsKilled>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             minionsKilled.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-
-            var participantId = runtimeEntityType.AddProperty(
-                "ParticipantId",
-                typeof(int),
-                propertyInfo: typeof(MatchParticipantTimelineSnapshot).GetProperty("ParticipantId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(MatchParticipantTimelineSnapshot).GetField("<ParticipantId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                sentinel: 0);
-            participantId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var timestampMs = runtimeEntityType.AddProperty(
                 "TimestampMs",
@@ -141,12 +133,8 @@ namespace Data.CompiledModels
             xp.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var key = runtimeEntityType.AddKey(
-                new[] { id });
+                new[] { matchId, participantId, intervalMinute });
             runtimeEntityType.SetPrimaryKey(key);
-
-            var index = runtimeEntityType.AddIndex(
-                new[] { matchId, participantId, intervalMinute },
-                unique: true);
 
             return runtimeEntityType;
         }

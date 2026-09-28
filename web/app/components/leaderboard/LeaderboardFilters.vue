@@ -41,10 +41,10 @@ const SORT_OPTIONS: SortItem[] = [
     description: 'Rank by current ranked standing (tier, then LP)',
   },
   {
-    label: 'Dedication',
+    label: 'Truemain score',
     value: 'dedication',
     icon: 'i-lucide-heart',
-    description: 'Rank by dedication to the signature champion (share of games, patches played, volume, recency)',
+    description: 'Rank by Truemain score on the signature champion (play rate, mastery points, mastery rank)',
   },
 ]
 

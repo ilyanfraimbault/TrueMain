@@ -40,7 +40,7 @@ export function useChampionSynergies(
       eloBracketRef.value ?? '',
       patchRef.value ?? '',
     ].join('-'),
-    async () => {
+    async (_nuxtApp, { signal }) => {
       const position = positionRef.value
       if (!position) return null
 
@@ -51,7 +51,7 @@ export function useChampionSynergies(
 
       return await apiFetch<ChampionSynergies>(
         `/champions/${championIdRef.value}/synergies`,
-        { query },
+        { query, signal },
       )
     },
     {
@@ -91,7 +91,7 @@ export function useChampionTrioSynergies(
       eloBracketRef.value ?? '',
       patchRef.value ?? '',
     ].join('-'),
-    async () => {
+    async (_nuxtApp, { signal }) => {
       const position = positionRef.value
       const partner = partnerRef.value
       const partnerPosition = partnerPositionRef.value
@@ -108,7 +108,7 @@ export function useChampionTrioSynergies(
 
       return await apiFetch<ChampionTrioSynergies>(
         `/champions/${championIdRef.value}/synergies/trios`,
-        { query },
+        { query, signal },
       )
     },
     {

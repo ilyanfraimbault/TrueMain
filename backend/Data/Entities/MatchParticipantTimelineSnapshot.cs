@@ -6,11 +6,10 @@ namespace Data.Entities;
 /// "lead vs lane opponent" is computed at read time by joining the opposing
 /// teamPosition for the same match + interval (see issue #525). End-of-game
 /// totals are not duplicated here — they already live on <see cref="MatchParticipant"/>.
+/// Keyed by (MatchId, ParticipantId, IntervalMinute) — no surrogate id (#1697).
 /// </summary>
 public class MatchParticipantTimelineSnapshot
 {
-    public Guid Id { get; set; }
-
     public string MatchId { get; set; } = string.Empty;
 
     public int ParticipantId { get; set; }

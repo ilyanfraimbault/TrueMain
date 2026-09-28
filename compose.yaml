@@ -235,23 +235,6 @@ services:
     networks:
       - truemain_internal
 
-  pgadmin:
-    image: dpage/pgadmin4:9.17
-    container_name: truemain-pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    ports:
-      - "5050:80"
-    volumes:
-      - truemain_pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - truemain_internal
-
 configs:
   umami_replay_cleanup_script:
     content: |
@@ -270,7 +253,6 @@ configs:
 volumes:
   truemain_db_data:
   truemain_mongo_data:
-  truemain_pgadmin_data:
   truemain_api_crashes:
   truemain_ingestor_crashes:
   truemain_umami_db_data:

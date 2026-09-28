@@ -59,8 +59,8 @@ the site should read as rose gold and should not carry a cyan it never wanted. R
   `TierBadge` all read the same tokens, so this was a token edit, not a component sweep.
 - **The medal ladder is back** (rose gold → gold → silver → bronze → iron). #1060 retired it on the grounds
   that gold and bronze are amber and amber meant "bad"; with the warm end of the axis gone, the collision it
-  was avoiding no longer exists. `dedication.ts` and `PlayerPerformance.vue` read `--color-tier-*` directly,
-  so the dedication ranks and performance verdicts followed for free.
+  was avoiding no longer exists. `PlayerPerformance.vue` reads `--color-tier-*` directly, so the performance
+  verdicts followed for free (the dedication ranks did too, until #1701 dropped them for the OTP/Main verdict).
 - **The activity heatmap returns to rose gold / neutral**, which is where #927 had it. The sign of a period is
   now carried by *accent vs grey* rather than by two opposed hues, which puts more weight on intensity: a
   one-game losing period is a faint grey cell. That is the intended read — it is barely a signal.
@@ -219,31 +219,29 @@ shape to compare against.
   `@source not` was rejected: it would silently leave the next `Prose*` component a page adopts unstyled — the
   static-extraction trap `DESIGN_SYSTEM.md` already warns about.
 
-## Page transitions are a staggered fade of the content only (2026-09-18)
+## Page transitions are a fade-in of the content only (2026-09-18, 2026-09-27)
 
-**Decision:** page changes use the browser's View Transitions API through `experimental.viewTransition: true`,
-animating only `#main-content`: the old page fades out in 90 ms, the new one fades in over 180 ms with a 6 px rise,
-starting at 60 ms — #1621.
+**Decision:** page changes animate only the page content: the new page fades in over 180 ms with a 6 px rise,
+the old one leaves at once — #1621, #1714. Since #1689 (2026-09-23) this runs on Vue's `<Transition>` through
+`app.pageTransition` (`name: 'page'`), no longer on the View Transitions API (`experimental.viewTransition`).
 
-- **Content only.** The header and footer stay in the root layer, whose stock cross-fade of two near-identical
-  frames only shows the nav highlight moving. The content group's size morph is disabled: two pages rarely share a
-  height, and a stretching box reads as jank.
-- **Staggered, not a cross-fade.** A plain cross-fade shows two dense tables on top of each other half-way through,
-  which reads as noise on this UI (observed on paused frames).
-- **Where it does not run.** Nuxt starts a transition only when the page component changes, so the champion page's
-  filter clicks and the pagers (same-path `router.replace`) never animate; `true` rather than `'always'` skips it
-  under `prefers-reduced-motion: reduce`. Both verified in the browser.
-- **The champion page opts out of arriving.** The browser freezes the old frame from the start of the navigation
-  until Nuxt's `page:finish`, and aborts the animation after 4 s. The champion page awaits its build summary in
-  setup, so a cold navigation into it showed a frozen directory for 4 s and then no animation at all — worse than
-  no transition, where the old page at least stays live (hover states, pulsing skeletons). The rule is about the
-  *destination*, so leaving the champion page still animates; any future page that awaits data in setup is opted
-  out the same way, rather than shortening the animation for everyone.
-- **Where the opt-out lives**: the destination paths are listed in `utils/view-transition.ts` and applied by
-  `plugins/view-transition.client.ts`, which clears `to.meta.viewTransition` in a `beforeEach` — Nuxt reads that
-  flag in a `beforeResolve`, which always runs later. `definePageMeta` on the page itself would be more direct,
-  but `pages/champions/[slug].vue` is over the file-size guardrail's limit and may only shrink. Both the rule and
-  the guard's effect are tested (unit test, plus a browser run counting the transitions each navigation starts).
+- **Why the mechanism changed (#1689).** Every page now awaits its API data in setup, under a loading bar (see
+  `web-frontend-rules.md`). A view transition starts in the router's `beforeResolve` and freezes the whole frame
+  until `page:finish` — the loading bar included — and drops the animation after 4 s; it had already been opted
+  out on the champion page for that reason. Vue's `<Transition>` wraps the page `<Suspense>` and only plays once
+  the destination has resolved, so the old page and the bar stay live through the wait, and the champion-page
+  opt-out (`utils/view-transition.ts`, `plugins/view-transition.client.ts`) is gone.
+- **Content only.** The header and footer sit outside `<NuxtPage>`, so they never move.
+- **Never two pages at once, and no `out-in` (#1714, 2026-09-27).** A plain cross-fade shows two dense tables on
+  top of each other half-way through, which reads as noise on this UI (observed on paused frames). The first
+  answer was `mode: 'out-in'` with a 90 ms fade-out, but `out-in` only renders the incoming page from the
+  outgoing one's `afterLeave`, and `<Suspense>` drops that callback when another navigation starts during the
+  leave: clicking through the header quickly left `<main>` empty for good, in most runs of a fast tab sequence
+  on production. The leave is now `display: none` — instant, so there is no window to interrupt and still no
+  frame holding both pages (checked frame by frame). The 90 ms fade-out is the price.
+- **Where it does not run.** Nuxt keys the page on its path, so the champion page's filter clicks and the pagers
+  (same-path `router.replace`) never animate; a `prefers-reduced-motion: reduce` media query drops the fade-in,
+  and `<Transition>` then swaps at once.
 
 ## One error vocabulary: a page for a dead route, an alert for a dead region, a toast for an action (2026-09-22)
 
@@ -291,3 +289,83 @@ split out for callers that already hold the number; it is pinned by a test.
 **What is deliberately *not* `FetchErrorAlert`:** the portal's domain-state alerts — "PUUID invalidated",
 "Rejected", a seed request's stored error. Those report a *record's* state, not a failed request, and stay
 plain `UAlert`s. `color="error"` is not by itself the mark of a fetch failure.
+
+## Empty states go through `UEmpty`, themed like the cards (2026-09-22)
+
+**Decided in #1669, the empty-state half of the vocabulary #1661 settled for errors.** The two are deliberately
+separate: an empty state is **not** an error — "no ranked games on this champion yet" is a correct answer, not
+a failure, and the codebase already relied on that distinction (`useChampion` swallows a 404 into
+`notEnoughData` rather than raising it). #1661 therefore left these alone; this entry finishes the job.
+
+There were twelve hand-rolled empty-state *cards* and no component behind any of them — three paddings
+(`px-6 py-12`, `px-6 py-8`, `px-4 py-8`), three card shapes (`surface rounded-lg`, `surface rounded-md`, a
+dashed `rounded-xl border-accented bg-muted`) and four title styles (`text-base font-semibold`,
+`font-medium`, `text-sm font-medium`, none at all). Nuxt UI ships `UEmpty` — `icon` / `avatar` / `title` /
+`description` / `actions` / `variant` / `size` / `loading` — which covers every one of them.
+
+- **Themed once in `app.config.ts`, like `card`**, and for the same reason: the next empty state should
+  inherit the shape rather than copy classes a thirteenth time.
+- **`soft` is the default and had to be restated opaque.** Nuxt UI's stock `soft` is `bg-elevated/50`, and a
+  plain utility out-cascades `@utility surface`'s background — the exact trap the `card` theme already
+  documents. Left alone, every empty state would render at 50 % against the translucency #1060 removed.
+  `description` also drops Nuxt UI's `text-toned` for the site's own muted/highlighted split.
+- **`UEmpty`'s `title` renders an `<h2>`.** That is right where the empty state *is* the page's content
+  (a not-found profile, an empty favorites list), and wrong inside a `SectionCard`, whose own title is an
+  `<h3>` — the prop would invert the outline. Those call sites (`FallbackBuild`, the matchup recommendation
+  card) put both lines in `#description` with the first one emphasised, which is what their markup did
+  anyway. The matchup **draft placeholder** takes the same route for a different reason already on record:
+  it is deliberately unlabelled by a heading so it reads as a placeholder and not as a third panel.
+- **The icon is neutral everywhere now.** It was `text-primary` on favorites and `text-dimmed` on the draft
+  stage. An empty-state icon is decorative, and the accent is scarce by rule — so it goes to the component's
+  neutral avatar in both.
+
+**"Player not found" stays an empty state, not the 404 page.** A Riot ID can name a real player we simply do
+not track: that is "we don't hold this", not "this does not exist". The page keeps its breadcrumb and its
+shareable URL, and the card offers a way onward (`actions`) where `error.vue` offers only a way back. The
+argument for the 404 page — `champion-route.ts` 404s a URL that names nothing — does not transfer: the
+profile fetch is client-only by rule (#862, per-viewer payloads never reach SSR HTML), so the server has
+already answered **200** with skeletons and `showError` could not change the status anyway. It would have
+bought a different presentation, not a real 404.
+
+**The second pass finished the one-line states in #1681** — eighteen of them, half again as many as the
+inventory in #1669 had found (it grepped for "No … yet" and missed `MainsComparison`'s four). They were a bare
+`<p class="text-muted">` inside a card; they are `UEmpty` now, description-only and icon-bearing.
+
+- **`size` had to be taught to change the box, not just the type.** Nuxt UI's sizes scale the avatar and the
+  font and leave the root at `p-4 sm:p-6 lg:p-8`, so a "small" empty state was still a full-height block and
+  converting a `py-3` line grew it threefold. `sm` and `xs` carry their own root padding in the theme, which
+  is what makes one usable inside a card body (`sm`) or a compact list (`xs`, no icon — an icon chip in a
+  favorite card is taller than the three match rows it replaces).
+- **All description-only.** These sit inside a `SectionCard`, so `UEmpty`'s `<h2>` title is either an
+  inversion (level 3) or a flat duplicate (level 2); the two that had a bolded pseudo-title keep it as an
+  emphasised first line in `#description`, the same shape `FallbackBuild` uses.
+
+**Three failures had been hiding among them, and #1661 missed all three** — `Couldn't load synergies` /
+`matchups` / `the comparison`, each hand-written as the same muted line as the empty states around it, with
+copy of its own that never saw the real status. The #1661 sweep keyed on `UAlert` and `describeFetchError`
+call sites, and these were neither. They are `FetchErrorAlert`s now. The lesson for the next vocabulary sweep:
+grep the *copy* as well as the components, because the drift that matters is the state rendered with no
+component at all.
+
+## Keycap surfaces and one translucent bar; the type stays Inter (2026-09-27)
+
+**Decided by the product owner in #1709, amending one point of #1060.**
+The components borrow the Raycast site's material language — not its look: the rose-gold accent, the `ink`
+surfaces and the eclipse hero all stay, and Raycast's animated banded backdrop was mocked up and dropped.
+
+- **Surfaces get a keycap edge** (`--shadow-key`: inset lit top, inset shaded bottom), on every `surface` and on
+  filled buttons. It gives a card and a control a physical edge without an outer shadow muddying the four-step
+  opaque ladder, which is untouched.
+- **Translucency returns for the header bar only** (`glass-bar`). #1060 removed `glass` because translucency
+  *everywhere* meant nothing was ever on top of anything. A floating header is the one surface content really
+  scrolls behind, so the argument does not apply to it — and it applies to every other surface as much as
+  before: `glass-bar` is not a panel material.
+- **Typography stays Inter, set tight, and eyebrows stay rose gold.** The pass first moved eyebrows to Geist Mono
+  uppercase in `text-dimmed` and set headings lighter (medium) with default tracking. The product owner withdrew
+  both after seeing them: the mono label read as a foreign typeface and the loose headings lost the site's voice.
+  Five alternatives (Geist, Space Grotesk, Sora, Bricolage Grotesque, an Instrument Serif accent word) were
+  compared and rejected in favour of the previous setting. Mono stays where it *is* the meaning — the footer's
+  build stamp, tier letters.
+- **Primary buttons stay rose gold.** Raycast's CTAs are neutral light-grey; adopting that would remove the
+  accent from the one place it means "act here". Only the keycap edge is borrowed.
+

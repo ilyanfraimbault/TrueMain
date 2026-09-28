@@ -51,11 +51,22 @@ const selectedShards = computed(() => [
 </script>
 
 <template>
-  <div class="flex flex-wrap items-stretch gap-x-6 gap-y-4">
+  <!-- `p-0.5` is the room the `selected-perk` ring needs: it is a 1 px ring
+       drawn *outside* the icon's box, so a picked keystone on the top row or a
+       picked shard on the last row painted 1 px past this block's own edge and
+       got sliced off by the runes column's `overflow-hidden`. The padding is
+       what keeps the ring inside the frame; the column width accounts for it.
+
+       `items-stretch` + `justify-between` on the primary section: the right
+       column (secondary tree + shards) is the taller of the two, and the
+       primary tree used to pack its rows at the top and leave the difference as
+       dead space under the last row. Stretched and spread, both columns start
+       and end on the same line. -->
+  <div class="flex flex-wrap items-stretch gap-x-6 gap-y-4 p-0.5">
     <!-- Primary tree (left) -->
     <section
       v-if="primary"
-      class="flex flex-col items-center gap-1"
+      class="flex flex-col items-center justify-between gap-1"
     >
       <!-- Keystone row -->
       <div class="flex items-center gap-0.5">

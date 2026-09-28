@@ -23,10 +23,42 @@
 # (authentication attempts). The analytics vhost is deliberately left out — the
 # Umami tracker fires on every page view and would evict everything else.
 
+# Security response headers shared by the two app-owned vhosts (the public site
+# and the admin portal). NOT imported into the analytics vhost: Umami ships its
+# own CSP there and an X-Frame-Options here would fight the admin Analytics
+# iframe the analytics block deliberately allows. Each vhost adds its own
+# Content-Security-Policy after the import because the allowed origins differ
+# (the public site loads the Umami tracker; the admin embeds the Umami
+# dashboard). See docs/ci.md.
+(security_headers) {
+	header {
+		# Pin HTTPS for a year, subdomains included: every TrueMain host is HTTPS
+		# through this edge, so a downgrade is always an attack.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# No MIME sniffing.
+		X-Content-Type-Options "nosniff"
+		# Belt-and-braces clickjacking defence for user agents that predate
+		# CSP frame-ancestors (which each vhost also sets).
+		X-Frame-Options "DENY"
+		# Leak only the origin cross-site, nothing at all on an HTTPS->HTTP step.
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Switch off powerful features the app never asks for.
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), browsing-topics=()"
+		# Don't advertise the framework.
+		-X-Powered-By
+	}
+}
+
 # Public site
 truemain.lol {
 	log
 	encode zstd gzip
+	import security_headers
+	# Public site CSP. 'unsafe-inline' is required for Nuxt's hydration
+	# scripts and the charts' inline styles (no nonce pipeline); scripts and
+	# the analytics beacon are pinned to the Umami host, images to the two
+	# game-asset CDNs (most arrive same-origin via /_ipx, some directly).
+	header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://ddragon.leagueoflegends.com https://raw.communitydragon.org; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://analytics.truemain.lol; connect-src 'self' https://analytics.truemain.lol; worker-src 'self' blob:; frame-src 'self'"
 	reverse_proxy web:3000
 }
 
@@ -39,6 +71,11 @@ www.truemain.lol {
 admin.truemain.lol {
 	log
 	encode zstd gzip
+	import security_headers
+	# Admin CSP: same base as the public site, but it embeds the Umami
+	# dashboard in an iframe (Analytics tab) rather than loading the tracker,
+	# so analytics is allowed under frame-src, not script/connect-src.
+	header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://ddragon.leagueoflegends.com https://raw.communitydragon.org; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:; frame-src https://analytics.truemain.lol"
 
 	# Force X-Forwarded-For to the real peer IP, dropping any client-supplied
 	# value. Caddy already does this by default (the browser is an untrusted

@@ -32,14 +32,10 @@ const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.va
 // (`server: false`) to keep the SSR shell deterministic, mirroring the
 // /champions directory page.
 const apiFetch = useApiFetch()
-const {
-  data: tierList,
-  error: tierListError,
-  status: tierListStatus,
-} = useLazyAsyncData<ChampionTierListResponse>(
+const tierListFetch = useAsyncData<ChampionTierListResponse>(
   () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}`
     + `-${filters.value.eloBracket ?? 'all'}-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
-  () => {
+  (_nuxtApp, { signal }) => {
     const query: Record<string, string> = {}
     if (filters.value.patch) query.patch = filters.value.patch
     if (selectedPosition.value) query.position = selectedPosition.value
@@ -47,7 +43,7 @@ const {
     // Sent only when off: true is the API default, so pinning it would just make
     // every resting request carry a redundant param.
     if (!filters.value.truemainsOnly) query.truemainsOnly = 'false'
-    return apiFetch<ChampionTierListResponse>('/champions/tierlist', { query })
+    return apiFetch<ChampionTierListResponse>('/champions/tierlist', { query, signal })
   },
   {
     watch: [
@@ -60,6 +56,7 @@ const {
     default: () => ({ patchVersion: '', position: null, tiers: [] }),
   },
 )
+const { data: tierList, error: tierListError, status: tierListStatus } = tierListFetch
 
 // Static champion list (names + icons) — shared composable so navigating between
 // /champions and the tier list pays the fetch once (same key + options).
@@ -130,6 +127,10 @@ function championDestination(entry: { championId: number, position: string }) {
     },
   }
 }
+
+// A client-side navigation keeps the outgoing page under the loading bar until
+// the tier list is in (#1689); the static lookups keep their skeleton.
+await tierListFetch
 </script>
 
 <template>
@@ -138,10 +139,6 @@ function championDestination(entry: { championId: number, position: string }) {
       <h1 class="text-2xl font-semibold">
         Tier List
       </h1>
-      <p class="text-sm text-muted">
-        Champions ranked into S–D tiers by winrate and pickrate for the current patch, per role.
-        Hover a champion for its win, pick and ban rate.
-      </p>
 
       <div class="flex flex-wrap items-center justify-between gap-3">
         <RolePicker

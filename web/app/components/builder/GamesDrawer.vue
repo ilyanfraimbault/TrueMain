@@ -171,12 +171,12 @@ function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
         </template>
 
         <template v-else-if="data">
-          <p
+          <UEmpty
             v-if="data.games.length === 0"
-            class="py-8 text-center text-sm text-muted"
-          >
-            No sampled games to show.
-          </p>
+            size="sm"
+            icon="i-lucide-list-x"
+            description="No sampled games to show."
+          />
 
           <div
             v-for="game in data.games"

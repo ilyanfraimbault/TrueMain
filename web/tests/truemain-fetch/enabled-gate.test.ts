@@ -18,6 +18,7 @@ Object.assign(globalThis, {
   watch: vue.watch,
   toValue: vue.toValue,
   onMounted: vue.onMounted,
+  onScopeDispose: vue.onScopeDispose,
 })
 
 const { useTruemainFetch } = await import('~/composables/useTruemainFetch')
@@ -97,6 +98,6 @@ describe('useTruemainFetch gating', () => {
     await flush()
     // One request for the *current* name tag, not one per change.
     expect(request).toHaveBeenCalledTimes(1)
-    expect(request).toHaveBeenCalledWith('Other-4321')
+    expect(request).toHaveBeenCalledWith('Other-4321', expect.any(AbortSignal))
   })
 })

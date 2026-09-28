@@ -363,7 +363,6 @@ public sealed class CompositionBuildApiIntegrationTests
         string matchId, int participantId, int totalGold, int xp)
         => new()
         {
-            Id = Guid.NewGuid(),
             MatchId = matchId,
             ParticipantId = participantId,
             IntervalMinute = 15,

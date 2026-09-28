@@ -20,23 +20,22 @@ defineEmits<{ clear: [] }>()
 </script>
 
 <template>
-  <div class="flex flex-col items-center gap-3 surface rounded-lg px-6 py-8 text-center">
-    <div class="space-y-1">
-      <p class="text-sm font-medium text-default">
-        {{ filterLabels.length ? 'Nothing on these filters' : 'No personal build breakdown yet' }}
-      </p>
-      <p class="text-sm text-muted">
-        <template v-if="filterLabels.length">
-          {{ playerLabel }} has no game on record for {{ filterLabels.join(' · ') }}.
-          Pick another lane or patch, or clear the filters to go back to their main slice.
-        </template>
-        <template v-else>
-          We don't have an aggregated build for {{ playerLabel }} on
-          {{ championName ?? 'this champion' }} yet. Their recent games are below.
-        </template>
-      </p>
-    </div>
-    <div class="flex flex-wrap items-center justify-center gap-4">
+  <UEmpty
+    :icon="filterLabels.length ? 'i-lucide-filter-x' : 'i-lucide-hammer'"
+    :title="filterLabels.length ? 'Nothing on these filters' : 'No personal build breakdown yet'"
+  >
+    <template #description>
+      <template v-if="filterLabels.length">
+        {{ playerLabel }} has no game on record for {{ filterLabels.join(' · ') }}.
+        Pick another lane or patch, or clear the filters to go back to their main slice.
+      </template>
+      <template v-else>
+        We don't have an aggregated build for {{ playerLabel }} on
+        {{ championName ?? 'this champion' }} yet. Their recent games are below.
+      </template>
+    </template>
+
+    <template #actions>
       <UButton
         v-if="filterLabels.length"
         size="sm"
@@ -53,6 +52,6 @@ defineEmits<{ clear: [] }>()
       >
         See the global build for {{ championName ?? 'this champion' }}
       </NuxtLink>
-    </div>
-  </div>
+    </template>
+  </UEmpty>
 </template>

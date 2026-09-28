@@ -25,6 +25,7 @@ Object.assign(globalThis, {
   watch: vue.watch,
   toValue: vue.toValue,
   onMounted: vue.onMounted,
+  onScopeDispose: vue.onScopeDispose,
 })
 
 const { useTruemainFetch } = await import('~/composables/useTruemainFetch')

@@ -134,6 +134,12 @@ page's HTML (about 200 KB), each JS bundle (up to about 290 KB) and `/api/static
 raw. Images from `/_ipx` are already WebP and gain little. Preprod's edge Caddy carries the same directive, so its
 page-load measurements stay comparable.
 
+## Security response headers
+
+The edge sets the response security headers the app frameworks do not (the public site and admin shipped none). A shared `(security_headers)` snippet in the `Caddyfile` carries `Strict-Transport-Security` (one year, `includeSubDomains`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy` that turns off camera/microphone/geolocation/topics, and strips the upstream `X-Powered-By`. It is imported into the two app-owned vhosts only — never the `analytics` vhost, where Umami ships its own CSP and an `X-Frame-Options` here would fight the admin Analytics iframe that block deliberately allows.
+
+Each app vhost then adds its own `Content-Security-Policy`, because the allowed origins differ: the public site loads the Umami tracker (so its host is in `script-src`/`connect-src`), while the admin embeds the Umami dashboard in an iframe (so its host is in `frame-src` instead). Both keep `'unsafe-inline'` for scripts and styles — Nuxt's hydration and the charts' inline styles need it, and there is no nonce pipeline — and allow the two game-asset CDNs (`ddragon.leagueoflegends.com`, `raw.communitydragon.org`) under `img-src` for the icons that do not arrive same-origin through `/_ipx`. Preprod's inline edge carries the same snippet minus HSTS (it is plain HTTP) and minus the CSP (its analytics host is an operator env value, not a fixed origin); the CSP is prod-only, where the origins are static.
+
 ## Postgres server tuning
 
 `compose.prod.yaml` starts Postgres with explicit `-c` settings (part A of #1366).

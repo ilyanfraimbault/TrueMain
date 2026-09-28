@@ -10,9 +10,9 @@ public sealed class MatchParticipantTimelineSnapshotConfiguration : IEntityTypeC
     {
         entity.ToTable("match_participant_timeline_snapshots");
 
-        entity.HasKey(e => e.Id);
-        entity.Property(e => e.Id)
-            .ValueGeneratedOnAdd();
+        // One snapshot per participant per interval: the natural key is the primary
+        // key — the lookup key and the dedup guard for timeline re-ingestion (#1697).
+        entity.HasKey(e => new { e.MatchId, e.ParticipantId, e.IntervalMinute });
 
         entity.Property(e => e.MatchId)
             .IsRequired()
@@ -31,10 +31,5 @@ public sealed class MatchParticipantTimelineSnapshotConfiguration : IEntityTypeC
             .HasForeignKey(e => e.MatchId)
             .HasPrincipalKey(m => m.Id)
             .OnDelete(DeleteBehavior.Cascade);
-
-        // One snapshot per participant per interval; also the natural lookup key
-        // and the dedup guard for timeline re-ingestion.
-        entity.HasIndex(e => new { e.MatchId, e.ParticipantId, e.IntervalMinute })
-            .IsUnique();
     }
 }
