@@ -75,10 +75,15 @@ onMounted(async () => {
             ? 'Your champion select is on: picks, lanes and builds as it stands.'
             : 'Opens on its own when your next champion select starts. Rehearse one meanwhile.' }}
         </p>
-        <div class="flex flex-col gap-2">
-          <UButton v-if="screen === 'draft'" to="/draft" label="Open the draft" icon="i-lucide-arrow-right" trailing block />
-          <UButton to="/simulator" label="Draft simulator" icon="i-lucide-flask-conical" color="neutral" variant="subtle" block />
-        </div>
+        <UButton
+          v-if="screen === 'draft'"
+          to="/draft"
+          label="Open champion select"
+          icon="i-lucide-arrow-right"
+          trailing
+          block
+        />
+        <UButton v-else to="/draft" label="Practice a draft" icon="i-lucide-flask-conical" color="neutral" variant="subtle" block />
       </section>
     </div>
 

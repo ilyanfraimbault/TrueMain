@@ -13,8 +13,8 @@ Tracking issue: **#1671**.
 - Follows the client's **WebSocket event stream**, so champion select updates as
   picks land rather than on a poll.
 - **A sidebar to every section the site has** — dashboard, champions, tier list,
-  matchup, truemains, favorites — plus the live draft and a draft simulator. The
-  **gameflow phase still drives the screen**: champion select opens the draft on
+  matchup, truemains, favorites — plus **champion select**, live or rehearsed
+  by hand on the same page. The **gameflow phase still drives the screen**: champion select opens the draft on
   its own, and leaving it goes back home (only from the draft, never from a page
   the player opened by hand).
 - **Draws the draft like the reference client**: each side's bans and the phase
@@ -180,10 +180,11 @@ Rust to ask. In a production build the picker never renders — `import.meta.dev
 is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chunk
 that is never fetched.
 
-### The draft simulator — a whole champion select, by hand
+### Rehearsing a champion select by hand
 
-The **Draft simulator** entry of the sidebar plays a ranked draft one action at
-a time through the same draft screen: pick the side, your lane and your pick
+Outside a live champion select, the **Champ select** page is a ranked draft to
+play one action at a time, through the same draft screen (a real champion
+select takes the page over the moment one starts): pick the side, your lane and your pick
 order, then each ban and pick in the client's order (both sides' bans, then
 1-2-2-2-2-1). Type a champion and press Enter; your own pick lands as a hover
 first, like in the client, until **Lock in**. **Auto-fill** plays forward with

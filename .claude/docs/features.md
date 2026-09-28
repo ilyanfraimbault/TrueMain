@@ -188,7 +188,7 @@ mounted components (`ProcessSummaryView`, `PanelTitle`). No page-level tests.
 Reads the local League client (LCU) in Rust; the webview renders the state. Details and dev workflow in
 `desktop/README.md`; decisions in [`decisions/desktop.md`](decisions/desktop.md).
 
-- **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select, Draft simulator),
+- **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select),
   player card (Riot ID, level, client status), top bar with a ⌘K champion search (no back/forward, no patch label). Hash routing; the
   gameflow phase opens `/draft` on its own.
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
@@ -198,8 +198,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that
   main's own build on the champion — and the site's core blocks (runes beside summoners/skills/starter/boots, no build
   path) over the site's build tree drawn smaller.
-- **Draft simulator** (`/simulator`) — a ranked draft played by hand (side, lane, pick order, bans, 1-2-2-2-2-1 picks,
-  hover then lock, undo, auto-fill) through the same draft screen and the real API.
+- **Practice draft** (the same `/draft` page outside a live champion select) — a ranked draft played by hand (side,
+  lane, pick order, bans, 1-2-2-2-2-1 picks, hover then lock, undo, auto-fill) through the same draft screen and the
+  real API; a live champion select takes the page over when it starts. There is no separate simulator entry.
 - **Site sections** — tier list, champion grid, champion page (lane picker, stats, build view), matchup (champion vs
   opponent on a lane, composition build), truemains leaderboard (the site's rows), favorites kept on this machine.
   A player row opens their page on truemain.lol.

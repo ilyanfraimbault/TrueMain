@@ -23,6 +23,12 @@ a ring per role in several colours (ours, the viewed one, our lane opponent, the
 owner read them as competing selections; the slot being filled now pulses its side's hairline instead of taking a
 ring (2026-09-28) — #1671.
 
+**Champion select is one page, live or rehearsed.** The simulator was its own sidebar entry beside "Champ select",
+and the product owner read the two as the same thing. `/draft` shows the live draft while the client is in champion
+select and, the rest of the time, the same draft screen played by hand under the simulator's bar; a real champion
+select takes the page over when it starts, and the sidebar keeps a single entry with its "Live" badge (2026-09-28) —
+#1671.
+
 **The app has no browser chrome: no back/forward arrows and no patch label in the top bar.** Both made the window
 read as a web page; the sidebar is how the app is navigated, and the bar keeps only the ⌘K champion search
 (2026-09-28) — #1671.

@@ -92,7 +92,7 @@ const placeholder = computed(() => {
     <UButton v-if="hovering" label="Lock in" icon="i-lucide-lock" size="sm" @click="lockIn" />
     <UButton v-if="current?.kind === 'ban'" label="No ban" color="neutral" variant="ghost" size="sm" @click="skip" />
 
-    <span class="ml-auto stat-label tabular-nums">Step {{ Math.min(sim.step + 1, steps.length) }}/{{ steps.length }}</span>
+    <span class="ml-auto stat-label tabular-nums">Practice · Step {{ Math.min(sim.step + 1, steps.length) }}/{{ steps.length }}</span>
     <UButton icon="i-lucide-undo-2" color="neutral" variant="ghost" size="sm" aria-label="Undo" :disabled="sim.step === 0 && !hovering" @click="undo" />
     <UButton
       :label="isMyTurn ? 'Fill to end' : 'Auto-fill'"

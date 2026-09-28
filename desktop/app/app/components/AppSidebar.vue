@@ -3,8 +3,8 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 
 /**
  * The app's navigation, down the left edge: every section the site has, then
- * the two that exist only here — the live draft and its simulator — and the
- * player at the foot. The gameflow phase still opens the draft on its own
+ * the one that exists only here — champion select, live or rehearsed by hand
+ * on the same page — and the player at the foot. The gameflow phase still opens the draft on its own
  * (`app.vue`); this is how the player gets everywhere else.
  */
 const route = useRoute()
@@ -29,10 +29,10 @@ const items = computed<NavigationMenuItem[][]>(() => [
       icon: 'i-lucide-sparkles',
       to: '/draft',
       active: isActive('/draft'),
-      // Lit while the client is in champion select, wherever the player is.
+      // Lit while the client is in champion select, wherever the player is;
+      // the rest of the time the page is a draft to play by hand.
       badge: screen.value === 'draft' ? { label: 'Live', color: 'primary', variant: 'subtle', size: 'sm' } : undefined,
     },
-    { label: 'Draft simulator', icon: 'i-lucide-flask-conical', to: '/simulator', active: isActive('/simulator') },
   ],
 ])
 

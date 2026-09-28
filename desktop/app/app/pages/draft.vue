@@ -1,29 +1,31 @@
 <script setup lang="ts">
 /**
- * The live draft. The gameflow phase opens this page on its own when champion
- * select starts (`app.vue`); outside of it the page says so and points at the
- * simulator, where a draft can be played through by hand.
+ * Champion select — live or rehearsed, one page. While the client is in
+ * champion select this is the live draft, and the gameflow phase opens it on
+ * its own (`app.vue`). The rest of the time it is the same draft screen played
+ * by hand, the simulator's bar over it; a real champion select takes the page
+ * over the moment one starts.
  */
 const { state, screen } = useLcuState()
+const live = computed(() => screen.value === 'draft' && state.value.draft !== null)
+
+const { draft, label, activeSlot, tick } = useDraftSimulator()
+
+// The rehearsal's clock runs only while it is on screen.
+let clock: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  clock = setInterval(() => {
+    if (!live.value) tick()
+  }, 1000)
+})
+onBeforeUnmount(() => clearInterval(clock))
 </script>
 
 <template>
-  <DraftScreen v-if="screen === 'draft' && state.draft" :draft="state.draft" />
+  <DraftScreen v-if="live && state.draft" :draft="state.draft" />
 
-  <div v-else class="relative flex h-full flex-col items-center justify-center gap-5 overflow-hidden px-8 text-center">
-    <ChampionArt :alias="backdropAlias()" fade="vignette" position="60% 25%" class="opacity-40" />
-    <span class="relative flex size-3 items-center justify-center">
-      <span class="absolute inline-flex size-full animate-tm-pulse rounded-full bg-primary" />
-      <span class="relative inline-flex size-1.5 rounded-full bg-primary" />
-    </span>
-    <div class="relative space-y-2">
-      <h1 class="text-2xl font-semibold tracking-tight text-highlighted">Not in champion select</h1>
-      <p class="max-w-sm text-sm text-muted">
-        {{ state.connected
-          ? 'This page opens on its own when your next champion select starts.'
-          : 'Start League of Legends: this page follows you into champion select on its own.' }}
-      </p>
-    </div>
-    <UButton to="/simulator" icon="i-lucide-flask-conical" label="Try a draft in the simulator" color="neutral" variant="subtle" class="relative" />
+  <div v-else class="flex h-full flex-col">
+    <SimulatorBar class="shrink-0 border-b border-default" />
+    <DraftScreen :draft="draft" :label="label" :active-slot="activeSlot" class="min-h-0 flex-1" />
   </div>
 </template>
