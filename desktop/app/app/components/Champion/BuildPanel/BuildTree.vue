@@ -1,4 +1,6 @@
-<!-- Twin of `web/app/components/Champion/BuildPanel/BuildTree.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
+<!-- Twin of `web/app/components/Champion/BuildPanel/BuildTree.vue` — copied verbatim until the shared layer (#1687); keep the two identical.
+     App-specific: `itemSize`, `hGap` and `vGap` are props (defaulting to the site's constants) so the app's narrow build
+     pane can draw a smaller, tighter tree. -->
 <script setup lang="ts">
 import type { BuildTreeNode } from '~~/shared/types/champions'
 import type { StaticItemData } from '~~/shared/types/static-data'
@@ -15,6 +17,10 @@ const props = defineProps<{
   itemsMap: Record<number, StaticItemData>
   /** Situational verdicts (#1451), keyed by slot + branch + item. Absent where the page has no slice for them. */
   itemContext?: Map<string, ItemContextCard>
+  /** App-specific: the node size and the gaps between nodes, in px. */
+  itemSize?: number
+  hGap?: number
+  vGap?: number
 }>()
 
 /**
@@ -43,9 +49,10 @@ interface LaidOutNode {
   children: LaidOutNode[]
 }
 
-const ITEM_SIZE = 36
-const H_GAP = 22
-const V_GAP = 44
+// App-specific: read once — a call site passes constants.
+const ITEM_SIZE = props.itemSize ?? 36
+const H_GAP = props.hGap ?? 22
+const V_GAP = props.vGap ?? 44
 const MAX_CHILDREN = 4
 
 const layout = computed(() => {

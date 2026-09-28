@@ -42,9 +42,10 @@ Tracking issue: **#1671**.
 - **Reads your champion mastery** once per login, to rank your own pool
   (`championPool`, most points first) without asking what you play.
 - **Uses the site's own components** for everything the site already draws —
-  the build core view and tree, the game-entity tooltips, the leaderboard row,
+  the build tree and rune block, the game-entity tooltips, the leaderboard row,
   rank and region marks, the role picker — as labelled twin copies (see
-  "Sharing with the site" below).
+  "Sharing with the site" below). The build's core is laid out for the app's
+  narrower pane (`build/BuildCore.vue`), from the site's icons.
 
 ## What it does not do yet
 

@@ -194,7 +194,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
   guessed and correctable by drag, the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
   ten most-mastered champions on the lane, or every champion on the lane). Once locked (or on a click): the build view —
-  the draft's composition build and the lane builds, the champion's true mains, the site's core view and build tree.
+  the draft's composition build and the lane builds, the champion's true mains, a compact core (the site's icons, runes
+  beside summoners/skills/starter/boots/path at the same height) over the site's build tree drawn smaller.
 - **Draft simulator** (`/simulator`) — a ranked draft played by hand (side, lane, pick order, bans, 1-2-2-2-2-1 picks,
   hover then lock, undo, auto-fill) through the same draft screen and the real API.
 - **Site sections** — tier list, champion grid, champion page (lane picker, stats, build view), matchup (champion vs

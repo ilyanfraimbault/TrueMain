@@ -5,9 +5,8 @@ import type { DraftBuild } from '~/composables/useDraftBuild'
 /**
  * A champion's build, laid out the way the reference client does after a pick
  * — the builds to choose from and the champion's true mains down the left, the
- * build itself on the right — with the right side made of the site's own
- * blocks: its core view (`Champion/BuildPanel/Core`) and its build tree, the
- * pair every build on the site renders, tooltips included.
+ * build itself on the right — the core (`BuildCore`, the site's icons and
+ * rune block laid out for the pane) over the site's build tree.
  *
  * With a draft, its own build (computed against the draft as it stands) is the
  * first row and the default; the champion's lane builds follow, so the player
@@ -84,8 +83,8 @@ const waiting = computed(() => !shown.value && (lanePending.value || props.draft
       </div>
     </aside>
 
-    <div v-if="shown" class="min-h-0 space-y-6 overflow-y-auto p-4">
-      <ChampionBuildPanelCore
+    <div v-if="shown" class="min-h-0 space-y-4 overflow-y-auto p-3">
+      <BuildCore
         :summoner-spells="shown.core.summonerSpells"
         :starter-items="shown.core.starterItems"
         :skill-order="shown.core.skillOrder"
@@ -99,12 +98,16 @@ const waiting = computed(() => !shown.value && (lanePending.value || props.draft
         :rune-tree="runeTree"
         :no-runes-message="shown.key === 'draft' ? 'No rune data in the sampled games.' : null"
       />
+      <!-- The site's tree, drawn smaller and tighter to fit the pane. -->
       <ChampionBuildPanelBuildTree
         v-if="shown.buildTree.length > 0"
         :tree="shown.buildTree"
         :first-item-id="shown.firstItemId"
         :item-path="shown.core.itemPath?.itemIds ?? []"
         :items-map="items"
+        :item-size="28"
+        :h-gap="10"
+        :v-gap="20"
       />
     </div>
 

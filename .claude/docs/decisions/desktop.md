@@ -40,6 +40,13 @@ and reserves the sub-mains column only where it shows) and the draft's 22rem col
 home-page row instead — a truncated name was the first thing reported. The layer that would end the copies is #1687
 (2026-09-27).
 
+**The build pane lays out the core itself, from the site's icons, and draws the site's build tree smaller.** The
+site's core view only puts the runes beside the rest from a 768 px container; the app's pane is ~560 px, so the runes
+fell under everything and the build tree started off screen. `build/BuildCore.vue` sets summoners, skill order,
+starter and boots as a 2 × 2 grid over the build path at 30 px, with the site's rune block to their right stretched
+to the same height; the tree twin takes its node size and gaps as app-specific props (28 / 10 / 20 px against the
+site's 36 / 22 / 44). The site's core twins it replaced were removed rather than kept unused (2026-09-28) — #1671.
+
 **Icons are bundled at build time, routes live in the hash, and images are drawn without a `load` gate.** The
 packaged app has no server to resolve an icon and a CSP that reaches only Data Dragon and Community Dragon
 (`icon.provider: 'none'` + `clientBundle.scan`); Tauri's custom protocol serves files, not an SPA fallback, so a

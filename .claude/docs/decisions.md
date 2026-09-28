@@ -303,6 +303,7 @@ Last verified against `develop` on 2026-09-02.
 - One selected card on the draft board, ringed in the primary colour: the player's by default, any placed champion on click (build + lane duel) (2026-09-28) — #1671
 - Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; enemy-team component is #1713 — #1675
 - The app draws the site's components as labelled twin copies, with app behaviour in shims beside them — #1687
+- The build pane lays out a compact core from the site's icons (runes beside, same height) and draws the site's tree smaller (2026-09-28) — #1671
 - Icons bundled at build time, hash routing, images drawn without a `load` gate (WKWebView)
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
