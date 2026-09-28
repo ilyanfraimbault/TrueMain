@@ -65,6 +65,9 @@ export function useDraftSubject(
     }
   })
 
+  /** The clicked champion while its build is the one on screen; null when the build is ours. */
+  const shownView = computed(() => (viewed.value && subject.value?.championId === viewed.value.championId ? viewed.value : null))
+
   /** The champion the build is for, and the one it faces on its lane. */
   const duel = computed(() => {
     const current = subject.value
@@ -76,10 +79,10 @@ export function useDraftSubject(
 
   /** Which side the build on screen is for, in the player's words. */
   const whose = computed(() => {
-    if (viewed.value && subject.value?.championId === viewed.value.championId) return viewed.value.team === 'ally' ? 'Ally' : 'Enemy'
+    if (shownView.value) return shownView.value.team === 'ally' ? 'Ally' : 'Enemy'
     if (previewed.value !== null) return 'Preview'
     return draft.value.myChampionLocked ? 'Your pick' : 'Hovering'
   })
 
-  return { subject, duel, whose }
+  return { subject, shownView, duel, whose }
 }

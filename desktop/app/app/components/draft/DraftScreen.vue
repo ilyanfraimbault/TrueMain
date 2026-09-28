@@ -119,7 +119,7 @@ const activeEnemyCell = computed(() => (props.activeSlot?.team === 'enemy' ? ene
 
 const viewed = ref<ViewedPick | null>(null)
 const previewed = ref<number | null>(null)
-const { subject, duel, whose } = useDraftSubject(draft, enemyLanes, viewed, previewed)
+const { subject, shownView, duel, whose } = useDraftSubject(draft, enemyLanes, viewed, previewed)
 const { build, pending: buildPending, error: buildError } = useDraftBuild(subject)
 
 /** A click reads that champion's build; a second click on it goes back. */
@@ -128,13 +128,13 @@ function view(team: 'ally' | 'enemy', championId: number) {
   if (isMe) {
     // Our own card toggles our build while the pick is open; once it is
     // locked the build is already the default, and the click only comes back to it.
-    const onMine = mode.value === 'build' && viewed.value === null && previewed.value === null
+    const onMine = mode.value === 'build' && shownView.value === null && previewed.value === null
     viewed.value = null
     previewed.value = null
     showBuild.value = !props.draft.myChampionLocked && !onMine
     return
   }
-  viewed.value = viewed.value?.championId === championId ? null : { team, championId }
+  viewed.value = shownView.value?.championId === championId ? null : { team, championId }
 }
 
 /** Our own build, opened by hand while the pick is still open. */
@@ -147,11 +147,24 @@ watch(() => [props.draft.myChampion, props.draft.myChampionLocked].join(':'), ()
 
 /** Picks while ours is open and there is a lane to rank for; the build otherwise. */
 const mode = computed<'pick' | 'build'>(() => {
-  if (viewed.value || previewed.value !== null || showBuild.value) return 'build'
+  if (shownView.value || previewed.value !== null || showBuild.value) return 'build'
   return !props.draft.myChampionLocked && byLane.value ? 'pick' : 'build'
 })
 
-const canGoBack = computed(() => viewed.value !== null || previewed.value !== null || showBuild.value)
+const canGoBack = computed(() => shownView.value !== null || previewed.value !== null || showBuild.value)
+
+/**
+ * The one card ringed: the champion whose build and lane are on screen. It is
+ * ours by default — our slot, even empty, since the picks ranked are for it —
+ * and the clicked champion while its build is shown.
+ */
+const selectedCell = computed(() => {
+  const shown = shownView.value
+  if (!shown) return { ally: allyRows.value.findIndex(row => row.me), enemy: -1 }
+  const rows = shown.team === 'ally' ? allyRows.value : enemyRows.value
+  const index = rows.findIndex(row => row.championId === shown.championId)
+  return shown.team === 'ally' ? { ally: index, enemy: -1 } : { ally: -1, enemy: index }
+})
 function back() {
   viewed.value = null
   previewed.value = null
@@ -159,10 +172,6 @@ function back() {
 }
 
 const suggested = computed(() => (recommendation.value?.candidates ?? []).filter(candidate => !candidate.thinSample).map(candidate => candidate.championId))
-const opponentId = computed(() => {
-  const id = recommendation.value?.laneOpponentChampionId ?? null
-  return id !== null && props.draft.enemyChampions.includes(id) ? id : null
-})
 </script>
 
 <template>
@@ -173,7 +182,7 @@ const opponentId = computed(() => {
       <DraftTeam
         team="ally"
         :rows="allyRows"
-        :viewed-id="viewed?.team === 'ally' ? viewed.championId : null"
+        :selected-cell="selectedCell.ally"
         :active-cell="activeAllyCell"
         :suggested="suggested"
         @view="view('ally', $event)"
@@ -192,8 +201,7 @@ const opponentId = computed(() => {
         <DraftTeam
           team="enemy"
           :rows="enemyRows"
-          :opponent-id="opponentId"
-          :viewed-id="viewed?.team === 'enemy' ? viewed.championId : null"
+          :selected-cell="selectedCell.enemy"
           :active-cell="activeEnemyCell"
           :correctable="recommendation !== null"
           @view="view('enemy', $event)"

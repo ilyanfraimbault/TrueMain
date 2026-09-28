@@ -11,15 +11,15 @@ import { LANE_LABELS, laneIconUrl } from '~/types/draft'
 const props = withDefaults(defineProps<{
   team: 'ally' | 'enemy'
   rows: TeamRow[]
-  opponentId?: number | null
-  viewedId?: number | null
+  /** The card whose build is on screen, ringed. */
+  selectedCell?: number | null
   /** The cell the simulator is filling. */
   activeCell?: number | null
   /** Portraits to suggest in our own empty slot. */
   suggested?: number[]
   /** Enemy lanes resolved: the cards can be dragged to correct them. */
   correctable?: boolean
-}>(), { opponentId: null, viewedId: null, activeCell: null, suggested: () => [], correctable: false })
+}>(), { selectedCell: null, activeCell: null, suggested: () => [], correctable: false })
 
 const emit = defineEmits<{ view: [championId: number], swap: [from: Lane, to: Lane] }>()
 
@@ -39,6 +39,13 @@ function onDrop(lane: Lane | null) {
   dragging.value = null
 }
 
+/**
+ * A card opens its champion's build once the draft can place it: our own
+ * always, anyone else locked on a lane — a hovered ally or an enemy with no
+ * lane yet has no build to read.
+ */
+const readable = (row: TeamRow) => row.championId !== null && (row.me || (row.locked && row.lane !== null))
+
 function label(row: TeamRow) {
   if (row.championId === null) return undefined
   return `Build for ${nameOf(row.championId)}${row.lane ? `, ${LANE_LABELS[row.lane]}` : ''}`
@@ -56,11 +63,11 @@ function label(row: TeamRow) {
     >
       <button
         type="button"
-        class="block h-[140px] w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
-        :disabled="row.championId === null"
+        class="block h-[140px] w-full rounded-lg outline-none transition-[filter] focus-visible:ring-2 focus-visible:ring-primary enabled:cursor-pointer enabled:hover:brightness-110 disabled:cursor-default"
+        :disabled="!readable(row)"
         :draggable="correctable && row.championId !== null"
         :aria-label="label(row)"
-        @click="row.championId !== null && emit('view', row.championId)"
+        @click="emit('view', row.championId!)"
         @dragstart="dragging = row.lane"
         @dragend="dragging = null"
       >
@@ -69,9 +76,7 @@ function label(row: TeamRow) {
           :champion-id="row.championId"
           :tier="tierOf(row)"
           :lane="row.lane"
-          :me="row.me"
-          :opponent="row.championId !== null && row.championId === opponentId"
-          :viewed="row.championId !== null && row.championId === viewedId"
+          :selected="selectedCell === index"
           :tentative="row.championId !== null && !row.locked"
           :active="activeCell === index"
           :drop-target="dragging !== null && row.lane !== null && dragging !== row.lane"

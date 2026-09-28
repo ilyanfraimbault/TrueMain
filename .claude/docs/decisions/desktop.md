@@ -14,6 +14,13 @@ an endpoint nor a measurement is not one the app shows. The clock bar is neutral
 bar in that slot would read as the probability it replaces. The duel shows the lane win rate over the games behind
 the build and nothing else — the gold gap at 15 was cut as noise at a glance (2026-09-27) — #1671.
 
+**One card on the board is selected, ringed in the primary colour: the champion whose build and lane duel are on
+screen.** It is the player's own slot by default, even empty, since the picks ranked are for it; clicking any other
+placed champion, ally or enemy, selects it and shows its build against its lane opponent, and clicking it again
+returns to the player. The board had carried a ring per role (ours, the viewed one, our lane opponent, the slot being
+filled) and the product owner read them as competing selections; the slot being filled now pulses its side's
+hairline instead of taking a ring (2026-09-28) — #1671.
+
 **Picks are ranked from the player's pool or from the whole lane, never from a "meta" slice.** "My pool" is the
 player's ten most-mastered champions (LCU champion mastery) that the tier list has on the lane; off, every champion
 the tier list has on the lane, split into requests of 40 (the endpoint's ceiling) and merged in the endpoint's own

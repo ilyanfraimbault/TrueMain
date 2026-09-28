@@ -300,6 +300,7 @@ Last verified against `develop` on 2026-09-02.
 
 - The app follows the reference client's layout — a sidebar to every site section; the gameflow phase still opens the draft — #1671
 - No win probability: the draft strip carries the clock, the middle the lane duel (lane win rate only) — #1671
+- One selected card on the draft board, ringed in the primary colour: the player's by default, any placed champion on click (build + lane duel) (2026-09-28) — #1671
 - Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; enemy-team component is #1713 — #1675
 - The app draws the site's components as labelled twin copies, with app behaviour in shims beside them — #1687
 - Icons bundled at build time, hash routing, images drawn without a `load` gate (WKWebView)
