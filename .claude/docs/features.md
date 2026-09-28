@@ -80,6 +80,9 @@ localStorage-backed follow list (`web/app/utils/favorites.ts`, key `truemain:fav
 ### `/about` — `web/app/pages/about.vue`
 The brand's own page (#1122). Static prose, no fetch, so the whole thing is in the server HTML: what TrueMain is, what a "true main" / the Truemain score means, that the data is Riot-API-derived, and a linked list of the four main sections. Exists for SEO as much as for readers — it is the only page that states the brand name in prose, which is what a search engine reads to resolve the bare `truemain` query, and it doubles as an internal-linking hub. Linked from `AppFooter`.
 
+### `/download` — `web/app/pages/download.vue`
+The desktop companion's download page (#1719), linked from the header ("Desktop app", badged Beta) and the footer. Reads the visitor's platform in the browser after hydration (the server never guesses it from the user agent) and offers the matching installer first, the other second; on a phone, Linux, or before hydration both are offered side by side. Installers go through stable per-platform links (`/api/desktop/download/{mac|windows}`, 302 to the newest release's asset), so the page never names a version file. Carries the first-launch steps for an unsigned app (macOS Gatekeeper "Open Anyway", Windows SmartScreen "Run anyway"), the requirements, and what the app reads. The release comes from `server/utils/desktop-release*.ts`: the repository's GitHub releases filtered on the `desktop-v*` tag prefix (GitHub's "latest" is the site's own release), cached five minutes server-side; the same source serves the installed app's update feed, `/api/desktop/latest.json` (204 before the first release).
+
 ### `/privacy`, `/terms`
 Static legal prose — required for the Riot production-key application. All three text pages are written with Nuxt UI `Prose*` components, themed once under `ui.prose` in `app.config.ts` (#1624; conventions in `web/docs/DESIGN_SYSTEM.md`).
 
@@ -199,12 +202,17 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that
   main's own build on the champion — and the site's core blocks (runes beside summoners/skills/starter/boots, no build
   path) over the site's build tree drawn smaller.
-- **Practice draft** (the same `/draft` page outside a live champion select) — a ranked draft played by hand (side,
-  lane, pick order, bans, 1-2-2-2-2-1 picks, hover then lock, undo, auto-fill) through the same draft screen and the
-  real API; a live champion select takes the page over when it starts. There is no separate simulator entry.
+- **Draft board** (the same `/draft` page outside a live champion select) — a draft filled by hand in any order: your
+  lane in the strip, a champion on any card or ban slot through a lane-first picker, change/remove on hover, a
+  suggestion clicked becomes your pick; enemies stay on the lane they were placed on. Same draft screen and real API;
+  a live champion select takes the page over when it starts. No separate simulator entry.
 - **Site sections** — tier list, champion grid, champion page (lane picker, stats, build view), matchup (champion vs
   opponent on a lane, composition build), truemains leaderboard (the site's rows), favorites kept on this machine.
   A player row opens their page on truemain.lol.
+- **Distribution** (#1719): a `desktop-v*` tag builds a universal macOS `.dmg` and a Windows NSIS `.exe`
+  (`desktop-release.yml`), published as a GitHub pre-release with a signed update manifest; truemain.lol/download
+  offers them, and the installed app offers each newer beta at launch (Tauri updater, feed on the site). Unsigned by
+  Apple and Microsoft for the beta.
 - **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), the player's own
   stats on the dashboard (#1682/#1683).
 

@@ -23,11 +23,16 @@ a ring per role in several colours (ours, the viewed one, our lane opponent, the
 owner read them as competing selections; the slot being filled now pulses its side's hairline instead of taking a
 ring (2026-09-28) — #1671.
 
-**Champion select is one page, live or rehearsed.** The simulator was its own sidebar entry beside "Champ select",
-and the product owner read the two as the same thing. `/draft` shows the live draft while the client is in champion
-select and, the rest of the time, the same draft screen played by hand under the simulator's bar; a real champion
-select takes the page over when it starts, and the sidebar keeps a single entry with its "Live" badge (2026-09-28) —
-#1671.
+**Champion select is one page: the live draft, or a board filled by hand.** The simulator was its own sidebar entry
+beside "Champ select", and the product owner read the two as the same thing; merged, its control bar (side, pick
+order, step counter, auto-fill, lock in) then read as a test harness on a page players use. `/draft` shows the live
+draft while the client is in champion select and, the rest of the time, the same draft screen over a board filled in
+any order: the lane in the strip (the site's role picker), a champion on any empty card or ban slot through a picker
+that lists the lane's champions first, a placed card changed or taken off on hover, a suggestion clicked becoming the
+pick. Enemies stand where they were placed (pinned for the ranking) rather than where the guesser would put them. No
+turns, no timer. A card shows its lane glyph inside while empty and under it once filled, never both. A real
+champion select takes the page over when it starts, and the sidebar keeps one entry with its "Live" badge
+(2026-09-28) — #1671.
 
 **The app has no browser chrome: no back/forward arrows and no patch label in the top bar.** Both made the window
 read as a web page; the sidebar is how the app is navigated, and the bar keeps only the ⌘K champion search
@@ -72,3 +77,14 @@ packaged app has no server to resolve an icon and a CSP that reaches only Data D
 history-mode path would 404 on reload; and WKWebView never reported `load` for images inserted after the first,
 which left fade-in-on-load art invisible for good — the twinned `SkeletonImage` therefore draws as soon as it
 decodes (2026-09-27).
+
+**The beta ships unsigned, as GitHub pre-releases resolved by the site, and updates itself.** The product owner chose
+an unsigned beta over paying for Apple notarisation and a Windows certificate before anyone has used the app; the
+download page carries the one-time Gatekeeper / SmartScreen steps, and signing waits for the public release. The
+installers are `desktop-v*` pre-releases on the site's own repository — pre-releases because GitHub's "latest" must
+stay the site's, and `deploy-prod.yml` skips those tags because it runs on every published release. The site resolves
+the newest one server-side (`/api/desktop/download/{platform}`, `/api/desktop/latest.json`), so neither the page nor
+the installed app names a version and a new build needs no site deploy. The Tauri updater ships from the first beta —
+without it every tester stays on whatever they installed — offering the update in a toast and never restarting on its
+own, since a restart mid champion select would cost the draft. The download page is public, marked beta
+(2026-09-28) — #1719.

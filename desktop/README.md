@@ -13,7 +13,7 @@ Tracking issue: **#1671**.
 - Follows the client's **WebSocket event stream**, so champion select updates as
   picks land rather than on a poll.
 - **A sidebar to every section the site has** — dashboard, champions, tier list,
-  matchup, truemains, favorites — plus **champion select**, live or rehearsed
+  matchup, truemains, favorites — plus **champion select**, live, or planned
   by hand on the same page. The **gameflow phase still drives the screen**: champion select opens the draft on
   its own, and leaving it goes back home (only from the draft, never from a page
   the player opened by hand).
@@ -180,17 +180,17 @@ Rust to ask. In a production build the picker never renders — `import.meta.dev
 is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chunk
 that is never fetched.
 
-### Rehearsing a champion select by hand
+### Planning a draft by hand
 
-Outside a live champion select, the **Champ select** page is a ranked draft to
-play one action at a time, through the same draft screen (a real champion
-select takes the page over the moment one starts): pick the side, your lane and your pick
-order, then each ban and pick in the client's order (both sides' bans, then
-1-2-2-2-2-1). Type a champion and press Enter; your own pick lands as a hover
-first, like in the client, until **Lock in**. **Auto-fill** plays forward with
-plausible bans and meta picks up to your turn, then to the end; **Undo** takes
-one action back. It works in the packaged app and in `npm run dev`, with or
-without a client — with one, "My pool" ranks the logged-in player's champions.
+Outside a live champion select, the **Champ select** page is a board to fill in
+any order, read by the same draft screen (a real champion select takes the page
+over the moment one starts). Choose your lane in the strip; click any empty card
+or ban slot to put a champion there (the picker lists the champions played on
+that lane first); a placed card can be changed or taken off on hover; clicking
+a suggestion makes it your pick. Enemies stand on the lane they were placed on
+rather than the one the guesser would give them. No turns, no timer. It works in
+the packaged app and in `npm run dev`, with or without a client — with one, "My
+pool" ranks the logged-in player's champions.
 
 ## Building
 

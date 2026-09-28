@@ -16,6 +16,8 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/` | fmt, clippy and tests of the desktop app's Rust crates |
+| `desktop-release.yml` | a `desktop-v*` tag | Builds the desktop app for macOS and Windows and publishes it as a pre-release (below) |
 
 `.github/actions/migration-script` is the composite action every job that
 needs the idempotent EF migration script goes through (`migrate-fresh` in CI,
@@ -267,6 +269,37 @@ version sort ranks `1.20.0-rc.4` above `1.20.0`, so anything reading "the
 latest release" must filter to bare `MAJOR.MINOR.PATCH`. `-rc.` and `.` are
 legal in a Docker reference, `+` is not, which is why the version is a semver
 prerelease and not build metadata.
+
+## Desktop releases
+
+The desktop companion ships from `desktop-v<version>` tags, never from the site's
+release flow (#1719). `desktop-release.yml` checks the tag against
+`desktop/src-tauri/tauri.conf.json`'s version, then builds on the two platforms
+the app supports, each on its own runner:
+
+- **macOS** (`macos-15`): one universal binary (`--target universal-apple-darwin`,
+  both Rust targets installed), bundled as a `.dmg` and as the `.app.tar.gz` the
+  updater installs. Ad-hoc signed (`bundle.macOS.signingIdentity: "-"`), which is
+  what lets an unsigned app run on Apple Silicon at all; not notarised.
+- **Windows** (`windows-2025`): the NSIS `-setup.exe`, which is also what the
+  updater installs. Not code-signed.
+
+Each update artifact is signed with the updater key (`TAURI_SIGNING_PRIVATE_KEY`
+and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets; the public half is
+`plugins.updater.pubkey` in the app's config). The `publish` job writes
+`latest.json` — the Tauri updater's manifest, both macOS keys pointing at the one
+universal archive — and creates a **pre-release** with every file. Pre-release
+because GitHub's "latest release" must stay the site's.
+
+`deploy-prod.yml` runs on every *published* release, so its `preflight` job
+skips `desktop-v*` tags and the whole deploy with it. A release created by the
+workflow's own `GITHUB_TOKEN` would not trigger it anyway; the guard covers one
+published by hand.
+
+The site reads the releases rather than the app linking to GitHub:
+`/api/desktop/download/{platform}` and the updater's feed
+`/api/desktop/latest.json` resolve the newest `desktop-v*` release, so a new app
+version needs no site deploy.
 
 ## Load test
 
