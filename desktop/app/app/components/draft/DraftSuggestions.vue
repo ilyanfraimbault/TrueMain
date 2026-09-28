@@ -81,7 +81,9 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
       </div>
     </header>
 
-    <div v-if="shown.length" class="flex min-h-0 flex-1 items-end gap-2.5 overflow-x-auto pb-1" @mouseleave="hovered = null">
+    <!-- A scroller clips what is drawn outside its box, the focused card's ring included: the padding is that ring's
+         room, the negative margin keeps the cards aligned with the header. -->
+    <div v-if="shown.length" class="-mx-1 flex min-h-0 flex-1 items-end gap-2.5 overflow-x-auto px-1 pb-1 pt-1" @mouseleave="hovered = null">
       <button
         v-for="(candidate, index) in shown"
         :key="candidate.championId"
