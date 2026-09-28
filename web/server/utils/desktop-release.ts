@@ -12,7 +12,9 @@ import type { DesktopPlatform, DesktopRelease } from '~~/shared/types/desktop'
  * calls an hour per address — and so a new app version needs no site deploy.
  */
 
-export const DESKTOP_RELEASES_URL = 'https://api.github.com/repos/ilyanfraimbault/TrueMain/releases?per_page=30'
+// The largest page GitHub serves: the site releases far more often than the app, and a desktop release pushed out
+// of the page by site releases would read as "no app" on the download page and in the update feed.
+export const DESKTOP_RELEASES_URL = 'https://api.github.com/repos/ilyanfraimbault/TrueMain/releases?per_page=100'
 const TAG_PREFIX = 'desktop-v'
 
 export interface GitHubAsset {
