@@ -44,8 +44,10 @@ Tracking issue: **#1671**.
 - **Uses the site's own components** for everything the site already draws —
   the build tree and rune block, the game-entity tooltips, the leaderboard row,
   rank and region marks, the role picker — as labelled twin copies (see
-  "Sharing with the site" below). The build's core is laid out for the app's
-  narrower pane (`build/BuildCore.vue`), from the site's icons.
+  "Sharing with the site" below). The build's core keeps the site's blocks
+  without the build path, which the tree under it draws (`build/BuildCore.vue`).
+- **Shows a true main's own build** on a click in the build view's list — the
+  site's player-scoped champion endpoint, through the shell.
 
 ## What it does not do yet
 
@@ -93,8 +95,9 @@ they would be subject to CORS against an origin the site was never configured
 for, and would force the content-security policy open to a remote host. From
 Rust neither applies and the CSP stays closed. The draft and build calls have a
 command each; the pages' reads go through `api_get`, which forwards a short
-allow-list of read-only paths (tier list, truemains leaderboard and search) and
-nothing else.
+allow-list of read-only paths (tier list, truemains leaderboard and search, and
+one true main's build on a champion — `/truemains/{nameTag}/champions/{id}`,
+checked segment by segment) and nothing else.
 
 Static game data is the exception: the webview fetches Data Dragon and Community
 Dragon itself (the CSP lets those two hosts through), the same files the site's

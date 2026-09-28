@@ -124,14 +124,37 @@ async fn champion_build(
 /// onto the API.
 const READABLE_PATHS: &[&str] = &["/champions/tierlist", "/truemains", "/truemains/search"];
 
-/// One read-only GET from `READABLE_PATHS`, with its query as key/value pairs.
+/// A path the app may read: one of `READABLE_PATHS`, or one true main's build
+/// on a champion — `/truemains/{nameTag}/champions/{championId}`, the Riot ID
+/// percent-encoded into one segment and the champion a number.
+fn readable(path: &str) -> bool {
+    if READABLE_PATHS.contains(&path) {
+        return true;
+    }
+    let Some(rest) = path.strip_prefix("/truemains/") else {
+        return false;
+    };
+    let segments: Vec<&str> = rest.split('/').collect();
+    let [name_tag, "champions", champion_id] = segments.as_slice() else {
+        return false;
+    };
+    let name_tag_ok = !name_tag.is_empty()
+        && *name_tag != "."
+        && *name_tag != ".."
+        && name_tag
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_.~%".contains(&b));
+    name_tag_ok && !champion_id.is_empty() && champion_id.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// One read-only GET of a `readable` path, with its query as key/value pairs.
 #[tauri::command]
 async fn api_get(
     client: tauri::State<'_, ApiClient>,
     path: String,
     query: Vec<(String, String)>,
 ) -> Result<serde_json::Value, String> {
-    if !READABLE_PATHS.contains(&path.as_str()) {
+    if !readable(&path) {
         return Err(format!("{path} is not readable from the app"));
     }
     client.get(&path, &query).await
@@ -167,4 +190,29 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("failed to start the TrueMain companion app");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::readable;
+
+    #[test]
+    fn reads_the_listed_paths_and_a_true_mains_build() {
+        assert!(readable("/truemains"));
+        assert!(readable("/champions/tierlist"));
+        assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
+        assert!(readable("/truemains/Faker-KR1/champions/7"));
+    }
+
+    #[test]
+    fn refuses_anything_else() {
+        assert!(!readable("/champions/8"));
+        assert!(!readable("/truemains/Faker-KR1/profile"));
+        assert!(!readable("/truemains/Faker-KR1/champions/7/matchups"));
+        assert!(!readable("/truemains/../champions/7"));
+        assert!(!readable("/truemains/a/b/champions/7"));
+        assert!(!readable("/truemains/Faker?x=1/champions/7"));
+        assert!(!readable("/truemains/Faker-KR1/champions/7x"));
+        assert!(!readable("/truemains//champions/7"));
+    }
 }

@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import type { BuildOption } from '~/types/build'
+import type { Lane } from '~/types/draft'
 import type { DraftBuild } from '~/composables/useDraftBuild'
+import { LANE_LABELS } from '~/types/draft'
 
 /**
  * A champion's build, laid out the way the reference client does after a pick
@@ -10,7 +14,8 @@ import type { DraftBuild } from '~/composables/useDraftBuild'
  *
  * With a draft, its own build (computed against the draft as it stands) is the
  * first row and the default; the champion's lane builds follow, so the player
- * can compare the draft's answer with what the lane usually runs.
+ * can compare the draft's answer with what the lane usually runs. A true main
+ * clicked in the list shows that player's own build on the champion instead.
  */
 const props = defineProps<{
   championId: number
@@ -55,15 +60,71 @@ const options = computed<BuildOption[]>(() => {
   return list
 })
 
+/** The row on screen: a build's key, or `main` for the true main picked in the list. */
 const selected = ref<string | null>(null)
-// A new champion, or a draft build arriving, puts the view back on the first row.
-watch(
-  () => `${props.championId}:${props.position}:${options.value[0]?.key}`,
-  () => (selected.value = options.value[0]?.key ?? null),
-)
+const main = ref<LeaderboardRowResponse | null>(null)
 
-const shown = computed(() => options.value.find(option => option.key === selected.value) ?? options.value[0] ?? null)
-const waiting = computed(() => !shown.value && (lanePending.value || props.draft?.pending))
+// A new champion puts the view back on its first row; a draft build arriving
+// takes the first row too, unless a true main's build is being read.
+watch(() => `${props.championId}:${props.position}`, () => {
+  main.value = null
+  selected.value = options.value[0]?.key ?? null
+})
+watch(() => options.value[0]?.key, (first) => {
+  if (selected.value !== 'main') selected.value = first ?? null
+})
+
+// ─── A true main's own build ────────────────────────────────────────────────
+
+const truemainBuilds = useTruemainBuild()
+const mainNameTag = computed(() => (main.value ? favoriteNameTag(main.value.identity.gameName, main.value.identity.tagLine) : null))
+const onMain = computed(() => selected.value === 'main' && mainNameTag.value !== null)
+
+function selectMain(row: LeaderboardRowResponse) {
+  main.value = row
+  selected.value = 'main'
+  truemainBuilds.load(mainNameTag.value!, props.championId, props.position)
+}
+
+/** Their builds on the champion: `undefined` while asked, `null` when they have none. */
+const mainAnswer = computed(() => (onMain.value ? truemainBuilds.answerOf(mainNameTag.value!, props.championId, props.position) : undefined))
+const mainPending = computed(() => onMain.value && truemainBuilds.isPending(mainNameTag.value!, props.championId, props.position))
+const mainFailed = computed(() => onMain.value && truemainBuilds.hasFailed(mainNameTag.value!, props.championId, props.position))
+
+/** Their most played build, the one their page opens on. */
+const mainOption = computed<BuildOption | null>(() => {
+  const build = mainAnswer.value?.builds[0]
+  if (!build) return null
+  return {
+    key: 'main',
+    core: build.core,
+    firstItemId: build.firstItemId,
+    keystoneId: build.primaryKeystoneId,
+    buildTree: build.buildTree,
+    games: build.games,
+    winRate: build.winRate,
+  }
+})
+
+/** Where their build was read: a patch, and a lane when it is not the one asked for. */
+const mainScope = computed(() => {
+  const answer = mainAnswer.value
+  if (!answer) return null
+  const lane = answer.position && answer.position !== props.position ? LANE_LABELS[answer.position as Lane] ?? answer.position : null
+  return [answer.patch ? `Patch ${answer.patch}` : null, lane ? `on ${lane}` : null].filter(Boolean).join(' · ')
+})
+
+const shown = computed(() => {
+  if (onMain.value) return mainOption.value
+  return options.value.find(option => option.key === selected.value) ?? options.value[0] ?? null
+})
+const waiting = computed(() => !shown.value && (onMain.value ? mainPending.value : lanePending.value || props.draft?.pending))
+const emptyMessage = computed(() => {
+  if (onMain.value && main.value) {
+    return mainFailed.value ? `${main.value.identity.gameName}'s build could not be loaded` : `No build of ${main.value.identity.gameName} on this champion yet`
+  }
+  return 'No build for this pick yet'
+})
 </script>
 
 <template>
@@ -79,17 +140,40 @@ const waiting = computed(() => !shown.value && (lanePending.value || props.draft
       </div>
       <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2">
         <BuildList v-model="selected" :options="options" :pending="lanePending || !!draft?.pending" :draft-label="draft?.label" />
-        <BuildMains :champion-id="championId" />
+        <BuildMains :champion-id="championId" :selected-name-tag="onMain ? mainNameTag : null" @select="selectMain" />
       </div>
     </aside>
 
     <div v-if="shown" class="min-h-0 space-y-4 overflow-y-auto p-3">
+      <!-- Whose build this is, when it is a true main's. -->
+      <div v-if="onMain && main" class="flex items-center gap-2.5 rounded-lg bg-elevated/60 py-1.5 pl-1.5 pr-1">
+        <SkeletonImage
+          :src="getProfileIconUrl(main.identity.profileIconId, patch)"
+          :alt="main.identity.gameName"
+          width="28"
+          height="28"
+          class="size-7 shrink-0 rounded-md"
+        />
+        <p class="min-w-0 flex-1 truncate text-[13px] leading-tight">
+          <span class="font-semibold text-highlighted">{{ main.identity.gameName }}</span>
+          <span class="text-muted">'s build</span>
+          <span class="ml-2 text-[11px] tabular-nums text-dimmed">{{ shown.games.toLocaleString('en-US') }} games{{ mainScope ? ` · ${mainScope}` : '' }}</span>
+        </p>
+        <UButton
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          trailing-icon="i-lucide-external-link"
+          label="Profile"
+          @click="openOnSite(`/truemains/${encodeURIComponent(mainNameTag!)}`)"
+        />
+      </div>
+
       <BuildCore
         :summoner-spells="shown.core.summonerSpells"
         :starter-items="shown.core.starterItems"
         :skill-order="shown.core.skillOrder"
         :boots="shown.core.boots"
-        :item-path="shown.core.itemPath"
         :rune-page="shown.core.runePage"
         :champion-static="championStatic(championId)"
         :items-map="items"
@@ -98,7 +182,8 @@ const waiting = computed(() => !shown.value && (lanePending.value || props.draft
         :rune-tree="runeTree"
         :no-runes-message="shown.key === 'draft' ? 'No rune data in the sampled games.' : null"
       />
-      <!-- The site's tree, drawn smaller and tighter to fit the pane. -->
+      <!-- The site's tree, drawn smaller and tighter to fit the pane. It is the build path too,
+           item by item; a build with no branch to draw (a true main's thin sample) states the path instead. -->
       <ChampionBuildPanelBuildTree
         v-if="shown.buildTree.length > 0"
         :tree="shown.buildTree"
@@ -109,11 +194,14 @@ const waiting = computed(() => !shown.value && (lanePending.value || props.draft
         :h-gap="10"
         :v-gap="20"
       />
+      <div v-else-if="shown.core.itemPath?.itemIds.length" class="flex justify-center">
+        <ChampionCoreBuildPath :path="shown.core.itemPath" :items-map="items" />
+      </div>
     </div>
 
     <div v-else class="flex flex-col items-center justify-center gap-2 p-8 text-center">
       <UIcon :name="waiting ? 'i-lucide-loader-circle' : 'i-lucide-scroll-text'" class="size-6 text-dimmed" />
-      <p class="text-sm text-muted">{{ waiting ? 'Reading the build…' : 'No build for this pick yet' }}</p>
+      <p class="text-sm text-muted">{{ waiting ? 'Reading the build…' : emptyMessage }}</p>
       <p v-if="draft?.error && !waiting" class="max-w-xs text-xs text-dimmed">{{ draft.error }}</p>
     </div>
   </div>

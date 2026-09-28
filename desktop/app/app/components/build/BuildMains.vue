@@ -11,9 +11,15 @@ import { isApexTier } from '~/utils/tiers'
  * champion on screen, so its icon gives way to the keystone and first item the
  * main runs on it, and the Riot ID keeps the width it needs. The full
  * leaderboard row does not fit here — it would leave the name 50 px. A row
- * opens the player's page on the site.
+ * selects that main's own build on the champion, shown like any other build.
  */
-const props = defineProps<{ championId: number }>()
+const props = defineProps<{
+  championId: number
+  /** The main whose build is on screen, by Riot ID slug. */
+  selectedNameTag?: string | null
+}>()
+
+const emit = defineEmits<{ select: [row: LeaderboardRowResponse] }>()
 
 const TOP_N = 5
 
@@ -41,35 +47,37 @@ const { perk, item } = useBuildResolvers(runeTree, items)
 /** What the main runs on this champion: the entry of their top champions that is this one. */
 const onChampion = (row: LeaderboardRowResponse) => row.topChampions.find(champion => champion.championId === props.championId) ?? null
 
-const profilePath = (row: LeaderboardRowResponse) =>
-  `/truemains/${encodeURIComponent(row.identity.tagLine ? `${row.identity.gameName}-${row.identity.tagLine}` : row.identity.gameName)}`
+const nameTagOf = (row: LeaderboardRowResponse) => favoriteNameTag(row.identity.gameName, row.identity.tagLine)
 </script>
 
 <template>
   <div class="flex flex-col gap-0.5">
-    <h3 class="px-1 pb-1 stat-label">Truemains</h3>
+    <h3 class="px-2 pb-1 stat-label">Truemains</h3>
 
     <template v-if="rows === null && !failed">
-      <div v-for="index in 3" :key="index" class="flex items-center gap-2 px-1 py-1.5">
+      <div v-for="index in 3" :key="index" class="flex items-center gap-2 px-2 py-1.5">
         <USkeleton class="size-8 rounded-lg" />
         <USkeleton class="h-4 w-32" />
         <USkeleton class="ml-auto h-4 w-12" />
       </div>
     </template>
-    <p v-else-if="failed" class="px-1 text-xs text-muted">The truemains could not be loaded</p>
+    <p v-else-if="failed" class="px-2 text-xs text-muted">The truemains could not be loaded</p>
     <UEmpty v-else-if="rows && rows.length === 0" size="sm" icon="i-lucide-trophy" description="No tracked truemains on this champion yet." />
 
     <template v-else>
       <div
         v-for="row in rows ?? []"
         :key="`${row.region}-${row.identity.gameName}-${row.identity.tagLine}`"
-        class="surface-hover relative flex items-center gap-2 rounded-lg border border-transparent px-1 py-1.5"
+        class="relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
+        :class="selectedNameTag === nameTagOf(row) ? 'bg-accented' : 'hover:bg-elevated'"
       >
+        <span v-if="selectedNameTag === nameTagOf(row)" class="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary" />
         <button
           type="button"
-          :aria-label="`${row.identity.gameName}${row.identity.tagLine ? ` #${row.identity.tagLine}` : ''}`"
+          :aria-label="`Build of ${row.identity.gameName}${row.identity.tagLine ? ` #${row.identity.tagLine}` : ''}`"
+          :aria-pressed="selectedNameTag === nameTagOf(row)"
           class="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          @click="openOnSite(profilePath(row))"
+          @click="emit('select', row)"
         />
         <SkeletonImage
           :src="getProfileIconUrl(row.identity.profileIconId, patch)"

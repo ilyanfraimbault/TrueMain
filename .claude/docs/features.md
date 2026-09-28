@@ -195,8 +195,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   guessed and correctable by drag, the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
   ten most-mastered champions on the lane, or every champion on the lane). Once locked, or on a click on any placed
   champion (one selected card, its lane opponent faintly ringed): the build view — the draft's composition build and the
-  lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains, a compact core (the
-  site's icons, runes centred beside summoners/skills/starter/boots/path) over the site's build tree drawn smaller.
+  lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that
+  main's own build on the champion — and the site's core blocks (runes beside summoners/skills/starter/boots, no build
+  path) over the site's build tree drawn smaller.
 - **Draft simulator** (`/simulator`) — a ranked draft played by hand (side, lane, pick order, bans, 1-2-2-2-2-1 picks,
   hover then lock, undo, auto-fill) through the same draft screen and the real API.
 - **Site sections** — tier list, champion grid, champion page (lane picker, stats, build view), matchup (champion vs

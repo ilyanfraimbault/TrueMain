@@ -46,15 +46,19 @@ and reserves the sub-mains column only where it shows) and the build view's narr
 home-page row instead, with the tag under the name — a truncated name was the first thing reported. The layer that would end the copies is #1687
 (2026-09-27).
 
-**The build pane lays out the core itself, from the site's icons, and draws the site's build tree smaller.** The
-site's core view only puts the runes beside the rest from a 768 px container; the app's pane is ~560 px, so the runes
-fell under everything and the build tree started off screen. `build/BuildCore.vue` sets summoners, skill order,
-starter and boots as a 2 × 2 grid over the build path at 30 px, with the site's rune block to their right at its own
-size and spacing, centred on their height — stretched to it, the rune rows spread too far apart; the tree twin takes its node size and gaps as app-specific props (28 / 10 / 20 px against the
-site's 36 / 22 / 44). The build rows beside it are icons alone — the keystone with the secondary tree as its badge
-(the site's own pairing), three items, the win rate — since an item's name spelled out said less than its icon and
-cost the width; the column went from 22rem to 18rem, the most a 15-character Riot ID still fits. The site's core
-twins it replaced were removed rather than kept unused (2026-09-28) — #1671.
+**The build pane shows the site's core without its build path, and a true main's own build on a click.** The
+site's core blocks (`Champion/Core/*`) keep the site's layout — summoners over starter, skill order over boots,
+spread by flex, the rune block in a 272 px column beside them at the heights the site matched (148 / 152 px) — but
+the runes go beside the rest from a 36rem container instead of 48rem, since the pane is ~630 px, and the build path
+is left out: the build tree right under the core draws the same path item by item, and in a short pane the line
+said it twice. A build with no branch to draw (a thin sample) states the path instead of the tree. The tree twin
+takes its node size and gaps as app-specific props (28 / 10 / 20 px against the site's 36 / 22 / 44). The build rows
+are icons alone — the keystone with the secondary tree as its badge, three items, the win rate — since an item's
+name spelled out said less than its icon and cost the width; the column went from 22rem to 18rem, the most a
+15-character Riot ID still fits. A true main in the list opens *their* build on the champion (the player-scoped
+champion endpoint, their latest patch with enough games; on the lane asked, else across lanes) in place of the lane
+build, with a line saying whose it is and a link to their profile — the reason to list them in a draft is to copy
+what they run. The shell reads that one path pattern beside its fixed list (2026-09-28) — #1671.
 
 **Icons are bundled at build time, routes live in the hash, and images are drawn without a `load` gate.** The
 packaged app has no server to resolve an icon and a CSP that reaches only Data Dragon and Community Dragon
