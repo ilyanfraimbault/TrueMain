@@ -284,9 +284,13 @@ the app supports, each on its own runner:
 - **Windows** (`windows-2025`): the NSIS `-setup.exe`, which is also what the
   updater installs. Not code-signed.
 
-Each update artifact is signed with the updater key (`TAURI_SIGNING_PRIVATE_KEY`
-and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets; the public half is
-`plugins.updater.pubkey` in the app's config). The `publish` job writes
+Each update artifact is signed with the updater key, the
+`TAURI_SIGNING_PRIVATE_KEY` repository secret; the public half is
+`plugins.updater.pubkey` in the app's config. The key has no password, so
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is left unset and reaches the build empty;
+a key rotated to one with a password needs that secret too. Losing the private
+key means the installed apps can no longer be updated: every tester would have
+to reinstall a build carrying a new public key. The `publish` job writes
 `latest.json` — the Tauri updater's manifest, both macOS keys pointing at the one
 universal archive — and creates a **pre-release** with every file. Pre-release
 because GitHub's "latest release" must stay the site's.
