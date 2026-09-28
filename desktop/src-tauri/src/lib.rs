@@ -6,6 +6,8 @@
 //! belongs to which phase — in one place.
 
 mod api;
+#[cfg(debug_assertions)]
+mod sim;
 mod supervisor;
 
 use std::sync::{Arc, Mutex};

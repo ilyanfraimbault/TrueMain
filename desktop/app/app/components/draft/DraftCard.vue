@@ -9,8 +9,9 @@ import { laneIconUrl } from '~/types/draft'
  * One ring, in TrueMain's colour, marks the card whose build and lane are on
  * screen (`selected`); a faint one of the same colour marks its lane opponent
  * across the board, so the duel reads as a pair rather than as a second
- * selection. A dragged enemy shows its drop targets. An empty card on a board
- * filled by hand turns its lane glyph into a "+" on hover (`addable`).
+ * selection. A dragged enemy shows its drop targets. The slot
+ * being filled is not a ring — two would read as two selections — but its
+ * side's hairline, thickened and pulsing.
  */
 const props = withDefaults(defineProps<{
   championId?: number | null
@@ -20,6 +21,8 @@ const props = withDefaults(defineProps<{
   lane?: string | null
   /** Hovered, not locked in yet. */
   tentative?: boolean
+  /** The slot being filled. */
+  active?: boolean
   /** Its build and lane are the ones on screen. */
   selected?: boolean
   /** The selected champion's lane opponent. */
@@ -27,9 +30,7 @@ const props = withDefaults(defineProps<{
   dropTarget?: boolean
   /** Portraits to suggest in our own empty slot. */
   suggested?: number[]
-  /** An empty card that takes a champion on a click: it says so on hover. */
-  addable?: boolean
-}>(), { championId: null, tier: null, lane: null, suggested: () => [], addable: false })
+}>(), { championId: null, tier: null, lane: null, suggested: () => [] })
 
 const { nameOf, portraitOf } = useChampionStatics()
 
@@ -54,8 +55,8 @@ const tierColor = computed(() => {
     :title="championId ? nameOf(championId) : undefined"
   >
     <span
-      class="absolute inset-x-0 top-0 z-10 h-0.5 opacity-70"
-      :class="team === 'ally' ? 'bg-ally' : 'bg-enemy'"
+      class="absolute inset-x-0 top-0 z-10"
+      :class="[team === 'ally' ? 'bg-ally' : 'bg-enemy', active ? 'h-1 animate-pulse' : 'h-0.5 opacity-70']"
     />
 
     <template v-if="championId">
@@ -73,14 +74,7 @@ const tierColor = computed(() => {
     </template>
 
     <div v-else class="flex size-full flex-col items-center justify-center">
-      <img
-        v-if="lane"
-        :src="laneIconUrl(lane)"
-        alt=""
-        class="size-7 transition-opacity"
-        :class="['opacity-25', addable && 'group-hover:opacity-0']"
-      >
-      <UIcon v-if="addable" name="i-lucide-plus" class="absolute size-7 text-highlighted opacity-0 transition-opacity group-hover:opacity-100" />
+      <img v-if="lane" :src="laneIconUrl(lane)" alt="" class="size-7" :class="active ? 'animate-pulse opacity-60' : 'opacity-25'">
       <div v-if="suggested.length" class="absolute inset-x-0 bottom-2 flex flex-col items-center gap-1">
         <span class="stat-label text-[9px]!">Suggested</span>
         <div class="flex -space-x-1">

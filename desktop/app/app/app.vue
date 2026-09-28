@@ -1,6 +1,10 @@
 <script setup lang="ts">
 const { screen, ready } = useLcuState()
 const router = useRouter()
+const route = useRoute()
+
+/** The `/dev/*` tools (the draft simulator) stand alone, outside the app's shell and its phase navigation. */
+const devTool = computed(() => route.path.startsWith('/dev/'))
 
 useHead({ title: 'TrueMain' })
 
@@ -11,7 +15,7 @@ onMounted(() => void checkForUpdate())
 // The scenario picker exists only for `npm run dev` in a browser: inside Tauri
 // the state comes from the client, and in a production build `import.meta.dev`
 // is false so the component and its fixtures are dropped from the bundle.
-const showScenarioPicker = computed(() => import.meta.dev && !insideTauri())
+const showScenarioPicker = computed(() => import.meta.dev && !insideTauri() && !devTool.value)
 
 /**
  * The gameflow phase still drives the screen (`AppState::screen()` in Rust is
@@ -20,6 +24,7 @@ const showScenarioPicker = computed(() => import.meta.dev && !insideTauri())
  * navigated to by hand is never pulled away from under them.
  */
 watch(screen, (next, previous) => {
+  if (devTool.value) return
   const onDraft = router.currentRoute.value.path === '/draft'
   if (next === 'draft' && !onDraft) void router.push('/draft')
   else if (previous === 'draft' && next !== 'draft' && onDraft) void router.push('/')
@@ -28,7 +33,8 @@ watch(screen, (next, previous) => {
 
 <template>
   <UApp>
-    <div class="flex h-screen overflow-hidden bg-default text-default">
+    <NuxtPage v-if="devTool" />
+    <div v-else class="flex h-screen overflow-hidden bg-default text-default">
       <AppSidebar class="w-[200px] shrink-0" />
 
       <div class="flex min-w-0 flex-1 flex-col">

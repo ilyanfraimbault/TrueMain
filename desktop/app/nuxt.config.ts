@@ -2,7 +2,9 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   // The app is a static bundle inside a webview: there is no Node server at
   // runtime, so no SSR and no Nitro server routes. Anything the site does
-  // through `server/api` has to be done against the API directly here.
+  // through `server/api` has to be done against the API directly here. The one
+  // server route, `server/routes/__sim/lcu.ts`, is the draft simulator's relay
+  // and answers only in `npm run dev`.
   ssr: false,
   modules: ['@nuxt/ui'],
   css: ['~/assets/css/main.css'],
@@ -27,4 +29,15 @@ export default defineNuxtConfig({
     devProxy: { '/api': { target: 'https://truemain.lol/api', changeOrigin: true } },
   },
   devtools: { enabled: false },
+  hooks: {
+    // The `/dev/*` pages (the draft simulator) are development tools: a build
+    // never carries them.
+    'pages:extend'(pages) {
+      if (process.env.NODE_ENV !== 'production') return
+      for (let index = pages.length - 1; index >= 0; index--) {
+        const path = pages[index]!.path
+        if (path === '/dev' || path.startsWith('/dev/')) pages.splice(index, 1)
+      }
+    },
+  },
 })

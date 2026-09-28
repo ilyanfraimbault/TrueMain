@@ -317,7 +317,7 @@ Last verified against `develop` on 2026-09-02.
 - The app follows the reference client's layout — a sidebar to every site section; the gameflow phase still opens the draft — #1671
 - No win probability: the draft strip carries the clock, the middle the lane duel (lane win rate only) — #1671
 - One selected card on the draft board, ringed in the primary colour: the player's by default, any placed champion on click (build + lane duel); its lane opponent faintly ringed (2026-09-28) — #1671
-- Champion select is one page: the live draft, or a board filled by hand in any order (no turns, timer or auto-fill) — no separate simulator (2026-09-28) — #1671
+- Champion select is the live draft only; a draft played by hand is a dev tool (`/dev/draft-sim`) feeding the shell the client's payloads (2026-09-28) — #1671
 - No browser chrome in the app: no back/forward arrows, no patch label (2026-09-28) — #1671
 - The beta ships unsigned as `desktop-v*` GitHub pre-releases, resolved by the site (download + update feed), and updates itself on the player's click (2026-09-28) — #1719
 - Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; enemy-team component is #1713 — #1675

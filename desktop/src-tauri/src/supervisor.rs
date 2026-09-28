@@ -38,7 +38,7 @@ const SPEED_VAR: &str = "TRUEMAIN_LCU_REPLAY_SPEED";
 
 pub type SharedState = Arc<Mutex<AppState>>;
 
-fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
+pub(crate) fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
     // Hold the lock only to swap; emitting under it would let a slow listener
     // block the LCU stream.
     {
@@ -50,6 +50,14 @@ fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
 
 /// Run until the app exits.
 pub async fn run(app: AppHandle, shared: SharedState) {
+    // Development only: a champion select played by hand on the dev server's
+    // simulator page stands in for the client (`sim.rs`).
+    #[cfg(debug_assertions)]
+    if let Ok(url) = std::env::var(crate::sim::SIM_VAR) {
+        crate::sim::run(&app, &shared, &url).await;
+        return;
+    }
+
     if let Some(path) = std::env::var_os(REPLAY_VAR) {
         // A tape stands in for the client, so there is nothing to reconnect to:
         // this plays once and leaves the last state on screen to be looked at.

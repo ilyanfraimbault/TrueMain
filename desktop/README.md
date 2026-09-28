@@ -13,8 +13,7 @@ Tracking issue: **#1671**.
 - Follows the client's **WebSocket event stream**, so champion select updates as
   picks land rather than on a poll.
 - **A sidebar to every section the site has** — dashboard, champions, tier list,
-  matchup, truemains, favorites — plus **champion select**, live, or planned
-  by hand on the same page. The **gameflow phase still drives the screen**: champion select opens the draft on
+  matchup, truemains, favorites — plus **champion select**. The **gameflow phase still drives the screen**: champion select opens the draft on
   its own, and leaving it goes back home (only from the draft, never from a page
   the player opened by hand).
 - **Draws the draft like the reference client**: each side's bans and the phase
@@ -180,17 +179,32 @@ Rust to ask. In a production build the picker never renders — `import.meta.dev
 is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chunk
 that is never fetched.
 
-### Planning a draft by hand
+### Simulating a champion select (development)
 
-Outside a live champion select, the **Champ select** page is a board to fill in
-any order, read by the same draft screen (a real champion select takes the page
-over the moment one starts). Choose your lane in the strip; click any empty card
-or ban slot to put a champion there (the picker lists the champions played on
-that lane first); a placed card can be changed or taken off on hover; clicking
-a suggestion makes it your pick. Enemies stand on the lane they were placed on
-rather than the one the guesser would give them. No turns, no timer. It works in
-the packaged app and in `npm run dev`, with or without a client — with one, "My
-pool" ranks the logged-in player's champions.
+A champion select needs a real game. In development one can be played by hand
+instead, and the app takes it for a real one — navigation, parsing and all:
+
+```sh
+cd desktop/app && npm run tauri:sim
+```
+
+then open **http://localhost:3003/#/dev/draft-sim** in a browser beside the
+app. That page is the League client: **Start champion select** puts the app in
+champion select (a synthetic `Simulated#DEV` player, with a mastery list made
+of the lane's champions for "My pool"); then play it in the client's order —
+both sides' bans, then 1-2-2-2-2-1 picks, your own pick hovered before it is
+locked — against the client's clock. **Auto-fill** plays forward with plausible
+bans and picks up to your turn, then to the end; **Undo** takes one action
+back. **Game starts** and **Dodge** end it the way the client does.
+
+The page sends what the client would — gameflow phase, summoner, mastery, and
+`/lol-champ-select/v1/session` in the client's shape — as tape readings to a
+relay on the dev server (`server/routes/__sim/lcu.ts`), and the shell, started
+with `TRUEMAIN_LCU_SIM`, polls it and applies each reading like a live event
+(`src-tauri/src/sim.rs`). Both halves exist only in development: the page is
+dropped from builds, the relay answers only under `npm run dev`, and the shell's
+reader is not compiled into a release build. Like a tape, it stays above the
+transport — no fake client, no TLS hole.
 
 ## Building
 

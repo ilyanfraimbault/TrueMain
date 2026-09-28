@@ -73,7 +73,7 @@ onMounted(async () => {
         <p class="text-xs text-muted">
           {{ screen === 'draft'
             ? 'Your champion select is on: picks, lanes and builds as it stands.'
-            : 'Opens on its own when your next champion select starts. Plan a draft meanwhile.' }}
+            : 'Opens on its own when your next champion select starts.' }}
         </p>
         <UButton
           v-if="screen === 'draft'"
@@ -83,7 +83,6 @@ onMounted(async () => {
           trailing
           block
         />
-        <UButton v-else to="/draft" label="Plan a draft" icon="i-lucide-layout-grid" color="neutral" variant="subtle" block />
       </section>
     </div>
 

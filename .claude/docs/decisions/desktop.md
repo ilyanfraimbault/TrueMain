@@ -23,16 +23,16 @@ a ring per role in several colours (ours, the viewed one, our lane opponent, the
 owner read them as competing selections; the slot being filled now pulses its side's hairline instead of taking a
 ring (2026-09-28) — #1671.
 
-**Champion select is one page: the live draft, or a board filled by hand.** The simulator was its own sidebar entry
-beside "Champ select", and the product owner read the two as the same thing; merged, its control bar (side, pick
-order, step counter, auto-fill, lock in) then read as a test harness on a page players use. `/draft` shows the live
-draft while the client is in champion select and, the rest of the time, the same draft screen over a board filled in
-any order: the lane in the strip (the site's role picker), a champion on any empty card or ban slot through a picker
-that lists the lane's champions first, a placed card changed or taken off on hover, a suggestion clicked becoming the
-pick. Enemies stand where they were placed (pinned for the ranking) rather than where the guesser would put them. No
-turns, no timer. A card shows its lane glyph inside while empty and under it once filled, never both. A real
-champion select takes the page over when it starts, and the sidebar keeps one entry with its "Live" badge
-(2026-09-28) — #1671.
+**Champion select is the live draft only; a draft played by hand is a development tool, fed to the shell as a
+client would feed it.** The simulator first had its own sidebar entry, then lived on the champion select page (as a
+control bar, then as a board to fill); the product owner wanted none of it in the product — it exists so a developer
+can test champion select without launching a game. So `/draft` shows the live draft or waits for the next one, and the
+simulator is `/dev/draft-sim`, dropped from builds: it plays a ranked draft in the client's order and posts the
+client's payloads (phase, summoner, mastery, the `/lol-champ-select/v1/session` body) to a dev-server relay, which a
+debug build of the shell polls when `TRUEMAIN_LCU_SIM` is set (`npm run tauri:sim`) and applies like live events. That
+keeps the whole path under test — parsing, state, phase navigation — without a fake client: the shell pins Riot's TLS
+root, and a fake LCU would need a hole in a binary that ships (the reason `lcu::tape` replays above the transport). A
+card shows its lane glyph inside while empty and under it once filled, never both (2026-09-28) — #1671.
 
 **The app has no browser chrome: no back/forward arrows and no patch label in the top bar.** Both made the window
 read as a web page; the sidebar is how the app is navigated, and the bar keeps only the ⌘K champion search

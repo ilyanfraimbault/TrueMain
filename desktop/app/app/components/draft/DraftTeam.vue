@@ -15,21 +15,15 @@ const props = withDefaults(defineProps<{
   selectedCell?: number | null
   /** The selected champion's lane opponent, when it is on this side. */
   opponentCell?: number | null
+  /** The cell the simulator is filling. */
+  activeCell?: number | null
   /** Portraits to suggest in our own empty slot. */
   suggested?: number[]
   /** Enemy lanes resolved: the cards can be dragged to correct them. */
   correctable?: boolean
-  /** A board filled by hand: an empty card takes a champion, a placed one can be changed or taken off. */
-  editable?: boolean
-}>(), { selectedCell: null, opponentCell: null, suggested: () => [], correctable: false, editable: false })
+}>(), { selectedCell: null, opponentCell: null, activeCell: null, suggested: () => [], correctable: false })
 
-const emit = defineEmits<{
-  view: [championId: number]
-  swap: [from: Lane, to: Lane]
-  /** Put a champion on this lane's card (empty, or replacing the one there). */
-  place: [lane: Lane]
-  remove: [lane: Lane]
-}>()
+const emit = defineEmits<{ view: [championId: number], swap: [from: Lane, to: Lane] }>()
 
 const { nameOf } = useChampionStatics()
 const { entryOf, mainEntryOf } = useTierList()
@@ -54,14 +48,6 @@ function onDrop(lane: Lane | null) {
  */
 const readable = (row: TeamRow) => row.championId !== null && (row.me || (row.locked && row.lane !== null))
 
-/** On a board filled by hand, an empty card on a lane is where a champion goes. */
-const placeable = (row: TeamRow) => props.editable && row.championId === null && row.lane !== null
-
-function onCard(row: TeamRow) {
-  if (placeable(row)) emit('place', row.lane!)
-  else if (row.championId !== null) emit('view', row.championId)
-}
-
 function label(row: TeamRow) {
   if (row.championId === null) return undefined
   return `Build for ${nameOf(row.championId)}${row.lane ? `, ${LANE_LABELS[row.lane]}` : ''}`
@@ -73,17 +59,17 @@ function label(row: TeamRow) {
     <div
       v-for="(row, index) in rows"
       :key="`${team}-${index}`"
-      class="group/cell relative flex min-w-0 flex-col items-center gap-1.5"
+      class="flex min-w-0 flex-col items-center gap-1.5"
       @dragover.prevent
       @drop.prevent="onDrop(row.lane)"
     >
       <button
         type="button"
-        class="group block h-[140px] w-full rounded-lg outline-none transition-[filter] focus-visible:ring-2 focus-visible:ring-primary enabled:cursor-pointer enabled:hover:brightness-110 disabled:cursor-default"
-        :disabled="!readable(row) && !placeable(row)"
+        class="block h-[140px] w-full rounded-lg outline-none transition-[filter] focus-visible:ring-2 focus-visible:ring-primary enabled:cursor-pointer enabled:hover:brightness-110 disabled:cursor-default"
+        :disabled="!readable(row)"
         :draggable="correctable && row.championId !== null"
-        :aria-label="placeable(row) ? `Add ${team === 'ally' ? (row.me ? 'your pick' : 'an ally') : 'an enemy'}${row.lane ? `, ${LANE_LABELS[row.lane]}` : ''}` : label(row)"
-        @click="onCard(row)"
+        :aria-label="label(row)"
+        @click="emit('view', row.championId!)"
         @dragstart="dragging = row.lane"
         @dragend="dragging = null"
       >
@@ -95,20 +81,11 @@ function label(row: TeamRow) {
           :selected="selectedCell === index"
           :opponent="opponentCell === index"
           :tentative="row.championId !== null && !row.locked"
+          :active="activeCell === index"
           :drop-target="dragging !== null && row.lane !== null && dragging !== row.lane"
           :suggested="row.me ? suggested : []"
-          :addable="placeable(row)"
         />
       </button>
-
-      <!-- A placed champion on a board filled by hand: change it, or take it off. -->
-      <div
-        v-if="editable && row.championId !== null && row.lane"
-        class="absolute right-1 top-1.5 z-20 flex gap-0.5 opacity-0 transition-opacity group-hover/cell:opacity-100 focus-within:opacity-100"
-      >
-        <UButton icon="i-lucide-repeat" size="xs" color="neutral" variant="solid" class="size-6 justify-center p-0" aria-label="Change" @click="emit('place', row.lane)" />
-        <UButton icon="i-lucide-x" size="xs" color="neutral" variant="solid" class="size-6 justify-center p-0" aria-label="Remove" @click="emit('remove', row.lane)" />
-      </div>
 
       <!-- The lane, under a placed champion — an empty card already carries it. An enemy lane we are not sure of says so. -->
       <div class="relative flex h-5 items-center justify-center">
