@@ -202,9 +202,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that
   main's own build on the champion — and the site's core blocks (runes beside summoners/skills/starter/boots, no build
   path) over the site's build tree drawn smaller.
-- **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a ranked champion select played by
-  hand in the client's order (bans, 1-2-2-2-2-1 picks, hover then lock, clock, auto-fill, undo), sent to the shell as
-  the client's own payloads through a dev-server relay, so the app runs its real champion select without a game.
+- **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a champion select filled by clicking
+  (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
+  payloads through a dev-server relay, so the app runs its real champion select live without a game.
   Outside a live champion select the product's `/draft` page only waits for the next one.
 - **Site sections** — tier list, champion grid, champion page (lane picker, stats, build view), matchup (champion vs
   opponent on a lane, composition build), truemains leaderboard (the site's rows), favorites kept on this machine.

@@ -189,13 +189,14 @@ cd desktop/app && npm run tauri:sim
 ```
 
 then open **http://localhost:3003/#/dev/draft-sim** in a browser beside the
-app. That page is the League client: **Start champion select** puts the app in
-champion select (a synthetic `Simulated#DEV` player, with a mastery list made
-of the lane's champions for "My pool"); then play it in the client's order —
-both sides' bans, then 1-2-2-2-2-1 picks, your own pick hovered before it is
-locked — against the client's clock. **Auto-fill** plays forward with plausible
-bans and picks up to your turn, then to the end; **Undo** takes one action
-back. **Game starts** and **Dodge** end it the way the client does.
+app. That page is the League client in champion select: choose the position you
+play, then click any pick or ban, on either side and in any order, to put a
+champion there — the picker lists the lane's champions first. Your own pick is
+hovered until **Lock in**; the others lock at once. The first click starts the
+champion select (a synthetic `Simulated#DEV` player, with a mastery list of each
+lane's most played champions for "My pool"); **Game starts** and **Dodge** end it
+the way the client does, **Clear** empties the board. The app answers every
+click live — suggestions, lanes, builds.
 
 The page sends what the client would — gameflow phase, summoner, mastery, and
 `/lol-champ-select/v1/session` in the client's shape — as tape readings to a

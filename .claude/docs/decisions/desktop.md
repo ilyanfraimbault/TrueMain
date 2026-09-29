@@ -27,8 +27,8 @@ ring (2026-09-28) — #1671.
 client would feed it.** The simulator first had its own sidebar entry, then lived on the champion select page (as a
 control bar, then as a board to fill); the product owner wanted none of it in the product — it exists so a developer
 can test champion select without launching a game. So `/draft` shows the live draft or waits for the next one, and the
-simulator is `/dev/draft-sim`, dropped from builds: it plays a ranked draft in the client's order and posts the
-client's payloads (phase, summoner, mastery, the `/lol-champ-select/v1/session` body) to a dev-server relay, which a
+simulator is `/dev/draft-sim`, dropped from builds: a champion select filled by clicking — our position, any pick or
+ban in any order (a turn order to follow read as broken) — that posts the client's payloads (phase, summoner, mastery, the `/lol-champ-select/v1/session` body) to a dev-server relay, which a
 debug build of the shell polls when `TRUEMAIN_LCU_SIM` is set (`npm run tauri:sim`) and applies like live events. That
 keeps the whole path under test — parsing, state, phase navigation — without a fake client: the shell pins Riot's TLS
 root, and a fake LCU would need a hole in a binary that ships (the reason `lcu::tape` replays above the transport). A
