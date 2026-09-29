@@ -23,12 +23,12 @@ export function useMatchDetail(
 
   const { data, status, error, refresh } = useLazyAsyncData<MatchDetailResponse | null>(
     key,
-    async () => {
+    async (_nuxtApp, { signal }) => {
       if (!nameTagRef.value || !matchIdRef.value) return null
 
       const response = await apiFetch<MatchDetailResponse | null>(
         `/truemains/${encodeURIComponent(nameTagRef.value)}/matches/${encodeURIComponent(matchIdRef.value)}`,
-        { ignoreResponseError: true },
+        { ignoreResponseError: true, signal },
       )
 
       // `ignoreResponseError: true` turns the controller's 404 into a null

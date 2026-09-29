@@ -110,7 +110,7 @@ export function useTruemainsLeaderboard(
       // would hydrate the full leaderboard from the teaser's 5 cached rows.
       return `truemains-leaderboard-${pageRef.value}-${fallbackPageSize}-${region}-${position}-${championId}-${otpOnly}-${sortRef.value}`
     },
-    () => apiFetch<LeaderboardResponse>('/truemains', { query: buildQuery() }),
+    (_nuxtApp, { signal }) => apiFetch<LeaderboardResponse>('/truemains', { query: buildQuery(), signal }),
     {
       server: serverFetch,
       watch: [pageRef, regionRef, positionRef, championIdRef, otpOnlyRef, sortRef],

@@ -131,6 +131,7 @@ Last verified against `develop` on 2026-09-02.
 - "Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only — #862, #1234
 - A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own `pending` — #1234
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
+- A backend request nobody waits for any more is cancelled: every fetch forwards an abort signal (2026-09-27) — #1712
 - A row rendered on more than one surface sizes off its own width, not the viewport — #967
 - A tooltip trigger keeps the same DOM element for the life of the component
 - Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698
@@ -162,9 +163,10 @@ Last verified against `develop` on 2026-09-02.
 - Measurements are rose gold again: the cold→warm data axis is withdrawn (2026-08-11) — #1096, #1060, #927
 - Measurements are set in Inter again: the mono stat face is withdrawn — #1060, #1111
 - Long-form text uses Nuxt UI's prose layer, themed to the site's scale; non-global components, +3.6 KB gzip CSS accepted (2026-09-17) — #1624
-- Page transitions are a staggered fade of the content only, run by Vue's `<Transition>` once the destination has resolved; none on query-only navigations or reduced motion (2026-09-18, 2026-09-23) — #1621, #1689
+- Page transitions are a fade-in of the content only, run by Vue's `<Transition>` once the destination has resolved; the old page leaves at once, never `out-in`; none on query-only navigations or reduced motion (2026-09-18, 2026-09-23, 2026-09-27) — #1621, #1689, #1714
 - One error vocabulary: `UError` for a dead route, `FetchErrorAlert` for a dead region, a toast only for an action — never two surfaces for one failure (2026-09-22) — #1661, #1234
 - Empty states go through `UEmpty`, themed like the cards; an empty state is not an error, and "player not found" stays one (2026-09-22) — #1669, #1681, #1661, #862
+- Keycap edge on surfaces and filled buttons; translucency returns for the floating header only; type stays Inter set tight with rose eyebrows, primary buttons stay rose gold (2026-09-27) — #1709, #1060
 
 ## Aggregates, retention and the schema — [`decisions/data-aggregation.md`](decisions/data-aggregation.md)
 

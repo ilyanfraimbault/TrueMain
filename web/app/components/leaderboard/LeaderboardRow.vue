@@ -364,7 +364,7 @@ const positionIcons = computed(() => {
           class="text-sm font-semibold tabular-nums text-default"
           :class="{ 'underline decoration-dotted underline-offset-2': highlightDedication }"
         >{{ dedicationLabel }}</span>
-        <span class="mt-0.5 text-[10px] font-normal uppercase tracking-wide text-muted">Score</span>
+        <span class="stat-label mt-0.5">Score</span>
       </div>
 
       <template #content>

@@ -16,11 +16,12 @@ export function useTruemainRankHistory(
 
   const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<RankHistoryResponse>(nameTag, {
     watch: [daysRef],
-    request: tag => $fetch<RankHistoryResponse | null>(
+    request: (tag, signal) => $fetch<RankHistoryResponse | null>(
       `/api/truemains/${encodeURIComponent(tag)}/rank-history`,
       {
         query: { days: daysRef.value },
         ignoreResponseError: true,
+        signal,
       },
     ),
     validate: (response): response is RankHistoryResponse =>

@@ -13,10 +13,10 @@ defineProps<{
 <template>
   <header class="space-y-3">
     <div class="space-y-1">
-      <p class="text-sm font-medium text-primary">
+      <p class="eyebrow">
         {{ eyebrow }}
       </p>
-      <h1 class="text-2xl font-semibold tracking-tight text-highlighted sm:text-3xl">
+      <h1 class="text-2xl font-semibold tracking-tight text-highlighted text-balance sm:text-3xl">
         {{ title }}
       </h1>
       <p

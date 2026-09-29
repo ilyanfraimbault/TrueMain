@@ -18,8 +18,8 @@ export function useChampionStaticList() {
   const apiFetch = useApiFetch()
   return useLazyAsyncData<ChampionStaticListItem[]>(
     'champion-static-list',
-    async () => {
-      const data = await apiFetch<ChampionStaticListItem[]>('/static/champions')
+    async (_nuxtApp, { signal }) => {
+      const data = await apiFetch<ChampionStaticListItem[]>('/static/champions', { signal })
       markStaticFetched('champion-static-list', nuxtApp)
       return data
     },

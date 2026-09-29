@@ -35,15 +35,14 @@ const { currentPage, setPage } = useRoutePage()
 // into the server output while the client hydrated with `isPending=true`,
 // producing `<!-- -->` vs `<div>` and `<ul>` vs `<div>` hydration mismatches.
 //
-// The endpoint returns the full directory (~500 rows on a populated patch).
-// Pagination is applied client-side below so search + position filters can
-// stay client-side too and the user can paginate filtered subsets without
-// extra round-trips.
+// The endpoint returns the full directory (~500 rows on a populated patch). Pagination
+// is applied client-side below so search + position filters can stay client-side too
+// and the user can paginate filtered subsets without extra round-trips.
 const apiFetch = useApiFetch()
 const summariesFetch = useAsyncData<ChampionSummaryResponse[]>(
   () => `champions-list-${filters.value.patch ?? 'latest'}-${filters.value.eloBracket ?? 'ALL'}`
     + `-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
-  () => {
+  (_nuxtApp, { signal }) => {
     const patch = filters.value.patch
     const elo = filters.value.eloBracket
     return apiFetch<ChampionSummaryResponse[]>('/champions', {
@@ -55,6 +54,7 @@ const summariesFetch = useAsyncData<ChampionSummaryResponse[]>(
         // Sent only when off — true is the API default.
         ...(filters.value.truemainsOnly ? {} : { truemainsOnly: 'false' }),
       },
+      signal,
     })
   },
   {
