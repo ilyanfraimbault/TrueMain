@@ -39,11 +39,11 @@ list_sources() {
       -not -path "$root/tests/*" -print | sed "s/$/\t$LIMIT_CS/"
   done
 
-  existing web/app web/shared admin/app admin/shared | while read -r root; do
+  existing web/app web/shared admin/app admin/shared desktop/app/app | while read -r root; do
     find "$root" -name '*.vue' -print | sed "s/$/\t$LIMIT_VUE/"
   done
 
-  existing web/app web/shared web/server admin/app admin/shared admin/server | while read -r root; do
+  existing web/app web/shared web/server admin/app admin/shared admin/server desktop/app/app | while read -r root; do
     find "$root" -name '*.ts' -print
   done | { grep -v '^web/server/utils/dev-api-mock\.ts$' || true; } | sed "s/$/\t$LIMIT_TS/"
 }

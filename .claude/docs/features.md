@@ -13,7 +13,7 @@ No `layouts/` dir; the shell is `web/app/app.vue` (`AppSkipLink`, `AppHeader`, `
 All data goes through the catch-all proxy `web/server/api/[...path].ts` → `NUXT_API_BASE_URL`.
 
 ### `/` — `web/app/pages/index.vue`
-Hero + search field, **two** live stat chips (main games analysed, truemains tracked), a tier-list teaser (`home/TierlistPanel.vue`, top 8, no rank numbers, "Full …" links in both teasers' footers, rendered eagerly with `home/TierlistPanelSkeleton.vue` while loading), a global truemains teaser (`home/TruemainsPanel.vue`, top 7, rank crest + hover tooltip like the leaderboard, no region filter), CTAs. Both chips and the teaser read `GET /champions/overview` (`useChampionOverview()`, #972) — a homepage-sized snapshot (games-analyzed total across every aggregated row, not just the ranked ones; pre-sorted top rows) instead of the full `/champions` directory.
+Hero + search field, **two** live stat chips (main games analysed, truemains tracked), a tier-list teaser (`home/TierlistPanel.vue`, top 8, no rank numbers, "Full …" links in both teasers' footers, rendered eagerly with `home/TierlistPanelSkeleton.vue` while loading), a global truemains teaser (`home/TruemainsPanel.vue`, top 7, rank crest + hover tooltip like the leaderboard, no region filter), a **desktop app beta card** under the two teasers (`home/DesktopBetaPanel.vue`, #1719 — Beta badge, the app described as those picks and mains brought into champion select, "Get the beta" to `/download`), CTAs. Both chips and the teaser read `GET /champions/overview` (`useChampionOverview()`, #972) — a homepage-sized snapshot (games-analyzed total across every aggregated row, not just the ranked ones; pre-sorted top rows) instead of the full `/champions` directory.
 **Both chips are lifetime totals, printed compactly and without a patch qualifier**: `gamesAnalyzed` is one SQL `SUM` over every `champion_aggregate_scopes` row on the tracked queue, all patches (`GetTotalGamesAsync`, cached 30 min), and the truemains count is the leaderboard's global total. `formatCompactCount` (`shared/utils/counts.ts`) shortens them — `490,365` → `490k`, `1,204,886` → `1.2M` — always rounding **down**, so the printed figure is one the data clears. The teaser below stays on the served patch alone: a tier is a percentile inside one patch's field. The former third chip ("N champions ranked") and the patch-window labels (`over 16.15–16.14`, #1109) are gone — see `decisions.md`.
 
 ### `/champions` — `web/app/pages/champions/index.vue`
@@ -79,6 +79,9 @@ localStorage-backed follow list (`web/app/utils/favorites.ts`, key `truemain:fav
 
 ### `/about` — `web/app/pages/about.vue`
 The brand's own page (#1122). Static prose, no fetch, so the whole thing is in the server HTML: what TrueMain is, what a "true main" / the Truemain score means, that the data is Riot-API-derived, and a linked list of the four main sections. Exists for SEO as much as for readers — it is the only page that states the brand name in prose, which is what a search engine reads to resolve the bare `truemain` query, and it doubles as an internal-linking hub. Linked from `AppFooter`.
+
+### `/download` — `web/app/pages/download.vue`
+The desktop companion's download page (#1719), linked from the header ("Desktop app", badged Beta) and the footer. Reads the visitor's platform in the browser after hydration (the server never guesses it from the user agent) and offers the matching installer first, the other second; on a phone, Linux, or before hydration both are offered side by side. Installers go through stable per-platform links (`/api/desktop/download/{mac|windows}`, 302 to the newest release's asset), so the page never names a version file. Carries the first-launch steps for an unsigned app (macOS Gatekeeper "Open Anyway", Windows SmartScreen "Run anyway"), the requirements, and what the app reads. The release comes from `server/utils/desktop-release*.ts`: the repository's GitHub releases filtered on the `desktop-v*` tag prefix (GitHub's "latest" is the site's own release), cached five minutes server-side; the same source serves the installed app's update feed, `/api/desktop/latest.json` (204 before the first release).
 
 ### `/privacy`, `/terms`
 Static legal prose — required for the Riot production-key application. All three text pages are written with Nuxt UI `Prose*` components, themed once under `ui.prose` in `app.config.ts` (#1624; conventions in `web/docs/DESIGN_SYSTEM.md`).
@@ -181,6 +184,37 @@ own: the *Crashes* tab of `/logs`, the three `/accounts` tabs and the *Riot API*
 Tests: `admin/tests/` is unit-level — pure helpers (process summaries, pipeline lanes and health, chart text,
 Riot IDs, regions, session expiry, log-level defaults) plus the ops proxy's path handling and a couple of
 mounted components (`ProcessSummaryView`, `PanelTitle`). No page-level tests.
+
+---
+
+## desktop/ — companion app (Tauri v2 + Nuxt 4, `ssr: false`, #1671)
+
+Reads the local League client (LCU) in Rust; the webview renders the state. Details and dev workflow in
+`desktop/README.md`; decisions in [`decisions/desktop.md`](decisions/desktop.md).
+
+- **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select),
+  player card (Riot ID, level, client status), top bar with a ⌘K champion search (no back/forward, no patch label). Hash routing; the
+  gameflow phase opens `/draft` on its own.
+- **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
+  guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
+  ten most-mastered champions on the lane, or every champion on the lane). Once locked, or on a click on any placed
+  champion (one selected card, its lane opponent faintly ringed): the build view — the draft's composition build and the
+  lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that
+  main's own build on the champion — and the site's core blocks (runes beside summoners/skills/starter/boots, no build
+  path) over the site's build tree drawn smaller.
+- **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a champion select filled by clicking
+  (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
+  payloads through a dev-server relay, so the app runs its real champion select live without a game.
+  Outside a live champion select the product's `/draft` page only waits for the next one.
+- **Site sections** — tier list, champion grid, champion page (lane picker, stats, build view), matchup (champion vs
+  opponent on a lane, composition build), truemains leaderboard (the site's rows), favorites kept on this machine.
+  A player row opens their page on truemain.lol.
+- **Distribution** (#1719): a `desktop-v*` tag builds a universal macOS `.dmg` and a Windows NSIS `.exe`
+  (`desktop-release.yml`), published as a GitHub pre-release with a signed update manifest; truemain.lol/download
+  offers them, and the installed app offers each newer beta at launch (Tauri updater, feed on the site). Unsigned by
+  Apple and Microsoft for the beta.
+- **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), the player's own
+  stats on the dashboard (#1682/#1683).
 
 ---
 

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TrueMain",
+  "version": "0.1.0",
+  "identifier": "gg.truemain.desktop",
+  "build": {
+    "frontendDist": "../app/.output/public",
+    "devUrl": "http://localhost:3003",
+    "beforeDevCommand": "npm run dev --prefix ../app",
+    "beforeBuildCommand": "npm run generate --prefix ../app"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TrueMain",
+        "width": 1180,
+        "height": 760,
+        "resizable": false,
+        "maximizable": false,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' https://ddragon.leagueoflegends.com https://raw.communitydragon.org data:; connect-src 'self' https://ddragon.leagueoflegends.com https://raw.communitydragon.org; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "dmg",
+      "app",
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "13.3",
+      "signingIdentity": "-"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "shell": {
+      "open": "^https://truemain\\.lol/"
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENCNURERDZERDdBRjc1QzMKUldURGRhL1hiZDFkeXp0S3BtL2FNVmQ5ZUdRaTFYR2R3bGR2NU5aM09Fb0d4b2UxaG44dHJGeEUK",
+      "endpoints": [
+        "https://truemain.lol/api/desktop/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

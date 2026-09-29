@@ -16,6 +16,7 @@ concurrency:
 jobs:
   preflight:
     name: Preflight deployment configuration
+    if: ${{ !startsWith(github.event.release.tag_name, 'desktop-v') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
 

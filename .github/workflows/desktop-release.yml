@@ -1,0 +1,132 @@
+name: Desktop release
+
+on:
+  push:
+    tags: ["desktop-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Tag matches the app version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: read
+        run: |
+          version=$(jq -r .version desktop/src-tauri/tauri.conf.json)
+          if [ "$GITHUB_REF_NAME" != "desktop-v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the app version $version (desktop/src-tauri/tauri.conf.json)"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-15
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin --bundles app,dmg
+            bundle: desktop/target/universal-apple-darwin/release/bundle
+          - name: Windows
+            runner: windows-2025
+            rust-targets: ""
+            args: --bundles nsis
+            bundle: desktop/target/release/bundle
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - run: npm ci
+        working-directory: desktop/app
+      - run: npm run tauri -- build ${{ matrix.args }}
+        working-directory: desktop/app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Collect the installers
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          BUNDLE: ${{ matrix.bundle }}
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.name }}" = "macOS" ]; then
+            cp "$BUNDLE"/dmg/*.dmg "dist/TrueMain_${VERSION}_universal.dmg"
+            cp "$BUNDLE/macos/TrueMain.app.tar.gz" "dist/TrueMain_${VERSION}_universal.app.tar.gz"
+            cp "$BUNDLE/macos/TrueMain.app.tar.gz.sig" "dist/TrueMain_${VERSION}_universal.app.tar.gz.sig"
+          else
+            cp "$BUNDLE"/nsis/*-setup.exe "dist/TrueMain_${VERSION}_x64-setup.exe"
+            cp "$BUNDLE"/nsis/*-setup.exe.sig "dist/TrueMain_${VERSION}_x64-setup.exe.sig"
+          fi
+          ls -la dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish the pre-release
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Write the update manifest
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          BASE: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
+        run: |
+          mac="TrueMain_${VERSION}_universal.app.tar.gz"
+          win="TrueMain_${VERSION}_x64-setup.exe"
+          jq -n \
+            --arg version "$VERSION" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg macSig "$(cat "dist/$mac.sig")" --arg macUrl "$BASE/$mac" \
+            --arg winSig "$(cat "dist/$win.sig")" --arg winUrl "$BASE/$win" \
+            '{version: $version, notes: "TrueMain desktop \($version) (beta)", pub_date: $date, platforms: {
+              "darwin-aarch64": {signature: $macSig, url: $macUrl},
+              "darwin-x86_64": {signature: $macSig, url: $macUrl},
+              "windows-x86_64": {signature: $winSig, url: $winUrl}
+            }}' > dist/latest.json
+          cat dist/latest.json
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --prerelease \
+            --title "TrueMain desktop $VERSION (beta)" \
+            --notes "Desktop companion beta. Download it from https://truemain.lol/download — the installers are not signed yet, the page says how to open them the first time."
