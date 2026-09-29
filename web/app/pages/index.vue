@@ -195,6 +195,8 @@ await Promise.all([overviewFetch, truemainsReady])
       </div>
     </section>
 
+    <HomeDesktopBetaPanel />
+
     <!-- CTA -->
     <section class="border-t border-default/60">
       <div class="mx-auto max-w-3xl px-6 py-16 text-center sm:py-20">

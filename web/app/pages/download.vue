@@ -58,6 +58,14 @@ watch(platform, (detected) => {
       description="Champion select, read for you: picks ranked from your own pool, the enemy lanes guessed, and the build against the draft as it stands."
     />
 
+    <UAlert
+      color="primary"
+      variant="subtle"
+      icon="i-lucide-flask-conical"
+      title="This is a beta"
+      description="The app is still being built: expect rough edges and frequent changes. It updates itself, so each fix reaches you without reinstalling."
+    />
+
     <section class="surface space-y-4 rounded-xl p-5 sm:p-6">
       <template v-if="release">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
