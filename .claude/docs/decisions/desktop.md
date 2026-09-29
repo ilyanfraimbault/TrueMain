@@ -34,6 +34,13 @@ keeps the whole path under test — parsing, state, phase navigation — without
 root, and a fake LCU would need a hole in a binary that ships (the reason `lcu::tape` replays above the transport). A
 card shows its lane glyph inside while empty and under it once filled, never both (2026-09-28) — #1671.
 
+**An enemy's lane is corrected from its lane icon, and a guessed lane carries no doubt mark.** The icon under each
+enemy card opens the five lanes; picking one swaps the enemy with whoever held it, pinned like a drag (which still
+works). The "?" beside an uncertain guess and the pin beside a corrected one were read as noise: a wrong lane is simply
+the one to correct, and the "Reset lanes" button says corrections exist. The build view's header is the champion's
+icon, name and lane icon — no "Your pick"/"Ally" wording — and the draft build's heading is "VS" with the opponent's
+icon (2026-09-29) — #1671.
+
 **The app has no browser chrome: no back/forward arrows and no patch label in the top bar.** Both made the window
 read as a web page; the sidebar is how the app is navigated, and the bar keeps only the ⌘K champion search
 (2026-09-28) — #1671.

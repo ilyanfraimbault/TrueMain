@@ -35,9 +35,10 @@ Tracking issue: **#1671**.
   standard build, labelled as such.
 - **Reads any champion's build**: clicking a pick shows that champion's build
   from its own side of the draft; a second click comes back to ours.
-- **Resolves the enemy lanes** (#1674) and lets you correct them by dragging
-  one enemy onto another, pinning your correction so the rest re-solve around
-  it (#1677).
+- **Resolves the enemy lanes** (#1674) and lets you correct them: the lane icon
+  under an enemy opens the five lanes, and picking one swaps it with whoever
+  held it (dragging one enemy onto another does the same), pinned so the rest
+  re-solve around the correction (#1677).
 - **Reads your champion mastery** once per login, to rank your own pool
   (`championPool`, most points first) without asking what you play.
 - **Uses the site's own components** for everything the site already draws —

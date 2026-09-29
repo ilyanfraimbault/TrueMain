@@ -36,10 +36,6 @@ export interface TeamRow {
   /** A pick locked in; false while it is only hovered. */
   locked: boolean
   me?: boolean
-  /** The guesser's certainty about an enemy's lane, 0..1. */
-  confidence?: number
-  /** An enemy lane the player set by hand. */
-  pinned?: boolean
 }
 
 export const LANES = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const

@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import type { DropdownMenuItem } from '@nuxt/ui'
 import type { Lane, TeamRow } from '~/types/draft'
-import { LANE_LABELS, laneIconUrl } from '~/types/draft'
+import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
 
 /**
  * Five picks of one side, left to right, each over the lane it holds. Ours
  * follow the lanes the client assigned; theirs follow the lanes the guesser
- * resolved, and one dragged onto another swaps the two (pinned, so the rest
- * re-solve around the correction).
+ * resolved, and the player corrects one by clicking its lane icon and picking
+ * the lane it really plays — or by dragging it onto another — which swaps the
+ * two (pinned, so the rest re-solve around the correction). A guessed lane
+ * carries no doubt mark: it is simply the one to correct when it is wrong.
  */
 const props = withDefaults(defineProps<{
   team: 'ally' | 'enemy'
@@ -46,6 +49,19 @@ function onDrop(lane: Lane | null) {
  */
 const readable = (row: TeamRow) => row.championId !== null && (row.me || (row.locked && row.lane !== null))
 
+/** The lanes an enemy can be moved to, the one it holds marked. */
+function laneChoices(row: TeamRow): DropdownMenuItem[] {
+  return LANES.map(lane => ({
+    label: LANE_LABELS[lane],
+    avatar: { src: laneIconUrl(lane), alt: '' },
+    type: 'checkbox' as const,
+    checked: lane === row.lane,
+    onSelect: () => {
+      if (row.lane && lane !== row.lane) emit('swap', row.lane, lane)
+    },
+  }))
+}
+
 function label(row: TeamRow) {
   if (row.championId === null) return undefined
   return `Build for ${nameOf(row.championId)}${row.lane ? `, ${LANE_LABELS[row.lane]}` : ''}`
@@ -84,24 +100,30 @@ function label(row: TeamRow) {
         />
       </button>
 
-      <!-- The lane, under a placed champion — an empty card already carries it. An enemy lane we are not sure of says so. -->
-      <div class="relative flex h-5 items-center justify-center">
+      <!-- The lane, under a placed champion — an empty card already carries it. An enemy's is a menu to correct it. -->
+      <div class="flex h-5 items-center justify-center">
+        <UDropdownMenu
+          v-if="correctable && row.lane && row.championId !== null"
+          :items="laneChoices(row)"
+          :content="{ align: 'center' }"
+          :ui="{ itemLeadingAvatar: 'size-4 rounded-none bg-transparent' }"
+        >
+          <button
+            type="button"
+            class="flex size-6 items-center justify-center rounded transition-colors hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            :aria-label="`${nameOf(row.championId)} plays ${LANE_LABELS[row.lane]} — change`"
+            :title="`${LANE_LABELS[row.lane]} — click to change`"
+          >
+            <img :src="laneIconUrl(row.lane)" alt="" class="size-4">
+          </button>
+        </UDropdownMenu>
         <img
-          v-if="row.lane && row.championId !== null"
+          v-else-if="row.lane && row.championId !== null"
           :src="laneIconUrl(row.lane)"
           :alt="LANE_LABELS[row.lane]"
           :title="LANE_LABELS[row.lane]"
           class="size-4"
         >
-        <span
-          v-if="team === 'enemy' && row.championId !== null && row.lane && (row.pinned || (row.confidence ?? 1) < 0.85)"
-          class="absolute -right-3 top-0 flex size-3.5 items-center justify-center rounded-full bg-ink-800 text-[9px] font-bold"
-          :class="row.pinned ? 'text-primary' : 'text-gold'"
-          :title="row.pinned ? 'Set by you' : 'Uncertain lane'"
-        >
-          <UIcon v-if="row.pinned" name="i-lucide-pin" class="size-2" />
-          <template v-else>?</template>
-        </span>
       </div>
     </div>
   </div>

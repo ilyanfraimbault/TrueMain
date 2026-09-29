@@ -82,12 +82,5 @@ export function useDraftSubject(
     return { championId: current.championId, opponentId, position }
   })
 
-  /** Which side the build on screen is for, in the player's words. */
-  const whose = computed(() => {
-    if (shownView.value) return shownView.value.team === 'ally' ? 'Ally' : 'Enemy'
-    if (previewed.value !== null) return 'Preview'
-    return draft.value.myChampionLocked ? 'Your pick' : 'Hovering'
-  })
-
-  return { subject, shownView, duel, whose }
+  return { subject, shownView, duel }
 }

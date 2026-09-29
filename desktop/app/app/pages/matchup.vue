@@ -84,7 +84,7 @@ const { build, pending, error } = useDraftBuild(subject)
         v-if="subject"
         :champion-id="subject.championId"
         :position="subject.request.position"
-        :draft="{ build, pending, error, label: opponentId ? `vs ${nameOf(opponentId)}` : 'Lane build' }"
+        :draft="{ build, pending, error, opponentId, label: 'Lane build' }"
       >
         <template #header>
           <p class="text-sm font-semibold text-highlighted">{{ championId ? nameOf(championId) : '' }}</p>

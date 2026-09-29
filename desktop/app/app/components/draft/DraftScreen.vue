@@ -2,7 +2,7 @@
 import type { Lane, TeamRow } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 import type { ViewedPick } from '~/composables/useDraftSubject'
-import { LANES, LANE_LABELS } from '~/types/draft'
+import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
 
 /**
  * Champion select, laid out like the reference client: each side's bans and
@@ -95,8 +95,6 @@ const enemyRows = computed<TeamRow[]>(() => {
       championId: slot.championId !== null && props.draft.enemyChampions.includes(slot.championId) ? slot.championId : null,
       lane: slot.lane,
       locked: true,
-      confidence: slot.confidence,
-      pinned: slot.pinned,
     }))
   }
   const open = byLane.value && props.draft.enemyChampions.length === 0
@@ -112,7 +110,7 @@ const enemyRows = computed<TeamRow[]>(() => {
 
 const viewed = ref<ViewedPick | null>(null)
 const previewed = ref<number | null>(null)
-const { subject, shownView, duel, whose } = useDraftSubject(draft, enemyLanes, viewed, previewed)
+const { subject, shownView, duel } = useDraftSubject(draft, enemyLanes, viewed, previewed)
 const { build, pending: buildPending, error: buildError } = useDraftBuild(subject)
 
 /** A click reads that champion's build; a second click on it goes back. */
@@ -239,17 +237,20 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         v-else-if="subject"
         :champion-id="subject.championId"
         :position="subject.request.position"
-        :draft="{ build, pending: buildPending, error: buildError, label: duel.opponentId ? `vs ${nameOf(duel.opponentId)}` : 'This draft' }"
+        :draft="{ build, pending: buildPending, error: buildError, opponentId: duel.opponentId, label: 'This draft' }"
       >
         <template #header>
           <div class="flex items-center gap-2.5">
             <ChampionPortrait :champion-id="subject.championId" size="sm" class="size-10! rounded-lg!" />
-            <div class="min-w-0 flex-1 leading-tight">
-              <p class="truncate text-sm font-semibold text-highlighted">{{ nameOf(subject.championId) }}</p>
-              <p class="mt-0.5 truncate text-[11px] text-dimmed">
-                {{ LANE_LABELS[subject.request.position as Lane] ?? subject.request.position }} · {{ whose }}
-              </p>
-            </div>
+            <p class="min-w-0 truncate text-sm font-semibold text-highlighted">{{ nameOf(subject.championId) }}</p>
+            <img
+              v-if="subject.request.position in LANE_LABELS"
+              :src="laneIconUrl(subject.request.position)"
+              :alt="LANE_LABELS[subject.request.position as Lane]"
+              :title="LANE_LABELS[subject.request.position as Lane]"
+              class="size-4 shrink-0"
+            >
+            <span class="flex-1" />
             <UButton v-if="canGoBack" size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-left" aria-label="Back" @click="back" />
           </div>
         </template>

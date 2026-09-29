@@ -196,7 +196,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   player card (Riot ID, level, client status), top bar with a ⌘K champion search (no back/forward, no patch label). Hash routing; the
   gameflow phase opens `/draft` on its own.
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
-  guessed and correctable by drag, the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
+  guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
   ten most-mastered champions on the lane, or every champion on the lane). Once locked, or on a click on any placed
   champion (one selected card, its lane opponent faintly ringed): the build view — the draft's composition build and the
   lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that

@@ -12,13 +12,16 @@ import type { BuildOption } from '~/types/build'
 const props = defineProps<{
   options: BuildOption[]
   pending: boolean
-  /** What the draft's own build is called: "This draft", "vs Zed". */
+  /** What the draft's own build is called when it faces no one yet: "This draft". */
   draftLabel?: string
+  /** The champion the draft's build faces on its lane: its heading is "VS" and that champion's icon. */
+  draftOpponent?: number | null
 }>()
 
 const selected = defineModel<string | null>({ default: null })
 
 const { items, runeTree } = useStaticData()
+const { nameOf, portraitOf } = useChampionStatics()
 const { perk, perkStyle, item } = useBuildResolvers(runeTree, items)
 
 const draftOption = computed(() => props.options.find(option => option.key === 'draft') ?? null)
@@ -26,16 +29,24 @@ const laneOptions = computed(() => props.options.filter(option => option.key !==
 
 const groups = computed(() => [
   ...(draftOption.value
-    ? [{ label: draftOption.value.standard ? 'Standard build' : (props.draftLabel ?? 'This draft'), options: [draftOption.value] }]
+    ? [{
+        label: draftOption.value.standard ? 'Standard build' : (props.draftLabel ?? 'This draft'),
+        opponent: draftOption.value.standard ? null : props.draftOpponent ?? null,
+        options: [draftOption.value],
+      }]
     : []),
-  ...(laneOptions.value.length ? [{ label: draftOption.value ? 'On the lane' : 'Builds', options: laneOptions.value }] : []),
+  ...(laneOptions.value.length ? [{ label: draftOption.value ? 'On the lane' : 'Builds', opponent: null, options: laneOptions.value }] : []),
 ])
 </script>
 
 <template>
   <div class="flex flex-col gap-3">
     <div v-for="group in groups" :key="group.label" class="flex flex-col gap-0.5">
-      <h3 class="truncate px-2 pb-1 stat-label">{{ group.label }}</h3>
+      <h3 v-if="group.opponent" class="flex items-center gap-1.5 px-2 pb-1 stat-label">
+        VS
+        <img v-if="portraitOf(group.opponent)" :src="portraitOf(group.opponent)!" :alt="nameOf(group.opponent)" :title="nameOf(group.opponent)" class="size-4 rounded">
+      </h3>
+      <h3 v-else class="truncate px-2 pb-1 stat-label">{{ group.label }}</h3>
 
       <button
         v-for="option in group.options"
