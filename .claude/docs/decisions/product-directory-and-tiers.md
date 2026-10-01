@@ -57,6 +57,13 @@ that no tooltip opens on touch, so the link's `aria-label` carries name, lane an
 string is also what a screen reader gets, and it is the reason the missing ban rate is dropped from it
 entirely rather than announced as "dash BR".
 
+**The tier list carries the directory's header and filter row, control for control (2026-10-01).**
+Same `PageHeader` (eyebrow + title), same grid — position picker left, champion search centred, rank + truemains
+toggle + patch grouped on the right at the compact size — so moving between `/champions` and
+`/champions/tierlist` keeps every control in place instead of reshuffling four of them across the row. The
+champion search came along with it: on the tier list it narrows the tier cards to that champion's lines
+(client-side, `?championId=`, no refetch), and tiers left empty are hidden. Product owner's call.
+
 ## A patch is served only once it can fill a directory (2026-08-12)
 
 **#1109.** The public reads used to default to the newest patch holding *any* aggregate row, and the directory

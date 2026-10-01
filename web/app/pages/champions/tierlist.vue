@@ -90,6 +90,14 @@ async function selectPosition(value: ChampionPosition | null) {
   await setFilter({ position: value })
 }
 
+// Same `?championId=` search as the /champions directory: it narrows the tiers
+// to that champion's lines instead of refetching.
+const filterChampionId = useRouteQueryChampionId()
+
+async function selectChampion(value: number | null) {
+  await setFilter({ championId: value })
+}
+
 function onEloBracketChange(value: string) {
   // Pass the bracket through untouched — `null` would clear the param and land
   // back on the Master+ page default, making "All ranks" unselectable.
@@ -101,17 +109,21 @@ const nameById = useChampionsById(staticList)
 // Flatten the tier groups into rows decorated with name + icon, carrying the
 // tier letter so the template can render one badge per group and the row data.
 const tierGroups = computed(() =>
-  (tierList.value?.tiers ?? []).map(group => ({
-    tier: group.tier,
-    entries: group.entries.map((entry) => {
-      const meta = nameById.value.get(entry.championId)
-      return {
-        ...entry,
-        name: meta?.name ?? `Champion ${entry.championId}`,
-        iconUrl: meta?.iconUrl ?? '',
-      }
-    }),
-  })),
+  (tierList.value?.tiers ?? [])
+    .map(group => ({
+      tier: group.tier,
+      entries: group.entries
+        .filter(entry => filterChampionId.value === null || entry.championId === filterChampionId.value)
+        .map((entry) => {
+          const meta = nameById.value.get(entry.championId)
+          return {
+            ...entry,
+            name: meta?.name ?? `Champion ${entry.championId}`,
+            iconUrl: meta?.iconUrl ?? '',
+          }
+        }),
+    }))
+    .filter(group => group.entries.length > 0),
 )
 
 const hasRows = computed(() => tierGroups.value.some(group => group.entries.length > 0))
@@ -135,36 +147,50 @@ await tierListFetch
 
 <template>
   <div class="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
-    <header class="space-y-3">
-      <h1 class="text-2xl font-semibold">
-        Tier List
-      </h1>
-
-      <div class="flex flex-wrap items-center justify-between gap-3">
+    <!-- Same header and filter row as the /champions directory, so moving
+         between the two pages keeps every control in place. -->
+    <PageHeader
+      eyebrow="Meta"
+      title="Tier List"
+    >
+      <div class="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
         <RolePicker
+          class="justify-self-start"
           :position="selectedPosition"
           @update:position="selectPosition"
         />
 
-        <ChampionEloFilter
-          :model-value="selectedEloBracket"
-          @update:model-value="onEloBracketChange"
+        <ChampionPicker
+          :champions="staticList ?? []"
+          :champion-id="filterChampionId"
+          placeholder="Search for a champion"
+          trigger-class="w-56"
+          @update:champion-id="selectChampion"
         />
 
-        <ChampionTruemainToggle
-          :model-value="filters.truemainsOnly"
-          @update:model-value="value => setFilter({ truemainsOnly: value })"
-        />
+        <div class="flex items-center gap-2 md:justify-self-end">
+          <ChampionEloFilter
+            size="sm"
+            :model-value="selectedEloBracket"
+            @update:model-value="onEloBracketChange"
+          />
 
-        <USelect
-          :model-value="selectedPatch || undefined"
-          :items="patchOptions"
-          placeholder="Patch"
-          class="w-28"
-          @update:model-value="onPatchChange"
-        />
+          <ChampionTruemainToggle
+            :model-value="filters.truemainsOnly"
+            @update:model-value="value => setFilter({ truemainsOnly: value })"
+          />
+
+          <USelect
+            :model-value="selectedPatch || undefined"
+            :items="patchOptions"
+            placeholder="Patch"
+            size="sm"
+            class="w-20"
+            @update:model-value="onPatchChange"
+          />
+        </div>
       </div>
-    </header>
+    </PageHeader>
 
     <ClientOnly>
       <FetchErrorAlert
