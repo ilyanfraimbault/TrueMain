@@ -71,6 +71,7 @@ Last verified against `develop` on 2026-09-02.
 - A tier-list chip is a portrait and its lane badge — the name and the three rates are tooltip content
 - The tier list carries the directory's header and filter row, control for control (2026-10-01)
 - A patch is served only once it can fill a directory (2026-08-12) — #1109, #1107
+- The directory listing reads `GET /champions/directory`: one page, filtered and ordered in memory over the cached directory (one read-cache entry per ordering, sliced per page); the bare `GET /champions` array stays (2026-10-01) — #1734
 - The homepage hero counts a lifetime, compactly, and never names a patch (2026-08-16) — #1109
 
 ## Champion synergies — [`decisions/product-synergies.md`](decisions/product-synergies.md)
@@ -134,7 +135,8 @@ Last verified against `develop` on 2026-09-02.
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
 - A backend request nobody waits for any more is cancelled: every fetch forwards an abort signal (2026-09-27) — #1712
 - A row rendered on more than one surface sizes off its own width, not the viewport — #967
-- The full-page lists (truemains, champions) are tables: one grid under a header row, columns dropped by container width (2026-10-01) — #1726
+- The full-page lists (truemains, champions) are `UTable`s with header sorting bound to the URL and served by the API; a row navigates through `@select` (2026-10-01) — #1726, #1734
+- A player is drawn by one `Account` component (UUser + a canonical-URL `UAvatar`, rounded square); the search palette is the exception (2026-10-01) — #1734
 - A tooltip trigger keeps the same DOM element for the life of the component
 - Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698
 - A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15) — #1585

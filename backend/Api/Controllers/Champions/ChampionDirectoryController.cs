@@ -15,10 +15,12 @@ public sealed class ChampionDirectoryController(
     IChampionSummariesQueryService summariesQueryService,
     IChampionTierListQueryService tierListQueryService,
     IChampionOverviewQueryService overviewQueryService,
-    IChampionTrendQueryService trendQueryService) : ChampionsControllerBase
+    IChampionTrendQueryService trendQueryService,
+    IChampionDirectoryQueryService directoryQueryService) : ChampionsControllerBase
 {
     private const int DefaultOverviewLimit = 8;
     private const int MaxOverviewLimit = 20;
+    private const int DefaultDirectoryPageSize = 50;
 
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionSummaryReadModel>), StatusCodes.Status200OK)]
@@ -38,6 +40,49 @@ public sealed class ChampionDirectoryController(
         var result = await summariesQueryService.GetAllSummariesAsync(
             normalizedPatch, normalizedBracket, truemainsOnly, ct);
         return Ok(result.Summaries);
+    }
+
+    /// <summary>
+    /// One page of the directory (#1734): the same <c>(champion, position)</c> lines as
+    /// <c>GET /champions</c>, narrowed to a lane and/or a champion, ordered by
+    /// <paramref name="query"/>'s <c>sort</c>/<c>order</c> (pick rate, descending, by
+    /// default) and paged, with the filtered total and the resolved patch. The listing page
+    /// reads this so it never downloads the whole directory; the bare array above stays for
+    /// the consumers that do want every line (the OG card, the sitemap). A bad patch-free
+    /// filter (lane, elo) is a 400 as elsewhere; an unknown sort or order falls back to the
+    /// default rather than failing. "directory" is not an int, so the route never collides
+    /// with <c>{championId:int}</c>.
+    /// </summary>
+    [HttpGet("directory")]
+    [ProducesResponseType(typeof(ChampionDirectoryPageReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ChampionDirectoryPageReadModel>> GetDirectoryPageAsync(
+        [FromQuery] ChampionDirectoryQuery query,
+        CancellationToken ct = default)
+    {
+        if (!this.TryNormalizeOptionalPosition(query.Position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
+        if (!this.TryNormalizeOptionalEloBracket(query.EloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
+
+        ChampionDirectoryOrdering.TryParseSort(query.Sort, out var sort);
+        var request = new ChampionDirectoryRequest(
+            Patch: PatchParameter.Normalize(query.Patch),
+            EloBracket: normalizedBracket,
+            TruemainsOnly: query.TruemainsOnly ?? true,
+            Position: normalizedPosition,
+            ChampionId: query.ChampionId,
+            Sort: sort,
+            Descending: ChampionDirectoryOrdering.IsDescending(query.Order),
+            Page: query.Page ?? 1,
+            PageSize: query.PageSize ?? DefaultDirectoryPageSize);
+
+        return Ok(await directoryQueryService.GetPageAsync(request, ct));
     }
 
     /// <summary>

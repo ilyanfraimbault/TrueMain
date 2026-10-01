@@ -116,6 +116,27 @@ export default defineAppConfig({
         variant: 'subtle',
       },
     },
+    // The list tables (#1734 — `/truemains`, `/champions`). The table is a
+    // `surface` card; header cells are the site's `stat-label` micro-labels and
+    // rows sit at 48px. Cells tighten under `@xl` (the table is a container):
+    // on a phone every pixel the padding keeps goes to the name column.
+    //
+    // The header label is spelled out as plain utilities instead of applying
+    // `stat-label`: a `@utility` loses the cascade to the stock `th` classes
+    // (`text-sm font-semibold text-highlighted`), while tailwind-merge drops
+    // those in favour of these. The selectable-row hover is restated for the
+    // same surface reason as `card` above: the stock `bg-elevated/50` is the
+    // card's own fill, so hovering a row changed nothing; `bg-accented` is the
+    // next step up, as `surface-hover` does elsewhere.
+    table: {
+      slots: {
+        root: 'surface rounded-xl',
+        tbody: 'divide-default/60 [&>tr]:data-[selectable=true]:cursor-pointer [&>tr]:data-[selectable=true]:hover:bg-accented [&>tr]:data-[selectable=true]:focus-visible:-outline-offset-3',
+        th: 'px-1.5 py-2.5 first:ps-3 last:pe-3 @xl:px-2 text-[10px] leading-[1.2] font-medium uppercase tracking-[0.12em] text-dimmed',
+        td: 'h-12 px-1.5 py-0 first:ps-3 last:pe-3 @xl:px-2 text-sm text-default',
+        separator: 'bg-(--ui-border)',
+      },
+    },
     // Long-form text (#1624) — `/about`, `/privacy`, `/terms`. Nuxt UI's prose
     // defaults are tuned for documentation pages (a `text-2xl` bold h2, 20px
     // paragraph gaps, `text-base` body); this app's prose sits inside a

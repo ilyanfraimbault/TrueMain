@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
+import { firstParamValue } from '~/utils/route-params'
+import { directoryOrderToQuery, parseDirectoryOrder, type DirectoryOrder } from '~/utils/table-sorting'
 
 // Mirrors the backend default; the page size is fixed in the UI (no
 // per-page selector) so the only stateful pagination value carried in the
@@ -24,46 +25,37 @@ const { filters, setFilter } = useChampionFilters()
 
 const { currentPage, setPage } = useRoutePage()
 
-// All four fetches are client-only (`server: false`) so SSR ships a
-// deterministic empty shell under the skeleton/progress bar instead of
-// racing the data into the rendered HTML — without it, fast local API
-// responses resolved before the SSR render completed, baking `isPending=false`
-// into the server output while the client hydrated with `isPending=true`,
-// producing `<!-- -->` vs `<div>` and `<ul>` vs `<div>` hydration mismatches.
+// Every fetch here is client-only (`server: false`) so SSR ships a
+// deterministic shell under the skeleton instead of racing the data into the
+// rendered HTML — without it, fast local API responses resolved before the SSR
+// render completed and the server baked a different branch than the client
+// hydrated, producing node mismatches (#149).
 //
-// The endpoint returns the full directory (~500 rows on a populated patch). Pagination
-// is applied client-side below so search + position filters can stay client-side too
-// and the user can paginate filtered subsets without extra round-trips.
-const apiFetch = useApiFetch()
-const summariesFetch = useAsyncData<ChampionSummaryResponse[]>(
-  () => `champions-list-${filters.value.patch ?? 'latest'}-${filters.value.eloBracket ?? 'ALL'}`
-    + `-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
-  (_nuxtApp, { signal }) => {
-    const patch = filters.value.patch
-    const elo = filters.value.eloBracket
-    return apiFetch<ChampionSummaryResponse[]>('/champions', {
-      query: {
-        ...(patch ? { patch } : {}),
-        // Cumulative "X+" threshold; the composable already omits the default
-        // ALL, so a value here is always a real filter the backend expands.
-        ...(elo ? { eloBracket: elo } : {}),
-        // Sent only when off — true is the API default.
-        ...(filters.value.truemainsOnly ? {} : { truemainsOnly: 'false' }),
-      },
-      signal,
-    })
-  },
-  {
-    watch: [
-      () => filters.value.patch,
-      () => filters.value.eloBracket,
-      () => filters.value.truemainsOnly,
-    ],
-    server: false,
-    default: () => [],
-  },
-)
-const { data: summaries, error: summariesError, status: summariesStatus } = summariesFetch
+// The directory comes one page at a time (#1734): the API filters by lane and
+// champion, orders by the table's sort and pages, so the page never downloads
+// the whole directory.
+const route = useRoute()
+const filterChampionId = useRouteQueryChampionId()
+const order = computed<DirectoryOrder>(() =>
+  parseDirectoryOrder(firstParamValue(route.query.sort), firstParamValue(route.query.order)))
+
+const selectedPosition = computed<ChampionPosition | null>(() => {
+  const value = filters.value.position ?? ''
+  return isChampionPosition(value) ? value : null
+})
+
+const directory = useChampionDirectory({
+  patch: () => filters.value.patch,
+  eloBracket: () => filters.value.eloBracket,
+  truemainsOnly: () => filters.value.truemainsOnly,
+  position: selectedPosition,
+  championId: filterChampionId,
+  order,
+  page: currentPage,
+  pageSize: PAGE_SIZE,
+})
+const { rows: summaries, total, patchVersion, error: directoryError } = directory
+
 // Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
 // closure can call `markStaticFetched` after the network round trip — the
 // `useFetch` wrapper hides that hook. `getCachedData` reuses entries across
@@ -75,7 +67,7 @@ const {
 } = useChampionStaticList()
 const { data: versions } = useDDragonVersions()
 
-const apiPatch = computed(() => summaries.value?.[0]?.patchVersion ?? '')
+const apiPatch = computed(() => patchVersion.value)
 const selectedPatch = computed(() => filters.value.patch || apiPatch.value || '')
 
 // Item icons are patch-specific, so the fetch follows the patch the list shows.
@@ -99,36 +91,31 @@ const {
   status: runeTreeStatus,
 } = useStaticRuneTree(selectedPatch)
 
-const error = computed(() => summariesError.value ?? staticError.value ?? itemsError.value ?? runeTreeError.value)
-// Treat the pre-fetch `'idle'` state from `useLazy*` the same as `'pending'`
-// (see isLoadingStatus), otherwise the SSR shell briefly renders the empty
-// `<ul>` (and the "No champions match…" copy below) before the client kicks
-// off the first fetch. All four sources gate the skeleton so we never show
-// rows with placeholder `Champion {id}` names or missing rune / item icons.
-const isPending = computed(() =>
-  isLoadingStatus(summariesStatus.value)
-  || isLoadingStatus(staticStatus.value)
+const error = computed(() => directoryError.value ?? staticError.value ?? itemsError.value ?? runeTreeError.value)
+
+// The skeleton covers the first load only — the first page of the directory
+// and the lookups its rows draw from (names, rune and item icons), so no row
+// ever flashes a fallback `Champion {id}` name or an empty icon. Later filter,
+// sort or page changes keep the rows on screen under the table's loading bar.
+// `idle` counts as loading (see isLoadingStatus): the client kicks the static
+// fetches off after mount.
+const lookupsLoading = computed(() =>
+  isLoadingStatus(staticStatus.value)
   || isLoadingStatus(runeTreeStatus.value)
-  || isLoadingStatus(itemsStatus.value),
-)
+  || isLoadingStatus(itemsStatus.value))
+const lookupsSettled = ref(false)
+watch(lookupsLoading, (loading) => {
+  if (!loading) lookupsSettled.value = true
+}, { immediate: true })
+const isColdLoading = computed(() => directory.isInitialLoading.value || !lookupsSettled.value)
 
 const patchOptions = usePatchOptions(versions, apiPatch, () => filters.value.patch)
 
-// null = "All positions" — matches the RolePicker contract shared with
-// the leaderboard filter strip.
-const selectedPosition = computed<ChampionPosition | null>(() => {
-  const value = filters.value.position ?? ''
-  return isChampionPosition(value) ? value : null
-})
 
 // The composable always resolves a concrete bracket (Master+ by default), so
 // the picker always reflects the threshold actually being fetched.
 const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.value.eloBracket))
 
-// Champion filter sources from `?championId=` so deep links and back/forward
-// keep the selection. Uses the same ChampionPicker as the truemain
-// leaderboard so the UX matches across the two list pages.
-const filterChampionId = useRouteQueryChampionId()
 
 // Filter changes go through the shared composable with `resetPage` so any
 // change anchors back on page 1 in the same atomic router.replace.
@@ -151,38 +138,26 @@ function onEloBracketChange(value: string) {
 
 const championsById = useChampionsById(staticList)
 
-const baseRows = computed(() =>
-  (summaries.value ?? []).map(summary => ({
+const rows = computed(() =>
+  summaries.value.map(summary => ({
     ...summary,
     name: championsById.value.get(summary.championId)?.name ?? `Champion ${summary.championId}`,
     iconUrl: championsById.value.get(summary.championId)?.iconUrl ?? '',
   })),
 )
 
-const filteredRows = computed(() => {
-  let rows = baseRows.value
-  const pos = selectedPosition.value
-  if (pos !== null) rows = rows.filter(row => row.position === pos)
-  const cid = filterChampionId.value
-  if (cid !== null) rows = rows.filter(row => row.championId === cid)
-  return rows
-})
+// The table's sortable headers: one replace for the column and the direction,
+// back to page 1 (a new order reshuffles every page). The defaults leave the
+// URL bare.
+const setQueryFilters = useRouteFiltersSetter()
+function setOrder(next: DirectoryOrder) {
+  void setQueryFilters(directoryOrderToQuery(next))
+}
 
-// Client-side pagination: slice the filtered list into pages of PAGE_SIZE.
-// `totalCount` follows `filteredRows.length` so the page count adjusts to
-// search + position filters without an extra round-trip.
-const totalCount = computed<number>(() => filteredRows.value.length)
-const pagedRows = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  return filteredRows.value.slice(start, start + PAGE_SIZE)
-})
-
-// Reset to page 1 when the filtered set shrinks below the current offset,
-// either because the user typed in the search box or because a filter
-// dropped enough rows to invalidate the current page anchor.
-watch(totalCount, (count) => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  if (count > 0 && start >= count) void setPage(1)
+// A page past the end — a hand-typed `?page=`, or a filter that shrank the
+// list under it — comes back empty with the real total: step back to page 1.
+watch([summaries, total], ([lines, count]) => {
+  if (lines.length === 0 && count > 0 && currentPage.value > 1) void setPage(1)
 })
 
 // The row's destination: the champion page on its lane, at the patch the list
@@ -198,7 +173,7 @@ function rowDestination(row: { championId: number, position: string }) {
 }
 
 // A client-side navigation waits under the loading bar for the directory (#1689).
-await summariesFetch
+await directory.ready
 </script>
 
 <template>
@@ -263,17 +238,18 @@ await summariesFetch
       />
 
       <template v-else>
-        <!-- Gated on all four sources (see `isPending`) so no row flashes a
-             fallback `Champion {id}` name or a missing rune / item icon. -->
         <ChampionDirectoryTable
-          v-if="isPending || pagedRows.length > 0"
-          :rows="pagedRows"
+          v-if="isColdLoading || rows.length > 0"
+          :rows="rows"
           :offset="(currentPage - 1) * PAGE_SIZE"
-          :loading="isPending"
+          :order="order"
+          :loading="isColdLoading"
+          :refreshing="directory.isLoading.value"
           :skeleton-rows="PAGE_SIZE"
           :destination="rowDestination"
           :rune-tree="runeTree"
           :items-map="itemsMap"
+          @update:order="setOrder"
         />
 
         <p v-else class="text-sm text-muted">
@@ -282,12 +258,12 @@ await summariesFetch
 
         <!-- Only when there is more than one page, and only once the data is in. -->
         <div
-          v-if="!isPending && totalCount > PAGE_SIZE"
+          v-if="!isColdLoading && total > PAGE_SIZE"
           class="flex justify-center pt-2"
         >
           <UPagination
             :page="currentPage"
-            :total="totalCount"
+            :total="total"
             :items-per-page="PAGE_SIZE"
             :sibling-count="1"
             color="neutral"
@@ -303,6 +279,7 @@ await summariesFetch
         <ChampionDirectoryTable
           :rows="[]"
           :offset="0"
+          :order="order"
           loading
           :skeleton-rows="PAGE_SIZE"
           :destination="rowDestination"

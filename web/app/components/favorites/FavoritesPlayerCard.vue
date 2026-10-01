@@ -6,7 +6,8 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import type { FavoriteTruemain } from '~/utils/favorites'
-import { formatPercentage, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { formatPercentage } from '~~/shared/utils/ddragon'
+import { truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { platformIdToRegion } from '~~/shared/utils/region'
 import { isApexTier } from '~/utils/tiers'
 
@@ -56,18 +57,21 @@ const {
   notFound: matchesNotFound,
 } = useTruemainMatches(nameTag, 1, { pageSize: props.matchCount, enabled: visible })
 
-const profileHref = computed(() => `/truemains/${encodeURIComponent(nameTag.value)}`)
+const profileHref = computed(() => truemainProfilePath(nameTag.value))
 
 // Identity falls back to what was stored when the player was followed, so the
 // card has a name to show before (and even if) the profile fetch resolves.
-const gameName = computed(() => profile.value?.identity.gameName ?? props.favorite.gameName)
-const tagLine = computed(() => profile.value?.identity.tagLine ?? props.favorite.tagLine)
+// The live profile once it has loaded, the snapshot taken when the player was
+// followed until then. No `?? 0` on the icon: id 0 does not exist, and
+// `Account` draws the user glyph for a missing one instead of requesting it.
+const identity = computed(() => ({
+  gameName: profile.value?.identity.gameName ?? props.favorite.gameName,
+  tagLine: profile.value?.identity.tagLine ?? props.favorite.tagLine,
+  profileIconId: profile.value?.identity.profileIconId ?? props.favorite.profileIconId,
+}))
 
 const region = computed(() =>
   platformIdToRegion(profile.value?.identity.platformId) ?? props.favorite.region)
-
-const profileIconUrl = computed(() =>
-  getProfileIconUrl(profile.value?.identity.profileIconId ?? props.favorite.profileIconId ?? 0, props.patch))
 
 const ranked = computed(() => profile.value?.ranked ?? null)
 const showDivision = computed(() => ranked.value !== null && !isApexTier(ranked.value.tier))
@@ -99,33 +103,23 @@ const staticBundleReady = computed(() =>
   <section ref="cardEl" class="surface overflow-hidden rounded-lg">
     <!-- Player header -->
     <div class="flex items-center gap-3 border-b border-default/60 px-3 py-2.5">
-      <NuxtLink
+      <Account
+        :identity="identity"
+        :region="region"
+        :patch="patch"
+        size="lg"
         :to="profileHref"
-        class="surface-hover -m-1 flex min-w-0 flex-1 items-center gap-3 rounded-md border border-transparent p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        class="surface-hover -m-1 flex-1 rounded-md border border-transparent p-1"
       >
-        <SkeletonImage
-          :src="profileIconUrl"
-          :alt="gameName"
-          class="size-10 shrink-0 rounded"
-          width="40"
-          height="40"
-        />
-        <div class="min-w-0">
-          <div class="flex items-baseline gap-1 truncate">
-            <span class="truncate font-bold text-default">{{ gameName }}</span>
-            <span v-if="tagLine" class="shrink-0 text-xs text-muted">#{{ tagLine }}</span>
-          </div>
-          <div class="mt-0.5 flex items-center gap-2">
-            <LeaderboardRegionFlag :region="region" :width="18" />
-            <USkeleton v-if="profileLoading" class="h-3 w-28" />
-            <span v-else-if="rankedLabel" class="text-xs text-muted tabular-nums">
-              {{ rankedLabel }}
-              <template v-if="winRateLabel"> · {{ winRateLabel }} WR</template>
-            </span>
-            <span v-else class="text-xs text-muted">Unranked</span>
-          </div>
-        </div>
-      </NuxtLink>
+        <template #subline>
+          <USkeleton v-if="profileLoading" class="h-3 w-28" />
+          <span v-else-if="rankedLabel" class="text-xs text-muted tabular-nums">
+            {{ rankedLabel }}
+            <template v-if="winRateLabel"> · {{ winRateLabel }} WR</template>
+          </span>
+          <span v-else class="text-xs text-muted">Unranked</span>
+        </template>
+      </Account>
 
       <RankIcon v-if="ranked" :tier="ranked.tier" :size="28" class="shrink-0" />
 
