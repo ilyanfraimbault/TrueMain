@@ -7,7 +7,7 @@ this file is only the protocol.
 
 The panel is built only with the `overlay-spike` Cargo feature
 (`src-tauri/src/overlay_spike.rs`), so no regular build carries it. It is a
-`tauri-nspanel` panel at the `Status` level with `NonactivatingPanel`,
+`tauri-nspanel` panel one level above `CGShieldingWindowLevel` with `NonactivatingPanel`,
 `canJoinAllSpaces` + `fullScreenAuxiliary` + `stationary` + `ignoresCycle`, a
 class that can never become key, and `hidesOnDeactivate` off. It starts
 click-through, top-right of the main screen, and shows a ticking clock, a
@@ -21,8 +21,11 @@ with `orderFrontRegardless` does the same job without that side effect.
 
 | Shortcut         | Effect                                      |
 |------------------|---------------------------------------------|
-| `ctrl+shift+O`   | show / hide the panel                       |
-| `ctrl+shift+I`   | toggle click-through ↔ interactive (mouse)  |
+| `ctrl+shift+O` or `option+shift+O` | show / hide the panel                      |
+| `ctrl+shift+I` or `option+shift+I` | toggle click-through ↔ interactive (mouse) |
+
+Every shortcut the app receives is logged (`overlay spike: shortcut …`), so a
+missing line means the keypress never reached it.
 
 ## Build
 
@@ -48,8 +51,8 @@ the two.
 
 Environment variables, to try variants without rebuilding:
 
-- `TRUEMAIN_OVERLAY_LEVEL=floating|status|screensaver|<number>` — the window
-  level (default `status`, 25).
+- `TRUEMAIN_OVERLAY_LEVEL=status|floating|screensaver|<number>` — the window
+  level (default 2147483629, one above the shielding level).
 - `TRUEMAIN_OVERLAY_ACCESSORY=1` — run the app as an accessory (no Dock icon),
   in case a regular app's panel does not join the game's Space.
 
@@ -102,9 +105,19 @@ Start the spike app, then a game (a practice tool is enough).
       Monitoring): nothing in System Settings → Privacy for the spike app.
 - [ ] Record the screen (cmd+shift+5) for the issue's acceptance.
 
-If the panel does not show over a Full Screen game, retry with
-`TRUEMAIN_OVERLAY_ACCESSORY=1`, then with `TRUEMAIN_OVERLAY_LEVEL=screensaver`,
-and note which one changed it.
+## Findings so far
+
+- **League's "Full Screen" captures the display.** In game the probe lists two
+  screen-sized `League Of Legends` windows at layer 2147483628
+  (`CGShieldingWindowLevel`), and the game takes no Space of its own: the
+  TrueMain main window stays on screen behind it. It is neither borderless nor
+  a fullscreen Space — the research the issue started from was wrong here.
+- **At `Status` (25) the panel is drawn behind the game; at 2147483629 it shows
+  over it** (practice tool, Full Screen, release build), and the probe keeps
+  `front=League Of Legends`: the game keeps the focus.
+- **`ctrl+shift+O` / `ctrl+shift+I` never reached the app in game** — no log
+  line. Either the game swallows the keys or the practice tool's own bindings
+  collide; the `option+shift` pair is there to tell the two apart.
 
 ## What to bring back
 

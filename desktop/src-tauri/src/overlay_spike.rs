@@ -59,27 +59,35 @@ tauri_panel! {
     })
 }
 
+/// `CGShieldingWindowLevel()`: the level League's "Full Screen" mode puts its
+/// two screen-sized windows at (it captures the display). Measured in the
+/// first in-game run: at `Status` (25) the panel was drawn behind the game.
+const SHIELDING_LEVEL: i32 = 2_147_483_628;
+
 /// The window level, from `TRUEMAIN_OVERLAY_LEVEL` so one build can try them
-/// all: `status` (the issue's choice, default), `floating`, `screensaver`, or a
-/// raw number.
+/// all: `shield` (one above the game's captured display, default), `status`,
+/// `floating`, `screensaver`, or a raw number.
 fn level() -> PanelLevel {
+    let above_shield = PanelLevel::Custom(SHIELDING_LEVEL + 1);
     match std::env::var("TRUEMAIN_OVERLAY_LEVEL").as_deref() {
+        Ok("status") => PanelLevel::Status,
         Ok("floating") => PanelLevel::Floating,
         Ok("screensaver") => PanelLevel::ScreenSaver,
-        Ok(raw) => raw
-            .parse()
-            .map(PanelLevel::Custom)
-            .unwrap_or(PanelLevel::Status),
-        Err(_) => PanelLevel::Status,
+        Ok(raw) => raw.parse().map(PanelLevel::Custom).unwrap_or(above_shield),
+        Err(_) => above_shield,
     }
 }
 
-fn shortcut_toggle_visible() -> Shortcut {
-    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyO)
-}
+/// Two modifier pairs per action, because the first in-game test reached
+/// neither ctrl+shift binding: if only one pair fires over the game, the other
+/// collides with something; if neither does, the game swallows the keys.
+const MODIFIERS: [Modifiers; 2] = [
+    Modifiers::CONTROL.union(Modifiers::SHIFT),
+    Modifiers::ALT.union(Modifiers::SHIFT),
+];
 
-fn shortcut_toggle_interactive() -> Shortcut {
-    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyI)
+fn shortcuts(code: Code) -> [Shortcut; 2] {
+    MODIFIERS.map(|modifiers| Shortcut::new(Some(modifiers), code))
 }
 
 /// Registers the shortcut plugin. Called on the builder, before `setup`.
@@ -154,19 +162,30 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         "overlay spike: panel shown (click-through)"
     );
 
-    let shortcuts = app.global_shortcut();
-    shortcuts.register(shortcut_toggle_visible())?;
-    shortcuts.register(shortcut_toggle_interactive())?;
-    tracing::info!("overlay spike: ctrl+shift+O toggles the panel, ctrl+shift+I its mouse");
+    let registry = app.global_shortcut();
+    for shortcut in shortcuts(Code::KeyO)
+        .into_iter()
+        .chain(shortcuts(Code::KeyI))
+    {
+        registry.register(shortcut)?;
+    }
+    tracing::info!(
+        "overlay spike: ctrl+shift+O or option+shift+O toggles the panel, ctrl+shift+I or option+shift+I its mouse"
+    );
     Ok(())
 }
 
 fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
+    tracing::info!(
+        "overlay spike: shortcut {} {:?}",
+        shortcut.into_string(),
+        event.state()
+    );
     if event.state() != ShortcutState::Pressed {
         return;
     }
-    let visible = *shortcut == shortcut_toggle_visible();
-    let interactive = *shortcut == shortcut_toggle_interactive();
+    let visible = shortcut.key == Code::KeyO;
+    let interactive = shortcut.key == Code::KeyI;
     let handle = app.clone();
     // Panel methods are AppKit calls: main thread only.
     let _ = app.run_on_main_thread(move || {
