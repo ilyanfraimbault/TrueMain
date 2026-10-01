@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import { isNavigationFailure } from 'vue-router'
-import { getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
-import type { SearchResult } from '~~/shared/types/search'
+import { getPositionIconUrl, getProfileIconUrl } from '#shared/utils/ddragon'
+import type { SearchResult } from '#shared/types/search'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { formatTier } from '~/utils/tiers'
+import { formatTier } from '#common/utils/tiers'
 import { describeFetchError } from '#common/utils/errors'
 // Explicit (over Nuxt auto-import) so the template's {{ SEARCH_MIN_LENGTH }} has
 // a visible source.
-import { SEARCH_MIN_LENGTH } from '~/composables/useTruemainSearch'
-import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
+import { SEARCH_MIN_LENGTH } from '#common/composables/useTruemainSearch'
+import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 
 // Unified search: one command palette over both the champion roster (filtered
 // locally by Fuse) and the truemain database (server search, debounced). A

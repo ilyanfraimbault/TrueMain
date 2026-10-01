@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TruemainOgCard } from '~~/shared/types/og-card'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { formatDedicationScore } from '~/utils/dedication'
+import { formatDedicationScore } from '#common/utils/dedication'
 import {
   BACKDROP,
   formatCount,

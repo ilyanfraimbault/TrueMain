@@ -4,7 +4,7 @@ import type { RankHistoryEntry } from '~~/shared/types/rank-history'
 import {
   rankScore,
   tierHex,
-} from '~/utils/tiers'
+} from '#common/utils/tiers'
 
 const props = withDefaults(defineProps<{
   ranked: ProfileRanked | null

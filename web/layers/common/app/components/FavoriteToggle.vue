@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { RegionSlug } from '~~/shared/types/leaderboard'
-import { FAVORITES_LIMIT, favoriteNameTag } from '~/utils/favorites'
+import type { RegionSlug } from '#shared/types/leaderboard'
+import { FAVORITES_LIMIT, favoriteNameTag } from '#common/utils/favorites'
 
 // Follow / unfollow a truemain (#531). Used on the leaderboard rows and on the
 // player profile; the list itself lives in `localStorage` behind

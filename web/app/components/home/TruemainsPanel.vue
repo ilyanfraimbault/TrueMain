@@ -3,7 +3,7 @@ import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
-import { isApexTier } from '~/utils/tiers'
+import { isApexTier } from '#common/utils/tiers'
 
 // Homepage teaser of the truemains leaderboard: the global top rows, linking
 // through to /truemains. The page owns the fetch so the leaderboard

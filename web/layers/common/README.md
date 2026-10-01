@@ -38,6 +38,10 @@ typecheck.
 | `useChampionSlugs()` | `composables/useChampionSlugs.ts` — slugged `/champions/{slug}` | `composables/useSiteShims.ts` — the app's `/champions/{id}` |
 | `useCanonicalIcon()` | `composables/useCanonicalIcon.ts` — IPX | `composables/useSiteShims.ts` — the CDN URL as given |
 
+Shared pages link to the site's routes as they are (`truemainProfilePath`, …). A route the app does not have — a
+player's profile — opens on truemain.lol in the browser (`desktop/app/app/plugins/site-routes.ts`), so the shared
+code never asks which app it runs in.
+
 Two components are host-provided the same way, because neither can draw the site's way in the app: `SkeletonImage`
 (the site's goes through IPX and fades in on `load`, which WKWebView never reports for late images) and `RankIcon`
 (IPX). The site's live in `web/app/components`, the app's in `desktop/app/app/components`; the shared components

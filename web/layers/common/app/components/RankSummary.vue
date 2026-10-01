@@ -1,11 +1,10 @@
-<!-- Twin of `web/app/components/RankSummary.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
 // Rank crest + colored tier/LP + win-loss record, shared between the
 // truemains profile card (full-size, above the fold) and the leaderboard
 // row's rank-emblem tooltip (compact, on hover) — see `ProfileRankedCard.vue`
 // and `LeaderboardRow.vue`.
 import { formatPercentage } from '#shared/utils/ddragon'
-import { formatTier, tierColor } from '~/utils/tiers'
+import { formatTier, tierColor } from '#common/utils/tiers'
 
 const props = withDefaults(defineProps<{
   tier: string

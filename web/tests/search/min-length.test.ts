@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SEARCH_MIN_LENGTH, isQueryTooShort, searchNamePart } from '~~/app/composables/useTruemainSearch'
+import { SEARCH_MIN_LENGTH, isQueryTooShort, searchNamePart } from '#common/composables/useTruemainSearch'
 
 // Mirror of the backend's Search_returns_empty_200_for_too_short_or_missing_query:
 // the frontend's "too short" guard measures the game-name part only, against

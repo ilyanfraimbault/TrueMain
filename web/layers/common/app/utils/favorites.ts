@@ -1,8 +1,8 @@
 import type { ComputedRef, Ref } from 'vue'
-import type { RegionSlug } from '~~/shared/types/leaderboard'
+import type { RegionSlug } from '#shared/types/leaderboard'
 import { computed } from 'vue'
-import { REGION_SLUGS } from '~~/shared/types/leaderboard'
-import { truemainNameTag } from '~~/shared/utils/truemain-path'
+import { REGION_SLUGS } from '#shared/types/leaderboard'
+import { truemainNameTag } from '#shared/utils/truemain-path'
 
 /**
  * Client-side "followed truemains" store (#531).

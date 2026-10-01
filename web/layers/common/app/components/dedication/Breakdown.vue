@@ -1,6 +1,5 @@
-<!-- Twin of `web/app/components/dedication/Breakdown.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { TruemainScorePartView } from '~/utils/dedication'
+import type { TruemainScorePartView } from '#common/utils/dedication'
 
 // The Truemain score's parts, shared by the profile card and the leaderboard
 // row's tooltip so the two surfaces can't drift apart. Each line prints the

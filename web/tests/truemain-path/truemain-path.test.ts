@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { truemainChampionPath } from '~~/shared/utils/champion-slug'
-import { favoriteNameTag } from '~/utils/favorites'
+import { favoriteNameTag } from '#common/utils/favorites'
 
 describe('truemainNameTag', () => {
   it('joins the name and the tag with a hyphen', () => {

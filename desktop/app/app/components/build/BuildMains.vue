@@ -2,7 +2,7 @@
 import type { LeaderboardResponse, LeaderboardRowResponse } from '#shared/types/leaderboard'
 import type { ProfileIdentity } from '#shared/types/profile'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
-import { isApexTier } from '~/utils/tiers'
+import { isApexTier } from '#common/utils/tiers'
 
 /**
  * The champion's best true mains — what the reference client lists as pro

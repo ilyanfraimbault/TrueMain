@@ -5,7 +5,7 @@ import {
   dedicationVerdict,
   formatDedicationLastPlayed,
   formatDedicationScore,
-} from '~~/app/utils/dedication'
+} from '#common/utils/dedication'
 
 /**
  * A payload shaped like the backend's, overridable per test. Every figure the
