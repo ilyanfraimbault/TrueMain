@@ -299,3 +299,12 @@ check and answers every outcome, up to date and offline included (`src-tauri/src
 release's manifest as JSON whatever its type: GitHub serves assets as `application/octet-stream`, which `$fetch` read
 as a Blob that the feed's cache relayed as `{}`, so installed betas were almost never offered an update
 (`server/utils/desktop-manifest.ts`) — #1789.
+
+**A tab changes on click; the wait shows under a loading bar across the window (2026-10-01).** The site keeps the
+outgoing page on screen until the destination has its data, under a bar on the header's bottom edge (#1689). The app
+inherited the await with the shared pages (#1732) but not the bar, and has no header to hang it under: a read through
+the shell takes seconds when cold (3.7 s measured on the tier list), so a click left the previous tab on screen with
+nothing saying it was taken — the product owner's report. The app's route files now catch the shared page's await in a
+`<Suspense>` of their own, which shows the page's header over a skeleton, and a bar along the window's top edge counts
+every load the pages make — not only navigations: a filter change or a cold matchup recommendation is a wait too. The
+site keeps #1689 as it is; only reads no click asked for (the in-game next item) stay off the bar — #1788.

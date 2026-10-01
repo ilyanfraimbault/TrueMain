@@ -1,7 +1,7 @@
 <!-- The site's matchup page, the same component (`web/layers/common`, #1732):
-     only the scroll container is the app's. -->
+     only the frame is the app's (`SharedPage`). -->
 <template>
-  <div class="h-full overflow-y-auto">
+  <SharedPage eyebrow="Draft tools" title="Matchup">
     <PageMatchup />
-  </div>
+  </SharedPage>
 </template>

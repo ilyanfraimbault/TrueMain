@@ -335,6 +335,7 @@ Last verified against `develop` on 2026-09-02.
 - Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; enemy-team component is #1713 — #1675
 - The app draws the site's components as labelled twin copies, with app behaviour in shims beside them; superseded page by page by the shared layer — #1687, #1732
 - The pages the app shares with the site (champions, tier list, matchup, truemains, favorites) are one implementation in `web/layers/common`, which both apps extend (2026-10-01) — #1732
+- A tab changes on click (the app's own `<Suspense>` over the shared page's await, header + skeleton); a bar across the window's top edge runs on every page load, not only navigations — the site keeps #1689 (2026-10-01) — #1788
 - Dashboard roles come from the participant slot on role-assigning queues, never the client's lane guess; a game's build and skill orders from TrueMain's copy, left out when only the client has the game (2026-10-01) — #1768
 - The build pane shows the site's core without its build path (the tree draws it), runes beside; build rows are icons only; a true main's click shows their own build (2026-09-28) — #1671
 - Icons bundled at build time, hash routing, images drawn without a `load` gate (WKWebView)

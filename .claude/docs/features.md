@@ -202,6 +202,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   recording), player card (Riot ID, level, client status), top bar with a ⌘K champion search (no
   back/forward, no patch label). Hash routing; the gameflow phase opens `/draft` on its own, and `/game` from home or
   the draft (never from a page opened by hand); leaving either phase goes home only from its page.
+- **Loading** (#1788) — a sidebar click changes the page at once: the shared pages' setup await is caught by the app's
+  own `<Suspense>` (`SharedPage.vue`), which draws the page's header over a skeleton until it resolves. A 2 px primary
+  bar across the window's top edge (`AppLoadingBar.vue`, over the champion search) runs while anything is loading — a
+  route change, a shared page's first read, every TrueMain read (`apiGet` / `apiPost`, filter changes and the matchup
+  recommendation included), the player record and champion builds; the in-game next item reads in the background.
 - **Dashboard** (`/`) — the player's profile, read from their own client (any account, tracked by TrueMain or not):
   a banner over the skin they chose as profile background (else their most-mastered champion) with Riot ID, region
   flag and level, and eight form tiles (KDA, kill participation, CS/min, damage/min, damage share, gold/min,
