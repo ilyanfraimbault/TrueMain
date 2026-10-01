@@ -1,6 +1,21 @@
+import { fileURLToPath } from 'node:url'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
+  // The pages and components shared with the site (#1732, its README lists
+  // what this app provides in return).
   extends: ['../../web/layers/common'],
+  // The shared files live under `web/`, so TypeScript would resolve their bare
+  // imports from `web/node_modules` — absent wherever only this app is
+  // installed (its CI and release builds), which silently types every shared
+  // component as `any`. Anything not mapped otherwise resolves from here.
+  typescript: {
+    tsConfig: {
+      compilerOptions: {
+        paths: { '*': [fileURLToPath(new URL('./node_modules/*', import.meta.url))] },
+      },
+    },
+  },
   // The app is a static bundle inside a webview: there is no Node server at
   // runtime, so no SSR and no Nitro server routes. Anything the site does
   // through `server/api` has to be done against the API directly here. The one
