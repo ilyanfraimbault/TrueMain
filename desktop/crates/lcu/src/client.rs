@@ -3,8 +3,10 @@
 use serde::de::DeserializeOwned;
 
 use crate::credentials::Credentials;
+use crate::detail::GameTimeline;
 use crate::error::{Error, Result};
 use crate::model::{ChampSelectSession, ChampionMastery, CurrentSummoner, GameflowPhase};
+use crate::record::{HistoryGame, MatchHistory, RankedStats, SummonerProfile};
 use crate::runes::{plan_import, RuneImportPlan, RunePage, RunePageDraft};
 use crate::tls;
 
@@ -98,6 +100,43 @@ impl LcuClient {
     /// no particular order. What the draft ranks the player's own pool from.
     pub async fn champion_mastery(&self) -> Result<Vec<ChampionMastery>> {
         self.get_json("/lol-champion-mastery/v1/local-player/champion-mastery")
+            .await
+    }
+}
+
+/// The player's own record, for the dashboard (`record`). Read on demand, not
+/// followed: none of it changes while the player sits in the client, only when
+/// a game ends.
+impl LcuClient {
+    pub async fn ranked_stats(&self) -> Result<RankedStats> {
+        self.get_json("/lol-ranked/v1/current-ranked-stats").await
+    }
+
+    pub async fn summoner_profile(&self) -> Result<SummonerProfile> {
+        self.get_json("/lol-summoner/v1/current-summoner/summoner-profile")
+            .await
+    }
+
+    /// `count` of the player's games, newest first, skipping the latest
+    /// `begin`. The client pages its history with an inclusive end index.
+    pub async fn match_history(&self, begin: usize, count: usize) -> Result<MatchHistory> {
+        let end = (begin + count).saturating_sub(1);
+        self.get_json(&format!(
+            "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex={begin}&endIndex={end}"
+        ))
+        .await
+    }
+
+    /// One game's full scoreboard — all ten participants, which the history
+    /// list leaves out.
+    pub async fn game(&self, game_id: i64) -> Result<HistoryGame> {
+        self.get_json(&format!("/lol-match-history/v1/games/{game_id}"))
+            .await
+    }
+
+    /// One game's timeline — a frame a minute, with its item and skill events.
+    pub async fn game_timeline(&self, game_id: i64) -> Result<GameTimeline> {
+        self.get_json(&format!("/lol-match-history/v1/game-timelines/{game_id}"))
             .await
     }
 }

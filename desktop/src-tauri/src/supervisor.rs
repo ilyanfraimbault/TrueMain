@@ -21,6 +21,8 @@ use tokio::sync::mpsc;
 
 use shell_state::AppState;
 
+use crate::record::SharedClient;
+
 /// The event the frontend listens on.
 pub const STATE_EVENT: &str = "lcu://state";
 
@@ -49,7 +51,7 @@ pub(crate) fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
 }
 
 /// Run until the app exits.
-pub async fn run(app: AppHandle, shared: SharedState) {
+pub async fn run(app: AppHandle, shared: SharedState, client: SharedClient) {
     // Development only: a champion select played by hand on the dev server's
     // simulator page stands in for the client (`sim.rs`).
     #[cfg(debug_assertions)]
@@ -69,7 +71,7 @@ pub async fn run(app: AppHandle, shared: SharedState) {
     }
 
     loop {
-        match attach(&app, &shared).await {
+        match attach(&app, &shared, &client).await {
             Ok(()) => tracing::info!("client disconnected, waiting for it to come back"),
             Err(error) => tracing::debug!(%error, "no client yet"),
         }
@@ -81,8 +83,11 @@ pub async fn run(app: AppHandle, shared: SharedState) {
 
 /// One client session: connect, take a first full reading, then follow events
 /// until the socket closes.
-async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
-    let client = LcuClient::connect().await?;
+async fn attach(app: &AppHandle, shared: &SharedState, lent: &SharedClient) -> lcu::Result<()> {
+    let client = Arc::new(LcuClient::connect().await?);
+    // Lent to the commands that read the client on demand (the dashboard's
+    // record) for as long as this session lasts, and taken back however it ends.
+    let _lent = Lent::new(lent, client.clone());
     let mut recorder = open_recorder();
 
     // Take a full reading before subscribing. Events only carry *changes*, so
@@ -157,6 +162,22 @@ async fn attach(app: &AppHandle, shared: &SharedState) -> lcu::Result<()> {
 
     stream.abort();
     Ok(())
+}
+
+/// The attached client, lent to the on-demand commands until dropped.
+struct Lent<'a>(&'a SharedClient);
+
+impl<'a> Lent<'a> {
+    fn new(slot: &'a SharedClient, client: Arc<LcuClient>) -> Self {
+        *slot.write().expect("client lock poisoned") = Some(client);
+        Self(slot)
+    }
+}
+
+impl Drop for Lent<'_> {
+    fn drop(&mut self) {
+        *self.0.write().expect("client lock poisoned") = None;
+    }
 }
 
 /// Read the player's pool when `AppState::wants_mastery` says it is due — once
