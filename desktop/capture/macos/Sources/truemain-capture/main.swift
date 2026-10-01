@@ -21,6 +21,8 @@
 // The output size, bitrate and keyframe interval are computed by the shell
 // (`game-recording`'s `Quality::output_for`), so the rule lives in one place.
 
+import AppKit
+import CoreGraphics
 import Foundation
 import ScreenCaptureKit
 
@@ -172,6 +174,14 @@ final class CpuMeter {
         return (Int(now.timeIntervalSince(started) * 1000), (percent * 10).rounded() / 10)
     }
 }
+
+// A command-line tool has no window-server connection until something opens
+// one, and ScreenCaptureKit asserts it exists (`CGS_REQUIRE_INIT`) as soon as a
+// window filter is built. Opening it here, before any command, is what an
+// application bundle gets for free. `.prohibited` keeps the helper out of the
+// Dock and the app switcher.
+NSApplication.shared.setActivationPolicy(.prohibited)
+_ = CGMainDisplayID()
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 switch arguments.first {
