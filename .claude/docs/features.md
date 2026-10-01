@@ -195,20 +195,6 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 - **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select),
   player card (Riot ID, level, client status), top bar with a ⌘K champion search (no back/forward, no patch label). Hash routing; the
   gameflow phase opens `/draft` on its own.
-- **Dashboard** (`/`) — the player's profile, read from their own client (any account, tracked by TrueMain or not):
-  a banner over the skin they chose as profile background (else their most-mastered champion) with Riot ID, region
-  flag and level, and eight form tiles (KDA, kill participation, CS/min, damage/min, damage share, gold/min,
-  vision/min, deaths — the last 5 games against their average, a trend arrow and a per-game sparkline); the match
-  history ten games a page (the site's pagination; pages past the latest 20 read older games from the client, up to
-  100), grouped by day, as 54 px row cards derived from the site's `MatchRow` (result edge, queue, K/D/A, LP gain
-  when measured, CS/min, and the build as on the site — spells, keystone, item grid — plus both teams) that open as
-  an accordion onto a compact, same-surface version of the site's match detail (Scoreboard with each build as on the
-  row, Build — laning @15, per-minute figures, build and skill order for any of the ten — and Runes as small tiles), read
-  from the client's scoreboard and timeline; the site's ranked card with its LP curve; a champions card (games, KDA, win
-  rate) and a roles card (share bar, win rate) in the ranked card's frame. The LP history is noted on this machine each
-  time the record is read (`utils/lp-history.ts`), so the curve and per-game LP start empty and grow. A queue filter
-  (All / Solo / Flex / Normal / ARAM) scopes everything but the ranked card; remakes are not listed. Read again after
-  each game. With no client: a waiting banner over the patch's best picks by lane.
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
   guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
   ten most-mastered champions on the lane, or every champion on the lane). Once locked, or on a click on any placed
@@ -220,20 +206,15 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
   payloads through a dev-server relay, so the app runs its real champion select live without a game.
   Outside a live champion select the product's `/draft` page only waits for the next one.
-- **Site sections** — tier list as on the site (a card per tier of champion portraits badged with their lane, the
-  site's lane / rank / truemains-only / patch filters); champions as a table (champion × lane: tier, win, pick, ban
-  rate, games); champion page (lane picker, stats, build view, whose true mains list has a search that reaches any main
-  of the champion by name and opens their build); matchup (champion vs opponent on a lane, composition build);
-  truemains leaderboard as a table with fixed columns under headers (rank, player, lanes, champion and build, score,
-  rank, games, KDA, WR), the site's search (champion to filter, player to open), filters (lane, OTP only, sort,
-  region) and pagination; favorites kept on this machine. A player row opens their page on truemain.lol.
+- **Site sections** — tier list, champion grid, champion page (lane picker, stats, build view), matchup (champion vs
+  opponent on a lane, composition build), truemains leaderboard (the site's rows), favorites kept on this machine.
+  A player row opens their page on truemain.lol.
 - **Distribution** (#1719): a `desktop-v*` tag builds a universal macOS `.dmg` and a Windows NSIS `.exe`
   (`desktop-release.yml`), published as a GitHub pre-release with a signed update manifest; truemain.lol/download
   offers them, and the installed app offers each newer beta at launch (Tauri updater, feed on the site). Unsigned by
   Apple and Microsoft for the beta.
-- **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), TrueMain's
-  performance score and participants' ranks in the dashboard's history, LP history from before the app was installed
-  (#1682).
+- **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), the player's own
+  stats on the dashboard (#1682/#1683).
 
 ---
 

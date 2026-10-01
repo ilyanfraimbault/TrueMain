@@ -1,79 +1,60 @@
 <script setup lang="ts">
 import type { Lane } from '~/types/draft'
-import { LANE_LABELS, laneIconUrl } from '~/types/draft'
 
 /**
- * Every champion on every lane the site tiers it on, as a table — the site's
- * champion list (web/app/pages/champions/index.vue) in the app's table: tier,
- * win, pick and ban rate and games, most played first. A row opens the
- * champion's builds on that lane.
+ * Every champion, as a grid of portraits — narrowed to a lane by the tier
+ * list's own rows (a champion is on a lane when the site tiers it there).
+ * A portrait opens the champion's builds.
  */
-const { entries, patch, status } = useTierList()
-const { nameOf, portraitOf } = useChampionStatics()
+const { champions, portraitOf } = useChampionStatics()
+const { entries } = useTierList()
 
 const lane = ref<Lane | null>(null)
 const search = ref('')
 
-const rows = computed(() => {
-  const query = search.value.trim().toLowerCase()
-  return entries.value
-    .filter(entry => lane.value === null || entry.position === lane.value)
-    .filter(entry => !query || nameOf(entry.championId).toLowerCase().includes(query))
-    .sort((a, b) => b.pickRate - a.pickRate)
+/** The lane each champion is tiered on, and its tier there. */
+const tiers = computed(() => {
+  const map = new Map<string, string>()
+  for (const entry of entries.value) map.set(`${entry.championId}:${entry.position}`, entry.tier)
+  return map
 })
 
-const percent = (value: number) => `${(value * 100).toFixed(1)}%`
+const list = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  return [...champions.value.values()]
+    .filter(champion => !query || champion.name.toLowerCase().includes(query))
+    .filter(champion => lane.value === null || tiers.value.has(`${champion.id}:${lane.value}`))
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
 </script>
 
 <template>
   <div class="flex h-full flex-col gap-4 p-6">
-    <PageHeader title="Champions" icon="i-lucide-swords">
-      <span v-if="patch" class="stat-label">Patch {{ patch }}</span>
-    </PageHeader>
+    <PageHeader title="Champions" icon="i-lucide-swords" />
 
     <div class="flex items-center gap-3">
       <RolePicker v-model:position="lane" />
       <UInput v-model="search" icon="i-lucide-search" placeholder="Search a champion" size="sm" class="ml-auto w-56" autofocus />
     </div>
 
-    <div class="surface flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl">
-      <div class="grid grid-cols-[3rem_minmax(0,1fr)_4rem_4rem_repeat(4,5.5rem)] items-center gap-2 border-b border-default px-4 py-2.5">
-        <span class="stat-label">#</span>
-        <span class="stat-label">Champion</span>
-        <span class="stat-label text-center">Lane</span>
-        <span class="stat-label text-center">Tier</span>
-        <span class="stat-label text-right">Win rate</span>
-        <span class="stat-label text-right">Pick rate</span>
-        <span class="stat-label text-right">Ban rate</span>
-        <span class="stat-label text-right">Games</span>
-      </div>
-
-      <div class="min-h-0 flex-1 overflow-y-auto">
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2 pb-2">
         <NuxtLink
-          v-for="(entry, index) in rows"
-          :key="`${entry.championId}-${entry.position}`"
-          :to="`/champions/${entry.championId}?lane=${entry.position}`"
-          class="grid grid-cols-[3rem_minmax(0,1fr)_4rem_4rem_repeat(4,5.5rem)] items-center gap-2 border-b border-default/60 px-4 py-2 transition-colors hover:bg-accented"
+          v-for="champion in list"
+          :key="champion.id"
+          :to="lane ? `/champions/${champion.id}?lane=${lane}` : `/champions/${champion.id}`"
+          class="group flex flex-col items-center gap-1.5 rounded-lg p-2 transition-colors hover:bg-elevated"
         >
-          <span class="text-sm tabular-nums text-dimmed">{{ index + 1 }}</span>
-          <span class="flex min-w-0 items-center gap-3">
-            <img v-if="portraitOf(entry.championId)" :src="portraitOf(entry.championId)!" alt="" class="size-8 rounded-md" loading="lazy">
-            <span class="truncate text-sm font-semibold text-highlighted">{{ nameOf(entry.championId) }}</span>
-          </span>
-          <img :src="laneIconUrl(entry.position)" :alt="LANE_LABELS[entry.position as Lane]" :title="LANE_LABELS[entry.position as Lane]" class="mx-auto size-5">
-          <span class="flex justify-center"><TierBadge :tier="entry.tier" /></span>
-          <span class="text-right text-sm font-semibold tabular-nums" :class="winRateTone(entry.winRate)">{{ percent(entry.winRate) }}</span>
-          <span class="text-right text-sm tabular-nums text-default">{{ percent(entry.pickRate) }}</span>
-          <span class="text-right text-sm tabular-nums text-default">{{ percent(entry.banRate) }}</span>
-          <span class="text-right text-sm tabular-nums text-muted">{{ entry.games.toLocaleString('en-US') }}</span>
+          <div class="relative">
+            <img v-if="portraitOf(champion.id)" :src="portraitOf(champion.id)!" :alt="champion.name" class="size-14 rounded-lg ring-1 ring-default transition group-hover:ring-primary/60" loading="lazy">
+            <TierBadge
+              v-if="lane && tiers.get(`${champion.id}:${lane}`)"
+              :tier="tiers.get(`${champion.id}:${lane}`)!"
+              class="absolute -bottom-1 -right-1 h-5! min-w-5! rounded bg-ink-950/90"
+            />
+          </div>
+          <span class="w-full truncate text-center text-xs text-default">{{ champion.name }}</span>
         </NuxtLink>
-
-        <div v-if="status === 'pending' && !rows.length" class="flex flex-col gap-2 p-4">
-          <USkeleton v-for="index in 8" :key="index" class="h-10 w-full" />
-        </div>
-        <p v-else-if="!rows.length" class="p-8 text-center text-sm text-muted">
-          {{ status === 'error' ? 'The champions could not be loaded' : 'No champion matches' }}
-        </p>
       </div>
     </div>
   </div>

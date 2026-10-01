@@ -102,10 +102,6 @@ export function useChampionStatics() {
 export const splashOfAlias = (alias: string) =>
   `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${alias}_0.jpg`
 
-/** One skin's splash — skin `0` is the base art. */
-export const splashOfSkin = (alias: string, skin: number) =>
-  `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${alias}_${skin}.jpg`
-
 export const loadingOfAlias = (alias: string) =>
   `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${alias}_0.jpg`
 
