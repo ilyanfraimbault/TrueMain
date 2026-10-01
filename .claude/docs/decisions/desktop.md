@@ -189,6 +189,28 @@ unsigned beta even though macOS may then drop the Screen Recording permission at
 ask again, never record a black video), and a GPL capture library (libobs) is allowed, which would put the desktop app
 under a GPL-compatible licence (2026-10-01) — #1744, #1754.
 
+**The running game is read through the game's own Live Client Data API, polled every 2 s only while the phase is
+`InProgress`, and the frontend receives a snapshot and then changes — never the payload on every poll.** The source is
+`allgamedata` on `127.0.0.1:2999` (documented by Riot for third parties, no credentials, no memory reading), verified
+against the same pinned Riot root as the client. Two seconds because nothing on the board moves faster than a
+purchase, a level or a death, and the respawn timer counts down on screen between readings; the wait doubles to 5 s
+while the game loads. Only what moves at the pace of the game is diffed — items, level, K/D/A, death (with the respawn
+time read once, at the death) and respawn; creep score, gold and stats change on every reading and stay out until a
+panel needs them. Updates are numbered so a missed one is answered by re-reading the state, not by drawing a board
+with a gap. The derivation, the diff and the end-of-game rule live in one place (`live_client::GameFeed`) fed alike by
+the live poll, a tape and the simulator, so a replay proves what the live path does. A tape keeps game readings raw,
+unlike the client readings, because the panels still to come read fields the app does not parse yet (2026-10-01) —
+#1748.
+
+**The game opens its own page the way champion select opens the draft — but only from home or from the draft it
+started out of.** A player who opened another page by hand during a game is never pulled away from it; the sidebar's
+"Game" entry, badged "Live", takes them there. The game's end returns home only from the game page. On its own the page
+shows what the in-game scoreboard shows — the ten players lane by lane, ours left and theirs mirrored right, items,
+levels, K/D/A, spells, death timers, each side's kills and the clock — and nothing derived from it: it is the frame the
+#1747 panels land in. What the API reveals about enemies out of vision (live or last-seen items, death timers) is
+undecided until checked in a live game; the gold and next-item panels may only read enemy information the player can
+see (`desktop/README.md`, "Reading the game") (2026-10-01) — #1748.
+
 **Screen capture runs in a native helper process per platform, not inside the app.** On macOS a Swift executable
 (`desktop/capture/macos`) captures with ScreenCaptureKit and encodes with AVAssetWriter through VideoToolbox; the
 shell drives it over JSON lines on stdout and `stop` on stdin, and sees it as `game-recording`'s `Capture`. Swift
@@ -198,4 +220,3 @@ because the Windows helper can then be whatever Windows captures best with, behi
 size, bitrate and keyframe interval are still computed in Rust (`Quality::output_for`) and passed in, so the rule
 has one implementation. The spike (`capture-spike`) runs this pair outside the app first; it becomes a Tauri sidecar
 only once the spike's measurements hold (2026-10-01) — #1745.
-

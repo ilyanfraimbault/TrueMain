@@ -3,9 +3,11 @@
 //!
 //! Read for the game recording (#1744): the game clock, to tie a second of the
 //! game to a second of the video, and the game's events, the fallback for the
-//! highlights when the match history never delivers the game's timeline. It
-//! serves the same Riot-rooted certificate as the client, so it goes through
-//! the same pinned TLS, and it needs no credentials.
+//! highlights when the match history never delivers the game's timeline. And
+//! for the game page (#1748): the whole game in one reading (`allgamedata`),
+//! which `live-client` derives the in-game state from. It serves the same
+//! Riot-rooted certificate as the client, so it goes through the same pinned
+//! TLS, and it needs no credentials.
 
 use std::time::Duration;
 
@@ -121,6 +123,15 @@ impl LiveClient {
     /// Every event of the game so far, oldest first.
     pub async fn events(&self) -> Result<Vec<LiveEvent>> {
         Ok(self.get_json::<EventData>("/eventdata").await?.events)
+    }
+
+    /// `GET /allgamedata` — every player, the active player, the events and
+    /// the clock in one reading — as the raw body, so the caller records it as
+    /// it came (`tape::Reading::Game`) before deriving anything from it
+    /// (`live-client`). An error is the normal answer until the game has
+    /// loaded: the port refuses connections until the game process listens.
+    pub async fn all_game_data(&self) -> Result<serde_json::Value> {
+        self.get_json("/allgamedata").await
     }
 }
 

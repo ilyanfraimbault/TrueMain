@@ -59,6 +59,16 @@ Tracking issue: **#1671**.
   without the build path, which the tree under it draws (`build/BuildCore.vue`).
 - **Shows a true main's own build** on a click in the build view's list — the
   site's player-scoped champion endpoint, through the shell.
+- **Follows you into the game** (#1748): once the phase is `InProgress` the
+  shell reads the game's own Live Client Data API (see "Reading the game"
+  below) and the game page opens on its own — from home or from the draft the
+  game started out of, never from a page you opened by hand — and its end takes
+  you home. The page shows the ten players lane by lane, ours on the left and
+  theirs mirrored on the right: champion and level, summoner spells, Riot ID,
+  K/D/A and items, an item that just landed ringed for a few seconds, a dead
+  player's portrait greyed under the seconds left before they respawn, and the
+  kills of each side and the game clock above. It is the frame the in-game
+  panels of #1747 land in.
 
 ## What it does not do yet
 
@@ -72,7 +82,11 @@ Tracking issue: **#1671**.
   not return a rune page yet (#1678).
 - **The dashboard knows the player only by what the client says.** Their own
   numbers need #1682 — our database holds true mains only.
-- **No in-game overlay.** That is v2, gated on the spike in #1673.
+- **No in-game overlay.** The game page is a screen of the companion window;
+  panels over the game itself are gated on the spike in #1673.
+- **No in-game advice yet.** The game page shows the scoreboard's own
+  information; the next item, the gold standing and the loading screen are
+  #1749–#1753.
 - **No game recording yet.** Its core is written and tested
   (`crates/game-recording`: the resolution/frame-rate settings, the player's
   kills, deaths and assists from the timeline or the live feed, the game-clock
@@ -121,26 +135,80 @@ Dragon itself (the CSP lets those two hosts through), the same files the site's
 static endpoints read. A true main's page opens on truemain.lol in the player's
 browser — the shell's `open` is scoped to that origin.
 
+## Reading the game
+
+While a game runs, the **game process** — not the League client — serves the
+**Live Client Data API** on `https://127.0.0.1:2999/liveclientdata/`. Riot
+documents it for third-party use; it needs no credentials and reads no memory.
+The game page reads one endpoint, `allgamedata`: every player's champion, side,
+lane, level, items, K/D/A, summoner spells, `isDead` and `respawnTimer`, the
+active player's own numbers (gold, stats, runes, abilities), the event feed and
+the game clock. The request goes through `lcu::LiveClient` (`crates/lcu/src/live.rs`,
+the one client for this API, shared with the game recording); `crates/live-client`
+derives the page's state from it:
+
+- **When.** The shell polls only while the gameflow phase is `InProgress` — the
+  same rule (`AppState::screen`) that opens the game page — and stops the
+  moment the phase leaves it. A crashed game the client offers to rejoin
+  (`Reconnect`) is not read.
+- **How often.** Every **2 s** while the game answers. Nothing the page shows
+  moves faster than a purchase, a level or a death, and the respawn timer is
+  counted down on screen between readings. While it does not answer the wait
+  doubles up to **5 s**, which bounds how long after loading the board appears.
+- **TLS.** Riot's documentation gives one root certificate (`riotgames.pem`)
+  for both the client and the game, so the game goes through the same pinned
+  verifier (`lcu::tls`), not a trust-everything one.
+- **What reaches the frontend.** Not the payload: a **snapshot** when a game is
+  first read, then only **updates** — a player's items, a level, a K/D/A, a
+  death with its respawn time, a respawn — each numbered so the frontend can
+  tell a missed one and re-read the whole state (`live_client::GameFeed`,
+  `useLiveGame.ts`). Creep score, gold and stats change on nearly every reading
+  and are left out until a panel needs them at a pace it can justify.
+
+### What the API is known to show about enemies
+
+The gold standing (#1752) and the next item's enemy axes (#1750) are only
+legitimate on what the player can see in game, so this has to be settled before
+they read enemies. **Nothing below has been checked against a live game yet** —
+the reader was written and tested against Riot's documented schema and a
+synthetic tape.
+
+| | Status |
+| --- | --- |
+| `allgamedata` and `playerlist` list all ten players, enemies included, with their items, level, K/D/A, spells, `isDead` and `respawnTimer` | Documented by Riot (field list and sample) |
+| Riot's documentation says nothing about vision, spectating or the loading screen | Read in the documentation |
+| An enemy's items update while they are out of vision (live), or only when seen (last-seen) | **To verify in a live game** |
+| An enemy's `isDead` / `respawnTimer` is exposed while they die out of vision | **To verify** — the in-game scoreboard shows enemy death timers, so the API showing them would add nothing the player cannot see |
+| The loading screen: the port refuses connections, answers an error status, or answers a payload with no players | **To verify** — the reader treats all three as "no game yet" and retries |
+| Spectator mode: `activePlayer` is an error object rather than a player | Expected from community reports; parsed either way, with no side marked as ours |
+
+How to verify: record a real game (`TRUEMAIN_LCU_RECORD`, below — the tape
+keeps every `allgamedata` reading raw) and compare, for an enemy laner, the
+reading where an item appears in their inventory with the moment they were last
+in vision; note in the same game what the first readings after the loading
+screen hold. Update this table with what the tape shows.
+
 ## Layout
 
 ```
 desktop/
-  crates/lcu/     pure Rust client for the League client API — no Tauri, no GUI
-  crates/game-recording/
-                  game recording minus the capture (#1744): settings, highlights,
-                  game-clock anchor, storage budget — no Tauri, no GUI
-  crates/capture-spike/
-                  dev tool: records one game through the capture helper and
-                  reports what it measured (#1745)
-  capture/macos/  the macOS capture helper (Swift, ScreenCaptureKit) — built on
-                  a Mac only; run with capture/spike.sh
-  src-tauri/      the Tauri v2 shell: owns the connection, derives the state
-  app/            Nuxt 4 SPA (ssr: false) rendering that state
+  crates/lcu/             pure Rust client for the League client API — no Tauri, no GUI
+  crates/live-client/     the running game's own API, and the in-game state derived from it
+  crates/shell-state/     the app's state and the screen it calls for
+  crates/game-recording/  game recording minus the capture (#1744): settings, highlights,
+                          game-clock anchor, storage budget — no Tauri, no GUI
+  crates/capture-spike/   dev tool: records one game through the capture helper and
+                          reports what it measured (#1745)
+  capture/macos/          the macOS capture helper (Swift, ScreenCaptureKit) — built on
+                          a Mac only; run with capture/spike.sh
+  src-tauri/              the Tauri v2 shell: owns the connections, derives the state
+  app/                    Nuxt 4 SPA (ssr: false) rendering that state
 ```
 
-`crates/lcu` deliberately carries no Tauri dependency, so it builds and tests on
-any platform — including Linux CI, where the shell itself cannot build. Run its
-tests with `cargo test -p lcu` from `desktop/`.
+The crates deliberately carry no Tauri dependency, so they build and test on
+any platform — including Linux CI, where the shell itself cannot build. Run
+their tests with `cargo test -p lcu -p live-client -p shell-state -p game-recording` from
+`desktop/`.
 
 The **navigation rule lives in Rust** (`crates/shell-state/src/lib.rs`), not in the
 frontend: which screen belongs to which phase is a product decision, and two
@@ -150,7 +218,8 @@ implementations of it would drift.
 
 Champion select is the app's subject and the hardest state to reach: it needs a
 real game, it lasts a couple of minutes, and it cannot be paused to look at a
-panel. Two ways in, covering different depths.
+panel. The game after it is the same problem at thirty minutes. Two ways in,
+covering different depths.
 
 ### A tape — the whole Rust path, no client
 
@@ -181,6 +250,21 @@ notifications, and none of that is written.
 
 Tapes are JSON Lines and meant to be edited: change a champion, delete a pick,
 retime an event. `lcu::tape` describes the format.
+
+A recording made during a game also holds every `allgamedata` reading of it,
+raw (`"kind": "game"` lines), and a replay hands them to the same game feed the
+live poll does, at the pace they were read. `fixtures/ranked-game.jsonl` is a
+committed, **synthetic** game — the draft fixture's ten champions, sixteen
+readings from 0:15 to 27:32 three seconds apart, with purchases, level-ups,
+kills, deaths and respawns along the way, in Riot's documented payload shape.
+It opens in game and stays there, so the page is what is left on screen:
+
+```sh
+TRUEMAIN_LCU_REPLAY=fixtures/ranked-game.jsonl ./TrueMain.app/Contents/MacOS/truemain-desktop
+```
+
+A recorded game is large (a reading every two seconds, ten players each) and
+names all ten players, which is one more reason `recordings/` stays out of git.
 
 Point a replay at a backend you are editing with `TRUEMAIN_API_BASE`, which is
 read at startup and overrides the value baked in at build time:
@@ -232,6 +316,21 @@ with `TRUEMAIN_LCU_SIM`, polls it and applies each reading like a live event
 dropped from builds, the relay answers only under `npm run dev`, and the shell's
 reader is not compiled into a release build. Like a tape, it stays above the
 transport — no fake client, no TLS hole.
+
+### Simulating a game (development)
+
+The same relay plays a game: with `npm run tauri:sim` running, open
+**http://localhost:3003/#/dev/game-sim**. **Start game** sends the phase and
+the first reading of `fixtures/ranked-game.jsonl`, and the app opens its game
+page; **Play** sends the next reading at the chosen pace, **Next reading** one
+at a time, and any reading can be clicked to send it — an earlier one goes back
+in time, items sold and levels lost. **End game** moves the phase on, which
+clears the board and takes the app home. The shell hands each reading to the
+game feed exactly as the live poll would.
+
+In a plain browser, the **In game** dev scenarios show the page on the state the
+feed holds at a given reading of that tape; a test in `crates/live-client`
+(`tests/scenarios.rs`) keeps them equal to it.
 
 ## Building
 

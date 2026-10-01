@@ -1,5 +1,8 @@
 <script setup lang="ts">
 const { screen, ready } = useLcuState()
+// Followed for as long as the window lives, so a game's updates are never
+// missed while another page is open.
+useLiveGame()
 const router = useRouter()
 const route = useRoute()
 
@@ -22,12 +25,25 @@ const showScenarioPicker = computed(() => import.meta.dev && !insideTauri() && !
  * the rule): entering champion select opens the draft on its own, and leaving
  * it takes the player back home — but only from the draft, so a page they
  * navigated to by hand is never pulled away from under them.
+ *
+ * The game opens its page the same way (#1748), from home or from the draft
+ * the game started out of — never from a page the player opened by hand —
+ * and its end takes the player home only from the game page.
  */
+const PHASE_PAGES = { 'draft': '/draft', 'in-game': '/game' } as const
+
 watch(screen, (next, previous) => {
   if (devTool.value) return
-  const onDraft = router.currentRoute.value.path === '/draft'
-  if (next === 'draft' && !onDraft) void router.push('/draft')
-  else if (previous === 'draft' && next !== 'draft' && onDraft) void router.push('/')
+  const path = router.currentRoute.value.path
+  if (next === 'draft') {
+    if (path !== PHASE_PAGES.draft) void router.push(PHASE_PAGES.draft)
+  }
+  else if (next === 'in-game') {
+    if (path === '/' || path === PHASE_PAGES.draft) void router.push(PHASE_PAGES['in-game'])
+  }
+  else if ((previous === 'draft' || previous === 'in-game') && path === PHASE_PAGES[previous]) {
+    void router.push('/')
+  }
 })
 </script>
 

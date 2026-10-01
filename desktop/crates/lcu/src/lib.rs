@@ -32,7 +32,7 @@ pub use model::{
 };
 pub use record::{GameParticipant, PlayerGame, PlayerRecord, RankedQueue, Scoreboard};
 pub use runes::{plan_import, RuneImportPlan, RunePage, RunePageDraft};
-pub use tape::{Reading, Recorder, Tape};
+pub use tape::{Played, Reading, Recorder, Tape};
 
 /// Endpoints the app subscribes to, named once so the Rust and the shell agree.
 pub mod uri {

@@ -24,9 +24,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop
-      - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p shell-state -p game-recording -p capture-spike -- --check
-      - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p shell-state -p game-recording -p capture-spike --all-targets -- -D warnings
-      - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p shell-state -p game-recording -p capture-spike
+      - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-spike -- --check
+      - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-spike --all-targets -- -D warnings
+      - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-spike
 
   capture-macos:
     name: macOS capture spike

@@ -3,14 +3,16 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 
 /**
  * The app's navigation, down the left edge: every section the site has, then
- * the one that exists only here — champion select, live or rehearsed by hand
- * on the same page — and the player at the foot. The gameflow phase still opens the draft on its own
+ * the ones that exist only here — champion select and the running game — and
+ * the player at the foot. The gameflow phase still opens those two on its own
  * (`app.vue`); this is how the player gets everywhere else.
  */
 const route = useRoute()
 const { screen } = useLcuState()
 
 const isActive = (prefix: string) => route.path === prefix || route.path.startsWith(`${prefix}/`)
+
+const LIVE = { label: 'Live', color: 'primary', variant: 'subtle', size: 'sm' } as const
 
 const items = computed<NavigationMenuItem[][]>(() => [
   [
@@ -31,7 +33,15 @@ const items = computed<NavigationMenuItem[][]>(() => [
       active: isActive('/draft'),
       // Lit while the client is in champion select, wherever the player is;
       // the rest of the time the page is a draft to play by hand.
-      badge: screen.value === 'draft' ? { label: 'Live', color: 'primary', variant: 'subtle', size: 'sm' } : undefined,
+      badge: screen.value === 'draft' ? LIVE : undefined,
+    },
+    {
+      label: 'Game',
+      icon: 'i-lucide-crosshair',
+      to: '/game',
+      active: isActive('/game'),
+      // Lit while a game runs, wherever the player is.
+      badge: screen.value === 'in-game' ? LIVE : undefined,
     },
   ],
 ])

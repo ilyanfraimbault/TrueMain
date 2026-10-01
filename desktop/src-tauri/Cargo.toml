@@ -14,6 +14,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 lcu = { path = "../crates/lcu" }
+live-client = { path = "../crates/live-client" }
 shell-state = { path = "../crates/shell-state" }
 serde.workspace = true
 serde_json.workspace = true

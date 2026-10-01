@@ -9,6 +9,10 @@
 //! session's event is applied, so the app goes through a real champion select,
 //! parsing, navigation and all.
 //!
+//! The game simulator page (`/dev/game-sim`, #1748) does the same for a game:
+//! it plays recorded `allgamedata` readings through the same relay, which the
+//! shell hands to the game feed as the live poll would.
+//!
 //! Debug builds only. Like a tape, it stays above the transport: a fake client
 //! would need a TLS hole in a binary that ships (see `lcu::tape`), and this is
 //! not compiled into one.
@@ -59,6 +63,17 @@ pub async fn run(app: &AppHandle, shared: &SharedState, url: &str) {
                 generation = batch.generation;
                 next = batch.next;
                 for reading in batch.readings {
+                    if let Reading::Game { data } = &reading {
+                        // The phase this batch moved to reaches the game feed
+                        // first, or a game's opening reading would be dropped
+                        // as read outside a game.
+                        if changed {
+                            publish(app, shared, state.clone());
+                            changed = false;
+                        }
+                        crate::game::ingest(app, data);
+                        continue;
+                    }
                     changed |= apply(&mut state, reading);
                 }
                 if changed {
@@ -119,6 +134,8 @@ fn apply(state: &mut AppState, reading: Reading) -> bool {
             state.set_mastery(&mastery);
             true
         }
+        // The game feed's, not the app state's: `run` hands it over.
+        Reading::Game { .. } => false,
     }
 }
 
