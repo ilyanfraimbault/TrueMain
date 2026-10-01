@@ -90,8 +90,8 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
                 color="neutral"
                 variant="ghost"
                 size="xs"
-                aria-label="Open on truemain.lol"
-                title="Open on truemain.lol"
+                aria-label="Open on TrueMain"
+                title="Open on TrueMain"
                 @click="openOnSite(`/champions/${aliasOf(championId)!.toLowerCase()}`)"
               />
             </div>

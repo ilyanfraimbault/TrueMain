@@ -52,9 +52,6 @@
     "createUpdaterArtifacts": true
   },
   "plugins": {
-    "shell": {
-      "open": "^https://truemain\\.lol/"
-    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENCNURERDZERDdBRjc1QzMKUldURGRhL1hiZDFkeXp0S3BtL2FNVmQ5ZUdRaTFYR2R3bGR2NU5aM09Fb0d4b2UxaG44dHJGeEUK",
       "endpoints": [

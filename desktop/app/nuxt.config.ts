@@ -1,4 +1,13 @@
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+
+// The site the app belongs to (`src-tauri/src/site.rs`): production unless the
+// build names another — the release workflow does for the preprod build, and a
+// developer does in `desktop/.env.local`, read here for `npm run dev` and by
+// `npm run tauri` for the shell.
+const localEnv = fileURLToPath(new URL('../.env.local', import.meta.url))
+if (existsSync(localEnv)) process.loadEnvFile(localEnv)
+const siteUrl = (process.env.TRUEMAIN_SITE_URL?.trim() || 'https://truemain.lol').replace(/\/+$/, '')
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -40,10 +49,13 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'static',
     // `npm run dev` in a browser has no Rust to proxy API calls through, so the
-    // dev server does it instead, against the same public entry point. Dev
+    // dev server does it instead, against the same site's entry point. Dev
     // only: a static build has no server, and the packaged app asks Rust.
-    devProxy: { '/api': { target: 'https://truemain.lol/api', changeOrigin: true } },
+    devProxy: { '/api': { target: `${siteUrl}/api`, changeOrigin: true } },
   },
+  // Where `openOnSite` sends a browser-only `npm run dev`; inside the shell the
+  // URL is Rust's to build.
+  vite: { define: { 'import.meta.env.TRUEMAIN_SITE_URL': JSON.stringify(siteUrl) } },
   devtools: { enabled: false },
   hooks: {
     // The `/dev/*` pages (the draft simulator) are development tools: a build

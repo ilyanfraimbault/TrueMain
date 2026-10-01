@@ -148,8 +148,26 @@ A Nuxt layer would replace the copies; that is #1687.
 
 The API has **no public host**: the site reaches it through the web app's Nitro
 proxy, inside the deployment's private network. The desktop app has no Nitro
-server, so it uses that same public proxy (`https://truemain.lol/api`) as its
-entry point, overridable at build time with `TRUEMAIN_API_BASE`.
+server, so it uses that same public proxy (`<site>/api`) as its entry point.
+
+**Every build belongs to one site** (`src-tauri/src/site.rs`): the API it reads,
+the pages it opens in the browser and the update feed it polls. The site is
+`TRUEMAIN_SITE_URL` at build time, production (`https://truemain.lol`) when
+unset. The release workflow builds each version twice — `truemain.*` against
+production, `truemain-<version>.*` (named *TrueMain Beta*, its own bundle
+identifier, so both install side by side) against preprod — and each site's
+download page serves its own (`docs/ci.md`, "Desktop releases"). The preprod
+address is never in the repository: CI reads it from the
+`DESKTOP_BETA_SITE_URL` secret, and a developer puts it in `desktop/.env.local`
+(gitignored):
+
+```sh
+# desktop/.env.local — read by `npm run tauri` (the shell) and by nuxt.config.ts (`npm run dev`)
+TRUEMAIN_SITE_URL=http://<preprod host>:3001
+```
+
+With that file, `npm run tauri dev`, `npm run tauri:sim` and a local
+`npm run tauri build` all talk to preprod; without it, to production.
 
 Those calls go through **Rust**, not the webview's `fetch`. From the webview
 they would be subject to CORS against an origin the site was never configured
@@ -162,8 +180,9 @@ checked segment by segment) and nothing else.
 
 Static game data is the exception: the webview fetches Data Dragon and Community
 Dragon itself (the CSP lets those two hosts through), the same files the site's
-static endpoints read. A true main's page opens on truemain.lol in the player's
-browser — the shell's `open` is scoped to that origin.
+static endpoints read. A true main's page opens on the build's site in the player's
+browser, through the shell's `open_on_site` command: the webview names a path,
+the shell adds its own origin, so the webview cannot open any other host.
 
 ## Reading the game
 
@@ -299,7 +318,9 @@ A recorded game is large (a reading every two seconds, ten players each) and
 names all ten players, which is one more reason `recordings/` stays out of git.
 
 Point a replay at a backend you are editing with `TRUEMAIN_API_BASE`, which is
-read at startup and overrides the value baked in at build time:
+read at startup and overrides the build's site (a local API has no `/api`
+prefix); `TRUEMAIN_SITE_URL`, read at startup too, repoints a built app at
+another site as a whole:
 
 ```sh
 TRUEMAIN_API_BASE=http://localhost:5008 TRUEMAIN_LCU_REPLAY=fixtures/ranked-draft.jsonl ...
@@ -316,8 +337,8 @@ of states the client would have pushed — `?scenario=draft-locked#/draft` links
 to one directly (the route is in the hash). This is for working on the UI with
 hot reload; it proves nothing below the frontend. `app/app/fixtures/scenarios.json`
 holds the states. Everything else is real data: the dev server proxies `/api`
-to `https://truemain.lol/api` (`nuxt.config.ts`, dev only), since there is no
-Rust to ask. In a production build the picker never renders — `import.meta.dev`
+to the site's `/api` — preprod with `desktop/.env.local`, production without
+(`nuxt.config.ts`, dev only) — since there is no Rust to ask. In a production build the picker never renders — `import.meta.dev`
 is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chunk
 that is never fetched.
 

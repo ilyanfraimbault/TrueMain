@@ -40,9 +40,9 @@ jobs:
             echo "::error::$tag is a draft"
             exit 1
           fi
-          for suffix in _universal.dmg _x64-setup.exe latest.json; do
-            if ! jq -e --arg suffix "$suffix" 'any(.assets[].name; endswith($suffix))' <<< "$release" > /dev/null; then
-              echo "::error::$tag has no *$suffix asset"
+          for asset in truemain.dmg truemain.exe latest.json; do
+            if ! jq -e --arg asset "$asset" 'any(.assets[].name; . == $asset)' <<< "$release" > /dev/null; then
+              echo "::error::$tag has no $asset asset: only builds that carry the production flavour can be promoted"
               exit 1
             fi
           done

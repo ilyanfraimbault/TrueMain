@@ -11,6 +11,7 @@ mod record;
 mod recording;
 #[cfg(debug_assertions)]
 mod sim;
+mod site;
 mod supervisor;
 
 use std::sync::{Arc, Mutex};
@@ -233,6 +234,24 @@ async fn api_get(
     client.get(&path, &query).await
 }
 
+/// Open one of the site's pages in the player's browser — the site this build
+/// belongs to (`site.rs`), so a preprod build never sends a player to
+/// production. The webview names the path only; the host is the shell's.
+#[tauri::command]
+fn open_on_site(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_shell::ShellExt;
+
+    let url = site::page(&site::base(), &path)
+        .ok_or_else(|| format!("{path} is not a page of the site"))?;
+    // The shell plugin's opener is deprecated in favour of `tauri-plugin-opener`,
+    // which this one call does not justify adding; it has no scope to check
+    // from Rust, so the path rule above is the whole guard.
+    #[allow(deprecated)]
+    app.shell()
+        .open(url, None)
+        .map_err(|error| error.to_string())
+}
+
 pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -263,6 +282,7 @@ pub fn run() {
             composition_build,
             api_get,
             api_post,
+            open_on_site,
             record::player_record,
             record::player_history,
             record::player_game,

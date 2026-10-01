@@ -45,15 +45,15 @@ export async function apiPost<T>(path: string, body: unknown, query: Query = {},
 /**
  * Open a page of the site in the player's browser. The app shows what a
  * decision in the next thirty seconds needs; the site is where the rest lives.
+ * Which site is the shell's to say (`site.rs`): a preprod build opens preprod.
  */
 export async function openOnSite(path: string) {
-  const url = `https://truemain.lol${path}`
   if (insideTauri()) {
-    const { open } = await import('@tauri-apps/plugin-shell')
-    await open(url)
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('open_on_site', { path })
     return
   }
-  window.open(url, '_blank', 'noopener')
+  window.open(`${import.meta.env.TRUEMAIN_SITE_URL}${path}`, '_blank', 'noopener')
 }
 
 /** The options the shared pages pass to their fetcher — the site's `ApiFetchOptions`, as far as the app reads them. */
