@@ -39,11 +39,48 @@ pub struct Stopped {
     pub dropped: u64,
 }
 
+/// The encoder the helper is asked for. HEVC needs about half H.264's
+/// bitrate for the same picture.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Codec {
+    #[default]
+    H264,
+    Hevc,
+}
+
+impl Codec {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "h264" => Some(Self::H264),
+            "hevc" => Some(Self::Hevc),
+            _ => None,
+        }
+    }
+
+    pub fn as_arg(self) -> &'static str {
+        match self {
+            Self::H264 => "h264",
+            Self::Hevc => "hevc",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::H264 => "H.264",
+            Self::Hevc => "HEVC",
+        }
+    }
+}
+
 pub struct HelperCapture {
     binary: PathBuf,
     window_id: Option<u32>,
     source: String,
     audio: bool,
+    codec: Codec,
+    /// Replaces the bitrate `Quality::output_for` derives, to compare
+    /// encodings on the same game.
+    bitrate_bps: Option<u64>,
     child: Option<Child>,
     stdin: Option<ChildStdin>,
     events: Option<Receiver<(Instant, Value)>>,
@@ -67,6 +104,8 @@ impl HelperCapture {
             window_id,
             source,
             audio,
+            codec: Codec::default(),
+            bitrate_bps: None,
             child: None,
             stdin: None,
             events: None,
@@ -77,6 +116,16 @@ impl HelperCapture {
             output: None,
             stopped: None,
         }
+    }
+
+    pub fn with_encoding(mut self, codec: Codec, bitrate_bps: Option<u64>) -> Self {
+        self.codec = codec;
+        self.bitrate_bps = bitrate_bps;
+        self
+    }
+
+    pub fn codec(&self) -> Codec {
+        self.codec
     }
 
     fn window_args(&self) -> Vec<String> {
@@ -165,7 +214,10 @@ impl Capture for HelperCapture {
                 "the helper gave no window size: {window}"
             )));
         }
-        let output = quality.output_for(width, height);
+        let mut output = quality.output_for(width, height);
+        if let Some(bitrate_bps) = self.bitrate_bps {
+            output.bitrate_bps = bitrate_bps;
+        }
 
         let mut command = Command::new(&self.binary);
         command
@@ -175,6 +227,7 @@ impl Capture for HelperCapture {
             .args(["--width", &output.width.to_string()])
             .args(["--height", &output.height.to_string()])
             .args(["--fps", &output.frame_rate.to_string()])
+            .args(["--codec", self.codec.as_arg()])
             .args(["--bitrate", &output.bitrate_bps.to_string()])
             .args([
                 "--keyframe-interval",
@@ -337,6 +390,13 @@ mod tests {
         let statuses = serde_json::json!({ "idle": 12, "complete": 290, "blank": 0 });
         assert_eq!(statuses_of(&statuses), "complete 290, idle 12, blank 0");
         assert_eq!(statuses_of(&Value::Null), "nothing");
+    }
+
+    #[test]
+    fn codecs_read_from_their_argument() {
+        assert_eq!(Codec::parse("hevc"), Some(Codec::Hevc));
+        assert_eq!(Codec::parse("h264").map(Codec::as_arg), Some("h264"));
+        assert_eq!(Codec::parse("av1"), None);
     }
 
     #[test]

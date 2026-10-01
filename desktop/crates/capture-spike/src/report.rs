@@ -27,6 +27,7 @@ const MAX_ROUND_TRIP_MS: u64 = 250;
 pub struct Run<'a> {
     pub system: &'a [(String, String)],
     pub audio: bool,
+    pub codec: &'a str,
     pub window: Option<&'a Value>,
     pub output: Option<OutputSpec>,
     pub stopped: Option<Stopped>,
@@ -122,7 +123,8 @@ pub fn render_report(run: &Run<'_>) -> String {
     if let Some(output) = run.output {
         let _ = writeln!(
             out,
-            "- Encoded: {}×{} at {} fps, {:.1} Mbit/s, a keyframe every {} frames",
+            "- Encoded: {} {}×{} at {} fps, {:.1} Mbit/s, a keyframe every {} frames",
+            run.codec,
             output.width,
             output.height,
             output.frame_rate,
@@ -431,8 +433,15 @@ mod tests {
         let report = render_report(&Run {
             system: &[("macOS".into(), "15.6".into())],
             audio: true,
+            codec: "HEVC",
             window: None,
-            output: None,
+            output: Some(OutputSpec {
+                width: 2560,
+                height: 1440,
+                frame_rate: 60,
+                bitrate_bps: 12_000_000,
+                keyframe_interval_frames: 60,
+            }),
             stopped: Some(Stopped {
                 duration_ms: 120_000,
                 frames: 7_200,
@@ -446,6 +455,10 @@ mod tests {
         });
 
         assert!(report.contains("- macOS: 15.6"), "{report}");
+        assert!(
+            report.contains("- Encoded: HEVC 2560×1440 at 60 fps, 12.0 Mbit/s"),
+            "{report}"
+        );
         assert!(
             report.contains("7200 frames (60.0 fps delivered), 3 dropped"),
             "{report}"

@@ -14,7 +14,8 @@
 //       the game window and its size in pixels, as one `window` event
 //   truemain-capture record --out FILE --width W --height H --fps F
 //                           --bitrate BPS --keyframe-interval FRAMES
-//                           [--window-id N] [--source window|display] [--no-audio]
+//                           [--codec h264|hevc] [--window-id N]
+//                           [--source window|display] [--no-audio]
 //       records until told to stop; events: `started`, `progress` every five
 //       seconds, `stopped`, `error`
 //
@@ -48,6 +49,12 @@ func source(in arguments: [String]) -> Source {
     return source
 }
 
+func codec(in arguments: [String]) -> Codec {
+    guard let raw = value("--codec", in: arguments) else { return .h264 }
+    guard let codec = Codec(rawValue: raw) else { fail("usage", "--codec is h264 or hevc") }
+    return codec
+}
+
 func list() async {
     let content = await shareableContent()
     for window in content.windows {
@@ -75,6 +82,7 @@ func record(_ arguments: [String]) async {
         width: integer("--width", in: arguments),
         height: integer("--height", in: arguments),
         fps: integer("--fps", in: arguments),
+        codec: codec(in: arguments),
         bitrate: integer("--bitrate", in: arguments),
         keyframeInterval: integer("--keyframe-interval", in: arguments),
         audio: !arguments.contains("--no-audio")
@@ -203,6 +211,6 @@ case "probe":
 case "record":
     await record(arguments)
 default:
-    fail("usage", "usage: truemain-capture list | probe [--window-id N] [--source window|display] | record --out FILE --width W --height H --fps F --bitrate BPS --keyframe-interval FRAMES [--window-id N] [--source window|display] [--no-audio]")
+    fail("usage", "usage: truemain-capture list | probe [--window-id N] [--source window|display] | record --out FILE --width W --height H --fps F --bitrate BPS --keyframe-interval FRAMES [--codec h264|hevc] [--window-id N] [--source window|display] [--no-audio]")
 }
 exit(0)
