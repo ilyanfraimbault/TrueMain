@@ -197,9 +197,10 @@ mounted components (`ProcessSummaryView`, `PanelTitle`). No page-level tests.
 Reads the local League client (LCU) in Rust; the webview renders the state. Details and dev workflow in
 `desktop/README.md`; decisions in [`decisions/desktop.md`](decisions/desktop.md).
 
-- **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select),
-  player card (Riot ID, level, client status), top bar with a ⌘K champion search (no back/forward, no patch label). Hash routing; the
-  gameflow phase opens `/draft` on its own.
+- **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select, Game — each
+  badged "Live" during its phase), player card (Riot ID, level, client status), top bar with a ⌘K champion search (no
+  back/forward, no patch label). Hash routing; the gameflow phase opens `/draft` on its own, and `/game` from home or
+  the draft (never from a page opened by hand); leaving either phase goes home only from its page.
 - **Dashboard** (`/`) — the player's profile, read from their own client (any account, tracked by TrueMain or not):
   a banner over the skin they chose as profile background (else their most-mastered champion) with Riot ID, region
   flag and level, and eight form tiles (KDA, kill participation, CS/min, damage/min, damage share, gold/min,
@@ -225,6 +226,18 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
   payloads through a dev-server relay, so the app runs its real champion select live without a game.
   Outside a live champion select the product's `/draft` page only waits for the next one.
+- **Game** (`/game`, #1748) — while the phase is `InProgress` the shell polls the game's Live Client Data API
+  (`127.0.0.1:2999/liveclientdata/allgamedata`, every 2 s, backing off to 5 s while the game loads; `crates/live-client`)
+  and sends the webview a snapshot, then only changes (items, level, K/D/A, death with respawn time, respawn), numbered
+  so a missed one triggers a re-read. The page: the ten players lane by lane, ours left and theirs mirrored right —
+  portrait with level, summoner spells, Riot ID, K/D/A, six items + trinket (stack counts, a new item ringed for 4 s),
+  a dead player greyed under a respawn countdown — under a strip with the map, each side's kills and a running game
+  clock. A loading state until the game answers, a waiting state outside a game. No advice on it yet (#1749–#1753);
+  what the API reveals about enemies is documented in `desktop/README.md` and still to verify in a live game.
+- **Game simulator** (development only, `/dev/game-sim` + `npm run tauri:sim`) — plays the committed synthetic tape
+  `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
+  reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
+  browser dev scenarios hold the feed's state at two of its readings (checked by `live-client/tests/scenarios.rs`).
 - **Site sections** — the tier list, the champion directory, the matchup page, the truemains leaderboard and the
   favorites are **the site's own pages** (`PageTierList`, `PageChampions`, `PageMatchup`, `PageTruemains`,
   `PageFavorites` from `web/layers/common`, #1732: one implementation, the same headers, filters, searches, tables,
@@ -242,7 +255,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`desktop-release.yml`), published as a GitHub pre-release with a signed update manifest; truemain.lol/download
   offers them, and the installed app offers each newer beta at launch (Tauri updater, feed on the site). Unsigned by
   Apple and Microsoft for the beta.
-- **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), TrueMain's
+- **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), in-game advice
+  (next item, gold standing, loading screen — #1749–#1753), TrueMain's
   performance score and participants' ranks in the dashboard's history, LP history from before the app was installed
   (#1682).
 

@@ -3,7 +3,9 @@
 //! Champion select is the app's whole subject and the hardest thing to reach:
 //! it needs a real game, it lasts a couple of minutes, and it cannot be paused
 //! to look at a panel. A tape turns one real champion select into a fixture
-//! that replays as often as needed.
+//! that replays as often as needed. The game that follows is the same problem
+//! at thirty minutes, so a tape also carries the game's own Live Client Data
+//! readings (`Reading::Game`), polled while the phase is `InProgress`.
 //!
 //! A tape holds the **raw client payloads**, not the app's derived state, so a
 //! replay exercises the same parsing, the same state derivation and the same
@@ -62,6 +64,12 @@ pub enum Reading {
     /// `/lol-champ-select/v1/session`, read once at attach. `null` when the
     /// session was attached outside champion select.
     Session { data: serde_json::Value },
+    /// `https://127.0.0.1:2999/liveclientdata/allgamedata`, the running
+    /// game's own API (`live-client`), polled while the phase is `InProgress`.
+    /// The raw body, unlike the readings above: the in-game panels still to
+    /// come read fields the app does not parse yet, and a tape that dropped
+    /// them could not be used to build those panels. It names all ten players.
+    Game { data: serde_json::Value },
     /// One change the client pushed afterwards.
     Event {
         uri: String,
@@ -117,7 +125,8 @@ impl Tape {
         Self::parse(&std::fs::read_to_string(path)?)
     }
 
-    /// The readings taken at attach: everything before the first pushed event.
+    /// The readings taken at attach: everything before the first pushed event
+    /// or game reading.
     ///
     /// Defined by position rather than by timestamp, so a hand-written tape
     /// that leaves every `at_ms` at 0 still opens on the state it describes.
@@ -129,7 +138,7 @@ impl Tape {
                 Reading::Mastery { data } => initial.mastery = Some(data.clone()),
                 Reading::Phase { data } => initial.phase = Some(data.clone()),
                 Reading::Session { data } => initial.session = Some(data.clone()),
-                Reading::Event { .. } => break,
+                Reading::Event { .. } | Reading::Game { .. } => break,
             }
         }
         initial
@@ -145,7 +154,7 @@ impl Tape {
     pub fn later_masteries(&self) -> Vec<serde_json::Value> {
         self.entries
             .iter()
-            .skip_while(|entry| !matches!(entry.reading, Reading::Event { .. }))
+            .skip_while(|entry| !entry.reading.is_played())
             .filter_map(|entry| match &entry.reading {
                 Reading::Mastery { data } => Some(data.clone()),
                 _ => None,
@@ -170,12 +179,8 @@ impl Tape {
             else {
                 continue;
             };
-            // A tape written by hand may not have ordered timestamps; a
-            // negative gap is treated as no wait rather than rejected.
-            let gap = entry.at_ms.saturating_sub(previous.unwrap_or(entry.at_ms));
-            previous = Some(entry.at_ms);
             out.push((
-                Duration::from_millis(gap),
+                gap(&mut previous, entry.at_ms),
                 LcuEvent {
                     uri: uri.clone(),
                     event_type: event_type.clone(),
@@ -185,6 +190,58 @@ impl Tape {
         }
         out
     }
+
+    /// Everything a replay delivers after the opening — the client's events
+    /// and the game's readings, interleaved as they were recorded — each with
+    /// the delay since the one before it.
+    pub fn timeline(&self) -> Vec<(Duration, Played)> {
+        let mut out = Vec::new();
+        let mut previous = None;
+        for entry in &self.entries {
+            let played = match &entry.reading {
+                Reading::Event {
+                    uri,
+                    event_type,
+                    data,
+                } => Played::Event(LcuEvent {
+                    uri: uri.clone(),
+                    event_type: event_type.clone(),
+                    data: data.clone(),
+                }),
+                Reading::Game { data } => Played::Game(data.clone()),
+                _ => continue,
+            };
+            out.push((gap(&mut previous, entry.at_ms), played));
+        }
+        out
+    }
+}
+
+/// One step of a replay after its opening.
+#[derive(Debug, Clone)]
+pub enum Played {
+    /// A change the client pushed.
+    Event(LcuEvent),
+    /// One `allgamedata` reading of the running game.
+    Game(serde_json::Value),
+}
+
+impl Reading {
+    /// Whether a replay delivers this reading over time rather than opening
+    /// on it.
+    fn is_played(&self) -> bool {
+        matches!(self, Reading::Event { .. } | Reading::Game { .. })
+    }
+}
+
+/// The wait before a reading at `at_ms`, relative to the one before it.
+///
+/// A tape written by hand may not have ordered timestamps; a negative gap is
+/// treated as no wait rather than rejected.
+fn gap(previous: &mut Option<u64>, at_ms: u64) -> Duration {
+    let wait = at_ms.saturating_sub(previous.unwrap_or(at_ms));
+    *previous = Some(at_ms);
+    Duration::from_millis(wait)
 }
 
 /// Appends readings to a tape file as a live session runs.
@@ -346,6 +403,44 @@ mod tests {
         .unwrap();
         assert_eq!(tape.events()[0].0, Duration::ZERO);
         assert_eq!(tape.initial().phase.unwrap(), "ChampSelect");
+    }
+
+    #[test]
+    fn game_readings_play_between_the_events_at_their_own_pace() {
+        // Attached mid-game: the opening is the phase, then the game's polls
+        // and the phase leaving it arrive over time, in recorded order.
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"phase","data":"InProgress"}
+{"at_ms":2000,"kind":"game","data":{"gameData":{"gameTime":61.0}}}
+{"at_ms":4000,"kind":"game","data":{"gameData":{"gameTime":63.0}}}
+{"at_ms":4500,"kind":"event","uri":"/lol-gameflow/v1/gameflow-phase","data":"WaitingForStats"}"#,
+        )
+        .unwrap();
+        assert_eq!(tape.initial().phase.unwrap(), "InProgress");
+        let timeline = tape.timeline();
+        assert_eq!(timeline.len(), 3);
+        assert!(
+            matches!(&timeline[0].1, Played::Game(data) if data["gameData"]["gameTime"] == 61.0)
+        );
+        assert_eq!(timeline[1].0, Duration::from_millis(2000));
+        assert!(matches!(&timeline[2].1, Played::Event(event) if event.data == "WaitingForStats"));
+        assert_eq!(timeline[2].0, Duration::from_millis(500));
+        assert_eq!(
+            tape.events().len(),
+            1,
+            "a game reading is not a client event"
+        );
+    }
+
+    #[test]
+    fn a_game_reading_ends_the_opening() {
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"phase","data":"InProgress"}
+{"at_ms":10,"kind":"game","data":{}}
+{"at_ms":20,"kind":"summoner","data":{"gameName":"Late","tagLine":"EUW"}}"#,
+        )
+        .unwrap();
+        assert!(tape.initial().summoner.is_none());
     }
 
     #[test]

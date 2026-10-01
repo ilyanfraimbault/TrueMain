@@ -9,18 +9,24 @@
 //! `lcu::tape` for why, and `desktop/README.md` for how. Both paths derive the
 //! state through the same `AppState::apply`, so a replay cannot drift from the
 //! live path.
+//!
+//! While the phase is `InProgress` a session also reads the running game
+//! (`game.rs`): live, by polling the game's own API; from a tape, by playing
+//! the game readings it recorded. Either way the readings go through the same
+//! `live_client::GameFeed`.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use lcu::tape::{Reading, Recorder, Tape};
+use lcu::tape::{Played, Reading, Recorder, Tape};
 use lcu::{ChampSelectSession, ChampionMastery, CurrentSummoner, GameflowPhase, LcuClient};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc;
 
-use shell_state::AppState;
+use shell_state::{AppState, Screen};
 
+use crate::game::Poller;
 use crate::record::SharedClient;
 
 /// The event the frontend listens on.
@@ -41,6 +47,7 @@ const SPEED_VAR: &str = "TRUEMAIN_LCU_REPLAY_SPEED";
 pub type SharedState = Arc<Mutex<AppState>>;
 
 pub(crate) fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
+    let in_game = in_game(&next);
     // Hold the lock only to swap; emitting under it would let a slow listener
     // block the LCU stream.
     {
@@ -48,6 +55,15 @@ pub(crate) fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
         *guard = next.clone();
     }
     let _ = app.emit(STATE_EVENT, next);
+    // After the state, so the game page is open before its board fills — and
+    // a game that ended is cleared on the same publish that left the phase.
+    crate::game::follow(app, in_game);
+}
+
+/// Whether the game should be read: the screen the phase calls for is the
+/// game's, by the same rule that opens that screen.
+fn in_game(state: &AppState) -> bool {
+    state.screen() == Screen::InGame
 }
 
 /// Run until the app exits.
@@ -133,7 +149,25 @@ async fn attach(app: &AppHandle, shared: &SharedState, lent: &SharedClient) -> l
     let credentials = client.credentials().clone();
     let stream = tokio::spawn(async move { lcu::stream_events(credentials, sender).await });
 
-    while let Some(event) = receiver.recv().await {
+    // The game's readings come back here rather than being applied by the
+    // poll, so this loop stays the one place a session's readings are
+    // recorded. Dropped with this session, which stops the poll.
+    let (game_sender, mut game_readings) = mpsc::channel(4);
+    let mut poller = Poller::default();
+    poller.follow(in_game(&state), &game_sender);
+
+    loop {
+        let event = tokio::select! {
+            event = receiver.recv() => event,
+            Some(payload) = game_readings.recv() => {
+                if let Some(recorder) = &mut recorder {
+                    recorder.write(Reading::Game { data: payload.clone() });
+                }
+                crate::game::ingest(app, &payload);
+                continue;
+            }
+        };
+        let Some(event) = event else { break };
         let mut changed = state.apply(&event);
 
         // Recorded before the `changed` test: an event the state ignores today
@@ -157,9 +191,11 @@ async fn attach(app: &AppHandle, shared: &SharedState, lent: &SharedClient) -> l
 
         if changed {
             publish(app, shared, state.clone());
+            poller.follow(in_game(&state), &game_sender);
         }
     }
 
+    poller.stop();
     stream.abort();
     Ok(())
 }
@@ -213,7 +249,7 @@ async fn refresh_pool(
 }
 
 /// One session read from a tape: open on its first reading, then deliver its
-/// events with the pacing they were recorded at.
+/// events and game readings with the pacing they were recorded at.
 async fn replay(app: &AppHandle, shared: &SharedState, path: &Path) -> lcu::Result<()> {
     let tape = Tape::load(path)?;
     let initial = tape.initial();
@@ -249,13 +285,22 @@ async fn replay(app: &AppHandle, shared: &SharedState, path: &Path) -> lcu::Resu
     publish(app, shared, state.clone());
 
     let speed = replay_speed();
-    let events = tape.events();
-    tracing::info!(events = events.len(), speed, "playing a tape");
+    let timeline = tape.timeline();
+    tracing::info!(readings = timeline.len(), speed, "playing a tape");
 
-    for (gap, event) in events {
+    for (gap, played) in timeline {
         if speed > 0.0 {
             tokio::time::sleep(gap.div_f64(speed)).await;
         }
+        let event = match played {
+            Played::Event(event) => event,
+            // What the live poll would have handed over at this moment; the
+            // feed ignores it unless the phase says a game runs, as live.
+            Played::Game(payload) => {
+                crate::game::ingest(app, &payload);
+                continue;
+            }
+        };
         let mut changed = state.apply(&event);
         if state.wants_mastery(mastery_read_for.as_deref()) {
             mastery_read_for.clone_from(&state.riot_id);
