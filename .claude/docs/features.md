@@ -235,7 +235,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   links — and opens in the browser any route only the site has (a player's profile: `plugins/site-routes.ts`).
   Favorites are the site's store (`useFavoriteTruemains`, the same `truemain:favorites:v1` key the app already wrote,
   its older entries read as is). The champion page stays the app's own (lane picker, stats, build view, whose true
-  mains list has a search that reaches any main of the champion by name and opens their build); it links to the
+  mains list has a search that reaches any main of the champion by name and opens their build, and lists first —
+  starred — the followed mains who main the champion, read from each favorite's profile once per launch, #1733); it links to the
   matchup with `?champion=&position=`, the site's parameters.
 - **Distribution** (#1719): a `desktop-v*` tag builds a universal macOS `.dmg` and a Windows NSIS `.exe`
   (`desktop-release.yml`), published as a GitHub pre-release with a signed update manifest; truemain.lol/download
