@@ -7,6 +7,7 @@ TrueMain is a League of Legends analytics site: champion/player stats computed f
 - `backend/` — .NET solution (`TrueMain.sln`): `Api` (REST), `Ingestor` (Riot data pipeline), `Data` (EF Core → PostgreSQL, plus Mongo for metrics), `Core`, `tests/`.
 - `web/` — public Nuxt + Nuxt UI frontend. `web/layers/common` is the Nuxt layer the site and the desktop app (`desktop/app`) both extend: the pages they share, their components, the design system (#1732, its `README.md` lists what each app provides).
 - `admin/` — standalone Nuxt admin portal (separate app, not a `/admin` route).
+- `desktop/` — Tauri desktop companion (`src-tauri` Rust shell, `app` Nuxt UI extending `web/layers/common`). Its own version (`desktop/src-tauri/tauri.conf.json`) and release cycle, never the site's: a version bump merged to `develop` builds a `desktop-vX.Y.Z` pre-release that preprod serves; production serves only a build promoted by hand (`Desktop promote` workflow) — the `desktop-release` skill, #1772.
 - `compose*.yaml` — Docker stacks, both deployed by CD (`.github/workflows/deploy-preprod.yml`, `deploy-prod.yml`) via the Hostinger Docker Manager API:
   - **Preprod** auto-deploys from `compose.preprod.yaml` on every push to `develop` — a plain feature merge reaches preprod automatically a few minutes later, no manual step.
   - **Prod** auto-deploys from `compose.prod.yaml` only when a GitHub Release is **published** — merging to `develop`/`master` alone does not reach prod; cutting a release does (see the `release` skill).
@@ -92,4 +93,4 @@ Every issue goes on GitHub Project #2 ("TrueMain"). No milestones. Three fields,
 
 ## Skills
 
-Prefer the project skills for lifecycle steps — they encode all of the above: `start-issue`, `ship` (verify → PR → babysit → autonomous merge), `new-issue`, `release`, `cleanup-branches`, `setup-worktree`.
+Prefer the project skills for lifecycle steps — they encode all of the above: `start-issue`, `ship` (verify → PR → babysit → autonomous merge), `new-issue`, `release` (site → prod), `desktop-release` (app bump → preprod beta → promotion to prod), `cleanup-branches`, `setup-worktree`.
