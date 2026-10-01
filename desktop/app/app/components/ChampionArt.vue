@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { loadingOfAlias, splashOfAlias, splashOfSkin } from '~/composables/useChampionStatics'
+import { loadingOfAlias, splashOfAlias } from '~/composables/useChampionStatics'
 
 /**
  * Champion art as a background: fills its positioned parent and carries the
- * scrim the text needs. Either a champion id (resolved through Data Dragon), a
- * skin id (a player's chosen profile background, `championId * 1000 + skin`),
- * or an alias (for the screens that have no champion of their own).
+ * scrim the text needs. Either a champion id (resolved through Data Dragon) or
+ * an alias (for the screens that have no champion of their own).
  *
  * The art is drawn as soon as it decodes, with **no fade in**. Two attempts at
  * one were reverted for the same reason: both started the image at opacity 0
@@ -18,21 +17,16 @@ import { loadingOfAlias, splashOfAlias, splashOfSkin } from '~/composables/useCh
 const props = withDefaults(defineProps<{
   championId?: number | null
   alias?: string | null
-  skinId?: number | null
   kind?: 'splash' | 'loading'
   /** Which fade to lay over the art — see main.css. */
   fade?: 'x' | 'y' | 'vignette' | 'none'
   /** CSS object-position. Splashes keep their subject right of centre. */
   position?: string
-}>(), { championId: null, alias: null, skinId: null, kind: 'splash', fade: 'x', position: '70% 20%' })
+}>(), { championId: null, alias: null, kind: 'splash', fade: 'x', position: '70% 20%' })
 
-const { splashOf, loadingOf, aliasOf } = useChampionStatics()
+const { splashOf, loadingOf } = useChampionStatics()
 
 const source = computed(() => {
-  if (props.skinId) {
-    const alias = aliasOf(Math.floor(props.skinId / 1000))
-    return alias ? splashOfSkin(alias, props.skinId % 1000) : null
-  }
   if (props.alias) return props.kind === 'loading' ? loadingOfAlias(props.alias) : splashOfAlias(props.alias)
   if (!props.championId) return null
   return props.kind === 'loading' ? loadingOf(props.championId) : splashOf(props.championId)

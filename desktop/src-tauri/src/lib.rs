@@ -6,7 +6,6 @@
 //! belongs to which phase — in one place.
 
 mod api;
-mod record;
 #[cfg(debug_assertions)]
 mod sim;
 mod supervisor;
@@ -14,7 +13,6 @@ mod supervisor;
 use std::sync::{Arc, Mutex};
 
 use api::ApiClient;
-use record::{GameCache, SharedClient};
 use shell_state::{AppState, Screen};
 use supervisor::SharedState;
 
@@ -173,7 +171,6 @@ pub fn run() {
         .init();
 
     let shared: SharedState = Arc::new(Mutex::new(AppState::default()));
-    let client = SharedClient::default();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -182,22 +179,17 @@ pub fn run() {
         .manage(shared.clone())
         .manage(ApiClient::new())
         .manage(BuildInFlight::default())
-        .manage(client.clone())
-        .manage(GameCache::default())
         .invoke_handler(tauri::generate_handler![
             current_state,
             current_screen,
             draft_recommendation,
             champion_build,
             composition_build,
-            api_get,
-            record::player_record,
-            record::player_history,
-            record::player_game
+            api_get
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
-            tauri::async_runtime::spawn(supervisor::run(handle, shared, client));
+            tauri::async_runtime::spawn(supervisor::run(handle, shared));
             Ok(())
         })
         .run(tauri::generate_context!())

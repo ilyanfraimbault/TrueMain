@@ -1,7 +1,5 @@
 import type { DraftRecommendation } from '~/types/draft'
 import type { AppState } from '~/types/lcu'
-import type { PlayerRecord } from '~/types/record'
-import type { RankHistoryEntry } from '~~/shared/types/rank-history'
 import { EMPTY_STATE } from '~/types/lcu'
 
 export interface Scenario {
@@ -10,10 +8,6 @@ export interface Scenario {
   state: AppState
   /** What the API would have answered for this draft, when the scenario shows the lane panel. */
   recommendation?: DraftRecommendation
-  /** What the client's history would have answered, when the scenario shows the dashboard. */
-  record?: PlayerRecord
-  /** The Solo/Duo snapshots the app would have noted on this machine. */
-  rankHistory?: RankHistoryEntry[]
 }
 
 /**
@@ -37,8 +31,6 @@ export function useDevScenarios() {
   const current = useState<string>('dev-scenario', () => '')
   const state = useState<AppState>('lcu-state', () => ({ ...EMPTY_STATE }))
   const recommendation = useState<DraftRecommendation | null>('dev-recommendation', () => null)
-  const record = useState<PlayerRecord | null>('dev-record', () => null)
-  const rankHistory = useState<RankHistoryEntry[]>('dev-rank-history', () => [])
 
   async function load() {
     if (scenarios.value.length > 0) return
@@ -56,8 +48,6 @@ export function useDevScenarios() {
     // scenario that is meant to be returned to.
     state.value = found ? JSON.parse(JSON.stringify(found.state)) : { ...EMPTY_STATE }
     recommendation.value = found?.recommendation ? JSON.parse(JSON.stringify(found.recommendation)) : null
-    record.value = found?.record ? JSON.parse(JSON.stringify(found.record)) : null
-    rankHistory.value = found?.rankHistory ? JSON.parse(JSON.stringify(found.rankHistory)) : []
     current.value = found?.id ?? ''
 
     // Kept in the URL so a scenario can be linked to, and so a reload after an
@@ -70,5 +60,5 @@ export function useDevScenarios() {
     }
   }
 
-  return { scenarios, current, recommendation, record, rankHistory, load, select }
+  return { scenarios, current, recommendation, load, select }
 }
