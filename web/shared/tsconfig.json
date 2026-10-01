@@ -1,0 +1,4 @@
+{
+  "extends": "../layers/common/tsconfig.json",
+  "include": ["**/*.ts"]
+}

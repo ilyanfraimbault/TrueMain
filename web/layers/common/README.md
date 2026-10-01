@@ -15,6 +15,18 @@ what is the app's own — the site's head tags and structured data, the app's sc
 - `#shared/…` — the site's `shared/` types and helpers. The layer pins the alias to `web/shared`, so the app reads
   the site's copy rather than keeping its own.
 
+## Building from either app
+
+The app installs only its own dependencies and never prepares the site, so nothing shared may lean on `web/` being
+set up:
+
+- `tsconfig.json` here and in `web/shared` — the bundler gives each file its nearest tsconfig, and for a shared file
+  that would otherwise be the site's, whose references point into a `web/.nuxt` that does not exist in the app's
+  builds. Both carry only emit options; type checking still runs through each app's `nuxt typecheck`.
+- The app maps unresolved bare imports to its own `node_modules` (`desktop/app/nuxt.config.ts`), since TypeScript
+  would look for them under `web/`.
+- `desktop.yml` builds the app in exactly those conditions whenever this layer or `web/shared` changes.
+
 ## What each app provides
 
 The shared code calls these by name; each app defines them for its host. A signature drift fails that app's

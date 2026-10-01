@@ -1,0 +1,19 @@
+{
+  "include": [
+    "**/*.ts",
+    "**/*.vue"
+  ],
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "preserve",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "useDefineForClassFields": true,
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "noEmit": true,
+    "skipLibCheck": true
+  }
+}
