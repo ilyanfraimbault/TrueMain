@@ -4,7 +4,7 @@ import {
   markStaticFetched,
   STATIC_CACHE_TTL_MS,
   type PayloadHost,
-} from '~~/app/utils/static-cache'
+} from '#common/utils/static-cache'
 
 function makeHost(): PayloadHost {
   return { payload: { data: {} }, static: { data: {} } }

@@ -1,7 +1,7 @@
 <!-- Twin of `web/app/components/leaderboard/LeaderboardFilters.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
-import type { ChampionPosition } from '~/utils/positions'
+import type { LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
+import type { ChampionPosition } from '#common/utils/positions'
 
 // Position anchors the left edge and region the right edge; OTP + sort sit
 // in a `flex-1 justify-center` middle group so they're centered in the gap

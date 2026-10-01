@@ -1,7 +1,7 @@
 <!-- Twin of `web/app/components/Champion/Core/SkillOrder.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { BuildSkillOrder } from '~~/shared/types/champions'
-import type { ChampionStaticData } from '~~/shared/types/static-data'
+import type { BuildSkillOrder } from '#shared/types/champions'
+import type { ChampionStaticData } from '#shared/types/static-data'
 
 const props = defineProps<{
   skillOrder: BuildSkillOrder | null

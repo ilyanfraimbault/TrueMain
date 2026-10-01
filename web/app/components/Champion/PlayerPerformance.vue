@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '#common/utils/positions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { isLoadingStatus } from '~/utils/async-data'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 const props = defineProps<{
   nameTag: string

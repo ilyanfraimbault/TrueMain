@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { POSITION_OPTIONS, type ChampionPosition } from '~/utils/positions'
+import { POSITION_OPTIONS, type ChampionPosition } from '#common/utils/positions'
 
 /**
  * Secondary half of the matchup page (#921): the eight draft slots that are

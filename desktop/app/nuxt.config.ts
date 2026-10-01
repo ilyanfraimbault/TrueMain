@@ -1,5 +1,6 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
+  extends: ['../../web/layers/common'],
   // The app is a static bundle inside a webview: there is no Node server at
   // runtime, so no SSR and no Nitro server routes. Anything the site does
   // through `server/api` has to be done against the API directly here. The one

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { BuildItemSet, BuildRunePage, BuildSkillOrder, BuildSummonerSpells } from '~~/shared/types/champions'
-import type { ChampionStaticData, RuneTreeResponse, StaticItemData, StaticSummonerSpellData } from '~~/shared/types/static-data'
+import type { BuildItemSet, BuildRunePage, BuildSkillOrder, BuildSummonerSpells } from '#shared/types/champions'
+import type { ChampionStaticData, RuneTreeResponse, StaticItemData, StaticSummonerSpellData } from '#shared/types/static-data'
 
 /**
  * The core of a build, from the site's own blocks (`Champion/Core/*`) laid out

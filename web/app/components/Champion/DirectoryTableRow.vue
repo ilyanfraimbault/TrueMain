@@ -4,8 +4,8 @@ import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
 import { formatCount } from '~~/shared/utils/counts'
-import { POSITION_BY_VALUE } from '~/utils/positions'
-import { banRateTone, pickRateTone, winRateTone } from '~/utils/rate-tone'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { banRateTone, pickRateTone, winRateTone } from '#common/utils/rate-tone'
 import { CHAMPIONS_TABLE_GRID } from '~/utils/list-tables'
 
 // One (champion, lane) line of the /champions table (#1726), laid on the

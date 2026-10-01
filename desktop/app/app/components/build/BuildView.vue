@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ProfileIdentity } from '~~/shared/types/profile'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
+import type { ProfileIdentity } from '#shared/types/profile'
+import { getProfileIconUrl } from '#shared/utils/ddragon'
 import type { BuildOption } from '~/types/build'
 import type { Lane } from '~/types/draft'
 import type { DraftBuild } from '~/composables/useDraftBuild'

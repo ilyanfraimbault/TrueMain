@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
-import { normalizeEloBracket } from '~/utils/elo-brackets'
-import { isLoadingStatus } from '~/utils/async-data'
+import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
+import { normalizeEloBracket } from '#common/utils/elo-brackets'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 // Mirrors the backend default; the page size is fixed in the UI (no
 // per-page selector) so the only stateful pagination value carried in the

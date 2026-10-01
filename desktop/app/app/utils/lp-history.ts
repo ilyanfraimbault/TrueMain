@@ -1,4 +1,4 @@
-import type { RankHistoryEntry } from '~~/shared/types/rank-history'
+import type { RankHistoryEntry } from '#shared/types/rank-history'
 import type { PlayerGame, RankedQueue } from '~/types/record'
 
 /**

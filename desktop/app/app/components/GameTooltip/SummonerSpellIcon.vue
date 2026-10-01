@@ -1,7 +1,7 @@
 <!-- Twin of `web/app/components/GameTooltip/SummonerSpellIcon.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { StaticSummonerSpellData } from '~~/shared/types/static-data'
+import type { StaticSummonerSpellData } from '#shared/types/static-data'
 
 defineOptions({ inheritAttrs: false })
 

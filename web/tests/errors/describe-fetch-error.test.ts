@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeFetchError, describeHttpStatus, fetchErrorStatus } from '~~/app/utils/errors'
+import { describeFetchError, describeHttpStatus, fetchErrorStatus } from '#common/utils/errors'
 
 /** Build an ofetch-style FetchError: a real Error carrying `statusCode`. */
 function fetchError(statusCode: number): Error {

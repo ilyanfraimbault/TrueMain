@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatCompactCount } from '~~/shared/utils/counts'
-import { isLoadingStatus } from '~/utils/async-data'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 // The homepage title leads with the brand, so opt out of the global
 // `%s · TrueMain` template — it would duplicate the name in search results.

@@ -1,7 +1,7 @@
 <!-- Twin of `web/app/components/GameTooltip/RichText.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { ParsedDocument } from '~~/shared/utils/tooltip-parser'
-import { classForTag } from '~~/shared/utils/tooltip-parser'
+import type { ParsedDocument } from '#shared/utils/tooltip-parser'
+import { classForTag } from '#shared/utils/tooltip-parser'
 
 defineProps<{
   segments: ParsedDocument

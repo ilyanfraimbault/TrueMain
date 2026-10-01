@@ -6,8 +6,8 @@
   player's own ringed. The name is in the portrait's tooltip.
 -->
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '~~/shared/types/match-detail'
-import type { ChampionStaticListItem, RuneTreeResponse } from '~~/shared/types/static-data'
+import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { ChampionStaticListItem, RuneTreeResponse } from '#shared/types/static-data'
 
 const props = defineProps<{
   sides: { teamId: number, players: MatchDetailParticipant[] }[]

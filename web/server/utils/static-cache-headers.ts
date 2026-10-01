@@ -4,7 +4,7 @@
  * Those handlers cache their upstream (Data Dragon, CommunityDragon) for an hour
  * on the server, but answered with no `Cache-Control`, so the browser fetched them
  * again on every reload — about 700 KB on a champion page — and the page's icons
- * waited for them. The client-side cache (`app/utils/static-cache.ts`) only lives
+ * waited for them. The client-side cache (`layers/common/app/utils/static-cache.ts`) only lives
  * as long as the page.
  *
  * Same hour as the server, so a patch release reaches a visitor no later than it

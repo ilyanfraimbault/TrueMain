@@ -2,7 +2,7 @@
 import type { CompositionBuildRequest, CompositionBuildResponse } from '~~/shared/types/composition'
 import { indexItemContext } from '~~/shared/utils/item-context'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { isLoadingStatus } from '~/utils/async-data'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 /**
  * Full composition recommendation (#563): the same core panels the champion page

@@ -5,7 +5,7 @@ TrueMain is a League of Legends analytics site: champion/player stats computed f
 ## Repo map
 
 - `backend/` — .NET solution (`TrueMain.sln`): `Api` (REST), `Ingestor` (Riot data pipeline), `Data` (EF Core → PostgreSQL, plus Mongo for metrics), `Core`, `tests/`.
-- `web/` — public Nuxt + Nuxt UI frontend.
+- `web/` — public Nuxt + Nuxt UI frontend. `web/layers/common` is the Nuxt layer the site and the desktop app (`desktop/app`) both extend: the pages they share, their components, the design system (#1732, its `README.md` lists what each app provides).
 - `admin/` — standalone Nuxt admin portal (separate app, not a `/admin` route).
 - `compose*.yaml` — Docker stacks, both deployed by CD (`.github/workflows/deploy-preprod.yml`, `deploy-prod.yml`) via the Hostinger Docker Manager API:
   - **Preprod** auto-deploys from `compose.preprod.yaml` on every push to `develop` — a plain feature merge reaches preprod automatically a few minutes later, no manual step.

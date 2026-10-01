@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { LeaderboardResponse, LeaderboardRowResponse, LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
-import type { SearchResult } from '~~/shared/types/search'
-import type { ChampionPosition } from '~/utils/positions'
+import type { LeaderboardResponse, LeaderboardRowResponse, LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
+import type { SearchResult } from '#shared/types/search'
+import type { ChampionPosition } from '#common/utils/positions'
 import { TRUEMAINS_GRID } from '~/utils/truemains-table'
 
 /**
@@ -62,7 +62,7 @@ watch(page, () => void load(), { immediate: true })
 const list = ref<HTMLElement | null>(null)
 watch(page, () => list.value?.scrollTo({ top: 0 }))
 
-const championsById = useChampionsById()
+const championsById = useStaticChampionsById()
 const { runeTree, items } = useStaticData()
 const { patch, nameOf, portraitOf } = useChampionStatics()
 
@@ -74,9 +74,9 @@ function openPlayer(result: SearchResult) {
 
 <template>
   <div class="flex h-full flex-col gap-4 p-6">
-    <PageHeader title="Truemains" icon="i-lucide-trophy">
+    <AppPageHeader title="Truemains" icon="i-lucide-trophy">
       <span v-if="total" class="stat-label tabular-nums">{{ total.toLocaleString('en-US') }} players</span>
-    </PageHeader>
+    </AppPageHeader>
 
     <div class="flex items-center gap-3">
       <LeaderboardTruemainSearch

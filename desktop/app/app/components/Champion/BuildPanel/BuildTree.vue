@@ -2,10 +2,10 @@
      App-specific: `itemSize`, `hGap` and `vGap` are props (defaulting to the site's constants) so the app's narrow build
      pane can draw a smaller, tighter tree. -->
 <script setup lang="ts">
-import type { BuildTreeNode } from '~~/shared/types/champions'
-import type { StaticItemData } from '~~/shared/types/static-data'
-import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { resolveItemContext } from '~~/shared/utils/item-context'
+import type { BuildTreeNode } from '#shared/types/champions'
+import type { StaticItemData } from '#shared/types/static-data'
+import type { ItemContextCard } from '#shared/utils/item-context'
+import { resolveItemContext } from '#shared/utils/item-context'
 
 const props = defineProps<{
   tree: BuildTreeNode[]

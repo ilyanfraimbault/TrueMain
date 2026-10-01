@@ -3,7 +3,7 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionMatchupEntry } from '~~/shared/types/champions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { formatCount } from '~~/shared/utils/counts'
-import { winRateTone } from '~/utils/rate-tone'
+import { winRateTone } from '#common/utils/rate-tone'
 
 const props = defineProps<{
   entry: ChampionMatchupEntry

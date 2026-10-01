@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PlayerRecord } from '~/types/record'
 import type { MetricReading } from '~/utils/player-form'
-import { platformIdToRegion } from '~~/shared/utils/region'
+import { platformIdToRegion } from '#shared/utils/region'
 
 /**
  * The player's banner: the skin they chose as their profile background in the

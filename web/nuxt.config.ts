@@ -113,8 +113,9 @@ export default defineNuxtConfig({
       height: 630,
     },
   },
-  // Self-host the two families the app uses (see the `--font-*` vars in
-  // main.css): Inter for everything the reader reads, measurements included, and
+  // Self-host the two families the app uses (see the `--font-*` vars in the
+  // shared layer's theme.css): Inter for everything the reader reads,
+  // measurements included, and
   // Geist Mono for the few places monospace is the meaning — tier letters, the
   // empty-slot glyph, hex codes. Declared explicitly so the download doesn't rely
   // on CSS scanning of the *theme vars* — the family names only ever appear
@@ -144,7 +145,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       // The app is dark-only. Nuxt UI keys its own theme off the `.dark` class,
-      // and the surface ladder in main.css is written to out-specify it either
+      // and the surface ladder in theme.css is written to out-specify it either
       // way, but pinning the class server-side means the very first painted
       // frame is already dark — without it the document flashes Nuxt UI's light
       // defaults until @nuxtjs/color-mode's script runs.
@@ -201,10 +202,8 @@ export default defineNuxtConfig({
   // again, so they would be pinned for good to a theme that is no longer
   // designed or tested. Moving to a fresh storage key retires those values in
   // one line: the new key is never written (no toggle exists), so every visit
-  // falls through to the preference below.
+  // falls through to the preference (dark, set by `layers/common`).
   colorMode: {
-    preference: 'dark',
-    fallback: 'dark',
     storageKey: 'truemain-color-mode',
   },
   image: {

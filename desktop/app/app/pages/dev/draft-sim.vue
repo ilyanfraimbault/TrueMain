@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SimSlot } from '~/composables/useLcuSimulator'
 import type { Lane } from '~/types/draft'
-import type { ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '#common/utils/positions'
 import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
 
 /**

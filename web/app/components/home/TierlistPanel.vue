@@ -2,7 +2,7 @@
 import type { ChampionOverviewRow } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
 
 // Homepage teaser of the champion tier list: the strongest rows of the
 // active patch, linking through to the full /champions directory. Purely

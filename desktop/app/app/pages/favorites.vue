@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { getProfileIconUrl } from '#shared/utils/ddragon'
 
 /**
  * The true mains followed in this app. The site keeps its own list in the
@@ -15,7 +15,7 @@ const profilePath = (gameName: string, tagLine: string | null) =>
 
 <template>
   <div class="flex h-full flex-col gap-4 p-6">
-    <PageHeader title="Favorites" icon="i-lucide-star" />
+    <AppPageHeader title="Favorites" icon="i-lucide-star" />
 
     <div v-if="favorites.length" class="flex min-h-0 flex-col gap-1.5 overflow-y-auto">
       <ListRowSurface

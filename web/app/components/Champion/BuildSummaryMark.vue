@@ -73,7 +73,7 @@ const hasCard = computed(() =>
  * Tone → utility. Written out rather than built as `text-rune-${tone}` so
  * Tailwind can see every class it has to generate, and so the mapping from a
  * *semantic* tone to the design system's vocabulary lives in the view instead
- * of in the shared model — see `main.css` for why the five rune tones exist.
+ * of in the shared model — see `theme.css` for why the five rune tones exist.
  *
  * Summoner spells, abilities and the pinned opponent share `text-highlighted`
  * on purpose: they have no colour of their own in Riot's vocabulary, and the

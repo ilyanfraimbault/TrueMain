@@ -7,8 +7,8 @@
   `championId`, only the mains of that champion are offered.
 -->
 <script setup lang="ts">
-import type { SearchResponse, SearchResult } from '~~/shared/types/search'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
+import type { SearchResponse, SearchResult } from '#shared/types/search'
+import { getProfileIconUrl } from '#shared/utils/ddragon'
 
 const props = withDefaults(defineProps<{
   placeholder?: string
@@ -32,7 +32,7 @@ const results = ref<SearchResult[]>([])
 const status = ref<'idle' | 'pending' | 'ready' | 'error'>('idle')
 
 const { champions: allChampions, portraitOf, patch } = useChampionStatics()
-const championById = useChampionsById()
+const championById = useStaticChampionsById()
 
 /** The backend searches the name part, before the `#`. */
 const namePart = computed(() => term.value.split('#')[0]!.trim())

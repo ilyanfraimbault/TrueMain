@@ -16,7 +16,7 @@ import { toProfileRanked } from '~/utils/match-summary'
  */
 const { state } = useLcuState()
 const { record, games: loadedGames, rankHistory, status, refresh, hasOlder, loadingOlder, loadOlder } = usePlayerRecord()
-const championsById = useChampionsById()
+const championsById = useStaticChampionsById()
 const { items, summoners, runeTree } = useStaticData()
 
 const filter = ref<QueueFilter>('all')

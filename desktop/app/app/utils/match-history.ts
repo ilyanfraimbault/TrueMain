@@ -1,5 +1,5 @@
 // Twin of `web/app/utils/match-history.ts` — copied verbatim until the shared layer (#1687); keep the two identical.
-import type { MatchSummaryResponse } from '~~/shared/types/matches'
+import type { MatchSummaryResponse } from '#shared/types/matches'
 
 // Day grouping for the match-history lists. A page of 20 identically-shaped
 // rows reads as one undifferentiated wall; players think in play sessions

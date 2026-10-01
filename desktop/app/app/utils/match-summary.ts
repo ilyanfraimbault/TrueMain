@@ -1,5 +1,5 @@
-import type { ProfileRanked } from '~~/shared/types/profile'
-import type { MatchSummaryResponse } from '~~/shared/types/matches'
+import type { ProfileRanked } from '#shared/types/profile'
+import type { MatchSummaryResponse } from '#shared/types/matches'
 import type { PlayerGame, RankedQueue } from '~/types/record'
 import { killParticipation } from '~/utils/player-form'
 

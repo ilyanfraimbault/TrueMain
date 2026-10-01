@@ -3,9 +3,9 @@ import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { formatPercentage, getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { formatCount } from '~~/shared/utils/counts'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { isApexTier } from '~/utils/tiers'
-import { winRateTone } from '~/utils/rate-tone'
+import { winRateTone } from '#common/utils/rate-tone'
 
 // One row of the leaderboard. The whole row navigates to the player's profile
 // via a stretched overlay link, while the top-champion icons are their own

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CompositionBuildRequest, CompositionSlotInput } from '~~/shared/types/composition'
-import { POSITION_OPTIONS, POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { POSITION_OPTIONS, POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '#common/utils/positions'
 
 useSeoMeta({
   title: 'Matchup',

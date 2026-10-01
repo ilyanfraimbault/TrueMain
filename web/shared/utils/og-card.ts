@@ -1,5 +1,5 @@
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import type { ProfileMainChampion } from '~~/shared/types/profile'
+import type { ChampionSummaryResponse } from '../types/champions'
+import type { ProfileMainChampion } from '../types/profile'
 
 /**
  * Pure selection helpers behind the share cards (#926). Kept out of the

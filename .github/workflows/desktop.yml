@@ -2,10 +2,10 @@ name: Desktop
 
 on:
   pull_request:
-    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+    paths: ["desktop/**", "web/layers/**", "web/shared/**", ".github/workflows/desktop.yml"]
   push:
     branches: [develop, master]
-    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+    paths: ["desktop/**", "web/layers/**", "web/shared/**", ".github/workflows/desktop.yml"]
 
 concurrency:
   group: desktop-${{ github.ref }}
@@ -27,3 +27,21 @@ jobs:
       - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p shell-state -- --check
       - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p shell-state --all-targets -- -D warnings
       - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p shell-state
+
+  app:
+    name: Nuxt app
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: desktop/app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run generate

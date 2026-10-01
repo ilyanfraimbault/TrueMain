@@ -263,7 +263,7 @@ function ordinal(placement: number) {
             in the brand's single genuine-gold accent; ACE = rosette (best of the
             losing side) in the rose `primary`. Both are palette tokens, so the
             two accolades stay distinguishable *and* track the theme — `gold` is
-            declared alongside `rosegold` in main.css for exactly this
+            declared alongside `rosegold` in theme.css for exactly this
             "rose GOLD" read, and is the closest token to the crown's meaning.
           -->
           <div class="flex w-[3.25rem] shrink-0 flex-col items-end gap-0.5">

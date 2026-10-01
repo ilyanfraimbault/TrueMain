@@ -1,5 +1,5 @@
 import type { ChampionTrendResponse } from '~~/shared/types/champions'
-import { isLoadingStatus } from '~/utils/async-data'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 /**
  * Per-patch winrate / pickrate series for the champion detail trend chart.

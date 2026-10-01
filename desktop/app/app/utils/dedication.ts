@@ -1,7 +1,7 @@
 // Twin of `web/app/utils/dedication.ts` — copied verbatim until the shared layer (#1687); keep the two identical.
-import type { TruemainDedication, TruemainScorePartKey } from '~~/shared/types/dedication'
-import { formatCompactCount } from '~~/shared/utils/counts'
-import { formatPercentage } from '~~/shared/utils/ddragon'
+import type { TruemainDedication, TruemainScorePartKey } from '#shared/types/dedication'
+import { formatCompactCount } from '#shared/utils/counts'
+import { formatPercentage } from '#shared/utils/ddragon'
 
 // Presentation helpers for the Truemain score (the `dedication` payload,
 // #1701). Formatting only — the score and every part are computed by the

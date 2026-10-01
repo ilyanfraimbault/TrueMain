@@ -1,12 +1,12 @@
 <!-- Twin of `web/app/components/GameTooltip/ItemBody.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { StaticItemData } from '~~/shared/types/static-data'
-import { parseItemDescription } from '~~/shared/utils/tooltip-parser'
-import { formatCount } from '~~/shared/utils/counts'
-import { formatPercentageAdaptive } from '~~/shared/utils/ddragon'
-import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { ITEM_CONTEXT_TONE_CLASS, itemContextAxisPhrase, wordableAxes } from '~~/shared/utils/item-context'
+import type { StaticItemData } from '#shared/types/static-data'
+import { parseItemDescription } from '#shared/utils/tooltip-parser'
+import { formatCount } from '#shared/utils/counts'
+import { formatPercentageAdaptive } from '#shared/utils/ddragon'
+import type { ItemContextCard } from '#shared/utils/item-context'
+import { ITEM_CONTEXT_TONE_CLASS, itemContextAxisPhrase, wordableAxes } from '#shared/utils/item-context'
 
 const props = defineProps<{
   item: StaticItemData

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ICON_FETCH_SIZE } from '~/utils/icon-fetch'
-import { iconPlaceholderClass, isIconUnresolved } from '~/utils/icon-placeholder'
+import { ICON_FETCH_SIZE } from '#common/utils/icon-fetch'
+import { iconPlaceholderClass, isIconUnresolved } from '#common/utils/icon-placeholder'
 
 defineOptions({ inheritAttrs: false })
 

@@ -1,4 +1,4 @@
-import type { ChampionItemContextAxis, ChampionItemContextItem, ItemContextSlot } from '~~/shared/types/item-context'
+import type { ChampionItemContextAxis, ChampionItemContextItem, ItemContextSlot } from '../types/item-context'
 
 /**
  * The wording of the situational build context (#1451).

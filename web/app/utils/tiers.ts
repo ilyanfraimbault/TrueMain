@@ -1,4 +1,4 @@
-import { ELO_TIERS } from '~/utils/elo-brackets'
+import { ELO_TIERS } from '#common/utils/elo-brackets'
 
 // Tier visual + label helpers shared across the profile card and the
 // leaderboard row.

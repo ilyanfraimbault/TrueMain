@@ -29,7 +29,7 @@ const items = computed(() => itemSlots(props.starter?.itemIds, props.itemsMap))
       Starter
     </h2>
     <!-- Fixed from sm: 3 items × 36 px + 2 gaps × 4 px = 116 px
-         (--width-starter-items in main.css), 36 px tall. Width is capped at
+         (--width-starter-items in theme.css), 36 px tall. Width is capped at
          the 3-item worst case; height is pinned so the "no data" state
          occupies the same box without collapsing the row. Mobile stays
          fluid (w-full). -->

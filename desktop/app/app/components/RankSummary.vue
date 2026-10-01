@@ -4,7 +4,7 @@
 // truemains profile card (full-size, above the fold) and the leaderboard
 // row's rank-emblem tooltip (compact, on hover) — see `ProfileRankedCard.vue`
 // and `LeaderboardRow.vue`.
-import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatPercentage } from '#shared/utils/ddragon'
 import { formatTier, tierColor } from '~/utils/tiers'
 
 const props = withDefaults(defineProps<{

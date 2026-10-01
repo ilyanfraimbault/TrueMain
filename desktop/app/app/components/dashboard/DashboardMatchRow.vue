@@ -10,15 +10,15 @@
   performance score: TrueMain never scored these games.
 -->
 <script setup lang="ts">
-import type { MatchSummaryResponse } from '~~/shared/types/matches'
+import type { MatchSummaryResponse } from '#shared/types/matches'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+} from '#shared/types/static-data'
+import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { formatDuration } from '~/utils/relativeTime'
 
 const props = defineProps<{

@@ -18,7 +18,7 @@ const columns = computed(() => LANES.map(lane => ({ lane, top: laneEntries(lane)
       <NuxtLink
         v-for="entry in column.top"
         :key="entry.championId"
-        :to="`/champions/${entry.championId}?lane=${column.lane}`"
+        :to="`/champions/${entry.championId}?position=${column.lane}`"
         class="-mx-1 flex items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-accented"
       >
         <img v-if="portraitOf(entry.championId)" :src="portraitOf(entry.championId)!" alt="" class="size-8 rounded-md">

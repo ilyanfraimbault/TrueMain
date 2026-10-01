@@ -7,8 +7,8 @@
 -->
 <script setup lang="ts">
 import type { LaneLine } from '~/utils/player-form'
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
-import { winRateTone } from '~/utils/rate-tone'
+import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { winRateTone } from '#common/utils/rate-tone'
 
 const props = defineProps<{ lanes: LaneLine[] }>()
 

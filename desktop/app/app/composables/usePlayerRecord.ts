@@ -1,4 +1,4 @@
-import type { RankHistoryEntry } from '~~/shared/types/rank-history'
+import type { RankHistoryEntry } from '#shared/types/rank-history'
 import type { PlayerGame, PlayerRecord } from '~/types/record'
 import { readRankHistory, recordRankSnapshot } from '~/utils/lp-history'
 

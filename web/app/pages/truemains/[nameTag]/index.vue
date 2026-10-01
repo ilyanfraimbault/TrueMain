@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '~/utils/positions'
-import { parseRouteParam } from '~/utils/route-params'
+import type { ChampionPosition } from '#common/utils/positions'
+import { parseRouteParam } from '#common/utils/route-params'
 import { groupMatchesByDay } from '~/utils/match-history'
 
 const route = useRoute()

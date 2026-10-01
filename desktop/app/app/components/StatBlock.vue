@@ -10,7 +10,7 @@
  * a value and its label one step apart (`text-sm` over `text-xs`, same family,
  * same weight), which made a dense row read as undifferentiated noise. Here the
  * value sits at a real display step and the label is a 10px uppercase
- * micro-label — see `stat-value` / `stat-label` in main.css, which own the
+ * micro-label — see `stat-value` / `stat-label` in theme.css, which own the
  * family, weight and figure style so a call site only picks the scale. Both are
  * Inter (#1111): what separates them is size, weight, casing and tracking.
  *

@@ -1,7 +1,7 @@
 import { flushPromises } from '@vue/test-utils'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { describeFetchError, fetchErrorStatus } from '~/utils/errors'
+import { describeFetchError, fetchErrorStatus } from '#common/utils/errors'
 
 // `useRequestFetch()` is what forwards the visitor's `X-Forwarded-For` when a call runs
 // during SSR (#1557) — on the server Nuxt hands back a fetcher bound to the incoming

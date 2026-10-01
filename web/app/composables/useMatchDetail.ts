@@ -1,5 +1,5 @@
 import type { MatchDetailResponse } from '~~/shared/types/match-detail'
-import { isLoadingStatus } from '~/utils/async-data'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 /**
  * Single-match detail fetch for `GET /truemains/{nameTag}/matches/{matchId}`,

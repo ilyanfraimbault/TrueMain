@@ -1,5 +1,5 @@
 import type { ChampionSynergies, ChampionTrioSynergies } from '~~/shared/types/champions'
-import type { ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '#common/utils/positions'
 
 export interface UseChampionSynergiesOptions {
   /**
