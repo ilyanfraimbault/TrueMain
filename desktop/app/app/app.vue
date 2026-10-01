@@ -55,6 +55,7 @@ watch(screen, (next, previous) => {
   <UApp>
     <NuxtPage v-if="devTool" />
     <div v-else class="flex h-screen overflow-hidden bg-default text-default">
+      <AppLoadingBar />
       <AppSidebar class="w-[200px] shrink-0" />
 
       <div class="flex min-w-0 flex-1 flex-col">

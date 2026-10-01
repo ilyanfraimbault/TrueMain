@@ -66,7 +66,7 @@ export function useNextItem(game: Ref<GameState | null>) {
     controller = new AbortController()
     pending.value = true
     try {
-      const response = await apiPost<NextItemResponse>(`/champions/${request.championId}/next-item`, request.body, {}, controller.signal)
+      const response = await apiPost<NextItemResponse>(`/champions/${request.championId}/next-item`, request.body, {}, { signal: controller.signal, background: true })
       if (mine !== generation) return
       answer.value = response
       failed.value = false

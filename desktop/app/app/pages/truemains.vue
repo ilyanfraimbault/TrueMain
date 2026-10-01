@@ -1,7 +1,7 @@
 <!-- The site's truemains leaderboard, the same component (`web/layers/common`,
-     #1732): only the scroll container is the app's. -->
+     #1732): only the frame is the app's (`SharedPage`). -->
 <template>
-  <div class="h-full overflow-y-auto">
+  <SharedPage eyebrow="Leaderboard" title="Truemains">
     <PageTruemains />
-  </div>
+  </SharedPage>
 </template>

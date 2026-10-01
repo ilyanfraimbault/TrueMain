@@ -1,7 +1,7 @@
 <!-- The site's tier list, the same component (`web/layers/common`, #1732): only
-     the scroll container is the app's. -->
+     the frame is the app's (`SharedPage`). -->
 <template>
-  <div class="h-full overflow-y-auto">
+  <SharedPage eyebrow="Meta" title="Tier List">
     <PageTierList />
-  </div>
+  </SharedPage>
 </template>
