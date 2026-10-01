@@ -73,6 +73,11 @@ Tracking issue: **#1671**.
 - **The dashboard knows the player only by what the client says.** Their own
   numbers need #1682 — our database holds true mains only.
 - **No in-game overlay.** That is v2, gated on the spike in #1673.
+- **No game recording yet.** Its core is written and tested
+  (`crates/game-recording`: the resolution/frame-rate settings, the player's
+  kills, deaths and assists from the timeline or the live feed, the game-clock
+  anchor, the disk budget), but nothing captures the screen until the spike in
+  #1745 picks a capture stack, and the shell does not run it yet (#1744).
 
 ## Sharing with the site
 
@@ -120,6 +125,9 @@ browser — the shell's `open` is scoped to that origin.
 ```
 desktop/
   crates/lcu/     pure Rust client for the League client API — no Tauri, no GUI
+  crates/game-recording/
+                  game recording minus the capture (#1744): settings, highlights,
+                  game-clock anchor, storage budget — no Tauri, no GUI
   src-tauri/      the Tauri v2 shell: owns the connection, derives the state
   app/            Nuxt 4 SPA (ssr: false) rendering that state
 ```

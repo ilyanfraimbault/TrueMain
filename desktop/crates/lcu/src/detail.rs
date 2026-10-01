@@ -51,6 +51,11 @@ pub struct TimelineEvent {
     pub before_id: i64,
     pub after_id: i64,
     pub skill_slot: i64,
+    /// `CHAMPION_KILL` only. Zero when no champion landed the kill — a tower,
+    /// minions or a monster executed the victim.
+    pub killer_id: i64,
+    pub victim_id: i64,
+    pub assisting_participant_ids: Vec<i64>,
 }
 
 /// The minute the lane standing is read at, as on the site.

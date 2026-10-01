@@ -172,3 +172,20 @@ cropped — the product owner's call. The capture is the real UI over live API a
 dashboard capture is the one exception to "no fabricated numbers" on the site: it can only be taken on the `lobby`
 scenario's fixture record (the synthetic player `Synthetic#TAPE` and invented games), and the product owner accepted
 those figures for a picture of the app; it carries no TrueMain statistic (2026-10-01) — #1725.
+
+**Game recording asks the player for two things, the resolution and the frame rate, and derives everything else.**
+The product owner wants the app to record games and replay them with the player's kills, deaths and assists marked
+(Outplayed's job), and to choose the best setting for their machine "without a configuration as complex as OBS",
+tuned to break as little as possible. So the settings are `Native`/`1440p`/`1080p`/`720p` and 30/60 fps, plus on/off
+(off by default), the queues recorded, a disk budget and a folder. The codec (H.264 in fragmented MP4, so a crash
+mid-game still leaves a playable file), the bitrate (one bits-per-pixel constant, not a table per preset) and a
+one-second keyframe interval are derived; a preset taller than the game window records at the window's size rather
+than upscaling. The settings file is read field by field, a bad value falling back alone. The default is 1080p at
+30 fps until #1745 measures what recording costs in game. The highlights come from the game's timeline in the match
+history, the live feed noted during the game being the fallback; game time is mapped onto the video by an anchor
+fitted from game-clock reads, segmented so a pause or a reconnect moves it. The disk budget deletes the oldest
+unpinned recordings first and only the files the app wrote. Two consequences were accepted up front: the app stays an
+unsigned beta even though macOS may then drop the Screen Recording permission at each update (the app must notice and
+ask again, never record a black video), and a GPL capture library (libobs) is allowed, which would put the desktop app
+under a GPL-compatible licence (2026-10-01) — #1744, #1754.
+
