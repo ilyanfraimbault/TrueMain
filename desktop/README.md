@@ -118,6 +118,18 @@ from the Recordings page — macOS shows its prompt once per app; after a
 refusal the button opens System Settings. An unsigned build loses the
 permission on each update (its signature changes), which the page shows.
 
+The webview side (`app/app/pages/recordings/`, `components/recordings/`,
+`components/recap/`, `composables/useRecordings.ts`) reads all of it through
+the shell's recording commands and events (`types/recordings.ts` mirrors them):
+the **Recordings** page lists full games and clips in DPM's layout with search,
+filters and grouping; the **recap** (`/recordings/<id>`) plays a full game over
+its timeline of moments, cuts clips by hand — drag across the timeline, or I / O
+at the playhead, several ranges, each named and saved as its own file — and keeps
+or deletes the full game; a **clip player** renames, favourites and deletes a
+clip; the **settings** slideover holds the short list of choices; and a
+dashboard row offers **Watch** when its game was recorded. Files reach the
+webview through Tauri's asset protocol (`convertFileSrc`).
+
 In development the shell finds the helper `swift build` leaves in
 `capture/macos/.build/` — build it once with
 `swift build -c release --package-path desktop/capture/macos` — or the one
@@ -320,6 +332,28 @@ to `https://truemain.lol/api` (`nuxt.config.ts`, dev only), since there is no
 Rust to ask. In a production build the picker never renders — `import.meta.dev`
 is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chunk
 that is never fetched.
+
+### Recordings without a game (development)
+
+The recordings pages also run in `npm run dev` outside Tauri, on an in-memory
+library (`app/app/fixtures/recordings.ts`, answered by
+`app/app/utils/recordings-dev.ts`): full games and clips dated today, yesterday
+and earlier — the `lobby` scenario's game ids, so its dashboard rows offer
+"Watch" — with moments, settings and a status. Saving a clip, keeping,
+deleting and renaming all work until the next reload.
+
+```sh
+# Any local MP4 plays as every recording, with seeking (HTTP Range); `ffmpeg`,
+# when installed, cuts the thumbnails from it. Never commit a video.
+TRUEMAIN_DEV_RECORDING=/path/to/video.mp4 npm run dev
+```
+
+Without the variable the player shows a placeholder and the cards the
+champion's splash. A short video against a 30-minute fixture plays only its own
+length. `?recordings=off|empty|permission|unsupported|missing` (before the `#`)
+opens the page on that state, and `__devRecordingRecap('<id>')` in the console
+stands in for the shell's `recording://recap` — it opens the recap only from
+the dashboard or the game page, like the real event.
 
 ### Simulating a champion select (development)
 
