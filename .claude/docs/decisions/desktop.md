@@ -210,3 +210,13 @@ levels, K/D/A, spells, death timers, each side's kills and the clock — and not
 #1747 panels land in. What the API reveals about enemies out of vision (live or last-seen items, death timers) is
 undecided until checked in a live game; the gold and next-item panels may only read enemy information the player can
 see (`desktop/README.md`, "Reading the game") (2026-10-01) — #1748.
+
+**The dashboard reads a game's roles from the participant slot, and its build and skill orders from TrueMain.** The
+client's history lane is Riot's old position guess and files a roaming laner as a second jungler (a top Yone counted
+twelve jungle games out of twenty). On a queue that assigns roles (normal draft, Solo/Duo, Flex, Swiftplay, Quickplay,
+Clash) Riot lists each team in role order, participants 1–5 blue and 6–10 red, the order the client's scoreboard draws;
+TrueMain's copy of the same games (Riot's `teamPosition`) agreed player for player. Other queues get no role and count
+on no lane. The client's game timeline carries kills, buildings and epic monsters only, never a purchase or a skill
+point, so the detail panel asks TrueMain's API for the game first (`/truemains/{nameTag}/matches/{matchId}`) and falls
+back to the client, leaving the build and skill order sections out rather than announcing them empty (2026-10-01) —
+#1768.
