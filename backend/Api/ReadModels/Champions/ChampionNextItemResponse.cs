@@ -80,7 +80,7 @@ public sealed record NextItemReasonReadModel
     /// <summary>The axis, named as the item-context read names it, so the site's wording applies.</summary>
     public string Axis { get; init; } = string.Empty;
 
-    /// <summary><c>Low</c>, <c>Mid</c> or <c>High</c>.</summary>
+    /// <summary><c>Low</c> or <c>High</c> — the middle of an axis moves a share but has no wording, so it is never a reason.</summary>
     public string Bucket { get; init; } = string.Empty;
 
     /// <summary>Factor applied to the item's share by this situation (1.4 = forty percent more often).</summary>

@@ -152,8 +152,10 @@ public sealed class NextItemQueryService(
                 BaseShare = score.BaseShare,
                 Games = score.Games,
                 Wins = score.Wins,
+                // A reason is a sentence, and only an axis's two ends have one: the middle
+                // bucket still moves the share, it just cannot be said.
                 Reasons = [.. score.Contributions
-                    .Where(contribution => contribution.Weight > 0)
+                    .Where(contribution => contribution.Weight > 0 && contribution.Bucket != ItemContextBucket.Mid)
                     .Take(MaxReasons)
                     .Select(contribution => new NextItemReasonReadModel
                     {
