@@ -17,7 +17,8 @@ two environments and the migration path in detail.
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
 | `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; typecheck and static build of its Nuxt app (below) |
-| `desktop-release.yml` | a `desktop-v*` tag | Builds the desktop app for macOS and Windows and publishes it as a pre-release (below) |
+| `desktop-release.yml` | `develop` pushes touching `desktop/src-tauri/tauri.conf.json`, or manual | Builds a new desktop app version for macOS and Windows and publishes it as a pre-release, which preprod serves (below) |
+| `desktop-promote.yml` | manual, with a version | Promotes a desktop build to the stable channel production serves (below) |
 
 `.github/actions/migration-script` is the composite action every job that
 needs the idempotent EF migration script goes through (`migrate-fresh` in CI,
@@ -290,10 +291,15 @@ bit — so the spike can be run on a Mac without a toolchain.
 
 ## Desktop releases
 
-The desktop companion ships from `desktop-v<version>` tags, never from the site's
-release flow (#1719). `desktop-release.yml` checks the tag against
-`desktop/src-tauri/tauri.conf.json`'s version, then builds on the two platforms
-the app supports, each on its own runner:
+The desktop companion has its own version, never the site's release flow (#1719,
+#1772): `version` in `desktop/src-tauri/tauri.conf.json`, bumped by hand in a PR.
+`desktop-release.yml` runs on every `develop` push touching that file and builds
+only when no `desktop-v<version>` tag exists yet, so editing the rest of the file
+publishes nothing. The version must be semantic (`X.Y.Z`, the Tauri updater
+compares them), and the job refuses any branch but `develop`. A failed build is
+retried with *Run workflow* on `develop`; there is no tag trigger any more — the
+release creates the tag on the pushed commit. It builds on the two platforms the
+app supports, each on its own runner:
 
 - **macOS** (`macos-15`): one universal binary (`--target universal-apple-darwin`,
   both Rust targets installed), bundled as a `.dmg` and as the `.app.tar.gz` the
@@ -311,7 +317,8 @@ key means the installed apps can no longer be updated: every tester would have
 to reinstall a build carrying a new public key. The `publish` job writes
 `latest.json` — the Tauri updater's manifest, both macOS keys pointing at the one
 universal archive — and creates a **pre-release** with every file. Pre-release
-because GitHub's "latest release" must stay the site's.
+because GitHub's "latest release" must stay the site's, and because a pre-release
+is a beta build: only preprod serves it (below).
 
 `deploy-prod.yml` runs on every *published* release, so its `preflight` job
 skips `desktop-v*` tags and the whole deploy with it. A release created by the
@@ -320,15 +327,35 @@ published by hand.
 
 The site reads the releases rather than the app linking to GitHub:
 `/api/desktop/download/{platform}` and the updater's feed
-`/api/desktop/latest.json` resolve the newest `desktop-v*` release, so a new app
-version needs no site deploy.
+`/api/desktop/latest.json` resolve a `desktop-v*` release, so a new app version
+needs no site deploy. Which one depends on the site's channel,
+`NUXT_DESKTOP_CHANNEL` in the compose files:
 
-**A desktop release follows the site release it reads.** The app calls the
-production API, and the pages it shares with the site (#1732) call whatever
-endpoints `develop` has — the champion directory reads
-`/champions/directory`, for one. Tag `desktop-v*` only once the production site
-serves every endpoint the shared pages call, or those pages fail in the
-installed app.
+- **`beta`** (preprod): the newest build, pre-releases included — every version
+  bump merged to `develop` shows up there within five minutes.
+- **`stable`** (production, and the default for anything else): only a release
+  that is not a pre-release. Until one is promoted, production offers no app.
+
+`desktop-promote.yml` is the only way to stable: *Run workflow* with a version
+turns `desktop-v<version>` into a full release — without GitHub's "Latest"
+badge, which stays the site's — after checking it carries both installers and
+the update manifest, then moves any previously promoted desktop release back to
+pre-release. Exactly one release is stable at a time, so promoting an older
+version is a rollback of the download page; the updater never downgrades an
+installed app, though. Neither workflow starts a prod deploy: `deploy-prod.yml`
+listens to `published` only, and releases created or edited with the
+`GITHUB_TOKEN` trigger no workflow.
+
+The installed app's updater only ever polls production
+(`plugins.updater.endpoints`), so it offers promoted versions only; beta builds
+are installed by hand from preprod's download page.
+
+**A promotion follows the site release it reads.** The app calls the production
+API, and the pages it shares with the site (#1732) call whatever endpoints
+`develop` has — the champion directory reads `/champions/directory`, for one. A
+beta build may therefore fail on pages whose endpoints have not reached
+production yet; promote it only once the production site serves every endpoint
+the shared pages call.
 
 ## Load test
 

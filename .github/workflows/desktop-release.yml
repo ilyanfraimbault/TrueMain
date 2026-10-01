@@ -2,36 +2,53 @@ name: Desktop release
 
 on:
   push:
-    tags: ["desktop-v*"]
+    branches: [develop]
+    paths: ["desktop/src-tauri/tauri.conf.json"]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-release-${{ github.ref }}
+  group: desktop-release
   cancel-in-progress: false
 
 jobs:
   version:
-    name: Tag matches the app version
+    name: New app version
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       version: ${{ steps.read.outputs.version }}
+      tag: ${{ steps.read.outputs.tag }}
+      build: ${{ steps.read.outputs.build }}
     steps:
       - uses: actions/checkout@v7
       - id: read
         run: |
-          version=$(jq -r .version desktop/src-tauri/tauri.conf.json)
-          if [ "$GITHUB_REF_NAME" != "desktop-v$version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match the app version $version (desktop/src-tauri/tauri.conf.json)"
+          if [ "$GITHUB_REF" != "refs/heads/develop" ]; then
+            echo "::error::Desktop builds are published from develop only, not $GITHUB_REF"
             exit 1
           fi
+          version=$(jq -r .version desktop/src-tauri/tauri.conf.json)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::$version is not a semantic version (desktop/src-tauri/tauri.conf.json)"
+            exit 1
+          fi
+          tag="desktop-v$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            echo "::notice::$tag already exists: bump the version in desktop/src-tauri/tauri.conf.json to publish a new build"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
 
   build:
     name: Build (${{ matrix.name }})
     needs: version
+    if: needs.version.outputs.build == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -105,7 +122,7 @@ jobs:
       - name: Write the update manifest
         env:
           VERSION: ${{ needs.version.outputs.version }}
-          BASE: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
+          BASE: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tag }}
         run: |
           mac="TrueMain_${VERSION}_universal.app.tar.gz"
           win="TrueMain_${VERSION}_x64-setup.exe"
@@ -124,9 +141,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
+          TAG: ${{ needs.version.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          gh release create "$TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
             --prerelease \
             --title "TrueMain desktop $VERSION (beta)" \
-            --notes "Desktop companion beta. Download it from https://truemain.lol/download — the installers are not signed yet, the page says how to open them the first time."
+            --notes "Desktop companion beta build, served on preprod until it is promoted to https://truemain.lol/download by the Desktop promote workflow. The installers are not signed yet; the download page says how to open them the first time."
+          echo "Published [$TAG](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG) as a pre-release: preprod serves it now, run **Desktop promote** with \`$VERSION\` to serve it on truemain.lol." >> "$GITHUB_STEP_SUMMARY"

@@ -111,6 +111,14 @@ without it every tester stays on whatever they installed — offering the update
 own, since a restart mid champion select would cost the draft. The download page is public, marked beta
 (2026-09-28) — #1719.
 
+**The app is versioned by hand, built on every bump for preprod, and promoted to production by hand.** A site release
+is not an app release, so the app keeps its own version (`tauri.conf.json`), bumped in a PR; merging a bump to
+`develop` builds it and publishes a `desktop-v<version>` pre-release, which preprod's site serves (channel `beta`).
+Production (channel `stable`) serves only the one release promoted through the `Desktop promote` workflow — a
+version typed in by the product owner, not computed from commits, and not tied to the site's release because the
+promotion must wait for the endpoints the build reads to reach production. Supersedes "tag `desktop-v*` to ship";
+the updater keeps polling production only, so testers install beta builds by hand (2026-10-01) — #1772.
+
 **The dashboard is read from the player's own client, not from TrueMain's API, and built from the site's profile
 components.** The dashboard is for whoever installed the app, and TrueMain only tracks true mains, so the site's
 profile endpoints would leave most players with an empty page until #1682 settles an intake. The client already knows

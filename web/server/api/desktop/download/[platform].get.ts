@@ -5,7 +5,7 @@ const PLATFORMS: DesktopPlatform[] = ['mac', 'windows']
 
 /**
  * A stable download link per platform (#1719) — `/api/desktop/download/mac`,
- * `/api/desktop/download/windows` — redirecting to the newest release's
+ * `/api/desktop/download/windows` — redirecting to the channel's release's
  * installer, so the site's buttons never name a version.
  */
 export default defineEventHandler(async (event) => {
