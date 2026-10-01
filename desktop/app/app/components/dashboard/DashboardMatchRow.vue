@@ -73,6 +73,10 @@ const kdaColor = computed(() => {
   return 'text-muted'
 })
 
+// "Watch" when this game was recorded: its recap, or its clips once the full game is gone.
+const { watchTarget } = useRecordings()
+const watchTo = computed(() => watchTarget(Number(props.match.matchId)))
+
 const csPerMin = computed(() => (self.value.cs / Math.max(props.match.gameDurationSeconds / 60, 1)).toFixed(1))
 const lp = computed(() => self.value.lpDelta)
 
@@ -168,10 +172,26 @@ const lp = computed(() => self.value.lpDelta)
         </div>
       </div>
 
+      <UButton
+        v-if="watchTo"
+        :to="watchTo"
+        icon="i-lucide-play"
+        label="Watch"
+        color="neutral"
+        variant="soft"
+        size="xs"
+        class="relative shrink-0"
+        :class="match.participants.length ? 'ml-auto @[38rem]:ml-0' : 'ml-auto'"
+        :aria-label="`Watch the recording of this game`"
+        @click.stop
+        @keydown.enter.stop
+        @keydown.space.stop
+      />
+
       <UIcon
         name="i-lucide-chevron-down"
         class="size-4 shrink-0 text-dimmed transition-transform duration-200"
-        :class="[expanded ? 'rotate-180' : '', match.participants.length ? '' : 'ml-auto']"
+        :class="[expanded ? 'rotate-180' : '', match.participants.length || watchTo ? '' : 'ml-auto']"
       />
     </div>
 

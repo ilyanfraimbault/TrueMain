@@ -9,10 +9,12 @@ import type { NavigationMenuItem } from '@nuxt/ui'
  */
 const route = useRoute()
 const { screen } = useLcuState()
+const { status: recording } = useRecordings()
 
 const isActive = (prefix: string) => route.path === prefix || route.path.startsWith(`${prefix}/`)
 
 const LIVE = { label: 'Live', color: 'primary', variant: 'subtle', size: 'sm' } as const
+const REC = { label: 'Rec', color: 'error', variant: 'subtle', size: 'sm' } as const
 
 const items = computed<NavigationMenuItem[][]>(() => [
   [
@@ -43,6 +45,17 @@ const items = computed<NavigationMenuItem[][]>(() => [
       // Lit while a game runs, wherever the player is.
       badge: screen.value === 'in-game' ? LIVE : undefined,
     },
+    // Only once the shell has answered for recording: a build without it has no page to open.
+    ...(recording.value
+      ? [{
+          label: 'Recordings',
+          icon: 'i-lucide-clapperboard',
+          to: '/recordings',
+          active: isActive('/recordings'),
+          // Lit while a game is being recorded, wherever the player is.
+          badge: recording.value.recordingGameId !== null ? REC : undefined,
+        }]
+      : []),
   ],
 ])
 

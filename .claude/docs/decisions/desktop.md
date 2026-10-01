@@ -251,6 +251,19 @@ timeline only, never the live feed, whose objective events do not always say whi
 guessed. The Screen Recording prompt is asked from the Recordings page, not at launch: macOS shows it once per app, so
 a later request opens System Settings instead (2026-10-01) — #1744.
 
+**Clips are cut by hand from the post-game recap in v1, saved clips are never pruned by the budget, and the recap
+opens on its own only from the game page or the dashboard.** The product owner's flow (2026-10-01): at the end of a
+recorded game the recap shows the game's timeline — the player's kills, deaths and assists, the objectives — and the
+player selects periods on it, as many as they want, names each one and saves it as its own video; then they keep the
+full game or delete it. This reverses #1744's "trimming a clip by hand: out of scope for v1": manual clips are the v1
+way clips are made, and automatic clips (#1766) and instant replay (#1767) wait. A range proposes its own title from
+what it holds ("Triple kill on Ahri", "Kill + Dragon") and keeps the player's once they rename it. A saved clip is a
+file the player chose to keep, so the disk budget never deletes it (it still counts in the space used); a full game
+the player kept is exempt too, and only undecided full games go, oldest first. `recording://recap` opens the recap
+only over `/` or `/game` — the pages the game's own navigation would have taken the player to — never over a page
+they opened by hand, the game page's rule. The Recordings page follows DPM's layout (the product owner's reference) in
+the site's materials; its settings are the short list of #1744 — no OBS (2026-10-01) — #1755, #1777.
+
 **The next item sits over the game board and answers one purchase: what to complete, and what to buy now.** The mains'
 choice from where our build stands (#1749) is the decision; its share of the mains, one reason in the site's own
 item-context words, the gold left and the components the gold in hand buys are what turns it into a purchase. Two

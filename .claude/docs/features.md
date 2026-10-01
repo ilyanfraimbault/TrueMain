@@ -198,7 +198,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 `desktop/README.md`; decisions in [`decisions/desktop.md`](decisions/desktop.md).
 
 - **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select, Game — each
-  badged "Live" during its phase), player card (Riot ID, level, client status), top bar with a ⌘K champion search (no
+  badged "Live" during its phase; Recordings, badged "Rec" while a game is recorded, listed once the shell answers for
+  recording), player card (Riot ID, level, client status), top bar with a ⌘K champion search (no
   back/forward, no patch label). Hash routing; the gameflow phase opens `/draft` on its own, and `/game` from home or
   the draft (never from a page opened by hand); leaving either phase goes home only from its page.
 - **Dashboard** (`/`) — the player's profile, read from their own client (any account, tracked by TrueMain or not):
@@ -260,6 +261,33 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   them; K/D/A and result) and a thumbnail is taken. Recordings live in `~/Movies/TrueMain`, clips cut in the recap in
   its `clips/` (each its own file, cut without re-encoding, outliving the full game, never deleted by the budget).
   The disk budget deletes the oldest full games the player did not keep.
+- **Recordings** (`/recordings`, #1755) — the full games and clips on disk, laid out as DPM's recordings page in the
+  site's materials: header with the clip count, the space used over the budget ("2.5 GB / 20.0 GB") and the settings;
+  a toolbar (search over titles and champions; All / Clips / Full games; a champion; favourites only — favourite clips
+  and kept games; a "More" menu for queue and result; the count shown; grouping by day — default —, game, champion or
+  none); the cards four across (16:9 thumbnail, else the champion's splash, with how long ago and the length; portrait,
+  kind icon — scissors for a clip, film for a full game — and title, a full game reading as champion · result; K/D/A,
+  KDA ratio, queue; "Recording" / "Finalising" on a game not ready), each with a menu (favourite or keep, show in
+  Finder / Explorer, delete with a confirmation). Empty states: recording off (what an hour costs, from the shell's
+  estimate), nothing yet, nothing matching; capture not allowed (a button asking macOS), unsupported, missing; and a
+  banner when capture stopped working while recordings exist. `?game=<id>` narrows it to one game's clips.
+- **Recap** (`/recordings/:id`, #1777) — the full game's video with the app's controls (play, previous / next moment
+  with a 5 s lead-in, mute, full screen; Space, ← →, Shift+← →, M) over a timeline of the whole video: the player's
+  kills (rose-gold chips, multi-kills numbered), deaths (red-ringed) and assists (dots) on the track, objectives above
+  it as icons in the side's colour, the playhead, saved clips as gold bars. Clips are cut by hand: drag across the
+  track, or I / O at the playhead (I/O move the selected range's ends), handles to adjust, as many ranges as wanted,
+  each named from what it holds ("Triple kill on Ahri", "Kill + Dragon", editable), previewed, saved alone or all at
+  once (`clip_save`), then listed under "Saved clips"; unsaved ranges survive leaving the page for the session. A
+  Moments tab lists every moment to jump to. "Keep full game" exempts it from the budget; "Delete full game" removes
+  the video, its clips stay. A game still processing says its highlights are being finalised (live ones shown). Opened
+  by `recording://recap` from the dashboard or the game page only, by a card, or by "Watch".
+- **Clip player** (`/recordings/clips/:id`) — the clip's own file with its moments on the same timeline, its title
+  renamed in place, favourite, show in Finder, delete, and a link to the full game while it exists.
+- **Recording settings** (slideover from the Recordings header) — capture status with the permission button, on/off,
+  ranked only / every game, resolution (Native, 1440p, 1080p, 720p) and 30 / 60 fps with the shell's estimated size of
+  an hour (labelled an estimate; none for Native), the disk budget (slider from the shell's minimum, space used) and the
+  folder (shown, with a button to show it). Saved as changed, in order.
+- **Watch** (dashboard match rows) — on a game the library holds: its recap, or its clips once the full game is gone.
 - **Site sections** — the tier list, the champion directory, the matchup page, the truemains leaderboard and the
   favorites are **the site's own pages** (`PageTierList`, `PageChampions`, `PageMatchup`, `PageTruemains`,
   `PageFavorites` from `web/layers/common`, #1732: one implementation, the same headers, filters, searches, tables,
@@ -282,7 +310,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 - **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), in-game advice
   (next item, gold standing, loading screen — #1749–#1753), TrueMain's
   performance score and participants' ranks in the dashboard's history, LP history from before the app was installed
-  (#1682).
+  (#1682), automatic clips (#1766) and instant replay (#1767), changing the recordings folder from the app.
 
 ---
 
