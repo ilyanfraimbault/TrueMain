@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.137",
-    "@tauri-apps/cli": "^2.9.0",
+    "@tauri-apps/cli": "~2.12.1",
     "@types/node": "^26.6.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
