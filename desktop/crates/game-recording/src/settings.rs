@@ -24,10 +24,12 @@ pub const SETTINGS_VERSION: u32 = 1;
 /// The queues the client marks as ranked: Solo/Duo and Flex.
 const RANKED_QUEUES: [i64; 2] = [420, 440];
 
-const GIB: u64 = 1024 * 1024 * 1024;
+/// Budgets are in decimal gigabytes, the unit Finder and the settings page
+/// show, so the default reads as a round "50 GB".
+const GB: u64 = 1_000_000_000;
 
 /// Below this a budget would not hold a single long game at the lowest preset.
-pub const MIN_BUDGET_BYTES: u64 = 2 * GIB;
+pub const MIN_BUDGET_BYTES: u64 = 2 * GB;
 
 /// H.264 bits per pixel per frame. One constant rather than a table per
 /// preset, so every resolution and frame rate gets a consistent quality.
@@ -211,7 +213,7 @@ impl Default for RecordingSettings {
                 resolution: Resolution::P1080,
                 frame_rate: FrameRate::Fps30,
             },
-            budget_bytes: 50 * GIB,
+            budget_bytes: 50 * GB,
             folder: None,
         }
     }
@@ -352,7 +354,7 @@ mod tests {
             enabled: true,
             queues: Queues::Ranked,
             quality: quality(Resolution::P1440, FrameRate::Fps60),
-            budget_bytes: 10 * GIB,
+            budget_bytes: 10 * GB,
             folder: Some(dir.path().join("videos")),
         };
         settings.save(&path).unwrap();

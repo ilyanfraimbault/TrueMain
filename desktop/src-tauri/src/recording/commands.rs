@@ -285,7 +285,11 @@ pub fn reveal_recording_file(
     recorder: State<'_, SharedRecorder>,
     path: PathBuf,
 ) -> Result<(), String> {
-    let folder = recorder.folder().canonicalize().map_err(text)?;
+    // The folder exists once a game was recorded; before that, showing it
+    // creates it rather than failing.
+    let folder = recorder.folder();
+    std::fs::create_dir_all(&folder).map_err(text)?;
+    let folder = folder.canonicalize().map_err(text)?;
     let path = path.canonicalize().map_err(text)?;
     if !path.starts_with(&folder) {
         return Err("only the recordings folder can be shown".into());
