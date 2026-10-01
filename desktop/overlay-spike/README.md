@@ -9,7 +9,9 @@ The panel is built only with the `overlay-spike` Cargo feature
 (`src-tauri/src/overlay_spike.rs`), so no regular build carries it. It is a
 `tauri-nspanel` panel one level above `CGShieldingWindowLevel` with `NonactivatingPanel`,
 `canJoinAllSpaces` + `fullScreenAuxiliary` + `stationary` + `ignoresCycle`, a
-class that can never become key, and `hidesOnDeactivate` off. It starts
+class that can never become key, and `hidesOnDeactivate` off. It shows **only
+while the game (`com.riotgames.LeagueofLegends.GameClient`) is the frontmost
+application** — never over the client or any other app — starts
 click-through, top-right of the main screen, and shows a ticking clock, a
 button and a hover zone (`app/public/overlay-spike.html`).
 
@@ -21,7 +23,7 @@ with `orderFrontRegardless` does the same job without that side effect.
 
 | Shortcut         | Effect                                      |
 |------------------|---------------------------------------------|
-| `ctrl+shift+O` or `option+shift+O` | show / hide the panel                      |
+| `ctrl+shift+O` or `option+shift+O` | hide / show the panel (stays hidden until shown again) |
 | `ctrl+shift+I` or `option+shift+I` | toggle click-through ↔ interactive (mouse) |
 
 Every shortcut the app receives is logged (`overlay spike: shortcut …`), so a
@@ -122,7 +124,8 @@ Start the spike app, then a game (a practice tool is enough).
   polls the keyboard state (`CGEventSourceKeyState`, HID system state) every
   30 ms; each action is logged with the path that fired it (`via hotkey` /
   `via key-state poll`), the second path within 400 ms being logged as a
-  duplicate.
+  duplicate. **In game, the poll fires and the shortcuts work** — with no
+  permission prompt.
 
 ## What to bring back
 

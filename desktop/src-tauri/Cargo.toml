@@ -32,6 +32,7 @@ tauri-plugin-global-shortcut = { version = "2", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = { version = "2.1", optional = true }
+objc2-app-kit = { version = "0.3", optional = true, features = ["NSWorkspace", "NSRunningApplication"] }
 
 [features]
-overlay-spike = ["dep:tauri-nspanel", "dep:tauri-plugin-global-shortcut"]
+overlay-spike = ["dep:tauri-nspanel", "dep:tauri-plugin-global-shortcut", "dep:objc2-app-kit"]

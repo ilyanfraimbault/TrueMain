@@ -32,6 +32,17 @@ const WIDTH: f64 = 340.0;
 const HEIGHT: f64 = 150.0;
 const MARGIN: f64 = 24.0;
 
+/// The game's own process, as opposed to the League client
+/// (`com.riotgames.LeagueClient`): the panel belongs over this one only.
+const GAME_BUNDLE_ID: &str = "com.riotgames.LeagueofLegends.GameClient";
+
+/// Whether the game is the frontmost application, as last measured.
+static GAME_FRONTMOST: AtomicBool = AtomicBool::new(false);
+
+/// Whether the player hid the panel with the shortcut. It stays hidden for
+/// as long as the app runs, until they show it again.
+static USER_HIDDEN: AtomicBool = AtomicBool::new(false);
+
 /// Whether the panel takes the mouse. Off by default: an overlay is
 /// click-through until the player asks for it.
 static INTERACTIVE: AtomicBool = AtomicBool::new(false);
@@ -157,11 +168,10 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     });
     panel.set_event_handler(Some(events.as_ref()));
 
-    panel.show();
     tracing::info!(
         level = level.value(),
         can_become_key = panel.can_become_key_window(),
-        "overlay spike: panel shown (click-through)"
+        "overlay spike: panel built (click-through), shown only while the game is frontmost"
     );
 
     let registry = app.global_shortcut();
@@ -220,6 +230,7 @@ const POLL_EVERY: Duration = Duration::from_millis(30);
 
 fn poll_keys(app: &AppHandle) {
     let mut held = [false; 2];
+    let mut tick: u32 = 0;
     loop {
         for (slot, (key, code)) in [
             (key_state::KEY_O, Code::KeyO),
@@ -234,7 +245,56 @@ fn poll_keys(app: &AppHandle) {
             }
             held[slot] = down;
         }
+        tick = tick.wrapping_add(1);
+        if tick.is_multiple_of(FRONTMOST_EVERY) {
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || watch_frontmost(&handle));
+        }
         std::thread::sleep(POLL_EVERY);
+    }
+}
+
+/// Checks the frontmost application every ~240 ms: often enough that the
+/// panel follows a cmd-tab without a visible lag.
+const FRONTMOST_EVERY: u32 = 8;
+
+/// Main thread only (AppKit).
+fn watch_frontmost(app: &AppHandle) {
+    use objc2_app_kit::NSWorkspace;
+
+    let front = NSWorkspace::sharedWorkspace()
+        .frontmostApplication()
+        .and_then(|front| front.bundleIdentifier())
+        .is_some_and(|id| id.to_string() == GAME_BUNDLE_ID);
+    if GAME_FRONTMOST.swap(front, Ordering::SeqCst) != front {
+        tracing::info!(
+            "overlay spike: the game is {}",
+            if front {
+                "frontmost"
+            } else {
+                "no longer frontmost"
+            }
+        );
+        apply_visibility(app);
+    }
+}
+
+/// Shows the panel when the game is frontmost and the player has not hidden
+/// it, hides it otherwise. Main thread only.
+fn apply_visibility(app: &AppHandle) {
+    let Ok(panel) = app.get_webview_panel(LABEL) else {
+        return;
+    };
+    let visible = GAME_FRONTMOST.load(Ordering::SeqCst) && !USER_HIDDEN.load(Ordering::SeqCst);
+    if visible == panel.is_visible() {
+        return;
+    }
+    if visible {
+        panel.show();
+        tracing::info!("overlay spike: panel shown");
+    } else {
+        panel.hide();
+        tracing::info!("overlay spike: panel hidden");
     }
 }
 
@@ -280,13 +340,12 @@ fn trigger(app: &AppHandle, code: Code, source: &'static str) {
             return;
         };
         if code == Code::KeyO {
-            if panel.is_visible() {
-                panel.hide();
-                tracing::info!("overlay spike: panel hidden");
-            } else {
-                panel.show();
-                tracing::info!("overlay spike: panel shown");
-            }
+            let hidden = !USER_HIDDEN.fetch_xor(true, Ordering::SeqCst);
+            tracing::info!(
+                "overlay spike: the player {} the panel",
+                if hidden { "hid" } else { "showed" }
+            );
+            apply_visibility(&handle);
         } else if code == Code::KeyI {
             let now = !INTERACTIVE.fetch_xor(true, Ordering::SeqCst);
             panel.set_ignores_mouse_events(!now);
