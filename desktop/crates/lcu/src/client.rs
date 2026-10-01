@@ -5,7 +5,9 @@ use serde::de::DeserializeOwned;
 use crate::credentials::Credentials;
 use crate::detail::GameTimeline;
 use crate::error::{Error, Result};
-use crate::model::{ChampSelectSession, ChampionMastery, CurrentSummoner, GameflowPhase};
+use crate::model::{
+    ChampSelectSession, ChampionMastery, CurrentSummoner, GameflowPhase, GameflowSession,
+};
 use crate::record::{HistoryGame, MatchHistory, RankedStats, SummonerProfile};
 use crate::runes::{plan_import, RuneImportPlan, RunePage, RunePageDraft};
 use crate::tls;
@@ -75,6 +77,16 @@ impl LcuClient {
     pub async fn gameflow_phase(&self) -> Result<GameflowPhase> {
         let body = self.get_raw("/lol-gameflow/v1/gameflow-phase").await?;
         Ok(GameflowPhase::from_client_value(&body))
+    }
+
+    /// The game the gameflow is about: its id and queue. `None` outside a
+    /// game flow, which the client answers with a 404.
+    pub async fn gameflow_session(&self) -> Result<Option<GameflowSession>> {
+        match self.get_json("/lol-gameflow/v1/session").await {
+            Ok(session) => Ok(Some(session)),
+            Err(Error::UnexpectedStatus { status: 404, .. }) => Ok(None),
+            Err(other) => Err(other),
+        }
     }
 
     /// The current draft.

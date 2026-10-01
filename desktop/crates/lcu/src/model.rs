@@ -44,6 +44,29 @@ impl GameflowPhase {
     }
 }
 
+/// `GET /lol-gameflow/v1/session`, reduced to the game it is about. Read when a
+/// game starts: the phase alone does not say which game, and a recording is
+/// filed under the game id the match history will later know it by.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GameflowSession {
+    pub game_data: GameflowGameData,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GameflowGameData {
+    /// Zero until the game is created.
+    pub game_id: i64,
+    pub queue: GameflowQueue,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GameflowQueue {
+    pub id: i64,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampSelectPlayer {

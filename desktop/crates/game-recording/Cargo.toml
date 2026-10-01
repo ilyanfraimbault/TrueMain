@@ -1,0 +1,16 @@
+[package]
+name = "game-recording"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Recording the player's games: settings, highlights, the game-clock anchor and the storage policy."
+
+[dependencies]
+lcu = { path = "../lcu" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
