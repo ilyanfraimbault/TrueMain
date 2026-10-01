@@ -15,6 +15,8 @@
 #![allow(clippy::unused_unit)]
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Position, Size, WebviewUrl};
 use tauri_nspanel::{
@@ -172,7 +174,68 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(
         "overlay spike: ctrl+shift+O or option+shift+O toggles the panel, ctrl+shift+I or option+shift+I its mouse"
     );
+
+    let poller = app.clone();
+    std::thread::spawn(move || poll_keys(&poller));
     Ok(())
+}
+
+/// The second test showed the hotkeys reach the app everywhere but in a Full
+/// Screen game: with the display captured, the window server stops delivering
+/// `RegisterEventHotKey` events. This reads the keyboard's state instead, which
+/// no event routing stands in front of.
+mod key_state {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGEventSourceKeyState(state: i32, key: u16) -> bool;
+        fn CGEventSourceFlagsState(state: i32) -> u64;
+    }
+
+    /// `kCGEventSourceStateHIDSystemState`: the hardware's state, whichever app
+    /// the events are routed to.
+    const HID_SYSTEM_STATE: i32 = 1;
+
+    const FLAG_SHIFT: u64 = 0x0002_0000;
+    const FLAG_CONTROL: u64 = 0x0004_0000;
+    const FLAG_OPTION: u64 = 0x0008_0000;
+
+    /// `kVK_ANSI_O` and `kVK_ANSI_I`: physical key positions, not characters.
+    pub const KEY_O: u16 = 0x1F;
+    pub const KEY_I: u16 = 0x22;
+
+    /// Whether shift and ctrl or option are held with `key`.
+    pub fn chord_down(key: u16) -> bool {
+        // SAFETY: plain C calls on value arguments, no pointers involved.
+        let (flags, down) = unsafe {
+            (
+                CGEventSourceFlagsState(HID_SYSTEM_STATE),
+                CGEventSourceKeyState(HID_SYSTEM_STATE, key),
+            )
+        };
+        down && flags & FLAG_SHIFT != 0 && flags & (FLAG_CONTROL | FLAG_OPTION) != 0
+    }
+}
+
+const POLL_EVERY: Duration = Duration::from_millis(30);
+
+fn poll_keys(app: &AppHandle) {
+    let mut held = [false; 2];
+    loop {
+        for (slot, (key, code)) in [
+            (key_state::KEY_O, Code::KeyO),
+            (key_state::KEY_I, Code::KeyI),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let down = key_state::chord_down(key);
+            if down && !held[slot] {
+                trigger(app, code, "key-state poll");
+            }
+            held[slot] = down;
+        }
+        std::thread::sleep(POLL_EVERY);
+    }
 }
 
 fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
@@ -181,18 +244,42 @@ fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
         shortcut.into_string(),
         event.state()
     );
-    if event.state() != ShortcutState::Pressed {
-        return;
+    if event.state() == ShortcutState::Pressed {
+        trigger(app, shortcut.key, "hotkey");
     }
-    let visible = shortcut.key == Code::KeyO;
-    let interactive = shortcut.key == Code::KeyI;
+}
+
+/// Outside a game both paths see the same keypress; the second to arrive
+/// within this window is logged and dropped, so the log still says which
+/// paths work.
+const DEDUP_WINDOW: Duration = Duration::from_millis(400);
+
+/// The last action taken, per key.
+static LAST_ACTION: Mutex<Vec<(Code, Instant)>> = Mutex::new(Vec::new());
+
+fn trigger(app: &AppHandle, code: Code, source: &'static str) {
+    {
+        let mut last = LAST_ACTION.lock().expect("last-action mutex poisoned");
+        let now = Instant::now();
+        if last
+            .iter()
+            .any(|(key, at)| *key == code && now.duration_since(*at) < DEDUP_WINDOW)
+        {
+            tracing::info!("overlay spike: {code:?} via {source} (duplicate, ignored)");
+            return;
+        }
+        last.retain(|(key, _)| *key != code);
+        last.push((code, now));
+    }
+    tracing::info!("overlay spike: {code:?} via {source}");
+
     let handle = app.clone();
     // Panel methods are AppKit calls: main thread only.
     let _ = app.run_on_main_thread(move || {
         let Ok(panel) = handle.get_webview_panel(LABEL) else {
             return;
         };
-        if visible {
+        if code == Code::KeyO {
             if panel.is_visible() {
                 panel.hide();
                 tracing::info!("overlay spike: panel hidden");
@@ -200,7 +287,7 @@ fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
                 panel.show();
                 tracing::info!("overlay spike: panel shown");
             }
-        } else if interactive {
+        } else if code == Code::KeyI {
             let now = !INTERACTIVE.fetch_xor(true, Ordering::SeqCst);
             panel.set_ignores_mouse_events(!now);
             let mode = if now { "interactive" } else { "click-through" };

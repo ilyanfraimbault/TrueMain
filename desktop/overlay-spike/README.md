@@ -115,9 +115,14 @@ Start the spike app, then a game (a practice tool is enough).
 - **At `Status` (25) the panel is drawn behind the game; at 2147483629 it shows
   over it** (practice tool, Full Screen, release build), and the probe keeps
   `front=League Of Legends`: the game keeps the focus.
-- **`ctrl+shift+O` / `ctrl+shift+I` never reached the app in game** — no log
-  line. Either the game swallows the keys or the practice tool's own bindings
-  collide; the `option+shift` pair is there to tell the two apart.
+- **Global hotkeys never reach the app in a Full Screen game.** Both pairs
+  (`ctrl+shift`, `option+shift`) are logged and work from Finder, and neither
+  produces a single log line in game: with the display captured, the window
+  server stops delivering `RegisterEventHotKey` events. The spike now also
+  polls the keyboard state (`CGEventSourceKeyState`, HID system state) every
+  30 ms; each action is logged with the path that fired it (`via hotkey` /
+  `via key-state poll`), the second path within 400 ms being logged as a
+  duplicate.
 
 ## What to bring back
 
