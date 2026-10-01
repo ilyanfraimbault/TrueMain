@@ -140,7 +140,7 @@ const emptyMessage = computed(() => {
       </div>
       <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2">
         <BuildList v-model="selected" :options="options" :pending="lanePending || !!draft?.pending" :draft-label="draft?.label" :draft-opponent="draft?.opponentId ?? null" />
-        <BuildMains :champion-id="championId" :selected-name-tag="onMain ? mainNameTag : null" @select="selectMain" />
+        <BuildMains :champion-id="championId" :position="position" :selected-name-tag="onMain ? mainNameTag : null" @select="selectMain" />
       </div>
     </aside>
 

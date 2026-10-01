@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardResponse, LeaderboardRowResponse } from '#shared/types/leaderboard'
+import type { LeaderboardResponse, LeaderboardRowResponse, RegionSlug } from '#shared/types/leaderboard'
 import type { ProfileIdentity } from '#shared/types/profile'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
 import { isApexTier } from '#common/utils/tiers'
@@ -14,9 +14,15 @@ import { isApexTier } from '#common/utils/tiers'
  * leaderboard row does not fit here — it would leave the name 50 px. A row
  * selects that main's own build on the champion, shown like any other build.
  * The search above the list reaches any other main of the champion by name.
+ *
+ * The mains the player follows come first, starred (#1733): their keystone and
+ * first item are read from their own build on the champion, which a click then
+ * shows without another request.
  */
 const props = defineProps<{
   championId: number
+  /** The lane the view is for — what a main's own build is asked on first. */
+  position: string
   /** The main whose build is on screen, by Riot ID slug. */
   selectedNameTag?: string | null
 }>()
@@ -28,7 +34,7 @@ const TOP_N = 5
 const cache = useState<Record<number, LeaderboardRowResponse[]>>('champion-mains', () => ({}))
 const failed = ref(false)
 
-const rows = computed(() => cache.value[props.championId] ?? null)
+const topRows = computed(() => cache.value[props.championId] ?? null)
 
 watch(() => props.championId, async (id) => {
   failed.value = false
@@ -46,10 +52,58 @@ const { runeTree, items } = useStaticData()
 const { patch } = useChampionStatics()
 const { perk, item } = useBuildResolvers(runeTree, items)
 
-/** What the main runs on this champion: the entry of their top champions that is this one. */
-const onChampion = (row: LeaderboardRowResponse) => row.topChampions.find(champion => champion.championId === props.championId) ?? null
+const favoriteMains = useFavoriteMains(() => props.championId)
+const truemainBuilds = useTruemainBuild()
 
-const nameTagOf = (row: LeaderboardRowResponse) => favoriteNameTag(row.identity.gameName, row.identity.tagLine)
+// A followed main's own build gives their row its keystone and first item.
+watch([favoriteMains, () => props.position], ([mains, position]) => {
+  for (const { favorite } of mains) truemainBuilds.load(favorite.nameTag, props.championId, position)
+}, { immediate: true })
+
+/** One row of the list, whichever source it comes from. */
+interface MainRow {
+  nameTag: string
+  identity: ProfileIdentity
+  region: RegionSlug | null
+  ranked: { tier: string, division: string, leaguePoints: number, wins: number | null, losses: number | null, winRate: number | null } | null
+  keystoneId: number | null
+  firstItemId: number | null
+  followed: boolean
+}
+
+const nameTagOf = (identity: ProfileIdentity) => favoriteNameTag(identity.gameName, identity.tagLine)
+
+const rows = computed<MainRow[] | null>(() => {
+  const followed: MainRow[] = favoriteMains.value.map(({ favorite, profile }) => {
+    const build = truemainBuilds.answerOf(favorite.nameTag, props.championId, props.position)?.builds[0]
+    return {
+      nameTag: favorite.nameTag,
+      identity: profile.identity,
+      region: favorite.region,
+      ranked: profile.ranked,
+      keystoneId: build?.primaryKeystoneId ?? null,
+      firstItemId: build?.firstItemId ?? null,
+      followed: true,
+    }
+  })
+  if (topRows.value === null) return followed.length ? followed : null
+  const followedKeys = new Set(followed.map(row => row.nameTag.toLowerCase()))
+  const top: MainRow[] = topRows.value
+    .filter(row => !followedKeys.has(nameTagOf(row.identity).toLowerCase()))
+    .map((row) => {
+      const onChampion = row.topChampions.find(champion => champion.championId === props.championId)
+      return {
+        nameTag: nameTagOf(row.identity),
+        identity: row.identity,
+        region: row.region,
+        ranked: row.ranked && { ...row.ranked, wins: row.stats.wins, losses: row.stats.losses, winRate: row.stats.winRate },
+        keystoneId: onChampion?.primaryKeystoneId ?? null,
+        firstItemId: onChampion?.firstItemId ?? null,
+        followed: false,
+      }
+    })
+  return [...followed, ...top]
+})
 </script>
 
 <template>
@@ -69,21 +123,21 @@ const nameTagOf = (row: LeaderboardRowResponse) => favoriteNameTag(row.identity.
         <USkeleton class="ml-auto h-4 w-12" />
       </div>
     </template>
-    <p v-else-if="failed" class="px-2 text-xs text-muted">The truemains could not be loaded</p>
+    <p v-else-if="failed && !rows?.length" class="px-2 text-xs text-muted">The truemains could not be loaded</p>
     <UEmpty v-else-if="rows && rows.length === 0" size="sm" icon="i-lucide-trophy" description="No tracked truemains on this champion yet." />
 
     <template v-else>
       <div
         v-for="row in rows ?? []"
-        :key="`${row.region}-${row.identity.gameName}-${row.identity.tagLine}`"
+        :key="row.nameTag"
         class="relative flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
-        :class="selectedNameTag === nameTagOf(row) ? 'bg-accented' : 'hover:bg-elevated'"
+        :class="selectedNameTag === row.nameTag ? 'bg-accented' : 'hover:bg-elevated'"
       >
-        <span v-if="selectedNameTag === nameTagOf(row)" class="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary" />
+        <span v-if="selectedNameTag === row.nameTag" class="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary" />
         <button
           type="button"
           :aria-label="`Build of ${row.identity.gameName}${row.identity.tagLine ? ` #${row.identity.tagLine}` : ''}`"
-          :aria-pressed="selectedNameTag === nameTagOf(row)"
+          :aria-pressed="selectedNameTag === row.nameTag"
           class="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           @click="emit('select', row)"
         />
@@ -98,13 +152,14 @@ const nameTagOf = (row: LeaderboardRowResponse) => favoriteNameTag(row.identity.
         <div class="min-w-0 flex-1 leading-tight">
           <p class="truncate text-[13px] font-semibold text-default">{{ row.identity.gameName }}</p>
           <div class="mt-0.5 flex items-center gap-1">
-            <LeaderboardRegionFlag :region="row.region" :width="14" />
+            <UIcon v-if="row.followed" mode="svg" name="i-lucide-star" class="size-3 shrink-0 text-primary [&_path]:fill-current" aria-label="Followed" />
+            <LeaderboardRegionFlag v-if="row.region" :region="row.region" :width="14" />
             <span v-if="row.identity.tagLine" class="truncate text-[11px] text-muted">#{{ row.identity.tagLine }}</span>
           </div>
         </div>
         <div class="relative z-10 flex shrink-0 items-center gap-0.5">
-          <GameTooltipPerkIcon :perk="perk(onChampion(row)?.primaryKeystoneId)" :width="22" :height="22" class="size-[22px] shrink-0 rounded-full" />
-          <GameTooltipItemIcon :item="item(onChampion(row)?.firstItemId)" :width="22" :height="22" class="size-[22px] shrink-0 rounded" />
+          <GameTooltipPerkIcon :perk="perk(row.keystoneId)" :width="22" :height="22" class="size-[22px] shrink-0 rounded-full" />
+          <GameTooltipItemIcon :item="item(row.firstItemId)" :width="22" :height="22" class="size-[22px] shrink-0 rounded" />
         </div>
         <UTooltip
           v-if="row.ranked"
@@ -121,9 +176,9 @@ const nameTagOf = (row: LeaderboardRowResponse) => favoriteNameTag(row.identity.
                 :tier="row.ranked.tier"
                 :division="row.ranked.division"
                 :league-points="row.ranked.leaguePoints"
-                :wins="row.stats.wins"
-                :losses="row.stats.losses"
-                :win-rate="row.stats.winRate"
+                :wins="row.ranked.wins"
+                :losses="row.ranked.losses"
+                :win-rate="row.ranked.winRate"
                 :size="32"
               />
             </GameTooltipSurface>
