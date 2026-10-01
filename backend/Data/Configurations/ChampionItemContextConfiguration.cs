@@ -125,3 +125,47 @@ public sealed class ChampionItemContextVerdictConfiguration : IEntityTypeConfigu
         }).IsUnique().HasDatabaseName("IX_champion_item_context_verdicts_grain");
     }
 }
+
+/// <summary>
+/// The next-item model's terms (#1749), derived from the item-context counters like the
+/// verdicts and stored the same way: enum columns as text, one range per served scope.
+/// </summary>
+public sealed class ChampionNextItemTermConfiguration : IEntityTypeConfiguration<ChampionNextItemTerm>
+{
+    public void Configure(EntityTypeBuilder<ChampionNextItemTerm> entity)
+    {
+        entity.ToTable("champion_next_item_terms");
+
+        entity.HasKey(e => e.Id);
+        entity.Property(e => e.Id).ValueGeneratedOnAdd();
+
+        entity.Property(e => e.ChampionId).IsRequired();
+        entity.Property(e => e.Position).IsRequired().HasMaxLength(16);
+        entity.Property(e => e.Patch).IsRequired().HasMaxLength(16);
+        entity.Property(e => e.Slot).IsRequired().HasConversion<string>().HasMaxLength(16);
+        entity.Property(e => e.ParentItemId).IsRequired();
+        entity.Property(e => e.ItemId).IsRequired();
+        entity.Property(e => e.Axis).IsRequired().HasConversion<string>().HasMaxLength(32);
+        entity.Property(e => e.Bucket).IsRequired().HasConversion<string>().HasMaxLength(8);
+        entity.Property(e => e.Weight).IsRequired();
+        entity.Property(e => e.Games).IsRequired();
+        entity.Property(e => e.Wins).IsRequired();
+        entity.Property(e => e.BranchGames).IsRequired();
+        entity.Property(e => e.PatchWindow).IsRequired().HasDefaultValue(1);
+        entity.Property(e => e.AggregatedAtUtc).IsRequired();
+
+        // The read loads one champion's whole model at one position on one patch, so the
+        // grain leads with exactly those three and the model is one range scan.
+        entity.HasIndex(e => new
+        {
+            e.Patch,
+            e.ChampionId,
+            e.Position,
+            e.Slot,
+            e.ParentItemId,
+            e.ItemId,
+            e.Axis,
+            e.Bucket,
+        }).IsUnique().HasDatabaseName("IX_champion_next_item_terms_grain");
+    }
+}

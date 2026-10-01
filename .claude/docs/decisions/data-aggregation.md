@@ -116,6 +116,23 @@ the opponent as a dimension of the counters, which multiplies them by the number
 (~70 measured on production) — prohibitive at this grain, so it is deliberately not done and tracked in #1462.
 What blocks the absurd cases meanwhile is the mechanical whitelist above — #1450.
 
+**The next-item model predicts the mains' choice from the item-context counters; it is not a win-rate argmax.**
+The desktop app asks on every purchase, so the read must be a lookup: the fold derives, beside the verdicts,
+`champion_next_item_terms` — per build/boots branch, each candidate's base log-share and, per axis bucket, the
+log-ratio that bucket shifts it by, shrunk towards zero by 50 pseudo-games so a thin bucket costs nothing and no
+floor has to be right. A game's score is base + the terms of the buckets it sits in (naive Bayes), normalised
+over the candidates it does not already hold. An item's win rate is mostly the game state it is bought in, so it is
+returned as a fact, never as the ranking key. Terms read their shift over the served patch plus the lookback
+window and their base share on the served patch alone (widened only below 30 branch games) — #1749.
+
+**The model shipped on a held-out measurement, and the measurement says where its value is.** Trained on the
+16.16–16.18 counters, replayed on 54 243 real decisions of 16.19 (30 most-played champion-lanes, the mains'
+games of one day; `backend/Tools/NextItemEvaluation`): boots top-1 61.8 % against 60.4 % for "the branch's most
+common child", and where the two disagree the model is right 400 times to the baseline's 215; legendaries 55.0 %
+against 54.9 %, a coin flip where they disagree (534 to 509). The draft composition moves the mains' boots, barely
+their items — what the enemies have *built* (#1750) is the lever the in-game panel needs. Grouping correlated axes
+so each group spoke once was measured too and did no better than plain summing, so the model sums — #1749.
+
 **No pick+ban "presence" figure, despite it being standard elsewhere.**
 Pick rate's denominator is tracked mains' games at a lane; ban rate's is every observed match. The two are not
 addable, and a presence number computed from them would be arithmetic without meaning. Offering a meta-wide

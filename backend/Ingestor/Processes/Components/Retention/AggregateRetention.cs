@@ -123,7 +123,9 @@ public static class AggregateRetention
                     + await db.ChampionItemContextTotals
                         .Where(total => total.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionItemContextVerdicts
-                        .Where(verdict => verdict.Patch == stalePatch).ExecuteDeleteAsync(ct));
+                        .Where(verdict => verdict.Patch == stalePatch).ExecuteDeleteAsync(ct)
+                    + await db.ChampionNextItemTerms
+                        .Where(term => term.Patch == stalePatch).ExecuteDeleteAsync(ct));
             await transaction.CommitAsync(ct);
         }
 
