@@ -158,6 +158,10 @@ await Promise.all([overviewFetch, truemainsReady])
       </div>
     </section>
 
+    <!-- The desktop app, announced before the panels it brings into
+         champion select. -->
+    <HomeDesktopBetaPanel />
+
     <!-- Live data panels — equal-width halves so the two read as a balanced
          pair and the truemains rows have room for champion + play-rate
          without truncating names. -->
@@ -194,8 +198,6 @@ await Promise.all([overviewFetch, truemainsReady])
         />
       </div>
     </section>
-
-    <HomeDesktopBetaPanel />
 
     <!-- CTA -->
     <section class="border-t border-default/60">
