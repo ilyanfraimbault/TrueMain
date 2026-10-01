@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import { POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
 import { normalizeEloBracket } from '~/utils/elo-brackets'
 import { isLoadingStatus } from '~/utils/async-data'
-import { formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
-import { banRateTone, pickRateTone, winRateTone } from '~/utils/rate-tone'
 
 // Mirrors the backend default; the page size is fixed in the UI (no
 // per-page selector) so the only stateful pagination value carried in the
@@ -19,8 +17,6 @@ useSeoMeta({
 useSchemaOrg([
   defineWebPage({ name: 'Champion Builds' }),
 ])
-
-const router = useRouter()
 
 const { pathFor } = useChampionSlugs()
 
@@ -189,12 +185,8 @@ watch(totalCount, (count) => {
   if (count > 0 && start >= count) void setPage(1)
 })
 
-// Per #147, the row is not a `<NuxtLink>` (and therefore not an `<a>`) because
-// the navigation target shows accounts main-ing the champion, and the user
-// asked for a button-style click target. We push the route programmatically
-// from a `<div role="button">` to keep the existing flex layout (a `<button>`
-// would force us to unset user-agent button styling). Keyboard activation is
-// wired to Enter and Space so the element behaves like a real button.
+// The row's destination: the champion page on its lane, at the patch the list
+// shows. The row itself navigates (a button-style target, per #147).
 function rowDestination(row: { championId: number, position: string }) {
   return {
     path: pathFor(row.championId),
@@ -204,14 +196,6 @@ function rowDestination(row: { championId: number, position: string }) {
     },
   }
 }
-
-function onRowActivate(row: { championId: number, position: string }) {
-  void router.push(rowDestination(row))
-}
-
-// Resolve build ids the same way the leaderboard surfaces do. `item` keeps
-// its historical `staticItem` name at the template call sites.
-const { perk, perkStyle, item: staticItem } = useBuildResolvers(runeTree, itemsMap)
 
 // A client-side navigation waits under the loading bar for the directory (#1689).
 await summariesFetch
@@ -267,14 +251,10 @@ await summariesFetch
     </PageHeader>
 
     <!-- Wrap the data-dependent body in `<ClientOnly>` so the four
-         fetches (all `server: false`) never participate in the SSR render.
-         Without this, race conditions between the `static-prefetch.client.ts`
-         plugin priming the payload and the page's own async-data
-         setup could leave the server rendering one tree (e.g. `<ul>`) while
-         the client expected another (the skeleton), producing the
-         hydration node mismatches reported in #149. The `<template #fallback>`
-         renders the same skeleton list as the SSR shell so the user sees
-         placeholder rows before the client takes over. -->
+         fetches (all `server: false`) never participate in the SSR render —
+         otherwise the server and the client could render different trees and
+         produce the hydration node mismatches reported in #149. The fallback
+         is the same skeleton table the client shows while it loads. -->
     <ClientOnly>
       <FetchErrorAlert
         v-if="error"
@@ -282,173 +262,27 @@ await summariesFetch
         title="Failed to load the champion list"
       />
 
-      <!-- Cold load: placeholder rows in the real row layout so there's no
-           blank area and no layout shift when the data resolves. Gated on all
-           four sources (see `isPending`) so we never flash rows with fallback
-           `Champion {id}` names or missing rune / item icons. -->
-      <ul v-else-if="isPending" class="space-y-1" aria-hidden="true">
-        <li v-for="i in PAGE_SIZE" :key="`skeleton-${i}`">
-          <ChampionRowSkeleton />
-        </li>
-      </ul>
-
       <template v-else>
-        <ul class="space-y-1">
-          <li
-            v-for="row in pagedRows"
-            :key="`${row.championId}-${row.position}`"
-          >
-            <ListRowSurface
-              dense role="button" tabindex="0"
-              :aria-label="`View ${row.name} builds`"
-              class="cursor-pointer gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-default"
-              @click="onRowActivate(row)"
-              @keydown.enter.prevent="onRowActivate(row)"
-              @keydown.space.prevent="onRowActivate(row)"
-            >
-              <!-- Champion -->
-              <div class="flex min-w-[10rem] items-center gap-2">
-                <SkeletonImage
-                  :src="row.iconUrl"
-                  :alt="row.name"
-                  width="36"
-                  height="36"
-                  class="size-9 rounded"
-                />
-                <span class="truncate font-medium">{{ row.name }}</span>
-              </div>
+        <!-- Gated on all four sources (see `isPending`) so no row flashes a
+             fallback `Champion {id}` name or a missing rune / item icon. -->
+        <ChampionDirectoryTable
+          v-if="isPending || pagedRows.length > 0"
+          :rows="pagedRows"
+          :offset="(currentPage - 1) * PAGE_SIZE"
+          :loading="isPending"
+          :skeleton-rows="PAGE_SIZE"
+          :destination="rowDestination"
+          :rune-tree="runeTree"
+          :items-map="itemsMap"
+        />
 
-              <!-- Position -->
-              <SkeletonImage
-                v-if="POSITION_BY_VALUE.get(row.position)?.iconUrl"
-                :src="POSITION_BY_VALUE.get(row.position)!.iconUrl"
-                :alt="row.position"
-                :width="22"
-                :height="22"
-                class="size-[22px] shrink-0"
-              />
-
-              <!-- Runes: primary keystone with the secondary tree as a small
-                   badge overlay — same presentation as the detail-page build
-                   tabs (see ChampionBuildTabs leading slot). -->
-              <div
-                v-if="row.topBuild && perk(row.topBuild.primaryKeystoneId)"
-                class="relative size-7 shrink-0"
-              >
-                <GameTooltipPerkIcon
-                  :perk="perk(row.topBuild.primaryKeystoneId)"
-                  :width="28"
-                  :height="28"
-                  class="size-7 rounded-full"
-                />
-                <GameTooltipPerkStyleIcon
-                  v-if="perkStyle(row.topBuild.secondaryStyleId)"
-                  :style="perkStyle(row.topBuild.secondaryStyleId)"
-                  :width="16"
-                  :height="16"
-                  class="absolute -bottom-1 -right-2 size-4"
-                />
-              </div>
-
-              <!-- Build path: reuse GameTooltipItemIcon so hover shows the
-                   same item tooltip as the champion detail page. -->
-              <div
-                v-if="row.topBuild && row.topBuild.itemPath.length > 0"
-                class="flex shrink-0 items-center gap-1"
-              >
-                <!-- Show the consensus path capped at 6 — the full ADC core
-                     (Draven et al. reach 6) and the same worst case the detail
-                     page's BuildPath lays out. ChampionBuildPathAnalyzer.WalkPath
-                     can technically emit up to 7 (BuildItem0..6); the cap keeps
-                     this shrink-0 row from widening on that rare case while
-                     restoring the 6th item the old slice(0, 5) dropped. -->
-                <template
-                  v-for="(itemId, idx) in row.topBuild.itemPath.slice(0, 6)"
-                  :key="`${row.championId}-${row.position}-bp-${idx}`"
-                >
-                  <GameTooltipItemIcon
-                    :item="staticItem(itemId)"
-                    :width="28"
-                    :height="28"
-                    class="size-7 rounded"
-                  />
-                  <UIcon
-                    v-if="idx < Math.min(row.topBuild.itemPath.length, 6) - 1"
-                    name="i-lucide-chevron-right"
-                    class="size-3 text-dimmed"
-                  />
-                </template>
-              </div>
-
-              <!-- Tier: colour-coded S→D badge, sits in column order between the
-                   lane and the win-rate. Computed server-side and bucketed by
-                   patch-wide percentile (see ChampionTierCalculator). -->
-              <div class="ml-auto flex min-w-[3rem] shrink-0 items-center justify-center">
-                <TierBadge :tier="row.tier" />
-              </div>
-
-              <!-- Rates as `StatBlock`s: Geist Mono value over a 10px micro-label,
-                   which is the whole point — the hand-written pair this replaced
-                   put the two one step apart (`text-lg` over `text-xs`, same
-                   family) and a 50-row list read as noise; `sm` here for the same reason —
-                   the row is icon-height now, `text-lg` was the one thing still shouting.
-                   Colours come from `utils/rate-tone`, the same helper the tier
-                   list's chip uses, so a champion's win rate cannot be one colour
-                   here and another there. An older comment here said colour was
-                   "tested too noisy"; the bands that exist now are much quieter
-                   than whatever that was — the losing side of a win rate is grey,
-                   not a warning, and pick/ban are one-sided so only genuinely
-                   present champions take the accent at all. -->
-              <div class="flex shrink-0 items-center gap-5">
-                <!-- The min-width lives on a wrapper, not on `StatBlock`:
-                     its root already carries `min-w-0`, and a fallthrough
-                     `min-w-[3rem]` on the same element would leave which one
-                     wins to stylesheet order rather than to intent. -->
-                <div class="flex min-w-[3rem] justify-center">
-                  <StatBlock
-                    :value="formatPercentage(row.winRate, 0)"
-                    label="WR"
-                    size="sm" align="center"
-                    :value-class="winRateTone(row.winRate)"
-                  />
-                </div>
-                <div class="flex min-w-[3rem] justify-center">
-                  <StatBlock
-                    :value="formatPercentage(row.pickRate, 0)"
-                    label="PR"
-                    size="sm" align="center"
-                    :value-class="pickRateTone(row.pickRate)"
-                  />
-                </div>
-                <!-- Ban rate: a dash on patches predating ban ingestion (#920),
-                     since "not observed" is not the same answer as "0%". The
-                     tone helper returns `text-muted` for a null, so the dash is
-                     never accented. -->
-                <div class="flex min-w-[3rem] justify-center">
-                  <StatBlock
-                    :value="formatPercentageOrDash(row.banRate, 0)"
-                    label="BR"
-                    size="sm" align="center"
-                    :value-class="banRateTone(row.banRate)"
-                  />
-                </div>
-              </div>
-            </ListRowSurface>
-          </li>
-        </ul>
-
-        <p
-          v-if="filteredRows.length === 0"
-          class="text-sm text-muted"
-        >
+        <p v-else class="text-sm text-muted">
           No champions match these filters.
         </p>
 
-        <!-- Only show pagination when there's more than one page of results.
-             This branch only renders once the data has resolved, so the count
-             is never stale. -->
+        <!-- Only when there is more than one page, and only once the data is in. -->
         <div
-          v-if="totalCount > PAGE_SIZE"
+          v-if="!isPending && totalCount > PAGE_SIZE"
           class="flex justify-center pt-2"
         >
           <UPagination
@@ -466,11 +300,15 @@ await summariesFetch
       </template>
 
       <template #fallback>
-        <ul class="space-y-1" aria-hidden="true">
-          <li v-for="i in PAGE_SIZE" :key="`skeleton-${i}`">
-            <ChampionRowSkeleton />
-          </li>
-        </ul>
+        <ChampionDirectoryTable
+          :rows="[]"
+          :offset="0"
+          loading
+          :skeleton-rows="PAGE_SIZE"
+          :destination="rowDestination"
+          :rune-tree="null"
+          :items-map="null"
+        />
       </template>
     </ClientOnly>
   </div>

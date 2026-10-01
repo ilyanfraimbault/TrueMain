@@ -92,11 +92,6 @@ const {
   sort,
 })
 
-// Deepest ordinal on the page, so every row sizes its rank slot the same way —
-// a page straddling a decade boundary (76…100) would otherwise mix two widths.
-const deepestRank = computed(() => rows.value.reduce((max, row) => Math.max(max, row.rank), 0))
-
-
 // ─── Static lookups ───────────────────────────────────────────────────────
 // The champion list backs the row's top-3 icon lookup and the header's
 // unified search — one shared `champion-static-list` cache (warmed by the
@@ -157,30 +152,24 @@ await leaderboardReady
       title="Failed to load the leaderboard"
     />
 
-    <div v-if="leaderboardInitialLoading" class="space-y-1">
-      <LeaderboardRowSkeleton v-for="i in LEADERBOARD_PAGE_SIZE" :key="`skel-${i}`" />
-    </div>
-
     <UEmpty
-      v-else-if="rows.length === 0 && !leaderboardError"
+      v-if="!leaderboardInitialLoading && rows.length === 0 && !leaderboardError"
       size="sm"
       icon="i-lucide-filter-x"
       description="No truemains match these filters yet."
     />
 
-    <div v-else class="space-y-1">
-      <LeaderboardRow
-        v-for="row in rows"
-        :key="row.rank"
-        :row="row"
-        :champions-by-id="championsById"
-        :rune-tree="runeTree"
-        :items-map="itemsMap"
-        :patch="latestPatch"
-        :highlight-dedication="sort === 'dedication'"
-        :max-rank="deepestRank"
-      />
-    </div>
+    <LeaderboardTruemainsTable
+      v-else-if="leaderboardInitialLoading || rows.length > 0"
+      :rows="rows"
+      :loading="leaderboardInitialLoading"
+      :skeleton-rows="LEADERBOARD_PAGE_SIZE"
+      :sort="sort"
+      :champions-by-id="championsById"
+      :rune-tree="runeTree"
+      :items-map="itemsMap"
+      :patch="latestPatch"
+    />
 
     <div v-if="!leaderboardInitialLoading && total > pageSize" class="flex justify-center pt-2">
       <UPagination

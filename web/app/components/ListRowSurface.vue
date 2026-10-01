@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Shared row surface for the champion list and the truemain leaderboard: same
-// material, radius and padding so both lists read as one visual system. Layout
-// (gap, cursor, focus ring, @container) stays with each caller since the two
-// rows lay out their columns differently.
+// Row surface of the compact leaderboard row (`LeaderboardRow`, the champion
+// page's sidebar): material, radius and padding. Layout (gap, cursor, focus
+// ring, @container) stays with the caller. The full-page lists are tables
+// instead (#1726, `utils/list-tables.ts`).
 //
 // The fill and hairline come from `surface` alone. Spelling them out again as
 // `bg-elevated/60 border-default/60` would not merely be redundant — a plain

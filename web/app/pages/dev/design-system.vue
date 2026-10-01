@@ -585,7 +585,7 @@ const TEXT_TOKENS = [
     <SectionCard
       :level="2"
       title="List row"
-      subtitle="`ListRowSurface`, the shared material behind the champion directory and the truemain leaderboard."
+      subtitle="`ListRowSurface`, the material of the compact leaderboard row (champion-page sidebar)."
     >
       <div class="flex flex-col gap-2">
         <ListRowSurface
