@@ -1,4 +1,3 @@
-<!-- Twin of `web/app/components/Champion/Core/StarterItems.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
 import type { BuildItemSet } from '#shared/types/champions'
 import type { StaticItemData } from '#shared/types/static-data'

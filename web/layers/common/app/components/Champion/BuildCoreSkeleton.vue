@@ -5,7 +5,7 @@ import {
   PLACEHOLDER_ITEMS_MAP,
   PLACEHOLDER_RUNE_TREE,
   PLACEHOLDER_SUMMONERS_MAP,
-} from '~/utils/build-placeholder'
+} from '#common/utils/build-placeholder'
 
 // Loading state for the two call sites that render only the core view and the
 // build tree (the composition builder's matchup recommendation and its standard

@@ -76,7 +76,7 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
             <span class="text-sm font-semibold text-highlighted">{{ LANE_LABELS[lane] }}</span>
             <div class="flex items-center gap-0.5">
               <UButton
-                :to="`/matchup?champion=${championId}&lane=${lane}`"
+                :to="`/matchup?champion=${championId}&position=${lane}`"
                 icon="i-lucide-wand-sparkles"
                 color="neutral"
                 variant="ghost"

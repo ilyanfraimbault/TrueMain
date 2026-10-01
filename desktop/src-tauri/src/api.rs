@@ -85,6 +85,23 @@ impl ApiClient {
         Self::read(request, path).await
     }
 
+    /// `post_within` with a query string, for a paged POST read.
+    pub async fn post_query_within<Q: Serialize, B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &Q,
+        body: &B,
+        timeout: Duration,
+    ) -> Result<T, String> {
+        let request = self
+            .http
+            .post(format!("{}{path}", self.base))
+            .query(query)
+            .json(body)
+            .timeout(timeout);
+        Self::read(request, path).await
+    }
+
     pub async fn get<Q: Serialize, T: DeserializeOwned>(
         &self,
         path: &str,

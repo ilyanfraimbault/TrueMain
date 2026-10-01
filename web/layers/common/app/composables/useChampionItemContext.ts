@@ -1,4 +1,4 @@
-import type { ChampionItemContextResponse } from '~~/shared/types/item-context'
+import type { ChampionItemContextResponse } from '#shared/types/item-context'
 
 /**
  * The situational build context of the displayed slice (#1451).

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { BuildItemSet } from '~~/shared/types/champions'
-import type { StaticItemData } from '~~/shared/types/static-data'
-import { itemSlots } from '~~/shared/utils/build'
-import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { resolveItemContext } from '~~/shared/utils/item-context'
+import type { BuildItemSet } from '#shared/types/champions'
+import type { StaticItemData } from '#shared/types/static-data'
+import { itemSlots } from '#shared/utils/build'
+import type { ItemContextCard } from '#shared/utils/item-context'
+import { resolveItemContext } from '#shared/utils/item-context'
 
 const props = defineProps<{
   boots: BuildItemSet | null

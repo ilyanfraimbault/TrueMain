@@ -19,8 +19,6 @@ const LEGACY = new Set([
   'components/OgImage/Truemain.satori.vue',
   // Hand-rolled per-viewer fetchers, client-only by construction — never through the
   // shared SSR payload (decisions/web-frontend-rules.md).
-  'composables/useCompositionBuild.ts',
-  'composables/useCompositionBuildGames.ts',
   'composables/useTruemainActivity.ts',
   'composables/useTruemainRankHistory.ts',
   // Reads a Nitro static route, not the backend, and is being reworked for the

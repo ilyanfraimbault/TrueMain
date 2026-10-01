@@ -143,6 +143,10 @@ fn readable(path: &str) -> bool {
     if READABLE_PATHS.contains(&path) {
         return true;
     }
+    if let Some(rest) = path.strip_prefix("/champions/") {
+        let segments: Vec<&str> = rest.split('/').collect();
+        return matches!(segments.as_slice(), [champion_id, "item-context"] if is_id(champion_id));
+    }
     let Some(rest) = path.strip_prefix("/truemains/") else {
         return false;
     };
@@ -162,11 +166,52 @@ fn readable(path: &str) -> bool {
             !champion_id.is_empty() && champion_id.bytes().all(|b| b.is_ascii_digit())
         }
         ["matches", match_id] => {
-            !match_id.is_empty() && match_id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+            !match_id.is_empty()
+                && match_id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'_')
         }
         _ => false,
     };
     name_tag_ok && tail_ok
+}
+
+/// A champion id: a non-empty run of digits.
+fn is_id(segment: &str) -> bool {
+    !segment.is_empty() && segment.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// The POSTs the shared matchup page makes (#1732): a champion's composition
+/// build against a draft, and the games behind it. Reads that take the draft as
+/// a body, listed like `READABLE_PATHS`.
+fn postable(path: &str) -> bool {
+    let Some(rest) = path.strip_prefix("/champions/") else {
+        return false;
+    };
+    let segments: Vec<&str> = rest.split('/').collect();
+    match segments.as_slice() {
+        [champion_id, "composition-build"] | [champion_id, "composition-build", "games"] => {
+            is_id(champion_id)
+        }
+        _ => false,
+    }
+}
+
+/// One POST read of a `postable` path. The composition build is the slowest
+/// query the API runs, hence its deadline rather than the client-wide one.
+#[tauri::command]
+async fn api_post(
+    client: tauri::State<'_, ApiClient>,
+    path: String,
+    query: Vec<(String, String)>,
+    request: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    if !postable(&path) {
+        return Err(format!("{path} is not readable from the app"));
+    }
+    client
+        .post_query_within(&path, &query, &request, COMPOSITION_TIMEOUT)
+        .await
 }
 
 /// One read-only GET of a `readable` path, with its query as key/value pairs.
@@ -209,6 +254,7 @@ pub fn run() {
             champion_build,
             composition_build,
             api_get,
+            api_post,
             record::player_record,
             record::player_history,
             record::player_game
@@ -224,7 +270,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::readable;
+    use super::{postable, readable};
 
     #[test]
     fn reads_the_listed_paths_and_a_true_mains_build() {
@@ -236,11 +282,25 @@ mod tests {
         assert!(readable("/truemains/Faker-KR1/profile"));
         assert!(readable("/truemains/Faker-KR1/matches"));
         assert!(readable("/truemains/Faker-KR1/matches/KR_7123456789"));
+        assert!(readable("/champions/103/item-context"));
+    }
+
+    #[test]
+    fn posts_only_the_composition_build_and_its_games() {
+        assert!(postable("/champions/103/composition-build"));
+        assert!(postable("/champions/103/composition-build/games"));
+        assert!(!postable("/champions/draft"));
+        assert!(!postable("/champions/x/composition-build"));
+        assert!(!postable("/champions//composition-build"));
+        assert!(!postable("/champions/103/composition-build/games/1"));
+        assert!(!postable("/truemains/Faker-KR1/profile"));
     }
 
     #[test]
     fn refuses_anything_else() {
         assert!(!readable("/champions/8"));
+        assert!(!readable("/champions/x/item-context"));
+        assert!(!readable("/champions/8/item-context/1"));
         assert!(!readable("/truemains/Faker-KR1/activity"));
         assert!(!readable("/truemains/Faker-KR1/matches/KR_1/timeline"));
         assert!(!readable("/truemains/Faker-KR1/matches/KR-1"));

@@ -1,4 +1,4 @@
-import type { CompositionBuildRequest, CompositionBuildResponse } from '~~/shared/types/composition'
+import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/types/composition'
 
 /**
  * Imperative client for `POST /champions/{id}/composition-build`. Hand-rolled
@@ -13,6 +13,7 @@ import type { CompositionBuildRequest, CompositionBuildResponse } from '~~/share
  * overwrite a newer draft's result.
  */
 export function useCompositionBuild() {
+  const apiFetch = useApiFetch()
   const data = ref<CompositionBuildResponse | null>(null)
   const isLoading = ref(false)
   const error = ref<unknown>(null)
@@ -34,8 +35,8 @@ export function useCompositionBuild() {
     isLoading.value = true
     error.value = null
     try {
-      const response = await $fetch<CompositionBuildResponse>(
-        `/api/champions/${championId}/composition-build`,
+      const response = await apiFetch<CompositionBuildResponse>(
+        `/champions/${championId}/composition-build`,
         { method: 'POST', body, signal: controller.signal },
       )
       if (seq === requestSeq) {

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { BuildTreeNode } from '~~/shared/types/champions'
-import type { StaticItemData } from '~~/shared/types/static-data'
-import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { resolveItemContext } from '~~/shared/utils/item-context'
+import type { BuildTreeNode } from '#shared/types/champions'
+import type { StaticItemData } from '#shared/types/static-data'
+import type { ItemContextCard } from '#shared/utils/item-context'
+import { resolveItemContext } from '#shared/utils/item-context'
 
 const props = defineProps<{
   tree: BuildTreeNode[]
@@ -14,6 +14,13 @@ const props = defineProps<{
   itemsMap: Record<number, StaticItemData>
   /** Situational verdicts (#1451), keyed by slot + branch + item. Absent where the page has no slice for them. */
   itemContext?: Map<string, ItemContextCard>
+  /**
+   * The node size and the gaps between nodes, in px — the site's by default. The
+   * desktop app's narrow build pane draws a smaller, tighter tree (#1671).
+   */
+  itemSize?: number
+  hGap?: number
+  vGap?: number
 }>()
 
 /**
@@ -42,9 +49,10 @@ interface LaidOutNode {
   children: LaidOutNode[]
 }
 
-const ITEM_SIZE = 36
-const H_GAP = 22
-const V_GAP = 44
+// Read once: a call site passes constants.
+const ITEM_SIZE = props.itemSize ?? 36
+const H_GAP = props.hGap ?? 22
+const V_GAP = props.vGap ?? 44
 const MAX_CHILDREN = 4
 
 const layout = computed(() => {

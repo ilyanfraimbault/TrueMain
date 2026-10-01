@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { ChampionStaticListItem } from '#shared/types/static-data'
 
 /**
  * One side of the matchup: a champion portrait that *is* the control. Clicking

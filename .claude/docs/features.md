@@ -47,7 +47,8 @@ The richest page — two columns at `xl`.
 - States: `noDataForRank`, `notEnoughData`, low-sample alerts, and a watcher that reconciles the URL when the API drops a dead filter.
 - **Share** (#926): `ShareButtons.vue` in the header of the populated state (copy link / native share / X), plus a dynamic OG card (`OgImage/Champion.satori.vue` — portrait, tier letter, WR/PR/BR tiles, sample and patch). See the *Share cards* entry under Cross-cutting.
 
-### `/matchup` — `web/app/pages/matchup.vue`
+### `/matchup` — `web/layers/common/app/components/page/Matchup.vue`
+Shared with the desktop app (#1732): the route file `web/app/pages/matchup.vue` only adds the head tags.
 A **live matchup tool** (reworked by #921, renamed from `/builder` by #939 — the old route still redirects, query preserved), not a build editor. Centre stage (`builder/MatchupStage.vue`): your champion, your role and the **role opponent** as large portrait-sized pickers — the matchup is the primary input because the API treats the pinned role opponent as a hard filter on the sampled games. The copy says *role* opponent, never *lane* opponent: a jungler has no lane (#939). Composed as one centred block with **no card around it** (#1063, #1065, #1067, #1069): the two portraits facing each other across the matchup icon, then the role strip underneath on the same centre line. Every other block on the page is a `surface` card, so a card here put the subject of the page on the same footing as its two supporting panels. Role reads second because that is the order the picks are made in — it gates every fetch, but it is one choice among five against ~170 champions. **The portrait *is* the control**: clicking either one opens `builder/ChampionSlot.vue`'s champion-only command palette (the `AppSearch` interaction minus the truemain and browse groups, `LazyUCommandPalette` so the chunk loads on first open). The `ChampionPicker` selects it replaced were the loudest thing in the stage — a wide combobox wrapping a single word — while the portrait beside each carried no interaction at all; `ChampionPicker` stays in `TeamContext` for the eight secondary draft slots, where a portrait grid would out-shout the matchup.
 
 The block carries **no on-screen text at all** (#1067, #1071): no micro-label over each tile, no champion-name caption, no role name, no page description, no "required" hint. The splash art names the champion better than a caption repeating it, each role button carries its own icon, and every accessible name lives in an `aria-label` where it costs nothing visually. Ownership reads from the accent alone: your tile's ring is `primary`, the opponent's neutral. Hover/focus is ring-colour and cursor only — an earlier scrim-and-magnifier overlay was removed as noise. The clear × is `variant="subtle"`, never `solid`: on a dark-only theme neutral-solid is white, which put the brightest thing in the block on top of the art it annotates. Clearing is offered twice: an inline × on a filled tile, and a `Clear` row pinned in the palette (`ignoreFilter`, so a mistyped search can still be undone in one step). While no champion *and* role are picked the page shows a one-line dashed placeholder instead of the stage alone over an empty screen. Below it, secondary and quieter (`builder/TeamContext.vue`): the eight remaining draft slots (4 allies / 4 enemies, the played role omitted since the stage owns both sides of it), which only re-weight the similarity search — with no helper line, the section reads as optional on its own. The component folder keeps its `builder/` name on purpose (`components/matchup/MatchupStage.vue` would auto-resolve to `<MatchupMatchupStage>`).
@@ -224,16 +225,18 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
   payloads through a dev-server relay, so the app runs its real champion select live without a game.
   Outside a live champion select the product's `/draft` page only waits for the next one.
-- **Site sections** — the tier list, the champion directory, the truemains leaderboard and the favorites are **the
-  site's own pages** (`PageTierList`, `PageChampions`, `PageTruemains`, `PageFavorites` from `web/layers/common`,
-  #1732: same headers, filters, searches, tables, favorites cards with their match rows and match detail), the app
-  supplying only the host pieces — API through the shell (`READABLE_PATHS` + a true main's profile, matches and one
-  match), the site's static data (versions, champions, one champion, items, rune tree, summoner spells) from Data
-  Dragon, `/champions/{id}` links — and opening in the browser any route only the site has (a player's profile:
-  `plugins/site-routes.ts`). Favorites are the site's store (`useFavoriteTruemains`, the same `truemain:favorites:v1`
-  key the app already wrote, its older entries read as is). Champion page (lane picker, stats, build view, whose true
-  mains list has a search that reaches any main of the champion by name and opens their build); matchup (champion vs
-  opponent on a lane, composition build).
+- **Site sections** — the tier list, the champion directory, the matchup page, the truemains leaderboard and the
+  favorites are **the site's own pages** (`PageTierList`, `PageChampions`, `PageMatchup`, `PageTruemains`,
+  `PageFavorites` from `web/layers/common`, #1732: one implementation, the same headers, filters, searches, tables,
+  builder, recommendation, games drawer, favorites cards and match detail). The app supplies only the host pieces —
+  TrueMain reads through the shell (`api_get`: `READABLE_PATHS`, a champion's item context, a true main's build,
+  profile, matches and one match; `api_post`: the composition build and its games, 30 s deadline), the site's static
+  data (versions, champions, one champion, items, rune tree, summoner spells) from Data Dragon, `/champions/{id}`
+  links — and opens in the browser any route only the site has (a player's profile: `plugins/site-routes.ts`).
+  Favorites are the site's store (`useFavoriteTruemains`, the same `truemain:favorites:v1` key the app already wrote,
+  its older entries read as is). The champion page stays the app's own (lane picker, stats, build view, whose true
+  mains list has a search that reaches any main of the champion by name and opens their build); it links to the
+  matchup with `?champion=&position=`, the site's parameters.
 - **Distribution** (#1719): a `desktop-v*` tag builds a universal macOS `.dmg` and a Windows NSIS `.exe`
   (`desktop-release.yml`), published as a GitHub pre-release with a signed update manifest; truemain.lol/download
   offers them, and the installed app offers each newer beta at launch (Tauri updater, feed on the site). Unsigned by

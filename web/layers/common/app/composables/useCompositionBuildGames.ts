@@ -1,4 +1,4 @@
-import type { CompositionBuildGamesResponse, CompositionBuildRequest } from '~~/shared/types/composition'
+import type { CompositionBuildGamesResponse, CompositionBuildRequest } from '#shared/types/composition'
 
 /**
  * Imperative client for `POST /champions/{id}/composition-build/games`
@@ -12,6 +12,7 @@ import type { CompositionBuildGamesResponse, CompositionBuildRequest } from '~~/
  * draft-edit debounce the way the recommendation does.
  */
 export function useCompositionBuildGames() {
+  const apiFetch = useApiFetch()
   const data = ref<CompositionBuildGamesResponse | null>(null)
   const isLoading = ref(false)
   const error = ref<unknown>(null)
@@ -33,8 +34,8 @@ export function useCompositionBuildGames() {
     isLoading.value = true
     error.value = null
     try {
-      const response = await $fetch<CompositionBuildGamesResponse>(
-        `/api/champions/${championId}/composition-build/games`,
+      const response = await apiFetch<CompositionBuildGamesResponse>(
+        `/champions/${championId}/composition-build/games`,
         {
           method: 'POST',
           body,

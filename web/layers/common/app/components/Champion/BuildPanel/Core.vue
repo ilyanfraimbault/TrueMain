@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import type { ItemContextCard } from '~~/shared/utils/item-context'
+import type { ItemContextCard } from '#shared/utils/item-context'
 import type {
   BuildItemPath,
   BuildItemSet,
   BuildRunePage,
   BuildSkillOrder,
   BuildSummonerSpells,
-} from '~~/shared/types/champions'
+} from '#shared/types/champions'
 import type {
   ChampionStaticData,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
+} from '#shared/types/static-data'
 
 /**
  * The core view of a build — summoners, starter, skill order, boots, item path,

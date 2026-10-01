@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { CompositionBuildResponse } from '~~/shared/types/composition'
+import type { CompositionBuildResponse } from '#shared/types/composition'
 import type { ChampionPosition } from '#common/utils/positions'
 import type { RateBand } from '#common/utils/rate-tone'
-import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatPercentage } from '#shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { formatGoldDiff, formatXpDiff, laneVerdict } from '~/utils/lane-verdict'
+import { formatGoldDiff, formatXpDiff, laneVerdict } from '#common/utils/lane-verdict'
 import { winRateBand } from '#common/utils/rate-tone'
 
 /**
