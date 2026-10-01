@@ -24,9 +24,44 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop
-      - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -- --check
-      - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording --all-targets -- -D warnings
-      - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording
+      - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-spike -- --check
+      - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-spike --all-targets -- -D warnings
+      - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-spike
+
+  capture-macos:
+    name: macOS capture spike
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - run: swift build -c release --arch arm64 --arch x86_64 --package-path desktop/capture/macos
+      - run: cargo build --release --manifest-path desktop/Cargo.toml -p capture-spike --target aarch64-apple-darwin
+      - run: cargo build --release --manifest-path desktop/Cargo.toml -p capture-spike --target x86_64-apple-darwin
+      - name: Package
+        run: |
+          bin="$(swift build -c release --arch arm64 --arch x86_64 --package-path desktop/capture/macos --show-bin-path)"
+          mkdir -p dist/truemain-capture-spike
+          cp "$bin/truemain-capture" dist/truemain-capture-spike/
+          lipo -create -output dist/truemain-capture-spike/truemain-capture-spike \
+            desktop/target/aarch64-apple-darwin/release/truemain-capture-spike \
+            desktop/target/x86_64-apple-darwin/release/truemain-capture-spike
+          codesign --force --sign - dist/truemain-capture-spike/truemain-capture dist/truemain-capture-spike/truemain-capture-spike
+          lipo -archs dist/truemain-capture-spike/truemain-capture
+          lipo -archs dist/truemain-capture-spike/truemain-capture-spike
+          { dist/truemain-capture-spike/truemain-capture || true; } | grep -q "\"kind\":\"usage\""
+          if dist/truemain-capture-spike/truemain-capture-spike --help; then exit 1; fi
+          tar -czf truemain-capture-spike-macos.tar.gz -C dist truemain-capture-spike
+      - uses: actions/upload-artifact@v7
+        with:
+          name: truemain-capture-spike-macos
+          path: truemain-capture-spike-macos.tar.gz
+          retention-days: 30
 
   app:
     name: Nuxt app

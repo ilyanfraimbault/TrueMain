@@ -335,6 +335,7 @@ Last verified against `develop` on 2026-09-02.
 - The build pane shows the site's core without its build path (the tree draws it), runes beside; build rows are icons only; a true main's click shows their own build (2026-09-28) — #1671
 - Icons bundled at build time, hash routing, images drawn without a `load` gate (WKWebView)
 - Game recording: two quality choices (resolution, 30/60 fps), everything else derived; highlights from the timeline, live feed as fallback; disk budget drops the oldest unpinned; unsigned beta and a GPL capture library both accepted (2026-10-01) — #1744, #1754
+- Screen capture runs in a native helper process per platform (Swift + ScreenCaptureKit + VideoToolbox on macOS), driven over JSON lines; encoder settings still computed in Rust (2026-10-01) — #1745
 - The dashboard reads the player's record from their own client (history, ranked, profile skin, scoreboards, timelines), not TrueMain's API; the site's ranked card as a twin; the match row, its accordion (a compact same-surface match detail), champions and roles derived from the site's; LP history noted locally; form = last 5 vs own average, no composite score (2026-09-30) — #1683
 - The running game is read from its Live Client Data API every 2 s while `InProgress`, sent as a snapshot then numbered changes; `/game` opens from home or the draft only, shows the scoreboard's own information; enemy visibility still to verify live (2026-10-01) — #1748
 

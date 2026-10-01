@@ -90,8 +90,9 @@ Tracking issue: **#1671**.
 - **No game recording yet.** Its core is written and tested
   (`crates/game-recording`: the resolution/frame-rate settings, the player's
   kills, deaths and assists from the timeline or the live feed, the game-clock
-  anchor, the disk budget), but nothing captures the screen until the spike in
-  #1745 picks a capture stack, and the shell does not run it yet (#1744).
+  anchor, the disk budget), and the macOS capture helper exists as a spike
+  (`docs/desktop-capture-spike.md`), but the shell does not run either until
+  the spike's measurements hold (#1744, #1745).
 
 ## Sharing with the site
 
@@ -196,6 +197,10 @@ desktop/
   crates/shell-state/     the app's state and the screen it calls for
   crates/game-recording/  game recording minus the capture (#1744): settings, highlights,
                           game-clock anchor, storage budget — no Tauri, no GUI
+  crates/capture-spike/   dev tool: records one game through the capture helper and
+                          reports what it measured (#1745)
+  capture/macos/          the macOS capture helper (Swift, ScreenCaptureKit) — built on
+                          a Mac only; run with capture/spike.sh
   src-tauri/              the Tauri v2 shell: owns the connections, derives the state
   app/                    Nuxt 4 SPA (ssr: false) rendering that state
 ```
