@@ -1,4 +1,6 @@
+import type { MatchDetailResponse } from '~~/shared/types/match-detail'
 import type {
+  ChampionStaticData,
   ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
@@ -60,4 +62,60 @@ export function useChampionsById() {
       iconUrl: portraitOf(champion.id) ?? '',
     }]),
   ))
+}
+
+/**
+ * The site's `useMatchDetail`, answered from the player's own client: the shell
+ * reads the game's scoreboard and timeline (`player_game`) in the site's
+ * match-detail shape. The Riot ID goes unused — the client only opens the
+ * logged-in player's games. In `npm run dev` the dev fixtures stand in.
+ */
+const matchDetails = new Map<string, MatchDetailResponse | null>()
+
+async function readMatchDetail(matchId: string): Promise<MatchDetailResponse | null> {
+  if (insideTauri()) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    return await invoke<MatchDetailResponse>('player_game', { gameId: Number(matchId) })
+  }
+  if (import.meta.dev) {
+    const fixtures = await import('~/fixtures/match-details.json')
+    return (fixtures.default as unknown as Record<string, MatchDetailResponse>)[matchId] ?? null
+  }
+  return null
+}
+
+export function useMatchDetail(_nameTag: MaybeRefOrGetter<string>, matchId: MaybeRefOrGetter<string>) {
+  const data = ref<MatchDetailResponse | null>(null)
+  const isLoading = ref(true)
+  const notFound = ref(false)
+
+  watch(() => toValue(matchId), async (id) => {
+    isLoading.value = true
+    try {
+      if (!matchDetails.has(id)) matchDetails.set(id, await readMatchDetail(id))
+      data.value = matchDetails.get(id) ?? null
+    }
+    catch {
+      data.value = null
+    }
+    notFound.value = !data.value
+    isLoading.value = false
+  }, { immediate: true })
+
+  return { data, isLoading, notFound }
+}
+
+/** The site's `useChampionStatic`: one champion's Q/W/E/R, from Data Dragon through `useStaticData`. */
+export function useChampionStatic(championId: MaybeRefOrGetter<number>, _patch: MaybeRefOrGetter<string | null>) {
+  const { loadChampion, championStatic } = useStaticData()
+  const status = ref<'idle' | 'pending' | 'success' | 'error'>('idle')
+  const empty: ChampionStaticData = { championName: null, championIconUrl: null, championSpells: {}, partype: '' }
+
+  watch(() => toValue(championId), async (id) => {
+    status.value = 'pending'
+    await loadChampion(id)
+    status.value = 'success'
+  }, { immediate: true })
+
+  return { data: computed(() => championStatic(toValue(championId)) ?? empty), status }
 }

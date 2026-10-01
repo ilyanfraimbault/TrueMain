@@ -41,6 +41,17 @@ Tracking issue: **#1671**.
   re-solve around the correction (#1677).
 - **Reads your champion mastery** once per login, to rank your own pool
   (`championPool`, most points first) without asking what you play.
+- **Opens on your profile**, read from your own client whether TrueMain tracks
+  you or not: your ranked standing, the skin you chose as profile background and
+  your latest 20 games (`player_record`, on demand, again after each game), with
+  each game's scoreboard read once per launch for kill participation, damage
+  share and both teams, and a game's timeline when its row is opened
+  (`player_game`, in the site's match-detail shape). The history pages back
+  through older games as it is paged (`player_history`). It is drawn with the site's
+  ranked card, and rows, a compact match detail and cards derived from the
+  site's (`components/dashboard/`); the LP curve and per-game LP come from
+  standings the app notes on this machine (`utils/lp-history.ts`). None of it
+  is sent anywhere.
 - **Uses the site's own components** for everything the site already draws —
   the build tree and rune block, the game-entity tooltips, the leaderboard row,
   rank and region marks, the role picker — as labelled twin copies (see
