@@ -1,0 +1,11 @@
+{
+  "productName": "TrueMain Overlay Spike",
+  "identifier": "gg.truemain.desktop.overlayspike",
+  "bundle": {
+    "targets": ["app"],
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "files": null
+    }
+  }
+}

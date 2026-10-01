@@ -7,6 +7,8 @@
 
 mod api;
 mod game;
+#[cfg(all(feature = "overlay-spike", target_os = "macos"))]
+mod overlay_spike;
 mod record;
 mod recording;
 #[cfg(debug_assertions)]
@@ -271,7 +273,13 @@ pub fn run() {
     let shared: SharedState = Arc::new(Mutex::new(AppState::default()));
     let client = SharedClient::default();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(all(feature = "overlay-spike", target_os = "macos"))]
+    let builder = builder
+        .plugin(tauri_nspanel::init())
+        .plugin(overlay_spike::plugin());
+
+    builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -312,6 +320,8 @@ pub fn run() {
             let (recorder, phases) = recording::Recorder::new(&handle);
             app.manage(recorder.clone());
             recording::start(&handle, recorder, phases);
+            #[cfg(all(feature = "overlay-spike", target_os = "macos"))]
+            overlay_spike::setup(&handle)?;
             tauri::async_runtime::spawn(supervisor::run(handle, shared, client));
             Ok(())
         })

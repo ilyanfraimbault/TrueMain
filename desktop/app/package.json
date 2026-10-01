@@ -8,7 +8,9 @@
     "build": "nuxt generate",
     "typecheck": "nuxt typecheck",
     "tauri": "cd .. && node --env-file-if-exists=.env.local app/node_modules/@tauri-apps/cli/tauri.js",
-    "tauri:sim": "TRUEMAIN_LCU_SIM=http://localhost:3003/__sim/lcu npm run tauri -- dev"
+    "tauri:sim": "TRUEMAIN_LCU_SIM=http://localhost:3003/__sim/lcu npm run tauri -- dev",
+    "tauri:overlay": "npm run tauri -- dev --features overlay-spike --config overlay-spike/tauri.conf.json",
+    "tauri:overlay:build": "npm run tauri -- build --features overlay-spike --config overlay-spike/tauri.conf.json"
   },
   "dependencies": {
     "@nuxt/ui": "^4.11.1",

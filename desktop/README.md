@@ -89,7 +89,8 @@ Tracking issue: **#1671**.
 - **The dashboard knows the player only by what the client says.** Their own
   numbers need #1682 — our database holds true mains only.
 - **No in-game overlay.** The game page is a screen of the companion window;
-  panels over the game itself are gated on the spike in #1673.
+  panels over the game itself are gated on the spike in #1673
+  (`overlay-spike/`, built only with the `overlay-spike` feature).
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.
