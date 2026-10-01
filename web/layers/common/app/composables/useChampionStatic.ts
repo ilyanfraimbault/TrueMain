@@ -1,4 +1,4 @@
-import type { ChampionStaticData } from '~~/shared/types/static-data'
+import type { ChampionStaticData } from '#shared/types/static-data'
 
 const EMPTY_STATIC_DATA: ChampionStaticData = {
   championName: null,

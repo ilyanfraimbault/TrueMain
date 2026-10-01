@@ -4,7 +4,7 @@
   the same payload, the scoreboard, one player's build and the rune pages —
   drawn sober and compact on the row's own surface, as the product owner asked
   (2026-09-30): no recessed well, no card inside the card, rows a third of the
-  site's height. The payload comes from the client through `useMatchDetail`
+  site's height. The payload comes from the client through `usePlayerGameDetail`
   (`useSiteShims.ts`).
 -->
 <script setup lang="ts">
@@ -26,7 +26,7 @@ const props = defineProps<{
   selfTeamId: number
 }>()
 
-const { data: detail, isLoading, notFound } = useMatchDetail(() => props.nameTag, () => props.matchId)
+const { data: detail, isLoading, notFound } = usePlayerGameDetail(() => props.matchId)
 
 const participants = computed(() => detail.value?.participants ?? [])
 const self = computed(() => participants.value.find(p => p.championId === props.selfChampionId && p.teamId === props.selfTeamId) ?? null)

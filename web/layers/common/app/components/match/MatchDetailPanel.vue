@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '~~/shared/types/match-detail'
+import type { MatchDetailParticipant } from '#shared/types/match-detail'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
+} from '#shared/types/static-data'
+import { getPositionIconUrl } from '#shared/utils/ddragon'
 
 /**
  * Inline match-detail body rendered inside an expanded `MatchRow` accordion.

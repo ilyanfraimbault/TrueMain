@@ -47,6 +47,8 @@ export async function openOnSite(path: string) {
 export interface ApiFetchOptions {
   query?: Query
   signal?: AbortSignal
+  /** As on the site: a failed read resolves `null` instead of throwing (a 404 read as "not found"). */
+  ignoreResponseError?: boolean
 }
 
 /**
@@ -60,6 +62,12 @@ export function useApiFetch() {
   return async <T>(path: string, options: ApiFetchOptions = {}): Promise<T> => {
     const local = await answerStaticEndpoint(path, options.query ?? {})
     if (local !== undefined) return local as T
-    return await apiGet<T>(path, options.query)
+    try {
+      return await apiGet<T>(path, options.query)
+    }
+    catch (error) {
+      if (options.ignoreResponseError) return null as T
+      throw error
+    }
   }
 }

@@ -1,8 +1,5 @@
 import type { MatchDetailResponse } from '#shared/types/match-detail'
-import type {
-  ChampionStaticData,
-  ChampionStaticListItem,
-} from '#shared/types/static-data'
+import type { ChampionStaticListItem } from '#shared/types/static-data'
 
 /**
  * The app's side of the composables the twinned site components call, so the
@@ -44,10 +41,11 @@ export function useStaticChampionsById() {
 }
 
 /**
- * The site's `useMatchDetail`, answered from the player's own client: the shell
- * reads the game's scoreboard and timeline (`player_game`) in the site's
- * match-detail shape. The Riot ID goes unused — the client only opens the
- * logged-in player's games. In `npm run dev` the dev fixtures stand in.
+ * One of the player's own games in the site's match-detail shape, read from
+ * their client: the shell reads the game's scoreboard and timeline
+ * (`player_game`). The dashboard's counterpart of the site's `useMatchDetail`,
+ * which reads TrueMain's API and serves the shared pages. The client only opens
+ * the logged-in player's games. In `npm run dev` the dev fixtures stand in.
  */
 const matchDetails = new Map<string, MatchDetailResponse | null>()
 
@@ -63,7 +61,7 @@ async function readMatchDetail(matchId: string): Promise<MatchDetailResponse | n
   return null
 }
 
-export function useMatchDetail(_nameTag: MaybeRefOrGetter<string>, matchId: MaybeRefOrGetter<string>) {
+export function usePlayerGameDetail(matchId: MaybeRefOrGetter<string>) {
   const data = ref<MatchDetailResponse | null>(null)
   const isLoading = ref(true)
   const notFound = ref(false)
@@ -82,19 +80,4 @@ export function useMatchDetail(_nameTag: MaybeRefOrGetter<string>, matchId: Mayb
   }, { immediate: true })
 
   return { data, isLoading, notFound }
-}
-
-/** The site's `useChampionStatic`: one champion's Q/W/E/R, from Data Dragon through `useStaticData`. */
-export function useChampionStatic(championId: MaybeRefOrGetter<number>, _patch: MaybeRefOrGetter<string | null>) {
-  const { loadChampion, championStatic } = useStaticData()
-  const status = ref<'idle' | 'pending' | 'success' | 'error'>('idle')
-  const empty: ChampionStaticData = { championName: null, championIconUrl: null, championSpells: {}, partype: '' }
-
-  watch(() => toValue(championId), async (id) => {
-    status.value = 'pending'
-    await loadChampion(id)
-    status.value = 'success'
-  }, { immediate: true })
-
-  return { data: computed(() => championStatic(toValue(championId)) ?? empty), status }
 }

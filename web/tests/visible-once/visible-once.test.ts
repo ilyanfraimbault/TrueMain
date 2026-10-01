@@ -23,7 +23,7 @@ Object.assign(globalThis, {
   toValue: vue.toValue,
 })
 
-const { useVisibleOnce } = await import('~/composables/useVisibleOnce')
+const { useVisibleOnce } = await import('#common/composables/useVisibleOnce')
 
 class FakeIntersectionObserver {
   static instances: FakeIntersectionObserver[] = []

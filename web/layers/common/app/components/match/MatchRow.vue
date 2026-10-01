@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchSummaryParticipant, MatchSummaryResponse } from '~~/shared/types/matches'
+import type { MatchSummaryParticipant, MatchSummaryResponse } from '#shared/types/matches'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
@@ -7,10 +7,10 @@ import type {
   StaticPerkData,
   StaticPerkStyleData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
+} from '#shared/types/static-data'
+import { getPositionIconUrl } from '#shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { formatDuration } from '~/utils/relativeTime'
+import { formatDuration } from '#common/utils/relativeTime'
 
 const props = defineProps<{
   match: MatchSummaryResponse

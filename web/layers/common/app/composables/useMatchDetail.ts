@@ -1,4 +1,4 @@
-import type { MatchDetailResponse } from '~~/shared/types/match-detail'
+import type { MatchDetailResponse } from '#shared/types/match-detail'
 import { isLoadingStatus } from '#common/utils/async-data'
 
 /**

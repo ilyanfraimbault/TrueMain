@@ -22,8 +22,6 @@ const LEGACY = new Set([
   'composables/useCompositionBuild.ts',
   'composables/useCompositionBuildGames.ts',
   'composables/useTruemainActivity.ts',
-  'composables/useTruemainMatches.ts',
-  'composables/useTruemainProfile.ts',
   'composables/useTruemainRankHistory.ts',
   // Reads a Nitro static route, not the backend, and is being reworked for the
   // prerendered pages (#1617) — migrate it once that lands.

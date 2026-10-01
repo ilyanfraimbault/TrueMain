@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { MatchDetailItemEvent, MatchDetailParticipant } from '~~/shared/types/match-detail'
-import type { ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
-import { isBuildOrderEvent, resolveEventItemId } from '~~/shared/utils/build'
+import type { MatchDetailItemEvent, MatchDetailParticipant } from '#shared/types/match-detail'
+import type { ChampionStaticListItem, StaticItemData } from '#shared/types/static-data'
+import { isBuildOrderEvent, resolveEventItemId } from '#shared/utils/build'
 import { isLoadingStatus } from '#common/utils/async-data'
 
 /**
