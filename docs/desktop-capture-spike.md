@@ -11,7 +11,7 @@ Two processes, as the app will have them:
 
 - **`truemain-capture`** (`desktop/capture/macos`, Swift) — the platform
   helper. ScreenCaptureKit captures the game's window, AVAssetWriter encodes
-  it to H.264 + AAC through VideoToolbox (the Mac's hardware encoder) into an
+  it to H.264 (or HEVC) + AAC through VideoToolbox (the Mac's hardware encoder) into an
   MP4 written in one-second fragments. A separate process so a crash in
   capture cannot take the app down. It speaks JSON lines on stdout
   (`window`, `started`, `progress`, `stopped`, `error`) and stops on `stop`
@@ -52,7 +52,9 @@ desktop/capture/spike.sh --resolution 1080p --fps 60
 ```
 
 Options: `--resolution native|1440p|1080p|720p` (default `1080p`),
-`--fps 30|60` (default `30`), `--no-audio`, `--out DIR` (default
+`--fps 30|60` (default `30`), `--codec h264|hevc` (default `h264`),
+`--bitrate MBIT_PER_S` (default: 0.1 bit per pixel per frame, the H.264 rule
+the app derives from the quality preset), `--no-audio`, `--out DIR` (default
 `./capture-spike`), `--source window|display` (default `window`: the game's
 window alone; `display`: its display with only the game's windows drawn — the
 one to try in Full Screen), and `--window-id N` when the helper picks the wrong
@@ -87,6 +89,14 @@ see; fill it in:
 Worth running at least: 1080p 30 and 1080p 60 in Borderless, and once in Full
 Screen.
 
+File size is the open question once the capture works: native 1440p60 in
+H.264 at the default bitrate is about 22 Mbit/s. HEVC needs about half
+H.264's bitrate for the same picture, so compare on the same game, e.g.
+`--resolution native --fps 60 --codec hevc --bitrate 12`, then `--bitrate 8`,
+against the H.264 default — the report's `Encoded` line states the codec and
+bitrate each file used. The helper writes HEVC as `hvc1`, the tag Safari and
+WKWebView play.
+
 ## Windows
 
 No Windows machine with League is available yet (2026-10-01); the Windows
@@ -94,5 +104,27 @@ helper (Windows.Graphics.Capture + Media Foundation) waits for a tester.
 
 ## Results
 
-Not measured yet. Each run's figures go here, copied from its `report.md`,
-with the machine they were taken on.
+Each run's figures go here, copied from its `report.md`, with the machine they
+were taken on.
+
+### 2026-10-01 — MacBook Pro M4 (Mac16,1), 16 GB, macOS 27.0.1
+
+1080p60, H.264, audio on, League in **Full Screen** (2560×1440), a ~2-minute
+game:
+
+- Window: the "League of Legends (TM) Client" render window, captured although
+  it sat in a full-screen Space (`on screen: false`) — `--source window` is
+  enough there.
+- Encoded 1920×1080 at 60 fps, 12.4 Mbit/s: 82.5 MB per minute.
+- 4785 frames over 111 s, 0 dropped; ~58 fps steady, 43.2 fps on average
+  because the frame froze while the game was alt-tabbed (`suspended` frames).
+- Helper CPU: mean 6.6%, max 9.0%. In-game FPS 240 with and without
+  recording.
+- Clock anchor: 22 reads, median 1 ms, max 2 ms from the fit.
+- Game audio only; `player.html` plays and seeks in Safari. The permission was
+  asked on the first start. No kill in the game, so the markers are still to
+  be checked.
+
+The same game setup at `--resolution native` (2560×1440, ~22 Mbit/s) also
+recorded cleanly (7045 complete frames), but the 1080p picture was judged too
+soft and native's files too large — what the HEVC comparison above is for.

@@ -24,12 +24,13 @@ use game_recording::{
     Change, FrameRate, GameInfo, GameOutcome, Quality, Queues, RecordingDir, RecordingSettings,
     Resolution, Session,
 };
-use helper::HelperCapture;
+use helper::{Codec, HelperCapture};
 use lcu::live::LiveClient;
 use lcu::{GameflowPhase, LcuClient};
 
 const USAGE: &str =
     "usage: truemain-capture-spike [--resolution native|1440p|1080p|720p] [--fps 30|60]
+                              [--codec h264|hevc] [--bitrate MBIT_PER_S]
                               [--source window|display] [--no-audio] [--window-id N]
                               [--out DIR] [--helper PATH]";
 
@@ -45,6 +46,8 @@ const START_ATTEMPTS: u32 = 6;
 
 struct Options {
     quality: Quality,
+    codec: Codec,
+    bitrate_bps: Option<u64>,
     audio: bool,
     window_id: Option<u32>,
     source: String,
@@ -75,6 +78,18 @@ fn parse_options() -> Result<Options, String> {
         "60" => FrameRate::Fps60,
         other => return Err(format!("{other} fps is not offered\n{USAGE}")),
     };
+    let codec = match value("--codec") {
+        None => Codec::default(),
+        Some(v) => Codec::parse(&v).ok_or_else(|| format!("unknown codec {v}\n{USAGE}"))?,
+    };
+    let bitrate_bps = value("--bitrate")
+        .map(|v| match v.parse::<f64>() {
+            Ok(mbit) if mbit > 0.0 && mbit <= 200.0 => Ok((mbit * 1e6).round() as u64),
+            _ => Err(format!(
+                "--bitrate is in Mbit/s, above 0 and up to 200: {v}"
+            )),
+        })
+        .transpose()?;
     let window_id = value("--window-id")
         .map(|v| v.parse().map_err(|_| format!("bad window id {v}")))
         .transpose()?;
@@ -94,6 +109,8 @@ fn parse_options() -> Result<Options, String> {
             resolution,
             frame_rate,
         },
+        codec,
+        bitrate_bps,
         audio: !args.iter().any(|a| a == "--no-audio"),
         window_id,
         source,
@@ -162,12 +179,15 @@ async fn run(options: Options) -> Result<(), String> {
         folder: Some(out.clone()),
     };
 
-    let mut session = Session::new(HelperCapture::new(
-        options.helper.clone(),
-        options.window_id,
-        options.source.clone(),
-        options.audio,
-    ));
+    let mut session = Session::new(
+        HelperCapture::new(
+            options.helper.clone(),
+            options.window_id,
+            options.source.clone(),
+            options.audio,
+        )
+        .with_encoding(options.codec, options.bitrate_bps),
+    );
     // Fail now on a missing helper or a missing permission, not once a game
     // has started.
     match session.capture().probe() {
@@ -346,6 +366,7 @@ async fn run(options: Options) -> Result<(), String> {
     let report = report::render_report(&report::Run {
         system: &system,
         audio: options.audio,
+        codec: capture.codec().label(),
         window: capture.window.as_ref(),
         output: capture.output,
         stopped: capture.stopped,

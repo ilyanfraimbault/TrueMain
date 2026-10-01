@@ -1,5 +1,6 @@
-// Records one window to an H.264 + AAC MP4: ScreenCaptureKit delivers the
-// frames, AVAssetWriter hands them to the hardware encoder (VideoToolbox).
+// Records one window to an H.264 (or HEVC) + AAC MP4: ScreenCaptureKit
+// delivers the frames, AVAssetWriter hands them to the hardware encoder
+// (VideoToolbox).
 //
 // The file is written in one-second movie fragments, so a helper killed
 // mid-game still leaves a video that plays up to the last second. Video time
@@ -11,12 +12,35 @@ import AVFoundation
 import CoreMedia
 import Foundation
 import ScreenCaptureKit
+import VideoToolbox
+
+/// HEVC needs about half H.264's bitrate for the same picture; both are
+/// encoded in hardware on Apple silicon.
+enum Codec: String {
+    case h264
+    case hevc
+
+    var type: AVVideoCodecType {
+        switch self {
+        case .h264: return .h264
+        case .hevc: return .hevc
+        }
+    }
+
+    var profile: String {
+        switch self {
+        case .h264: return AVVideoProfileLevelH264HighAutoLevel
+        case .hevc: return kVTProfileLevel_HEVC_Main_AutoLevel as String
+        }
+    }
+}
 
 struct RecordOptions {
     var output: URL
     var width: Int
     var height: Int
     var fps: Int
+    var codec: Codec
     var bitrate: Int
     var keyframeInterval: Int
     var audio: Bool
@@ -52,7 +76,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         writer.shouldOptimizeForNetworkUse = false
 
         videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: [
-            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoCodecKey: options.codec.type,
             AVVideoWidthKey: options.width,
             AVVideoHeightKey: options.height,
             AVVideoScalingModeKey: AVVideoScalingModeResizeAspect,
@@ -60,7 +84,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 AVVideoAverageBitRateKey: options.bitrate,
                 AVVideoMaxKeyFrameIntervalKey: options.keyframeInterval,
                 AVVideoExpectedSourceFrameRateKey: options.fps,
-                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+                AVVideoProfileLevelKey: options.codec.profile,
                 AVVideoAllowFrameReorderingKey: false,
             ],
         ])
