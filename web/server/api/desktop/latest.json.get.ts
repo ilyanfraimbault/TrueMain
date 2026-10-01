@@ -1,8 +1,12 @@
 import { loadDesktopRelease } from '~~/server/utils/desktop-release-loader'
 
-/** One manifest per release URL, kept as long as the release list itself. */
+/**
+ * One manifest per release URL, kept as long as the release list itself. GitHub serves release assets as
+ * `application/octet-stream`, which `$fetch` would hand back as a Blob — serialised as `{}`, a manifest the
+ * updater rejects — so the body is parsed as JSON explicitly.
+ */
 const loadManifest = defineCachedFunction(
-  (url: string) => $fetch<Record<string, unknown>>(url, { timeout: 5000 }),
+  (url: string) => $fetch<Record<string, unknown>>(url, { timeout: 5000, responseType: 'json' }),
   { name: 'desktop-update-manifest', maxAge: 5 * 60, getKey: (url: string) => url },
 )
 

@@ -305,8 +305,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   Windows NSIS `.exe` (`desktop-release.yml`) twice — a production flavour reading truemain.lol (`truemain.dmg`,
   `truemain.exe`) and a preprod flavour reading preprod (*TrueMain Beta*, `truemain-<version>.dmg/.exe`) — published as
   a GitHub pre-release with a signed update manifest per flavour. Preprod's `/download` offers its flavour at once,
-  truemain.lol's the production one once promoted; the installed app offers each newer build of its own site at
-  launch (Tauri updater, feed on that site). Unsigned by Apple and Microsoft for the beta.
+  truemain.lol's the production one once promoted. The installed app checks its own site's feed (Tauri updater) at
+  launch and every 15 minutes, downloads a newer build in the background and installs it itself at launch when no
+  champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
+  Unsigned by Apple and Microsoft for the beta.
 - **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), in-game advice
   (next item, gold standing, loading screen — #1749–#1753), TrueMain's
   performance score and participants' ranks in the dashboard's history, LP history from before the app was installed
