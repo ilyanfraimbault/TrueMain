@@ -8,13 +8,13 @@
   colour.
 -->
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '~~/shared/types/match-detail'
+import type { MatchDetailParticipant } from '#shared/types/match-detail'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
+} from '#shared/types/static-data'
 
 const props = defineProps<{
   players: MatchDetailParticipant[]

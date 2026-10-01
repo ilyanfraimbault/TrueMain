@@ -27,9 +27,9 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
 
 <template>
   <div class="flex h-full flex-col gap-4 p-6">
-    <PageHeader title="Champions" icon="i-lucide-swords">
+    <AppPageHeader title="Champions" icon="i-lucide-swords">
       <span v-if="patch" class="stat-label">Patch {{ patch }}</span>
-    </PageHeader>
+    </AppPageHeader>
 
     <div class="flex items-center gap-3">
       <RolePicker v-model:position="lane" />

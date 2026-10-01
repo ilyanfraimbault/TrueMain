@@ -13,7 +13,7 @@ import type {
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
+} from '#shared/types/static-data'
 
 const props = defineProps<{
   nameTag: string

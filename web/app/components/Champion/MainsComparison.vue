@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ChampionComparisonSide } from '~~/shared/types/champions'
-import type { ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '#common/utils/positions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { formatRiotId, isValidRiotId } from '~/utils/riot-id'
 

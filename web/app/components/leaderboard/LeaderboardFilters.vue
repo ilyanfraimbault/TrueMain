@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RegionSlug } from '~~/shared/types/leaderboard'
-import type { ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '#common/utils/positions'
 
 // Position anchors the left edge and region the right edge; the OTP toggle
 // sits in a `flex-1 justify-center` middle group so it's centered in the gap

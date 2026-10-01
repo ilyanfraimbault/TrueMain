@@ -6,10 +6,10 @@
   Opens on the player; the ten portraits switch to anyone else.
 -->
 <script setup lang="ts">
-import type { MatchDetailItemEvent, MatchDetailParticipant } from '~~/shared/types/match-detail'
-import type { ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
-import { isBuildOrderEvent, resolveEventItemId } from '~~/shared/utils/build'
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
+import type { MatchDetailItemEvent, MatchDetailParticipant } from '#shared/types/match-detail'
+import type { ChampionStaticListItem, StaticItemData } from '#shared/types/static-data'
+import { isBuildOrderEvent, resolveEventItemId } from '#shared/utils/build'
+import { getPositionIconUrl } from '#shared/utils/ddragon'
 
 const props = defineProps<{
   participants: MatchDetailParticipant[]

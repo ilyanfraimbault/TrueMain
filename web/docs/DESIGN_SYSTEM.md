@@ -2,7 +2,7 @@
 
 Conventions that are enforced by nothing but habit — write them here before they drift.
 
-The tokens themselves live in [`main.css`](../app/assets/css/main.css), with the reasoning behind each
+The tokens themselves live in [`theme.css`](../layers/common/app/assets/css/theme.css) (the layer the site and the desktop app share), with the reasoning behind each
 choice in its comment. `.claude/docs/decisions.md` records why the system looks the way it does. Every colour
 family, elevation step and material is rendered on one screen at **`/dev/design-system`** — check a change
 there before touring the real pages, and add the section yourself when you add a family.
@@ -115,7 +115,7 @@ every skeleton inside a card is invisible.
 
 ## Named values and global component defaults
 
-Not every token is a colour. `main.css` also owns:
+Not every token is a colour. `theme.css` also owns:
 
 - **`--width-build-path` (336 px) / `--width-starter-items` (116 px)** — the fixed row widths of the
   build-path and starter-item strips, used as `sm:w-build-path` / `sm:w-starter-items`. Named so the

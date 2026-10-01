@@ -3,9 +3,9 @@ import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import { isNavigationFailure } from 'vue-router'
 import { getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import type { SearchResult } from '~~/shared/types/search'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { formatTier } from '~/utils/tiers'
-import { describeFetchError } from '~/utils/errors'
+import { describeFetchError } from '#common/utils/errors'
 // Explicit (over Nuxt auto-import) so the template's {{ SEARCH_MIN_LENGTH }} has
 // a visible source.
 import { SEARCH_MIN_LENGTH } from '~/composables/useTruemainSearch'

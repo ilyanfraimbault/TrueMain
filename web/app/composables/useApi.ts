@@ -1,5 +1,5 @@
 import type { $Fetch } from 'nitropack/types'
-import { describeFetchError, fetchErrorStatus } from '~/utils/errors'
+import { describeFetchError, fetchErrorStatus } from '#common/utils/errors'
 
 /** Where every call these helpers make lands: the Nitro proxy in `server/api/[...path].ts`. */
 export const API_BASE_URL = '/api'

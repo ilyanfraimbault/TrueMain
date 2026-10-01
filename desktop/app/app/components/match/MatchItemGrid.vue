@@ -1,7 +1,7 @@
 <!-- Twin of `web/app/components/match/MatchItemGrid.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { StaticItemData } from '~~/shared/types/static-data'
-import { isNonBuildItem } from '~~/shared/utils/build'
+import type { StaticItemData } from '#shared/types/static-data'
+import { isNonBuildItem } from '#shared/utils/build'
 
 // A player's end-of-game inventory, shared by the collapsed match row and the
 // expanded scoreboard, laid out the way the game lays it out: inventory slots

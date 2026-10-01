@@ -1,4 +1,4 @@
-import type { MatchDetailResponse } from '~~/shared/types/match-detail'
+import type { MatchDetailResponse } from '#shared/types/match-detail'
 import type {
   ChampionStaticData,
   ChampionStaticListItem,
@@ -6,7 +6,7 @@ import type {
   StaticItemData,
   StaticPerkData,
   StaticPerkStyleData,
-} from '~~/shared/types/static-data'
+} from '#shared/types/static-data'
 
 /**
  * The app's side of the composables the twinned site components call, so the
@@ -52,8 +52,11 @@ export function useCanonicalIcon() {
   return (src: string | null | undefined) => src ?? undefined
 }
 
-/** Every champion as the site's static list item — what `LeaderboardRow` resolves names and icons from. */
-export function useChampionsById() {
+/**
+ * Every champion as the site's static list item, keyed by id — the site's
+ * `useChampionsById` over the static list, read from Data Dragon at once.
+ */
+export function useStaticChampionsById() {
   const { champions, portraitOf } = useChampionStatics()
   return computed(() => new Map<number, ChampionStaticListItem>(
     [...champions.value.values()].map(champion => [champion.id, {

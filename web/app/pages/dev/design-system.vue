@@ -47,7 +47,7 @@ const ROSEGOLD_RAMP = [
 
 // Hexes are restated here for the caption only — the swatch itself paints from
 // the CSS var, so a stale hex shows up as a caption that disagrees with the
-// colour beside it. Keep them in step with `--color-data-*` in main.css.
+// colour beside it. Keep them in step with `--color-data-*` in theme.css.
 const DATA_AXIS = [
   { name: 'data-good', class: 'bg-data-good', hex: '#e58f83', use: 'Above average, win — rosegold-400' },
   { name: 'data-good-dim', class: 'bg-data-good-dim', hex: '#b88d8c', use: 'Large fills on the good side' },
@@ -80,7 +80,7 @@ const RUNE_TONES = [
 // Riot's in-client vocabulary for stats, damage types and keywords, rendered by
 // the tooltip parser's tag-class map. Words, never swatches: these are the
 // tokens most likely to be mistaken for a scale, and the page should not be the
-// first place someone sees one as a fill. Grouped the way `main.css` groups
+// first place someone sees one as a fill. Grouped the way `theme.css` groups
 // them so the two read side by side.
 const STAT_FAMILIES = [
   {

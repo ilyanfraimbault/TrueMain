@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useCanonicalIcon } from '~~/app/composables/useCanonicalIcon'
-import { ICON_FETCH_SIZE } from '~~/app/utils/icon-fetch'
+import { ICON_FETCH_SIZE } from '#common/utils/icon-fetch'
 
 /**
  * Guards the invariant #1000 was opened to restore, rather than the four lines

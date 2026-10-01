@@ -1,10 +1,10 @@
 <!-- Twin of `web/app/components/Champion/Core/StarterItems.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { BuildItemSet } from '~~/shared/types/champions'
-import type { StaticItemData } from '~~/shared/types/static-data'
-import { itemSlots } from '~~/shared/utils/build'
-import type { ItemContextCard } from '~~/shared/utils/item-context'
-import { resolveItemContext } from '~~/shared/utils/item-context'
+import type { BuildItemSet } from '#shared/types/champions'
+import type { StaticItemData } from '#shared/types/static-data'
+import { itemSlots } from '#shared/utils/build'
+import type { ItemContextCard } from '#shared/utils/item-context'
+import { resolveItemContext } from '#shared/utils/item-context'
 
 const props = defineProps<{
   starter: BuildItemSet | null
@@ -30,7 +30,7 @@ const items = computed(() => itemSlots(props.starter?.itemIds, props.itemsMap))
       Starter
     </h2>
     <!-- Fixed from sm: 3 items × 36 px + 2 gaps × 4 px = 116 px
-         (--width-starter-items in main.css), 36 px tall. Width is capped at
+         (--width-starter-items in theme.css), 36 px tall. Width is capped at
          the 3-item worst case; height is pinned so the "no data" state
          occupies the same box without collapsing the row. Mobile stays
          fluid (w-full). -->

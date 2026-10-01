@@ -1,8 +1,8 @@
 <!-- Twin of `web/app/components/leaderboard/ChampionBuild.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { LeaderboardTopChampion } from '~~/shared/types/leaderboard'
-import type { StaticItemData, StaticPerkData, StaticPerkStyleData } from '~~/shared/types/static-data'
-import { formatPercentage } from '~~/shared/utils/ddragon'
+import type { LeaderboardTopChampion } from '#shared/types/leaderboard'
+import type { StaticItemData, StaticPerkData, StaticPerkStyleData } from '#shared/types/static-data'
+import { formatPercentage } from '#shared/utils/ddragon'
 
 // The "this is what they main" cluster used on the truemains leaderboard and
 // the homepage teaser: champion icon + play rate + the player's keystone (with

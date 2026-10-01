@@ -5,7 +5,7 @@
   hydration to wait for, so the star reads the list straight away.
 -->
 <script setup lang="ts">
-import type { RegionSlug } from '~~/shared/types/leaderboard'
+import type { RegionSlug } from '#shared/types/leaderboard'
 
 const props = withDefaults(defineProps<{
   gameName: string

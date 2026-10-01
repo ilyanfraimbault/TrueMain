@@ -15,7 +15,7 @@ import {
   WIN_RATE_EDGE,
   winRateBand,
   winRateTone,
-} from '~/utils/rate-tone'
+} from '#common/utils/rate-tone'
 
 describe('winRateTone', () => {
   it('bands the gap from 50% into the five data-axis colours', () => {

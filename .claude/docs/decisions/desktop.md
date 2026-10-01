@@ -52,7 +52,7 @@ order — each candidate's score depends on it alone, so the merge is exact. Bef
 there is nothing to measure, so the podium shows win rates on the lane in the pool's order rather than "+0.0%". The
 ranking itself is the endpoint's; the enemy-team component and a lane-first weighting are #1713 (2026-09-27) — #1675.
 
-**The app draws the site's components, as labelled twin copies, not look-alikes.** Hand-ported versions (a skill
+**The app draws the site's components, as labelled twin copies, not look-alikes** — superseded page by page by the shared layer above (#1732): a component that moves into the layer loses its twin. Hand-ported versions (a skill
 order with plain letters, icons without tooltips) were rejected as "not the site". The copies follow the web↔admin
 twin rule (`web-frontend-rules.md`): a header names the twin, differences are marked app-specific, and the app's
 behaviour sits in shims beside them (`useSiteShims.ts`, `utils/static-data.ts`) so the copies stay verbatim. The
@@ -63,6 +63,21 @@ row does not fit, the twin carries marked width adjustments (the leaderboard row
 and reserves the sub-mains column only where it shows) and the build view's narrow column uses the site's compact
 home-page row instead, with the tag under the name — a truncated name was the first thing reported. The layer that would end the copies is #1687
 (2026-09-27).
+
+**The pages the app shares with the site are one implementation, in a Nuxt layer both apps extend (2026-10-01).**
+The product owner's call: champions, tier list, matchup, truemains and favorites must be *the same pages* in the app
+and on the site, not look-alikes kept in step by hand — the twin copies below drifted at the page level, where nothing
+was copied, and every layout request applied to one side left the other behind. Those pages, and everything they are
+built from, move into `web/layers/common`: the site registers it on its own (`web/layers/*`), the app `extends` it.
+The layer sits inside `web/` because the site's image builds from `./web` alone. A shared page is a component
+(`components/page/*`) that each app's route wraps with what is its own — the site's head tags, the app's scroll
+container. The environment differences are a short host contract (the layer's `README.md`): `useApiFetch` (the site's
+Nitro proxy; the app's shell, with the site's `/static/*` answered from Data Dragon in the same shapes),
+`useChampionSlugs`, `useCanonicalIcon`, and two components the app cannot draw the site's way (`SkeletonImage`,
+`RankIcon`). The design system (`theme.css`), the Nuxt UI theme and dark mode come with the layer, so the app's own
+pages take the site's materials too, and the app reads the site's `shared/` instead of a copy. What stays the app's:
+the dashboard, the draft and the champion page. The tier list moved first; the other pages follow one PR each
+(2026-10-01) — #1732.
 
 **The build pane shows the site's core without its build path, and a true main's own build on a click.** The
 site's core blocks (`Champion/Core/*`) keep the site's layout — summoners over starter, skill order over boots,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import type { ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '#common/utils/positions'
 
 /**
  * Centre stage of the matchup page (#921): the matchup — your champion and

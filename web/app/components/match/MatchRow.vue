@@ -9,7 +9,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { getPositionIconUrl } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { formatDuration } from '~/utils/relativeTime'
 
 const props = defineProps<{

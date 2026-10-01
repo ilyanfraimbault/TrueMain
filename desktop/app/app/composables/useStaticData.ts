@@ -3,7 +3,7 @@ import type {
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
+} from '#shared/types/static-data'
 import type { ChampionDetailResponse, ItemListResponse, SummonerListResponse } from '~/utils/static-data'
 import { DDRAGON, fetchRuneTree, toChampionStatic, toItemsMap, toSummonersMap } from '~/utils/static-data'
 

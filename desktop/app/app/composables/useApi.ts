@@ -6,6 +6,8 @@
  * to open to a remote host. In `npm run dev` there is no Rust, and the dev
  * server proxies `/api` to the site's public entry point instead (nuxt.config).
  */
+import { answerStaticEndpoint } from '~/utils/static-endpoints'
+
 type Query = Record<string, string | number | boolean | null | undefined>
 
 /** The query as `[key, value]` pairs, empty values left out rather than sent blank. */
@@ -39,4 +41,25 @@ export async function openOnSite(path: string) {
     return
   }
   window.open(url, '_blank', 'noopener')
+}
+
+/** The options the shared pages pass to their fetcher — the site's `ApiFetchOptions`, as far as the app reads them. */
+export interface ApiFetchOptions {
+  query?: Query
+  signal?: AbortSignal
+}
+
+/**
+ * The app's answer to the site's `useApiFetch` (`web/app/composables/useApi.ts`),
+ * which the shared pages of `web/layers/common` call: a path under `/api` to its
+ * parsed body. TrueMain's own reads go through `apiGet`; the site's
+ * `/static/*` lookups are Nitro routes the app does not have, so they are
+ * answered here from Data Dragon in the same shapes (`utils/static-endpoints.ts`).
+ */
+export function useApiFetch() {
+  return async <T>(path: string, options: ApiFetchOptions = {}): Promise<T> => {
+    const local = await answerStaticEndpoint(path, options.query ?? {})
+    if (local !== undefined) return local as T
+    return await apiGet<T>(path, options.query)
+  }
 }

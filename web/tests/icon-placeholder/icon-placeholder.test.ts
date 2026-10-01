@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { iconPlaceholderClass, isIconUnresolved, SKELETON_FILL } from '~/utils/icon-placeholder'
+import { iconPlaceholderClass, isIconUnresolved, SKELETON_FILL } from '#common/utils/icon-placeholder'
 
 describe('iconPlaceholderClass', () => {
   it('pulses the shared skeleton fill while loading', () => {

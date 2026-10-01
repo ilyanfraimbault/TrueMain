@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChampionResponse } from '~~/shared/types/champions'
 import { indexItemContext } from '~~/shared/utils/item-context'
-import { isLoadingStatus } from '~/utils/async-data'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 /**
  * Baseline build fallback of the composition builder: when the requested

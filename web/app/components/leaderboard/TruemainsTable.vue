@@ -5,9 +5,9 @@ import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~
 import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { formatCount } from '~~/shared/utils/counts'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { isApexTier } from '~/utils/tiers'
-import { winRateTone } from '~/utils/rate-tone'
+import { winRateTone } from '#common/utils/rate-tone'
 import { leaderboardSortToSorting, sortingToLeaderboardSort, type TableSorting } from '~/utils/table-sorting'
 import { clickSelectableRow, wantsNewTab } from '~/utils/table-rows'
 

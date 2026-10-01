@@ -1,6 +1,6 @@
 <!-- Twin of `web/app/components/leaderboard/LeaderboardRegionFlag.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { RegionSlug } from '~~/shared/types/leaderboard'
+import type { RegionSlug } from '#shared/types/leaderboard'
 
 // Inline rectangular flags (24×16 viewBox) for the three exposed region
 // pills. Kept local to avoid pulling in a flag icon pack for three icons.

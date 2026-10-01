@@ -2,7 +2,7 @@
 import type { MatchDetailItemEvent, MatchDetailParticipant } from '~~/shared/types/match-detail'
 import type { ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 import { isBuildOrderEvent, resolveEventItemId } from '~~/shared/utils/build'
-import { isLoadingStatus } from '~/utils/async-data'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 /**
  * Full-width detail view for a single selected participant (the Details tab).

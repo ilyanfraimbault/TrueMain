@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { RankHistoryEntry } from '~~/shared/types/rank-history'
-import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData, StaticSummonerSpellData } from '~~/shared/types/static-data'
+import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData, StaticSummonerSpellData } from '#shared/types/static-data'
 import type { PlayerGame } from '~/types/record'
 import { counted } from '~/utils/player-form'
 import { toMatchSummary } from '~/utils/match-summary'

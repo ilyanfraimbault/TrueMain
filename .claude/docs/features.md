@@ -23,7 +23,8 @@ Champion/lane directory, one row per (champion, position) — capped at each cha
 **Dominant lanes only (#1082)**: `ChampionDominantLaneFilter` keeps each champion's `ChampionsList:MaxLanesPerChampion` (2) most-played lanes, and a *secondary* lane only if it carries `ChampionsList:MinSecondaryLanePlayRate` (10%) of the champion's games. The most-played lane is always kept, so no champion disappears. Applied in `ChampionSummariesQueryService` after the sample floor and **before** tiering, so it lands identically on `/champions`, `/champions/tierlist` and the homepage teaser, and a lane's tier percentiles rank only the champions genuinely played there.
 Pagination, lane and champion filters and the order are **server-side** since #1734 (`PAGE_SIZE = 50`; a page past the end steps back to page 1). Body wrapped in `<ClientOnly>` with the skeleton table as fallback; all fetches `server: false` deliberately (hydration-mismatch fix, #149).
 
-### `/champions/tierlist` — `web/app/pages/champions/tierlist.vue`
+### `/champions/tierlist` — `web/layers/common/app/components/page/TierList.vue`
+Shared with the desktop app (#1732): the route file `web/app/pages/champions/tierlist.vue` only adds the head tags.
 Server-computed tier list, over the same dominant-lane rows as the directory (#1082 — a champion appears at most twice, on its two dominant positions) and carrying **the directory's own tier**: since #1240 the endpoint only regroups the `Tier`/`TierScore` `ChampionSummariesQueryService` already stamped per lane, instead of running `ChampionTierCalculator` a second time over the same rows with the same options. The two endpoints can therefore no longer disagree on a champion's letter — an integration test compares them row by row. One `SectionCard` per tier group (S→D), each a wall of champion portraits linking to the champion page (`ChampionTierChip`). Header and filters are **the directory's, control for control** (`PageHeader` + the same grid: role left, champion search centred, rank / **truemains** / patch grouped right) with the same Master+ default; the champion search narrows the tier cards to that champion's lines client-side (`?championId=`) and hides tiers left empty. A chip is the portrait alone, with its lane badged into the bottom-right corner; the name and `Win rate / Pick rate / Ban rate` live in the hover tooltip, values coloured on the `--color-data-*` axis by `app/utils/rate-tone.ts` (same ban-rate caveats as the directory). The link's `aria-label` carries name + lane + the three rates, since no tooltip opens on touch or for a screen reader.
 
 ### `/champions/:slug` — `web/app/pages/champions/[slug].vue`
@@ -220,8 +221,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
   payloads through a dev-server relay, so the app runs its real champion select live without a game.
   Outside a live champion select the product's `/draft` page only waits for the next one.
-- **Site sections** — tier list as on the site (a card per tier of champion portraits badged with their lane, the
-  site's lane / rank / truemains-only / patch filters); champions as a table (champion × lane: tier, win, pick, ban
+- **Site sections** — the tier list is **the site's own page** (`PageTierList` from `web/layers/common`, #1732: same
+  header, filters, champion search and tier cards, the app supplying only the host pieces — API through the shell,
+  static data from Data Dragon, `/champions/{id}` links); champions as a table (champion × lane: tier, win, pick, ban
   rate, games); champion page (lane picker, stats, build view, whose true mains list has a search that reaches any main
   of the champion by name and opens their build); matchup (champion vs opponent on a lane, composition build);
   truemains leaderboard as a table with fixed columns under headers (rank, player, lanes, champion and build, score,

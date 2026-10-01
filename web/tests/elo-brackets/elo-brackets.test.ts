@@ -11,7 +11,7 @@ import {
   resolveEloBracket,
   eloBracketLabel,
   DEFAULT_ELO_BRACKET,
-} from '~~/app/utils/elo-brackets'
+} from '#common/utils/elo-brackets'
 
 describe('elo-brackets', () => {
   describe('ELO_TIERS', () => {

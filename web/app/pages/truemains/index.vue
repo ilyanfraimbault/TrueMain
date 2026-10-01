@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
-import type { ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '#common/utils/positions'
 import { REGION_SLUGS } from '~~/shared/types/leaderboard'
 
 useSeoMeta({

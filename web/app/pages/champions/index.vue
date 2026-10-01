@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
-import { normalizeEloBracket } from '~/utils/elo-brackets'
-import { isLoadingStatus } from '~/utils/async-data'
-import { firstParamValue } from '~/utils/route-params'
+import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
+import { normalizeEloBracket } from '#common/utils/elo-brackets'
+import { isLoadingStatus } from '#common/utils/async-data'
+import { firstParamValue } from '#common/utils/route-params'
 import { directoryOrderToQuery, parseDirectoryOrder, type DirectoryOrder } from '~/utils/table-sorting'
 
 // Mirrors the backend default; the page size is fixed in the UI (no

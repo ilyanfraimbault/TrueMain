@@ -2,7 +2,7 @@
 import type { CompositionLane } from '~/types/build'
 import type { Lane } from '~/types/draft'
 import { LANE_LABELS, laneIconUrl } from '~/types/draft'
-import { winRateTone } from '~/utils/rate-tone'
+import { winRateTone } from '#common/utils/rate-tone'
 
 /**
  * Between the two teams: the lane the build on screen is for — its champion

@@ -17,8 +17,8 @@ import type {
   StaticPerkData,
   StaticPerkStyleData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { getChampionSpellImageUrl, getSummonerSpellImageUrl } from '~~/shared/utils/ddragon'
+} from '#shared/types/static-data'
+import { getChampionSpellImageUrl, getSummonerSpellImageUrl } from '#shared/utils/ddragon'
 
 export const DDRAGON = 'https://ddragon.leagueoflegends.com/cdn'
 const COMMUNITY_DRAGON_BASE = 'https://raw.communitydragon.org'

@@ -1,4 +1,4 @@
-import type { RegionSlug } from '~~/shared/types/leaderboard'
+import type { RegionSlug } from '#shared/types/leaderboard'
 
 const STORAGE_KEY = 'truemain:favorites:v1'
 /** The site's own ceiling (`FAVORITES_LIMIT` in `web/app/utils/favorites.ts`). */

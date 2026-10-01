@@ -9,13 +9,13 @@
   site; the champion opens its builds here.
 -->
 <script setup lang="ts">
-import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
-import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { formatPercentage, getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
-import { formatCount } from '~~/shared/utils/counts'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import type { LeaderboardRowResponse } from '#shared/types/leaderboard'
+import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '#shared/types/static-data'
+import { formatPercentage, getPositionIconUrl, getProfileIconUrl } from '#shared/utils/ddragon'
+import { formatCount } from '#shared/utils/counts'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { isApexTier } from '~/utils/tiers'
-import { winRateTone } from '~/utils/rate-tone'
+import { winRateTone } from '#common/utils/rate-tone'
 import { TRUEMAIN_SCORE_LABEL, dedicationParts, formatDedicationLastPlayed, formatDedicationScore } from '~/utils/dedication'
 import { TRUEMAINS_GRID } from '~/utils/truemains-table'
 

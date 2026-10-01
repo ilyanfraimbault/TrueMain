@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
-import type { ProfileIdentity } from '~~/shared/types/profile'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
+import type { LeaderboardResponse, LeaderboardRowResponse } from '#shared/types/leaderboard'
+import type { ProfileIdentity } from '#shared/types/profile'
+import { getProfileIconUrl } from '#shared/utils/ddragon'
 import { isApexTier } from '~/utils/tiers'
 
 /**

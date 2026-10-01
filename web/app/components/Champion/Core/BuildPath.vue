@@ -29,7 +29,7 @@ function contextFor(itemId: number, index: number): ItemContextCard | undefined 
 
 <template>
   <!-- Fixed from sm: 6 items × 36 px + 5 chevrons × 16 px + 10 gaps × 4 px = 336 px
-       (--width-build-path in main.css), 36 px tall. Width locks at the 6-item
+       (--width-build-path in theme.css), 36 px tall. Width locks at the 6-item
        worst case; height is pinned so no-data state doesn't collapse the row.
        On mobile (< sm) the fixed width is removed and items can wrap naturally
        inside available width. justify-center keeps a short chain centred in

@@ -1,7 +1,7 @@
 <!-- Twin of `web/app/components/profile/ProfileRankedCard.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { ProfileRanked } from '~~/shared/types/profile'
-import type { RankHistoryEntry } from '~~/shared/types/rank-history'
+import type { ProfileRanked } from '#shared/types/profile'
+import type { RankHistoryEntry } from '#shared/types/rank-history'
 import {
   rankScore,
   tierHex,
@@ -347,7 +347,7 @@ const showEmptyChart = computed(
  * `components/line/index.js`), which a plain CSS declaration outranks without
  * needing `!important`. Emotion suffixes the path's generated class with
  * "-linePath" (see `label: linePath` in that package's `components/line/
- * style.js`) — same targeting trick as the tooltip override in main.css.
+ * style.js`) — same targeting trick as the tooltip override in theme.css.
  */
 .rank-chart :deep([class*="-linePath"]) {
   stroke: v-bind(lineStroke);

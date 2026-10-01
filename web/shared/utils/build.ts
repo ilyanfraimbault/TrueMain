@@ -1,5 +1,5 @@
-import type { MatchDetailItemEvent } from '~~/shared/types/match-detail'
-import type { StaticItemData } from '~~/shared/types/static-data'
+import type { MatchDetailItemEvent } from '../types/match-detail'
+import type { StaticItemData } from '../types/static-data'
 
 /**
  * Resolve the item an event actually concerns. Riot sets `itemId = 0` on an

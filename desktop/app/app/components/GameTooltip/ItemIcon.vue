@@ -1,8 +1,8 @@
 <!-- Twin of `web/app/components/GameTooltip/ItemIcon.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
-import type { ItemContextCard } from '~~/shared/utils/item-context'
+import type { ItemContextCard } from '#shared/utils/item-context'
 import { computed } from 'vue'
-import type { StaticItemData } from '~~/shared/types/static-data'
+import type { StaticItemData } from '#shared/types/static-data'
 
 defineOptions({ inheritAttrs: false })
 

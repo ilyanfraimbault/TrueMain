@@ -23,10 +23,10 @@ const lanes = computed<Lane[]>(() => entries.value
 
 const lane = computed<Lane | null>({
   get: () => {
-    const asked = String(route.query.lane ?? '').toUpperCase() as Lane
+    const asked = String(route.query.position ?? '').toUpperCase() as Lane
     return LANES.includes(asked) ? asked : lanes.value[0] ?? null
   },
-  set: value => void router.replace({ query: { ...route.query, lane: value ?? undefined } }),
+  set: value => void router.replace({ query: { ...route.query, position: value ?? undefined } }),
 })
 
 const entry = computed(() => entryOf(championId.value, lane.value))

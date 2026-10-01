@@ -16,7 +16,7 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/` | fmt, clippy and tests of the desktop app's Rust crates |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; typecheck and static build of its Nuxt app (below) |
 | `desktop-release.yml` | a `desktop-v*` tag | Builds the desktop app for macOS and Windows and publishes it as a pre-release (below) |
 
 `.github/actions/migration-script` is the composite action every job that
@@ -269,6 +269,16 @@ version sort ranks `1.20.0-rc.4` above `1.20.0`, so anything reading "the
 latest release" must filter to bare `MAJOR.MINOR.PATCH`. `-rc.` and `.` are
 legal in a Docker reference, `+` is not, which is why the version is a semver
 prerelease and not build metadata.
+
+## Desktop app checks
+
+The desktop app renders the site's shared pages from `web/layers/common` and
+reads the site's `web/shared` types (#1732), so a change on the site's side can
+break the app without touching `desktop/`. `desktop.yml` therefore also runs on
+those two paths, and its `Nuxt app` job typechecks the app and builds its static
+bundle (`npm run generate`, what `tauri build` runs) with only the app's own
+dependencies installed — the same conditions as `desktop-release.yml`, where a
+shared file importing a package the app lacks would otherwise fail first.
 
 ## Desktop releases
 

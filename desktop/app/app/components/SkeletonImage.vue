@@ -13,7 +13,7 @@
   twinned tooltip and core-view components use it exactly as the site does.
 -->
 <script setup lang="ts">
-import { iconPlaceholderClass, isIconUnresolved } from '~/utils/icon-placeholder'
+import { iconPlaceholderClass, isIconUnresolved } from '#common/utils/icon-placeholder'
 
 defineOptions({ inheritAttrs: false })
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { POSITION_BY_VALUE } from '~/utils/positions'
-import { isLoadingStatus } from '~/utils/async-data'
-import { parseRouteParam } from '~/utils/route-params'
-import { ELO_BRACKET_ALL } from '~/utils/elo-brackets'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { isLoadingStatus } from '#common/utils/async-data'
+import { parseRouteParam } from '#common/utils/route-params'
+import { ELO_BRACKET_ALL } from '#common/utils/elo-brackets'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[slug].vue. The static-data fetches,

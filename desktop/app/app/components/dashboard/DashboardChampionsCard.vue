@@ -9,8 +9,8 @@
 <script setup lang="ts">
 import type { ChampionLine } from '~/utils/player-form'
 import { kdaOf } from '~/utils/player-form'
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
-import { winRateTone } from '~/utils/rate-tone'
+import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { winRateTone } from '#common/utils/rate-tone'
 
 const props = defineProps<{ champions: ChampionLine[] }>()
 

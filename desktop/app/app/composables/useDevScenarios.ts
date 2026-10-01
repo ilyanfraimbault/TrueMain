@@ -1,7 +1,7 @@
 import type { DraftRecommendation } from '~/types/draft'
 import type { AppState } from '~/types/lcu'
 import type { PlayerRecord } from '~/types/record'
-import type { RankHistoryEntry } from '~~/shared/types/rank-history'
+import type { RankHistoryEntry } from '#shared/types/rank-history'
 import { EMPTY_STATE } from '~/types/lcu'
 
 export interface Scenario {
