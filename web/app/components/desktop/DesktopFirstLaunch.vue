@@ -3,7 +3,7 @@ import type { DesktopPlatform } from '~~/shared/types/desktop'
 
 // The one-time trust prompt of an unsigned beta (#1719), both platforms side by
 // side as numbered steps. The visitor's own platform, once the page has read it,
-// comes first and is ringed; until then — or on a phone — macOS leads.
+// comes first; until then — or on a phone — macOS leads.
 const props = defineProps<{
   platform: DesktopPlatform | null
 }>()
@@ -13,40 +13,28 @@ const GUIDES: Record<DesktopPlatform, { label: string, icon: string }> = {
   windows: { label: 'On Windows', icon: 'i-simple-icons-windows' },
 }
 
-/** The rose-gold disc each step's number sits in. */
-const STEP_NUMBER = 'flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary ring-1 ring-primary/30'
+/** A step's number: plain rose-gold figures in a fixed column, so the copy aligns. */
+const STEP_NUMBER = 'w-4 shrink-0 font-medium tabular-nums text-primary'
 
 const order = computed<DesktopPlatform[]>(() => (props.platform === 'windows' ? ['windows', 'mac'] : ['mac', 'windows']))
 </script>
 
 <template>
-  <div class="grid gap-4 md:grid-cols-2">
-    <article
+  <div class="grid gap-10 sm:grid-cols-2 sm:gap-8">
+    <div
       v-for="target in order"
       :key="target"
-      class="surface rounded-xl p-5 sm:p-6"
-      :class="target === platform ? 'ring-1 ring-primary/40' : ''"
     >
-      <header class="flex items-center gap-2.5">
+      <h3 class="flex items-center gap-2 border-b border-default pb-3 font-semibold text-highlighted">
         <UIcon
           :name="GUIDES[target].icon"
-          class="size-5 text-highlighted"
+          class="size-4"
         />
-        <h3 class="font-semibold text-highlighted">
-          {{ GUIDES[target].label }}
-        </h3>
-        <UBadge
-          v-if="target === platform"
-          color="primary"
-          variant="subtle"
-          size="sm"
-          label="Your computer"
-          class="ml-auto"
-        />
-      </header>
+        {{ GUIDES[target].label }}
+      </h3>
       <ol
         v-if="target === 'mac'"
-        class="mt-4 space-y-3 text-sm leading-relaxed text-muted [&_code]:text-default [&_strong]:font-medium [&_strong]:text-highlighted"
+        class="mt-4 space-y-3.5 text-sm leading-relaxed text-muted [&_code]:text-default [&_strong]:font-medium [&_strong]:text-highlighted"
       >
         <li class="flex gap-3">
           <span aria-hidden="true" :class="STEP_NUMBER">1</span>
@@ -63,7 +51,7 @@ const order = computed<DesktopPlatform[]>(() => (props.platform === 'windows' ? 
       </ol>
       <ol
         v-else
-        class="mt-4 space-y-3 text-sm leading-relaxed text-muted [&_code]:text-default [&_strong]:font-medium [&_strong]:text-highlighted"
+        class="mt-4 space-y-3.5 text-sm leading-relaxed text-muted [&_code]:text-default [&_strong]:font-medium [&_strong]:text-highlighted"
       >
         <li class="flex gap-3">
           <span aria-hidden="true" :class="STEP_NUMBER">1</span>
@@ -78,7 +66,7 @@ const order = computed<DesktopPlatform[]>(() => (props.platform === 'windows' ? 
           <span>The installer finishes on its own and TrueMain opens.</span>
         </li>
       </ol>
-    </article>
+    </div>
   </div>
 </template>
 

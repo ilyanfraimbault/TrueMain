@@ -145,9 +145,13 @@ its rank, truemains-only and patch filters (`Champion/TierChip`, `EloFilter`, `T
 twinned). A champion's true mains list gained the same search, limited to that champion's mains, so any main can be
 reached by name, not only the top five (2026-09-30) — #1719.
 
-**The site announces the app right under the home hero, above the strongest picks and their mains, and `/download`
-is a landing page.** The card under the two teasers and a download page stacked from an alert, a status line and an
-accordion were read as unpolished; the product owner asked for the app to be promoted above "This patch". The banner
-and the page both draw the app's own icon (the M-check on the app's ink tile) and describe only what ships — no
-screenshot or mock-up of the app with figures in it, since a number on the page comes from an endpoint or is left out
+**The site announces the app right under the home hero, above the strongest picks and their mains, and shows the
+real app rather than describing it.** The card under the two teasers and a download page stacked from an alert, a
+status line and an accordion were read as unpolished; a first redesign in icon-tile cards was read as generic,
+"AI-made". So `/download` is left-aligned typography over one large capture of the app in champion select, the
+features are plain columns under a hairline, and the home banner shows the same capture cropped to the sidebar and the
+board. The capture is the real UI over live API answers: `desktop/app`'s `npm run dev` on the `draft-locked` scenario
+(whose build, win rates, games and tiers come from the production API through the dev proxy) at the 1180×760 window,
+2× scale, with the dev scenario picker and the fixture player card hidden. Scenarios that carry a fixture
+`recommendation` — the ranked-picks podium — are never captured, since those deltas are not measurements
 (2026-10-01) — #1725.

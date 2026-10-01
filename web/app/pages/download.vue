@@ -45,69 +45,53 @@ const releasedOn = computed(() => (release.value
 
 const FEATURES = [
   {
-    icon: 'i-lucide-list-ordered',
     title: 'Picks from your own pool',
     body: 'Your most-mastered champions on your lane, ranked as the draft fills: the matchup into your lane opponent and the synergy with the allies already locked.',
   },
   {
-    icon: 'i-lucide-crosshair',
     title: 'The enemy lanes, read for you',
     body: 'Who goes where on the other side is guessed from the picks. A wrong guess is one click to correct, or a drag from one lane to another.',
   },
   {
-    icon: 'i-lucide-hammer',
     title: 'The build against the draft',
-    body: 'Runes, items and skill order for your pick, against the composition in front of you — or the build a true main of that champion runs.',
+    body: 'Runes, items and skill order for your pick against the composition in front of you — or the build a true main of that champion runs.',
   },
-  {
-    icon: 'i-lucide-user-round',
-    title: 'Your profile, from your client',
-    body: 'Your rank, your form over the last games and your match history, read from the League client — whether TrueMain tracks you or not.',
-  },
-] as const
-
-const FACTS = [
-  { icon: 'i-lucide-user-x', label: 'No account' },
-  { icon: 'i-lucide-refresh-cw', label: 'Updates itself' },
-  { icon: 'i-lucide-hand', label: 'Never plays for you' },
 ] as const
 </script>
 
-
 <template>
-  <div class="pb-20">
-    <!-- Hero: the app's icon in its own light, what it is, and the download.
-         The glow is a plain blurred disc rather than the home page's eclipse,
-         which stays the home hero's alone. -->
-    <section class="relative isolate overflow-hidden">
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute left-1/2 top-0 -z-10 h-[28rem] w-[44rem] max-w-[140%] -translate-x-1/2 -translate-y-1/3 rounded-full bg-primary/10 blur-3xl"
-      />
-      <div class="mx-auto flex max-w-3xl flex-col items-center px-4 pb-14 pt-8 text-center sm:pt-12 md:px-6">
-        <DesktopAppIcon class="size-20 sm:size-24" />
-
-        <div class="mt-8 flex items-center gap-2">
-          <p class="eyebrow">
-            Desktop app
-          </p>
-          <UBadge
-            color="primary"
-            variant="subtle"
-            size="sm"
-            label="Beta"
-          />
-        </div>
-        <h1 class="mt-3 text-4xl font-semibold leading-[1.05] tracking-tighter text-balance text-highlighted sm:text-5xl">
-          TrueMain, in your <span class="text-primary">champion select</span>.
-        </h1>
-        <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-          Picks ranked from your own pool, the enemy lanes read for you, and the build against the draft as it stands.
+  <div class="mx-auto max-w-6xl px-4 pb-24 md:px-6">
+    <!-- Hero: what the app is and the download, left-aligned over the app
+         itself — the page shows the product rather than describing it. -->
+    <section class="pt-8 sm:pt-14">
+      <div class="flex items-center gap-3">
+        <DesktopAppIcon class="size-9" />
+        <p class="text-sm font-medium text-highlighted">
+          TrueMain for desktop
         </p>
+        <UBadge
+          color="primary"
+          variant="subtle"
+          size="sm"
+          label="Beta"
+        />
+      </div>
 
-        <div class="mt-9 flex w-full flex-col items-center gap-4">
+      <div class="mt-8 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div>
+          <h1 class="text-4xl font-semibold leading-[1.05] tracking-tighter text-balance text-highlighted sm:text-6xl">
+            Champion select,<br>
+            <span class="text-primary">read for you</span>.
+          </h1>
+          <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
+            The TrueMain app sits next to the League client: it ranks the picks from your own pool, works out the enemy
+            lanes, and hands you the build against the draft as it stands.
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-3 lg:items-end">
           <template v-if="release">
-            <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+            <div class="flex flex-col gap-3 sm:flex-row">
               <template v-if="platform">
                 <UButton
                   :to="downloadUrl(platform)"
@@ -126,7 +110,7 @@ const FACTS = [
                   color="neutral"
                   variant="ghost"
                   :icon="PLATFORMS[other].icon"
-                  :label="`Also for ${PLATFORMS[other].label}`"
+                  :label="PLATFORMS[other].label"
                   class="justify-center"
                 />
               </template>
@@ -146,8 +130,8 @@ const FACTS = [
                 />
               </template>
             </div>
-            <p class="text-sm text-muted">
-              Version <span class="font-medium tabular-nums text-default">{{ release.version }}</span> · released {{ releasedOn }}
+            <p class="text-sm text-dimmed lg:text-right">
+              Version {{ release.version }} · {{ releasedOn }}
               <template v-if="onPhone">
                 <br>The app runs on a computer, next to the League client: open this page there.
               </template>
@@ -161,129 +145,115 @@ const FACTS = [
             icon="i-lucide-cloud-off"
             title="The download is unavailable for a moment"
             description="The list of releases could not be read. Try again in a few minutes."
-            class="max-w-lg text-left"
+            class="max-w-md"
           />
-          <div
-            v-else-if="status !== 'pending'"
-            class="inline-flex items-center gap-2.5 rounded-full bg-elevated px-4 py-2 text-sm text-muted ring-1 ring-default"
-          >
-            <span class="relative flex size-2">
-              <span class="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" />
-              <span class="relative inline-flex size-2 rounded-full bg-primary" />
-            </span>
-            The first beta is on its way — this page offers it as soon as it is out.
-          </div>
-
-          <ul class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted">
-            <li
-              v-for="fact in FACTS"
-              :key="fact.label"
-              class="flex items-center gap-1.5"
-            >
-              <UIcon
-                :name="fact.icon"
-                class="size-4 text-primary"
-              />
-              {{ fact.label }}
-            </li>
-          </ul>
+          <template v-else-if="status !== 'pending'">
+            <UButton
+              size="xl"
+              color="neutral"
+              variant="subtle"
+              icon="i-lucide-download"
+              label="Coming soon"
+              disabled
+              class="justify-center"
+            />
+            <p class="text-sm text-dimmed lg:text-right">
+              The first beta is on its way; it will be offered here.
+            </p>
+          </template>
         </div>
       </div>
     </section>
 
-    <div class="mx-auto max-w-5xl space-y-16 px-4 md:px-6">
-      <section>
-        <div class="mb-6">
-          <p class="eyebrow">
-            What it does
-          </p>
-          <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
-            Champion select, read for you.
-          </h2>
-        </div>
-        <ul class="grid gap-4 sm:grid-cols-2">
-          <li
-            v-for="feature in FEATURES"
-            :key="feature.title"
-            class="surface rounded-xl p-5 sm:p-6"
+    <!-- The app, as it draws a champion select: a capture of the real UI over
+         live API answers (the build, its win rates and games, the tiers), at
+         the app's own 1180×760 window. Its foot fades into the page rather than
+         ending on a row cut in half. -->
+    <figure class="relative mt-12 sm:mt-16">
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-x-[10%] -top-8 -z-10 h-2/3 rounded-full bg-primary/10 blur-3xl"
+      />
+      <div class="overflow-hidden rounded-xl ring-1 ring-white/15 shadow-[0_30px_80px_-20px_rgb(0_0_0/0.8)] [mask-image:linear-gradient(to_bottom,black_70%,transparent)]">
+        <img
+          src="/desktop/champion-select.webp"
+          width="1180"
+          height="760"
+          alt="The TrueMain app during champion select: both teams with their tiers, the lane duel, and the build for Ahri against the draft."
+          class="block h-auto w-full"
+        >
+      </div>
+    </figure>
+
+    <section class="mt-4 grid gap-x-10 gap-y-8 md:grid-cols-3">
+      <div
+        v-for="feature in FEATURES"
+        :key="feature.title"
+        class="border-t border-default pt-5"
+      >
+        <h2 class="font-semibold text-highlighted">
+          {{ feature.title }}
+        </h2>
+        <p class="mt-2 text-sm leading-relaxed text-muted">
+          {{ feature.body }}
+        </p>
+      </div>
+    </section>
+
+    <section class="mt-24 grid gap-10 lg:grid-cols-[18rem_1fr] lg:gap-16">
+      <div>
+        <h2 class="text-2xl font-semibold tracking-tight text-highlighted">
+          Opening it the first time
+        </h2>
+        <p class="mt-3 text-sm leading-relaxed text-muted">
+          The beta is not signed by Apple or Microsoft yet, so your computer asks once whether to trust it. After that
+          it opens like any other app, and updates itself when a new beta is out.
+        </p>
+      </div>
+      <DesktopFirstLaunch :platform="platform" />
+    </section>
+
+    <section class="mt-24 grid gap-10 lg:grid-cols-[18rem_1fr] lg:gap-16">
+      <h2 class="text-2xl font-semibold tracking-tight text-highlighted">
+        Requirements
+      </h2>
+      <div class="space-y-6">
+        <dl class="divide-y divide-default border-y border-default text-sm">
+          <div
+            v-for="(entry, target) in PLATFORMS"
+            :key="target"
+            class="flex items-center gap-3 py-3"
           >
-            <span class="flex size-10 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/30">
-              <UIcon
-                :name="feature.icon"
-                class="size-5 text-primary"
-              />
-            </span>
-            <h3 class="mt-4 font-semibold text-highlighted">
-              {{ feature.title }}
-            </h3>
-            <p class="mt-1.5 text-sm leading-relaxed text-muted">
-              {{ feature.body }}
-            </p>
-          </li>
-        </ul>
-      </section>
-
-      <section>
-        <div class="mb-6">
-          <p class="eyebrow">
-            First launch
-          </p>
-          <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
-            Opening it the first time.
-          </h2>
-          <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-            The beta is not signed by Apple or Microsoft yet, so your computer asks once whether to trust it. After that it
-            opens like any other app.
-          </p>
-        </div>
-        <DesktopFirstLaunch :platform="platform" />
-      </section>
-
-      <section class="grid gap-4 md:grid-cols-2">
-        <div class="surface rounded-xl p-5 sm:p-6">
-          <h2 class="font-semibold text-highlighted">
-            What it needs
-          </h2>
-          <ul class="mt-4 space-y-2.5 text-sm text-muted">
-            <li
-              v-for="(entry, target) in PLATFORMS"
-              :key="target"
-              class="flex items-center gap-2.5"
-            >
+            <dt class="flex w-28 shrink-0 items-center gap-2 text-highlighted">
               <UIcon
                 :name="entry.icon"
-                class="size-4 shrink-0 text-dimmed"
+                class="size-4 shrink-0"
               />
+              {{ entry.label }}
+            </dt>
+            <dd class="text-muted">
               {{ entry.requirement }}
-            </li>
-            <li class="flex items-center gap-2.5">
+            </dd>
+          </div>
+          <div class="flex items-center gap-3 py-3">
+            <dt class="flex w-28 shrink-0 items-center gap-2 text-highlighted">
               <UIcon
                 name="i-lucide-gamepad-2"
-                class="size-4 shrink-0 text-dimmed"
+                class="size-4 shrink-0"
               />
+              League
+            </dt>
+            <dd class="text-muted">
               The League of Legends client, on the same computer
-            </li>
-          </ul>
-        </div>
-        <div class="surface rounded-xl p-5 sm:p-6">
-          <h2 class="font-semibold text-highlighted">
-            What it reads
-          </h2>
-          <p class="mt-4 text-sm leading-relaxed text-muted">
-            No account and no sign-in. The app reads your champion select, your rank and your recent games from the
-            League client on your computer — your games stay on it — and asks TrueMain for the picks and builds that fit
-            the draft. It never plays, picks or types anything for you.
-          </p>
-        </div>
-      </section>
-
-      <p class="flex items-start justify-center gap-2 text-center text-sm text-dimmed">
-        <UIcon
-          name="i-lucide-flask-conical"
-          class="mt-0.5 size-4 shrink-0"
-        />
-        <span>A beta: expect rough edges and frequent changes. It updates itself, so each fix reaches you without reinstalling.</span>
-      </p>
-    </div>
+            </dd>
+          </div>
+        </dl>
+        <p class="max-w-2xl text-sm leading-relaxed text-muted">
+          No account and no sign-in. The app reads your champion select, your rank and your recent games from the
+          League client on your computer — your games stay on it — and asks TrueMain for the picks and builds that fit
+          the draft. It never plays, picks or types anything for you. It is a beta: expect rough edges while it grows.
+        </p>
+      </div>
+    </section>
   </div>
 </template>

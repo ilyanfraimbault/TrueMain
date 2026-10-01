@@ -1,70 +1,40 @@
 <script setup lang="ts">
-// The desktop companion's place on the home page (#1719): a banner right under
-// the hero, above the strongest picks and their mains — the app is those two
-// answers brought into champion select, so it is announced before them. It says
-// it is a beta up front: the installers are unsigned and the app is still moving.
-const FEATURES = [
-  { icon: 'i-lucide-list-ordered', label: 'Picks from your pool' },
-  { icon: 'i-lucide-crosshair', label: 'Enemy lanes read for you' },
-  { icon: 'i-lucide-hammer', label: 'The build against the draft' },
-] as const
+// The desktop companion's place on the home page (#1719, #1725): a banner right
+// under the hero, above the strongest picks and their mains — the app is those
+// two answers brought into champion select, so it is announced before them. It
+// shows the app itself (the capture `/download` opens on), cropped to its
+// sidebar and draft board, and says it is a beta up front.
 </script>
 
 <template>
   <section class="mx-auto max-w-6xl px-4 pb-16 md:px-6">
-    <div class="surface relative isolate overflow-hidden rounded-2xl p-6 sm:p-8">
-      <!-- The banner's light: a rose-gold wash from behind the icon, and a
-           hairline of the same colour along the top edge. -->
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute -left-16 -top-24 -z-10 size-72 rounded-full bg-primary/8 blur-3xl"
-      />
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
-      />
-
-      <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-8">
-        <DesktopAppIcon class="size-16 sm:size-20" />
-
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2">
-            <p class="eyebrow">
-              Desktop app
-            </p>
-            <UBadge
-              color="primary"
-              variant="subtle"
-              size="sm"
-              label="Beta"
-            />
-          </div>
-          <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
-            TrueMain, in your champion select.
-          </h2>
-          <ul class="mt-4 flex flex-wrap gap-2">
-            <li
-              v-for="feature in FEATURES"
-              :key="feature.label"
-              class="inline-flex items-center gap-1.5 rounded-full bg-default/60 px-3 py-1 text-sm text-default ring-1 ring-default"
-            >
-              <UIcon
-                :name="feature.icon"
-                class="size-4 text-primary"
-              />
-              {{ feature.label }}
-            </li>
-          </ul>
+    <div class="surface relative isolate grid overflow-hidden rounded-2xl md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div class="relative z-10 flex flex-col justify-center p-6 sm:p-8 lg:p-10">
+        <div class="flex items-center gap-2">
+          <p class="eyebrow">
+            Desktop app
+          </p>
+          <UBadge
+            color="primary"
+            variant="subtle"
+            size="sm"
+            label="Beta"
+          />
         </div>
-
-        <div class="flex shrink-0 flex-col items-start gap-2.5 lg:items-center">
+        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
+          TrueMain, in your champion select.
+        </h2>
+        <p class="mt-3 max-w-md text-sm leading-relaxed text-muted sm:text-base">
+          Picks ranked from your own pool, the enemy lanes worked out, and the build against the draft as it stands.
+        </p>
+        <div class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
           <UButton
             to="/download"
-            size="xl"
+            size="lg"
             icon="i-lucide-download"
             label="Get the beta"
           />
-          <p class="flex items-center gap-2 text-xs text-dimmed">
+          <span class="flex items-center gap-2 text-xs text-dimmed">
             <UIcon
               name="i-simple-icons-apple"
               class="size-3.5"
@@ -73,9 +43,26 @@ const FEATURES = [
               name="i-simple-icons-windows"
               class="size-3"
             />
-            For macOS and Windows
-          </p>
+            macOS and Windows
+          </span>
         </div>
+      </div>
+
+      <!-- The app, bleeding off the banner's right and bottom edges: only its
+           top-left corner — the sidebar and the draft board — is in frame. -->
+      <div
+        aria-hidden="true"
+        class="relative h-56 md:h-auto md:min-h-72"
+      >
+        <div class="pointer-events-none absolute inset-x-[15%] top-1/4 -z-10 h-1/2 rounded-full bg-primary/10 blur-3xl" />
+        <img
+          src="/desktop/champion-select.webp"
+          width="1180"
+          height="760"
+          alt=""
+          loading="lazy"
+          class="absolute left-6 top-6 w-[52rem] max-w-none rounded-tl-xl ring-1 ring-white/15 [mask-image:linear-gradient(to_bottom,black_55%,transparent)] md:left-0 md:top-10"
+        >
       </div>
     </div>
   </section>
