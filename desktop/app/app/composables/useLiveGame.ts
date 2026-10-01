@@ -7,7 +7,12 @@ import type { GameChange, GameState, GameUpdate } from '~/types/game'
  */
 export function applyGameChanges(game: GameState, changes: GameChange[]): GameState {
   const players = game.players.map(player => ({ ...player }))
+  let gold = game.gold
   for (const change of changes) {
+    if (change.kind === 'gold') {
+      gold = change.gold
+      continue
+    }
     const player = players[change.player]
     if (!player) continue
     switch (change.kind) {
@@ -28,7 +33,7 @@ export function applyGameChanges(game: GameState, changes: GameChange[]): GameSt
         break
     }
   }
-  return { ...game, players }
+  return { ...game, players, gold }
 }
 
 /**

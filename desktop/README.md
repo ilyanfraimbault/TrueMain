@@ -69,6 +69,12 @@ Tracking issue: **#1671**.
   player's portrait greyed under the seconds left before they respawn, and the
   kills of each side and the game clock above. It is the frame the in-game
   panels of #1747 land in.
+- **Says what to complete next** (#1751): over the board, the legendary the
+  champion's mains complete from where your build stands in a game like this
+  one (`POST /champions/{id}/next-item`, #1749), with the situation behind it,
+  the gold left to finish it, the components your gold buys now, two
+  runners-up and the boots while you have none. Asked again whenever anyone's
+  items change.
 
 ## What it does not do yet
 
@@ -84,9 +90,9 @@ Tracking issue: **#1671**.
   numbers need #1682 — our database holds true mains only.
 - **No in-game overlay.** The game page is a screen of the companion window;
   panels over the game itself are gated on the spike in #1673.
-- **No in-game advice yet.** The game page shows the scoreboard's own
-  information; the next item, the gold standing and the loading screen are
-  #1749–#1753.
+- **The next item reads the draft, not the enemies' builds yet.** What they
+  have actually bought is #1750; the gold standing and the loading screen are
+  #1752 and #1753.
 - **No game recording yet.** Its core is written and tested
   (`crates/game-recording`: the resolution/frame-rate settings, the player's
   kills, deaths and assists from the timeline or the live feed, the game-clock

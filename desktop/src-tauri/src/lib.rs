@@ -183,18 +183,19 @@ fn is_id(segment: &str) -> bool {
     !segment.is_empty() && segment.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// The POSTs the shared matchup page makes (#1732): a champion's composition
-/// build against a draft, and the games behind it. Reads that take the draft as
-/// a body, listed like `READABLE_PATHS`.
+/// The POSTs the app makes: a champion's composition build against a draft and
+/// the games behind it (the shared matchup page, #1732), and the next item to
+/// complete in a live game (#1751). Reads that take a game state as a body,
+/// listed like `READABLE_PATHS`.
 fn postable(path: &str) -> bool {
     let Some(rest) = path.strip_prefix("/champions/") else {
         return false;
     };
     let segments: Vec<&str> = rest.split('/').collect();
     match segments.as_slice() {
-        [champion_id, "composition-build"] | [champion_id, "composition-build", "games"] => {
-            is_id(champion_id)
-        }
+        [champion_id, "composition-build"]
+        | [champion_id, "composition-build", "games"]
+        | [champion_id, "next-item"] => is_id(champion_id),
         _ => false,
     }
 }
@@ -293,6 +294,8 @@ mod tests {
     fn posts_only_the_composition_build_and_its_games() {
         assert!(postable("/champions/103/composition-build"));
         assert!(postable("/champions/103/composition-build/games"));
+        assert!(postable("/champions/103/next-item"));
+        assert!(!postable("/champions/x/next-item"));
         assert!(!postable("/champions/draft"));
         assert!(!postable("/champions/x/composition-build"));
         assert!(!postable("/champions//composition-build"));

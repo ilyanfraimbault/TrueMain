@@ -50,6 +50,7 @@ export interface ItemListResponse {
     plaintext?: string
     description?: string
     tags?: string[]
+    from?: string[]
   }>
 }
 
@@ -67,6 +68,7 @@ export function toItemsMap(items: ItemListResponse, patch: string): Record<numbe
         plaintext: item.plaintext,
         description: item.description,
         tags: item.tags,
+        from: item.from?.map(Number),
       } satisfies StaticItemData,
     ]),
   )

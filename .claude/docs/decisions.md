@@ -339,6 +339,7 @@ Last verified against `develop` on 2026-09-02.
 - Screen capture runs in a native helper process per platform (Swift + ScreenCaptureKit + VideoToolbox on macOS), driven over JSON lines; encoder settings still computed in Rust (2026-10-01) — #1745
 - The dashboard reads the player's record from their own client (history, ranked, profile skin, scoreboards, timelines), not TrueMain's API; the site's ranked card as a twin; the match row, its accordion (a compact same-surface match detail), champions and roles derived from the site's; LP history noted locally; form = last 5 vs own average, no composite score (2026-09-30) — #1683
 - The running game is read from its Live Client Data API every 2 s while `InProgress`, sent as a snapshot then numbered changes; `/game` opens from home or the draft only, shows the scoreboard's own information; enemy visibility still to verify live (2026-10-01) — #1748
+- The next item sits over the game board: the mains' next legendary, one reason, the gold left and the components buyable now, two runners-up and the boots; asked on item changes only; our gold in 50-gold steps (2026-10-01) — #1751
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 

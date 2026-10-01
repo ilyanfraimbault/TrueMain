@@ -29,6 +29,12 @@ export interface StaticItemData {
    */
   inStore?: boolean
   /**
+   * The item's recipe (DDragon `item.from`): the components it is built from. Read by
+   * the desktop app's next-item panel to say which component can be bought now; the
+   * site's own static endpoint does not fill it.
+   */
+  from?: number[]
+  /**
    * DDragon `item.tags` — coarse category labels ("Boots", "Damage",
    * "Trinket", "Consumable", ...). Absent items are treated as tag-less.
    */

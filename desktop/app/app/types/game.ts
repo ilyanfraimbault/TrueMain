@@ -10,6 +10,8 @@ export interface GameState {
   myTeam: GameTeam | null
   /** All ten, blue side then red side. A change names a player by its index here. */
   players: GamePlayer[]
+  /** Our unspent gold, floored to 50 (`GOLD_STEP`); 0 when spectating. */
+  gold: number
 }
 
 /** `ORDER` is blue side, `CHAOS` red. */
@@ -57,6 +59,7 @@ export type GameChange =
   | { kind: 'score', player: number, kills: number, deaths: number, assists: number }
   | { kind: 'died', player: number, respawnAt: number }
   | { kind: 'respawned', player: number }
+  | { kind: 'gold', gold: number }
 
 /** Mirrors `GameUpdate` in `crates/live-client/src/feed.rs`. */
 export interface GameUpdate {

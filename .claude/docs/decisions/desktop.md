@@ -230,3 +230,10 @@ because the Windows helper can then be whatever Windows captures best with, behi
 size, bitrate and keyframe interval are still computed in Rust (`Quality::output_for`) and passed in, so the rule
 has one implementation. The spike (`capture-spike`) runs this pair outside the app first; it becomes a Tauri sidecar
 only once the spike's measurements hold (2026-10-01) — #1745.
+
+**The next item sits over the game board and answers one purchase: what to complete, and what to buy now.** The mains'
+choice from where our build stands (#1749) is the decision; its share of the mains, one reason in the site's own
+item-context words, the gold left and the components the gold in hand buys are what turns it into a purchase. Two
+runners-up and the boots stay small beside it. It is asked again on any item change of the ten players and never on a
+timer, because nothing else moves the answer. Our gold joins the game state in 50-gold steps — income crosses one about
+every ten seconds — rather than every reading, so the board does not become a change per poll (2026-10-01) — #1751.

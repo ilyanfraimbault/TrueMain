@@ -8,8 +8,8 @@ import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
  * level, summoner spells, K/D/A and items as they buy them. The strip over it
  * carries the map, the kills of each side and the game clock.
  *
- * This is the frame the in-game panels of #1747 land in; on its own it shows
- * only what the game's scoreboard shows, and nothing derived from it.
+ * This is the frame the in-game panels of #1747 land in: over the board, the
+ * next item to complete (#1751) when we are a player rather than spectating.
  */
 const props = defineProps<{
   game: GameState
@@ -98,6 +98,8 @@ const sideLabel = (team: GameTeam, ours: boolean) => {
 
       <span class="justify-self-end stat-value text-xl leading-none tabular-nums" title="Game time">{{ minutes(clock) }}</span>
     </header>
+
+    <GameNextItem v-if="game.myTeam" :game="game" />
 
     <section class="surface overflow-hidden rounded-xl">
       <div class="grid grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] items-center gap-3 border-b border-default px-4 py-2">

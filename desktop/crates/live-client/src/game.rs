@@ -5,7 +5,8 @@
 //! — rather than at the pace of the poll. Creep score, gold and champion stats
 //! change on nearly every reading; carrying them would turn every poll into a
 //! change, which is exactly what the frontend is not to receive. A panel that
-//! needs one of them adds it here with the pace it actually needs.
+//! needs one of them adds it here with the pace it actually needs — our gold,
+//! for the next-item panel (#1751), moves in steps of [`GOLD_STEP`].
 
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +29,15 @@ pub struct GameState {
     /// All ten players, in the game's order (blue side, then red side). An
     /// index into this list is how a change names a player.
     pub players: Vec<GamePlayer>,
+    /// Our unspent gold, floored to [`GOLD_STEP`]; 0 when spectating. Only
+    /// the player's own gold exists in the API.
+    pub gold: i64,
 }
+
+/// The pace our gold moves at on the frontend. Income alone crosses a step
+/// every ten seconds or so, a last hit or a kill at once — fine enough to say
+/// what can be bought now, coarse enough not to make every poll a change.
+pub const GOLD_STEP: i64 = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
@@ -124,6 +133,10 @@ pub enum GameChange {
     Respawned {
         player: usize,
     },
+    /// Our gold crossed a [`GOLD_STEP`].
+    Gold {
+        gold: i64,
+    },
 }
 
 const CHAMPION_PREFIX: &str = "game_character_displayname_";
@@ -150,6 +163,7 @@ impl GameState {
             map_number: data.game_data.map_number,
             my_team: players.iter().find(|player| player.is_me).map(|me| me.team),
             players,
+            gold: floor_to_step(data.active_player.current_gold),
         })
     }
 
@@ -205,6 +219,9 @@ impl GameState {
                 _ => {}
             }
         }
+        if self.gold != next.gold {
+            changes.push(GameChange::Gold { gold: next.gold });
+        }
         Some(changes)
     }
 
@@ -218,6 +235,10 @@ impl GameState {
                 | GameChange::Score { player, .. }
                 | GameChange::Died { player, .. }
                 | GameChange::Respawned { player } => *player,
+                GameChange::Gold { gold } => {
+                    self.gold = *gold;
+                    continue;
+                }
             };
             let Some(player) = self.players.get_mut(index) else {
                 continue;
@@ -243,6 +264,7 @@ impl GameState {
                     player.dead = false;
                     player.respawn_at = None;
                 }
+                GameChange::Gold { .. } => {}
             }
         }
     }
@@ -316,6 +338,13 @@ impl GamePlayer {
                 .then_some(game_time + player.respawn_timer.max(0.0)),
         })
     }
+}
+
+fn floor_to_step(gold: f64) -> i64 {
+    // Truncation is the intent: gold not yet in hand buys nothing.
+    #[allow(clippy::cast_possible_truncation)]
+    let whole = gold.max(0.0) as i64;
+    whole / GOLD_STEP * GOLD_STEP
 }
 
 /// Whether a player is the one this game client belongs to, on whichever name
@@ -419,6 +448,29 @@ mod tests {
             vec![(0, 1056), (1, 2003), (6, 3340)]
         );
         assert_eq!(items[1].count, 2);
+    }
+
+    fn with_gold(gold: f64, game_time: f64) -> GameState {
+        let mut data = payload(serde_json::Value::Array(duo()), game_time);
+        data.active_player.current_gold = gold;
+        GameState::from_payload(&data).unwrap()
+    }
+
+    #[test]
+    fn our_gold_moves_in_steps_not_by_the_tick() {
+        let start = with_gold(512.7, 100.0);
+        assert_eq!(start.gold, 500);
+        assert_eq!(start.diff(&with_gold(549.9, 102.0)), Some(vec![]));
+
+        let crossed = with_gold(550.0, 104.0);
+        assert_eq!(
+            start.diff(&crossed),
+            Some(vec![GameChange::Gold { gold: 550 }])
+        );
+
+        let mut applied = start.clone();
+        applied.apply(&[GameChange::Gold { gold: 550 }]);
+        assert_eq!(applied.gold, 550);
     }
 
     #[test]

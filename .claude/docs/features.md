@@ -234,8 +234,15 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   so a missed one triggers a re-read. The page: the ten players lane by lane, ours left and theirs mirrored right —
   portrait with level, summoner spells, Riot ID, K/D/A, six items + trinket (stack counts, a new item ringed for 4 s),
   a dead player greyed under a respawn countdown — under a strip with the map, each side's kills and a running game
-  clock. A loading state until the game answers, a waiting state outside a game. No advice on it yet (#1749–#1753);
-  what the API reveals about enemies is documented in `desktop/README.md` and still to verify in a live game.
+  clock. A loading state until the game answers, a waiting state outside a game. What the API reveals about enemies is
+  documented in `desktop/README.md` and still to verify in a live game.
+  Over the board, when we are a player, **the next item** (#1751, `game/GameNextItem.vue`): the legendary the mains
+  complete next from where our build stands in a game like this one (`POST /champions/{id}/next-item`, #1749 — asked on
+  every item change of any of the ten, settled 600 ms, never on a timer), its share of the mains, the strongest situation
+  behind it in the site's item-context wording, the gold left to complete it and its missing components (Data Dragon
+  recipe) ringed when the gold in hand buys them, the two runners-up, and the boots while none are held. Our completion
+  order is noted as items land; "off the mains' path" says when the build left their tree. Our gold reaches the page in
+  50-gold steps (`GOLD_STEP`), the only gold the API exposes.
 - **Game simulator** (development only, `/dev/game-sim` + `npm run tauri:sim`) — plays the committed synthetic tape
   `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
   reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
