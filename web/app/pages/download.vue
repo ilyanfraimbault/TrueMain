@@ -173,8 +173,9 @@ watch(platform, (detected) => {
         </li>
       </ul>
       <p class="text-sm text-muted">
-        No account and no sign-in. The app reads your champion select from the League client on your computer and asks
-        TrueMain for the picks and builds that fit it; it never plays, picks or types anything for you.
+        No account and no sign-in. The app reads your champion select, your rank and your recent games from the League
+        client on your computer — your games stay on it — and asks TrueMain for the picks and builds that fit the draft;
+        it never plays, picks or types anything for you.
       </p>
     </section>
   </div>
