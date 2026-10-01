@@ -8,8 +8,8 @@ import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-p
 import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { isApexTier } from '~/utils/tiers'
 import { winRateTone } from '#common/utils/rate-tone'
-import { leaderboardSortToSorting, sortingToLeaderboardSort, type TableSorting } from '~/utils/table-sorting'
-import { clickSelectableRow, wantsNewTab } from '~/utils/table-rows'
+import { leaderboardSortToSorting, sortingToLeaderboardSort, type TableSorting } from '#common/utils/table-sorting'
+import { clickSelectableRow, wantsNewTab } from '#common/utils/table-rows'
 
 // The /truemains leaderboard as a `UTable` (#1734). The page already holds one
 // page of rows in the order the API ranked them; the table draws them and

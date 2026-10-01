@@ -1,21 +1,20 @@
-<!-- Twin of `web/app/components/GameTooltip/ChampionSpellIcon.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { StaticChampionSpellData } from '#shared/types/static-data'
+import type { StaticSummonerSpellData } from '#shared/types/static-data'
 
 defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(defineProps<{
-  spell?: StaticChampionSpellData | null
+  spell?: StaticSummonerSpellData | null
   width?: number | string
   height?: number | string
   /** Native lazy-loading hint forwarded to the icon (`'lazy'` below the fold). */
   loading?: 'lazy' | 'eager'
-  /** Fallback label shown when no icon URL is available (e.g. the slot key 'Q'). */
+  /** Optional fallback label rendered (and used as tooltip text) when no icon URL is available. */
   fallbackLabel?: string
-  /** True while the champion's static data is still loading — see `SkeletonImage`'s `pending`. */
+  /** True while the summoner-spell static map is still loading — see `SkeletonImage`'s `pending`. */
   pending?: boolean
-  /** The champion's static data has resolved, so a still-missing icon is final — see `SkeletonImage`'s `settled`. */
+  /** The summoner-spell map has resolved, so a still-missing icon is final — see `SkeletonImage`'s `settled`. */
   settled?: boolean
 }>(), {
   spell: null,
@@ -34,7 +33,7 @@ const hasSpell = computed(() => Boolean(props.spell))
 // reads the trigger node at mount — the stale reference leaves the tooltip
 // unable to close on pointer exit, so hovering the icons in turn stacked their
 // tooltips on screen instead of replacing them.
-const fallbackText = computed(() => props.fallbackLabel || props.spell?.key || '')
+const fallbackText = computed(() => props.fallbackLabel || props.spell?.name || '')
 </script>
 
 <template>
@@ -59,7 +58,7 @@ const fallbackText = computed(() => props.fallbackLabel || props.spell?.key || '
       #content
     >
       <GameTooltipSurface>
-        <GameTooltipChampionSpellBody :spell="spell" />
+        <GameTooltipSummonerSpellBody :spell="spell" />
       </GameTooltipSurface>
     </template>
   </GameTooltipLazyTooltip>

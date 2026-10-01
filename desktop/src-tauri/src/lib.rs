@@ -122,11 +122,16 @@ async fn champion_build(
         .await
 }
 
-/// The reads the pages outside the draft make — the tier list, the true mains
-/// leaderboard and its search. Listed rather than open: the shell forwards
-/// these and nothing else, so the webview cannot turn it into a general proxy
-/// onto the API.
-const READABLE_PATHS: &[&str] = &["/champions/tierlist", "/truemains", "/truemains/search"];
+/// The reads the pages outside the draft make — the tier list, the champion
+/// directory, the true mains leaderboard and its search. Listed rather than
+/// open: the shell forwards these and nothing else, so the webview cannot turn
+/// it into a general proxy onto the API.
+const READABLE_PATHS: &[&str] = &[
+    "/champions/tierlist",
+    "/champions/directory",
+    "/truemains",
+    "/truemains/search",
+];
 
 /// A path the app may read: one of `READABLE_PATHS`, or one true main's build
 /// on a champion — `/truemains/{nameTag}/champions/{championId}`, the Riot ID
@@ -212,6 +217,7 @@ mod tests {
     fn reads_the_listed_paths_and_a_true_mains_build() {
         assert!(readable("/truemains"));
         assert!(readable("/champions/tierlist"));
+        assert!(readable("/champions/directory"));
         assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
         assert!(readable("/truemains/Faker-KR1/champions/7"));
     }

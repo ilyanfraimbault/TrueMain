@@ -1,6 +1,6 @@
-import type { ChampionDirectoryResponse } from '~~/shared/types/champion-directory'
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import { DEFAULT_DIRECTORY_ORDER, type DirectoryOrder } from '~/utils/table-sorting'
+import type { ChampionDirectoryResponse } from '#shared/types/champion-directory'
+import type { ChampionSummaryResponse } from '#shared/types/champions'
+import { DEFAULT_DIRECTORY_ORDER, type DirectoryOrder } from '#common/utils/table-sorting'
 
 interface UseChampionDirectoryOptions {
   patch: MaybeRefOrGetter<string | null | undefined>

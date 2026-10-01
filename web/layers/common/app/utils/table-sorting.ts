@@ -1,6 +1,6 @@
-import type { LeaderboardSort } from '~~/shared/types/leaderboard'
-import type { ChampionDirectorySort, SortOrder } from '~~/shared/types/champion-directory'
-import { CHAMPION_DIRECTORY_SORTS } from '~~/shared/types/champion-directory'
+import type { LeaderboardSort } from '#shared/types/leaderboard'
+import type { ChampionDirectorySort, SortOrder } from '#shared/types/champion-directory'
+import { CHAMPION_DIRECTORY_SORTS } from '#shared/types/champion-directory'
 
 /**
  * The list tables' sort state (#1734), between the URL — the source of truth,

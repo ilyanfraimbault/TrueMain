@@ -1,4 +1,4 @@
-import type { RuneTreeResponse, StaticItemData, StaticPerkData, StaticPerkStyleData, StaticSummonerSpellData } from '~~/shared/types/static-data'
+import type { RuneTreeResponse, StaticItemData, StaticPerkData, StaticPerkStyleData, StaticSummonerSpellData } from '#shared/types/static-data'
 
 /**
  * Turns build ids (keystone / secondary style / first item) into the icon

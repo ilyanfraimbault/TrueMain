@@ -2,10 +2,6 @@ import type { MatchDetailResponse } from '#shared/types/match-detail'
 import type {
   ChampionStaticData,
   ChampionStaticListItem,
-  RuneTreeResponse,
-  StaticItemData,
-  StaticPerkData,
-  StaticPerkStyleData,
 } from '#shared/types/static-data'
 
 /**
@@ -13,26 +9,6 @@ import type {
  * components themselves stay verbatim copies. Each answers the same question
  * the site's does, for an app with no image server and no player pages.
  */
-
-/**
- * Twin of `useBuildResolvers` in `web/app/composables/useBuildAssets.ts`:
- * build ids to the icon objects the `GameTooltip*` components render.
- */
-export function useBuildResolvers(
-  runeTree: MaybeRefOrGetter<RuneTreeResponse | null | undefined>,
-  itemsMap: MaybeRefOrGetter<Record<number, StaticItemData> | undefined>,
-) {
-  function perk(id: number | null | undefined): StaticPerkData | null {
-    return id != null ? toValue(runeTree)?.perks?.[id] ?? null : null
-  }
-  function perkStyle(id: number | null | undefined): StaticPerkStyleData | null {
-    return id != null ? toValue(runeTree)?.perkStyles?.[id] ?? null : null
-  }
-  function item(id: number | null | undefined): StaticItemData | null {
-    return id != null ? toValue(itemsMap)?.[id] ?? null : null
-  }
-  return { perk, perkStyle, item }
-}
 
 /**
  * The site's `useChampionSlugs`, answered with the app's routes: a champion

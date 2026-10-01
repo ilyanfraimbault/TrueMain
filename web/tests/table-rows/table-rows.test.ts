@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { clickSelectableRow, wantsNewTab } from '~/utils/table-rows'
+import { clickSelectableRow, wantsNewTab } from '#common/utils/table-rows'
 
 function selectableRow() {
   const table = document.createElement('table')

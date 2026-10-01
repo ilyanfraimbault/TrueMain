@@ -1,6 +1,7 @@
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { isLiveChampionId } from '#shared/utils/ddragon'
-import { DDRAGON } from '~/utils/static-data'
+import type { ItemListResponse, SummonerListResponse } from '~/utils/static-data'
+import { DDRAGON, fetchRuneTree, toItemsMap, toSummonersMap } from '~/utils/static-data'
 
 /**
  * The site's `/api/static/*` routes (`web/server/api/static`), answered in the
@@ -45,10 +46,23 @@ async function championList(patch: unknown): Promise<ChampionStaticListItem[]> {
     .filter(item => isLiveChampionId(item.championId))
 }
 
+async function itemMap(patch: unknown) {
+  const version = await resolveVersion(patch)
+  return toItemsMap(await $fetch<ItemListResponse>(`${DDRAGON}/${version}/data/en_US/item.json`), version)
+}
+
+async function summonerMap(patch: unknown) {
+  const version = await resolveVersion(patch)
+  return toSummonersMap(await $fetch<SummonerListResponse>(`${DDRAGON}/${version}/data/en_US/summoner.json`), version)
+}
+
 export async function answerStaticEndpoint(path: string, query: Record<string, unknown>): Promise<unknown> {
   switch (path) {
     case '/static/versions': return await loadVersions()
     case '/static/champions': return await championList(query.patch)
+    case '/static/items': return await itemMap(query.patch)
+    case '/static/summoner-spells': return await summonerMap(query.patch)
+    case '/static/rune-tree': return await fetchRuneTree(typeof query.patch === 'string' && query.patch ? query.patch : null)
     default: return undefined
   }
 }

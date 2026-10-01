@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { StaticPerkData } from '~~/shared/types/static-data'
+import type { StaticPerkData } from '#shared/types/static-data'
 
 defineOptions({ inheritAttrs: false })
 
