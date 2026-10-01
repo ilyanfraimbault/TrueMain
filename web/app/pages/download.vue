@@ -132,6 +132,10 @@ const FEATURES = [
             </div>
             <p class="text-sm text-dimmed lg:text-right">
               Version {{ release.version }} · {{ releasedOn }}
+              <!-- Preprod serves the build made against preprod (#1779): a tester must know which data it reads. -->
+              <template v-if="release.channel === 'beta'">
+                <br>Test build: it reads this preprod's data, not truemain.lol's.
+              </template>
               <template v-if="onPhone">
                 <br>The app runs on a computer, next to the League client: open this page there.
               </template>
