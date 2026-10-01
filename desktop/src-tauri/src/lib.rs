@@ -7,6 +7,7 @@
 
 mod api;
 mod game;
+mod menu;
 mod record;
 mod recording;
 #[cfg(debug_assertions)]
@@ -308,6 +309,7 @@ pub fn run() {
             recording::reveal_recording_file
         ])
         .setup(move |app| {
+            menu::install(app)?;
             let handle = app.handle().clone();
             let (recorder, phases) = recording::Recorder::new(&handle);
             app.manage(recorder.clone());

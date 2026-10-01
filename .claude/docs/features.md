@@ -308,6 +308,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   truemain.lol's the production one once promoted. The installed app checks its own site's feed (Tauri updater) at
   launch and every 15 minutes, downloads a newer build in the background and installs it itself at launch when no
   champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
+  "Check for Updates…" runs the check on demand: in the app menu on macOS, in the tray icon's menu on Windows.
   Unsigned by Apple and Microsoft for the beta.
 - **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), in-game advice
   (next item, gold standing, loading screen — #1749–#1753), TrueMain's
