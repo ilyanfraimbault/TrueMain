@@ -106,7 +106,8 @@ pub fn render_report(run: &Run<'_>) -> String {
     if let Some(window) = run.window {
         let _ = writeln!(
             out,
-            "- Window: \"{}\" of {} ({}), {}×{} pt, {}×{} px, on screen: {}",
+            "- Window: {} \"{}\" of {} ({}), {}×{} pt, {}×{} px captured from the {}, on screen: {}",
+            window["windowId"],
             window["title"].as_str().unwrap_or(""),
             window["app"].as_str().unwrap_or(""),
             window["bundleId"].as_str().unwrap_or(""),
@@ -114,6 +115,7 @@ pub fn render_report(run: &Run<'_>) -> String {
             window["heightPoints"],
             window["width"],
             window["height"],
+            window["source"].as_str().unwrap_or("window"),
             window["onScreen"]
         );
     }
@@ -151,6 +153,9 @@ pub fn render_report(run: &Run<'_>) -> String {
         _ => {
             let _ = writeln!(out, "- Video: none written");
         }
+    }
+    if let Some(last) = run.progress.last() {
+        let _ = writeln!(out, "- Frames sent by ScreenCaptureKit: {}", last.statuses);
     }
     let cpu: Vec<f64> = run.progress.iter().map(|p| p.cpu_percent).collect();
     if !cpu.is_empty() {
@@ -421,6 +426,7 @@ mod tests {
             frames: 300,
             dropped: 0,
             cpu_percent: 12.5,
+            statuses: "complete 300".into(),
         }];
         let report = render_report(&Run {
             system: &[("macOS".into(), "15.6".into())],

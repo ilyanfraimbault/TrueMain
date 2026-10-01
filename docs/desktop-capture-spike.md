@@ -53,8 +53,16 @@ desktop/capture/spike.sh --resolution 1080p --fps 60
 
 Options: `--resolution native|1440p|1080p|720p` (default `1080p`),
 `--fps 30|60` (default `30`), `--no-audio`, `--out DIR` (default
-`./capture-spike`), and `--window-id N` when the helper picks the wrong
-window — `truemain-capture list` prints every window it can see.
+`./capture-spike`), `--source window|display` (default `window`: the game's
+window alone; `display`: its display with only the game's windows drawn — the
+one to try in Full Screen), and `--window-id N` when the helper picks the wrong
+window — `truemain-capture list` prints every window it can see. The game
+process owns several windows of the screen's size; its render window is the
+one titled "League of Legends (TM) Client", which the helper prefers.
+
+While it records, each progress line shows what ScreenCaptureKit sent by
+status: `complete` frames carry an image; a window captured but never drawn
+sends only `idle`.
 
 Start the spike, then start a game (a practice tool game is enough for a first
 run). Ctrl+C stops it early; the video and report are still written.
