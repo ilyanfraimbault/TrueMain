@@ -220,3 +220,13 @@ on no lane. The client's game timeline carries kills, buildings and epic monster
 point, so the detail panel asks TrueMain's API for the game first (`/truemains/{nameTag}/matches/{matchId}`) and falls
 back to the client, leaving the build and skill order sections out rather than announcing them empty (2026-10-01) —
 #1768.
+
+**Screen capture runs in a native helper process per platform, not inside the app.** On macOS a Swift executable
+(`desktop/capture/macos`) captures with ScreenCaptureKit and encodes with AVAssetWriter through VideoToolbox; the
+shell drives it over JSON lines on stdout and `stop` on stdin, and sees it as `game-recording`'s `Capture`. Swift
+because those are first-class Swift APIs, where Rust bindings to them would be written and debugged blind; a separate
+process because a crash in capture or the encoder must not take the app — or a champion select — down with it, and
+because the Windows helper can then be whatever Windows captures best with, behind the same protocol. The output
+size, bitrate and keyframe interval are still computed in Rust (`Quality::output_for`) and passed in, so the rule
+has one implementation. The spike (`capture-spike`) runs this pair outside the app first; it becomes a Tauri sidecar
+only once the spike's measurements hold (2026-10-01) — #1745.

@@ -240,6 +240,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
   reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
   browser dev scenarios hold the feed's state at two of its readings (checked by `live-client/tests/scenarios.rs`).
+- **Capture spike** (development only, #1745) — `truemain-capture-spike` records one League game through the
+  platform capture helper (`desktop/capture/macos`: ScreenCaptureKit + VideoToolbox, a separate process speaking
+  JSON lines) and `game-recording`'s session, then writes the video, its highlights, a `report.md` of what it measured
+  and a `player.html` that jumps to each moment. Built by CI as a downloadable macOS artifact; not part of the app.
+  How to run it: `docs/desktop-capture-spike.md`.
 - **Site sections** — the tier list, the champion directory, the matchup page, the truemains leaderboard and the
   favorites are **the site's own pages** (`PageTierList`, `PageChampions`, `PageMatchup`, `PageTruemains`,
   `PageFavorites` from `web/layers/common`, #1732: one implementation, the same headers, filters, searches, tables,
