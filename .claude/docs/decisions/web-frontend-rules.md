@@ -380,3 +380,28 @@ section. A functional caveat the reader would otherwise get wrong survives as th
 (favorites: "Saved in this browser only."). The internal `/dev/design-system` page keeps its subtitles — it
 is documentation. Same direction as the player performance panel (#918 follow-up) and the "why this item"
 card (#1465) — #1699.
+
+## The full-page lists are tables: one grid under a header row, columns dropped by container width (2026-10-01)
+
+`/truemains` and `/champions` used to draw each line as a free-standing card (`LeaderboardRow`, the
+`ListRowSurface` rows of the directory) whose columns were positioned by flex spacers, every figure carrying its
+own micro-label (`590 / GAMES`). The desktop app had already moved its two lists to tables for the reason that
+layout kept failing — a spacer-positioned column follows whatever its neighbours happen to measure, so a long
+Riot ID or a missing build shifted the champion and stat columns off line (2026-09-30, #1719) — and the product
+owner asked for the site to read the same way (#1726).
+
+- **One grid per table, shared by the header, the rows and the skeleton rows** (`app/utils/list-tables.ts`:
+  `TRUEMAINS_TABLE_GRID`, `CHAMPIONS_TABLE_GRID`). The figures lose their per-cell labels; the header names the
+  column once. The column that orders the leaderboard (`Rank` or `Score`, after `?sort=`) reads a step brighter.
+- **The table is the `@container`, and it narrows by dropping whole columns** — header cell and row cell
+  together, with the template at that tier listing exactly the cells left. A cell hidden without its track leaving
+  the template slides every column right of it one slot over, so the class on the cell (`hidden @xl:block`) and
+  the template are one contract and live side by side. Phone keeps the identity, the main / the lane and tier,
+  and the figure the list is about (score and rank; win and pick rate).
+- **The leaderboard's main champion never drops**: below `@4xl` it is the portrait alone, the signature cluster
+  (play rate, keystone, first item) from there, the two sub-mains from `@5xl`. The OTP pill rides the region
+  flag's line rather than the name's, because the name is the column that truncates.
+- **The compact `LeaderboardRow` stays** for the surfaces that are not a page of their own — the champion-page
+  sidebar and the design-system page. A table header above a ten-row sidebar would be chrome for its own sake.
+- The directory line is still a `role="button"`, not a link (#147); the crawlable champion links come from
+  `<ChampionIndexLinks>` (#1209), which this does not touch.
