@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { CompositionBuildRequest, CompositionBuildResponse } from '~~/shared/types/composition'
-import { indexItemContext } from '~~/shared/utils/item-context'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/types/composition'
+import { indexItemContext } from '#shared/utils/item-context'
+import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { isLoadingStatus } from '#common/utils/async-data'
 
 /**

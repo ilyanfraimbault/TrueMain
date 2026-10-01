@@ -76,8 +76,8 @@ Nitro proxy; the app's shell, with the site's `/static/*` answered from Data Dra
 `useChampionSlugs`, `useCanonicalIcon`, and two components the app cannot draw the site's way (`SkeletonImage`,
 `RankIcon`). The design system (`theme.css`), the Nuxt UI theme and dark mode come with the layer, so the app's own
 pages take the site's materials too, and the app reads the site's `shared/` instead of a copy. What stays the app's:
-the dashboard, the draft and the champion page. The tier list moved first; the other pages follow one PR each
-(2026-10-01) — #1732.
+the dashboard, the draft and the champion page. The pages moved one PR each — tier list, champions, truemains, favorites, matchup — and the
+twins they used went with them; the twins left serve the app's own pages (2026-10-01) — #1732.
 
 **The build pane shows the site's core without its build path, and a true main's own build on a click.** The
 site's core blocks (`Champion/Core/*`) keep the site's layout — summoners over starter, skill order over boots,
@@ -148,7 +148,7 @@ five games against the whole sample, in the ranked card's delta idiom (a trend a
 flat move or a too-short sample shows no delta. No composite player score. Remakes are kept out of the list and of
 every average. The patch's best picks by lane stay as the no-client state (2026-09-30) — #1683.
 
-**The app's lists are tables with fixed columns under headers; the tier list is the site's.** (The champions, truemains and favorites pages have since become the site's own, shared through the layer — #1732; a link to a page only the site has, such as a player's profile, opens it in the browser.) The truemains
+**The app's lists are tables with fixed columns under headers; the tier list is the site's.** (The champions, truemains, favorites and matchup pages have since become the site's own, shared through the layer — #1732; a link to a page only the site has, such as a player's profile, opens it in the browser.) The truemains
 leaderboard drawn with the site's `LeaderboardRow` did not line up at the app's width — the row sizes its columns with
 flex spacers around a name that takes its content width, so lanes, champion, score and rank drifted from row to row
 — and the product owner asked for the table the app's tier list had: a header of column labels and one grid shared

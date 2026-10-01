@@ -5,7 +5,7 @@ import {
   PLACEHOLDER_ITEMS_MAP,
   PLACEHOLDER_RUNE_TREE,
   PLACEHOLDER_SUMMONERS_MAP,
-} from '~/utils/build-placeholder'
+} from '#common/utils/build-placeholder'
 
 // The loading state of the build section — `ChampionBuildTabs` itself, in
 // `pending` mode, over a placeholder aggregate.

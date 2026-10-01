@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ChampionResponse } from '~~/shared/types/champions'
-import { indexItemContext } from '~~/shared/utils/item-context'
+import type { ChampionResponse } from '#shared/types/champions'
+import { indexItemContext } from '#shared/utils/item-context'
 import { isLoadingStatus } from '#common/utils/async-data'
 
 /**

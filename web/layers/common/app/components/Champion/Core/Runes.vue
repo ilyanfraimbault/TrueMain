@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { BuildRunePage } from '~~/shared/types/champions'
-import type { RuneTreeResponse, RuneTreeStyle } from '~~/shared/types/static-data'
+import type { BuildRunePage } from '#shared/types/champions'
+import type { RuneTreeResponse, RuneTreeStyle } from '#shared/types/static-data'
 
 const props = defineProps<{
   page: BuildRunePage

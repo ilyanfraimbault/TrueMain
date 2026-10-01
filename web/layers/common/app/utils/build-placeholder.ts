@@ -2,13 +2,13 @@ import type {
   BuildRunePage,
   BuildTreeNode,
   ChampionBuild,
-} from '~~/shared/types/champions'
+} from '#shared/types/champions'
 import type {
   ChampionStaticData,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
+} from '#shared/types/static-data'
 
 /**
  * Scaffolding for the build sections' loading state.

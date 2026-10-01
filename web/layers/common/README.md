@@ -29,12 +29,15 @@ set up:
 
 ## What each app provides
 
+A shared page that calls a new endpoint needs it allow-listed in the app's shell, and the endpoint on production
+before the next app release (`docs/ci.md`, "Desktop releases").
+
 The shared code calls these by name; each app defines them for its host. A signature drift fails that app's
 typecheck.
 
 | Name | Site (`web/app`) | App (`desktop/app/app`) |
 | --- | --- | --- |
-| `useApiFetch()` | `composables/useApi.ts` — the Nitro `/api` proxy, visitor forwarded during SSR | `composables/useApi.ts` — TrueMain reads through the shell (`api_get`), `/static/*` answered from Data Dragon (`utils/static-endpoints.ts`) |
+| `useApiFetch()` | `composables/useApi.ts` — the Nitro `/api` proxy, visitor forwarded during SSR | `composables/useApi.ts` — TrueMain reads through the shell (`api_get`, and `api_post` for the composition build), each path allow-listed in `desktop/src-tauri/src/lib.rs`; `/static/*` answered from Data Dragon (`utils/static-endpoints.ts`) |
 | `useChampionSlugs()` | `composables/useChampionSlugs.ts` — slugged `/champions/{slug}` | `composables/useSiteShims.ts` — the app's `/champions/{id}` |
 | `useCanonicalIcon()` | `composables/useCanonicalIcon.ts` — IPX | `composables/useSiteShims.ts` — the CDN URL as given |
 

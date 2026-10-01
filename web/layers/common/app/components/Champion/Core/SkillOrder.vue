@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { BuildSkillOrder } from '~~/shared/types/champions'
-import type { ChampionStaticData } from '~~/shared/types/static-data'
+import type { BuildSkillOrder } from '#shared/types/champions'
+import type { ChampionStaticData } from '#shared/types/static-data'
 
 const props = defineProps<{
   skillOrder: BuildSkillOrder | null

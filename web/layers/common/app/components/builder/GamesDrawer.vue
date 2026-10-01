@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { CompositionBuildRequest } from '~~/shared/types/composition'
+import type { CompositionBuildRequest } from '#shared/types/composition'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import type { CompositionGamePilot } from '~~/shared/types/composition'
-import { truemainNameTag } from '~~/shared/utils/truemain-path'
+} from '#shared/types/static-data'
+import type { CompositionGamePilot } from '#shared/types/composition'
+import { truemainNameTag } from '#shared/utils/truemain-path'
 
 /**
  * Provenance drawer for the composition recommendation (#940): the games the
