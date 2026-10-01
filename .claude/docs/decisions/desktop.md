@@ -144,3 +144,10 @@ first) in place of a portrait grid, and the tier list became the site's — a ca
 its rank, truemains-only and patch filters (`Champion/TierChip`, `EloFilter`, `TruemainToggle`, `SectionCard`
 twinned). A champion's true mains list gained the same search, limited to that champion's mains, so any main can be
 reached by name, not only the top five (2026-09-30) — #1719.
+
+**The site announces the app right under the home hero, above the strongest picks and their mains, and `/download`
+is a landing page.** The card under the two teasers and a download page stacked from an alert, a status line and an
+accordion were read as unpolished; the product owner asked for the app to be promoted above "This patch". The banner
+and the page both draw the app's own icon (the M-check on the app's ink tile) and describe only what ships — no
+screenshot or mock-up of the app with figures in it, since a number on the page comes from an endpoint or is left out
+(2026-10-01) — #1725.
