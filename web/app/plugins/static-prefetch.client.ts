@@ -1,5 +1,5 @@
 import type { ChampionStaticListItem, RuneTreeResponse } from '~~/shared/types/static-data'
-import { RUNE_TREE_KEY_PREFIX, staticFetchKey } from '~/composables/useBuildAssets'
+import { RUNE_TREE_KEY_PREFIX, staticFetchKey } from '#common/composables/useBuildAssets'
 
 // Warms the static caches that no page has to resolve a patch for —
 // `champion-static-list`, and the rune tree under its unresolved-patch key

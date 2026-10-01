@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 import type { RouteLocationRaw } from 'vue-router'
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import type { RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
-import { formatCount } from '~~/shared/utils/counts'
+import type { ChampionSummaryResponse } from '#shared/types/champions'
+import type { RuneTreeResponse, StaticItemData } from '#shared/types/static-data'
+import { formatPercentage, formatPercentageOrDash } from '#shared/utils/ddragon'
+import { formatCount } from '#shared/utils/counts'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { banRateTone, pickRateTone, winRateTone } from '#common/utils/rate-tone'
-import { directoryOrderToSorting, parseDirectoryOrder, type DirectoryOrder, type TableSorting } from '~/utils/table-sorting'
-import { clickSelectableRow, wantsNewTab } from '~/utils/table-rows'
+import { directoryOrderToSorting, parseDirectoryOrder, type DirectoryOrder, type TableSorting } from '#common/utils/table-sorting'
+import { clickSelectableRow, wantsNewTab } from '#common/utils/table-rows'
 
 type DirectoryRow = ChampionSummaryResponse & { name: string, iconUrl: string }
 

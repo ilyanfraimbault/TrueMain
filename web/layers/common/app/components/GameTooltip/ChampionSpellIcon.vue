@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { StaticSummonerSpellData } from '~~/shared/types/static-data'
+import type { StaticChampionSpellData } from '#shared/types/static-data'
 
 defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(defineProps<{
-  spell?: StaticSummonerSpellData | null
+  spell?: StaticChampionSpellData | null
   width?: number | string
   height?: number | string
   /** Native lazy-loading hint forwarded to the icon (`'lazy'` below the fold). */
   loading?: 'lazy' | 'eager'
-  /** Optional fallback label rendered (and used as tooltip text) when no icon URL is available. */
+  /** Fallback label shown when no icon URL is available (e.g. the slot key 'Q'). */
   fallbackLabel?: string
-  /** True while the summoner-spell static map is still loading — see `SkeletonImage`'s `pending`. */
+  /** True while the champion's static data is still loading — see `SkeletonImage`'s `pending`. */
   pending?: boolean
-  /** The summoner-spell map has resolved, so a still-missing icon is final — see `SkeletonImage`'s `settled`. */
+  /** The champion's static data has resolved, so a still-missing icon is final — see `SkeletonImage`'s `settled`. */
   settled?: boolean
 }>(), {
   spell: null,
@@ -33,7 +33,7 @@ const hasSpell = computed(() => Boolean(props.spell))
 // reads the trigger node at mount — the stale reference leaves the tooltip
 // unable to close on pointer exit, so hovering the icons in turn stacked their
 // tooltips on screen instead of replacing them.
-const fallbackText = computed(() => props.fallbackLabel || props.spell?.name || '')
+const fallbackText = computed(() => props.fallbackLabel || props.spell?.key || '')
 </script>
 
 <template>
@@ -58,7 +58,7 @@ const fallbackText = computed(() => props.fallbackLabel || props.spell?.name || 
       #content
     >
       <GameTooltipSurface>
-        <GameTooltipSummonerSpellBody :spell="spell" />
+        <GameTooltipChampionSpellBody :spell="spell" />
       </GameTooltipSurface>
     </template>
   </GameTooltipLazyTooltip>

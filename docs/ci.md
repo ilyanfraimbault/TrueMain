@@ -315,6 +315,13 @@ The site reads the releases rather than the app linking to GitHub:
 `/api/desktop/latest.json` resolve the newest `desktop-v*` release, so a new app
 version needs no site deploy.
 
+**A desktop release follows the site release it reads.** The app calls the
+production API, and the pages it shares with the site (#1732) call whatever
+endpoints `develop` has — the champion directory reads
+`/champions/directory`, for one. Tag `desktop-v*` only once the production site
+serves every endpoint the shared pages call, or those pages fail in the
+installed app.
+
 ## Load test
 
 `loadtest-preprod.yml` runs `loadtest/k6/run.js` against preprod (`docs/load-testing.md`, #1559).

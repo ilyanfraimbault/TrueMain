@@ -1,4 +1,3 @@
-<!-- Twin of `web/app/components/GameTooltip/PerkStyleBody.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
 import type { StaticPerkStyleData } from '#shared/types/static-data'
 

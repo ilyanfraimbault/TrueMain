@@ -6,7 +6,7 @@ import {
   leaderboardSortToSorting,
   parseDirectoryOrder,
   sortingToLeaderboardSort,
-} from '~/utils/table-sorting'
+} from '#common/utils/table-sorting'
 
 describe('leaderboard sorting', () => {
   it('draws either server order as its column, descending', () => {

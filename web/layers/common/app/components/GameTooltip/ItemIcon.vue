@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { ItemContextCard } from '~~/shared/utils/item-context'
+import type { ItemContextCard } from '#shared/utils/item-context'
 import { computed } from 'vue'
-import type { StaticItemData } from '~~/shared/types/static-data'
+import type { StaticItemData } from '#shared/types/static-data'
 
 defineOptions({ inheritAttrs: false })
 
