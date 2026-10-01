@@ -37,7 +37,7 @@ export function toMatchSummary(game: PlayerGame, lpDelta: number | null): MatchS
       killParticipation: killParticipation(game) ?? 0,
       items: game.items,
       trinketItemId: game.trinket,
-      roleBoundItemId: 0,
+      roleBoundItemId: game.roleBoundItem,
       teamId: game.teamId,
       position: game.position,
       win: game.win,

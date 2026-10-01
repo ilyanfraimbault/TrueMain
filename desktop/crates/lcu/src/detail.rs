@@ -214,7 +214,7 @@ impl GameDetail {
                         stats.item5,
                     ],
                     trinket_item_id: stats.item6,
-                    role_bound_item_id: 0,
+                    role_bound_item_id: stats.role_bound_item,
                     summoner1_id: p.spell1_id,
                     summoner2_id: p.spell2_id,
                     primary_style_id: stats.perk_primary_style,
@@ -398,6 +398,8 @@ mod tests {
                     "perk0": 8112, "perk1": 8139, "perk2": 8138, "perk3": 8135, "perk4": 8226, "perk5": 8210,
                     "perkPrimaryStyle": 8100, "perkSubStyle": 8200, "statPerk0": 5008, "statPerk1": 5008, "statPerk2": 5001 } },
                 { "participantId": 2, "teamId": 100, "championId": 64, "stats": { "kills": 4 } },
+                { "participantId": 4, "teamId": 100, "championId": 222, "timeline": { "lane": "BOTTOM", "role": "CARRY" },
+                  "stats": { "item0": 3031, "item6": 3363, "roleBoundItem": 3006 } },
                 { "participantId": 6, "teamId": 200, "championId": 7, "timeline": { "lane": "MIDDLE", "role": "SOLO" },
                   "stats": { "kills": 3 } }
               ] }"#,
@@ -440,6 +442,10 @@ mod tests {
         assert_eq!(me.runes.len(), 6);
         assert_eq!(me.runes[4].style_id, 8200);
         assert_eq!(me.runes[4].selection_index, 0);
+        let adc = &detail.participants[2];
+        assert_eq!(adc.items[0], 3031);
+        assert_eq!(adc.trinket_item_id, 3363);
+        assert_eq!(adc.role_bound_item_id, 3006);
     }
 
     #[test]
