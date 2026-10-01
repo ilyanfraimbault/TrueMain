@@ -24,7 +24,8 @@ export function useNextItem(game: Ref<GameState | null>) {
 
   /** The order our items appeared in, kept for this game only. */
   const order = useState<number[]>('next-item-order', () => [])
-  const orderOf = useState<string>('next-item-order-of', () => '')
+  /** The game the order belongs to: who we are, on what, and the latest game time it saw. */
+  const orderOf = useState<{ owner: string, gameTime: number } | null>('next-item-order-of', () => null)
 
   const idByAlias = computed(() => {
     const map = new Map<string, number>()
@@ -33,13 +34,19 @@ export function useNextItem(game: Ref<GameState | null>) {
   })
   const championIdOf = (alias: string) => idByAlias.value.get(alias.toLowerCase()) ?? null
 
-  watch(() => game.value?.players.find(player => player.isMe), (me) => {
-    if (!me) return
-    const owner = `${me.riotId}|${me.champion}`
-    if (orderOf.value !== owner) {
-      orderOf.value = owner
+  // A new game starts a new order. The same player on the same champion twice
+  // in a row is the common case, so the owner alone cannot tell two games
+  // apart: the game ending (no state) or its clock going back both can.
+  watch(game, (current) => {
+    const me = current?.players.find(player => player.isMe)
+    if (!current || !me) {
+      orderOf.value = null
       order.value = []
+      return
     }
+    const owner = `${me.riotId}|${me.champion}`
+    if (orderOf.value?.owner !== owner || current.gameTime < orderOf.value.gameTime) order.value = []
+    orderOf.value = { owner, gameTime: current.gameTime }
     order.value = noteNewItems(order.value, me.items.map(item => item.itemId))
   }, { immediate: true, deep: true })
 
