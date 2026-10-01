@@ -5,11 +5,11 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import type { FavoriteTruemain } from '~/utils/favorites'
+import type { FavoriteTruemain } from '#common/utils/favorites'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { platformIdToRegion } from '~~/shared/utils/region'
-import { isApexTier } from '~/utils/tiers'
+import { isApexTier } from '#common/utils/tiers'
 
 // One followed player on the favorites view: identity + ranked summary from
 // the profile endpoint, then their latest games rendered with the shared

@@ -1,7 +1,6 @@
-<!-- Twin of `web/app/components/dedication/Verdict.vue` — copied verbatim until the shared layer (#1687); keep the two identical. -->
 <script setup lang="ts">
 import type { TruemainDedication } from '#shared/types/dedication'
-import { dedicationVerdict } from '~/utils/dedication'
+import { dedicationVerdict } from '#common/utils/dedication'
 
 // The Truemain score's one-word verdict as a pill. OTP wears the exact amber of
 // the leaderboard's OTP badge — both read the same `isOtp` flag, so they must

@@ -1,4 +1,4 @@
-import type { SearchResponse, SearchResult } from '~~/shared/types/search'
+import type { SearchResponse, SearchResult } from '#shared/types/search'
 
 /**
  * Below this many characters the backend won't search, so neither do we.
@@ -30,7 +30,8 @@ type SearchStatus = 'idle' | 'pending' | 'success' | 'error'
 
 /**
  * Debounced truemain name/tag lookup. Watches a reactive search term, waits
- * for typing to settle, then hits `GET /api/truemains/search`. Stale responses
+ * for typing to settle, then hits `GET /truemains/search` through the host's
+ * `useApiFetch` (the site's proxy, or the desktop app's shell). Stale responses
  * (a slow request that resolves after a newer keystroke) are dropped via a
  * monotonic request token so the list never flickers back to an old result.
  *
@@ -38,6 +39,7 @@ type SearchStatus = 'idle' | 'pending' | 'success' | 'error'
  * the term only exists once the user starts typing.
  */
 export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
+  const apiFetch = useApiFetch()
   const results = ref<SearchResult[]>([])
   const status = ref<SearchStatus>('idle')
   const error = ref<unknown>(null)
@@ -60,7 +62,7 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
     const { signal } = controller
     status.value = 'pending'
     try {
-      const data = await $fetch<SearchResponse>('/api/truemains/search', {
+      const data = await apiFetch<SearchResponse>('/truemains/search', {
         query: { q: query },
         signal,
       })

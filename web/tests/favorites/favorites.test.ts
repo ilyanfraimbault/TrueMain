@@ -1,4 +1,4 @@
-import type { FavoriteTruemain } from '~~/app/utils/favorites'
+import type { FavoriteTruemain } from '#common/utils/favorites'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ref } from 'vue'
 import {
@@ -10,7 +10,7 @@ import {
   normalizeFavorites,
   parseStoredFavorites,
   resolveFavoriteIdentity,
-} from '~~/app/utils/favorites'
+} from '#common/utils/favorites'
 
 // The composable's behaviour lives in `createFavoritesStore` (the Nuxt wrapper
 // `useFavoriteTruemains` only supplies the shared state ref and the mount-time

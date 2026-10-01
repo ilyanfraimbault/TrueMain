@@ -1,5 +1,5 @@
-import type { FavoriteTruemain } from '~/utils/favorites'
-import { createFavoritesStore, FAVORITES_STORAGE_KEY } from '~/utils/favorites'
+import type { FavoriteTruemain } from '#common/utils/favorites'
+import { createFavoritesStore, FAVORITES_STORAGE_KEY } from '#common/utils/favorites'
 
 /** Shared per-request state keys — one list for the whole app. */
 const FAVORITES_STATE_KEY = 'favorite-truemains'

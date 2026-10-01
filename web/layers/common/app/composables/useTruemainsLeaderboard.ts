@@ -1,4 +1,4 @@
-import type { LeaderboardResponse, LeaderboardRowResponse, LeaderboardSort, RegionSlug } from '~~/shared/types/leaderboard'
+import type { LeaderboardResponse, LeaderboardRowResponse, LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
 
 interface UseTruemainsLeaderboardOptions {
   /** Page size to request per fetch. Omitted = use the backend default (25). */

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
-import type { RegionSlug } from '~~/shared/types/leaderboard'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
-import { platformIdToRegion } from '~~/shared/utils/region'
-import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
+import type { RegionSlug } from '#shared/types/leaderboard'
+import { getProfileIconUrl } from '#shared/utils/ddragon'
+import { platformIdToRegion } from '#shared/utils/region'
+import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 
 /**
  * A truemain as the site shows one (#1734): profile icon, name, #tag and region

@@ -5,7 +5,7 @@ import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { formatCount } from '~~/shared/utils/counts'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { isApexTier } from '~/utils/tiers'
+import { isApexTier } from '#common/utils/tiers'
 import { winRateTone } from '#common/utils/rate-tone'
 
 // One row of the leaderboard. The whole row navigates to the player's profile

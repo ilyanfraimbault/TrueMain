@@ -18,7 +18,7 @@
  * than on what we wrote.
  */
 
-export { formatTier as formatRank, TIER_HEX as RANK_COLOR } from '~/utils/tiers'
+export { formatTier as formatRank, TIER_HEX as RANK_COLOR } from '#common/utils/tiers'
 export { eloBracketLabel as formatEloBracket } from '#common/utils/elo-brackets'
 export { formatCount } from '~~/shared/utils/counts'
 
