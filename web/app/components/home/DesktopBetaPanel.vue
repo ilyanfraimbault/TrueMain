@@ -3,13 +3,14 @@
 // under the hero, above the strongest picks and their mains — the app is those
 // two answers brought into champion select, so it is announced before them. It
 // shows the app itself, whole: its dashboard, the screen it opens on. It says it
-// is a beta up front.
+// is a beta up front. It sits on the page itself, like the hero above it, rather
+// than in a card: the capture is the only raised surface.
 </script>
 
 <template>
-  <section class="mx-auto max-w-6xl px-4 pb-16 md:px-6">
-    <div class="surface relative isolate grid items-center overflow-hidden rounded-2xl md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-      <div class="relative z-10 flex flex-col justify-center p-6 sm:p-8 lg:p-10">
+  <section class="mx-auto max-w-6xl px-4 pb-20 md:px-6 lg:pb-28">
+    <div class="relative isolate grid items-center gap-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-14">
+      <div class="flex flex-col justify-center">
         <div class="flex items-center gap-2">
           <p class="eyebrow">
             Desktop app
@@ -49,10 +50,10 @@
       </div>
 
       <!-- The app's dashboard, whole, at the app's own window proportions. -->
-      <div class="relative px-6 pb-6 sm:px-8 sm:pb-8 md:py-8 md:pl-0 lg:py-10 lg:pr-10">
+      <div class="relative">
         <div
           aria-hidden="true"
-          class="pointer-events-none absolute inset-x-[15%] top-1/4 -z-10 h-1/2 rounded-full bg-primary/10 blur-3xl"
+          class="pointer-events-none absolute inset-x-[10%] top-[15%] -z-10 h-3/4 rounded-full bg-primary/12 blur-3xl"
         />
         <img
           src="/desktop/dashboard.webp"
@@ -60,7 +61,7 @@
           height="760"
           alt="The TrueMain app's dashboard: rank, recent form, match history and champions."
           loading="lazy"
-          class="block h-auto w-full rounded-lg shadow-[0_20px_50px_-15px_rgb(0_0_0/0.8)] ring-1 ring-white/15"
+          class="block h-auto w-full rounded-xl shadow-[0_30px_80px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/15"
         >
       </div>
     </div>
