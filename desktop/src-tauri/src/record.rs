@@ -117,7 +117,8 @@ async fn player_games(
 }
 
 /// One game opened in full: the scoreboard of all ten, and from its timeline
-/// the build orders, skill orders and lane standings. A timeline that fails to
+/// the lane standings (it lists no purchases or skill points). The dashboard's
+/// fallback for a game TrueMain has not ingested. A timeline that fails to
 /// read leaves those empty rather than failing the panel.
 #[tauri::command]
 pub async fn player_game(
