@@ -41,6 +41,8 @@ export interface PlayerGame {
   /** Inventory slots 0..5, zero where empty. */
   items: number[]
   trinket: number
+  /** Riot's role-bound slot (a bot laner's boots once the role quest is done), zero when empty. */
+  roleBoundItem: number
   spells: [number, number]
   keystone: number
   primaryStyle: number

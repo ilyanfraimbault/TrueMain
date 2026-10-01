@@ -160,6 +160,9 @@ pub struct HistoryStats {
     pub item4: i64,
     pub item5: i64,
     pub item6: i64,
+    /// Riot's role-bound slot, outside the six: a bot laner's boots once the
+    /// role quest is done, the other roles' quest reward. Zero when empty.
+    pub role_bound_item: i64,
     /// The keystone; `perk1`..`perk3` the rest of the primary tree, `perk4`
     /// and `perk5` the secondary.
     pub perk0: i64,
@@ -243,6 +246,8 @@ pub struct PlayerGame {
     /// The six inventory slots in order, zero where a slot is empty.
     pub items: Vec<i64>,
     pub trinket: i64,
+    /// The role-bound slot, zero when empty.
+    pub role_bound_item: i64,
     pub spells: [i64; 2],
     pub keystone: i64,
     pub primary_style: i64,
@@ -304,6 +309,7 @@ impl PlayerGame {
                 stats.item5,
             ],
             trinket: stats.item6,
+            role_bound_item: stats.role_bound_item,
             spells: [me.spell1_id, me.spell2_id],
             keystone: stats.perk0,
             primary_style: stats.perk_primary_style,
@@ -407,6 +413,7 @@ mod tests {
               "totalMinionsKilled": 212, "neutralMinionsKilled": 8, "goldEarned": 13250,
               "totalDamageDealtToChampions": 31000, "visionScore": 24,
               "item0": 3165, "item1": 3020, "item2": 0, "item3": 4645, "item4": 0, "item5": 0, "item6": 3364,
+              "roleBoundItem": 3006,
               "perk0": 8112, "perkSubStyle": 8200, "largestMultiKill": 2
             },
             "timeline": { "lane": "MIDDLE", "role": "SOLO" }
@@ -437,6 +444,7 @@ mod tests {
         assert_eq!(game.cs, 220);
         assert_eq!(game.items, vec![3165, 3020, 0, 4645, 0, 0]);
         assert_eq!(game.trinket, 3364);
+        assert_eq!(game.role_bound_item, 3006);
         assert_eq!(game.spells, [4, 14]);
         assert!(game.win && !game.remake);
         assert_eq!(game.team_kills, None);
