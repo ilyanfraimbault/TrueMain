@@ -35,6 +35,9 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var lastPts = CMTime.invalid
     private(set) var frames = 0
     private(set) var dropped = 0
+    /// Every frame ScreenCaptureKit sent, by its status — what tells a window
+    /// that is captured but never drawn (all `idle`) from one never captured.
+    private var statuses: [String: Int] = [:]
     private let stopLock = NSLock()
     private var stopTask: Task<Void, Never>?
     /// Called once the file is closed, whoever asked for the stop — the
@@ -88,8 +91,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         super.init()
     }
 
-    func start(window: SCWindow) async throws {
-        let filter = SCContentFilter(desktopIndependentWindow: window)
+    func start(filter: SCContentFilter) async throws {
         let configuration = SCStreamConfiguration()
         configuration.width = options.width
         configuration.height = options.height
@@ -131,10 +133,10 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private func appendVideo(_ buffer: CMSampleBuffer) {
         // ScreenCaptureKit also sends idle and blank frames; only complete
         // ones carry an image.
-        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(buffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
-              let raw = attachments.first?[.status] as? Int,
-              SCFrameStatus(rawValue: raw) == .complete
-        else { return }
+        let attachments = CMSampleBufferGetSampleAttachmentsArray(buffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]]
+        let status = (attachments?.first?[.status] as? Int).flatMap(SCFrameStatus.init(rawValue:))
+        statuses[name(of: status), default: 0] += 1
+        guard status == .complete else { return }
 
         let pts = CMSampleBufferGetPresentationTimeStamp(buffer)
         if !sessionStarted {
@@ -210,8 +212,20 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         ])
     }
 
-    /// Frames and drops so far, read on the sample queue.
-    func counters() -> (frames: Int, dropped: Int) {
-        queue.sync { (frames, dropped) }
+    /// Frames, drops and frame statuses so far, read on the sample queue.
+    func counters() -> (frames: Int, dropped: Int, statuses: [String: Int]) {
+        queue.sync { (frames, dropped, statuses) }
+    }
+}
+
+private func name(of status: SCFrameStatus?) -> String {
+    switch status {
+    case .complete: return "complete"
+    case .idle: return "idle"
+    case .blank: return "blank"
+    case .suspended: return "suspended"
+    case .started: return "started"
+    case .stopped: return "stopped"
+    default: return "unknown"
     }
 }

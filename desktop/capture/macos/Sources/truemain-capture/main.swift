@@ -10,11 +10,11 @@
 //   truemain-capture list
 //       every window, as `window` events — to find the game's when the guess
 //       is wrong
-//   truemain-capture probe [--window-id N]
+//   truemain-capture probe [--window-id N] [--source window|display]
 //       the game window and its size in pixels, as one `window` event
 //   truemain-capture record --out FILE --width W --height H --fps F
 //                           --bitrate BPS --keyframe-interval FRAMES
-//                           [--window-id N] [--no-audio]
+//                           [--window-id N] [--source window|display] [--no-audio]
 //       records until told to stop; events: `started`, `progress` every five
 //       seconds, `stopped`, `error`
 //
@@ -42,6 +42,12 @@ func windowId(in arguments: [String]) -> UInt32? {
     value("--window-id", in: arguments).flatMap { UInt32($0) }
 }
 
+func source(in arguments: [String]) -> Source {
+    guard let raw = value("--source", in: arguments) else { return .window }
+    guard let source = Source(rawValue: raw) else { fail("usage", "--source is window or display") }
+    return source
+}
+
 func list() async {
     let content = await shareableContent()
     for window in content.windows {
@@ -54,9 +60,12 @@ func probe(_ arguments: [String]) async {
     guard let window = findWindow(in: content, id: windowId(in: arguments)) else {
         fail("no-window", "no League game window found (run `list` and pass --window-id)", code: 4)
     }
-    let filter = SCContentFilter(desktopIndependentWindow: window)
-    let (width, height) = pixelSize(of: window, filter: filter)
-    emit("window", describe(window).merging(["width": width, "height": height]) { $1 })
+    let captureSource = source(in: arguments)
+    let (filter, points) = contentFilter(for: window, in: content, source: captureSource)
+    let (width, height) = pixelSize(of: points, filter: filter)
+    emit("window", describe(window).merging([
+        "width": width, "height": height, "source": captureSource.rawValue,
+    ]) { $1 })
 }
 
 func record(_ arguments: [String]) async {
@@ -79,7 +88,8 @@ func record(_ arguments: [String]) async {
     let recorder: Recorder
     do {
         recorder = try Recorder(options: options)
-        try await recorder.start(window: window)
+        let (filter, _) = contentFilter(for: window, in: content, source: source(in: arguments))
+        try await recorder.start(filter: filter)
     } catch {
         fail("capture", "could not start: \(error.localizedDescription)", code: 5)
     }
@@ -115,6 +125,7 @@ func record(_ arguments: [String]) async {
             "frames": counters.frames,
             "dropped": counters.dropped,
             "cpuPercent": sample.cpuPercent,
+            "statuses": counters.statuses,
         ])
     }
     timer.resume()
@@ -192,6 +203,6 @@ case "probe":
 case "record":
     await record(arguments)
 default:
-    fail("usage", "usage: truemain-capture list | probe [--window-id N] | record --out FILE --width W --height H --fps F --bitrate BPS --keyframe-interval FRAMES [--window-id N] [--no-audio]")
+    fail("usage", "usage: truemain-capture list | probe [--window-id N] [--source window|display] | record --out FILE --width W --height H --fps F --bitrate BPS --keyframe-interval FRAMES [--window-id N] [--source window|display] [--no-audio]")
 }
 exit(0)

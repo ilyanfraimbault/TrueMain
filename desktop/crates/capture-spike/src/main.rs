@@ -30,7 +30,8 @@ use lcu::{GameflowPhase, LcuClient};
 
 const USAGE: &str =
     "usage: truemain-capture-spike [--resolution native|1440p|1080p|720p] [--fps 30|60]
-                              [--no-audio] [--window-id N] [--out DIR] [--helper PATH]";
+                              [--source window|display] [--no-audio] [--window-id N]
+                              [--out DIR] [--helper PATH]";
 
 const CLOCK_EVERY: u32 = 5;
 const EVENTS_EVERY: u32 = 2;
@@ -38,11 +39,15 @@ const EVENTS_EVERY: u32 = 2;
 /// silent means the game is gone.
 const GAME_GONE_AFTER: u32 = 15;
 const HISTORY_WAIT: Duration = Duration::from_secs(300);
+/// The capture can fail to start on the loading screen; it is tried again
+/// while the game runs rather than giving up on the game.
+const START_ATTEMPTS: u32 = 6;
 
 struct Options {
     quality: Quality,
     audio: bool,
     window_id: Option<u32>,
+    source: String,
     out: PathBuf,
     helper: PathBuf,
 }
@@ -73,6 +78,10 @@ fn parse_options() -> Result<Options, String> {
     let window_id = value("--window-id")
         .map(|v| v.parse().map_err(|_| format!("bad window id {v}")))
         .transpose()?;
+    let source = value("--source").unwrap_or_else(|| "window".into());
+    if source != "window" && source != "display" {
+        return Err(format!("unknown source {source}\n{USAGE}"));
+    }
     let out = PathBuf::from(value("--out").unwrap_or_else(|| "capture-spike".into()));
     let helper = value("--helper").map(PathBuf::from).unwrap_or_else(|| {
         std::env::current_exe()
@@ -87,6 +96,7 @@ fn parse_options() -> Result<Options, String> {
         },
         audio: !args.iter().any(|a| a == "--no-audio"),
         window_id,
+        source,
         out,
         helper,
     })
@@ -155,6 +165,7 @@ async fn run(options: Options) -> Result<(), String> {
     let mut session = Session::new(HelperCapture::new(
         options.helper.clone(),
         options.window_id,
+        options.source.clone(),
         options.audio,
     ));
     // Fail now on a missing helper or a missing permission, not once a game
@@ -204,18 +215,40 @@ async fn run(options: Options) -> Result<(), String> {
         );
     }
 
-    let change = session
-        .on_phase(
+    let mut attempt = 0;
+    let dir = loop {
+        attempt += 1;
+        match session.on_phase(
             GameflowPhase::InProgress,
             Some(game),
             &settings,
             &out,
             now_ms(),
-        )
-        .map_err(|e| e.to_string())?;
-    let Change::Started(dir) = change else {
-        return Err(format!("the recording did not start: {change:?}"));
+        ) {
+            Ok(Change::Started(dir)) => break dir,
+            Ok(change) => return Err(format!("the recording did not start: {change:?}")),
+            Err(error) => {
+                eprintln!(
+                    "the capture did not start (attempt {attempt}/{START_ATTEMPTS}): {error}"
+                );
+                if attempt >= START_ATTEMPTS || live.game_stats().await.is_err() {
+                    return Err("giving up: the capture never started".into());
+                }
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+        }
     };
+    if let Some(window) = &session.capture().window {
+        eprintln!(
+            "capturing window {} \"{}\" of {}, {}×{} px, from the {}",
+            window["windowId"],
+            window["title"].as_str().unwrap_or(""),
+            window["app"].as_str().unwrap_or(""),
+            window["width"],
+            window["height"],
+            window["source"].as_str().unwrap_or("window")
+        );
+    }
     eprintln!("recording game {} into {}", game.game_id, dir.display());
     if let Ok(player) = live.active_player().await {
         session.note_player(player);

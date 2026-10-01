@@ -20,12 +20,15 @@ const START_TIMEOUT: Duration = Duration::from_secs(30);
 const STOP_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// One `progress` event.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Progress {
     pub elapsed_ms: u64,
     pub frames: u64,
     pub dropped: u64,
     pub cpu_percent: f64,
+    /// Frames ScreenCaptureKit sent, by status (`complete 290, idle 10`) —
+    /// what tells a window never drawn from one never captured.
+    pub statuses: String,
 }
 
 /// What the helper said once it stopped.
@@ -39,6 +42,7 @@ pub struct Stopped {
 pub struct HelperCapture {
     binary: PathBuf,
     window_id: Option<u32>,
+    source: String,
     audio: bool,
     child: Option<Child>,
     stdin: Option<ChildStdin>,
@@ -55,10 +59,13 @@ pub struct HelperCapture {
 }
 
 impl HelperCapture {
-    pub fn new(binary: PathBuf, window_id: Option<u32>, audio: bool) -> Self {
+    /// `source` is `window` (the game's window alone) or `display` (its
+    /// display, with only the game's windows drawn).
+    pub fn new(binary: PathBuf, window_id: Option<u32>, source: String, audio: bool) -> Self {
         Self {
             binary,
             window_id,
+            source,
             audio,
             child: None,
             stdin: None,
@@ -73,9 +80,11 @@ impl HelperCapture {
     }
 
     fn window_args(&self) -> Vec<String> {
-        self.window_id
-            .map(|id| vec!["--window-id".to_string(), id.to_string()])
-            .unwrap_or_default()
+        let mut args = vec!["--source".to_string(), self.source.clone()];
+        if let Some(id) = self.window_id {
+            args.extend(["--window-id".to_string(), id.to_string()]);
+        }
+        args
     }
 
     /// Ask the helper which window it would record, and its size in pixels.
@@ -194,13 +203,15 @@ impl Capture for HelperCapture {
                             frames: event["frames"].as_u64().unwrap_or(0),
                             dropped: event["dropped"].as_u64().unwrap_or(0),
                             cpu_percent: event["cpuPercent"].as_f64().unwrap_or(0.0),
+                            statuses: statuses_of(&event["statuses"]),
                         };
                         eprintln!(
-                            "  recording {:>5}s · {} frames · {} dropped · helper CPU {:.1}%",
+                            "  recording {:>5}s · {} frames · {} dropped · helper CPU {:.1}% · sent: {}",
                             entry.elapsed_ms / 1000,
                             entry.frames,
                             entry.dropped,
-                            entry.cpu_percent
+                            entry.cpu_percent,
+                            entry.statuses
                         );
                         progress.lock().unwrap().push(entry);
                         continue;
@@ -273,6 +284,27 @@ fn parse_events(stdout: &[u8]) -> Vec<Value> {
         .collect()
 }
 
+/// `{"complete": 290, "idle": 10}` as `complete 290, idle 10`, most first.
+fn statuses_of(value: &Value) -> String {
+    let mut counts: Vec<(&String, u64)> = value
+        .as_object()
+        .map(|map| {
+            map.iter()
+                .map(|(k, v)| (k, v.as_u64().unwrap_or(0)))
+                .collect()
+        })
+        .unwrap_or_default();
+    if counts.is_empty() {
+        return "nothing".into();
+    }
+    counts.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    counts
+        .iter()
+        .map(|(name, count)| format!("{name} {count}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn error_of(event: &Value) -> CaptureError {
     CaptureError(format!(
         "{} ({})",
@@ -296,8 +328,20 @@ mod tests {
     }
 
     #[test]
+    fn frame_statuses_read_most_first() {
+        let statuses = serde_json::json!({ "idle": 12, "complete": 290, "blank": 0 });
+        assert_eq!(statuses_of(&statuses), "complete 290, idle 12, blank 0");
+        assert_eq!(statuses_of(&Value::Null), "nothing");
+    }
+
+    #[test]
     fn a_missing_helper_is_a_capture_error() {
-        let capture = HelperCapture::new("/nonexistent/truemain-capture".into(), None, true);
+        let capture = HelperCapture::new(
+            "/nonexistent/truemain-capture".into(),
+            None,
+            "window".into(),
+            true,
+        );
         let error = capture.probe().unwrap_err();
         assert!(error.0.contains("could not run"), "{error}");
     }
