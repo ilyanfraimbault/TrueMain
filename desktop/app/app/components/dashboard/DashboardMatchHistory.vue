@@ -10,10 +10,12 @@ import { getQueueLabel } from '~/utils/queues'
 
 /**
  * The player's match history, ten games a page with the site's pagination,
- * grouped by day on each page. Pages past what has been read ask the client for
- * older games (`loadOlder`); while it still has some, the pager offers one page
- * more than is loaded. Remakes count for nothing and the site never lists one,
- * so neither does this.
+ * grouped by day on each page. The pager only counts games already read: older
+ * ones are read ahead (`loadOlder`) while the player sits on the last full page
+ * there is, so a next page shows up once it has games and never as an empty
+ * promise — the client keeps a bounded history, and a page offered past its end
+ * had nothing to fill it. Remakes count for nothing and the site never lists
+ * one, so neither does this.
  */
 const props = defineProps<{
   /** Every game read so far in the chosen queue, newest first. */
@@ -39,8 +41,8 @@ const page = ref(1)
 watch(() => props.queue, () => (page.value = 1))
 
 const listed = computed(() => counted(props.games))
-const total = computed(() => listed.value.length + (props.hasOlder ? PAGE_SIZE : 0))
-// The client ran out before the page it was asked for: land on the last one there is.
+const total = computed(() => listed.value.length)
+// The list shrank under the page (another queue, a fresh read): land on the last one there is.
 watch(total, (value) => {
   page.value = Math.min(page.value, Math.max(1, Math.ceil(value / PAGE_SIZE)))
 })
@@ -50,11 +52,11 @@ const days = computed(() => groupMatchesByDay(
     .map(game => toMatchSummary(game, lpDeltaOf(game, props.allGames, props.rankHistory))),
 ))
 
-// A page reaching past what is loaded reads older games until it is full, or
-// the client has none left — a filtered queue can take more than one read.
-const short = computed(() => listed.value.length < page.value * PAGE_SIZE)
+// Read ahead until the page after this one is full, or the client has none left
+// — a filtered queue can take more than one read.
+const short = computed(() => listed.value.length < (page.value + 1) * PAGE_SIZE)
 watchEffect(() => {
-  if (short.value && props.hasOlder && !props.loadingOlder) emit('loadOlder')
+  if (short.value && props.hasOlder && !props.loadingOlder && !props.pending) emit('loadOlder')
 })
 
 const section = ref<HTMLElement | null>(null)

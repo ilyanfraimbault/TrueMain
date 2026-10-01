@@ -33,6 +33,10 @@ export function usePlayerRecord() {
   const rankHistory = useState<RankHistoryEntry[]>('player-rank-history', () => [])
   const older = useState<PlayerGame[]>('player-record-older', () => [])
   const hasOlder = useState<boolean>('player-record-has-older', () => false)
+  // The client's own index of the next older page. Kept apart from the number of
+  // games held, which the shell trims (a game without the player's line is
+  // dropped) and the dedup below shortens: counting those would re-read pages.
+  const nextBegin = useState<number>('player-record-next-begin', () => HISTORY_PAGE)
   const loadingOlder = useState<boolean>('player-record-loading-older', () => false)
 
   async function read(): Promise<PlayerRecord | null> {
@@ -63,6 +67,7 @@ export function usePlayerRecord() {
       record.value = answer
       // A new game shifts every older page by one: they are read again from here.
       older.value = []
+      nextBegin.value = HISTORY_PAGE
       hasOlder.value = (answer?.games.length ?? 0) >= HISTORY_PAGE - 1
       rankHistory.value = noteStanding(riotId, answer)
       owner.value = riotId
@@ -87,18 +92,25 @@ export function usePlayerRecord() {
     return [...record.value.games, ...older.value.filter(game => !seen.has(game.gameId))]
   })
 
-  /** Read the next older page; an empty one means the client has no more. */
+  /**
+   * Read the next older page. One that brings no game not already held means the
+   * client has no more: it keeps a bounded history and, past its end, can answer
+   * with games it already gave rather than with nothing — taking that for more
+   * left the history reading the same page forever.
+   */
   async function loadOlder() {
     const riotId = state.value.riotId
     if (loadingOlder.value || !hasOlder.value || !riotId) return
     loadingOlder.value = true
     try {
-      const begin = games.value.length
+      const begin = nextBegin.value
       const page = await readOlder(begin)
       if (state.value.riotId !== riotId) return
       const known = new Set(games.value.map(game => game.gameId))
-      older.value = [...older.value, ...page.filter(game => !known.has(game.gameId))]
-      hasOlder.value = page.length > 0 && begin + page.length < HISTORY_CEILING
+      const fresh = page.filter(game => !known.has(game.gameId))
+      older.value = [...older.value, ...fresh]
+      nextBegin.value = begin + HISTORY_PAGE
+      hasOlder.value = fresh.length > 0 && nextBegin.value < HISTORY_CEILING
     }
     catch {
       hasOlder.value = false
