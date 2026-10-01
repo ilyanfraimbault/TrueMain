@@ -18,9 +18,10 @@ export default defineNuxtConfig({
   },
   // The app is a static bundle inside a webview: there is no Node server at
   // runtime, so no SSR and no Nitro server routes. Anything the site does
-  // through `server/api` has to be done against the API directly here. The one
-  // server route, `server/routes/__sim/lcu.ts`, is the draft simulator's relay
-  // and answers only in `npm run dev`.
+  // through `server/api` has to be done against the API directly here. The two
+  // server routes answer only in `npm run dev`: `server/routes/__sim/lcu.ts`,
+  // the draft simulator's relay, and `server/routes/__dev/recording-file.ts`,
+  // which serves the recordings fixtures' video.
   ssr: false,
   modules: ['@nuxt/ui'],
   css: ['~/assets/css/main.css'],

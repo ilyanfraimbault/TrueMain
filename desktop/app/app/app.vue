@@ -3,6 +3,10 @@ const { screen, ready } = useLcuState()
 // Followed for as long as the window lives, so a game's updates are never
 // missed while another page is open.
 useLiveGame()
+// Recordings are read once and followed for the window's life too: the sidebar
+// and the dashboard's "Watch" read the library, and the end of a recorded game
+// opens its recap (`recording://recap`, from home or the game page only).
+useRecordings()
 const router = useRouter()
 const route = useRoute()
 
