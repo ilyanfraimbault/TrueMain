@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import type { ProfileIdentity } from '~~/shared/types/profile'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { isApexTier } from '~/utils/tiers'
 
@@ -12,6 +13,7 @@ import { isApexTier } from '~/utils/tiers'
  * main runs on it, and the Riot ID keeps the width it needs. The full
  * leaderboard row does not fit here — it would leave the name 50 px. A row
  * selects that main's own build on the champion, shown like any other build.
+ * The search above the list reaches any other main of the champion by name.
  */
 const props = defineProps<{
   championId: number
@@ -19,7 +21,7 @@ const props = defineProps<{
   selectedNameTag?: string | null
 }>()
 
-const emit = defineEmits<{ select: [row: LeaderboardRowResponse] }>()
+const emit = defineEmits<{ select: [main: { identity: ProfileIdentity }] }>()
 
 const TOP_N = 5
 
@@ -53,6 +55,12 @@ const nameTagOf = (row: LeaderboardRowResponse) => favoriteNameTag(row.identity.
 <template>
   <div class="flex flex-col gap-0.5">
     <h3 class="px-2 pb-1 stat-label">Truemains</h3>
+    <LeaderboardTruemainSearch
+      :champion-id="championId"
+      placeholder="Search a truemain…"
+      class="mb-1 px-1"
+      @player="emit('select', $event)"
+    />
 
     <template v-if="rows === null && !failed">
       <div v-for="index in 3" :key="index" class="flex items-center gap-2 px-2 py-1.5">
