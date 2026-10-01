@@ -4,3 +4,4 @@ node_modules/
 .output/
 app/dist/
 src-tauri/gen/
+src-tauri/binaries/

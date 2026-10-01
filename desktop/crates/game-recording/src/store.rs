@@ -14,10 +14,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::anchor::Anchor;
 use crate::highlights::{Highlight, HighlightSource};
+use crate::moments::{self, Moment, Objective};
 use crate::settings::Quality;
 
 pub const VIDEO_FILE: &str = "video.mp4";
 pub const METADATA_FILE: &str = "recording.json";
+/// One frame of the game, for the Recordings page.
+pub const THUMBNAIL_FILE: &str = "thumbnail.jpg";
 const METADATA_TEMPORARY: &str = "recording.json.tmp";
 
 /// The metadata format version. A folder written by a later format is left
@@ -51,11 +54,22 @@ pub struct RecordingMeta {
     /// From the match history, once the game is in it.
     pub champion_id: Option<i64>,
     pub win: Option<bool>,
+    /// The player's line in the game, from the match history.
+    #[serde(default)]
+    pub kills: Option<i64>,
+    #[serde(default)]
+    pub deaths: Option<i64>,
+    #[serde(default)]
+    pub assists: Option<i64>,
     pub anchor: Option<Anchor>,
     /// In game time; the anchor maps them onto the video.
     pub highlights: Vec<Highlight>,
     pub highlights_source: Option<HighlightSource>,
-    /// Exempt from the disk budget.
+    /// The game's epic monsters and buildings, from its timeline, in game
+    /// time.
+    #[serde(default)]
+    pub objectives: Vec<Objective>,
+    /// Exempt from the disk budget — the player kept the full game.
     pub pinned: bool,
 }
 
@@ -71,11 +85,25 @@ impl RecordingMeta {
             duration_ms: None,
             champion_id: None,
             win: None,
+            kills: None,
+            deaths: None,
+            assists: None,
             anchor: None,
             highlights: Vec::new(),
             highlights_source: None,
+            objectives: Vec::new(),
             pinned: false,
         }
+    }
+
+    /// The highlights and objectives on the video.
+    pub fn moments(&self) -> Vec<Moment> {
+        moments::on_video(
+            self.anchor.as_ref(),
+            &self.highlights,
+            &self.objectives,
+            self.duration_ms,
+        )
     }
 }
 
@@ -96,6 +124,18 @@ impl RecordingDir {
 
     pub fn video_path(&self) -> PathBuf {
         self.path.join(VIDEO_FILE)
+    }
+
+    pub fn thumbnail_path(&self) -> PathBuf {
+        self.path.join(THUMBNAIL_FILE)
+    }
+
+    /// The folder's name, which the app uses as the recording's id.
+    pub fn id(&self) -> String {
+        self.path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default()
     }
 
     pub fn read_meta(&self) -> io::Result<RecordingMeta> {
@@ -120,8 +160,8 @@ impl RecordingDir {
     }
 
     /// The space the recording's own files take.
-    fn size_bytes(&self) -> u64 {
-        [VIDEO_FILE, METADATA_FILE]
+    pub fn size_bytes(&self) -> u64 {
+        [VIDEO_FILE, METADATA_FILE, THUMBNAIL_FILE]
             .iter()
             .filter_map(|name| fs::metadata(self.path.join(name)).ok())
             .map(|metadata| metadata.len())
@@ -131,7 +171,12 @@ impl RecordingDir {
     /// Delete the recording's own files, then its folder if nothing else is
     /// in it.
     pub fn delete(&self) -> io::Result<()> {
-        for name in [VIDEO_FILE, METADATA_FILE, METADATA_TEMPORARY] {
+        for name in [
+            VIDEO_FILE,
+            METADATA_FILE,
+            METADATA_TEMPORARY,
+            THUMBNAIL_FILE,
+        ] {
             match fs::remove_file(self.path.join(name)) {
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -190,6 +235,15 @@ impl Store {
         Ok(dir)
     }
 
+    /// The recording with this id (its folder's name), if it exists.
+    pub fn get(&self, id: &str) -> Option<RecordingDir> {
+        if !is_id(id) {
+            return None;
+        }
+        let dir = RecordingDir::new(self.root.join(id));
+        dir.path().join(METADATA_FILE).is_file().then_some(dir)
+    }
+
     /// Every recording in the folder, newest first. Folders without metadata
     /// this build reads are not ours, or not ours to judge, and are skipped.
     pub fn list(&self) -> io::Result<Vec<StoredRecording>> {
@@ -235,6 +289,12 @@ impl Store {
         }
         Ok(deleted)
     }
+}
+
+/// Whether `id` can name a folder of ours: digits, letters and dashes, so an
+/// id from the webview can never reach outside the recordings folder.
+pub fn is_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
 /// Which recordings to delete to fit `budget_bytes`: the oldest first, pinned

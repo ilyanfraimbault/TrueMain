@@ -21,7 +21,7 @@ func log(_ message: String) {
 }
 
 /// Exit with an error event the shell can act on. `kind` is machine-readable:
-/// `permission`, `no-window`, `usage`, `capture`, `writer`.
+/// `permission`, `no-window`, `usage`, `capture`, `writer`, `clip`, `thumbnail`.
 func fail(_ kind: String, _ message: String, code: Int32 = 1) -> Never {
     emit("error", ["kind": kind, "message": message])
     log(message)

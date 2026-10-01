@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 lcu = { path = "../lcu" }
 game-recording = { path = "../game-recording" }
+capture-helper = { path = "../capture-helper" }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["signal"] }

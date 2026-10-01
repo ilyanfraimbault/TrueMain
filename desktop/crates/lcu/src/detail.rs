@@ -62,6 +62,18 @@ pub struct TimelineEvent {
     pub killer_id: i64,
     pub victim_id: i64,
     pub assisting_participant_ids: Vec<i64>,
+    /// `ELITE_MONSTER_KILL`: `DRAGON`, `BARON_NASHOR`, `RIFTHERALD`, `HORDE`
+    /// (void grubs), `ATAKHAN`; the killer is `killer_id`.
+    pub monster_type: String,
+    /// A dragon's kind, `ELDER_DRAGON` among them.
+    pub monster_sub_type: String,
+    /// `BUILDING_KILL`: `TOWER_BUILDING` or `INHIBITOR_BUILDING`.
+    pub building_type: String,
+    /// `BUILDING_KILL`: the team that *lost* the building.
+    pub team_id: i64,
+    /// `ELITE_MONSTER_KILL`, when the timeline names the team rather than (or
+    /// as well as) the killer.
+    pub killer_team_id: i64,
 }
 
 /// The minute the lane standing is read at, as on the site.

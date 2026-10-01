@@ -12,19 +12,18 @@
 //! history to resolve the highlights. It leaves `video.mp4`,
 //! `recording.json`, `report.md` and `player.html` in one folder per game.
 
-mod helper;
 mod report;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use capture_helper::{Codec, HelperCapture};
 use game_recording::anchor::ClockSample;
 use game_recording::{
     Change, FrameRate, GameInfo, GameOutcome, Quality, Queues, RecordingDir, RecordingSettings,
     Resolution, Session,
 };
-use helper::{Codec, HelperCapture};
 use lcu::live::LiveClient;
 use lcu::{GameflowPhase, LcuClient};
 
@@ -186,7 +185,8 @@ async fn run(options: Options) -> Result<(), String> {
             options.source.clone(),
             options.audio,
         )
-        .with_encoding(options.codec, options.bitrate_bps),
+        .with_encoding(options.codec, options.bitrate_bps)
+        .logging_progress(),
     );
     // Fail now on a missing helper or a missing permission, not once a game
     // has started.

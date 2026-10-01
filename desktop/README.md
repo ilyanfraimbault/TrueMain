@@ -93,12 +93,36 @@ Tracking issue: **#1671**.
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.
-- **No game recording yet.** Its core is written and tested
-  (`crates/game-recording`: the resolution/frame-rate settings, the player's
-  kills, deaths and assists from the timeline or the live feed, the game-clock
-  anchor, the disk budget), and the macOS capture helper exists as a spike
-  (`docs/desktop-capture-spike.md`), but the shell does not run either until
-  the spike's measurements hold (#1744, #1745).
+- **Game recording is macOS only.** No Windows capture helper exists yet
+  (#1745's Windows half waits for a tester); on Windows the Recordings page
+  says so. Automatic clips (#1766) and instant replay (#1767) are not built.
+
+## Recording games
+
+When the player turns recording on (off by default) and a game of a recorded
+queue starts, the shell (`src-tauri/src/recording/`) starts the capture helper
+on the game window, follows the game clock and the live feed so the moments
+land on the video, and when the game ends closes the video and emits
+`recording://recap` so the app opens the recap. It then waits up to five
+minutes for the match history to list the game and finalises the recording
+from its timeline: the player's kills, deaths and assists, the objectives, the
+K/D/A and the result. Recordings go to `~/Movies/TrueMain` (`Videos\TrueMain`
+on Windows) unless the player picked a folder; clips cut in the recap go to
+its `clips/` subfolder, each its own `clip.mp4` + `clip.json` + thumbnail. The
+helper also cuts the clips (a passthrough export, no re-encoding) and takes the
+thumbnails (`crates/capture-helper`, shared with the spike).
+
+Recording needs a real client and a real game window: a tape or the simulator
+plays the client's events but records nothing. Screen Recording is asked for
+from the Recordings page — macOS shows its prompt once per app; after a
+refusal the button opens System Settings. An unsigned build loses the
+permission on each update (its signature changes), which the page shows.
+
+In development the shell finds the helper `swift build` leaves in
+`capture/macos/.build/` — build it once with
+`swift build -c release --package-path desktop/capture/macos` — or the one
+named by `TRUEMAIN_CAPTURE_HELPER`. The permission is then the terminal's,
+since the terminal starts `tauri dev`.
 
 ## Sharing with the site
 
@@ -203,6 +227,8 @@ desktop/
   crates/shell-state/     the app's state and the screen it calls for
   crates/game-recording/  game recording minus the capture (#1744): settings, highlights,
                           game-clock anchor, storage budget — no Tauri, no GUI
+  crates/capture-helper/  drives the capture helper: records, cuts clips, takes thumbnails,
+                          reads the Screen Recording permission — shared by app and spike
   crates/capture-spike/   dev tool: records one game through the capture helper and
                           reports what it measured (#1745)
   capture/macos/          the macOS capture helper (Swift, ScreenCaptureKit) — built on
@@ -213,7 +239,7 @@ desktop/
 
 The crates deliberately carry no Tauri dependency, so they build and test on
 any platform — including Linux CI, where the shell itself cannot build. Run
-their tests with `cargo test -p lcu -p live-client -p shell-state -p game-recording` from
+their tests with `cargo test -p lcu -p live-client -p shell-state -p game-recording -p capture-helper` from
 `desktop/`.
 
 The **navigation rule lives in Rust** (`crates/shell-state/src/lib.rs`), not in the
@@ -345,6 +371,10 @@ on macOS.
 
 ```sh
 cd desktop/app && npm install
+# macOS: the capture helper goes inside the bundle (`bundle.macOS.files`)
+swift build -c release --package-path ../capture/macos
+mkdir -p ../src-tauri/binaries && cp "$(swift build -c release --package-path ../capture/macos --show-bin-path)/truemain-capture" ../src-tauri/binaries/
+codesign --force --sign - ../src-tauri/binaries/truemain-capture
 npm run tauri build        # bundles into desktop/target/release/bundle
 ```
 

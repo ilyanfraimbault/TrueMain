@@ -1,0 +1,13 @@
+[package]
+name = "capture-helper"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Drives the platform capture helper (truemain-capture): records the game window, cuts clips, takes thumbnails, checks the Screen Recording permission."
+
+[dependencies]
+game-recording = { path = "../game-recording" }
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

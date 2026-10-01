@@ -18,6 +18,12 @@
 //                           [--source window|display] [--no-audio]
 //       records until told to stop; events: `started`, `progress` every five
 //       seconds, `stopped`, `error`
+//   truemain-capture access [--request] [--open-settings]
+//       whether Screen Recording is allowed, as one `access` event
+//   truemain-capture clip --in FILE --out FILE --start-ms N --end-ms N
+//       the range as its own file, not re-encoded; one `clipped` event
+//   truemain-capture thumbnail --in FILE --out FILE.jpg --at-ms N [--width W]
+//       one frame as a JPEG; one `thumbnail` event
 //
 // The output size, bitrate and keyframe interval are computed by the shell
 // (`game-recording`'s `Quality::output_for`), so the rule lives in one place.
@@ -210,7 +216,13 @@ case "probe":
     await probe(arguments)
 case "record":
     await record(arguments)
+case "access":
+    access(arguments)
+case "clip":
+    await clip(arguments)
+case "thumbnail":
+    await thumbnail(arguments)
 default:
-    fail("usage", "usage: truemain-capture list | probe [--window-id N] [--source window|display] | record --out FILE --width W --height H --fps F --bitrate BPS --keyframe-interval FRAMES [--codec h264|hevc] [--window-id N] [--source window|display] [--no-audio]")
+    fail("usage", "usage: truemain-capture list | probe [--window-id N] [--source window|display] | record --out FILE --width W --height H --fps F --bitrate BPS --keyframe-interval FRAMES [--codec h264|hevc] [--window-id N] [--source window|display] [--no-audio] | access [--request] [--open-settings] | clip --in FILE --out FILE --start-ms N --end-ms N | thumbnail --in FILE --out FILE --at-ms N [--width W]")
 }
 exit(0)

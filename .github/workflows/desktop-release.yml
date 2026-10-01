@@ -80,6 +80,15 @@ jobs:
           workspaces: desktop
       - run: npm ci
         working-directory: desktop/app
+      - name: Build the capture helper
+        if: matrix.name == 'macOS'
+        run: |
+          swift build -c release --arch arm64 --arch x86_64 --package-path desktop/capture/macos
+          bin="$(swift build -c release --arch arm64 --arch x86_64 --package-path desktop/capture/macos --show-bin-path)"
+          mkdir -p desktop/src-tauri/binaries
+          cp "$bin/truemain-capture" desktop/src-tauri/binaries/truemain-capture
+          codesign --force --sign - desktop/src-tauri/binaries/truemain-capture
+          lipo -archs desktop/src-tauri/binaries/truemain-capture
       - run: npm run tauri -- build ${{ matrix.args }}
         working-directory: desktop/app
         env:
@@ -93,6 +102,8 @@ jobs:
         run: |
           mkdir -p dist
           if [ "${{ matrix.name }}" = "macOS" ]; then
+            test -x "$BUNDLE/macos/TrueMain.app/Contents/MacOS/truemain-capture"
+            codesign --verify --deep --strict "$BUNDLE/macos/TrueMain.app"
             cp "$BUNDLE"/dmg/*.dmg "dist/TrueMain_${VERSION}_universal.dmg"
             cp "$BUNDLE/macos/TrueMain.app.tar.gz" "dist/TrueMain_${VERSION}_universal.app.tar.gz"
             cp "$BUNDLE/macos/TrueMain.app.tar.gz.sig" "dist/TrueMain_${VERSION}_universal.app.tar.gz.sig"

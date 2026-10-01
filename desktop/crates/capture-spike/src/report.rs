@@ -13,7 +13,7 @@ use game_recording::anchor::ClockSample;
 use game_recording::{Anchor, Highlight, HighlightKind, OutputSpec, RecordingMeta};
 use serde_json::{json, Value};
 
-use crate::helper::{Progress, Stopped};
+use capture_helper::{Progress, Stopped};
 
 /// Seconds the player starts before a moment, so the action is seen building.
 const LEAD_IN_MS: i64 = 5_000;

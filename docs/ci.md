@@ -284,7 +284,8 @@ shared file importing a package the app lacks would otherwise fail first.
 The `macOS capture spike` job builds the game-recording spike (#1745): the
 Swift capture helper (`desktop/capture/macos`, ScreenCaptureKit, so only a Mac
 can compile it — the Linux job never sees it) and the Rust runner
-(`capture-spike`), both universal (arm64 + x86_64) and ad-hoc signed like the
+(`capture-spike`, which drives it through the `capture-helper` crate the app
+uses too), both universal (arm64 + x86_64) and ad-hoc signed like the
 app's own build. It smoke-runs each binary for its usage error, then uploads
 them as one `.tar.gz` — tarred because an artifact's zip drops the executable
 bit — so the spike can be run on a Mac without a toolchain.
@@ -304,7 +305,12 @@ app supports, each on its own runner:
 - **macOS** (`macos-15`): one universal binary (`--target universal-apple-darwin`,
   both Rust targets installed), bundled as a `.dmg` and as the `.app.tar.gz` the
   updater installs. Ad-hoc signed (`bundle.macOS.signingIdentity: "-"`), which is
-  what lets an unsigned app run on Apple Silicon at all; not notarised.
+  what lets an unsigned app run on Apple Silicon at all; not notarised. The Swift
+  capture helper (#1744) is built universal first, ad-hoc signed on its own and
+  copied to `src-tauri/binaries/` (gitignored), from where `bundle.macOS.files`
+  puts it in `Contents/MacOS` beside the app's binary — signed before bundling,
+  so the app's seal covers a signed executable. The job then checks the helper
+  is in the bundle and that the bundle's signature verifies.
 - **Windows** (`windows-2025`): the NSIS `-setup.exe`, which is also what the
   updater installs. Not code-signed.
 

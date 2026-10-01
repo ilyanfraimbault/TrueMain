@@ -252,6 +252,14 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   JSON lines) and `game-recording`'s session, then writes the video, its highlights, a `report.md` of what it measured
   and a `player.html` that jumps to each moment. Built by CI as a downloadable macOS artifact; not part of the app.
   How to run it: `docs/desktop-capture-spike.md`.
+- **Game recording** (macOS, #1744) — off until the player turns it on. A game of a recorded queue is captured by
+  the helper bundled in the app (`capture-helper` crate, `src-tauri/src/recording/`), its clock and live feed
+  followed so the moments land on the video; at the end the video is closed and the recap opens on it
+  (`recording://recap`), then the recording is finalised from the match history's timeline (kills, deaths, assists,
+  multi-kills grouped; dragons, Elder, Baron, Herald, grubs, Atakhan, towers, inhibitors with the side that took
+  them; K/D/A and result) and a thumbnail is taken. Recordings live in `~/Movies/TrueMain`, clips cut in the recap in
+  its `clips/` (each its own file, cut without re-encoding, outliving the full game, never deleted by the budget).
+  The disk budget deletes the oldest full games the player did not keep.
 - **Site sections** — the tier list, the champion directory, the matchup page, the truemains leaderboard and the
   favorites are **the site's own pages** (`PageTierList`, `PageChampions`, `PageMatchup`, `PageTruemains`,
   `PageFavorites` from `web/layers/common`, #1732: one implementation, the same headers, filters, searches, tables,

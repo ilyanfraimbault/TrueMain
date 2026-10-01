@@ -236,8 +236,20 @@ because those are first-class Swift APIs, where Rust bindings to them would be w
 process because a crash in capture or the encoder must not take the app — or a champion select — down with it, and
 because the Windows helper can then be whatever Windows captures best with, behind the same protocol. The output
 size, bitrate and keyframe interval are still computed in Rust (`Quality::output_for`) and passed in, so the rule
-has one implementation. The spike (`capture-spike`) runs this pair outside the app first; it becomes a Tauri sidecar
-only once the spike's measurements hold (2026-10-01) — #1745.
+has one implementation. The spike (`capture-spike`) ran this pair outside the app first; once a real game recorded
+cleanly through it (1080p60, 0 dropped frames, no in-game FPS cost), the helper shipped inside the app bundle
+(`Contents/MacOS`, beside the app's binary, ad-hoc signed before bundling) rather than as a Tauri sidecar with a
+target-triple name, and the app and the spike drive it through one crate (`capture-helper`). The same helper cuts the
+clips (an AVFoundation passthrough export) and takes the thumbnails, so the media stack that wrote a file is the one
+that reads it (2026-10-01) — #1745, #1744.
+
+**The app records only against a real client, into a folder the player can find, and asks for Screen Recording
+itself.** A tape or the simulator plays the client's events, not a game window, so neither starts the recorder. The
+default folder is the system's videos folder (`~/Movies/TrueMain`), not the app's hidden data folder: the clips are
+files the player keeps and shares. The game's objectives on the recap's timeline come from the match history's
+timeline only, never the live feed, whose objective events do not always say which side took them — a side is not
+guessed. The Screen Recording prompt is asked from the Recordings page, not at launch: macOS shows it once per app, so
+a later request opens System Settings instead (2026-10-01) — #1744.
 
 **The next item sits over the game board and answers one purchase: what to complete, and what to buy now.** The mains'
 choice from where our build stands (#1749) is the decision; its share of the mains, one reason in the site's own
