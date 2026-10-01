@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ProfileIdentity } from '~~/shared/types/profile'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { platformIdToRegion } from '~~/shared/utils/region'
 
 const props = defineProps<{
@@ -15,8 +14,6 @@ const props = defineProps<{
    */
   stacked?: boolean
 }>()
-
-const iconUrl = computed(() => getProfileIconUrl(props.identity.profileIconId, props.patch))
 
 const region = computed(() => platformIdToRegion(props.identity.platformId))
 
@@ -37,26 +34,28 @@ const titleStyle = computed(() => {
 </script>
 
 <template>
-  <section
-    class="flex items-center gap-4"
-    :class="stacked ? 'xl:flex-col xl:items-start xl:gap-3' : undefined"
+  <!-- The shared identity (#1734) at hero size, without a link — this is the
+       profile. Its body is an inline-size container so the title can size
+       itself against the room actually left beside (or, stacked, under) the
+       icon; containment drops content-based sizing, hence `flex-1` and the
+       stacked `self-stretch`. -->
+  <Account
+    as="section"
+    :identity="identity"
+    :patch="patch"
+    size="xl"
+    :to="false"
+    :ui="{
+      root: stacked ? 'xl:flex-col xl:items-start xl:gap-3' : undefined,
+      body: `@container flex flex-1 flex-col items-start gap-1 ${stacked ? 'xl:self-stretch' : ''}`,
+      subline: 'flex-wrap gap-2 text-sm text-muted',
+    }"
   >
-    <SkeletonImage
-      :src="iconUrl"
-      :alt="`${identity.gameName} profile icon`"
-      class="size-20 shrink-0 rounded-lg"
-    />
-    <!-- An inline-size container so the title can size itself against the room
-         actually left beside (or, stacked, under) the icon. Containment drops
-         content-based sizing, hence `flex-1` and the stacked `self-stretch`. -->
-    <div
-      class="@container flex min-w-0 flex-1 flex-col items-start gap-1"
-      :class="stacked ? 'xl:self-stretch' : undefined"
-    >
-      <!-- The follow star sits on the Riot ID, not under the identity block:
-           it acts on the account the title names, and as a labelled pill on its
-           own line it read as a third stat under the level rather than as a
-           control attached to the name. -->
+    <!-- The follow star sits on the Riot ID, not under the identity block: it
+         acts on the account the title names, and as a labelled pill on its own
+         line it read as a third stat under the level rather than as a control
+         attached to the name. -->
+    <template #name>
       <div class="flex min-w-0 items-center gap-2">
         <h1
           class="min-w-0 font-semibold leading-tight [overflow-wrap:anywhere]"
@@ -71,10 +70,9 @@ const titleStyle = computed(() => {
           :profile-icon-id="identity.profileIconId"
         />
       </div>
-      <div class="flex flex-wrap items-center gap-2 text-sm text-muted">
-        <LeaderboardRegionFlag :region="region" :width="18" />
-        <span>Level {{ identity.summonerLevel }}</span>
-      </div>
-    </div>
-  </section>
+    </template>
+    <template #subline>
+      <span>Level {{ identity.summonerLevel }}</span>
+    </template>
+  </Account>
 </template>

@@ -66,13 +66,25 @@ export function useRouteQueryPosition() {
  * empty value) to clear the param.
  */
 export function useRouteFilterSetter() {
+  const setQueryFilters = useRouteFiltersSetter()
+  return (name: string, value: string | null) => setQueryFilters({ [name]: value })
+}
+
+/**
+ * Several query-string filters in one `router.replace` — a table's sort is a
+ * column *and* a direction, and setting them one at a time would push two
+ * history states and fire two requests. Drops `?page=` like the single setter.
+ */
+export function useRouteFiltersSetter() {
   const route = useRoute()
   const router = useRouter()
 
-  return async function setQueryFilter(name: string, value: string | null) {
+  return async function setQueryFilters(values: Record<string, string | null>) {
     const nextQuery = { ...route.query }
-    if (value) nextQuery[name] = value
-    else delete nextQuery[name]
+    for (const [name, value] of Object.entries(values)) {
+      if (value) nextQuery[name] = value
+      else delete nextQuery[name]
+    }
     delete nextQuery.page
     await router.replace({ query: nextQuery })
   }

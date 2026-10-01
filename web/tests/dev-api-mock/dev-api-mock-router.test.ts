@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { pageParams, resolveDevApiMock, tierFor } from '~~/server/utils/dev-api-mock'
+import type { ChampionDirectoryResponse } from '~~/shared/types/champion-directory'
 import type { ChampionMainsComparison } from '~~/shared/types/champions'
 
 // `resolveDevApiMock` reaches two auto-imported server globals: `$fetch`
@@ -54,6 +55,28 @@ describe('resolveDevApiMock', () => {
     const res = await resolveDevApiMock('/champions', {})
     expect(Array.isArray(res)).toBe(true)
     expect((res as unknown[]).length).toBeGreaterThan(0)
+  })
+
+  it('routes /champions/directory to one ordered, paged envelope', async () => {
+    const page = await resolveDevApiMock('/champions/directory', { pageSize: '10' }) as ChampionDirectoryResponse
+    expect(page.rows).toHaveLength(10)
+    expect(page.page).toBe(1)
+    expect(page.total).toBeGreaterThan(10)
+    expect(page.patchVersion).toBeTruthy()
+    const pickRates = page.rows.map(row => row.pickRate)
+    expect(pickRates).toEqual([...pickRates].sort((a, b) => b - a))
+  })
+
+  it('orders the directory by the requested column and direction', async () => {
+    const page = await resolveDevApiMock('/champions/directory', { sort: 'games', order: 'asc', pageSize: '100' }) as ChampionDirectoryResponse
+    const games = page.rows.map(row => row.games)
+    expect(games).toEqual([...games].sort((a, b) => a - b))
+  })
+
+  it('narrows the directory to a lane before paging', async () => {
+    const page = await resolveDevApiMock('/champions/directory', { position: 'JUNGLE', pageSize: '100' }) as ChampionDirectoryResponse
+    expect(page.rows.length).toBe(page.total)
+    expect(page.rows.every(row => row.position === 'JUNGLE')).toBe(true)
   })
 
   it('resolves a known player route (Sheiden-1234)', async () => {

@@ -1,4 +1,5 @@
 import type { ChampionSlugMap } from '../types/static-data'
+import { truemainProfilePath } from './truemain-path'
 
 /**
  * Champion URL slugs (#1124): building a link, and reading one back.
@@ -49,7 +50,7 @@ export function truemainChampionPath(
   championId: number,
   slugs: ChampionSlugMap | null | undefined,
 ): string {
-  return `/truemains/${encodeURIComponent(nameTag)}/champions/${championSegment(championId, slugs)}`
+  return `${truemainProfilePath(nameTag)}/champions/${championSegment(championId, slugs)}`
 }
 
 /**

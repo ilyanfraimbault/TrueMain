@@ -7,6 +7,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 
 const props = defineProps<{
   participants: MatchDetailParticipant[]
@@ -31,7 +32,7 @@ function champName(id: number) {
 // (`Name-`) that NameTagParser can't resolve, yielding a 404 link.
 function profileSlug(p: MatchDetailParticipant): string | null {
   if (!p.gameName || !p.tagLine) return null
-  return `/truemains/${encodeURIComponent(`${p.gameName}-${p.tagLine}`)}`
+  return truemainProfilePath(truemainNameTag(p.gameName, p.tagLine))
 }
 
 // Highest damage across the rendered team — drives the damage bar fill, and

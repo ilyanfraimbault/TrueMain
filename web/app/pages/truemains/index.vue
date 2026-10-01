@@ -69,8 +69,11 @@ async function setOtpOnly(next: boolean) {
 }
 
 // Re-ranking reshuffles the whole list, so it resets to page 1 like any other
-// filter change (setQueryFilter drops `?page=`).
+// filter change (setQueryFilter drops `?page=`). The table's sortable headers
+// call this; a click on the column already sorting is not a change, and must
+// not throw the reader back to page 1.
 async function setSort(next: LeaderboardSort) {
+  if (next === sort.value) return
   await setQueryFilter('sort', next === 'dedication' ? 'dedication' : null)
 }
 
@@ -131,21 +134,10 @@ await leaderboardReady
       :region="filterRegion"
       :position="filterPosition"
       :otp-only="filterOtpOnly"
-      :sort="sort"
       @update:region="setRegion"
       @update:position="setPosition"
       @update:otp-only="setOtpOnly"
-      @update:sort="setSort"
     />
-
-    <ClientOnly>
-      <UProgress
-        v-if="leaderboardLoading && !leaderboardInitialLoading"
-        size="xs"
-        color="primary"
-        :indeterminate="true"
-      />
-    </ClientOnly>
 
     <FetchErrorAlert
       :error="leaderboardError"
@@ -159,16 +151,18 @@ await leaderboardReady
       description="No truemains match these filters yet."
     />
 
+    <!-- The page awaits its first page of rows (above), so the table is never
+         cold here; a refetch keeps the rows and runs the bar under the header. -->
     <LeaderboardTruemainsTable
-      v-else-if="leaderboardInitialLoading || rows.length > 0"
+      v-else-if="rows.length > 0"
       :rows="rows"
-      :loading="leaderboardInitialLoading"
-      :skeleton-rows="LEADERBOARD_PAGE_SIZE"
       :sort="sort"
+      :loading="leaderboardLoading && !leaderboardInitialLoading"
       :champions-by-id="championsById"
       :rune-tree="runeTree"
       :items-map="itemsMap"
       :patch="latestPatch"
+      @update:sort="setSort"
     />
 
     <div v-if="!leaderboardInitialLoading && total > pageSize" class="flex justify-center pt-2">

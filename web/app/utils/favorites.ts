@@ -2,6 +2,7 @@ import type { ComputedRef, Ref } from 'vue'
 import type { RegionSlug } from '~~/shared/types/leaderboard'
 import { computed } from 'vue'
 import { REGION_SLUGS } from '~~/shared/types/leaderboard'
+import { truemainNameTag } from '~~/shared/utils/truemain-path'
 
 /**
  * Client-side "followed truemains" store (#531).
@@ -56,16 +57,8 @@ export interface FavoriteTruemainInput {
 // silently null out a valid stored region.
 const VALID_REGIONS = new Set<string>(REGION_SLUGS)
 
-/**
- * App-wide profile slug for a Riot ID. Mirrors `LeaderboardRow` and the
- * sitemap builder: `-` is an unambiguous separator because Riot tag lines
- * never contain a hyphen.
- */
-export function favoriteNameTag(gameName: string, tagLine: string | null | undefined): string {
-  const name = gameName.trim()
-  const tag = tagLine?.trim()
-  return tag ? `${name}-${tag}` : name
-}
+/** App-wide profile slug for a Riot ID — the one `truemain-path` spells. */
+export const favoriteNameTag = truemainNameTag
 
 /**
  * Identity key used for lookups and de-duplication. Riot IDs are matched

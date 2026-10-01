@@ -9,6 +9,7 @@ import { describeFetchError } from '#common/utils/errors'
 // Explicit (over Nuxt auto-import) so the template's {{ SEARCH_MIN_LENGTH }} has
 // a visible source.
 import { SEARCH_MIN_LENGTH } from '~/composables/useTruemainSearch'
+import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 
 // Unified search: one command palette over both the champion roster (filtered
 // locally by Fuse) and the truemain database (server search, debounced). A
@@ -166,12 +167,9 @@ function onSelectChampion(championId: number) {
   go(pathFor(championId))
 }
 
-// `{gameName}-{tagLine}` (or just the name when untagged) — the same slug the
-// leaderboard rows use to reach a profile.
+// The same slug and path every profile link builds (`truemain-path`).
 function profilePath(result: SearchResult): string {
-  const { gameName, tagLine } = result.identity
-  const slug = tagLine ? `${gameName}-${tagLine}` : gameName
-  return `/truemains/${encodeURIComponent(slug)}`
+  return truemainProfilePath(truemainNameTag(result.identity.gameName, result.identity.tagLine))
 }
 
 // Sorted + mapped once, memoised: `groups` re-runs on every keystroke (the

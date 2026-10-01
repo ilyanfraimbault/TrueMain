@@ -7,8 +7,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import type { CompositionGamePilot } from '~~/shared/types/composition'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
-import { favoriteNameTag } from '~/utils/favorites'
+import { truemainNameTag } from '~~/shared/utils/truemain-path'
 
 /**
  * Provenance drawer for the composition recommendation (#940): the games the
@@ -91,11 +90,6 @@ onBeforeUnmount(clear)
 const title = computed(() =>
   props.championName ? `Games used for ${props.championName}` : 'Games used')
 
-function pilotLabel(pilot: CompositionGamePilot | null): string {
-  if (!pilot) return 'Unknown player'
-  return pilot.tagLine ? `${pilot.gameName}#${pilot.tagLine}` : pilot.gameName
-}
-
 // Route slug of the pilot's profile — the same `name-tag` form the truemain
 // routes use, and the identity the row's detail fetch
 // (`/truemains/{nameTag}/matches/{matchId}`) is scoped by. So one value both
@@ -103,28 +97,20 @@ function pilotLabel(pilot: CompositionGamePilot | null): string {
 // Riot account the row degrades to a static, non-expandable article.
 function pilotNameTag(pilot: CompositionGamePilot | null): string | null {
   if (!pilot) return null
-  return favoriteNameTag(pilot.gameName, pilot.tagLine)
+  return truemainNameTag(pilot.gameName, pilot.tagLine)
 }
-
-// Resolved eagerly: a `<component :is>` given the *string* "NuxtLink" renders a
-// literal <nuxtlink> element (no resolution happens for dynamic string names),
-// which looks right in the DOM inspector but navigates nowhere.
-const NuxtLinkComponent = resolveComponent('NuxtLink')
 
 // Profile icons are keyed by the *current* Data Dragon version, not by the
 // patch the games were played on: `data.patch` is a game version ("15.14"),
 // and Data Dragon has no `15.14.1` bundle for every one of those — the icon
-// 404s and the row keeps its skeleton forever, which read as an endless
-// spinner next to every pilot.
+// 404s, which read as an endless spinner next to every pilot.
 const { data: ddragonVersions } = useDDragonVersions()
 const iconPatch = computed(() => ddragonVersions.value?.[0] ?? data.value?.patch ?? null)
 
-function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
-  // Icon id 0 is the API's "never resolved" marker — there is no such asset,
-  // so asking for it would only 404.
-  if (!pilot || pilot.profileIconId <= 0) return null
-  return getProfileIconUrl(pilot.profileIconId, iconPatch.value)
-}
+// A game whose pilot the API could not resolve still gets the chip, unlinked,
+// with the user glyph (`Account` draws it for icon id 0, the API's "never
+// resolved" marker — there is no such asset, so it is never requested).
+const UNKNOWN_PILOT = { gameName: 'Unknown player', tagLine: null, profileIconId: 0 }
 </script>
 
 <template>
@@ -190,34 +176,14 @@ function pilotIconUrl(pilot: CompositionGamePilot | null): string | null {
                  player the selection picked for this champion, so the badge
                  labelled the majority of the list and told the reader nothing. -->
             <div class="flex items-center gap-2 px-0.5 text-xs text-muted">
-              <component
-                :is="pilotNameTag(game.pilot) ? NuxtLinkComponent : 'span'"
-                :to="pilotNameTag(game.pilot)
-                  ? `/truemains/${encodeURIComponent(pilotNameTag(game.pilot)!)}`
-                  : undefined"
-                class="flex min-w-0 items-center gap-2"
-                :class="game.pilot ? 'hover:text-primary' : ''"
-              >
-                <SkeletonImage
-                  v-if="pilotIconUrl(game.pilot)"
-                  :src="pilotIconUrl(game.pilot)"
-                  :alt="pilotLabel(game.pilot)"
-                  :width="18"
-                  :height="18"
-                  class="size-[18px] shrink-0 rounded-full"
-                />
-                <!-- No resolvable icon: a settled placeholder rather than a
-                     skeleton, which would pulse forever on a pilot whose
-                     account never carried a profile icon. -->
-                <span
-                  v-else
-                  class="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-elevated"
-                  aria-hidden="true"
-                >
-                  <UIcon name="i-lucide-user" class="size-2.5 text-dimmed" />
-                </span>
-                <span class="truncate font-medium text-default">{{ pilotLabel(game.pilot) }}</span>
-              </component>
+              <Account
+                :identity="game.pilot ?? UNKNOWN_PILOT"
+                :region="null"
+                :patch="iconPatch"
+                size="xs"
+                layout="inline"
+                :to="game.pilot ? undefined : false"
+              />
             </div>
             <!-- `name-tag` makes the row an accordion over the pilot's slice of
                  the game: the detail endpoint is scoped by whoever played it,
