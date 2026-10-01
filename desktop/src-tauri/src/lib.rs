@@ -133,9 +133,12 @@ const READABLE_PATHS: &[&str] = &[
     "/truemains/search",
 ];
 
-/// A path the app may read: one of `READABLE_PATHS`, or one true main's build
-/// on a champion — `/truemains/{nameTag}/champions/{championId}`, the Riot ID
-/// percent-encoded into one segment and the champion a number.
+/// A path the app may read: one of `READABLE_PATHS`, or one true main's
+/// reads under `/truemains/{nameTag}` — their build on a champion
+/// (`/champions/{championId}`), their profile, their match list and one of
+/// their matches (`/matches/{matchId}`), which the favorites page shows. The
+/// Riot ID is percent-encoded into one segment, the champion a number and the
+/// match a Riot match id (`EUW1_7123456789`).
 fn readable(path: &str) -> bool {
     if READABLE_PATHS.contains(&path) {
         return true;
@@ -144,7 +147,7 @@ fn readable(path: &str) -> bool {
         return false;
     };
     let segments: Vec<&str> = rest.split('/').collect();
-    let [name_tag, "champions", champion_id] = segments.as_slice() else {
+    let Some((name_tag, tail)) = segments.split_first() else {
         return false;
     };
     let name_tag_ok = !name_tag.is_empty()
@@ -153,7 +156,17 @@ fn readable(path: &str) -> bool {
         && name_tag
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"-_.~%".contains(&b));
-    name_tag_ok && !champion_id.is_empty() && champion_id.bytes().all(|b| b.is_ascii_digit())
+    let tail_ok = match tail {
+        ["profile"] | ["matches"] => true,
+        ["champions", champion_id] => {
+            !champion_id.is_empty() && champion_id.bytes().all(|b| b.is_ascii_digit())
+        }
+        ["matches", match_id] => {
+            !match_id.is_empty() && match_id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        }
+        _ => false,
+    };
+    name_tag_ok && tail_ok
 }
 
 /// One read-only GET of a `readable` path, with its query as key/value pairs.
@@ -220,12 +233,18 @@ mod tests {
         assert!(readable("/champions/directory"));
         assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
         assert!(readable("/truemains/Faker-KR1/champions/7"));
+        assert!(readable("/truemains/Faker-KR1/profile"));
+        assert!(readable("/truemains/Faker-KR1/matches"));
+        assert!(readable("/truemains/Faker-KR1/matches/KR_7123456789"));
     }
 
     #[test]
     fn refuses_anything_else() {
         assert!(!readable("/champions/8"));
-        assert!(!readable("/truemains/Faker-KR1/profile"));
+        assert!(!readable("/truemains/Faker-KR1/activity"));
+        assert!(!readable("/truemains/Faker-KR1/matches/KR_1/timeline"));
+        assert!(!readable("/truemains/Faker-KR1/matches/KR-1"));
+        assert!(!readable("/truemains/Faker-KR1/matches/"));
         assert!(!readable("/truemains/Faker-KR1/champions/7/matchups"));
         assert!(!readable("/truemains/../champions/7"));
         assert!(!readable("/truemains/a/b/champions/7"));

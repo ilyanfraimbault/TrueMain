@@ -1,4 +1,4 @@
-import type { ProfileResponse } from '~~/shared/types/profile'
+import type { ProfileResponse } from '#shared/types/profile'
 
 interface UseTruemainProfileOptions {
   /** Hold the request back while false — see {@link useTruemainFetch}. */
@@ -19,11 +19,12 @@ export function useTruemainProfile(
   options: UseTruemainProfileOptions = {},
 ) {
   const data = ref<ProfileResponse | null>(null)
+  const apiFetch = useApiFetch()
 
   const { isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<ProfileResponse>(nameTag, {
     enabled: options.enabled,
-    request: (tag, signal) => $fetch<ProfileResponse | null>(
-      `/api/truemains/${encodeURIComponent(tag)}/profile`,
+    request: (tag, signal) => apiFetch<ProfileResponse | null>(
+      `/truemains/${encodeURIComponent(tag)}/profile`,
       { ignoreResponseError: true, signal },
     ),
     // Anything missing the identity object we treat as a 404.

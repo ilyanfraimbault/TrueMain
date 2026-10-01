@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '~~/shared/types/match-detail'
+import type { MatchDetailParticipant } from '#shared/types/match-detail'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-import { formatPercentage } from '~~/shared/utils/ddragon'
-import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
+} from '#shared/types/static-data'
+import { formatPercentage } from '#shared/utils/ddragon'
+import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 
 const props = defineProps<{
   participants: MatchDetailParticipant[]

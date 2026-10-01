@@ -1,4 +1,4 @@
-import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
+import type { MatchSummariesResponse, MatchSummaryResponse } from '#shared/types/matches'
 
 interface UseTruemainMatchesOptions {
   /** Page size to request per fetch. Defaults to the backend default (20). */
@@ -46,6 +46,7 @@ export function useTruemainMatches(
   const matches = ref<MatchSummaryResponse[]>([])
   const total = ref(0)
   const pageSize = ref(options.pageSize ?? 20)
+  const apiFetch = useApiFetch()
 
   const { isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<MatchSummariesResponse>(nameTag, {
     enabled: options.enabled,
@@ -58,8 +59,8 @@ export function useTruemainMatches(
       if (positionRef.value) query.position = positionRef.value
       if (championIdRef.value) query.championId = championIdRef.value
 
-      return $fetch<MatchSummariesResponse | null>(
-        `/api/truemains/${encodeURIComponent(tag)}/matches`,
+      return apiFetch<MatchSummariesResponse | null>(
+        `/truemains/${encodeURIComponent(tag)}/matches`,
         {
           query,
           ignoreResponseError: true,

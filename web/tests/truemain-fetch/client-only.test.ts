@@ -30,7 +30,7 @@ Object.assign(globalThis, {
   onScopeDispose: vue.onScopeDispose,
 })
 
-const { useTruemainFetch } = await import('~/composables/useTruemainFetch')
+const { useTruemainFetch } = await import('#common/composables/useTruemainFetch')
 
 interface Payload { ok: true }
 

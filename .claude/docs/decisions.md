@@ -324,7 +324,7 @@ Last verified against `develop` on 2026-09-02.
 - Champion select is the live draft only; a draft played by hand is a dev tool (`/dev/draft-sim`) feeding the shell the client's payloads (2026-09-28) — #1671
 - An enemy's lane is corrected from its lane icon (a menu of lanes); guessed lanes carry no "?"; build header = icon, name, lane icon (2026-09-29) — #1671
 - No browser chrome in the app: no back/forward arrows, no patch label (2026-09-28) — #1671
-- Lists are tables with fixed columns under headers (truemains, champions); the tier list is the site's tier cards (2026-09-30) — #1719; the champions and truemains pages are now the site's own (#1732)
+- Lists are tables with fixed columns under headers (truemains, champions); the tier list is the site's tier cards (2026-09-30) — #1719; the champions, truemains and favorites pages are now the site's own (#1732)
 - The home page announces the app right under the hero, above "This patch"; `/download` shows a real capture of the app (live API data, never a fixture podium) over plain typography, no icon-tile cards; the home banner shows the dashboard whole, on fixture data by the product owner's exception (2026-10-01) — #1725
 - The beta ships unsigned as `desktop-v*` GitHub pre-releases, resolved by the site (download + update feed), and updates itself on the player's click (2026-09-28) — #1719
 - Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; enemy-team component is #1713 — #1675

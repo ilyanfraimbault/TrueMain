@@ -77,7 +77,8 @@ Right rail: match history (role + champion filters, 20/page, URL-backed), **cut 
 ### `/truemains/:nameTag/champions/:slug`
 Player-scoped mirror of the champion page. Adds **`Champion/PlayerPerformance.vue`** (#918): the average performance score over the player's last 20 ranked games on the champion, colour-graded on the S→D tier ladder next to its verdict word, plus best / worst / top-of-team rate / graded games — each figure carrying the one line that says what it measures. The per-component bar breakdown was **removed** (see decisions); the API still returns `components`, nothing renders them. Suppressed below 5 graded games, with the real count in the copy. Lazy + `hydrate-on-visible` with frozen display names. Matchups here are scoped to the player's games. **Layout**: one unconditional grid — **three columns from `xl`** since the layout rework, two before it (#1211). Left is the *player* rail — identity, the same `ProfileRankedCard` the profile page shows (its own `useTruemainRankHistory` fetch), then `PlayerPerformance` — middle is the champion (header + pickers, build breakdown, then the recent-games list, `Champion/PlayerMatchHistory.vue`), right is matchups alone. The identity used to be a full-width banner above everything, which read as page furniture and pushed the champion below the fold. Match rows stay *inside* the middle column so they read at the build's width instead of stretching the page's full `96rem`, and every rail keeps rendering in the no-build degraded state (each widget owns its empty state) rather than reflowing the column under it. Below `xl` the four blocks stack in an order `order-*` has to restore, because it is not source order: identity, build, games, **then** the two player cards and the matchups — stacked, the ranked and performance cards are ~700 px of the player's own numbers, and in source order they buried the champion the reader just clicked. Narrowing the middle column is also why `Champion/BuildPanel/Core.vue` moved from viewport breakpoints to **container queries**: its two-column split and its Summoners/Skill-order/Boots row are decided by the column's width, not the window's, and on viewport breakpoints they fired at 1280 px into a ~575 px column and drove Boots through the runes block. That degraded state is reached whenever the player has no build aggregate for the requested slice — it used to hang on a spinner, because the deferred static bundles are pinned to a patch the 404 never supplies, so `useChampionDetailStatics` now falls back to the latest DDragon version once the champion fetch has settled. It **keeps the champion header and the patch / lane pickers**: an empty slice is usually a filter the reader set, so the controls that got them there stay on the page, the stat line reads "no games on this slice" rather than a fabricated `0.0% WR`, and the notice names the active filters and offers to clear them (the lane picker has no "all lanes" button, so clearing is the only way back). **No** trend / scaling / power-spikes / truemains panel.
 
-### `/truemains/favorites`
+### `/truemains/favorites` — `web/layers/common/app/components/page/Favorites.vue`
+Shared with the desktop app (#1732): the route file only adds the head tags and the `noindex` rule. The header reads "Saved on this device only." (was "in this browser") since the same page runs in the app.
 localStorage-backed follow list (`web/app/utils/favorites.ts`, key `truemain:favorites:v1`, hard cap 30, oldest-first eviction). Per-player cards with their latest 3 matches. `noindex`, excluded from the sitemap. No account sync (no RSO).
 
 ### `/about` — `web/app/pages/about.vue`
@@ -223,14 +224,16 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
   payloads through a dev-server relay, so the app runs its real champion select live without a game.
   Outside a live champion select the product's `/draft` page only waits for the next one.
-- **Site sections** — the tier list, the champion directory and the truemains leaderboard are **the site's own
-  pages** (`PageTierList`, `PageChampions`, `PageTruemains` from `web/layers/common`, #1732: same headers, filters,
-  searches and tables), the app supplying only the host pieces — API through the shell, the site's static data
-  (versions, champions, items, rune tree, summoner spells) from Data Dragon, `/champions/{id}` links — and opening
-  in the browser any route only the site has (a player's profile: `plugins/site-routes.ts`). Favorites are the
-  site's store (`useFavoriteTruemains`, the same `truemain:favorites:v1` key the app already wrote). Champion page
-  (lane picker, stats, build view, whose true mains list has a search that reaches any main of the champion by name
-  and opens their build); matchup (champion vs opponent on a lane, composition build); favorites kept on this machine.
+- **Site sections** — the tier list, the champion directory, the truemains leaderboard and the favorites are **the
+  site's own pages** (`PageTierList`, `PageChampions`, `PageTruemains`, `PageFavorites` from `web/layers/common`,
+  #1732: same headers, filters, searches, tables, favorites cards with their match rows and match detail), the app
+  supplying only the host pieces — API through the shell (`READABLE_PATHS` + a true main's profile, matches and one
+  match), the site's static data (versions, champions, one champion, items, rune tree, summoner spells) from Data
+  Dragon, `/champions/{id}` links — and opening in the browser any route only the site has (a player's profile:
+  `plugins/site-routes.ts`). Favorites are the site's store (`useFavoriteTruemains`, the same `truemain:favorites:v1`
+  key the app already wrote, its older entries read as is). Champion page (lane picker, stats, build view, whose true
+  mains list has a search that reaches any main of the champion by name and opens their build); matchup (champion vs
+  opponent on a lane, composition build).
 - **Distribution** (#1719): a `desktop-v*` tag builds a universal macOS `.dmg` and a Windows NSIS `.exe`
   (`desktop-release.yml`), published as a GitHub pre-release with a signed update manifest; truemain.lol/download
   offers them, and the installed app offers each newer beta at launch (Tauri updater, feed on the site). Unsigned by

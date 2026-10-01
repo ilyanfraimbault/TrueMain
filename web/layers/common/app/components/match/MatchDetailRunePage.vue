@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '~~/shared/types/match-detail'
-import type { ChampionStaticListItem, RuneTreeResponse } from '~~/shared/types/static-data'
+import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { ChampionStaticListItem, RuneTreeResponse } from '#shared/types/static-data'
 
 /**
  * Compact per-player rune summary tile, laid out in a 10-up grid on the Runes

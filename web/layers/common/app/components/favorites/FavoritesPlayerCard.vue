@@ -4,11 +4,11 @@ import type {
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
+} from '#shared/types/static-data'
 import type { FavoriteTruemain } from '#common/utils/favorites'
-import { formatPercentage } from '~~/shared/utils/ddragon'
-import { truemainProfilePath } from '~~/shared/utils/truemain-path'
-import { platformIdToRegion } from '~~/shared/utils/region'
+import { formatPercentage } from '#shared/utils/ddragon'
+import { truemainProfilePath } from '#shared/utils/truemain-path'
+import { platformIdToRegion } from '#shared/utils/region'
 import { isApexTier } from '#common/utils/tiers'
 
 // One followed player on the favorites view: identity + ranked summary from

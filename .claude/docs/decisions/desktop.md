@@ -148,7 +148,7 @@ five games against the whole sample, in the ranked card's delta idiom (a trend a
 flat move or a too-short sample shows no delta. No composite player score. Remakes are kept out of the list and of
 every average. The patch's best picks by lane stay as the no-client state (2026-09-30) — #1683.
 
-**The app's lists are tables with fixed columns under headers; the tier list is the site's.** (The champions and truemains pages have since become the site's own, shared through the layer — #1732; a link to a page only the site has, such as a player's profile, opens it in the browser.) The truemains
+**The app's lists are tables with fixed columns under headers; the tier list is the site's.** (The champions, truemains and favorites pages have since become the site's own, shared through the layer — #1732; a link to a page only the site has, such as a player's profile, opens it in the browser.) The truemains
 leaderboard drawn with the site's `LeaderboardRow` did not line up at the app's width — the row sizes its columns with
 flex spacers around a name that takes its content width, so lanes, champion, score and rank drifted from row to row
 — and the product owner asked for the table the app's tier list had: a header of column labels and one grid shared
