@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import type { ProfileIdentity } from '~~/shared/types/profile'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import type { BuildOption } from '~/types/build'
 import type { Lane } from '~/types/draft'
@@ -62,7 +62,7 @@ const options = computed<BuildOption[]>(() => {
 
 /** The row on screen: a build's key, or `main` for the true main picked in the list. */
 const selected = ref<string | null>(null)
-const main = ref<LeaderboardRowResponse | null>(null)
+const main = ref<{ identity: ProfileIdentity } | null>(null)
 
 // A new champion puts the view back on its first row; a draft build arriving
 // takes the first row too, unless a true main's build is being read.
@@ -80,7 +80,7 @@ const truemainBuilds = useTruemainBuild()
 const mainNameTag = computed(() => (main.value ? favoriteNameTag(main.value.identity.gameName, main.value.identity.tagLine) : null))
 const onMain = computed(() => selected.value === 'main' && mainNameTag.value !== null)
 
-function selectMain(row: LeaderboardRowResponse) {
+function selectMain(row: { identity: ProfileIdentity }) {
   main.value = row
   selected.value = 'main'
   truemainBuilds.load(mainNameTag.value!, props.championId, props.position)
