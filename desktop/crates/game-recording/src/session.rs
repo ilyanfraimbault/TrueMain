@@ -128,13 +128,17 @@ impl<C: Capture> Session<C> {
                 else {
                     return Ok(Change::None);
                 };
-                // A new game before the last one was finalised: keep what the
-                // last one has rather than lose it.
-                if matches!(self.state, State::Stopped(_)) {
-                    let root = settings.folder.as_deref().unwrap_or(default_root);
-                    self.finalise(GameOutcome::default(), settings.budget_bytes, root)?;
-                }
                 let root = settings.folder.as_deref().unwrap_or(default_root);
+                // A new game before the last one was finalised: keep what the
+                // last one has rather than lose it. A failure there is the
+                // last game's, and must not cost this one its recording.
+                if matches!(self.state, State::Stopped(_)) {
+                    if let Err(error) =
+                        self.finalise(GameOutcome::default(), settings.budget_bytes, root)
+                    {
+                        tracing::warn!(%error, "could not finalise the previous recording");
+                    }
+                }
                 self.start(game, settings.quality, root, now_ms)
             }
             _ => Ok(Change::None),
@@ -607,6 +611,32 @@ mod tests {
         let meta = RecordingDir::new(first).read_meta().unwrap();
         assert_eq!(meta.status, RecordingStatus::Ready);
         assert_eq!(meta.highlights_source, Some(HighlightSource::Live));
+        assert!(session.is_recording());
+    }
+
+    #[test]
+    fn a_previous_recording_that_fails_to_finalise_does_not_stop_the_next() {
+        let root = tempfile::tempdir().unwrap();
+        let mut session = Session::new(FakeCapture::default());
+        let first = play(&mut session, root.path());
+        // The player deleted the folder by hand: its metadata cannot be written.
+        fs::remove_dir_all(&first).unwrap();
+
+        let next = GameInfo {
+            game_id: GAME.game_id + 1,
+            ..GAME
+        };
+        let change = session
+            .on_phase(
+                GameflowPhase::InProgress,
+                Some(next),
+                &settings(),
+                root.path(),
+                3_000,
+            )
+            .unwrap();
+
+        assert!(matches!(change, Change::Started(_)));
         assert!(session.is_recording());
     }
 
