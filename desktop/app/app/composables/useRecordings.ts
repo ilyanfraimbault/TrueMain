@@ -113,8 +113,10 @@ export function useRecordings() {
     convertFileSrc = core.convertFileSrc
     fileApiReady.value = true
 
+    // Subscribed once, from app.vue, for the app's lifetime: there is no
+    // scope to tie them to after the awaits above, and nothing to unsubscribe.
     const { listen } = await import('@tauri-apps/api/event')
-    const stops = await Promise.all([
+    await Promise.all([
       listen<RecordingStatus>('recording://status', event => (status.value = event.payload)),
       listen<null>('recording://library', () => void refreshLibrary()),
       listen<{ id: string }>('recording://recap', (event) => {
@@ -122,7 +124,6 @@ export function useRecordings() {
         openRecap(event.payload.id)
       }),
     ])
-    onScopeDispose(() => stops.forEach(stop => stop()))
 
     // After subscribing, so nothing lands between the read and the listeners.
     await load()
