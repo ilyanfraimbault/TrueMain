@@ -176,16 +176,16 @@ const buildPathOf = (row: DirectoryRow) => (row.topBuild?.itemPath ?? []).slice(
 
     <template #winRate-cell="{ row }">
       <USkeleton v-if="loading" class="ml-auto h-4 w-10" />
-      <span v-else class="font-semibold tabular-nums" :class="winRateTone(row.original.winRate)">{{ formatPercentage(row.original.winRate, 1) }}</span>
+      <span v-else class="font-semibold tabular-nums" :class="winRateTone(row.original.winRate)">{{ formatPercentage(row.original.winRate, 0) }}</span>
     </template>
     <template #pickRate-cell="{ row }">
       <USkeleton v-if="loading" class="ml-auto h-4 w-10" />
-      <span v-else class="tabular-nums" :class="pickRateTone(row.original.pickRate)">{{ formatPercentage(row.original.pickRate, 1) }}</span>
+      <span v-else class="tabular-nums" :class="pickRateTone(row.original.pickRate)">{{ formatPercentage(row.original.pickRate, 0) }}</span>
     </template>
     <!-- A dash on patches predating ban ingestion (#920): "not observed" is not 0%. -->
     <template #banRate-cell="{ row }">
       <USkeleton v-if="loading" class="ml-auto h-4 w-10" />
-      <span v-else class="tabular-nums" :class="banRateTone(row.original.banRate)">{{ formatPercentageOrDash(row.original.banRate, 1) }}</span>
+      <span v-else class="tabular-nums" :class="banRateTone(row.original.banRate)">{{ formatPercentageOrDash(row.original.banRate, 0) }}</span>
     </template>
     <template #games-cell="{ row }">
       <USkeleton v-if="loading" class="ml-auto h-4 w-12" />
