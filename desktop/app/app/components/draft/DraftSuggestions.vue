@@ -26,7 +26,7 @@ const myPool = defineModel<boolean>('myPool', { default: true })
 const emit = defineEmits<{ preview: [championId: number] }>()
 
 const { nameOf } = useChampionStatics()
-const { entryOf } = useTierList()
+const { entryOf, status: tierListStatus } = useTierList()
 
 const search = ref('')
 const hovered = ref<number | null>(null)
@@ -52,6 +52,21 @@ const shown = computed(() => {
 
 /** The card in focus: the hovered one, else the best. */
 const focused = computed(() => hovered.value ?? shown.value[0]?.championId ?? null)
+
+/**
+ * Why the podium is empty. The pool is filtered through the tier list, so
+ * without it nothing is ranked — that is a load to wait for, not a search
+ * that missed (#1783).
+ */
+const empty = computed(() => {
+  if (props.error) return { icon: 'i-lucide-wifi-off', text: 'Could not rank the picks' }
+  if (tierListStatus.value === 'error') return { icon: 'i-lucide-wifi-off', text: 'The tier list did not load — retrying' }
+  if (tierListStatus.value !== 'ready') return { icon: 'i-lucide-loader-circle', text: 'Loading the tier list…' }
+  if (props.pending) return { icon: 'i-lucide-loader-circle', text: 'Ranking the picks for this draft…' }
+  if (search.value.trim()) return { icon: 'i-lucide-search-x', text: 'No champion matches' }
+  if (myPool.value && props.hasPool) return { icon: 'i-lucide-search-x', text: 'None of your champions is played on this lane' }
+  return { icon: 'i-lucide-search-x', text: 'No champion to rank on this lane' }
+})
 
 /** The podium: the best card full height, each next one a step lower, down to a floor. */
 const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
@@ -105,10 +120,8 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
     </div>
 
     <div v-else class="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-      <UIcon :name="error ? 'i-lucide-wifi-off' : pending ? 'i-lucide-loader-circle' : 'i-lucide-search-x'" class="size-6 text-dimmed" />
-      <p class="text-sm text-muted">
-        {{ error ? 'Could not rank the picks' : pending ? 'Ranking the picks for this draft…' : 'No champion matches' }}
-      </p>
+      <UIcon :name="empty.icon" class="size-6 text-dimmed" />
+      <p class="text-sm text-muted">{{ empty.text }}</p>
       <p v-if="error" class="max-w-sm text-xs text-dimmed">{{ error }}</p>
     </div>
   </section>

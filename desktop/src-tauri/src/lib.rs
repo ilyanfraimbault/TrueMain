@@ -221,6 +221,11 @@ async fn api_post(
         .await
 }
 
+/// The tier list is computed on the first read after the API starts — about
+/// ten seconds, past the client-wide deadline (#1783). Abandoning it there
+/// left the draft's pick panel empty for the whole champion select.
+const TIER_LIST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// One read-only GET of a `readable` path, with its query as key/value pairs.
 #[tauri::command]
 async fn api_get(
@@ -230,6 +235,9 @@ async fn api_get(
 ) -> Result<serde_json::Value, String> {
     if !readable(&path) {
         return Err(format!("{path} is not readable from the app"));
+    }
+    if path == "/champions/tierlist" {
+        return client.get_within(&path, &query, TIER_LIST_TIMEOUT).await;
     }
     client.get(&path, &query).await
 }

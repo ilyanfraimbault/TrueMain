@@ -103,6 +103,22 @@ impl ApiClient {
         Self::read(request, path).await
     }
 
+    /// `get` with its own deadline, for a read known to run longer than the
+    /// client-wide one.
+    pub async fn get_within<Q: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &Q,
+        timeout: Duration,
+    ) -> Result<T, String> {
+        let request = self
+            .http
+            .get(format!("{}{path}", self.base))
+            .query(query)
+            .timeout(timeout);
+        Self::read(request, path).await
+    }
+
     async fn read<T: DeserializeOwned>(
         request: reqwest::RequestBuilder,
         path: &str,
