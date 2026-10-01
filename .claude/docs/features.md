@@ -210,8 +210,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   when measured, CS/min, and the build as on the site — spells, keystone, item grid — plus both teams) that open as
   an accordion onto a compact, same-surface version of the site's match detail (Scoreboard with each build as on the
   row, Build — laning @15, per-minute figures, build and skill order for any of the ten — and Runes as small tiles), read
-  from the client's scoreboard and timeline; the site's ranked card with its LP curve; a champions card (games, KDA, win
-  rate) and a roles card (share bar, win rate) in the ranked card's frame. The LP history is noted on this machine each
+  from TrueMain's copy of the game when it has one, else from the client's scoreboard and timeline (which list no
+  purchases or skill points: the build and skill order sections are then left out, #1768); the site's ranked card with
+  its LP curve; a champions card (games, KDA, win rate) and a roles card (share bar, win rate) in the ranked card's
+  frame. A game's role is its participant slot on a queue that assigns roles, none elsewhere (#1768). The LP history is noted on this machine each
   time the record is read (`utils/lp-history.ts`), so the curve and per-game LP start empty and grow. A queue filter
   (All / Solo / Flex / Normal / ARAM) scopes everything but the ranked card; remakes are not listed. Read again after
   each game. With no client: a waiting banner over the patch's best picks by lane.

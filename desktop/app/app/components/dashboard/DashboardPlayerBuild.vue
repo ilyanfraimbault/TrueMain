@@ -3,7 +3,9 @@
   (MatchDetailPanel's player selector + MatchDetailPlayerPanel) — the lane at
   fifteen minutes, the per-minute figures, the build order and the skill order,
   by the site's rules — on the row's surface, in small type and small icons.
-  Opens on the player; the ten portraits switch to anyone else.
+  Opens on the player; the ten portraits switch to anyone else. A game only
+  the client knows has no build or skill order (its timeline lists neither):
+  those sections are left out rather than announced empty.
 -->
 <script setup lang="ts">
 import type { MatchDetailItemEvent, MatchDetailParticipant } from '#shared/types/match-detail'
@@ -112,9 +114,9 @@ const skillRows = computed(() => {
       </span>
     </div>
 
-    <div>
+    <div v-if="trips.length">
       <p class="stat-label mb-1.5">Build order</p>
-      <div v-if="trips.length" class="flex flex-wrap items-start gap-x-1 gap-y-2">
+      <div class="flex flex-wrap items-start gap-x-1 gap-y-2">
         <template v-for="(trip, index) in trips" :key="index">
           <div class="flex flex-col items-center gap-0.5">
             <div class="flex gap-px">
@@ -133,12 +135,11 @@ const skillRows = computed(() => {
           <UIcon v-if="index < trips.length - 1" name="i-lucide-chevron-right" class="mt-1 size-3 text-dimmed" />
         </template>
       </div>
-      <p v-else class="text-[11px] text-muted">No build order for this game.</p>
     </div>
 
-    <div>
+    <div v-if="player.skillEvents.length">
       <p class="stat-label mb-1.5">Skill order</p>
-      <div v-if="player.skillEvents.length" class="overflow-x-auto">
+      <div class="overflow-x-auto">
         <div class="mx-auto flex w-fit flex-col gap-0.5">
         <div v-for="row in skillRows" :key="row.key" class="flex items-center gap-0.5">
           <div class="relative mr-1.5 flex size-5 shrink-0">
@@ -161,7 +162,6 @@ const skillRows = computed(() => {
         </div>
         </div>
       </div>
-      <p v-else class="text-[11px] text-muted">No skill order for this game.</p>
     </div>
   </div>
 </template>

@@ -332,6 +332,7 @@ Last verified against `develop` on 2026-09-02.
 - Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; enemy-team component is #1713 — #1675
 - The app draws the site's components as labelled twin copies, with app behaviour in shims beside them; superseded page by page by the shared layer — #1687, #1732
 - The pages the app shares with the site (champions, tier list, matchup, truemains, favorites) are one implementation in `web/layers/common`, which both apps extend (2026-10-01) — #1732
+- Dashboard roles come from the participant slot on role-assigning queues, never the client's lane guess; a game's build and skill orders from TrueMain's copy, left out when only the client has the game (2026-10-01) — #1768
 - The build pane shows the site's core without its build path (the tree draws it), runes beside; build rows are icons only; a true main's click shows their own build (2026-09-28) — #1671
 - Icons bundled at build time, hash routing, images drawn without a `load` gate (WKWebView)
 - Game recording: two quality choices (resolution, 30/60 fps), everything else derived; highlights from the timeline, live feed as fallback; disk budget drops the oldest unpinned; unsigned beta and a GPL capture library both accepted (2026-10-01) — #1744, #1754

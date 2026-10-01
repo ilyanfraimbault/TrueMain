@@ -1,6 +1,12 @@
 //! One game opened in full, for the match row's accordion: the scoreboard of
 //! all ten, their rune pages, and — from the game's timeline — each player's
-//! build order, skill order and lane standing at fifteen minutes.
+//! lane standing at fifteen minutes against the opponent in the same role
+//! (`HistoryGame::position_of`).
+//!
+//! The client's timeline carries kills, buildings and epic monsters but no
+//! purchases and no skill points, so the build and skill orders stay empty
+//! unless it ever lists them: the dashboard takes those from TrueMain's copy of
+//! the game when it has one.
 //!
 //! Serialised in the shape of the site's match-detail payload
 //! (`web/shared/types/match-detail.ts`), so the app draws it with the site's
@@ -159,8 +165,7 @@ pub struct DetailSkillEvent {
 
 impl GameDetail {
     /// Build the detail from a full scoreboard and, when it could be read, the
-    /// game's timeline. Without the timeline the build order, skill order and
-    /// lane standing are simply empty.
+    /// game's timeline. Without the timeline the lane standing is simply empty.
     pub fn from_game(game: &HistoryGame, timeline: Option<&GameTimeline>) -> Self {
         let minutes = game.duration_seconds().max(1) as f64 / 60.0;
         let team_kills = |team: i64| -> i64 {
@@ -200,7 +205,7 @@ impl GameDetail {
                     game_name: player.and_then(|player| non_empty(&player.game_name)),
                     tag_line: player.and_then(|player| non_empty(&player.tag_line)),
                     team_id: p.team_id,
-                    team_position: p.timeline.position().unwrap_or_default().to_string(),
+                    team_position: game.position_of(p).unwrap_or_default().to_string(),
                     win: stats.win,
                     kills: stats.kills,
                     deaths: stats.deaths,
@@ -268,15 +273,15 @@ impl GameDetail {
     }
 }
 
-/// The participant on the other side holding the same lane, when lanes exist.
+/// The participant on the other side holding the same role, when roles exist.
 fn opponent_of<'a>(
     game: &'a HistoryGame,
     me: &HistoryParticipant,
 ) -> Option<&'a HistoryParticipant> {
-    let lane = me.timeline.position()?;
+    let lane = game.position_of(me)?;
     game.participants
         .iter()
-        .find(|p| p.team_id != me.team_id && p.timeline.position() == Some(lane))
+        .find(|p| p.team_id != me.team_id && game.position_of(p) == Some(lane))
 }
 
 fn runes_of(p: &HistoryParticipant) -> Vec<DetailRune> {
@@ -386,7 +391,7 @@ mod tests {
 
     fn game() -> HistoryGame {
         serde_json::from_str(
-            r#"{ "gameId": 42, "gameCreation": 1790710000000, "gameDuration": 1800, "queueId": 420,
+            r#"{ "gameId": 42, "gameCreation": 1790710000000, "gameDuration": 1800, "queueId": 420, "mapId": 11,
               "gameMode": "CLASSIC", "gameVersion": "16.19.1",
               "participantIdentities": [
                 { "participantId": 1, "player": { "gameName": "Me", "tagLine": "TAG", "summonerName": "Me" } },
@@ -436,7 +441,7 @@ mod tests {
         assert_eq!(detail.game_start_time_utc, "2026-09-29T19:26:40.000Z");
         let me = &detail.participants[0];
         assert_eq!(me.game_name.as_deref(), Some("Me"));
-        assert_eq!(me.team_position, "MIDDLE");
+        assert_eq!(me.team_position, "TOP");
         assert_eq!(me.cs, 210);
         assert!((me.kill_participation - 1.0).abs() < 1e-9);
         assert_eq!(me.runes.len(), 6);

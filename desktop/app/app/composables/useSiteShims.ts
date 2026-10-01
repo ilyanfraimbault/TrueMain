@@ -40,16 +40,20 @@ export function useStaticChampionsById() {
   ))
 }
 
-/**
- * One of the player's own games in the site's match-detail shape, read from
- * their client: the shell reads the game's scoreboard and timeline
- * (`player_game`). The dashboard's counterpart of the site's `useMatchDetail`,
- * which reads TrueMain's API and serves the shared pages. The client only opens
- * the logged-in player's games. In `npm run dev` the dev fixtures stand in.
- */
-const matchDetails = new Map<string, MatchDetailResponse | null>()
+/** TrueMain's copies already read: an ingested game never changes. */
+const matchDetails = new Map<string, MatchDetailResponse>()
 
-async function readMatchDetail(matchId: string): Promise<MatchDetailResponse | null> {
+async function readTruemainDetail(nameTag: string, platformId: string | null, matchId: string): Promise<MatchDetailResponse | null> {
+  if (!nameTag || !platformId) return null
+  try {
+    return await apiGet<MatchDetailResponse>(`/truemains/${encodeURIComponent(nameTag)}/matches/${platformId}_${matchId}`)
+  }
+  catch {
+    return null
+  }
+}
+
+async function readClientDetail(matchId: string): Promise<MatchDetailResponse | null> {
   if (insideTauri()) {
     const { invoke } = await import('@tauri-apps/api/core')
     return await invoke<MatchDetailResponse>('player_game', { gameId: Number(matchId) })
@@ -61,7 +65,17 @@ async function readMatchDetail(matchId: string): Promise<MatchDetailResponse | n
   return null
 }
 
-export function usePlayerGameDetail(matchId: MaybeRefOrGetter<string>) {
+/**
+ * One of the player's own games in the site's match-detail shape — the
+ * dashboard's counterpart of the site's `useMatchDetail`. TrueMain's copy of the
+ * game comes first: it alone has the build and skill orders, since the
+ * client's timeline carries no purchases and no skill points. A game TrueMain
+ * has not ingested falls back to the client's read (`player_game`): the
+ * scoreboard, the roles and the lane at fifteen, without those two. In
+ * `npm run dev` the dev fixtures stand in for the client.
+ */
+export function usePlayerGameDetail(nameTag: MaybeRefOrGetter<string>, matchId: MaybeRefOrGetter<string>) {
+  const { record } = usePlayerRecord()
   const data = ref<MatchDetailResponse | null>(null)
   const isLoading = ref(true)
   const notFound = ref(false)
@@ -69,8 +83,12 @@ export function usePlayerGameDetail(matchId: MaybeRefOrGetter<string>) {
   watch(() => toValue(matchId), async (id) => {
     isLoading.value = true
     try {
-      if (!matchDetails.has(id)) matchDetails.set(id, await readMatchDetail(id))
-      data.value = matchDetails.get(id) ?? null
+      const known = matchDetails.get(id)
+      const truemain = known ?? await readTruemainDetail(toValue(nameTag), record.value?.platformId ?? null, id)
+      if (truemain) matchDetails.set(id, truemain)
+      // The client's fallback is cached by the shell; TrueMain is asked again
+      // next time, since it may have ingested the game since.
+      data.value = truemain ?? await readClientDetail(id)
     }
     catch {
       data.value = null

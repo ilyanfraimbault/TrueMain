@@ -107,7 +107,39 @@ impl HistoryGame {
             self.game_duration
         }
     }
+
+    /// The role a participant was assigned, read from their slot. On a queue
+    /// that assigns roles, Riot lists each team in role order — top, jungle,
+    /// mid, bottom, support — as participants 1–5 for blue and 6–10 for red,
+    /// the order the client's own scoreboard draws them in; TrueMain's copy of
+    /// the same games (Riot's `teamPosition`) agrees player for player. `None`
+    /// on a queue without roles (blind pick, ARAM, Arena, customs), where the
+    /// order means nothing.
+    ///
+    /// The participant's `timeline.lane` is not read: it is Riot's old position
+    /// guess, which files a roaming laner as a second jungler.
+    pub fn position_of(&self, participant: &HistoryParticipant) -> Option<&'static str> {
+        if self.map_id != SUMMONERS_RIFT || !ROLE_QUEUES.contains(&self.queue_id) {
+            return None;
+        }
+        let first = match participant.team_id {
+            100 => 1,
+            200 => 6,
+            _ => return None,
+        };
+        let slot = usize::try_from(participant.participant_id - first).ok()?;
+        ROLES.get(slot).copied()
+    }
 }
+
+const SUMMONERS_RIFT: i64 = 11;
+
+/// The queues where champ select assigns every player a role: normal draft,
+/// ranked Solo/Duo and Flex, Swiftplay, Quickplay and Clash.
+const ROLE_QUEUES: [i64; 6] = [400, 420, 440, 480, 490, 700];
+
+/// The roles in the order Riot lists each team, in the site's vocabulary.
+const ROLES: [&str; 5] = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
 
 /// Who played a participant slot. The history list carries the player alone;
 /// a full scoreboard names all ten.
@@ -135,7 +167,6 @@ pub struct HistoryParticipant {
     pub spell1_id: i64,
     pub spell2_id: i64,
     pub stats: HistoryStats,
-    pub timeline: HistoryTimeline,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -179,33 +210,6 @@ pub struct HistoryStats {
     pub stat_perk2: i64,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct HistoryTimeline {
-    pub lane: String,
-    pub role: String,
-}
-
-impl HistoryTimeline {
-    /// The lane in the site's vocabulary (`TOP` … `UTILITY`), or `None` where
-    /// the game had no lanes (ARAM, Arena) or Riot could not tell.
-    ///
-    /// The history is converted from Riot's newer match format into the old
-    /// lane/role pair, and support comes out as the bottom lane with a support
-    /// role — spelt `DUO_SUPPORT` in the old format and `SUPPORT` in the new.
-    pub fn position(&self) -> Option<&'static str> {
-        match self.lane.as_str() {
-            "TOP" => Some("TOP"),
-            "JUNGLE" => Some("JUNGLE"),
-            "MIDDLE" | "MID" => Some("MIDDLE"),
-            "BOTTOM" | "BOT" if self.role.contains("SUPPORT") => Some("UTILITY"),
-            "BOTTOM" | "BOT" => Some("BOTTOM"),
-            "UTILITY" | "SUPPORT" => Some("UTILITY"),
-            _ => None,
-        }
-    }
-}
-
 /// A game ending this early was a remake: it counts for nothing, so it is
 /// shown but kept out of every average. Riot opens the remake vote at three
 /// minutes and a remade game ends well before five.
@@ -231,6 +235,8 @@ pub struct PlayerGame {
     pub champion_level: i64,
     /// 100 (blue) or 200 (red), to tell the player's side in `participants`.
     pub team_id: i64,
+    /// The assigned role (`HistoryGame::position_of`); `None` on a queue
+    /// without roles.
     pub position: Option<String>,
     pub win: bool,
     pub remake: bool,
@@ -289,7 +295,7 @@ impl PlayerGame {
             champion_id: me.champion_id,
             champion_level: stats.champ_level,
             team_id: me.team_id,
-            position: me.timeline.position().map(str::to_string),
+            position: game.position_of(me).map(str::to_string),
             win: stats.win,
             remake: stats.game_ended_in_early_surrender || duration_seconds < REMAKE_SECONDS,
             kills: stats.kills,
@@ -373,7 +379,7 @@ impl Scoreboard {
                 .map(|p| GameParticipant {
                     champion_id: p.champion_id,
                     team_id: p.team_id,
-                    position: p.timeline.position().map(str::to_string),
+                    position: game.position_of(p).map(str::to_string),
                     game_name: name(p.participant_id).and_then(|n| non_empty(&n.game_name)),
                     tag_line: name(p.participant_id).and_then(|n| non_empty(&n.tag_line)),
                 })
@@ -406,7 +412,7 @@ mod tests {
           "gameId": 7001, "gameCreation": 1759150000000, "gameDuration": 1745,
           "queueId": 420, "mapId": 11,
           "participants": [{
-            "participantId": 4, "teamId": 200, "championId": 103,
+            "participantId": 8, "teamId": 200, "championId": 103,
             "spell1Id": 4, "spell2Id": 14,
             "stats": {
               "win": true, "kills": 9, "deaths": 2, "assists": 11, "champLevel": 17,
@@ -416,7 +422,7 @@ mod tests {
               "roleBoundItem": 3006,
               "perk0": 8112, "perkSubStyle": 8200, "largestMultiKill": 2
             },
-            "timeline": { "lane": "MIDDLE", "role": "SOLO" }
+            "timeline": { "lane": "JUNGLE", "role": "NONE" }
           }]
         },
         {
@@ -472,18 +478,25 @@ mod tests {
     }
 
     #[test]
-    fn support_is_the_bottom_lane_with_a_support_role_in_either_spelling() {
-        let lane = |lane: &str, role: &str| {
-            HistoryTimeline {
-                lane: lane.into(),
-                role: role.into(),
-            }
-            .position()
+    fn the_role_is_the_slot_on_a_queue_that_assigns_roles() {
+        let game = |queue_id: i64, map_id: i64| HistoryGame {
+            queue_id,
+            map_id,
+            ..HistoryGame::default()
         };
-        assert_eq!(lane("BOTTOM", "DUO_SUPPORT"), Some("UTILITY"));
-        assert_eq!(lane("BOTTOM", "SUPPORT"), Some("UTILITY"));
-        assert_eq!(lane("BOTTOM", "DUO_CARRY"), Some("BOTTOM"));
-        assert_eq!(lane("NONE", "DUO"), None);
+        let player = |participant_id: i64, team_id: i64| HistoryParticipant {
+            participant_id,
+            team_id,
+            ..HistoryParticipant::default()
+        };
+        let ranked = game(420, 11);
+        assert_eq!(ranked.position_of(&player(1, 100)), Some("TOP"));
+        assert_eq!(ranked.position_of(&player(5, 100)), Some("UTILITY"));
+        assert_eq!(ranked.position_of(&player(7, 200)), Some("JUNGLE"));
+        assert_eq!(ranked.position_of(&player(6, 100)), None);
+        assert_eq!(ranked.position_of(&player(3, 200)), None);
+        assert_eq!(game(430, 11).position_of(&player(1, 100)), None);
+        assert_eq!(game(450, 12).position_of(&player(1, 100)), None);
     }
 
     #[test]
@@ -509,10 +522,7 @@ mod tests {
         );
         assert_eq!(scoreboard.participants.len(), 3);
         assert_eq!(scoreboard.participants[1].game_name.as_deref(), Some("Me"));
-        assert_eq!(
-            scoreboard.participants[1].position.as_deref(),
-            Some("MIDDLE")
-        );
+        assert_eq!(scoreboard.participants[1].position, None);
         assert_eq!(scoreboard.participants[2].game_name, None);
         assert!(Scoreboard::of(&game, 9).is_none());
     }
