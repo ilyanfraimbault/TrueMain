@@ -15,9 +15,9 @@ const devTool = computed(() => route.path.startsWith('/dev/'))
 
 useHead({ title: 'TrueMain' })
 
-// A newer beta, offered once per launch (`useAppUpdate`).
-const { check: checkForUpdate } = useAppUpdate()
-onMounted(() => void checkForUpdate())
+// Newer builds of this flavour, checked at launch and then for the window's life (`useAppUpdate`).
+const { start: watchForUpdates } = useAppUpdate()
+onMounted(watchForUpdates)
 
 // The scenario picker exists only for `npm run dev` in a browser: inside Tauri
 // the state comes from the client, and in a production build `import.meta.dev`

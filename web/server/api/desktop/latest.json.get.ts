@@ -1,8 +1,9 @@
+import { fetchUpdateManifest } from '~~/server/utils/desktop-manifest'
 import { loadDesktopRelease } from '~~/server/utils/desktop-release-loader'
 
 /** One manifest per release URL, kept as long as the release list itself. */
 const loadManifest = defineCachedFunction(
-  (url: string) => $fetch<Record<string, unknown>>(url, { timeout: 5000 }),
+  (url: string) => fetchUpdateManifest(url),
   { name: 'desktop-update-manifest', maxAge: 5 * 60, getKey: (url: string) => url },
 )
 

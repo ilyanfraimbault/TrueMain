@@ -109,7 +109,8 @@ the newest one server-side (`/api/desktop/download/{platform}`, `/api/desktop/la
 the installed app names a version and a new build needs no site deploy. The Tauri updater ships from the first beta —
 without it every tester stays on whatever they installed — offering the update in a toast and never restarting on its
 own, since a restart mid champion select would cost the draft. The download page is public, marked beta
-(2026-09-28) — #1719.
+(2026-09-28) — #1719. Revised: the app checks its feed every fifteen minutes, not only at launch, downloads
+a new build in the background and installs it itself at launch when no champion select or game runs — see below.
 
 **The app is versioned by hand, built on every bump for preprod, and promoted to production by hand.** A site release
 is not an app release, so the app keeps its own version (`tauri.conf.json`), bumped in a PR; merging a bump to
@@ -284,6 +285,20 @@ Beta* with its own bundle identifier, so a tester keeps both installed. The prep
 `desktop/.env.local`. The webview no longer opens URLs itself: it asks the shell to open a *path* on the build's site
 (`open_on_site`), which replaces the shell plugin's origin-scoped `open`. Revises the line of #1772 that the
 updater polls production only (2026-10-01) — #1779.
+
+**The app keeps itself current without the player re-downloading it (2026-10-01).** The product owner's call: a
+companion left open all day must notice a new build while it runs, and installing one must not be a chore. Each
+flavour polls its own site's feed at launch and every fifteen minutes (preprod's offers every bump merged to
+`develop`, production's only the promoted one), downloads a newer build in the background, then offers "Restart now"
+in a toast and in the sidebar. A build found at launch, with no champion select or game running, installs and
+restarts at once — the player has nothing open to lose yet; one found later waits for the click or for the next
+launch, so the app still never restarts under a running phase (`composables/useAppUpdate.ts`). "Check for Updates…"
+sits where each platform keeps it: the application menu on macOS, under "About"; on Windows, whose window has no menu
+bar, the menu of a tray icon (Open, Check for Updates…, Quit) — the shell only relays the click, the webview runs the
+check and answers every outcome, up to date and offline included (`src-tauri/src/menu.rs`). The feed reads the
+release's manifest as JSON whatever its type: GitHub serves assets as `application/octet-stream`, which `$fetch` read
+as a Blob that the feed's cache relayed as `{}`, so installed betas were almost never offered an update
+(`server/utils/desktop-manifest.ts`) — #1789.
 
 **A tab changes on click; the wait shows under a loading bar across the window (2026-10-01).** The site keeps the
 outgoing page on screen until the destination has its data, under a bar on the header's bottom edge (#1689). The app
