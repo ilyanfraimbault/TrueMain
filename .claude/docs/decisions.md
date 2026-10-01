@@ -69,6 +69,7 @@ Last verified against `develop` on 2026-09-02.
 - The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions — #966
 - A champion gets at most two lines in the directory — its dominant lanes — and the cap is applied before tiering — #1082
 - A tier-list chip is a portrait and its lane badge — the name and the three rates are tooltip content
+- The tier list carries the directory's header and filter row, control for control (2026-10-01)
 - A patch is served only once it can fill a directory (2026-08-12) — #1109, #1107
 - The homepage hero counts a lifetime, compactly, and never names a patch (2026-08-16) — #1109
 
