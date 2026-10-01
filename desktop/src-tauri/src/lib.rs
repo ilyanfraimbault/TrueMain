@@ -8,11 +8,14 @@
 mod api;
 mod game;
 mod record;
+mod recording;
 #[cfg(debug_assertions)]
 mod sim;
 mod supervisor;
 
 use std::sync::{Arc, Mutex};
+
+use tauri::Manager;
 
 use api::ApiClient;
 use game::SharedGame;
@@ -262,10 +265,25 @@ pub fn run() {
             api_post,
             record::player_record,
             record::player_history,
-            record::player_game
+            record::player_game,
+            recording::recording_settings,
+            recording::set_recording_settings,
+            recording::recording_status,
+            recording::request_capture_permission,
+            recording::recording_library,
+            recording::recording_get,
+            recording::recording_set_kept,
+            recording::recording_delete,
+            recording::clip_save,
+            recording::clip_update,
+            recording::clip_delete,
+            recording::reveal_recording_file
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
+            let (recorder, phases) = recording::Recorder::new(&handle);
+            app.manage(recorder.clone());
+            recording::start(&handle, recorder, phases);
             tauri::async_runtime::spawn(supervisor::run(handle, shared, client));
             Ok(())
         })

@@ -1,8 +1,13 @@
-//! The platform capture helper, driven over its JSON-lines protocol and
-//! presented to `game-recording` as a [`Capture`].
+//! The platform capture helper (`truemain-capture`), driven over its
+//! JSON-lines protocol: presented to `game-recording` as a [`Capture`] while a
+//! game records, and asked for clips, thumbnails and the Screen Recording
+//! permission afterwards ([`media`]). Shared by the app's shell and the
+//! capture spike, so both drive the helper the same way.
 //!
 //! The video clock starts when the helper reports `started` — the moment its
 //! first frame went to the encoder, which is video time zero.
+
+pub mod media;
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -91,6 +96,8 @@ pub struct HelperCapture {
     pub failure: Arc<Mutex<Option<String>>>,
     /// The window the helper recorded, as it described it.
     pub window: Option<Value>,
+    /// Print each `progress` event on stderr, as the spike does.
+    pub log_progress: bool,
     pub output: Option<OutputSpec>,
     pub stopped: Option<Stopped>,
 }
@@ -113,6 +120,7 @@ impl HelperCapture {
             progress: Arc::default(),
             failure: Arc::default(),
             window: None,
+            log_progress: false,
             output: None,
             stopped: None,
         }
@@ -122,6 +130,15 @@ impl HelperCapture {
         self.codec = codec;
         self.bitrate_bps = bitrate_bps;
         self
+    }
+
+    pub fn logging_progress(mut self) -> Self {
+        self.log_progress = true;
+        self
+    }
+
+    pub fn binary(&self) -> &Path {
+        &self.binary
     }
 
     pub fn codec(&self) -> Codec {
@@ -248,6 +265,7 @@ impl Capture for HelperCapture {
         let (sender, receiver) = mpsc::channel();
         let progress = self.progress.clone();
         let failure = self.failure.clone();
+        let log_progress = self.log_progress;
         thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                 let at = Instant::now();
@@ -263,7 +281,8 @@ impl Capture for HelperCapture {
                             cpu_percent: event["cpuPercent"].as_f64().unwrap_or(0.0),
                             statuses: statuses_of(&event["statuses"]),
                         };
-                        eprintln!(
+                        if log_progress {
+                            eprintln!(
                             "  recording {:>5}s · {} frames · {} dropped · helper CPU {:.1}% · sent: {}",
                             entry.elapsed_ms / 1000,
                             entry.frames,
@@ -271,6 +290,7 @@ impl Capture for HelperCapture {
                             entry.cpu_percent,
                             entry.statuses
                         );
+                        }
                         progress.lock().unwrap().push(entry);
                         continue;
                     }
@@ -335,7 +355,7 @@ impl Capture for HelperCapture {
     }
 }
 
-fn parse_events(stdout: &[u8]) -> Vec<Value> {
+pub(crate) fn parse_events(stdout: &[u8]) -> Vec<Value> {
     String::from_utf8_lossy(stdout)
         .lines()
         .filter_map(|line| serde_json::from_str(line).ok())
@@ -363,7 +383,7 @@ fn statuses_of(value: &Value) -> String {
         .join(", ")
 }
 
-fn error_of(event: &Value) -> CaptureError {
+pub(crate) fn error_of(event: &Value) -> CaptureError {
     CaptureError(format!(
         "{} ({})",
         event["message"].as_str().unwrap_or("the helper failed"),

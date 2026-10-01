@@ -16,6 +16,7 @@ use lcu::GameflowPhase;
 
 use crate::anchor::{Anchor, ClockSample};
 use crate::highlights::{self, HighlightSource};
+use crate::moments;
 use crate::settings::{Quality, RecordingSettings};
 use crate::store::{RecordingDir, RecordingMeta, RecordingStatus, Store, StoredRecording};
 
@@ -252,10 +253,19 @@ impl<C: Capture> Session<C> {
         if let Some(me) = me {
             active.meta.champion_id = Some(me.champion_id).filter(|id| *id > 0);
             active.meta.win = Some(me.stats.win);
+            active.meta.kills = Some(me.stats.kills);
+            active.meta.deaths = Some(me.stats.deaths);
+            active.meta.assists = Some(me.stats.assists);
         }
         if let (Some(me), Some(timeline)) = (me, outcome.timeline) {
             active.meta.highlights = highlights::from_timeline(timeline, me.participant_id);
             active.meta.highlights_source = Some(HighlightSource::Timeline);
+            let my_team = match me.team_id {
+                100 | 200 => me.team_id,
+                _ if me.participant_id <= 5 => 100,
+                _ => 200,
+            };
+            active.meta.objectives = moments::objectives(timeline, my_team);
         }
         active.meta.status = RecordingStatus::Ready;
         active.dir.write_meta(&active.meta)?;
