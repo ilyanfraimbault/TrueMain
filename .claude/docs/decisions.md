@@ -187,6 +187,8 @@ Last verified against `develop` on 2026-09-02.
 - A thin item-context bucket widens backwards through patches, both ends together, and records the window it used — #1450
 - The item context carries no elo dimension: splitting by rank would starve the buckets the feature rests on — #1450
 - Known gap: an item-context axis does not hold the lane opponent out, because that needs an opponent dimension ~70x the counters — #1450, #1462
+- The next-item model is a naive-Bayes sum of shrunk log-ratios over the item-context counters, derived beside the verdicts; it predicts the mains' choice, never a win-rate argmax (2026-10-01) — #1749
+- Measured on held-out games before shipping: composition moves boots (right 400 vs 215 where it overrides the base order), barely legendaries (534 vs 509) — enemy builds are the lever; correlated axes are summed, grouping measured no better (2026-10-01) — #1749, #1750
 - No pick+ban "presence" figure, despite it being standard elsewhere — #920
 - A dimension's identity is enforced by the schema (canonical UNIQUE index, CHECK, generated key), not repaired afterwards (2026-09-03) — #1418, #911
 - Rank snapshots are capped at one row per account per UTC day (DB-level unique index) — #907

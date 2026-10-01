@@ -132,6 +132,11 @@ public sealed class ChampionItemContextAggregationProcess(
             }
         }
 
+        // The next-item model (#1749) is derived alongside the verdicts, so a scope whose
+        // verdicts predate it would never get terms until a new match of it arrived: those
+        // are rebuilt too, from counters already folded.
+        touched.UnionWith(await ScopesWithoutTermsAsync(ct));
+
         var verdicts = await RebuildVerdictsAsync(touched, settings, aggregatedAtUtc, ct);
 
         logger.LogInformation(
@@ -305,6 +310,8 @@ public sealed class ChampionItemContextAggregationProcess(
                 var window = PatchWindow(scopeStats, scope.Patch, settings.MaxPatchLookback);
                 var verdicts = ItemContextVerdictBuilder.Build(
                     scope, scopeStats, scopeTotals, window, settings, aggregatedAtUtc);
+                var terms = NextItemTermBuilder.Build(
+                    scope, scopeStats, scopeTotals, window, settings.NextItem, aggregatedAtUtc);
 
                 await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
@@ -313,11 +320,18 @@ public sealed class ChampionItemContextAggregationProcess(
                         && row.Position == scope.Position
                         && row.Patch == scope.Patch)
                     .ExecuteDeleteAsync(ct);
+                await db.ChampionNextItemTerms
+                    .Where(row => row.ChampionId == scope.ChampionId
+                        && row.Position == scope.Position
+                        && row.Patch == scope.Patch)
+                    .ExecuteDeleteAsync(ct);
 
-                if (verdicts.Count > 0)
+                if (verdicts.Count > 0 || terms.Count > 0)
                 {
                     db.ChampionItemContextVerdicts.AddRange(verdicts);
+                    db.ChampionNextItemTerms.AddRange(terms);
                     await db.SaveChangesAsync(ct);
+                    db.ChangeTracker.Clear();
                 }
 
                 await transaction.CommitAsync(ct);
@@ -326,6 +340,48 @@ public sealed class ChampionItemContextAggregationProcess(
         }
 
         return written;
+    }
+
+    /// <summary>
+    /// The served scopes of the newest patch that have verdicts but no next-item terms —
+    /// the scopes folded before the model existed (#1749). Only the newest patch: an older
+    /// one is never served to a live game, and rebuilding it would cost a pass over every
+    /// retained patch for nothing.
+    /// </summary>
+    private async Task<IReadOnlyCollection<ItemContextScope>> ScopesWithoutTermsAsync(CancellationToken ct)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+
+        var patches = await db.ChampionItemContextVerdicts
+            .AsNoTracking()
+            .Select(row => row.Patch)
+            .Distinct()
+            .ToListAsync(ct);
+        var newest = patches
+            .Select(raw => PatchVersion.TryParse(raw, out var version) ? (Raw: raw, Version: version) : default)
+            .Where(entry => entry.Raw is not null)
+            .OrderByDescending(entry => entry.Version)
+            .Select(entry => entry.Raw)
+            .FirstOrDefault();
+
+        if (newest is null)
+        {
+            return [];
+        }
+
+        var withTerms = db.ChampionNextItemTerms
+            .AsNoTracking()
+            .Where(term => term.Patch == newest);
+
+        var missing = await db.ChampionItemContextVerdicts
+            .AsNoTracking()
+            .Where(verdict => verdict.Patch == newest
+                && !withTerms.Any(term => term.ChampionId == verdict.ChampionId && term.Position == verdict.Position))
+            .Select(verdict => new { verdict.ChampionId, verdict.Position })
+            .Distinct()
+            .ToListAsync(ct);
+
+        return [.. missing.Select(scope => new ItemContextScope(scope.ChampionId, scope.Position, newest))];
     }
 
     private static IReadOnlyList<string> PatchWindow(

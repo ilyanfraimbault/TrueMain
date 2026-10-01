@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("cd9a91ac-e394-4b54-9378-b8d8493f3ce7"), entityTypeCount: 31)
+            : base(skipDetectChanges: false, modelId: new Guid("964de515-5a04-472c-988a-344831ab4932"), entityTypeCount: 32)
         {
         }
 
@@ -31,6 +31,7 @@ namespace Data.CompiledModels
             var championItemContextTotal = ChampionItemContextTotalEntityType.Create(this);
             var championItemContextVerdict = ChampionItemContextVerdictEntityType.Create(this);
             var championMatchupStat = ChampionMatchupStatEntityType.Create(this);
+            var championNextItemTerm = ChampionNextItemTermEntityType.Create(this);
             var championProfileStat = ChampionProfileStatEntityType.Create(this);
             var championSynergyBaselineStat = ChampionSynergyBaselineStatEntityType.Create(this);
             var championSynergyStat = ChampionSynergyStatEntityType.Create(this);
@@ -79,6 +80,7 @@ namespace Data.CompiledModels
             ChampionItemContextTotalEntityType.CreateAnnotations(championItemContextTotal);
             ChampionItemContextVerdictEntityType.CreateAnnotations(championItemContextVerdict);
             ChampionMatchupStatEntityType.CreateAnnotations(championMatchupStat);
+            ChampionNextItemTermEntityType.CreateAnnotations(championNextItemTerm);
             ChampionProfileStatEntityType.CreateAnnotations(championProfileStat);
             ChampionSynergyBaselineStatEntityType.CreateAnnotations(championSynergyBaselineStat);
             ChampionSynergyStatEntityType.CreateAnnotations(championSynergyStat);

@@ -19,6 +19,7 @@ using TrueMain.Services.Champions.Matchups;
 using TrueMain.Services.Champions.Progression;
 using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Draft;
+using TrueMain.Services.Champions.NextItem;
 using TrueMain.Services.Champions.Synergies;
 using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Ops.Candidates;
@@ -329,6 +330,9 @@ builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRe
 // distribution at all, exactly on the rare picks a guess is most needed for.
 builder.Services.AddScoped<ILanePriorQueryService, LanePriorQueryService>();
 builder.Services.AddScoped<IDraftRecommendationQueryService, DraftRecommendationQueryService>();
+// The in-game next-item panel (#1749): a lookup in the model the item-context fold
+// derives, combined with the game's situation; reuses the draft's lane priors.
+builder.Services.AddScoped<INextItemQueryService, NextItemQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
 // identically. Patch-cached inside the provider, which clocks how long a
