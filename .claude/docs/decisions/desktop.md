@@ -117,7 +117,7 @@ is not an app release, so the app keeps its own version (`tauri.conf.json`), bum
 Production (channel `stable`) serves only the one release promoted through the `Desktop promote` workflow — a
 version typed in by the product owner, not computed from commits, and not tied to the site's release because the
 promotion must wait for the endpoints the build reads to reach production. Supersedes "tag `desktop-v*` to ship";
-the updater keeps polling production only, so testers install beta builds by hand (2026-10-01) — #1772.
+the updater keeps polling production only, so testers install beta builds by hand — revised by #1779: each build polls its own site (2026-10-01) — #1772.
 
 **The dashboard is read from the player's own client, not from TrueMain's API, and built from the site's profile
 components.** The dashboard is for whoever installed the app, and TrueMain only tracks true mains, so the site's
@@ -257,3 +257,17 @@ item-context words, the gold left and the components the gold in hand buys are w
 runners-up and the boots stay small beside it. It is asked again on any item change of the ten players and never on a
 timer, because nothing else moves the answer. Our gold joins the game state in 50-gold steps — income crosses one about
 every ten seconds — rather than every reading, so the board does not become a change per poll (2026-10-01) — #1751.
+
+**Every app version is built twice, once per site, and each site serves only its own build (2026-10-01).** The product
+owner's call: the app downloaded from preprod is a test build and must read preprod — API, the pages it opens in the
+browser, its update feed — and the one downloaded from truemain.lol must read production. A build is tied to its site
+at compile time (`TRUEMAIN_SITE_URL`, `src-tauri/src/site.rs`), so one binary cannot serve both: the release workflow
+builds a production flavour and a preprod flavour of each version, side by side in the same `desktop-v*` release. The
+file names say which is which — `truemain.dmg` / `truemain.exe` on production, `truemain-<version>.dmg` /
+`truemain-<version>.exe` on preprod — and each flavour has its own update manifest (`latest.json`,
+`latest-beta.json`), so an update never moves an app from one site to the other. The preprod flavour is *TrueMain
+Beta* with its own bundle identifier, so a tester keeps both installed. The preprod origin is a repository secret
+(`DESKTOP_BETA_SITE_URL`), never written in the repository, and a developer's local builds read it from a gitignored
+`desktop/.env.local`. The webview no longer opens URLs itself: it asks the shell to open a *path* on the build's site
+(`open_on_site`), which replaces the shell plugin's origin-scoped `open`. Revises the line of #1772 that the
+updater polls production only (2026-10-01) — #1779.

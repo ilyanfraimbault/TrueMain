@@ -15,19 +15,12 @@ use std::time::Duration;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-/// Where the API lives.
+/// Where the API lives: the proxy of the site this build belongs to
+/// (`site.rs`), which is the only surface that exists.
 ///
-/// Overridable at build time so a developer can point a build at a local or
-/// preprod stack without touching code. The default is the public site's proxy,
-/// which is the only surface that exists.
-const DEFAULT_API_BASE: &str = "https://truemain.lol/api";
-
-/// The same override, read at startup instead of at compile time.
-///
-/// Both exist because they answer different questions: a build for preprod is
-/// baked once, while someone replaying a tape against a backend they are
-/// editing would otherwise have to rebuild the shell to change one URL. The
-/// runtime value wins, being the more specific of the two.
+/// Overridable at startup with `TRUEMAIN_API_BASE`, for someone replaying a
+/// tape against a backend they are editing — a local API answers without the
+/// proxy's `/api` prefix, so it is a different base, not a different site.
 const API_BASE_VAR: &str = "TRUEMAIN_API_BASE";
 
 /// Cheap to clone: `reqwest::Client` is a handle onto one shared pool.
@@ -42,8 +35,7 @@ impl ApiClient {
         let base = std::env::var(API_BASE_VAR)
             .ok()
             .filter(|value| !value.trim().is_empty())
-            .or_else(|| option_env!("TRUEMAIN_API_BASE").map(str::to_string))
-            .unwrap_or_else(|| DEFAULT_API_BASE.to_string())
+            .unwrap_or_else(|| format!("{}/api", crate::site::base()))
             .trim_end_matches('/')
             .to_string();
 

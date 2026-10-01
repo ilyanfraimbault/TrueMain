@@ -89,28 +89,54 @@ jobs:
           cp "$bin/truemain-capture" desktop/src-tauri/binaries/truemain-capture
           codesign --force --sign - desktop/src-tauri/binaries/truemain-capture
           lipo -archs desktop/src-tauri/binaries/truemain-capture
-      - run: npm run tauri -- build ${{ matrix.args }}
-        working-directory: desktop/app
+      - name: Build for production and for preprod
+        shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      - name: Collect the installers
-        shell: bash
-        env:
+          BETA_SITE: ${{ secrets.DESKTOP_BETA_SITE_URL }}
           VERSION: ${{ needs.version.outputs.version }}
           BUNDLE: ${{ matrix.bundle }}
         run: |
-          mkdir -p dist
-          if [ "${{ matrix.name }}" = "macOS" ]; then
-            test -x "$BUNDLE/macos/TrueMain.app/Contents/MacOS/truemain-capture"
-            codesign --verify --deep --strict "$BUNDLE/macos/TrueMain.app"
-            cp "$BUNDLE"/dmg/*.dmg "dist/TrueMain_${VERSION}_universal.dmg"
-            cp "$BUNDLE/macos/TrueMain.app.tar.gz" "dist/TrueMain_${VERSION}_universal.app.tar.gz"
-            cp "$BUNDLE/macos/TrueMain.app.tar.gz.sig" "dist/TrueMain_${VERSION}_universal.app.tar.gz.sig"
-          else
-            cp "$BUNDLE"/nsis/*-setup.exe "dist/TrueMain_${VERSION}_x64-setup.exe"
-            cp "$BUNDLE"/nsis/*-setup.exe.sig "dist/TrueMain_${VERSION}_x64-setup.exe.sig"
+          if ! [[ "$BETA_SITE" =~ ^https?://[^/]+$ ]]; then
+            echo "::error::The DESKTOP_BETA_SITE_URL secret must be preprod's site origin (scheme and host, no path)"
+            exit 1
           fi
+          mkdir -p dist
+          for flavor in stable beta; do
+            if [ "$flavor" = stable ]; then
+              site=https://truemain.lol
+              name=truemain
+              echo '{}' > desktop/flavor.json
+            else
+              site=$BETA_SITE
+              name="truemain-$VERSION"
+              SITE="$site" node -e '
+                const site = process.env.SITE
+                console.log(JSON.stringify({
+                  productName: "TrueMain Beta",
+                  identifier: "gg.truemain.desktop.beta",
+                  plugins: { updater: {
+                    endpoints: [`${site}/api/desktop/latest.json`],
+                    dangerousInsecureTransportProtocol: site.startsWith("http://"),
+                  } },
+                }))
+              ' > desktop/flavor.json
+            fi
+            rm -rf "$BUNDLE"
+            (cd desktop/app && TRUEMAIN_SITE_URL="$site" npm run tauri -- build ${{ matrix.args }} --config flavor.json)
+            if [ "${{ matrix.name }}" = "macOS" ]; then
+              app=$(ls -d "$BUNDLE"/macos/*.app)
+              test -x "$app/Contents/MacOS/truemain-capture"
+              codesign --verify --deep --strict "$app"
+              cp "$BUNDLE"/dmg/*.dmg "dist/$name.dmg"
+              cp "$BUNDLE"/macos/*.app.tar.gz "dist/$name.app.tar.gz"
+              cp "$BUNDLE"/macos/*.app.tar.gz.sig "dist/$name.app.tar.gz.sig"
+            else
+              cp "$BUNDLE"/nsis/*-setup.exe "dist/$name.exe"
+              cp "$BUNDLE"/nsis/*-setup.exe.sig "dist/$name.exe.sig"
+            fi
+          done
           ls -la dist
       - uses: actions/upload-artifact@v7
         with:
@@ -130,24 +156,27 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: Write the update manifest
+      - name: Write the update manifests
         env:
           VERSION: ${{ needs.version.outputs.version }}
           BASE: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tag }}
         run: |
-          mac="TrueMain_${VERSION}_universal.app.tar.gz"
-          win="TrueMain_${VERSION}_x64-setup.exe"
-          jq -n \
-            --arg version "$VERSION" \
-            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --arg macSig "$(cat "dist/$mac.sig")" --arg macUrl "$BASE/$mac" \
-            --arg winSig "$(cat "dist/$win.sig")" --arg winUrl "$BASE/$win" \
-            '{version: $version, notes: "TrueMain desktop \($version) (beta)", pub_date: $date, platforms: {
-              "darwin-aarch64": {signature: $macSig, url: $macUrl},
-              "darwin-x86_64": {signature: $macSig, url: $macUrl},
-              "windows-x86_64": {signature: $winSig, url: $winUrl}
-            }}' > dist/latest.json
-          cat dist/latest.json
+          manifest() {
+            local name=$1 notes=$2
+            jq -n \
+              --arg version "$VERSION" --arg notes "$notes" \
+              --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --arg macSig "$(cat "dist/$name.app.tar.gz.sig")" --arg macUrl "$BASE/$name.app.tar.gz" \
+              --arg winSig "$(cat "dist/$name.exe.sig")" --arg winUrl "$BASE/$name.exe" \
+              '{version: $version, notes: $notes, pub_date: $date, platforms: {
+                "darwin-aarch64": {signature: $macSig, url: $macUrl},
+                "darwin-x86_64": {signature: $macSig, url: $macUrl},
+                "windows-x86_64": {signature: $winSig, url: $winUrl}
+              }}'
+          }
+          manifest truemain "TrueMain desktop $VERSION" > dist/latest.json
+          manifest "truemain-$VERSION" "TrueMain desktop $VERSION (preprod build)" > dist/latest-beta.json
+          cat dist/latest.json dist/latest-beta.json
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -159,5 +188,5 @@ jobs:
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "TrueMain desktop $VERSION (beta)" \
-            --notes "Desktop companion beta build, served on preprod until it is promoted to https://truemain.lol/download by the Desktop promote workflow. The installers are not signed yet; the download page says how to open them the first time."
+            --notes "Desktop companion build, in two flavours: \`truemain-$VERSION.*\` reads preprod and is served on preprod's download page; \`truemain.*\` reads https://truemain.lol and is served there once the Desktop promote workflow promotes this version. The installers are not signed yet; the download page says how to open them the first time."
           echo "Published [$TAG](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG) as a pre-release: preprod serves it now, run **Desktop promote** with \`$VERSION\` to serve it on truemain.lol." >> "$GITHUB_STEP_SUMMARY"

@@ -299,8 +299,32 @@ only when no `desktop-v<version>` tag exists yet, so editing the rest of the fil
 publishes nothing. The version must be semantic (`X.Y.Z`, the Tauri updater
 compares them), and the job refuses any branch but `develop`. A failed build is
 retried with *Run workflow* on `develop`; there is no tag trigger any more — the
-release creates the tag on the pushed commit. It builds on the two platforms the
-app supports, each on its own runner:
+release creates the tag on the pushed commit.
+
+Every version is built **twice**, once per site (#1779): a build reads the API,
+opens the pages and polls the update feed of the site it was built for
+(`TRUEMAIN_SITE_URL`, `desktop/src-tauri/src/site.rs`), so the app downloaded
+from preprod must be a different binary from the one downloaded from
+truemain.lol.
+
+| flavour | site | files | update feed | app |
+| --- | --- | --- | --- | --- |
+| production | `https://truemain.lol` | `truemain.dmg`, `truemain.exe` | `latest.json` | *TrueMain*, `gg.truemain.desktop` |
+| preprod | the `DESKTOP_BETA_SITE_URL` secret | `truemain-<version>.dmg`, `truemain-<version>.exe` | `latest-beta.json` | *TrueMain Beta*, `gg.truemain.desktop.beta` |
+
+The browser saves an installer under its asset name, so a preprod download says
+its version and a production one does not. The preprod flavour is the
+production config plus an overlay the job writes (`tauri build --config`): its
+own name and identifier, so the two install side by side; its own update feed,
+preprod's `/api/desktop/latest.json`; and, while preprod has no TLS,
+`dangerousInsecureTransportProtocol` — the updater still verifies every archive
+against the signing key, the flag only lets it read the feed over HTTP. The
+preprod origin is a secret because the repository is public and never names its
+hosts; the job fails when it is missing or is not a bare origin. Both flavours
+build in the same job, one after the other, so the second reuses the first's
+compiled dependencies.
+
+It builds on the two platforms the app supports, each on its own runner:
 
 - **macOS** (`macos-15`): one universal binary (`--target universal-apple-darwin`,
   both Rust targets installed), bundled as a `.dmg` and as the `.app.tar.gz` the
@@ -320,8 +344,9 @@ Each update artifact is signed with the updater key, the
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is left unset and reaches the build empty;
 a key rotated to one with a password needs that secret too. Losing the private
 key means the installed apps can no longer be updated: every tester would have
-to reinstall a build carrying a new public key. The `publish` job writes
-`latest.json` — the Tauri updater's manifest, both macOS keys pointing at the one
+to reinstall a build carrying a new public key. The `publish` job writes the
+Tauri updater's two manifests — `latest.json` for the production flavour,
+`latest-beta.json` for the preprod one, both macOS keys pointing at the one
 universal archive — and creates a **pre-release** with every file. Pre-release
 because GitHub's "latest release" must stay the site's, and because a pre-release
 is a beta build: only preprod serves it (below).
@@ -338,30 +363,36 @@ needs no site deploy. Which one depends on the site's channel,
 `NUXT_DESKTOP_CHANNEL` in the compose files:
 
 - **`beta`** (preprod): the newest build, pre-releases included — every version
-  bump merged to `develop` shows up there within five minutes.
+  bump merged to `develop` shows up there within five minutes — and its preprod
+  flavour (`truemain-<version>.*`, `latest-beta.json`).
 - **`stable`** (production, and the default for anything else): only a release
-  that is not a pre-release. Until one is promoted, production offers no app.
+  that is not a pre-release, and its production flavour (`truemain.*`,
+  `latest.json`). Until one is promoted, production offers no app.
+
+A channel never serves the other's flavour, so an app never leaves the site it
+was downloaded from, updates included.
 
 `desktop-promote.yml` is the only way to stable: *Run workflow* with a version
 turns `desktop-v<version>` into a full release — without GitHub's "Latest"
-badge, which stays the site's — after checking it carries both installers and
-the update manifest, then moves any previously promoted desktop release back to
+badge, which stays the site's — after checking it carries the production
+flavour's installers and update manifest, then moves any previously promoted desktop release back to
 pre-release. Exactly one release is stable at a time, so promoting an older
 version is a rollback of the download page; the updater never downgrades an
 installed app, though. Neither workflow starts a prod deploy: `deploy-prod.yml`
 listens to `published` only, and releases created or edited with the
 `GITHUB_TOKEN` trigger no workflow.
 
-The installed app's updater only ever polls production
-(`plugins.updater.endpoints`), so it offers promoted versions only; beta builds
-are installed by hand from preprod's download page.
+Each flavour's updater polls its own site (`plugins.updater.endpoints`): the
+production app is offered promoted versions only, the preprod app every new
+build, the moment preprod serves it.
 
-**A promotion follows the site release it reads.** The app calls the production
-API, and the pages it shares with the site (#1732) call whatever endpoints
-`develop` has — the champion directory reads `/champions/directory`, for one. A
-beta build may therefore fail on pages whose endpoints have not reached
-production yet; promote it only once the production site serves every endpoint
-the shared pages call.
+**A promotion follows the site release it reads.** The production flavour calls
+the production API, and the pages it shares with the site (#1732) call whatever
+endpoints `develop` had when it was built — the champion directory reads
+`/champions/directory`, for one. It may therefore fail on pages whose endpoints
+have not reached production yet; promote it only once the production site serves
+every endpoint the shared pages call. The preprod flavour has no such gap: it
+reads preprod, which runs `develop`.
 
 ## Load test
 
