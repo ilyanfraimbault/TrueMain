@@ -189,3 +189,13 @@ unsigned beta even though macOS may then drop the Screen Recording permission at
 ask again, never record a black video), and a GPL capture library (libobs) is allowed, which would put the desktop app
 under a GPL-compatible licence (2026-10-01) — #1744, #1754.
 
+**Screen capture runs in a native helper process per platform, not inside the app.** On macOS a Swift executable
+(`desktop/capture/macos`) captures with ScreenCaptureKit and encodes with AVAssetWriter through VideoToolbox; the
+shell drives it over JSON lines on stdout and `stop` on stdin, and sees it as `game-recording`'s `Capture`. Swift
+because those are first-class Swift APIs, where Rust bindings to them would be written and debugged blind; a separate
+process because a crash in capture or the encoder must not take the app — or a champion select — down with it, and
+because the Windows helper can then be whatever Windows captures best with, behind the same protocol. The output
+size, bitrate and keyframe interval are still computed in Rust (`Quality::output_for`) and passed in, so the rule
+has one implementation. The spike (`capture-spike`) runs this pair outside the app first; it becomes a Tauri sidecar
+only once the spike's measurements hold (2026-10-01) — #1745.
+

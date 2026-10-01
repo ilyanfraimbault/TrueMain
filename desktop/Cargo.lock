@@ -249,6 +249,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "capture-spike"
+version = "0.1.0"
+dependencies = [
+ "game-recording",
+ "lcu",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "cargo-platform"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"

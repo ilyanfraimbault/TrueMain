@@ -225,6 +225,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
   payloads through a dev-server relay, so the app runs its real champion select live without a game.
   Outside a live champion select the product's `/draft` page only waits for the next one.
+- **Capture spike** (development only, #1745) — `truemain-capture-spike` records one League game through the
+  platform capture helper (`desktop/capture/macos`: ScreenCaptureKit + VideoToolbox, a separate process speaking
+  JSON lines) and `game-recording`'s session, then writes the video, its highlights, a `report.md` of what it measured
+  and a `player.html` that jumps to each moment. Built by CI as a downloadable macOS artifact; not part of the app.
+  How to run it: `docs/desktop-capture-spike.md`.
 - **Site sections** — the tier list, the champion directory, the matchup page, the truemains leaderboard and the
   favorites are **the site's own pages** (`PageTierList`, `PageChampions`, `PageMatchup`, `PageTruemains`,
   `PageFavorites` from `web/layers/common`, #1732: one implementation, the same headers, filters, searches, tables,

@@ -16,7 +16,7 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; typecheck and static build of its Nuxt app (below) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; typecheck and static build of its Nuxt app (below) |
 | `desktop-release.yml` | a `desktop-v*` tag | Builds the desktop app for macOS and Windows and publishes it as a pre-release (below) |
 
 `.github/actions/migration-script` is the composite action every job that
@@ -279,6 +279,14 @@ those two paths, and its `Nuxt app` job typechecks the app and builds its static
 bundle (`npm run generate`, what `tauri build` runs) with only the app's own
 dependencies installed — the same conditions as `desktop-release.yml`, where a
 shared file importing a package the app lacks would otherwise fail first.
+
+The `macOS capture spike` job builds the game-recording spike (#1745): the
+Swift capture helper (`desktop/capture/macos`, ScreenCaptureKit, so only a Mac
+can compile it — the Linux job never sees it) and the Rust runner
+(`capture-spike`), both universal (arm64 + x86_64) and ad-hoc signed like the
+app's own build. It smoke-runs each binary for its usage error, then uploads
+them as one `.tar.gz` — tarred because an artifact's zip drops the executable
+bit — so the spike can be run on a Mac without a toolchain.
 
 ## Desktop releases
 
