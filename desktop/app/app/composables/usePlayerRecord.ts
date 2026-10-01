@@ -42,7 +42,7 @@ export function usePlayerRecord() {
   async function read(): Promise<PlayerRecord | null> {
     if (insideTauri()) {
       const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<PlayerRecord>('player_record')
+      return await trackLoad(invoke<PlayerRecord>('player_record'))
     }
     if (import.meta.dev) return useDevScenarios().record.value
     return null
@@ -123,7 +123,7 @@ export function usePlayerRecord() {
   async function readOlder(begin: number): Promise<PlayerGame[]> {
     if (!insideTauri()) return []
     const { invoke } = await import('@tauri-apps/api/core')
-    return await invoke<PlayerGame[]>('player_history', { begin })
+    return await trackLoad(invoke<PlayerGame[]>('player_history', { begin }))
   }
 
   const current = computed(() => (owner.value === state.value.riotId ? record.value : null))

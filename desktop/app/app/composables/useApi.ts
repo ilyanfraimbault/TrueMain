@@ -17,29 +17,48 @@ function pairs(query: Query): [string, string][] {
     .map(([key, value]) => [key, String(value)])
 }
 
+/** How a read is sent: a signal, and whether the window's loading bar ignores it. */
+export interface ReadOptions {
+  /** Reaches the request in `npm run dev` only: the shell's commands cannot be cancelled. */
+  signal?: AbortSignal
+  /**
+   * A read no click asked for — the in-game next item, re-asked as the game
+   * moves. Every other read runs the loading bar while it is out (#1788).
+   */
+  background?: boolean
+}
+
+/** A read counted by the loading bar, unless it runs in the background. */
+function tracked<T>(work: Promise<T>, options: ReadOptions): Promise<T> {
+  return options.background ? work : trackLoad(work)
+}
+
 /**
  * A read-only GET. Inside Tauri only the paths `api_get` lists are reachable —
- * the shell is not a general proxy onto the API. The signal reaches the
- * request in `npm run dev` only: the shell's commands cannot be cancelled.
+ * the shell is not a general proxy onto the API.
  */
-export async function apiGet<T>(path: string, query: Query = {}, signal?: AbortSignal): Promise<T> {
-  if (insideTauri()) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    return await invoke<T>('api_get', { path, query: pairs(query) })
-  }
-  return await $fetch<T>(`/api${path}`, { query: Object.fromEntries(pairs(query)), signal })
+export function apiGet<T>(path: string, query: Query = {}, options: ReadOptions = {}): Promise<T> {
+  return tracked((async () => {
+    if (insideTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      return await invoke<T>('api_get', { path, query: pairs(query) })
+    }
+    return await $fetch<T>(`/api${path}`, { query: Object.fromEntries(pairs(query)), signal: options.signal })
+  })(), options)
 }
 
 /**
  * A POST read — the composition build and its games, which take the draft as
  * a body. Inside Tauri only the paths `api_post` lists are reachable.
  */
-export async function apiPost<T>(path: string, body: unknown, query: Query = {}, signal?: AbortSignal): Promise<T> {
-  if (insideTauri()) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    return await invoke<T>('api_post', { path, query: pairs(query), request: body })
-  }
-  return await $fetch<T>(`/api${path}`, { method: 'POST', body: body as Record<string, unknown>, query: Object.fromEntries(pairs(query)), signal })
+export function apiPost<T>(path: string, body: unknown, query: Query = {}, options: ReadOptions = {}): Promise<T> {
+  return tracked((async () => {
+    if (insideTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      return await invoke<T>('api_post', { path, query: pairs(query), request: body })
+    }
+    return await $fetch<T>(`/api${path}`, { method: 'POST', body: body as Record<string, unknown>, query: Object.fromEntries(pairs(query)), signal: options.signal })
+  })(), options)
 }
 
 /**
@@ -94,8 +113,8 @@ export function useApiFetch() {
     }
     try {
       return options.method === 'POST'
-        ? await apiPost<T>(path, options.body, query, options.signal)
-        : await apiGet<T>(path, query, options.signal)
+        ? await apiPost<T>(path, options.body, query, { signal: options.signal })
+        : await apiGet<T>(path, query, { signal: options.signal })
     }
     catch (error) {
       if (options.ignoreResponseError && isResponseError(error)) return null as T
