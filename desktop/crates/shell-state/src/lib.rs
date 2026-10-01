@@ -164,9 +164,9 @@ impl AppState {
     }
 }
 
-/// The screens the shell can show. `InGame` is reserved for the overlay work
-/// and currently renders the dashboard; naming it now keeps the state machine
-/// honest instead of making the overlay a refactor later.
+/// The screens the shell can show. `InGame` is the game page (`/game`, #1748),
+/// and the only screen during which the running game is read: the shell's game
+/// feed follows this rule rather than a second test of the phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Screen {
@@ -203,6 +203,28 @@ mod tests {
         assert_eq!(
             connected(GameflowPhase::ChampSelect).screen(),
             Screen::Draft
+        );
+    }
+
+    #[test]
+    fn a_running_game_opens_the_game_and_its_end_leaves_it() {
+        assert_eq!(
+            connected(GameflowPhase::InProgress).screen(),
+            Screen::InGame
+        );
+        // A crashed game the client offers to rejoin is not one to read: the
+        // game's API is down until the player reconnects, which is `InProgress`
+        // again.
+        for phase in [
+            GameflowPhase::Reconnect,
+            GameflowPhase::WaitingForStats,
+            GameflowPhase::PreEndOfGame,
+        ] {
+            assert_eq!(connected(phase).screen(), Screen::Dashboard, "{phase:?}");
+        }
+        assert_eq!(
+            serde_json::to_value(Screen::InGame).unwrap(),
+            serde_json::json!("in-game")
         );
     }
 

@@ -6,6 +6,7 @@
 //! belongs to which phase — in one place.
 
 mod api;
+mod game;
 mod record;
 #[cfg(debug_assertions)]
 mod sim;
@@ -14,6 +15,7 @@ mod supervisor;
 use std::sync::{Arc, Mutex};
 
 use api::ApiClient;
+use game::SharedGame;
 use record::{GameCache, SharedClient};
 use shell_state::{AppState, Screen};
 use supervisor::SharedState;
@@ -247,9 +249,11 @@ pub fn run() {
         .manage(BuildInFlight::default())
         .manage(client.clone())
         .manage(GameCache::default())
+        .manage(SharedGame::default())
         .invoke_handler(tauri::generate_handler![
             current_state,
             current_screen,
+            game::current_game,
             draft_recommendation,
             champion_build,
             composition_build,
