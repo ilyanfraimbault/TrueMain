@@ -27,6 +27,8 @@ pub struct ActivePlayer {
     pub riot_id: String,
     pub riot_id_game_name: String,
     pub summoner_name: String,
+    /// Unspent gold, fractional: the game pays income by the tick.
+    pub current_gold: f64,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
