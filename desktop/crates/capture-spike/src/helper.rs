@@ -152,6 +152,11 @@ impl HelperCapture {
 
 impl Capture for HelperCapture {
     fn start(&mut self, video_path: &Path, quality: Quality) -> Result<(), CaptureError> {
+        // Fresh slots for every attempt: an error from a start that failed
+        // must not end the one that follows, and the reader thread of a
+        // killed helper keeps writing only into the slots it was given.
+        self.progress = Arc::default();
+        self.failure = Arc::default();
         let window = self.probe()?;
         let width = window["width"].as_u64().unwrap_or(0) as u32;
         let height = window["height"].as_u64().unwrap_or(0) as u32;
@@ -344,5 +349,55 @@ mod tests {
         );
         let error = capture.probe().unwrap_err();
         assert!(error.0.contains("could not run"), "{error}");
+    }
+
+    /// A stand-in helper whose first `record` fails and whose second starts.
+    #[cfg(unix)]
+    fn flaky_helper(dir: &Path) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let marker = dir.join("failed-once");
+        let script = dir.join("truemain-capture");
+        std::fs::write(
+            &script,
+            format!(
+                r#"#!/bin/sh
+case "$1" in
+probe) echo '{{"event":"window","width":1920,"height":1080}}' ;;
+record)
+  if [ ! -e "{marker}" ]; then
+    touch "{marker}"
+    echo '{{"event":"error","kind":"capture","message":"not drawn yet"}}'
+    exit 1
+  fi
+  echo '{{"event":"started"}}'
+  read line
+  echo '{{"event":"stopped","durationMs":1000,"frames":30,"dropped":0}}'
+  ;;
+esac
+"#,
+                marker = marker.display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_error_from_a_failed_start_does_not_outlive_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut capture =
+            HelperCapture::new(flaky_helper(dir.path()), None, "window".into(), false);
+        let video = dir.path().join("game.mp4");
+        let quality = game_recording::RecordingSettings::default().quality;
+
+        let error = capture.start(&video, quality).unwrap_err();
+        assert!(error.0.contains("not drawn yet"), "{error}");
+
+        capture.start(&video, quality).unwrap();
+        assert_eq!(*capture.failure.lock().unwrap(), None);
+        assert_eq!(capture.stop().unwrap(), 1000);
+        assert_eq!(*capture.failure.lock().unwrap(), None);
     }
 }
