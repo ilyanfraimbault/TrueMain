@@ -8,7 +8,7 @@ const loadManifest = defineCachedFunction(
 
 /**
  * The installed app's update feed (#1719, `plugins.updater.endpoints` in
- * `desktop/src-tauri/tauri.conf.json`): the newest release's signed manifest,
+ * `desktop/src-tauri/tauri.conf.json`): the channel's release's signed manifest,
  * relayed. No release yet — or no manifest on it — is a 204, which the updater
  * reads as "up to date"; a failed read of GitHub is a 503 it shrugs off until
  * the next launch.

@@ -1,7 +1,7 @@
 /** The desktop companion's platforms with an installer (#1719). */
 export type DesktopPlatform = 'mac' | 'windows'
 
-/** The newest desktop release, as `GET /api/desktop/release` answers it. */
+/** The desktop release this site's channel serves, as `GET /api/desktop/release` answers it. */
 export interface DesktopRelease {
   version: string
   tag: string

@@ -255,6 +255,10 @@ export default defineNuxtConfig({
     // NUXT_LOG_INGEST_KEY. Empty keeps error forwarding off
     // (server/plugins/log-forwarding.ts).
     logIngestKey: '',
+    // Which desktop app builds the site offers (#1772), from NUXT_DESKTOP_CHANNEL:
+    // `stable` serves only a release promoted by hand, `beta` (preprod) the newest
+    // build too. See server/utils/desktop-release.ts.
+    desktopChannel: 'stable',
     public: {
       // Which deployed environment this container is (`preprod` / `production`),
       // and the build running in it — the preprod pipeline stamps a prerelease

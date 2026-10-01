@@ -1,0 +1,56 @@
+name: Desktop promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: App version to serve on truemain.lol (e.g. 0.2.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote desktop-v${{ inputs.version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Serve the release on the stable channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::$VERSION is not a semantic version"
+            exit 1
+          fi
+          tag="desktop-v$VERSION"
+          if ! release=$(gh release view "$tag" --json isDraft,assets); then
+            echo "::error::No release $tag: merge a version bump to develop first"
+            exit 1
+          fi
+          if [ "$(jq -r .isDraft <<< "$release")" = "true" ]; then
+            echo "::error::$tag is a draft"
+            exit 1
+          fi
+          for suffix in _universal.dmg _x64-setup.exe latest.json; do
+            if ! jq -e --arg suffix "$suffix" 'any(.assets[].name; endswith($suffix))' <<< "$release" > /dev/null; then
+              echo "::error::$tag has no *$suffix asset"
+              exit 1
+            fi
+          done
+          gh release edit "$tag" --prerelease=false --latest=false
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            | jq -r --arg tag "$tag" '.[] | select((.tag_name | startswith("desktop-v")) and .tag_name != $tag and (.prerelease | not) and (.draft | not)) | .tag_name' \
+            | while read -r previous; do
+                gh release edit "$previous" --prerelease --latest=false
+                echo "Moved $previous back to the beta channel"
+              done
+          echo "truemain.lol now serves [$tag](https://github.com/$GH_REPO/releases/tag/$tag) (download page and update feed, within five minutes)." >> "$GITHUB_STEP_SUMMARY"

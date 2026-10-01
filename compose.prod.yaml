@@ -171,6 +171,7 @@ services:
       NITRO_CLUSTER_WORKERS: "3"
       NUXT_API_BASE_URL: http://api:8080
       NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
+      NUXT_DESKTOP_CHANNEL: stable
       NUXT_PUBLIC_APP_ENV: production
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
       NUXT_PUBLIC_UMAMI_HOST: https://analytics.truemain.lol
