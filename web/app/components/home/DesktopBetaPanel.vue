@@ -2,13 +2,13 @@
 // The desktop companion's place on the home page (#1719, #1725): a banner right
 // under the hero, above the strongest picks and their mains — the app is those
 // two answers brought into champion select, so it is announced before them. It
-// shows the app itself (the capture `/download` opens on), cropped to its
-// sidebar and draft board, and says it is a beta up front.
+// shows the app itself, whole: its dashboard, the screen it opens on. It says it
+// is a beta up front.
 </script>
 
 <template>
   <section class="mx-auto max-w-6xl px-4 pb-16 md:px-6">
-    <div class="surface relative isolate grid overflow-hidden rounded-2xl md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+    <div class="surface relative isolate grid items-center overflow-hidden rounded-2xl md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
       <div class="relative z-10 flex flex-col justify-center p-6 sm:p-8 lg:p-10">
         <div class="flex items-center gap-2">
           <p class="eyebrow">
@@ -22,10 +22,10 @@
           />
         </div>
         <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
-          TrueMain, in your champion select.
+          TrueMain, on your desktop.
         </h2>
         <p class="mt-3 max-w-md text-sm leading-relaxed text-muted sm:text-base">
-          Picks ranked from your own pool, the enemy lanes worked out, and the build against the draft as it stands.
+          Your games and your rank, read from your client. In champion select: picks from your own pool, the enemy lanes worked out, and the build against the draft.
         </p>
         <div class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
           <UButton
@@ -48,20 +48,19 @@
         </div>
       </div>
 
-      <!-- The app, bleeding off the banner's right and bottom edges: only its
-           top-left corner — the sidebar and the draft board — is in frame. -->
-      <div
-        aria-hidden="true"
-        class="relative h-56 md:h-auto md:min-h-72"
-      >
-        <div class="pointer-events-none absolute inset-x-[15%] top-1/4 -z-10 h-1/2 rounded-full bg-primary/10 blur-3xl" />
+      <!-- The app's dashboard, whole, at the app's own window proportions. -->
+      <div class="relative px-6 pb-6 sm:px-8 sm:pb-8 md:py-8 md:pl-0 lg:py-10 lg:pr-10">
+        <div
+          aria-hidden="true"
+          class="pointer-events-none absolute inset-x-[15%] top-1/4 -z-10 h-1/2 rounded-full bg-primary/10 blur-3xl"
+        />
         <img
-          src="/desktop/champion-select.webp"
+          src="/desktop/dashboard.webp"
           width="1180"
           height="760"
-          alt=""
+          alt="The TrueMain app's dashboard: rank, recent form, match history and champions."
           loading="lazy"
-          class="absolute left-6 top-6 w-[52rem] max-w-none rounded-tl-xl ring-1 ring-white/15 [mask-image:linear-gradient(to_bottom,black_55%,transparent)] md:left-0 md:top-10"
+          class="block h-auto w-full rounded-lg shadow-[0_20px_50px_-15px_rgb(0_0_0/0.8)] ring-1 ring-white/15"
         >
       </div>
     </div>

@@ -149,9 +149,11 @@ reached by name, not only the top five (2026-09-30) — #1719.
 real app rather than describing it.** The card under the two teasers and a download page stacked from an alert, a
 status line and an accordion were read as unpolished; a first redesign in icon-tile cards was read as generic,
 "AI-made". So `/download` is left-aligned typography over one large capture of the app in champion select, the
-features are plain columns under a hairline, and the home banner shows the same capture cropped to the sidebar and the
-board. The capture is the real UI over live API answers: `desktop/app`'s `npm run dev` on the `draft-locked` scenario
+features are plain columns under a hairline. The home banner shows the app's dashboard instead, whole rather than
+cropped — the product owner's call. The capture is the real UI over live API answers: `desktop/app`'s `npm run dev` on the `draft-locked` scenario
 (whose build, win rates, games and tiers come from the production API through the dev proxy) at the 1180×760 window,
 2× scale, with the dev scenario picker and the fixture player card hidden. Scenarios that carry a fixture
-`recommendation` — the ranked-picks podium — are never captured, since those deltas are not measurements
-(2026-10-01) — #1725.
+`recommendation` — the ranked-picks podium — are not captured, since those deltas are not measurements. The
+dashboard capture is the one exception to "no fabricated numbers" on the site: it can only be taken on the `lobby`
+scenario's fixture record (the synthetic player `Synthetic#TAPE` and invented games), and the product owner accepted
+those figures for a picture of the app; it carries no TrueMain statistic (2026-10-01) — #1725.
