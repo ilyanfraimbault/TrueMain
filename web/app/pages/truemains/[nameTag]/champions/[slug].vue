@@ -68,7 +68,7 @@ const playerLabel = computed(() => {
 // where the full Riot ID would be noise. Falls back to the raw slug while the
 // profile fetch is in flight, like `playerLabel`.
 const playerName = computed(() => profile.value?.identity?.gameName ?? nameTag.value)
-const profilePath = computed(() => `/truemains/${encodeURIComponent(nameTag.value)}`)
+const profilePath = computed(() => truemainProfilePath(nameTag.value))
 
 // Shared static-data plumbing (see useChampionDetailStatics). This page
 // prefers the URL filter over the API-returned patch in `selectedPatch` —

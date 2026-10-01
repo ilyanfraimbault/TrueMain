@@ -175,6 +175,49 @@ au plus, pas cinq — une lane résiduelle n'est pas une information de meta.
   donc pas se contredire, et trier cet annuaire dessus reproduit l'ordre du meta.
 - `topBuild` : build dominant (résumé) ; `null` si aucun pattern observé.
 
+## `GET /champions/directory`
+
+One page of the directory above (#1734): the same `(champion, position)` lines, narrowed,
+ordered and paged on the server, so the listing page never downloads the whole directory.
+Served from the same cached summaries as `GET /champions` (no extra SQL); each
+(filters, order) ordering is cached once and paged by slicing it. The bare array stays for
+the consumers that want every line (OG card, sitemap).
+
+**Query**
+
+| Param           | Type   | Required | Default    | Description |
+|-----------------|--------|----------|------------|-------------|
+| `patch`         | string | no       | served patch | Same as `GET /champions`. |
+| `eloBracket`    | string | no       | `ALL`      | Same as `GET /champions`; an unknown value is a `400`. |
+| `truemainsOnly` | bool   | no       | `true`     | Mains only, or every tracked player. |
+| `position`      | string | no       | —          | One lane (`TOP`…`UTILITY`); an unknown value is a `400`. |
+| `championId`    | int    | no       | —          | One champion's lines; `< 1` is a `400`. |
+| `sort`          | string | no       | `pickRate` | `pickRate`, `winRate`, `banRate`, `games` or `tier`. Unknown → default. |
+| `order`         | string | no       | `desc`     | `desc` (strongest first) or `asc`. Unknown → `desc`. |
+| `page`          | int    | no       | `1`        | 1-indexed; `< 1` is a `400`. |
+| `pageSize`      | int    | no       | `50`       | `1`–`100`; outside is a `400`. |
+
+Order rules: a `null` ban rate (not observed, #920) and an unrecognised tier stay **last in
+both directions**; `tier` orders by letter (S first when descending) then `tierScore`. Every
+order ends on pick rate, games, champion id and lane, so a line never moves between pages
+from one request to the next.
+
+**Response `200`** — `ChampionDirectoryPageReadModel`
+
+```json
+{
+  "rows": [ /* ChampionSummaryReadModel, as GET /champions */ ],
+  "page": 1,
+  "pageSize": 50,
+  "total": 271,
+  "patchVersion": "16.4"
+}
+```
+
+- `total`: lines the filters keep, across every page. A page past the end is `200` with
+  empty `rows` and the real `total`.
+- `patchVersion`: the resolved patch, present even when `rows` is empty.
+
 ## `GET /champions/tierlist`
 
 Meta / tier-list d'un patch : les lignes `(champion, position)` réparties en

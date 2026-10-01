@@ -381,27 +381,69 @@ section. A functional caveat the reader would otherwise get wrong survives as th
 is documentation. Same direction as the player performance panel (#918 follow-up) and the "why this item"
 card (#1465) — #1699.
 
-## The full-page lists are tables: one grid under a header row, columns dropped by container width (2026-10-01)
+## The full-page lists are `UTable`s, sorted and paged by the API (2026-10-01, revised the same day)
 
 `/truemains` and `/champions` used to draw each line as a free-standing card (`LeaderboardRow`, the
 `ListRowSurface` rows of the directory) whose columns were positioned by flex spacers, every figure carrying its
-own micro-label (`590 / GAMES`). The desktop app had already moved its two lists to tables for the reason that
-layout kept failing — a spacer-positioned column follows whatever its neighbours happen to measure, so a long
-Riot ID or a missing build shifted the champion and stat columns off line (2026-09-30, #1719) — and the product
-owner asked for the site to read the same way (#1726).
+own micro-label (`590 / GAMES`). The desktop app had already moved its two lists to tables, because a
+spacer-positioned column follows whatever its neighbours measure (a long Riot ID or a missing build shifted the
+columns off line, 2026-09-30, #1719), and the product owner asked for the site to read the same way. A first pass
+drew the tables as hand-built CSS grids (#1726); the same day the owner asked for Nuxt UI's `UTable` with slots
+instead, so the lists get the table's sorting and the page never downloads the whole list (#1734).
 
-- **One grid per table, shared by the header, the rows and the skeleton rows** (`app/utils/list-tables.ts`:
-  `TRUEMAINS_TABLE_GRID`, `CHAMPIONS_TABLE_GRID`). The figures lose their per-cell labels; the header names the
-  column once. The column that orders the leaderboard (`Rank` or `Score`, after `?sort=`) reads a step brighter.
-- **The table is the `@container`, and it narrows by dropping whole columns** — header cell and row cell
-  together, with the template at that tier listing exactly the cells left. A cell hidden without its track leaving
-  the template slides every column right of it one slot over, so the class on the cell (`hidden @xl:block`) and
-  the template are one contract and live side by side. Phone keeps the identity, the main / the lane and tier,
-  and the figure the list is about (score and rank; win and pick rate).
-- **The leaderboard's main champion never drops**: below `@4xl` it is the portrait alone, the signature cluster
-  (play rate, keystone, first item) from there, the two sub-mains from `@5xl`. The OTP pill rides the region
-  flag's line rather than the name's, because the name is the column that truncates.
+- **`UTable` with cell and header slots** (`leaderboard/TruemainsTable.vue`, `Champion/DirectoryTable.vue`). A
+  real `<table>` lines its columns up by construction; the hand-built grid, its shared template constants and the
+  "a hidden cell must also leave the template" contract are gone.
+- **Columns drop by container width through column `meta`**: the table is the `@container`, and a column hidden
+  at a width carries the same `hidden @…:table-cell` on its `th` and its `td`, from one column definition. Phone
+  keeps the identity, the main / the lane and tier, and the figures the list is about (score and rank; win and
+  pick rate). The identity column takes `w-full max-w-0`, the auto-layout way to make it absorb the free width
+  and truncate instead of forcing a horizontal scroll. Cells tighten under `@xl`.
+- **Sorting is manual and lives in the URL.** A header (`TableSortHeader`) tells the table which way to go; the
+  table emits the new order, the page writes it to the query string, and the API answers with the page in that
+  order (`sortingOptions.manualSorting`: the table never reorders rows itself, and a page of 25 sorted in the
+  browser would be a lie about the other pages). The leaderboard sorts on its two server orders only — Rank (LP)
+  and Score — both descending; the "Sort by" select went, two controls for one state would drift. Clicking the
+  column already sorting is not a change and does not reset the page. The directory sorts tier, win, pick and ban
+  rate and games, both ways, through `GET /champions/directory` (see `product-directory-and-tiers.md`); the
+  defaults leave the URL bare. Games/KDA/WR on the leaderboard are not sortable: the API would have to rank the
+  whole population on them.
+- **A whole row navigates through `@select`, not a stretched link.** In Safari a `<tr>` with `position: relative`
+  does not contain absolutely positioned children (WebKit 291407), so the overlay link the old rows used cannot
+  span a table row. `UTable` gives selectable rows `role="button" tabindex="0"` but no key handling, so
+  `clickSelectableRow` turns Enter/Space on a focused row into its click; Ctrl/Cmd-click opens a new tab. The
+  identity, the champion links and the follow star stay their own controls (the table ignores clicks on links and
+  buttons). The directory line was already a button-style target (#147).
+- **Loading**: the leaderboard page awaits its first page, so the table is never cold there; the directory is
+  client-only (#149) and renders placeholder rows through the real columns, each cell a skeleton, so nothing
+  moves when the data lands. A refetch keeps the rows and runs the table's bar under the header.
+- **Theme in `app.config.ts`** (`ui.table`): the table is a `surface` card; header labels restate `stat-label`
+  as plain utilities (a `@utility` loses the cascade to the stock `th` classes); the selectable-row hover is
+  `bg-accented`, since the stock `bg-elevated/50` is the card's own fill.
 - **The compact `LeaderboardRow` stays** for the surfaces that are not a page of their own — the champion-page
-  sidebar and the design-system page. A table header above a ten-row sidebar would be chrome for its own sake.
-- The directory line is still a `role="button"`, not a link (#147); the crawlable champion links come from
-  `<ChampionIndexLinks>` (#1209), which this does not touch.
+  sidebar and the design-system page.
+
+## A player is drawn by one `Account` component (2026-10-01)
+
+The site drew a truemain's identity — profile icon, name, #tag, region flag — by hand in six places, with six
+avatar radii, two name weights, two tag sizes and two flag sizes, and rebuilt `/truemains/${slug}` inline in eight.
+`Account.vue` (#1734) is now the one drawing: the leaderboard table, the champion-page sidebar row, the homepage
+panel, the favorites cards, the profile header and the builder's games drawer.
+
+- **Built on `UUser`, avatar through `UAvatar`.** UUser's link is an overlay inside its own `relative` root, so
+  the whole identity is one target without an <a> around it, and it works inside a table row. `to` defaults to
+  the profile; `false` renders no link, for a parent that is the link already (a sidebar row's overlay, the
+  homepage row, the profile page itself).
+- **Sizes, not variants**: `xs` (18px, the drawer's inline chip, `layout="inline"`), `sm` (table), `md` (homepage),
+  `lg` (sidebar row, favorites), `xl` (profile header, which replaces the name line through `#name`). Slots carry
+  the per-surface extras: `#badge` (OTP), `#subline` (ranked text, level).
+- **Rounded squares**, not UAvatar's default circle: profile icons are square art (product owner's call).
+- **The icon is a plain `<img>` on the canonical cached URL** (`as: { img: 'img' }` + `useCanonicalIcon`):
+  UAvatar would otherwise render NuxtImg with a srcset — a second cache entry for an asset the rest of the site
+  fetches (#1000). It is keyed on its URL so a re-used DOM node never shows the previous player's picture, it
+  requests nothing for icon id 0 or a missing id (the API's "never resolved"; the favorites card used to request
+  `profileicon/0.png`), and a missing or failed picture shows the user glyph.
+- **The search palette keeps `SkeletonImage`**: it re-fills the same row DOM on every keystroke and blanks to a
+  skeleton between two pictures, which is what a palette wants.
+- **Every profile link goes through `shared/utils/truemain-path.ts`** (`truemainNameTag`, `truemainProfilePath`);
+  `favoriteNameTag` and `truemainChampionPath` build on it.

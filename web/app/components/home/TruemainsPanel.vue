@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { formatPercentage, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { formatPercentage } from '~~/shared/utils/ddragon'
+import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { isApexTier } from '~/utils/tiers'
 
 // Homepage teaser of the truemains leaderboard: the global top rows, linking
@@ -41,8 +42,7 @@ const itemsMap = computed(() => itemsData.value ?? {})
 const ROW_COUNT = TRUEMAINS_TEASER_ROWS
 
 function profileHref(row: LeaderboardRowResponse): string {
-  const { gameName, tagLine } = row.identity
-  return `/truemains/${encodeURIComponent(tagLine ? `${gameName}-${tagLine}` : gameName)}`
+  return truemainProfilePath(truemainNameTag(row.identity.gameName, row.identity.tagLine))
 }
 
 function winRateLabel(row: LeaderboardRowResponse): string | null {
@@ -50,16 +50,11 @@ function winRateLabel(row: LeaderboardRowResponse): string | null {
   return wr === null ? null : formatPercentage(wr, 0)
 }
 
-function iconUrl(row: LeaderboardRowResponse): string | null {
-  return getProfileIconUrl(row.identity.profileIconId, props.patch)
-}
-
 // Precompute the per-row derived values so the template doesn't evaluate the
 // same helper twice (once in a `v-if`, once for display).
 const displayRows = computed(() => props.rows.map(row => ({
   row,
   href: profileHref(row),
-  iconUrl: iconUrl(row),
   winRateLabel: winRateLabel(row),
 })))
 
@@ -111,7 +106,7 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMa
       class="space-y-0.5"
     >
       <li
-        v-for="{ row, href, iconUrl, winRateLabel } in displayRows"
+        v-for="{ row, href, winRateLabel } in displayRows"
         :key="`${row.identity.gameName}-${row.identity.tagLine}`"
       >
         <!-- `-mx-2 px-2`: hover background bleeds into the panel padding while
@@ -120,34 +115,15 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMa
           :to="href"
           class="surface-hover -mx-2 flex items-center gap-3 rounded-lg px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <SkeletonImage
-            v-if="iconUrl"
-            :src="iconUrl"
-            :alt="row.identity.gameName"
-            width="36"
-            height="36"
-            class="size-9 shrink-0 rounded-lg"
+          <!-- The player, without a link of its own: the row is the link. -->
+          <Account
+            :identity="row.identity"
+            :region="row.region"
+            :patch="patch"
+            size="md"
+            :to="false"
+            class="flex-1"
           />
-          <div
-            v-else
-            class="size-9 shrink-0 rounded-lg bg-elevated/60"
-            aria-hidden="true"
-          />
-
-          <div class="min-w-0 flex-1">
-            <div class="flex items-baseline gap-1 truncate">
-              <span class="truncate text-sm font-semibold">{{ row.identity.gameName }}</span>
-              <span
-                v-if="row.identity.tagLine"
-                class="shrink-0 text-xs text-muted"
-              >#{{ row.identity.tagLine }}</span>
-            </div>
-            <LeaderboardRegionFlag
-              :region="row.region"
-              :width="16"
-              class="mt-0.5"
-            />
-          </div>
 
           <!-- Main champion: icon + play rate + keystone + first item. Plain
                (non-link) icon — the whole row already navigates to the
