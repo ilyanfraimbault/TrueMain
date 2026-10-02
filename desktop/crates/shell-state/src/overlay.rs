@@ -47,7 +47,7 @@ pub enum OverlayPanel {
     ItemValue,
     /// Our CS per minute, with its curve, and gold per minute.
     Stats,
-    /// The ten players' form on their champion and streak, on the loading
+    /// The ten players' form on their champion and latest games, on the loading
     /// screen.
     Loading,
 }

@@ -361,7 +361,8 @@ preview, the only time the panels take the mouse), plus size and opacity for all
   measurement is not one the app shows.
 - **Loading screen** (#1753): from the loading screen on — never in champion select, where ranked hides the other
   team — each player's games on their champion among their last twenty Summoner's Rift games and their win rate on it,
-  and their ranked streak (shown from two in a row), lane against lane, ours highlighted. Read through the player's own
+  and their last ten of those games as bars, blue a win and red a loss, oldest to newest, each naming its champion,
+  role, KDA and date on hover (#1803: the ranked streak chip it replaces, "W3"/"L4", read as nothing), lane against lane. Read through the player's own
   client (gameflow session for the roster, match history by puuid), three requests at a time, ours and our lane
   opponent's first, never on TrueMain's Riot key. Counts only, no score made of them. Also on the companion window's
   loading state. The true-main mark the issue asks for needs a batch lookup by Riot ID on the API and is left for later.
@@ -392,3 +393,9 @@ standing again five minutes after they fall), elemental drakes (0.15 each, +0.6 
 buff (0.9) and the Elder's (1.1) while they last (three minutes, two and a half — counted from the kill, since the feed
 does not say when a holder dies). The map is read off the game's event feed (`live_client::objectives`), which every
 player sees announced. The draft keeps no win probability (2026-10-02) — #1795.
+
+**The player's own account is never highlighted (2026-10-02).** No tint, ring or bolder name on our row — not on the
+loading screen, the game page's scoreboard, a dashboard match row's team strip, nor the opened match's scoreboard and
+runes. The product owner's call: the player knows which one they are, and the mark only competes with what the row
+says. Ours still orders the sides (our team first, our lane opponent's history read first) and the draft board's
+selected card stays ringed, since that ring marks the selection, not the account — #1803.

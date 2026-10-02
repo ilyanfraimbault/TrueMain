@@ -53,8 +53,7 @@ const respawnIn = computed(() => {
   <div v-if="player" class="flex min-w-0 items-center gap-2.5" :class="mirrored && 'flex-row-reverse'">
     <div class="relative shrink-0">
       <div
-        class="relative size-12 overflow-hidden rounded-lg bg-elevated"
-        :class="player.isMe ? 'ring-2 ring-primary shadow-[0_0_16px_-6px_var(--color-rosegold-400)]' : 'ring-1 ring-white/10'"
+        class="relative size-12 overflow-hidden rounded-lg bg-elevated ring-1 ring-white/10"
         :title="player.championName"
       >
         <img v-if="portrait" :src="portrait" :alt="player.championName" class="size-full object-cover transition" :class="player.dead && 'opacity-40 grayscale'">
@@ -81,7 +80,7 @@ const respawnIn = computed(() => {
     </div>
 
     <div class="min-w-0 flex-1 leading-tight" :class="mirrored && 'text-right'">
-      <p class="truncate text-[13px]" :class="player.isMe ? 'font-semibold text-highlighted' : 'text-default'" :title="player.riotId">
+      <p class="truncate text-[13px] text-default" :title="player.riotId">
         {{ name }}<span v-if="tag" class="text-dimmed">#{{ tag }}</span>
       </p>
       <p class="mt-0.5 text-xs tabular-nums text-muted">

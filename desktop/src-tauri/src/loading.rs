@@ -1,7 +1,7 @@
 //! The loading screen (#1753): who is in the game and how each player has
 //! been doing — games on the champion they are on and how they went, and
-//! their ranked streak — read through the player's own League client, never
-//! on TrueMain's Riot key.
+//! their latest games one by one — read through the player's own League
+//! client, never on TrueMain's Riot key.
 //!
 //! Read once the phase is `InProgress`: champion select hides the other
 //! team's names in ranked, the loading screen shows them, and that is the line

@@ -267,8 +267,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   minute with a sparkline of it from minute 3, and gold per minute (inventory cost plus gold in hand — the API has no
   gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
   (`live_client::pace`). **Loading screen** (440 pt, `loading/LoadingBoard.vue`, #1753), only before the game is read:
-  the ten players lane against lane, ours highlighted, each with their games on their champion among their last twenty
-  Summoner's Rift games and win rate on it ("1st" when none), and a ranked streak chip from two in a row — roster from
+  the ten players lane against lane, each with their games on their champion among their last twenty
+  Summoner's Rift games and win rate on it ("1st" when none), and their last ten Rift games as bars, oldest to newest (blue a win, red a loss), each with a tooltip — champion,
+  role, KDA, date — in the game page's copy (the overlay is click-through, so it shows the bars alone) — roster from
   the client's gameflow session, histories by puuid through the client (`src-tauri/src/loading.rs`,
   `lcu::PlayerForm`), three at a time, ours and our lane opponent's first, never on TrueMain's key; the same board sits
   under the game page's loading state. No true-main mark yet. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each

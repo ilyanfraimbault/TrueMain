@@ -11,7 +11,6 @@ import type { ChampionStaticListItem, RuneTreeResponse } from '#shared/types/sta
 
 const props = defineProps<{
   sides: { teamId: number, players: MatchDetailParticipant[] }[]
-  selfId: number | null
   champions: ChampionStaticListItem[]
   runeTree: RuneTreeResponse
 }>()
@@ -35,8 +34,7 @@ const who = (p: MatchDetailParticipant) =>
         <div
           v-for="p in side.players"
           :key="p.participantId"
-          class="flex items-center justify-center gap-2 rounded-md py-1.5"
-          :class="p.participantId === selfId ? 'bg-primary/8 ring-1 ring-primary/40' : 'bg-white/[0.025]'"
+          class="flex items-center justify-center gap-2 rounded-md bg-white/[0.025] py-1.5"
         >
           <div class="relative shrink-0">
             <SkeletonImage
