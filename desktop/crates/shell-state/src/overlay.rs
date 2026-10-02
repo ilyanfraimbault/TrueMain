@@ -2,8 +2,9 @@
 //! when each panel shows, and where.
 //!
 //! The overlay is a few independent panels, each its own window placed on its
-//! own (#1671's choice over one HUD): the next item, the win probability, and
-//! the item value, which shows only while the scoreboard (TAB) is held. The
+//! own (#1671's choice over one HUD): the next item, the win probability, the
+//! player's own pace, and the item value, which shows only while the
+//! scoreboard (TAB) is held. The
 //! windows are the shell's (`src-tauri/src/overlay`), macOS-only and
 //! impossible to build on the Linux CI box; the decisions they apply live here
 //! so they are tested anywhere. The settings file is read the way the
@@ -43,13 +44,16 @@ pub enum OverlayPanel {
     WinProbability,
     /// Each team's item gold and each lane's gap, while TAB is held.
     ItemValue,
+    /// Our CS per minute, with its curve, and gold per minute.
+    Stats,
 }
 
 impl OverlayPanel {
-    pub const ALL: [OverlayPanel; 3] = [
+    pub const ALL: [OverlayPanel; 4] = [
         OverlayPanel::NextItem,
         OverlayPanel::WinProbability,
         OverlayPanel::ItemValue,
+        OverlayPanel::Stats,
     ];
 
     /// The panel's name in a window label and a route.
@@ -58,6 +62,7 @@ impl OverlayPanel {
             OverlayPanel::NextItem => "next-item",
             OverlayPanel::WinProbability => "win-probability",
             OverlayPanel::ItemValue => "item-value",
+            OverlayPanel::Stats => "stats",
         }
     }
 
@@ -120,6 +125,7 @@ pub struct OverlaySettings {
     pub next_item: PanelSettings,
     pub win_probability: PanelSettings,
     pub item_value: PanelSettings,
+    pub stats: PanelSettings,
 }
 
 impl Default for OverlaySettings {
@@ -137,6 +143,7 @@ impl Default for OverlaySettings {
             next_item: at(OverlayAnchor::TopRight),
             win_probability: at(OverlayAnchor::TopLeft),
             item_value: at(OverlayAnchor::TopCenter),
+            stats: at(OverlayAnchor::CenterLeft),
         }
     }
 }
@@ -174,6 +181,7 @@ impl OverlaySettings {
             OverlayPanel::NextItem => &self.next_item,
             OverlayPanel::WinProbability => &self.win_probability,
             OverlayPanel::ItemValue => &self.item_value,
+            OverlayPanel::Stats => &self.stats,
         }
     }
 
@@ -182,6 +190,7 @@ impl OverlaySettings {
             OverlayPanel::NextItem => &mut self.next_item,
             OverlayPanel::WinProbability => &mut self.win_probability,
             OverlayPanel::ItemValue => &mut self.item_value,
+            OverlayPanel::Stats => &mut self.stats,
         }
     }
 
@@ -200,7 +209,7 @@ impl OverlaySettings {
                 OverlayShow::Always => true,
                 OverlayShow::WhileDead => inputs.dead,
             },
-            OverlayPanel::WinProbability => true,
+            OverlayPanel::WinProbability | OverlayPanel::Stats => true,
             OverlayPanel::ItemValue => inputs.scoreboard,
         };
         self.enabled
@@ -294,6 +303,7 @@ impl OverlaySettings {
             next_item: panel("nextItem", defaults.next_item),
             win_probability: panel("winProbability", defaults.win_probability),
             item_value: panel("itemValue", defaults.item_value),
+            stats: panel("stats", defaults.stats),
         }
     }
 

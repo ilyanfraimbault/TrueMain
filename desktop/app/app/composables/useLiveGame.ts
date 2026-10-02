@@ -9,6 +9,7 @@ export function applyGameChanges(game: GameState, changes: GameChange[]): GameSt
   const players = game.players.map(player => ({ ...player }))
   let gold = game.gold
   let objectives = game.objectives
+  let pace = game.pace
   for (const change of changes) {
     if (change.kind === 'gold') {
       gold = change.gold
@@ -16,6 +17,10 @@ export function applyGameChanges(game: GameState, changes: GameChange[]): GameSt
     }
     if (change.kind === 'objectives') {
       objectives = change.objectives
+      continue
+    }
+    if (change.kind === 'pace') {
+      pace = change.pace
       continue
     }
     const player = players[change.player]
@@ -38,7 +43,7 @@ export function applyGameChanges(game: GameState, changes: GameChange[]): GameSt
         break
     }
   }
-  return { ...game, players, gold, objectives }
+  return { ...game, players, gold, objectives, pace }
 }
 
 /**

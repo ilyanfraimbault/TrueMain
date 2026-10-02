@@ -26,11 +26,13 @@ const WIDTHS: Record<OverlayPanel, string> = {
   'next-item': 'w-[232px]',
   'win-probability': 'w-[160px]',
   'item-value': 'w-[300px]',
+  'stats': 'w-[176px]',
 }
 const PLACEHOLDERS: Record<OverlayPanel, string> = {
   'next-item': 'Your next item shows here during a game.',
   'win-probability': 'The win probability shows here during a game.',
   'item-value': 'Each team\'s item gold shows here while TAB is held.',
+  'stats': 'Your CS and gold per minute show here during a game.',
 }
 
 const { game, syncedAt } = useLiveGame()
@@ -39,8 +41,9 @@ const { view, fit } = useGameOverlay()
 const settings = computed(() => view.value?.settings ?? null)
 const preview = computed(() => (view.value?.preview ?? false) || devPreview.value)
 const scale = computed(() => settings.value?.scale ?? 1)
-// The next item is ours to buy; the other panels read a spectated game too.
-const playing = computed(() => (panel.value !== 'next-item' || game.value?.myTeam ? game.value : null))
+// The next item and the pace are ours; the other panels read a spectated game too.
+const OURS: OverlayPanel[] = ['next-item', 'stats']
+const playing = computed(() => (!OURS.includes(panel.value) || game.value?.myTeam ? game.value : null))
 
 const devPreview = ref(false)
 onMounted(async () => {
@@ -83,6 +86,7 @@ useHead({
       <template v-if="playing">
         <OverlayNextItem v-if="panel === 'next-item'" :game="playing" />
         <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="playing" :synced-at="syncedAt" />
+        <OverlayStats v-else-if="panel === 'stats'" :game="playing" />
         <OverlayItemValue v-else :game="playing" />
       </template>
       <div v-else class="flex items-center gap-2.5">

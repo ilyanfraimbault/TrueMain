@@ -1,6 +1,6 @@
 /** Mirrors `OverlayPanel` in `crates/shell-state/src/overlay.rs`: one window each. */
-export type OverlayPanel = 'next-item' | 'win-probability' | 'item-value'
-export const OVERLAY_PANELS: OverlayPanel[] = ['next-item', 'win-probability', 'item-value']
+export type OverlayPanel = 'next-item' | 'win-probability' | 'item-value' | 'stats'
+export const OVERLAY_PANELS: OverlayPanel[] = ['next-item', 'win-probability', 'stats', 'item-value']
 
 export type OverlayShow = 'always' | 'whileDead'
 export type OverlayAnchor = 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center-right'
@@ -26,6 +26,7 @@ export interface OverlaySettings {
   nextItem: OverlayPanelSettings
   winProbability: OverlayPanelSettings
   itemValue: OverlayPanelSettings
+  stats: OverlayPanelSettings
 }
 
 /** The settings key of each panel. */
@@ -33,6 +34,7 @@ export const PANEL_KEY = {
   'next-item': 'nextItem',
   'win-probability': 'winProbability',
   'item-value': 'itemValue',
+  'stats': 'stats',
 } as const satisfies Record<OverlayPanel, keyof OverlaySettings>
 
 /** Mirrors `OverlayView` in `src-tauri/src/overlay/mod.rs`. */
@@ -59,6 +61,7 @@ export const DEV_OVERLAY_VIEW: OverlayView = {
     nextItem: { enabled: true, anchor: 'top-right', custom: null },
     winProbability: { enabled: true, anchor: 'top-left', custom: null },
     itemValue: { enabled: true, anchor: 'top-center', custom: null },
+    stats: { enabled: true, anchor: 'center-left', custom: null },
   },
   supported: true,
   preview: false,

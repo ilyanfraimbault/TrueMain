@@ -316,7 +316,7 @@ process is frontmost, so it never covers the client or another app (the product 
 and ignores the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its
 shortcut and TAB are read from the keyboard's state, because over a captured display no hotkey reaches the app — which
 also settles #1752's macOS question: TAB is detected without an event tap, so without the Input Monitoring permission.
-The overlay is three independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
+The overlay is four independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
 default and set up from the game page — each on/off and where (five spots, or anywhere by dragging it in an on-screen
 preview, the only time the panels take the mouse), plus size and opacity for all:
 
@@ -325,6 +325,11 @@ preview, the only time the panels take the mouse), plus size and opacity for all
   no runners-up, no boots; the game page keeps the full panel, from the same `useNextItemPanel`. Whole game or only
   while dead.
 - **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
+- **Your pace**: CS per minute with its curve (from minute 3, so the minion-less start does not read as a climb), and
+  gold per minute, from one sample per whole minute the feed keeps (`live_client::pace`) — a change a minute, not one
+  per poll. Gold earned is not in the API: it is read as the inventory's cost plus the gold in hand. **Damage per
+  minute was asked for and left out**: the Live Client API exposes no damage total, and a figure that comes from no
+  measurement is not one the app shows.
 - **Item value**: only while TAB is held — each team's item gold, a chevron toward the side ahead with the gap, then
   each lane's — in its own panel rather than pinned to Riot's scoreboard rows, which move with resolution and HUD scale.
   Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's rule).

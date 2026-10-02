@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::{self, AllGameData};
 use crate::objectives::Objectives;
+use crate::pace::Pace;
 
 /// What the frontend holds about the running game.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -36,6 +37,10 @@ pub struct GameState {
     /// What each team has taken on the map; moves only when one falls.
     #[serde(default)]
     pub objectives: Objectives,
+    /// Our creep score and gold earned at each whole minute so far; kept by
+    /// the feed, since one reading holds only the present.
+    #[serde(default)]
+    pub pace: Pace,
 }
 
 /// The pace our gold moves at on the frontend. Income alone crosses a step
@@ -152,6 +157,10 @@ pub enum GameChange {
     Objectives {
         objectives: Objectives,
     },
+    /// A new minute's sample of our pace.
+    Pace {
+        pace: Pace,
+    },
 }
 
 const CHAMPION_PREFIX: &str = "game_character_displayname_";
@@ -180,6 +189,7 @@ impl GameState {
             players,
             gold: floor_to_step(data.active_player.current_gold),
             objectives: Objectives::from_payload(data),
+            pace: Pace::default(),
         })
     }
 
@@ -243,6 +253,11 @@ impl GameState {
                 objectives: next.objectives.clone(),
             });
         }
+        if self.pace != next.pace {
+            changes.push(GameChange::Pace {
+                pace: next.pace.clone(),
+            });
+        }
         Some(changes)
     }
 
@@ -262,6 +277,10 @@ impl GameState {
                 }
                 GameChange::Objectives { objectives } => {
                     self.objectives.clone_from(objectives);
+                    continue;
+                }
+                GameChange::Pace { pace } => {
+                    self.pace.clone_from(pace);
                     continue;
                 }
             };
@@ -289,7 +308,9 @@ impl GameState {
                     player.dead = false;
                     player.respawn_at = None;
                 }
-                GameChange::Gold { .. } | GameChange::Objectives { .. } => {}
+                GameChange::Gold { .. }
+                | GameChange::Objectives { .. }
+                | GameChange::Pace { .. } => {}
             }
         }
     }
@@ -374,7 +395,7 @@ fn floor_to_step(gold: f64) -> i64 {
 
 /// Whether a player is the one this game client belongs to, on whichever name
 /// both sides carry.
-fn is_active_player(player: &model::Player, me: &model::ActivePlayer) -> bool {
+pub(crate) fn is_active_player(player: &model::Player, me: &model::ActivePlayer) -> bool {
     let same = |a: &str, b: &str| !a.is_empty() && a.eq_ignore_ascii_case(b);
     same(&me.riot_id, &player.riot_id)
         || same(&me.summoner_name, &player.summoner_name)

@@ -14,6 +14,13 @@ export interface GameState {
   gold: number
   /** What each team has taken on the map; moves only when one falls. */
   objectives: GameObjectives
+  /** Our creep score and gold earned at each whole minute so far. */
+  pace: GamePace
+}
+
+/** Mirrors `Pace` in `crates/live-client/src/pace.rs`; empty when spectating. */
+export interface GamePace {
+  samples: { minute: number, cs: number, gold: number }[]
 }
 
 /** Mirrors `Objectives` in `crates/live-client/src/objectives.rs`. */
@@ -82,6 +89,7 @@ export type GameChange =
   | { kind: 'score', player: number, kills: number, deaths: number, assists: number }
   | { kind: 'died', player: number, respawnAt: number }
   | { kind: 'objectives', objectives: GameObjectives }
+  | { kind: 'pace', pace: GamePace }
   | { kind: 'respawned', player: number }
   | { kind: 'gold', gold: number }
 

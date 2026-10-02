@@ -10,6 +10,7 @@
 //! - [`game`]: the in-game state the app renders, derived from one payload,
 //!   and the changes between two of them.
 //! - [`objectives`]: what each team has taken on the map, from the event feed.
+//! - [`pace`]: the player's creep score and gold earned, minute by minute.
 //! - [`feed`]: what reaches the frontend — a snapshot when a game is first
 //!   read, then only the changes, never the payload on every poll.
 //! - [`poll`]: how often the game is read. The request itself goes through
@@ -23,10 +24,12 @@ pub mod feed;
 pub mod game;
 pub mod model;
 pub mod objectives;
+pub mod pace;
 pub mod poll;
 
 pub use feed::{Emission, GameFeed, GameUpdate};
 pub use game::{GameChange, GameItem, GamePlayer, GameSpell, GameState, Team};
 pub use model::AllGameData;
 pub use objectives::{Objectives, TeamObjectives};
+pub use pace::{Pace, PaceSample};
 pub use poll::{next_poll, POLL};

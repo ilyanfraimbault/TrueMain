@@ -22,6 +22,7 @@ const SHOWS: { value: OverlayShow, label: string }[] = [{ value: 'always', label
 const PANELS: Record<OverlayPanel, { label: string, description: string }> = {
   'next-item': { label: 'Next item', description: 'The next item to buy, and the gold it still needs.' },
   'win-probability': { label: 'Win probability', description: 'Each side\'s chance to win, estimated from the item-gold gap. On screen the whole game.' },
+  'stats': { label: 'Your pace', description: 'CS per minute with its curve, and gold per minute.' },
   'item-value': { label: 'Item value', description: 'While TAB is held: what each team\'s items are worth, and each lane\'s gap.' },
 }
 
