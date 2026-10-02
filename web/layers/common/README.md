@@ -6,7 +6,8 @@ and the Nuxt UI theme (`app/app.config.ts`). The site picks it up on its own (Nu
 lists it in `extends`. One file, one rendering: a change made here shows in both (#1732).
 
 A shared page is a component under `app/components/page/` (`<PageTierList>`). Each app's route file wraps it with
-what is the app's own — the site's head tags and structured data, the app's scroll container — and nothing else.
+what is the app's own — the site's head tags and structured data, the app's `SharedPage` frame (scroll container,
+and a `<Suspense>` so a tab changes before the page's first read is in, #1788) — and nothing else.
 
 ## Imports
 

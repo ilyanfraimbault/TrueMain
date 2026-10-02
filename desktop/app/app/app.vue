@@ -28,10 +28,11 @@ const standalone = computed(() => overlay || devTool.value)
 
 useHead({ title: 'TrueMain' })
 
-// A newer beta, offered once per launch (`useAppUpdate`).
-const { check: checkForUpdate } = useAppUpdate()
+// Newer builds of this flavour, checked at launch and then for the window's
+// life (`useAppUpdate`) — by the app's window only, never the overlay's.
+const { start: watchForUpdates } = useAppUpdate()
 onMounted(() => {
-  if (!overlay) void checkForUpdate()
+  if (!overlay) watchForUpdates()
 })
 
 // The scenario picker exists only for `npm run dev` in a browser: inside Tauri
@@ -70,6 +71,7 @@ watch(screen, (next, previous) => {
   <UApp>
     <NuxtPage v-if="standalone" />
     <div v-else class="flex h-screen overflow-hidden bg-default text-default">
+      <AppLoadingBar />
       <AppSidebar class="w-[200px] shrink-0" />
 
       <div class="flex min-w-0 flex-1 flex-col">

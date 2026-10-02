@@ -10,6 +10,8 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 const route = useRoute()
 const { screen } = useLcuState()
 const { status: recording } = useRecordings()
+// A downloaded update stays one click away after its toast is gone.
+const { readyVersion: updateVersion, installing: updating, restart: restartToUpdate } = useAppUpdate()
 
 const isActive = (prefix: string) => route.path === prefix || route.path.startsWith(`${prefix}/`)
 
@@ -74,6 +76,16 @@ onMounted(async () => {
         <AppWordmark class="text-xl" />
       </NuxtLink>
       <span class="ml-7 stat-label">{{ version ? `App v${version}` : 'Companion' }}</span>
+      <UButton
+        v-if="updateVersion"
+        :label="`Update to v${updateVersion}`"
+        icon="i-lucide-download"
+        size="xs"
+        variant="soft"
+        class="ml-6 mt-2"
+        :loading="updating"
+        @click="restartToUpdate"
+      />
     </div>
 
     <UNavigationMenu

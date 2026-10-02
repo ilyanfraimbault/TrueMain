@@ -202,6 +202,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   recording), player card (Riot ID, level, client status), top bar with a ⌘K champion search (no
   back/forward, no patch label). Hash routing; the gameflow phase opens `/draft` on its own, and `/game` from home or
   the draft (never from a page opened by hand); leaving either phase goes home only from its page.
+- **Loading** (#1788) — a sidebar click changes the page at once: the shared pages' setup await is caught by the app's
+  own `<Suspense>` (`SharedPage.vue`), which draws the page's header over a skeleton until it resolves. A 2 px primary
+  bar across the window's top edge (`AppLoadingBar.vue`, over the champion search) runs while anything is loading — a
+  route change, a shared page's first read, every TrueMain read (`apiGet` / `apiPost`, filter changes and the matchup
+  recommendation included), the player record and champion builds; the in-game next item reads in the background.
 - **Dashboard** (`/`) — the player's profile, read from their own client (any account, tracked by TrueMain or not):
   a banner over the skin they chose as profile background (else their most-mastered champion) with Riot ID, region
   flag and level, and eight form tiles (KDA, kill participation, CS/min, damage/min, damage share, gold/min,
@@ -315,8 +320,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   Windows NSIS `.exe` (`desktop-release.yml`) twice — a production flavour reading truemain.lol (`truemain.dmg`,
   `truemain.exe`) and a preprod flavour reading preprod (*TrueMain Beta*, `truemain-<version>.dmg/.exe`) — published as
   a GitHub pre-release with a signed update manifest per flavour. Preprod's `/download` offers its flavour at once,
-  truemain.lol's the production one once promoted; the installed app offers each newer build of its own site at
-  launch (Tauri updater, feed on that site). Unsigned by Apple and Microsoft for the beta.
+  truemain.lol's the production one once promoted. The installed app checks its own site's feed (Tauri updater) at
+  launch and every 15 minutes, downloads a newer build in the background and installs it itself at launch when no
+  champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
+  "Check for Updates…" runs the check on demand: in the app menu on macOS, in the tray icon's menu on Windows.
+  Unsigned by Apple and Microsoft for the beta.
 - **Not present**: win probability (by design), rune import button (#1678), the overlay on Windows, in-game advice
   beyond the next item (gold standing, loading screen — #1752, #1753), TrueMain's
   performance score and participants' ranks in the dashboard's history, LP history from before the app was installed

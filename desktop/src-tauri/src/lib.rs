@@ -7,6 +7,7 @@
 
 mod api;
 mod game;
+mod menu;
 mod overlay;
 mod record;
 mod recording;
@@ -324,6 +325,7 @@ pub fn run() {
             }
         })
         .setup(move |app| {
+            menu::install(app)?;
             let handle = app.handle().clone();
             let (recorder, phases) = recording::Recorder::new(&handle);
             app.manage(recorder.clone());

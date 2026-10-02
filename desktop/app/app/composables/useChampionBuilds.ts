@@ -30,7 +30,7 @@ export function useChampionBuilds(championId: Ref<number | null>, position: Ref<
     const id = ++latest
     pending.value = true
     try {
-      const answer = await fetchBuilds(championId.value!, position.value!)
+      const answer = await trackLoad(fetchBuilds(championId.value!, position.value!))
       cache.value = { ...cache.value, [next]: answer }
     }
     catch (cause) {
