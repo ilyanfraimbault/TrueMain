@@ -257,6 +257,11 @@ const FEATURES = [
           League client on your computer — your games stay on it — and asks TrueMain for the picks and builds that fit
           the draft. It never plays, picks or types anything for you. It is a beta: expect rough edges while it grows.
         </p>
+        <p class="max-w-2xl text-sm leading-relaxed text-muted">
+          To show us what gets used, the app sends anonymous usage counts — how often it is opened, which pages and
+          features — under a random id that is not tied to you or your League account. Uncheck "Share Anonymous Usage
+          Data" in the app menu on macOS, or the tray icon's menu on Windows, to turn it off.
+        </p>
       </div>
     </section>
   </div>

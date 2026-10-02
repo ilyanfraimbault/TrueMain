@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Data.Logging.Crash;
 using Data.Metrics.Mongo;
 using Data.Ops.Mongo;
@@ -23,8 +22,6 @@ namespace Data.Logging.Mongo;
 /// </remarks>
 public sealed class MongoLogContext : IDisposable
 {
-    private const string TtlIndexName = "ttl_timestamp";
-
     private readonly MongoLoggingOptions _options;
     private readonly IMongoClient? _client;
     private readonly IMongoDatabase? _database;
@@ -171,7 +168,7 @@ public sealed class MongoLogContext : IDisposable
     /// same-name/keys index with different options), which the sink swallows — so a
     /// changed <see cref="MongoLoggingOptions.LogsRetention"/> would silently never
     /// take effect. To make a retention change apply, this reconciles the TTL index
-    /// explicitly (see <see cref="ReconcileTtlIndexAsync"/>): it reads the existing
+    /// explicitly (see <see cref="MongoIndexes.ReconcileTtlAsync"/>): it reads the existing
     /// index's <c>expireAfterSeconds</c> and, when it differs from the configured
     /// window, drops and recreates the index.
     /// </para>
@@ -211,7 +208,7 @@ public sealed class MongoLogContext : IDisposable
 
         // The TTL index is reconciled separately so a changed retention window
         // actually re-applies instead of conflicting and being silently swallowed.
-        await ReconcileTtlIndexAsync(Logs, doc => doc.TimestampUtc, _options.LogsRetention, ct);
+        await MongoIndexes.ReconcileTtlAsync(Logs, doc => doc.TimestampUtc, _options.LogsRetention, ct);
 
         // audit_events: a descending timestamp index backs the newest-first audit read.
         await AuditEvents.Indexes.CreateOneAsync(
@@ -226,7 +223,7 @@ public sealed class MongoLogContext : IDisposable
         // (indefinite retention) is unchanged. It is here so enabling a window is a
         // configuration change rather than a code change — #1023 requires every
         // collection to declare its retention, and this was the one that could not.
-        await ReconcileTtlIndexAsync(AuditEvents, doc => doc.TimestampUtc, _options.AuditRetention, ct);
+        await MongoIndexes.ReconcileTtlAsync(AuditEvents, doc => doc.TimestampUtc, _options.AuditRetention, ct);
 
         // crashes: a descending timestamp index for the newest-first listing, plus
         // equality indexes backing the process / source filters, and the reconciled
@@ -243,7 +240,7 @@ public sealed class MongoLogContext : IDisposable
 
         await Crashes.Indexes.CreateManyAsync(crashModels, ct);
 
-        await ReconcileTtlIndexAsync(Crashes, doc => doc.TimestampUtc, _options.CrashesRetention, ct);
+        await MongoIndexes.ReconcileTtlAsync(Crashes, doc => doc.TimestampUtc, _options.CrashesRetention, ct);
     }
 
     /// <summary>
@@ -268,7 +265,7 @@ public sealed class MongoLogContext : IDisposable
         // minute/endpoint/status now upsert two documents instead of one. The old
         // 3-field unique index would reject the second as a duplicate key, so it
         // must be dropped before the new 4-field one is created.
-        await DropIndexIfExistsAsync(RiotApiCallRollups, "ux_bucket_endpoint_status", ct);
+        await MongoIndexes.DropIfExistsAsync(RiotApiCallRollups, "ux_bucket_endpoint_status", ct);
 
         var models = new List<CreateIndexModel<RiotApiCallRollupDocument>>
         {
@@ -293,7 +290,7 @@ public sealed class MongoLogContext : IDisposable
 
         await RiotApiCallRollups.Indexes.CreateManyAsync(models, ct);
 
-        await ReconcileTtlIndexAsync(
+        await MongoIndexes.ReconcileTtlAsync(
             RiotApiCallRollups, doc => doc.BucketStartUtc, _options.RiotApiCallsRetention, ct);
     }
 
@@ -320,7 +317,7 @@ public sealed class MongoLogContext : IDisposable
         // the old index the second engine written each day would collide with the
         // first. Dropped before the new one is created so the collection is never
         // left with a constraint the writer cannot satisfy.
-        await DropIndexIfExistsAsync(DbTableSizeSnapshots, "ux_date_table", ct);
+        await MongoIndexes.DropIfExistsAsync(DbTableSizeSnapshots, "ux_date_table", ct);
 
         // Stamp the engine onto the documents written before #1023. They are Postgres
         // readings by construction, and without the field the writer's engine-filtered
@@ -355,7 +352,7 @@ public sealed class MongoLogContext : IDisposable
 
         await DbTableSizeSnapshots.Indexes.CreateManyAsync(models, ct);
 
-        await ReconcileTtlIndexAsync(
+        await MongoIndexes.ReconcileTtlAsync(
             DbTableSizeSnapshots, doc => doc.SnapshotDateUtc, _options.DbTableSizeSnapshotsRetention, ct);
     }
 
@@ -395,7 +392,7 @@ public sealed class MongoLogContext : IDisposable
 
         await CandidateStockSnapshots.Indexes.CreateManyAsync(models, ct);
 
-        await ReconcileTtlIndexAsync(
+        await MongoIndexes.ReconcileTtlAsync(
             CandidateStockSnapshots,
             doc => doc.SnapshotHourUtc,
             _options.CandidateStockSnapshotsRetention,
@@ -440,7 +437,7 @@ public sealed class MongoLogContext : IDisposable
 
         await ProcessRuns.Indexes.CreateManyAsync(models, ct);
 
-        await ReconcileTtlIndexAsync(ProcessRuns, doc => doc.StartedAtUtc, _options.ProcessRunsRetention, ct);
+        await MongoIndexes.ReconcileTtlAsync(ProcessRuns, doc => doc.StartedAtUtc, _options.ProcessRunsRetention, ct);
     }
 
     /// <summary>
@@ -507,134 +504,6 @@ public sealed class MongoLogContext : IDisposable
                 Builders<EffectiveConfigurationDocument>.IndexKeys.Ascending(doc => doc.ProcessName),
                 new CreateIndexOptions { Name = "ux_process", Unique = true }),
             cancellationToken: ct);
-    }
-
-    /// <summary>
-    /// Drops <paramref name="indexName"/> when it exists, so a superseded index can be
-    /// retired without the caller having to know whether this deployment has already
-    /// run. Listing first keeps the steady-state no-op free of an exception
-    /// round-trip; the drop still tolerates the index having vanished in between,
-    /// because check-then-act races two hosts ensuring indexes at the same time (an
-    /// overlapping redeploy is exactly when both would run this).
-    /// </summary>
-    private static async Task DropIndexIfExistsAsync<TDoc>(
-        IMongoCollection<TDoc> collection,
-        string indexName,
-        CancellationToken ct)
-    {
-        using var cursor = await collection.Indexes.ListAsync(ct);
-        var indexes = await cursor.ToListAsync(ct);
-
-        var exists = indexes.Any(
-            index => index.TryGetValue("name", out var name)
-                     && name.IsString
-                     && name.AsString == indexName);
-
-        if (!exists)
-        {
-            return;
-        }
-
-        try
-        {
-            await collection.Indexes.DropOneAsync(indexName, ct);
-        }
-        catch (MongoCommandException ex) when (ex.CodeName == "IndexNotFound")
-        {
-            // Another host dropped it between the list and the drop. The desired end
-            // state is "gone", and it is gone.
-        }
-    }
-
-    /// <summary>
-    /// Reconciles the native TTL index on <paramref name="collection"/>'s
-    /// timestamp field with the configured <paramref name="retention"/> window
-    /// (e.g. <see cref="MongoLoggingOptions.LogsRetention"/> for <c>logs</c>,
-    /// <see cref="MongoLoggingOptions.RiotApiCallsRetention"/> for
-    /// <c>riot_api_call_rollups</c>):
-    /// <list type="bullet">
-    /// <item>retention &lt;= 0 → drop the TTL index if present (retain indefinitely);</item>
-    /// <item>no TTL index yet → create it;</item>
-    /// <item>TTL index exists with a different <c>expireAfterSeconds</c> → drop and
-    /// recreate so the new window takes effect (re-creating with the same name and
-    /// different options would otherwise throw <c>IndexOptionsConflict</c>);</item>
-    /// <item>TTL index already matches → no-op.</item>
-    /// </list>
-    /// Mongo's background reaper then deletes documents whose <c>timestampUtc</c> is
-    /// older than the window. Ascending key is required for a TTL index.
-    /// </summary>
-    private static async Task ReconcileTtlIndexAsync<TDoc>(
-        IMongoCollection<TDoc> collection,
-        Expression<Func<TDoc, object?>> timestampField,
-        TimeSpan retention,
-        CancellationToken ct)
-    {
-        var existing = await GetTtlExpireAfterSecondsAsync(collection, ct);
-
-        if (retention <= TimeSpan.Zero)
-        {
-            // Retention disabled: tear down any TTL index left from a prior config
-            // so documents are kept indefinitely.
-            if (existing is not null)
-            {
-                await collection.Indexes.DropOneAsync(TtlIndexName, ct);
-            }
-
-            return;
-        }
-
-        var desiredSeconds = (long)retention.TotalSeconds;
-
-        // Already present with the same window: nothing to do.
-        if (existing == desiredSeconds)
-        {
-            return;
-        }
-
-        // Present but with a stale window: drop it first, since re-creating a
-        // same-name index with different options would throw IndexOptionsConflict.
-        if (existing is not null)
-        {
-            await collection.Indexes.DropOneAsync(TtlIndexName, ct);
-        }
-
-        await collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<TDoc>(
-                Builders<TDoc>.IndexKeys.Ascending(timestampField),
-                new CreateIndexOptions
-                {
-                    Name = TtlIndexName,
-                    ExpireAfter = retention
-                }),
-            cancellationToken: ct);
-    }
-
-    /// <summary>
-    /// Returns the <c>expireAfterSeconds</c> of the existing TTL index on
-    /// <paramref name="collection"/>, or <c>null</c> when no such index exists.
-    /// Reads the raw index document so it works regardless of how the value was
-    /// originally written.
-    /// </summary>
-    private static async Task<long?> GetTtlExpireAfterSecondsAsync<TDoc>(
-        IMongoCollection<TDoc> collection,
-        CancellationToken ct)
-    {
-        using var cursor = await collection.Indexes.ListAsync(ct);
-        var indexes = await cursor.ToListAsync(ct);
-
-        var ttl = indexes.FirstOrDefault(
-            index => index.TryGetValue("name", out var name)
-                     && name.IsString
-                     && name.AsString == TtlIndexName);
-
-        if (ttl is null || !ttl.TryGetValue("expireAfterSeconds", out var expire))
-        {
-            return null;
-        }
-
-        // expireAfterSeconds is typically stored as an Int32/Int64; ToInt64 handles
-        // either numeric representation.
-        return expire.ToInt64();
     }
 
     private static InvalidOperationException Inactive() =>

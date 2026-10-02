@@ -16,6 +16,7 @@ mod recording;
 mod sim;
 mod site;
 mod supervisor;
+mod telemetry;
 
 use std::sync::{Arc, Mutex};
 
@@ -254,6 +255,7 @@ fn open_on_site(app: tauri::AppHandle, path: String) -> Result<(), String> {
 
     let url = site::page(&site::base(), &path)
         .ok_or_else(|| format!("{path} is not a page of the site"))?;
+    telemetry::feature(&app, telemetry::Feature::SiteOpened);
     // The shell plugin's opener is deprecated in favour of `tauri-plugin-opener`,
     // which this one call does not justify adding; it has no scope to check
     // from Rust, so the path rule above is the whole guard.
@@ -318,7 +320,8 @@ pub fn run() {
             overlay::set_overlay_settings,
             overlay::overlay_preview,
             overlay::overlay_fit,
-            loading::loading_players
+            loading::loading_players,
+            telemetry::telemetry_page
         ])
         // The overlay's panel is a window too: without this, closing the
         // app's window would leave the app running with no window to show.
@@ -328,8 +331,12 @@ pub fn run() {
             }
         })
         .setup(move |app| {
-            menu::install(app)?;
             let handle = app.handle().clone();
+            // Before the menu, which shows whether it is on.
+            let usage = telemetry::Telemetry::new(&handle);
+            app.manage(usage.clone());
+            telemetry::start(&handle, usage);
+            menu::install(app)?;
             let (recorder, phases) = recording::Recorder::new(&handle);
             app.manage(recorder.clone());
             recording::start(&handle, recorder, phases);
@@ -337,8 +344,13 @@ pub fn run() {
             tauri::async_runtime::spawn(supervisor::run(handle, shared, client));
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("failed to start the TrueMain companion app");
+        .build(tauri::generate_context!())
+        .expect("failed to start the TrueMain companion app")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                telemetry::send_at_exit(app);
+            }
+        });
 }
 
 #[cfg(test)]

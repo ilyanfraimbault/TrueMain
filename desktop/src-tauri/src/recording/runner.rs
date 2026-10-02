@@ -118,6 +118,7 @@ async fn record_game(
     ))));
 
     let dir = start(&session, game, &settings, &root, phases).await?;
+    crate::telemetry::feature(app, crate::telemetry::Feature::GameRecorded);
     let id = RecordingDir::new(dir.clone()).id();
     recorder.set_activity(Activity {
         recording: Some(game.game_id),

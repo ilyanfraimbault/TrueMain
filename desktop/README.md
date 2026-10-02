@@ -242,6 +242,24 @@ static endpoints read. A true main's page opens on the build's site in the playe
 browser, through the shell's `open_on_site` command: the webview names a path,
 the shell adds its own origin, so the webview cannot open any other host.
 
+### Usage counts
+
+The shell also reports how the app is used (#1805, `src-tauri/src/telemetry.rs`):
+launches, minutes open, page views and a few features (a champion select or a
+game followed, a game with the overlay drawn, a game recorded, a site page
+opened), with the app's version and OS, under a random install id kept in
+`telemetry.json` in the app's config folder. Nothing read from the League client
+is part of it. It goes to the build's site, `POST <site>/api/desktop/telemetry`,
+a minute after launch, every five minutes and at exit, and lands on the admin
+portal's Desktop app page. A page counts only when its route has a key in
+`app/utils/telemetry.ts` **and** in the API's `DesktopTelemetryCatalog.cs` —
+add a page to both.
+
+"Share Anonymous Usage Data" in the app menu (macOS) or the tray menu (Windows)
+turns it off. A debug build (`npm run tauri dev`) counts but never sends, so a
+developer's sessions stay out of production's numbers; set
+`TRUEMAIN_TELEMETRY_DEV=1` to send from one, against the site it points at.
+
 ## Reading the game
 
 While a game runs, the **game process** — not the League client — serves the

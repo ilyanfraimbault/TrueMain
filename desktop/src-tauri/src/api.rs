@@ -119,6 +119,23 @@ impl ApiClient {
         Self::read(request, path).await
     }
 
+    /// A POST whose answer carries nothing to read: a report, not a read —
+    /// the usage counts (`telemetry.rs`).
+    pub async fn send<B: Serialize>(&self, path: &str, body: &B) -> Result<(), String> {
+        let response = self
+            .http
+            .post(format!("{}{path}", self.base))
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| format!("could not reach TrueMain: {e}"))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(format!("TrueMain answered {status} for {path}"));
+        }
+        Ok(())
+    }
+
     async fn read<T: DeserializeOwned>(
         request: reqwest::RequestBuilder,
         path: &str,

@@ -35,6 +35,7 @@ const NAV_GROUPS: NavigationMenuItem[][] = [
     { label: 'Database', icon: 'i-lucide-database', to: '/database' },
     { label: 'Configuration', icon: 'i-lucide-settings', to: '/configuration' },
     { label: 'Analytics', icon: 'i-lucide-chart-line', to: '/analytics' },
+    { label: 'Desktop app', icon: 'i-lucide-monitor-down', to: '/desktop' },
   ],
 ]
 

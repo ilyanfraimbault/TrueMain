@@ -3,7 +3,6 @@ using Data;
 using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
@@ -21,6 +20,7 @@ using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Draft;
 using TrueMain.Services.Champions.NextItem;
 using TrueMain.Services.Champions.Synergies;
+using TrueMain.Services.Desktop;
 using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Ops.Candidates;
 using TrueMain.Services.Ops.Configuration;
@@ -290,15 +290,11 @@ builder.Services.AddOptions<DatabaseOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-builder.Services
-    .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
-    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
-        ApiKeyAuthenticationDefaults.Scheme,
-        _ => { });
-builder.Services.AddAuthorization();
+builder.Services.AddTrueMainOpsAuthentication();
 
 builder.Services.AddTrueMainRateLimiting(builder.Configuration);
 builder.Services.AddTrueMainLogIngest(builder.Configuration);
+builder.Services.AddTrueMainDesktopTelemetry();
 
 // The one door every champion read goes through: shared cache + single flight, keyed
 // by the ingestor's aggregation version rather than by a 60s clock (#1368). Registered

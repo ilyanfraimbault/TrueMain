@@ -100,6 +100,32 @@ public sealed class MongoLoggingOptions
     public string EffectiveConfigurationCollection { get; set; } = "effective_configuration";
 
     /// <summary>
+    /// Collection holding the desktop app's usage (#1805): one document per anonymous install
+    /// per UTC day, folded from the batches the app sends to <c>POST /desktop/telemetry</c>.
+    /// </summary>
+    public string DesktopUsageCollection { get; set; } = "desktop_usage_days";
+
+    /// <summary>
+    /// Retention window for <see cref="DesktopUsageCollection"/>, a TTL index on <c>dayUtc</c>.
+    /// Thirteen months: the documents carry a per-device identifier, and audience measurement
+    /// keeps one no longer than that (the CNIL's consent exemption). Zero or negative disables it.
+    /// </summary>
+    public TimeSpan DesktopUsageRetention { get; set; } = TimeSpan.FromDays(395);
+
+    /// <summary>
+    /// Collection holding the desktop installers downloaded from the site (#1805), one counter
+    /// per UTC day, platform and version.
+    /// </summary>
+    public string DesktopDownloadsCollection { get; set; } = "desktop_download_days";
+
+    /// <summary>
+    /// Retention window for <see cref="DesktopDownloadsCollection"/>. Zero — kept for good: a
+    /// count per day and platform identifies nobody, and the download history is the one
+    /// series the app's growth is read from.
+    /// </summary>
+    public TimeSpan DesktopDownloadsRetention { get; set; } = TimeSpan.Zero;
+
+    /// <summary>
     /// Master switch. When false (or when <see cref="ConnectionString"/> is
     /// blank) the provider is still registered but drops every record, so
     /// persisted logging can be turned off without code changes.
