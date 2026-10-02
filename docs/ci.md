@@ -12,13 +12,13 @@ two environments and the migration path in detail.
 | `ci.yml` | PRs, pushes to `develop`/`master`, manual | Build, test and sanity-check whatever the change touches |
 | `claude-review.yml` | PRs to `develop`/`master` | Automated formal code review |
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
-| `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out |
+| `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → serve a held desktop app build the release catches up with |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
 | `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; typecheck and static build of its Nuxt app (below) |
-| `desktop-release.yml` | `develop` pushes touching `desktop/src-tauri/tauri.conf.json`, or manual | Builds a new desktop app version for macOS and Windows and publishes it as a pre-release, which preprod serves (below) |
-| `desktop-promote.yml` | manual, with a version | Promotes a desktop build to the stable channel production serves (below) |
+| `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
+| `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
 `.github/actions/migration-script` is the composite action every job that
 needs the idempotent EF migration script goes through (`migrate-fresh` in CI,
@@ -307,18 +307,39 @@ thumbnails are uploaded as an artifact.
 
 The desktop companion has its own version, never the site's release flow (#1719,
 #1772): `version` in `desktop/src-tauri/tauri.conf.json`, bumped by hand in a PR.
-`desktop-release.yml` runs on every `develop` push touching that file and builds
-only when no `desktop-v<version>` tag exists yet, so editing the rest of the file
-publishes nothing. The version must be semantic (`X.Y.Z`, the Tauri updater
-compares them), and the job refuses any branch but `develop`. A failed build is
-retried with *Run workflow* on `develop`; there is no tag trigger any more — the
-release creates the tag on the pushed commit.
+Since #1799 nothing else is by hand. `desktop-release.yml` runs on every
+`develop` push that touches the app — `desktop/`, and the site's shared pages and
+types (`web/layers/`, `web/shared/`), Markdown aside — and its `Versions to build`
+job (`.github/scripts/desktop-version.sh`, tested by `desktop-version.test.sh` in
+the `deploy-scripts` CI job)
+decides what it builds:
 
-Every version is built **twice**, once per site (#1779): a build reads the API,
-opens the pages and polls the update feed of the site it was built for
-(`TRUEMAIN_SITE_URL`, `desktop/src-tauri/src/site.rs`), so the app downloaded
-from preprod must be a different binary from the one downloaded from
-truemain.lol.
+- **always, a preprod build**, versioned `X.Y.Z-beta.N` with the run number and
+  published as the pre-release `desktop-vX.Y.Z-beta.N`. The Tauri updater
+  installs a build only when its version is strictly greater than the installed
+  one, so a commit SHA — unique but not ordered — cannot be the version; it is in
+  the release's notes instead. `X.Y.Z` is the version being worked towards: the
+  configured one while its production build does not exist, the next patch once
+  it does, because semver ranks `0.4.0-beta.N` below `0.4.0`. The beta's version
+  is written in the preprod flavour's config overlay; the file keeps the bumped
+  version. Only the last ten betas are kept — release and tag — so the list does
+  not grow by several releases a day.
+- **on a version bump, a production build** — when no `desktop-vX.Y.Z` release
+  exists yet, so a failed bump build is rebuilt by the next run, or by *Run
+  workflow* on `develop`. It is created as a **draft** `desktop-vX.Y.Z`, then
+  served at once if production already runs what it reads (below).
+
+The version must be `MAJOR.MINOR.PATCH`, and the workflow refuses any branch but
+`develop`. A re-run of the same run reuses its run number: the beta is then
+skipped with a notice, so a new beta takes a new run. GitHub keeps one run
+pending behind the one building and cancels the older pending ones, so a burst of
+merges builds the first and the last; a bump in a cancelled run is built by the
+next one, since the bump is read from the file and not from the push.
+
+Each flavour is a separate build (#1779): a build reads the API, opens the pages
+and polls the update feed of the site it was built for (`TRUEMAIN_SITE_URL`,
+`desktop/src-tauri/src/site.rs`), so the app downloaded from preprod must be a
+different binary from the one downloaded from truemain.lol.
 
 | flavour | site | files | update feed | app |
 | --- | --- | --- | --- | --- |
@@ -328,14 +349,16 @@ truemain.lol.
 The browser saves an installer under its asset name, so a preprod download says
 its version and a production one does not. The preprod flavour is the
 production config plus an overlay the job writes (`tauri build --config`): its
-own name and identifier, so the two install side by side; its own update feed,
-preprod's `/api/desktop/latest.json`; and, while preprod has no TLS,
+version, its own name and identifier, so the two install side by side; its own
+update feed, preprod's `/api/desktop/latest.json`; and, while preprod has no TLS,
 `dangerousInsecureTransportProtocol` — the updater still verifies every archive
 against the signing key, the flag only lets it read the feed over HTTP. The
 preprod origin is a secret because the repository is public and never names its
-hosts; the job fails when it is missing or is not a bare origin. Both flavours
-build in the same job, one after the other, so the second reuses the first's
-compiled dependencies.
+hosts; the job fails when it is missing or is not a bare origin. When a run builds
+both flavours, they build in the same job, one after the other, so the second
+reuses the first's compiled dependencies. The Windows installer takes
+`X.Y.Z.0` as its numeric file version: NSIS drops the `-beta.N`, which the app
+itself keeps.
 
 It builds on the two platforms the app supports, each on its own runner:
 
@@ -361,17 +384,49 @@ Each update artifact is signed with the updater key, the
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is left unset and reaches the build empty;
 a key rotated to one with a password needs that secret too. Losing the private
 key means the installed apps can no longer be updated: every tester would have
-to reinstall a build carrying a new public key. The `publish` job writes the
-Tauri updater's two manifests — `latest.json` for the production flavour,
-`latest-beta.json` for the preprod one, both macOS keys pointing at the one
-universal archive — and creates a **pre-release** with every file. Pre-release
-because GitHub's "latest release" must stay the site's, and because a pre-release
-is a beta build: only preprod serves it (below).
+to reinstall a build carrying a new public key. Each publish job writes its
+flavour's updater manifest (`.github/scripts/desktop-manifest.sh`, both macOS
+keys pointing at the one universal archive) and creates its release:
+`latest-beta.json` on the beta pre-release, `latest.json` on the production
+draft. Neither carries GitHub's "Latest" badge, which stays the site's.
 
 `deploy-prod.yml` runs on every *published* release, so its `preflight` job
-skips `desktop-v*` tags and the whole deploy with it. A release created by the
-workflow's own `GITHUB_TOKEN` would not trigger it anyway; the guard covers one
-published by hand.
+skips `desktop-v*` tags and the whole deploy with it. A release created or
+edited by a workflow's own `GITHUB_TOKEN` triggers no workflow anyway; the guard
+covers one published by hand.
+
+### Production follows production
+
+The production app calls the production API, and the pages it shares with the
+site (#1732) as they were on `develop` when it was built — the champion
+directory reads `/champions/directory`, for one. Served before production runs
+the same endpoints, those pages would fail in every installed app. So a
+production build stays a draft — invisible to the site and to the updater —
+until `.github/scripts/desktop-held.sh` (tested by `desktop-held.test.sh`, same CI
+job) finds
+the site release running in production **aligned** with it:
+
+- the release contains the bump commit (it was cut from `develop` after the
+  merge), or
+- the two do not differ on what the app reads: `web/`, and the API behind it
+  (`backend/Api`, `backend/Core`, `backend/Data`).
+
+The check runs twice. Right after the bump's build, `desktop-release.yml` runs it
+against the tag of the last successful `Deploy Prod` run — a bump that changed
+nothing the site serves goes out at once. Then `deploy-prod.yml`'s `desktop` job
+runs it after every site release's rollout, so a bump that needed new endpoints
+goes out with the release that deploys them. The newest aligned draft is
+promoted; one older than the stable release never is.
+
+A promotion (`.github/scripts/desktop-promote.sh`) turns the release into a full
+release after checking it carries the production flavour's installers and
+manifest, moves any previous stable desktop release back to pre-release, and
+deletes held drafts older than it. Exactly one release is stable at a time.
+`desktop-promote.yml` runs the same script by hand, with a version: to serve a
+held build early, or to roll back — promoting an older version serves it again
+on the download page, though the updater never downgrades an installed app. A
+rolled-back version is a pre-release, not a draft, so no site release re-promotes
+it.
 
 The site reads the releases rather than the app linking to GitHub:
 `/api/desktop/download/{platform}` and the updater's feed
@@ -379,37 +434,21 @@ The site reads the releases rather than the app linking to GitHub:
 needs no site deploy. Which one depends on the site's channel,
 `NUXT_DESKTOP_CHANNEL` in the compose files:
 
-- **`beta`** (preprod): the newest build, pre-releases included — every version
-  bump merged to `develop` shows up there within five minutes — and its preprod
-  flavour (`truemain-<version>.*`, `latest-beta.json`).
-- **`stable`** (production, and the default for anything else): only a release
-  that is not a pre-release, and its production flavour (`truemain.*`,
-  `latest.json`). Until one is promoted, production offers no app.
+- **`beta`** (preprod): the newest release carrying the preprod flavour's
+  manifest (`latest-beta.json`) — every app change merged to `develop`, within
+  five minutes — and its installers (`truemain-<version>.*`).
+- **`stable`** (production, and the default for anything else): the release that
+  is not a pre-release, and its production flavour (`truemain.*`, `latest.json`).
+  Until one is served, production offers no app.
+
+GitHub lists releases newest first, a hundred a page: the site reads further
+pages (five at most) until its channel's release turns up, since the site's own
+releases and the betas push the stable one down.
 
 A channel never serves the other's flavour, so an app never leaves the site it
-was downloaded from, updates included.
-
-`desktop-promote.yml` is the only way to stable: *Run workflow* with a version
-turns `desktop-v<version>` into a full release — without GitHub's "Latest"
-badge, which stays the site's — after checking it carries the production
-flavour's installers and update manifest, then moves any previously promoted desktop release back to
-pre-release. Exactly one release is stable at a time, so promoting an older
-version is a rollback of the download page; the updater never downgrades an
-installed app, though. Neither workflow starts a prod deploy: `deploy-prod.yml`
-listens to `published` only, and releases created or edited with the
-`GITHUB_TOKEN` trigger no workflow.
-
-Each flavour's updater polls its own site (`plugins.updater.endpoints`): the
-production app is offered promoted versions only, the preprod app every new
-build, the moment preprod serves it.
-
-**A promotion follows the site release it reads.** The production flavour calls
-the production API, and the pages it shares with the site (#1732) call whatever
-endpoints `develop` had when it was built — the champion directory reads
-`/champions/directory`, for one. It may therefore fail on pages whose endpoints
-have not reached production yet; promote it only once the production site serves
-every endpoint the shared pages call. The preprod flavour has no such gap: it
-reads preprod, which runs `develop`.
+was downloaded from, updates included. Each flavour's updater polls its own
+site (`plugins.updater.endpoints`): the preprod app is offered every new build,
+the production app every version production has caught up with.
 
 ## Load test
 

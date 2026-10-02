@@ -70,6 +70,12 @@ impl GameFeed {
         }
         let data = AllGameData::deserialize(payload).ok()?;
         let mut next = GameState::from_payload(&data)?;
+        // The pace is history no single reading holds: carried over from the
+        // state the frontend has, plus this reading's minute when it is new.
+        if let Some(current) = &self.current {
+            next.pace.clone_from(&current.pace);
+        }
+        next.pace.record(&data);
 
         if let Some(current) = &mut self.current {
             if let Some(changes) = current.diff(&next) {

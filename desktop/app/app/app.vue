@@ -1,28 +1,44 @@
 <script setup lang="ts">
 const { screen, ready } = useLcuState()
-// Followed for as long as the window lives, so a game's updates are never
-// missed while another page is open.
-useLiveGame()
-// Recordings are read once and followed for the window's life too: the sidebar
-// and the dashboard's "Watch" read the library, and the end of a recorded game
-// opens its recap (`recording://recap`, from home or the game page only).
-useRecordings()
 const router = useRouter()
 const route = useRoute()
 
+/**
+ * Each overlay panel loads this same bundle on `/overlay/<panel>` in its own webview
+ * (`src-tauri/src/overlay`): the page alone, with none of the window's work —
+ * no recordings, no update offer, and above all no phase navigation, which
+ * would carry the overlay off its page.
+ */
+const overlay = route.path.startsWith('/overlay/')
+
+// Followed for as long as the window lives, so a game's updates are never
+// missed while another page is open.
+useLiveGame()
+if (!overlay) {
+  // Recordings are read once and followed for the window's life too: the
+  // sidebar and the dashboard's "Watch" read the library, and the end of a
+  // recorded game opens its recap (`recording://recap`, from home or the game
+  // page only).
+  useRecordings()
+}
+
 /** The `/dev/*` tools (the draft simulator) stand alone, outside the app's shell and its phase navigation. */
 const devTool = computed(() => route.path.startsWith('/dev/'))
+const standalone = computed(() => overlay || devTool.value)
 
 useHead({ title: 'TrueMain' })
 
-// Newer builds of this flavour, checked at launch and then for the window's life (`useAppUpdate`).
+// Newer builds of this flavour, checked at launch and then for the window's
+// life (`useAppUpdate`) — by the app's window only, never the overlay's.
 const { start: watchForUpdates } = useAppUpdate()
-onMounted(watchForUpdates)
+onMounted(() => {
+  if (!overlay) watchForUpdates()
+})
 
 // The scenario picker exists only for `npm run dev` in a browser: inside Tauri
 // the state comes from the client, and in a production build `import.meta.dev`
 // is false so the component and its fixtures are dropped from the bundle.
-const showScenarioPicker = computed(() => import.meta.dev && !insideTauri() && !devTool.value)
+const showScenarioPicker = computed(() => import.meta.dev && !insideTauri() && !standalone.value)
 
 /**
  * The gameflow phase still drives the screen (`AppState::screen()` in Rust is
@@ -37,7 +53,7 @@ const showScenarioPicker = computed(() => import.meta.dev && !insideTauri() && !
 const PHASE_PAGES = { 'draft': '/draft', 'in-game': '/game' } as const
 
 watch(screen, (next, previous) => {
-  if (devTool.value) return
+  if (standalone.value) return
   const path = router.currentRoute.value.path
   if (next === 'draft') {
     if (path !== PHASE_PAGES.draft) void router.push(PHASE_PAGES.draft)
@@ -53,7 +69,7 @@ watch(screen, (next, previous) => {
 
 <template>
   <UApp>
-    <NuxtPage v-if="devTool" />
+    <NuxtPage v-if="standalone" />
     <div v-else class="flex h-screen overflow-hidden bg-default text-default">
       <AppLoadingBar />
       <AppSidebar class="w-[200px] shrink-0" />

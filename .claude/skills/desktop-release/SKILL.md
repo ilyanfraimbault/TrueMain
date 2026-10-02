@@ -1,95 +1,92 @@
 ---
 name: desktop-release
-description: Ship a new version of the TrueMain desktop app (Tauri, `desktop/`) — bump its version in a PR so develop builds a beta pre-release that preprod serves, then promote that build to production by hand with the `Desktop promote` workflow, or roll the download page back. Use whenever the user says "nouvelle version de l'app desktop", "bump l'app", "build l'exe / le .app", "sors une beta desktop", "passe l'app desktop en prod", "promeus la 0.x.y", "rollback de l'app", or asks where the desktop installers are.
+description: Ship a new version of the TrueMain desktop app (Tauri, `desktop/`) — bump its version in a PR so develop builds its production flavour, which truemain.lol serves by itself once production runs what it reads; follow the per-merge preprod betas; serve a version by hand or roll the download page back with the `Desktop promote` workflow. Use whenever the user says "nouvelle version de l'app desktop", "bump l'app", "build l'exe / le .app", "sors une beta desktop", "passe l'app desktop en prod", "promeus la 0.x.y", "rollback de l'app", "pourquoi l'app n'est pas en prod", or asks where the desktop installers are.
 ---
 
 # Desktop release
 
 The desktop app has its **own version and its own release cycle** — a site release is never an app release
-(#1772, `docs/ci.md` "Desktop releases", `decisions/desktop.md`). Two steps, both deliberate:
+(#1772) — but since #1799 only the version is by hand (`docs/ci.md` "Desktop releases", `decisions/desktop.md`):
 
 ```
-PR bump tauri.conf.json → squash-merge to develop → desktop-release.yml builds .dmg + .exe, twice
-  (production flavour → truemain.lol, preprod flavour → preprod)
-  → pre-release desktop-vX.Y.Z → preprod (channel beta) serves its flavour
-                    … later, by hand …
-Actions → Desktop promote (X.Y.Z) → full release → truemain.lol (channel stable) serves the production flavour + auto-update
+any app change merged to develop (desktop/, web/layers/, web/shared/)
+  → desktop-release.yml builds the preprod flavour → pre-release desktop-vX.Y.Z-beta.N → preprod serves it
+
+a version bump merged to develop
+  → the same run also builds the production flavour → draft desktop-vX.Y.Z
+  → served on truemain.lol (full release) as soon as the site release in production is aligned with it:
+      right after the build, or after the site release (deploy-prod.yml) that brings the endpoints it reads
 ```
 
-There is no `.exe` / `.app` anywhere else: no build on ordinary merges, no `desktop-v*` tag trigger. The
-installers are assets of the `desktop-vX.Y.Z` GitHub release, in two flavours (#1779) — each build reads the site
-it was built for, so the app downloaded from preprod reads preprod and the one from truemain.lol reads production:
+There is no `.exe` / `.app` anywhere else. The installers are assets of the `desktop-v*` GitHub releases, one
+flavour per release (#1779) — each build reads the site it was built for:
 
-| flavour | installers | updater archives | manifest |
-| --- | --- | --- | --- |
-| production (*TrueMain*) | `truemain.dmg`, `truemain.exe` | `truemain.app.tar.gz`, `truemain.exe` + `.sig` | `latest.json` |
-| preprod (*TrueMain Beta*) | `truemain-X.Y.Z.dmg`, `truemain-X.Y.Z.exe` | `truemain-X.Y.Z.app.tar.gz`, `.exe` + `.sig` | `latest-beta.json` |
+| release | flavour | installers | updater archives | manifest |
+| --- | --- | --- | --- | --- |
+| `desktop-vX.Y.Z` | production (*TrueMain*) | `truemain.dmg`, `truemain.exe` | `truemain.app.tar.gz`, `truemain.exe` + `.sig` | `latest.json` |
+| `desktop-vX.Y.Z-beta.N` | preprod (*TrueMain Beta*) | `truemain-X.Y.Z-beta.N.dmg`, `.exe` | `truemain-X.Y.Z-beta.N.app.tar.gz`, `.exe` + `.sig` | `latest-beta.json` |
 
-The preprod origin comes from the `DESKTOP_BETA_SITE_URL` repository secret (a bare origin, `http(s)://host[:port]`);
-the build job fails without it. Never write that origin in the repo, an issue or a PR body.
+`N` is the workflow's run number (the updater only installs a strictly greater semver, so no commit SHA); `X.Y.Z`
+is the configured version while its production build does not exist, its next patch once it does. Releases from
+before #1799 (`desktop-v0.1.0` … `desktop-v0.3.1`) carry both flavours. The preprod origin comes from the
+`DESKTOP_BETA_SITE_URL` repository secret (a bare origin); the build fails without it. Never write that origin in
+the repo, an issue or a PR body.
 
-## 1. Bump — a new beta build
+## Betas — nothing to do
 
-1. The version lives in **one place**: `version` in `desktop/src-tauri/tauri.conf.json` (the Cargo crate takes the
-   workspace version, the sidebar reads `getVersion()` from the Tauri config). It must be semver `X.Y.Z`
-   (optionally `-suffix`): the updater compares versions, so `0.2`, `v1` or a bare `1` fail the build job.
+Every merge touching the app builds one (~15–30 min): `gh run list --workflow "Desktop release" --limit 3`. Preprod's
+`GET /api/desktop/release` (host in `CLAUDE.local.md`) answers the new `version` within five minutes, and installed
+*TrueMain Beta* apps pick it up within fifteen. Only the last ten betas are kept. A run re-run with "Re-run jobs"
+keeps its run number and skips the beta (notice); start a new run instead: `gh workflow run "Desktop release" --ref develop`.
+
+## Bump — a new production version
+
+1. The version lives in **one place**: `version` in `desktop/src-tauri/tauri.conf.json`. It must be `X.Y.Z` — no
+   suffix, the betas add their own.
 2. Pick the bump the user names, with the same vocabulary as the site's `release` skill (« majeur » → first
-   component, nothing said → second, « mineur » → third). Read the current one with
-   `gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^desktop-v' | sort -V | tail -1` — the
-   config can be ahead of the last published build if a bump's build failed.
+   component, nothing said → second, « mineur » → third). Read the last production one with
+   `gh release list --limit 100 --json tagName -q '.[].tagName' | grep -E '^desktop-v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1`
+   — drafts included, so the config can be ahead of it only when a bump's build failed.
 3. Branch `chore/<issue>-desktop-<version>` (or bump inside the feature PR that needs it), commit
    `chore(desktop): bump to <version>`, land it with the `ship` skill. develop is protected: never push the bump
    directly.
-4. After the merge, follow the build: `gh run list --workflow "Desktop release" --limit 1`, then
-   `gh run watch <id>`. Three jobs: `New app version` (refuses non-`develop` refs and non-semver versions, and
-   **skips the build** when the tag already exists — a notice says so), `Build (macOS)` / `Build (Windows)`
-   (~15–30 min), `Publish the pre-release`. A failed build is retried with
-   `gh workflow run "Desktop release" --ref develop`; it rebuilds the version currently in the config.
-5. Check preprod serves it: `GET /api/desktop/release` on the preprod site (host in `CLAUDE.local.md`) answers
-   the new `version` within five minutes (server cache), and `/api/desktop/download/mac` redirects to
-   `truemain-X.Y.Z.dmg`. Production keeps serving the promoted one.
+4. **Merging the bump is the decision to ship it to players**: tell the user so before merging, since it now reaches
+   truemain.lol without any further step.
+5. Follow the build: `gh run watch <id>`. Jobs: `Versions to build`, `Build (macOS)` / `Build (Windows)`,
+   `Publish the preprod build`, `Publish the production build`. The last one creates the draft, then reads the tag
+   of the last successful **Deploy Prod** run and runs `.github/scripts/desktop-held.sh` against it:
+   - "promoting it" → served now: `curl -s https://truemain.lol/api/desktop/release | jq .version` answers it within
+     five minutes;
+   - "waits for a site release" → the build reads site or API changes production does not run yet. It goes out by
+     itself with the next site release (`release` skill): the `Serve the desktop app this release reads` job at the
+     end of `Deploy Prod`. Tell the user which it is.
+6. A failed build is rebuilt by the next run, or by `gh workflow run "Desktop release" --ref develop` — the
+   production build is made whenever no `desktop-v<version>` release exists. A version that has one is never
+   rebuilt: to publish a fix, bump again.
 
-A version that already has a tag is never rebuilt: to publish a fix, bump again.
+## By hand — serve early, or roll back
 
-## 2. Promote — production serves it
-
-**Ask the user before promoting**: it changes what every visitor downloads and what every installed app
-auto-updates to. Promotion is never part of a site release or of `ship`.
-
-Before promoting, the endpoints the build reads must be live in production: the production flavour calls the
-production API, and the pages it shares with the site (`web/layers/common`) call whatever `develop` had when it was
-built. If the build
-contains shared-page or API changes newer than the last site release, cut the site release first (`release`
-skill) — otherwise those pages fail in the installed app.
+**Ask the user first**: it changes what every visitor downloads and what every installed app updates to.
 
 ```bash
 gh workflow run "Desktop promote" -f version=<X.Y.Z>
 gh run watch "$(gh run list --workflow 'Desktop promote' --limit 1 --json databaseId -q '.[0].databaseId')"
 ```
 
-The workflow refuses a missing, draft or incomplete release (it needs `truemain.dmg`, `truemain.exe` and
-`latest.json` — the production flavour), flips it to a full release **without** GitHub's "Latest" badge (that badge is the site's), and
-moves any previously promoted desktop release back to pre-release — exactly one release is stable at a time.
-It never deploys anything: `deploy-prod.yml` listens to `published` only.
-
-Verify: `curl -s https://truemain.lol/api/desktop/release | jq .version` answers `<X.Y.Z>` within five minutes,
-and `curl -sI https://truemain.lol/api/desktop/download/windows` redirects to that version's `truemain.exe`.
-
-## Rollback
-
-Promote the previous version: the download page and the update feed go back to it. The updater **never
-downgrades** an installed app, so players already on the bad version stay there until a newer one is promoted —
-the real fix is bump → build → promote.
+It serves any release carrying the production flavour — a held draft (skipping the alignment check: only when the
+user accepts that pages may fail until the site release) or an older version (a rollback). The previous stable one
+goes back to pre-release; held drafts older than the promoted version are deleted. A rolled-back version is a
+pre-release, not a draft, so no site release re-promotes it. The updater **never downgrades** an installed app: the
+real fix is bump → build → served.
 
 ## Traps
 
-- **Prod runs the channel code only from the site release that shipped #1772.** A prod site older than that serves
-  the newest `desktop-v*`, pre-releases included — a bump merged then would go straight to players.
-- Until the first promotion, production's download page shows "Coming soon" and the update feed answers 204.
+- Until the first production build is served, production's download page shows "Coming soon" and the update feed
+  answers 204.
 - `NUXT_DESKTOP_CHANNEL` is `beta` in `compose.preprod.yaml`, `stable` in `compose.prod.yaml`; any other value
   reads as `stable`.
-- Each flavour's updater polls its own site: the preprod app (*TrueMain Beta*) updates from preprod to every new
-  build, the production app only to promoted ones. The two install side by side (different bundle identifiers).
+- Each flavour's updater polls its own site: the preprod app (*TrueMain Beta*) updates to every beta, the
+  production app to every served version. The two install side by side (different bundle identifiers).
 - The builds are unsigned (no Apple notarisation, no Windows certificate): the download page explains the
   first-launch steps. The updater key is the `TAURI_SIGNING_PRIVATE_KEY` secret — losing it strands every
   installed app.

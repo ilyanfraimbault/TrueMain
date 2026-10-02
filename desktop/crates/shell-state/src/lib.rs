@@ -5,6 +5,8 @@
 //! needs a platform webview). Here, the navigation rule is covered by tests
 //! that run anywhere.
 
+pub mod overlay;
+
 use lcu::{
     ChampSelectSession, ChampionMastery, CurrentSummoner, DraftState, GameflowPhase, LcuEvent,
 };

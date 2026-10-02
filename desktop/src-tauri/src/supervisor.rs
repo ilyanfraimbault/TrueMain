@@ -55,6 +55,8 @@ pub(crate) fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
         let mut guard = shared.lock().expect("state mutex poisoned");
         *guard = next.clone();
     }
+    // The loading screen's roster is read off the phase (#1753).
+    crate::loading::follow(app, &next);
     let _ = app.emit(STATE_EVENT, next);
     // After the state, so the game page is open before its board fills — and
     // a game that ended is cleared on the same publish that left the phase.

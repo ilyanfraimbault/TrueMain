@@ -118,7 +118,20 @@ is not an app release, so the app keeps its own version (`tauri.conf.json`), bum
 Production (channel `stable`) serves only the one release promoted through the `Desktop promote` workflow — a
 version typed in by the product owner, not computed from commits, and not tied to the site's release because the
 promotion must wait for the endpoints the build reads to reach production. Supersedes "tag `desktop-v*` to ship";
-the updater keeps polling production only, so testers install beta builds by hand — revised by #1779: each build polls its own site (2026-10-01) — #1772.
+the updater keeps polling production only, so testers install beta builds by hand — revised by #1779: each build polls its own site (2026-10-01) — #1772. Revised by #1799: every app change builds a preprod beta, and a bump
+reaches production without a hand promotion, once production runs what it reads — see below.
+
+**Every app change ships to preprod; a version bump ships to production once production runs what it reads
+(2026-10-02).** The product owner's call: a tester should not wait for a throwaway bump to try an app change, and
+nobody should have to remember a promotion. Each push to `develop` touching the app (`desktop/`, `web/layers/`,
+`web/shared/`) builds the preprod flavour as `desktop-vX.Y.Z-beta.N` — the run number, not the commit SHA, because
+the updater installs only a strictly greater semver; the SHA is in the notes, `X.Y.Z` the bumped version or its next
+patch once that one has its production build. Only the version stays by hand: a bump builds the production flavour
+as a draft, served on truemain.lol as soon as the site release running in production contains the bump commit or
+does not differ from it on `web/` and `backend/{Api,Core,Data}` — checked after the build and after every site
+release's rollout — so the production app is never newer than the production API it calls (the gap #1772's hand
+promotion guarded against). `Desktop promote` remains for rollbacks. The last ten betas are kept, and the site reads
+up to five pages of releases, so the stable one is never lost behind them — #1799.
 
 **The dashboard is read from the player's own client, not from TrueMain's API, and built from the site's profile
 components.** The dashboard is for whoever installed the app, and TrueMain only tracks true mains, so the site's
@@ -324,3 +337,47 @@ nothing saying it was taken — the product owner's report. The app's route file
 `<Suspense>` of their own, which shows the page's header over a skeleton, and a bar along the window's top edge counts
 every load the pages make — not only navigations: a filter change or a cold matchup recommendation is a wait too. The
 site keeps #1689 as it is; only reads no click asked for (the in-game next item) stay off the bar — #1788.
+
+**The in-game overlay draws over the game and nowhere else, and never takes an input from it (2026-10-02).** The #1673
+spike's measurements (`docs/desktop-overlay-spike.md`) set the windows: League's Full Screen captures the display, so
+each panel sits one level above `CGShieldingWindowLevel` — and, at that level, is shown only while the game's own
+process is frontmost, so it never covers the client or another app (the product owner's rule). It can never become key
+and ignores the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its
+shortcut and TAB are read from the keyboard's state, because over a captured display no hotkey reaches the app — which
+also settles #1752's macOS question: TAB is detected without an event tap, so without the Input Monitoring permission.
+The overlay is five independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
+default and set up from the game page — each on/off and where (five spots, or anywhere by dragging it in an on-screen
+preview, the only time the panels take the mouse), plus size and opacity for all:
+
+- **Next item**: **one item** — the next one, and the gold still to earn for it or that it can be bought now — and
+  nothing else: no components (which one to buy first is not measured yet, so the overlay does not pretend to know),
+  no runners-up, no boots; the game page keeps the full panel, from the same `useNextItemPanel`. Whole game or only
+  while dead.
+- **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
+- **Your pace**: CS per minute with its curve (from minute 3, so the minion-less start does not read as a climb), and
+  gold per minute, from one sample per whole minute the feed keeps (`live_client::pace`) — a change a minute, not one
+  per poll. Gold earned is not in the API: it is read as the inventory's cost plus the gold in hand. **Damage per
+  minute was asked for and left out**: the Live Client API exposes no damage total, and a figure that comes from no
+  measurement is not one the app shows.
+- **Loading screen** (#1753): from the loading screen on — never in champion select, where ranked hides the other
+  team — each player's games on their champion among their last twenty Summoner's Rift games and their win rate on it,
+  and their ranked streak (shown from two in a row), lane against lane, ours highlighted. Read through the player's own
+  client (gameflow session for the roster, match history by puuid), three requests at a time, ours and our lane
+  opponent's first, never on TrueMain's Riot key. Counts only, no score made of them. Also on the companion window's
+  loading state. The true-main mark the issue asks for needs a batch lookup by Riot ID on the API and is left for later.
+- **Item value**: only while TAB is held — each team's item gold, a chevron toward the side ahead with the gap, then
+  each lane's — in its own panel rather than pinned to Riot's scoreboard rows, which move with resolution and HUD scale.
+  Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's rule).
+
+No interactive mode in game: nothing on the panels needs a click. macOS only until a Windows pass is measured
+(2026-10-02) — #1673, #1795, #1752.
+
+**The overlay shows a win probability, from the item-gold gap and the map (2026-10-02).** The product owner's call,
+reversing for the in-game overlay the "no win probability" line of #1671 and #1747, and knowingly a formula rather than
+a measured model (`utils/item-value.ts`): a logistic over, in log-odds, the item-gold lead relative to the gold the two
+teams hold on average (×6, so the same gap weighs more early than late — a tenth of that average alone reads about
+65 %), and what each side holds on the map — turrets destroyed (0.12 each), enemy inhibitors down right now (0.5 each,
+standing again five minutes after they fall), elemental drakes (0.15 each, +0.6 for the soul at four), the Baron's
+buff (0.9) and the Elder's (1.1) while they last (three minutes, two and a half — counted from the kill, since the feed
+does not say when a holder dies). The map is read off the game's event feed (`live_client::objectives`), which every
+player sees announced. The draft keeps no win probability (2026-10-02) — #1795.

@@ -7,7 +7,9 @@
 
 mod api;
 mod game;
+mod loading;
 mod menu;
+mod overlay;
 mod record;
 mod recording;
 #[cfg(debug_assertions)]
@@ -272,7 +274,11 @@ pub fn run() {
     let shared: SharedState = Arc::new(Mutex::new(AppState::default()));
     let client = SharedClient::default();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
+
+    builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -282,6 +288,7 @@ pub fn run() {
         .manage(client.clone())
         .manage(GameCache::default())
         .manage(SharedGame::default())
+        .manage(loading::SharedLoading::default())
         .invoke_handler(tauri::generate_handler![
             current_state,
             current_screen,
@@ -306,14 +313,27 @@ pub fn run() {
             recording::clip_save,
             recording::clip_update,
             recording::clip_delete,
-            recording::reveal_recording_file
+            recording::reveal_recording_file,
+            overlay::overlay_view,
+            overlay::set_overlay_settings,
+            overlay::overlay_preview,
+            overlay::overlay_fit,
+            loading::loading_players
         ])
+        // The overlay's panel is a window too: without this, closing the
+        // app's window would leave the app running with no window to show.
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
+        })
         .setup(move |app| {
             menu::install(app)?;
             let handle = app.handle().clone();
             let (recorder, phases) = recording::Recorder::new(&handle);
             app.manage(recorder.clone());
             recording::start(&handle, recorder, phases);
+            overlay::setup(&handle)?;
             tauri::async_runtime::spawn(supervisor::run(handle, shared, client));
             Ok(())
         })

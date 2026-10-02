@@ -86,7 +86,7 @@ localStorage-backed follow list (`web/app/utils/favorites.ts`, key `truemain:fav
 The brand's own page (#1122). Static prose, no fetch, so the whole thing is in the server HTML: what TrueMain is, what a "true main" / the Truemain score means, that the data is Riot-API-derived, and a linked list of the four main sections. Exists for SEO as much as for readers — it is the only page that states the brand name in prose, which is what a search engine reads to resolve the bare `truemain` query, and it doubles as an internal-linking hub. Linked from `AppFooter`.
 
 ### `/download` — `web/app/pages/download.vue`
-The desktop companion's download page (#1719), linked from the header ("Desktop app", badged Beta) and the footer. A landing page (#1725), left-aligned and without cards: the app's icon (`desktop/DesktopAppIcon.vue`), the title and the download buttons (a disabled "Coming soon" before the first release), then a capture of the real app in champion select (`public/desktop/champion-select.webp`), three features as hairline-topped columns, the first-launch steps for both platforms side by side (`desktop/DesktopFirstLaunch.vue`, the visitor's platform first), then the requirements and what the app reads. Reads the visitor's platform in the browser after hydration (the server never guesses it from the user agent) and offers the matching installer first, the other second; on a phone, Linux, or before hydration both are offered side by side. Installers go through stable per-platform links (`/api/desktop/download/{mac|windows}`, 302 to the channel's release asset — `truemain.dmg/.exe` on production, `truemain-<version>.dmg/.exe` on preprod, each built against its own site, #1779), so the page never names a version file; on preprod a line under the version says it is a test build reading preprod's data. The first-launch steps are those of an unsigned app (macOS Gatekeeper "Open Anyway", Windows SmartScreen "Run anyway"). The release comes from `server/utils/desktop-release*.ts`: the repository's GitHub releases filtered on the `desktop-v*` tag prefix (GitHub's "latest" is the site's own release), then on the site's channel (#1772, `NUXT_DESKTOP_CHANNEL`) — preprod (`beta`) serves the newest build, pre-releases included, production (`stable`) only the release promoted by the `Desktop promote` workflow — cached five minutes server-side; the same source serves the installed app's update feed, `/api/desktop/latest.json` (204 before the first release).
+The desktop companion's download page (#1719), linked from the header ("Desktop app", badged Beta) and the footer. A landing page (#1725), left-aligned and without cards: the app's icon (`desktop/DesktopAppIcon.vue`), the title and the download buttons (a disabled "Coming soon" before the first release), then a capture of the real app in champion select (`public/desktop/champion-select.webp`), three features as hairline-topped columns, the first-launch steps for both platforms side by side (`desktop/DesktopFirstLaunch.vue`, the visitor's platform first), then the requirements and what the app reads. Reads the visitor's platform in the browser after hydration (the server never guesses it from the user agent) and offers the matching installer first, the other second; on a phone, Linux, or before hydration both are offered side by side. Installers go through stable per-platform links (`/api/desktop/download/{mac|windows}`, 302 to the channel's release asset — `truemain.dmg/.exe` on production, `truemain-<version>.dmg/.exe` on preprod, each built against its own site, #1779), so the page never names a version file; on preprod a line under the version says it is a test build reading preprod's data. The first-launch steps are those of an unsigned app (macOS Gatekeeper "Open Anyway", Windows SmartScreen "Run anyway"). The release comes from `server/utils/desktop-release*.ts`: the repository's GitHub releases filtered on the `desktop-v*` tag prefix (GitHub's "latest" is the site's own release), then on the site's channel (#1772, `NUXT_DESKTOP_CHANNEL`) — preprod (`beta`) serves the newest release carrying the preprod flavour, production (`stable`) the one that is not a pre-release (#1799), read up to five pages of releases deep — cached five minutes server-side; the same source serves the installed app's update feed, `/api/desktop/latest.json` (204 before the first release).
 
 ### `/privacy`, `/terms`
 Static legal prose — required for the Riot production-key application. All three text pages are written with Nuxt UI `Prose*` components, themed once under `ui.prose` in `app.config.ts` (#1624; conventions in `web/docs/DESIGN_SYSTEM.md`).
@@ -248,7 +248,35 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   behind it in the site's item-context wording, the gold left to complete it and its missing components (Data Dragon
   recipe) ringed when the gold in hand buys them, the two runners-up, and the boots while none are held. Our completion
   order is noted as items land; "off the mains' path" says when the build left their tree. Our gold reaches the page in
-  50-gold steps (`GOLD_STEP`), the only gold the API exposes.
+  50-gold steps (`GOLD_STEP`), the only gold the API exposes. Its data comes from `useNextItemPanel`, shared with the
+  overlay. A layers button by the clock (and a status line in the waiting state) opens the overlay settings.
+- **In-game overlay** (#1795, macOS only; window layer from the #1673 spike, `docs/desktop-overlay-spike.md`) — five
+  panels, each a non-activating `NSPanel` of its own one level above `CGShieldingWindowLevel` (League's Full Screen
+  captures the display), never key, click-through, sized to its content, its page on `#/overlay/<panel>`
+  (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
+  read — never over the client or another app; ⌥⇧O hides them until the game ends. **Next item** (232 pt,
+  `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
+  components, runners-up or boots; whole game or only while dead. **Win probability** (160 pt,
+  `OverlayWinProbability.vue`): both sides' percentages and a bar in the sides' colours, no labels, the whole game —
+  a logistic of the item-gold lead relative to the teams' average item gold and of the map — turrets, enemy
+  inhibitors down, drakes and the soul, the Baron's and the Elder's buffs while they last — read off the game's event
+  feed into the game state (`live_client::objectives`, sent as a change only when an objective falls); the product
+  owner's formula, not a measured model (`utils/item-value.ts`). **Your pace** (176 pt, `OverlayStats.vue`): CS per
+  minute with a sparkline of it from minute 3, and gold per minute (inventory cost plus gold in hand — the API has no
+  gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
+  (`live_client::pace`). **Loading screen** (440 pt, `loading/LoadingBoard.vue`, #1753), only before the game is read:
+  the ten players lane against lane, ours highlighted, each with their games on their champion among their last twenty
+  Summoner's Rift games and win rate on it ("1st" when none), and a ranked streak chip from two in a row — roster from
+  the client's gameflow session, histories by puuid through the client (`src-tauri/src/loading.rs`,
+  `lcu::PlayerForm`), three at a time, ours and our lane opponent's first, never on TrueMain's key; the same board sits
+  under the game page's loading state. No true-main mark yet. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
+  team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
+  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). TAB and ⌥⇧O are read
+  from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Settings
+  slideover (`OverlaySettings.vue`): overlay on/off (default on), per panel on/off and a position (five spots,
+  `OverlayAnchorPicker.vue`, or anywhere by dragging the panels in an on-screen preview, stored as screen fractions), the
+  next item's moment, size 80–140 %, opacity 50–100 %. Rules and settings in `shell-state::overlay` (tested on CI),
+  windows in `src-tauri/src/overlay/`. Windows: reported unsupported.
 - **Game simulator** (development only, `/dev/game-sim` + `npm run tauri:sim`) — plays the committed synthetic tape
   `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
   reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
@@ -310,17 +338,20 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   mains list has a search that reaches any main of the champion by name and opens their build, and lists first —
   starred — the followed mains who main the champion, read from each favorite's profile once per launch, #1733); it links to the
   matchup with `?champion=&position=`, the site's parameters.
-- **Distribution** (#1719, #1772, #1779): a version bump merged to `develop` builds a universal macOS `.dmg` and a
-  Windows NSIS `.exe` (`desktop-release.yml`) twice — a production flavour reading truemain.lol (`truemain.dmg`,
-  `truemain.exe`) and a preprod flavour reading preprod (*TrueMain Beta*, `truemain-<version>.dmg/.exe`) — published as
-  a GitHub pre-release with a signed update manifest per flavour. Preprod's `/download` offers its flavour at once,
-  truemain.lol's the production one once promoted. The installed app checks its own site's feed (Tauri updater) at
+- **Distribution** (#1719, #1772, #1779, #1799): every app change merged to `develop` builds a universal macOS
+  `.dmg` and a Windows NSIS `.exe` (`desktop-release.yml`) of the preprod flavour (*TrueMain Beta*, reading preprod,
+  `truemain-X.Y.Z-beta.N.dmg/.exe`), published as the pre-release `desktop-vX.Y.Z-beta.N` (the last ten are kept). A
+  version bump also builds the production flavour (reading truemain.lol, `truemain.dmg/.exe`) as a draft
+  `desktop-vX.Y.Z`, served once the site release running in production contains the bump or matches it on what the
+  app reads (`.github/scripts/desktop-held.sh`, run after the build and after each site release); `Desktop promote`
+  serves a version by hand, for rollbacks. Each flavour has its own signed update manifest. Preprod's `/download`
+  offers its newest beta at once, truemain.lol's the production build once it is served. The installed app checks its own site's feed (Tauri updater) at
   launch and every 15 minutes, downloads a newer build in the background and installs it itself at launch when no
   champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
   "Check for Updates…" runs the check on demand: in the app menu on macOS, in the tray icon's menu on Windows.
   Unsigned by Apple and Microsoft for the beta.
-- **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), in-game advice
-  (next item, gold standing, loading screen — #1749–#1753), TrueMain's
+- **Not present**: win probability in the draft (by design), rune import button (#1678), the overlay on Windows, the
+  gold standing in the companion window (it is in the overlay, on TAB) and the loading screen (#1753), TrueMain's
   performance score and participants' ranks in the dashboard's history, LP history from before the app was installed
   (#1682), automatic clips (#1766) and instant replay (#1767), changing the recordings folder from the app.
 

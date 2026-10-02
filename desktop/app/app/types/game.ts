@@ -12,6 +12,36 @@ export interface GameState {
   players: GamePlayer[]
   /** Our unspent gold, floored to 50 (`GOLD_STEP`); 0 when spectating. */
   gold: number
+  /** What each team has taken on the map; moves only when one falls. */
+  objectives: GameObjectives
+  /** Our creep score and gold earned at each whole minute so far. */
+  pace: GamePace
+}
+
+/** Mirrors `Pace` in `crates/live-client/src/pace.rs`; empty when spectating. */
+export interface GamePace {
+  samples: { minute: number, cs: number, gold: number }[]
+}
+
+/** Mirrors `Objectives` in `crates/live-client/src/objectives.rs`. */
+export interface GameObjectives {
+  /** Blue side's. */
+  order: TeamObjectives
+  /** Red side's. */
+  chaos: TeamObjectives
+}
+
+export interface TeamObjectives {
+  /** Enemy turrets this team destroyed. */
+  turrets: number
+  /** For each enemy inhibitor this team destroyed, the game time it stands again. */
+  inhibitors: number[]
+  /** Elemental drakes this team slew; the Elder is not one of them. */
+  dragons: number
+  /** The game time this team's latest Baron buff ends at. */
+  baronUntil: number | null
+  /** The game time this team's latest Elder buff ends at. */
+  elderUntil: number | null
 }
 
 /** `ORDER` is blue side, `CHAOS` red. */
@@ -58,6 +88,8 @@ export type GameChange =
   | { kind: 'levelUp', player: number, level: number }
   | { kind: 'score', player: number, kills: number, deaths: number, assists: number }
   | { kind: 'died', player: number, respawnAt: number }
+  | { kind: 'objectives', objectives: GameObjectives }
+  | { kind: 'pace', pace: GamePace }
   | { kind: 'respawned', player: number }
   | { kind: 'gold', gold: number }
 

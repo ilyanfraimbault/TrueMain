@@ -13,6 +13,7 @@ pub mod credentials;
 pub mod detail;
 pub mod error;
 pub mod events;
+pub mod form;
 pub mod live;
 pub mod model;
 pub mod record;
@@ -25,10 +26,11 @@ pub use credentials::Credentials;
 pub use detail::GameDetail;
 pub use error::{Error, Result};
 pub use events::{stream_events, LcuEvent};
+pub use form::{PlayerForm, FORM_GAMES};
 pub use live::LiveClient;
 pub use model::{
     ChampSelectSession, ChampionMastery, CurrentSummoner, DraftState, GameflowPhase,
-    GameflowSession, TeamSlot,
+    GameflowPlayer, GameflowSession, TeamSlot,
 };
 pub use record::{GameParticipant, PlayerGame, PlayerRecord, RankedQueue, Scoreboard};
 pub use runes::{plan_import, RuneImportPlan, RunePage, RunePageDraft};
