@@ -321,3 +321,47 @@ nothing saying it was taken — the product owner's report. The app's route file
 `<Suspense>` of their own, which shows the page's header over a skeleton, and a bar along the window's top edge counts
 every load the pages make — not only navigations: a filter change or a cold matchup recommendation is a wait too. The
 site keeps #1689 as it is; only reads no click asked for (the in-game next item) stay off the bar — #1788.
+
+**The in-game overlay draws over the game and nowhere else, and never takes an input from it (2026-10-02).** The #1673
+spike's measurements (`docs/desktop-overlay-spike.md`) set the windows: League's Full Screen captures the display, so
+each panel sits one level above `CGShieldingWindowLevel` — and, at that level, is shown only while the game's own
+process is frontmost, so it never covers the client or another app (the product owner's rule). It can never become key
+and ignores the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its
+shortcut and TAB are read from the keyboard's state, because over a captured display no hotkey reaches the app — which
+also settles #1752's macOS question: TAB is detected without an event tap, so without the Input Monitoring permission.
+The overlay is five independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
+default and set up from the game page — each on/off and where (five spots, or anywhere by dragging it in an on-screen
+preview, the only time the panels take the mouse), plus size and opacity for all:
+
+- **Next item**: **one item** — the next one, and the gold still to earn for it or that it can be bought now — and
+  nothing else: no components (which one to buy first is not measured yet, so the overlay does not pretend to know),
+  no runners-up, no boots; the game page keeps the full panel, from the same `useNextItemPanel`. Whole game or only
+  while dead.
+- **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
+- **Your pace**: CS per minute with its curve (from minute 3, so the minion-less start does not read as a climb), and
+  gold per minute, from one sample per whole minute the feed keeps (`live_client::pace`) — a change a minute, not one
+  per poll. Gold earned is not in the API: it is read as the inventory's cost plus the gold in hand. **Damage per
+  minute was asked for and left out**: the Live Client API exposes no damage total, and a figure that comes from no
+  measurement is not one the app shows.
+- **Loading screen** (#1753): from the loading screen on — never in champion select, where ranked hides the other
+  team — each player's games on their champion among their last twenty Summoner's Rift games and their win rate on it,
+  and their ranked streak (shown from two in a row), lane against lane, ours highlighted. Read through the player's own
+  client (gameflow session for the roster, match history by puuid), three requests at a time, ours and our lane
+  opponent's first, never on TrueMain's Riot key. Counts only, no score made of them. Also on the companion window's
+  loading state. The true-main mark the issue asks for needs a batch lookup by Riot ID on the API and is left for later.
+- **Item value**: only while TAB is held — each team's item gold, a chevron toward the side ahead with the gap, then
+  each lane's — in its own panel rather than pinned to Riot's scoreboard rows, which move with resolution and HUD scale.
+  Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's rule).
+
+No interactive mode in game: nothing on the panels needs a click. macOS only until a Windows pass is measured
+(2026-10-02) — #1673, #1795, #1752.
+
+**The overlay shows a win probability, from the item-gold gap and the map (2026-10-02).** The product owner's call,
+reversing for the in-game overlay the "no win probability" line of #1671 and #1747, and knowingly a formula rather than
+a measured model (`utils/item-value.ts`): a logistic over, in log-odds, the item-gold lead relative to the gold the two
+teams hold on average (×6, so the same gap weighs more early than late — a tenth of that average alone reads about
+65 %), and what each side holds on the map — turrets destroyed (0.12 each), enemy inhibitors down right now (0.5 each,
+standing again five minutes after they fall), elemental drakes (0.15 each, +0.6 for the soul at four), the Baron's
+buff (0.9) and the Elder's (1.1) while they last (three minutes, two and a half — counted from the kill, since the feed
+does not say when a holder dies). The map is read off the game's event feed (`live_client::objectives`), which every
+player sees announced. The draft keeps no win probability (2026-10-02) — #1795.

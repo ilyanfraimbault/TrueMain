@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "overlay",
+  "description": "The in-game overlay's panels: read the game and the overlay settings the shell publishes, and be dragged into place while the settings page previews it (`src/overlay`).",
+  "windows": [
+    "overlay-*"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging"
+  ]
+}

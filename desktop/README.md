@@ -75,6 +75,18 @@ Tracking issue: **#1671**.
   the gold left to finish it, the components your gold buys now, two
   runners-up and the boots while you have none. Asked again whenever anyone's
   items change.
+- **Draws over the game** (#1795, macOS): three small panels, each placed on
+  its own — the next item alone (the item and the gold still to earn for it, or
+  that it can be bought now), a win probability estimated from the item-gold
+  gap and the map (turrets, inhibitors down, drakes, Baron, Elder), your CS per
+  minute with its curve and gold per minute, the loading screen's ten players
+  (games and win rate on their champion, ranked streak — #1753), and, while TAB is held, each team's item gold and each lane's gap —
+  only while the game is the frontmost app, never over the client or anything
+  else. Click-through and never focused, so the game keeps every click and key;
+  ⌥⇧O hides them for the rest of the game. Set up from the game page (each panel
+  on/off and where — five spots, or anywhere by dragging it in a preview — the
+  next item's moment, size, opacity).
+  The window layer is the #1673 spike's verdict, `docs/desktop-overlay-spike.md`.
 
 ## What it does not do yet
 
@@ -88,8 +100,8 @@ Tracking issue: **#1671**.
   not return a rune page yet (#1678).
 - **The dashboard knows the player only by what the client says.** Their own
   numbers need #1682 — our database holds true mains only.
-- **No in-game overlay.** The game page is a screen of the companion window;
-  panels over the game itself are gated on the spike in #1673.
+- **No overlay on Windows yet.** The window layer is macOS's; on Windows the
+  overlay settings say so and the game page carries the panel.
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.
@@ -256,7 +268,8 @@ screen hold. Update this table with what the tape shows.
 desktop/
   crates/lcu/             pure Rust client for the League client API — no Tauri, no GUI
   crates/live-client/     the running game's own API, and the in-game state derived from it
-  crates/shell-state/     the app's state and the screen it calls for
+  crates/shell-state/     the app's state and the screen it calls for, and the overlay's
+                          settings and rules (when it shows, where)
   crates/game-recording/  game recording minus the capture (#1744): settings, highlights,
                           game-clock anchor, storage budget — no Tauri, no GUI
   crates/capture-helper/  drives the capture helper: records, cuts clips, takes thumbnails,
@@ -265,7 +278,9 @@ desktop/
                           reports what it measured (#1745)
   capture/macos/          the macOS capture helper (Swift, ScreenCaptureKit) — built on
                           a Mac only; run with capture/spike.sh
-  src-tauri/              the Tauri v2 shell: owns the connections, derives the state
+  tools/                  overlay-probe.swift: the window server's view of a game (#1673)
+  src-tauri/              the Tauri v2 shell: owns the connections, derives the state;
+                          src/overlay/ is the overlay's window (macOS)
   app/                    Nuxt 4 SPA (ssr: false) rendering that state
 ```
 
@@ -354,6 +369,14 @@ to the site's `/api` — preprod with `desktop/.env.local`, production without
 (`nuxt.config.ts`, dev only) — since there is no Rust to ask. In a production build the picker never renders — `import.meta.dev`
 is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chunk
 that is never fetched.
+
+The overlay's page opens the same way, alone, as the panel shows it:
+`?scenario=in-game-late#/overlay` (reload after changing only the hash — the
+page stands outside the app's shell from its first load), and `&preview` adds
+the placing state. Its window — level, focus, click-through, the frontmost
+rule, dragging — exists only in the shell; `tools/overlay-probe.swift` reads
+what the window server does with it during a real game
+(`docs/desktop-overlay-spike.md`).
 
 ### Recordings without a game (development)
 

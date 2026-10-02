@@ -139,6 +139,16 @@ impl LcuClient {
         .await
     }
 
+    /// `count` of another player's games, newest first — read by the client
+    /// under the player's own session, never on TrueMain's Riot key (#1753).
+    pub async fn match_history_of(&self, puuid: &str, count: usize) -> Result<MatchHistory> {
+        let end = count.saturating_sub(1);
+        self.get_json(&format!(
+            "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex={end}"
+        ))
+        .await
+    }
+
     /// One game's full scoreboard — all ten participants, which the history
     /// list leaves out.
     pub async fn game(&self, game_id: i64) -> Result<HistoryGame> {

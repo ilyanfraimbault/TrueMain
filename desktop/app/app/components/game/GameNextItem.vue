@@ -1,9 +1,6 @@
 <script setup lang="ts">
-import type { ChampionItemContextAxis } from '#shared/types/item-context'
 import type { GameState } from '~/types/game'
-import type { NextItemCandidate, NextItemReason } from '~/utils/next-item'
-import { ITEM_CONTEXT_TONE_CLASS, itemContextAxisPhrase } from '#shared/utils/item-context'
-import { goldToComplete, stepsToward } from '~/utils/next-item'
+import { ITEM_CONTEXT_TONE_CLASS } from '#shared/utils/item-context'
 
 /**
  * What to complete next (#1751): the item the champion's mains take from
@@ -11,44 +8,13 @@ import { goldToComplete, stepsToward } from '~/utils/next-item'
  * can be bought with the gold in hand. Read in two seconds while dead or on
  * the walk out of base, so it carries the decision and nothing else: the
  * item, why when a situation moved it, the next purchase, the two runners-up,
- * and the boots while they are still open.
+ * and the boots while they are still open. The overlay draws only the item
+ * and the gold it still needs (`OverlayNextItem`), from the same
+ * `useNextItemPanel`.
  */
 const props = defineProps<{ game: GameState }>()
 
-const { answer, pending, failed } = useNextItem(toRef(props, 'game'))
-const { items: statics } = useStaticData()
-
-const me = computed(() => props.game.players.find(player => player.isMe) ?? null)
-const held = computed(() => me.value?.items.map(item => item.itemId) ?? [])
-
-const build = computed(() => answer.value?.build ?? null)
-const top = computed(() => build.value?.candidates[0] ?? null)
-const runnersUp = computed(() => build.value?.candidates.slice(1, 3) ?? [])
-const boots = computed(() => answer.value?.boots?.candidates.slice(0, 3) ?? [])
-
-const name = (itemId: number) => statics.value[itemId]?.name ?? `Item ${itemId}`
-const percent = (share: number) => `${Math.round(share * 100)}%`
-
-/** The strongest situation behind an item, in the site's own wording; nothing when no situation moved it. */
-function reason(candidate: NextItemCandidate | null) {
-  const strongest: NextItemReason | undefined = candidate?.reasons[0]
-  if (!strongest) return null
-  return itemContextAxisPhrase({ axis: strongest.axis, bucket: strongest.bucket } as ChampionItemContextAxis)
-}
-const why = computed(() => reason(top.value))
-
-const remaining = computed(() => (top.value ? goldToComplete(top.value.itemId, held.value, statics.value) : 0))
-const steps = computed(() => (top.value ? stepsToward(top.value.itemId, held.value, statics.value) : []))
-const affordable = (cost: number) => cost <= props.game.gold
-
-const state = computed(() => {
-  if (top.value) return 'ready'
-  if (pending.value && !answer.value) return 'loading'
-  if (failed.value && !answer.value) return 'offline'
-  if (answer.value && !answer.value.patch) return 'unmeasured'
-  if (answer.value && !answer.value.build) return 'complete'
-  return 'loading'
-})
+const { answer, pending, statics, build, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable } = useNextItemPanel(toRef(props, 'game'))
 </script>
 
 <template>

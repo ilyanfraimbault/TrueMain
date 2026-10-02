@@ -1,7 +1,7 @@
 //! `GET /liveclientdata/allgamedata`, in the game's own shape.
 //!
 //! Only the fields the app reads are modelled; serde skips the rest (champion
-//! stats, ability descriptions, runes, the event feed), and the raw body is
+//! stats, ability descriptions, runes), and the raw body is
 //! what a tape records, so a later panel can start reading them without a new
 //! recording. Every field defaults: the game answers with partial data around
 //! the loading screen, and in spectator mode `activePlayer` is an error object
@@ -14,7 +14,35 @@ use serde::Deserialize;
 pub struct AllGameData {
     pub active_player: ActivePlayer,
     pub all_players: Vec<Player>,
+    pub events: Events,
     pub game_data: GameData,
+}
+
+/// The game's event feed: every event since the start, on every reading.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Events {
+    #[serde(rename = "Events")]
+    pub events: Vec<Event>,
+}
+
+/// One event, in the feed's own PascalCase. Only the objectives' fields are
+/// modelled; the rest of the feed (kills, multikills, aces) is skipped.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct Event {
+    /// `TurretKilled`, `InhibKilled`, `DragonKill`, `BaronKill`, …
+    pub event_name: String,
+    /// Game time, in seconds.
+    pub event_time: f64,
+    /// The structure that fell: `Turret_T2_C_05_A` — `T1` is blue side's.
+    pub turret_killed: String,
+    /// `Barracks_T1_L1` — `T1` is blue side's.
+    pub inhib_killed: String,
+    /// `Fire`, `Water`, `Earth`, `Air`, `Hextech`, `Chemtech`, `Elder`.
+    pub dragon_type: String,
+    /// A player's name, or a minion's or turret's (`Minion_T2L1S16N3`).
+    pub killer_name: String,
 }
 
 /// The player this game client belongs to. All three names are kept: which

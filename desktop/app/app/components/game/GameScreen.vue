@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { GamePlayer, GameState, GameTeam } from '~/types/game'
-import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
+import { LANE_LABELS, laneIconUrl } from '~/types/draft'
+import { laneRows, leftTeam } from '~/utils/item-value'
 
 /**
  * The running game, read through its own API (#1748): the ten players, lane
@@ -44,28 +45,12 @@ const mapName = computed(() => MAPS[props.game.mapNumber] ?? 'Live game')
 // ─── The board ──────────────────────────────────────────────────────────────
 
 /** Ours on the left. Spectating, blue side is. */
-const left = computed<GameTeam>(() => props.game.myTeam ?? 'ORDER')
+const left = computed<GameTeam>(() => leftTeam(props.game))
 const right = computed<GameTeam>(() => (left.value === 'ORDER' ? 'CHAOS' : 'ORDER'))
 
-const laneIndex = (position: string) => {
-  const index = (LANES as readonly string[]).indexOf(position)
-  return index === -1 ? LANES.length : index
-}
-
-/** A side in lane order; a player on no lane keeps the game's order after the five. */
-const side = (team: GameTeam) => props.game.players
-  .filter(player => player.team === team)
-  .map((player, order) => ({ player, order }))
-  .sort((a, b) => laneIndex(a.player.position) - laneIndex(b.player.position) || a.order - b.order)
-  .map(({ player }) => player)
-
-/** Lane by lane, so each row is a lane's face-off. */
+/** Lane by lane, so each row is a lane's face-off (`utils/item-value.ts`, shared with the overlay). */
 const rows = computed(() => {
-  const ours = side(left.value)
-  const theirs = side(right.value)
-  return Array.from({ length: Math.max(ours.length, theirs.length) }, (_, index) => {
-    const ally = ours[index] ?? null
-    const enemy = theirs[index] ?? null
+  return laneRows(props.game).map(({ ally, enemy }) => {
     const lane = [ally?.position, enemy?.position].find(position => position && position in LANE_LABELS) ?? null
     return { ally, enemy, lane: lane as keyof typeof LANE_LABELS | null, key: `${ally?.riotId}-${enemy?.riotId}` }
   })
@@ -96,7 +81,10 @@ const sideLabel = (team: GameTeam, ours: boolean) => {
         <span class="stat-value text-2xl leading-none text-enemy">{{ kills(right) }}</span>
       </div>
 
-      <span class="justify-self-end stat-value text-xl leading-none tabular-nums" title="Game time">{{ minutes(clock) }}</span>
+      <div class="flex items-center gap-3 justify-self-end">
+        <span class="stat-value text-xl leading-none tabular-nums" title="Game time">{{ minutes(clock) }}</span>
+        <slot name="actions" />
+      </div>
     </header>
 
     <GameNextItem v-if="game.myTeam" :game="game" />
