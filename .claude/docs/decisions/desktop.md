@@ -118,7 +118,20 @@ is not an app release, so the app keeps its own version (`tauri.conf.json`), bum
 Production (channel `stable`) serves only the one release promoted through the `Desktop promote` workflow — a
 version typed in by the product owner, not computed from commits, and not tied to the site's release because the
 promotion must wait for the endpoints the build reads to reach production. Supersedes "tag `desktop-v*` to ship";
-the updater keeps polling production only, so testers install beta builds by hand — revised by #1779: each build polls its own site (2026-10-01) — #1772.
+the updater keeps polling production only, so testers install beta builds by hand — revised by #1779: each build polls its own site (2026-10-01) — #1772. Revised by #1799: every app change builds a preprod beta, and a bump
+reaches production without a hand promotion, once production runs what it reads — see below.
+
+**Every app change ships to preprod; a version bump ships to production once production runs what it reads
+(2026-10-02).** The product owner's call: a tester should not wait for a throwaway bump to try an app change, and
+nobody should have to remember a promotion. Each push to `develop` touching the app (`desktop/`, `web/layers/`,
+`web/shared/`) builds the preprod flavour as `desktop-vX.Y.Z-beta.N` — the run number, not the commit SHA, because
+the updater installs only a strictly greater semver; the SHA is in the notes, `X.Y.Z` the bumped version or its next
+patch once that one has its production build. Only the version stays by hand: a bump builds the production flavour
+as a draft, served on truemain.lol as soon as the site release running in production contains the bump commit or
+does not differ from it on `web/` and `backend/{Api,Core,Data}` — checked after the build and after every site
+release's rollout — so the production app is never newer than the production API it calls (the gap #1772's hand
+promotion guarded against). `Desktop promote` remains for rollbacks. The last ten betas are kept, and the site reads
+up to five pages of releases, so the stable one is never lost behind them — #1799.
 
 **The dashboard is read from the player's own client, not from TrueMain's API, and built from the site's profile
 components.** The dashboard is for whoever installed the app, and TrueMain only tracks true mains, so the site's

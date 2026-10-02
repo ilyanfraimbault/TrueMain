@@ -3,7 +3,7 @@ name: Desktop release
 on:
   push:
     branches: [develop]
-    paths: ["desktop/src-tauri/tauri.conf.json"]
+    paths: ["desktop/**", "web/layers/**", "web/shared/**", "!**/*.md"]
   workflow_dispatch:
 
 permissions:
@@ -15,40 +15,48 @@ concurrency:
 
 jobs:
   version:
-    name: New app version
+    name: Versions to build
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.read.outputs.version }}
-      tag: ${{ steps.read.outputs.tag }}
-      build: ${{ steps.read.outputs.build }}
+      beta: ${{ steps.read.outputs.beta }}
+      flavors: ${{ steps.read.outputs.flavors }}
     steps:
       - uses: actions/checkout@v7
       - id: read
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if [ "$GITHUB_REF" != "refs/heads/develop" ]; then
             echo "::error::Desktop builds are published from develop only, not $GITHUB_REF"
             exit 1
           fi
           version=$(jq -r .version desktop/src-tauri/tauri.conf.json)
-          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::$version is not a semantic version (desktop/src-tauri/tauri.conf.json)"
-            exit 1
-          fi
-          tag="desktop-v$version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
-            echo "::notice::$tag already exists: bump the version in desktop/src-tauri/tauri.conf.json to publish a new build"
-            echo "build=false" >> "$GITHUB_OUTPUT"
+          if gh release view "desktop-v$version" --json tagName > /dev/null 2>&1; then exists=true; else exists=false; fi
+          resolved=$(.github/scripts/desktop-version.sh "$version" "$GITHUB_RUN_NUMBER" "$exists")
+          echo "$resolved" >> "$GITHUB_OUTPUT"
+          beta=$(sed -n 's/^beta=//p' <<< "$resolved")
+          flavors=""
+          if git ls-remote --exit-code --tags origin "refs/tags/desktop-v$beta" > /dev/null; then
+            echo "::notice::desktop-v$beta already exists: re-run the workflow instead of its jobs to build a new beta"
           else
-            echo "build=true" >> "$GITHUB_OUTPUT"
+            flavors="beta"
           fi
+          if grep -qx 'stable=true' <<< "$resolved"; then
+            flavors="$flavors stable"
+          else
+            echo "::notice::desktop-v$version already exists: only the preprod build is made, bump the version to publish a production one"
+          fi
+          echo "flavors=$flavors" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build (${{ matrix.name }})
     needs: version
-    if: needs.version.outputs.build == 'true'
+    if: needs.version.outputs.flavors != ''
     strategy:
       fail-fast: false
       matrix:
@@ -89,31 +97,32 @@ jobs:
           cp "$bin/truemain-capture" desktop/src-tauri/binaries/truemain-capture
           codesign --force --sign - desktop/src-tauri/binaries/truemain-capture
           lipo -archs desktop/src-tauri/binaries/truemain-capture
-      - name: Build for production and for preprod
+      - name: Build the flavours
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           BETA_SITE: ${{ secrets.DESKTOP_BETA_SITE_URL }}
-          VERSION: ${{ needs.version.outputs.version }}
+          BETA: ${{ needs.version.outputs.beta }}
+          FLAVORS: ${{ needs.version.outputs.flavors }}
           BUNDLE: ${{ matrix.bundle }}
         run: |
-          if ! [[ "$BETA_SITE" =~ ^https?://[^/]+$ ]]; then
-            echo "::error::The DESKTOP_BETA_SITE_URL secret must be preprod's site origin (scheme and host, no path)"
-            exit 1
-          fi
-          mkdir -p dist
-          for flavor in stable beta; do
+          for flavor in $FLAVORS; do
             if [ "$flavor" = stable ]; then
               site=https://truemain.lol
               name=truemain
               echo '{}' > desktop/flavor.json
             else
+              if ! [[ "$BETA_SITE" =~ ^https?://[^/]+$ ]]; then
+                echo "::error::The DESKTOP_BETA_SITE_URL secret must be preprod's site origin (scheme and host, no path)"
+                exit 1
+              fi
               site=$BETA_SITE
-              name="truemain-$VERSION"
+              name="truemain-$BETA"
               SITE="$site" node -e '
                 const site = process.env.SITE
                 console.log(JSON.stringify({
+                  version: process.env.BETA,
                   productName: "TrueMain Beta",
                   identifier: "gg.truemain.desktop.beta",
                   plugins: { updater: {
@@ -123,70 +132,128 @@ jobs:
                 }))
               ' > desktop/flavor.json
             fi
+            out="dist/$flavor"
+            mkdir -p "$out"
             rm -rf "$BUNDLE"
             (cd desktop/app && TRUEMAIN_SITE_URL="$site" npm run tauri -- build ${{ matrix.args }} --config flavor.json)
             if [ "${{ matrix.name }}" = "macOS" ]; then
               app=$(ls -d "$BUNDLE"/macos/*.app)
               test -x "$app/Contents/MacOS/truemain-capture"
               codesign --verify --deep --strict "$app"
-              cp "$BUNDLE"/dmg/*.dmg "dist/$name.dmg"
-              cp "$BUNDLE"/macos/*.app.tar.gz "dist/$name.app.tar.gz"
-              cp "$BUNDLE"/macos/*.app.tar.gz.sig "dist/$name.app.tar.gz.sig"
+              cp "$BUNDLE"/dmg/*.dmg "$out/$name.dmg"
+              cp "$BUNDLE"/macos/*.app.tar.gz "$out/$name.app.tar.gz"
+              cp "$BUNDLE"/macos/*.app.tar.gz.sig "$out/$name.app.tar.gz.sig"
             else
-              cp "$BUNDLE"/nsis/*-setup.exe "dist/$name.exe"
-              cp "$BUNDLE"/nsis/*-setup.exe.sig "dist/$name.exe.sig"
+              cp "$BUNDLE"/nsis/*-setup.exe "$out/$name.exe"
+              cp "$BUNDLE"/nsis/*-setup.exe.sig "$out/$name.exe.sig"
             fi
           done
-          ls -la dist
-      - uses: actions/upload-artifact@v7
+          ls -laR dist
+      - if: contains(needs.version.outputs.flavors, 'beta')
+        uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ matrix.name }}
-          path: dist/*
+          name: desktop-beta-${{ matrix.name }}
+          path: dist/beta/*
+          if-no-files-found: error
+      - if: contains(needs.version.outputs.flavors, 'stable')
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-stable-${{ matrix.name }}
+          path: dist/stable/*
           if-no-files-found: error
 
-  publish:
-    name: Publish the pre-release
+  beta:
+    name: Publish the preprod build
     needs: [version, build]
+    if: contains(needs.version.outputs.flavors, 'beta')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
+          pattern: desktop-beta-*
           path: dist
           merge-multiple: true
-      - name: Write the update manifests
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-          BASE: https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tag }}
-        run: |
-          manifest() {
-            local name=$1 notes=$2
-            jq -n \
-              --arg version "$VERSION" --arg notes "$notes" \
-              --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-              --arg macSig "$(cat "dist/$name.app.tar.gz.sig")" --arg macUrl "$BASE/$name.app.tar.gz" \
-              --arg winSig "$(cat "dist/$name.exe.sig")" --arg winUrl "$BASE/$name.exe" \
-              '{version: $version, notes: $notes, pub_date: $date, platforms: {
-                "darwin-aarch64": {signature: $macSig, url: $macUrl},
-                "darwin-x86_64": {signature: $macSig, url: $macUrl},
-                "windows-x86_64": {signature: $winSig, url: $winUrl}
-              }}'
-          }
-          manifest truemain "TrueMain desktop $VERSION" > dist/latest.json
-          manifest "truemain-$VERSION" "TrueMain desktop $VERSION (preprod build)" > dist/latest-beta.json
-          cat dist/latest.json dist/latest-beta.json
-      - name: Create the release
+      - name: Create the pre-release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.version.outputs.version }}
-          TAG: ${{ needs.version.outputs.tag }}
+          GH_REPO: ${{ github.repository }}
+          BETA: ${{ needs.version.outputs.beta }}
         run: |
-          gh release create "$TAG" dist/* \
-            --repo "$GITHUB_REPOSITORY" \
+          tag="desktop-v$BETA"
+          .github/scripts/desktop-manifest.sh dist "truemain-$BETA" "$BETA" \
+            "https://github.com/$GH_REPO/releases/download/$tag" \
+            "TrueMain Beta $BETA (${GITHUB_SHA::7})" > dist/latest-beta.json
+          cat dist/latest-beta.json
+          gh release create "$tag" dist/* \
             --target "$GITHUB_SHA" \
             --prerelease \
-            --title "TrueMain desktop $VERSION (beta)" \
-            --notes "Desktop companion build, in two flavours: \`truemain-$VERSION.*\` reads preprod and is served on preprod's download page; \`truemain.*\` reads https://truemain.lol and is served there once the Desktop promote workflow promotes this version. The installers are not signed yet; the download page says how to open them the first time."
-          echo "Published [$TAG](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG) as a pre-release: preprod serves it now, run **Desktop promote** with \`$VERSION\` to serve it on truemain.lol." >> "$GITHUB_STEP_SUMMARY"
+            --latest=false \
+            --title "TrueMain Beta $BETA" \
+            --notes "Preprod build of the desktop companion at $GITHUB_SHA: it reads preprod, which serves it on its download page and in the TrueMain Beta update feed. The installers are not signed yet; the download page says how to open them the first time."
+          echo "Published [$tag](https://github.com/$GH_REPO/releases/tag/$tag): preprod serves it within five minutes." >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the last ten preprod builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[].tag_name' \
+            | grep -E '^desktop-v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$' \
+            | sort -V | head -n -10 \
+            | while read -r old; do
+                gh release delete "$old" --cleanup-tag --yes
+                echo "Deleted $old"
+              done
+
+  stable:
+    name: Publish the production build
+    needs: [version, build]
+    if: contains(needs.version.outputs.flavors, 'stable')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-stable-*
+          path: dist
+          merge-multiple: true
+      - name: Create the held release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          tag="desktop-v$VERSION"
+          .github/scripts/desktop-manifest.sh dist truemain "$VERSION" \
+            "https://github.com/$GH_REPO/releases/download/$tag" \
+            "TrueMain desktop $VERSION" > dist/latest.json
+          cat dist/latest.json
+          gh release create "$tag" dist/* \
+            --target "$GITHUB_SHA" \
+            --draft \
+            --latest=false \
+            --title "TrueMain desktop $VERSION" \
+            --notes "Production build of the desktop companion at $GITHUB_SHA: it reads https://truemain.lol, which serves it once production runs what it reads. The installers are not signed yet; the download page says how to open them the first time."
+      - name: Serve it if production runs what it reads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          site=$(gh run list --workflow deploy-prod.yml --event release --status success --limit 50 --json headBranch,updatedAt \
+            -q '[.[] | select(.headBranch | startswith("desktop-v") | not)] | sort_by(.updatedAt) | last | .headBranch // empty')
+          if [ -z "$site" ]; then
+            echo "::notice::No site release is deployed yet: desktop-v$VERSION waits for the first one"
+            exit 0
+          fi
+          echo "Production runs $site"
+          .github/scripts/desktop-held.sh "$site"
