@@ -27,7 +27,7 @@ const cachedIpxHandler = defineNuxtModule({
 export default defineNuxtConfig({
   // `cachedIpxHandler` must come before `@nuxt/image` so the route is already
   // registered when the module decides whether to install its own.
-  modules: [cachedIpxHandler, '@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo'],
+  modules: [cachedIpxHandler, '@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo', '@nuxt/scripts'],
   // Canonical site identity for SEO (canonical links, sitemap, robots, OG/
   // schema.org defaults). `url` is the production default; override per
   // environment with `NUXT_PUBLIC_SITE_URL` (nuxt-site-config reads it
@@ -190,6 +190,14 @@ export default defineNuxtConfig({
           component.global = false
         }
       }
+    },
+    // @nuxt/scripts registers its first-party proxy (`/_scripts/p/**`) on every
+    // server build, configured or not. Nothing here proxies a script (Umami is
+    // loaded from our own instance, unbundled), so the route only answered
+    // 500 "First-party proxy not configured" to whoever probed it, and its
+    // undici-based fetcher added ~1 MB to the server output (#1622, measured).
+    'nitro:config'(config) {
+      config.handlers = config.handlers?.filter(handler => handler?.route !== '/_scripts/p/**')
     },
   },
   compatibilityDate: '2026-05-15',
