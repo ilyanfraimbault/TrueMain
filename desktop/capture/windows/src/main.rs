@@ -32,6 +32,8 @@
 #[cfg_attr(not(windows), allow(dead_code))]
 mod args;
 #[cfg_attr(not(windows), allow(dead_code))]
+mod nv12;
+#[cfg_attr(not(windows), allow(dead_code))]
 mod output;
 #[cfg_attr(not(windows), allow(dead_code))]
 mod timeline;

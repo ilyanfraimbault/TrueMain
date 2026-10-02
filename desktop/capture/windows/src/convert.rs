@@ -5,6 +5,10 @@
 //!
 //! The NV12 surfaces come from Media Foundation's sample allocator, which
 //! takes each one back once the encoder has released it.
+//!
+//! A GPU without a video processor (no driver, a virtual machine, a CI
+//! runner's basic render driver) falls back to converting on the CPU
+//! (`nv12`), through a staging copy of each frame.
 
 use std::collections::HashMap;
 
@@ -219,7 +223,15 @@ impl Converter {
                 right: size.0 as i32,
                 bottom: size.1 as i32,
             },
-            fit(size, self.output_size),
+            {
+                let (left, top, width, height) = crate::nv12::fit(size, self.output_size);
+                RECT {
+                    left: left as i32,
+                    top: top as i32,
+                    right: (left + width) as i32,
+                    bottom: (top + height) as i32,
+                }
+            },
         );
         // SAFETY: every view and texture is alive for the calls; the stream
         // struct's input view is borrowed and released before returning.
@@ -373,21 +385,158 @@ impl Converter {
     }
 }
 
-/// `content` scaled to fit `output`, centred, on even pixels (NV12 halves
-/// the chroma).
-fn fit(content: (u32, u32), output: (u32, u32)) -> RECT {
-    let scale = f64::min(
-        f64::from(output.0) / f64::from(content.0.max(1)),
-        f64::from(output.1) / f64::from(content.1.max(1)),
-    );
-    let width = ((f64::from(content.0) * scale) as i32 & !1).min(output.0 as i32);
-    let height = ((f64::from(content.1) * scale) as i32 & !1).min(output.1 as i32);
-    let left = ((output.0 as i32 - width) / 2) & !1;
-    let top = ((output.1 as i32 - height) / 2) & !1;
-    RECT {
-        left,
-        top,
-        right: left + width,
-        bottom: top + height,
+/// Frames into encoder samples, on the GPU where it can, else on the CPU.
+pub enum Pipeline {
+    Gpu {
+        converter: Converter,
+        samples: Samples,
+    },
+    Cpu(CpuConverter),
+}
+
+impl Pipeline {
+    pub fn new(gpu: &Gpu, input: (u32, u32), output: (u32, u32), fps: u32) -> Self {
+        let on_gpu = Converter::new(gpu, input, output, fps)
+            .and_then(|converter| Ok((converter, Samples::new(gpu, output.0, output.1)?)));
+        match on_gpu {
+            Ok((converter, samples)) => Self::Gpu { converter, samples },
+            Err(error) => {
+                crate::output::log(&format!(
+                    "no video processor on this GPU ({error}): converting on the CPU"
+                ));
+                Self::Cpu(CpuConverter::new(output))
+            }
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Gpu { .. } => "gpu",
+            Self::Cpu(_) => "cpu",
+        }
+    }
+
+    /// The encoder's sample for this frame, or `None` when the encoder still
+    /// holds every surface — a frame dropped.
+    pub fn sample(
+        &mut self,
+        gpu: &Gpu,
+        frame: &ID3D11Texture2D,
+        size: (u32, u32),
+    ) -> Result<Option<IMFSample>> {
+        match self {
+            Self::Gpu { converter, samples } => {
+                let Some(sample) = samples.next() else {
+                    return Ok(None);
+                };
+                let (target, subresource) = sample_texture(&sample)?;
+                converter.convert(gpu, frame, size, &target, subresource)?;
+                Ok(Some(sample))
+            }
+            Self::Cpu(converter) => converter.sample(gpu, frame, size).map(Some),
+        }
+    }
+}
+
+pub struct CpuConverter {
+    output: (u32, u32),
+    staging: Option<(ID3D11Texture2D, (u32, u32))>,
+}
+
+// SAFETY: used under the recorder's lock only, like `Converter`.
+unsafe impl Send for CpuConverter {}
+
+impl CpuConverter {
+    fn new(output: (u32, u32)) -> Self {
+        Self {
+            output,
+            staging: None,
+        }
+    }
+
+    fn staging(&mut self, gpu: &Gpu, size: (u32, u32)) -> Result<ID3D11Texture2D> {
+        if let Some((texture, current)) = &self.staging {
+            if *current == size {
+                return Ok(texture.clone());
+            }
+        }
+        let mut texture = None;
+        // SAFETY: plain resource creation on the shared device.
+        unsafe {
+            gpu.device.CreateTexture2D(
+                &D3D11_TEXTURE2D_DESC {
+                    Width: size.0,
+                    Height: size.1,
+                    MipLevels: 1,
+                    ArraySize: 1,
+                    Format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                    SampleDesc: DXGI_SAMPLE_DESC {
+                        Count: 1,
+                        Quality: 0,
+                    },
+                    Usage: D3D11_USAGE_STAGING,
+                    BindFlags: 0,
+                    CPUAccessFlags: D3D11_CPU_ACCESS_READ.0 as u32,
+                    MiscFlags: 0,
+                },
+                None,
+                Some(&mut texture),
+            )?;
+        }
+        let texture = texture.expect("CreateTexture2D returned a texture");
+        self.staging = Some((texture.clone(), size));
+        Ok(texture)
+    }
+
+    fn sample(
+        &mut self,
+        gpu: &Gpu,
+        frame: &ID3D11Texture2D,
+        size: (u32, u32),
+    ) -> Result<IMFSample> {
+        let staging = self.staging(gpu, size)?;
+        let length = crate::nv12::len(self.output);
+        // SAFETY: the staging texture is mapped while it is read and the
+        // buffer locked while it is written; both sized for it.
+        unsafe {
+            gpu.context.CopySubresourceRegion(
+                &staging,
+                0,
+                0,
+                0,
+                0,
+                frame,
+                0,
+                Some(&D3D11_BOX {
+                    left: 0,
+                    top: 0,
+                    front: 0,
+                    right: size.0,
+                    bottom: size.1,
+                    back: 1,
+                }),
+            );
+            let buffer = MFCreateMemoryBuffer(length as u32)?;
+            let mut data = std::ptr::null_mut();
+            buffer.Lock(&mut data, None, None)?;
+            let out = std::slice::from_raw_parts_mut(data, length);
+            let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
+            let read = gpu
+                .context
+                .Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped));
+            if read.is_ok() {
+                let pitch = mapped.RowPitch as usize;
+                let source =
+                    std::slice::from_raw_parts(mapped.pData as *const u8, pitch * size.1 as usize);
+                crate::nv12::convert(source, pitch, size, out, self.output);
+                gpu.context.Unmap(&staging, 0);
+            }
+            buffer.Unlock()?;
+            read?;
+            buffer.SetCurrentLength(length as u32)?;
+            let sample = MFCreateSample()?;
+            sample.AddBuffer(&buffer)?;
+            Ok(sample)
+        }
     }
 }

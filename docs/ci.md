@@ -298,9 +298,9 @@ the Tauri shell compiles for Windows (its `cfg(windows)` paths are compiled
 nowhere else before a release), then builds the helper and runs
 `desktop/capture/windows/smoke.ps1`: a window that repaints itself is recorded
 for eight seconds, a clip is cut out of the video and two thumbnails are
-taken, each answer of the helper checked. The runner has no GPU, so Media
-Foundation encodes in software there: the job proves the protocol, the capture
-and the files, not a League game or the hardware encoder. The video, clip and
+taken, each answer of the helper checked. The runner has no GPU, so frames are
+converted on the CPU and encoded in software there: the job proves the
+protocol, the capture and the files, not a League game or the GPU path. The video, clip and
 thumbnails are uploaded as an artifact.
 
 ## Desktop releases

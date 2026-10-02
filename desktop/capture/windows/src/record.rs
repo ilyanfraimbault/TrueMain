@@ -29,7 +29,7 @@ use windows::Win32::System::WinRT::Direct3D11::IDirect3DDxgiInterfaceAccess;
 
 use crate::args::{self, Codec, Source};
 use crate::audio::Loopback;
-use crate::convert::{sample_texture, Converter, Gpu, Samples};
+use crate::convert::{Gpu, Pipeline};
 use crate::output::{emit, fail, log};
 use crate::timeline::{AudioTimeline, SECOND};
 use crate::window;
@@ -47,8 +47,7 @@ enum Stop {
 
 struct State {
     gpu: Gpu,
-    converter: Converter,
-    samples: Samples,
+    pipeline: Pipeline,
     writer: Option<Writer>,
     pool_size: SizeInt32,
     interval: i64,
@@ -113,7 +112,7 @@ pub fn record(arguments: &[String]) {
     let (stop, stopped) = mpsc::channel();
     let (state, pool, session) = match start(&item, &out, options, with_audio, stop.clone()) {
         Ok(started) => started,
-        Err(error) => fail("capture", &format!("could not start: {error}"), 5),
+        Err(error) => fail("capture", &format!("could not start ({error})"), 5),
     };
 
     let loopback = with_audio
@@ -185,35 +184,41 @@ fn start(
     options: VideoOptions,
     with_audio: bool,
     stop: mpsc::Sender<Stop>,
-) -> Result<(
-    Arc<Mutex<State>>,
-    Direct3D11CaptureFramePool,
-    GraphicsCaptureSession,
-)> {
-    let gpu = Gpu::new()?;
-    let size = item.Size()?;
-    let converter = Converter::new(
+) -> std::result::Result<
+    (
+        Arc<Mutex<State>>,
+        Direct3D11CaptureFramePool,
+        GraphicsCaptureSession,
+    ),
+    String,
+> {
+    let step = |what: &'static str| move |error: windows::core::Error| format!("{what}: {error}");
+    let gpu = Gpu::new().map_err(step("the D3D11 device"))?;
+    let size = item.Size().map_err(step("the window's size"))?;
+    let pipeline = Pipeline::new(
         &gpu,
         (size.Width.max(2) as u32, size.Height.max(2) as u32),
         (options.width, options.height),
         options.fps,
-    )?;
-    let samples = Samples::new(&gpu, options.width, options.height)?;
+    );
     let hardware = writer::hardware_encoder(options.codec);
     if !hardware {
         log("no hardware encoder for this codec: Media Foundation encodes in software");
     }
-    let writer = Writer::new(out, &options, &gpu.manager, with_audio)?;
-    let pool = Direct3D11CaptureFramePool::CreateFreeThreaded(&gpu.winrt, FORMAT, 2, size)?;
-    let session = pool.CreateCaptureSession(item)?;
+    let writer =
+        Writer::new(out, &options, &gpu.manager, with_audio).map_err(step("the video writer"))?;
+    let pool = Direct3D11CaptureFramePool::CreateFreeThreaded(&gpu.winrt, FORMAT, 2, size)
+        .map_err(step("the capture's frame pool"))?;
+    let session = pool
+        .CreateCaptureSession(item)
+        .map_err(step("the capture session"))?;
     let _ = session.SetIsCursorCaptureEnabled(true);
     // Windows 11 only: without it a yellow border marks the captured window.
     let _ = session.SetIsBorderRequired(false);
 
     let state = Arc::new(Mutex::new(State {
         gpu,
-        converter,
-        samples,
+        pipeline,
         writer: Some(writer),
         pool_size: size,
         interval: SECOND / i64::from(options.fps),
@@ -238,8 +243,9 @@ fn start(
             }
             Ok(())
         }),
-    )?;
-    session.StartCapture()?;
+    )
+    .map_err(step("the frame handler"))?;
+    session.StartCapture().map_err(step("the capture"))?;
     Ok((state, pool, session))
 }
 
@@ -271,17 +277,17 @@ fn on_frame(shared: &Mutex<State>, pool: &Direct3D11CaptureFramePool) {
         state.paced += 1;
         return;
     }
-    let Some(sample) = state.samples.next() else {
-        state.dropped += 1;
-        return;
-    };
-    if let Err(error) = write_frame(
+    let written = write_frame(
         &mut state,
         &frame,
         (size.Width as u32, size.Height as u32),
-        &sample,
         video_time,
-    ) {
+    );
+    if matches!(written, Ok(false)) {
+        state.dropped += 1;
+        return;
+    }
+    if let Err(error) = written {
         state.dropped += 1;
         if state.frames > 0 {
             emit(
@@ -303,6 +309,7 @@ fn on_frame(shared: &Mutex<State>, pool: &Direct3D11CaptureFramePool) {
                 "height": state.options.height,
                 "fps": state.options.fps,
                 "hardware": state.hardware,
+                "converter": state.pipeline.name(),
             }),
         );
     }
@@ -314,13 +321,13 @@ fn on_frame(shared: &Mutex<State>, pool: &Direct3D11CaptureFramePool) {
     }
 }
 
+/// Convert and write one frame. `Ok(false)`: no surface free, dropped.
 fn write_frame(
     state: &mut State,
     frame: &windows::Graphics::Capture::Direct3D11CaptureFrame,
     size: (u32, u32),
-    sample: &windows::Win32::Media::MediaFoundation::IMFSample,
     video_time: i64,
-) -> Result<()> {
+) -> Result<bool> {
     let surface = frame.Surface()?;
     // SAFETY: the frame's surface is a D3D11 texture, alive with the frame.
     let texture: ID3D11Texture2D = unsafe {
@@ -328,13 +335,14 @@ fn write_frame(
             .cast::<IDirect3DDxgiInterfaceAccess>()?
             .GetInterface()?
     };
-    let (target, subresource) = sample_texture(sample)?;
-    let State { gpu, converter, .. } = state;
-    converter.convert(gpu, &texture, size, &target, subresource)?;
-    match &state.writer {
-        Some(writer) => writer.write_video(sample, video_time, state.interval),
-        None => Ok(()),
+    let State { gpu, pipeline, .. } = state;
+    let Some(sample) = pipeline.sample(gpu, &texture, size)? else {
+        return Ok(false);
+    };
+    if let Some(writer) = &state.writer {
+        writer.write_video(&sample, video_time, state.interval)?;
     }
+    Ok(true)
 }
 
 /// One loopback packet, or an empty one when the game was silent.

@@ -6,8 +6,9 @@
 #   cargo build --release --manifest-path desktop/Cargo.toml -p truemain-capture
 #   pwsh desktop/capture/windows/smoke.ps1 -Helper desktop/target/release/truemain-capture.exe
 #
-# A runner has no GPU: Media Foundation encodes in software there, so this
-# proves the protocol, the capture and the file, not the hardware path.
+# A runner has no GPU: frames are converted on the CPU and encoded in
+# software there, so this proves the protocol, the capture and the file, not
+# the GPU path.
 
 param(
     [Parameter(Mandatory = $true)] [string] $Helper,
@@ -91,7 +92,7 @@ try {
     }
 
     $started = NextEvent "started" 30
-    Expect ($started.width -eq 1280 -and $started.height -eq 720) "record starts at 1280x720 (hardware encoder: $($started.hardware))"
+    Expect ($started.width -eq 1280 -and $started.height -eq 720) "record starts at 1280x720 (conversion on the $($started.converter), hardware encoder: $($started.hardware))"
     Start-Sleep -Seconds $Seconds
     $recorder.StandardInput.WriteLine("stop")
     $stopped = NextEvent "stopped" 60

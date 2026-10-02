@@ -123,9 +123,10 @@ above the helper knows which one runs:
 - **Windows** — `capture/windows`, Rust (#1797): Windows.Graphics.Capture on
   the game's window (`League of Legends (TM) Client`, process `League of
   Legends.exe`), each frame converted to NV12 and scaled on the GPU by the
-  D3D11 video processor, encoded by Media Foundation with hardware transforms
-  (NVENC, AMF, QuickSync — software only where the GPU has none, which
-  `started` reports as `"hardware": false`). Sound is the game's process tree
+  D3D11 video processor (on the CPU where the GPU has none — a virtual machine,
+  a CI runner — which `started` reports as `"converter": "cpu"`), encoded by
+  Media Foundation with hardware transforms (NVENC, AMF, QuickSync — software
+  only where the GPU has none, reported as `"hardware": false`). Sound is the game's process tree
   through WASAPI process loopback (Windows 10 2004+; without it the game
   records silent), never the system mix. Clips are a Media Foundation
   passthrough copy, thumbnails a decoded frame written through WIC. Windows
