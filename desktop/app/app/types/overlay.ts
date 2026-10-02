@@ -42,12 +42,14 @@ export const PANEL_KEY = {
 /** Mirrors `OverlayView` in `src-tauri/src/overlay/mod.rs`. */
 export interface OverlayView {
   settings: OverlaySettings
-  /** False where the overlay's windows are not built yet (Windows). */
+  /** False where there is no window layer for the overlay (Linux). */
   supported: boolean
   /** The settings page is showing the panels on screen to place them. */
   preview: boolean
   /** The hide/show key, as the player presses it. */
   shortcut: string
+  /** A condition the platform puts on the overlay (Windows: no Full Screen). */
+  notice: string | null
 }
 
 export const OVERLAY_SCALE = { min: 0.8, max: 1.4 } as const
@@ -69,4 +71,5 @@ export const DEV_OVERLAY_VIEW: OverlayView = {
   supported: true,
   preview: false,
   shortcut: '⌥⇧O',
+  notice: null,
 }

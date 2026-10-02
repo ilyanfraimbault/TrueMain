@@ -2,18 +2,28 @@
 //! buy, the win probability, and the item value while TAB is held (#1795) —
 //! configured from the app.
 //!
-//! The window layer is macOS's (`macos.rs`), settled by the spike in #1673
-//! (`docs/desktop-overlay-spike.md`): one non-activating `NSPanel` per panel,
-//! one level above the display the game captures in Full Screen, never key,
-//! click-through, shown only while the game process is frontmost. Elsewhere
-//! the overlay reports itself unsupported and the settings page says so.
+//! One window per panel, driven the same way on both platforms
+//! (`panels.rs`): never focused, click-through outside the preview, shown
+//! only while the game process is frontmost. The window layer is per
+//! platform: on macOS (`macos.rs`) a non-activating `NSPanel` one level above
+//! the display the game captures in Full Screen, settled by the spike in
+//! #1673 (`docs/desktop-overlay-spike.md`); on Windows (`windows.rs`, #1798) a
+//! topmost, non-activating layered window, over a game in Borderless or
+//! Windowed only. Elsewhere the overlay reports itself unsupported and the
+//! settings page says so.
 //!
 //! What shows when and where comes from `shell_state::overlay`, tested on any
 //! platform; this module owns the settings file, the runtime flags the rule
 //! reads, and the commands the webviews call.
 
+#[cfg(any(target_os = "macos", windows))]
+mod panels;
 #[cfg(target_os = "macos")]
-mod macos;
+#[path = "macos.rs"]
+mod platform;
+#[cfg(windows)]
+#[path = "windows.rs"]
+mod platform;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -39,7 +49,18 @@ const SETTINGS_FILE: &str = "overlay-settings.json";
 /// Shown in the settings and on the game page. The key is read from the
 /// keyboard's state rather than registered as a hotkey: with the display
 /// captured, the window server delivers no hotkey to the app (#1673).
+#[cfg(target_os = "macos")]
 pub const SHORTCUT: &str = "⌥⇧O";
+#[cfg(not(target_os = "macos"))]
+pub const SHORTCUT: &str = "Alt+Shift+O";
+
+/// What the settings page says about where the overlay can show.
+#[cfg(windows)]
+const NOTICE: Option<&str> = Some(
+    "Play League in Borderless or Windowed: Windows draws nothing over a game in Full Screen.",
+);
+#[cfg(not(windows))]
+const NOTICE: Option<&str> = None;
 
 /// A panel's size before its page has measured itself, in points.
 const INITIAL_SIZE: (f64, f64) = (232.0, 64.0);
@@ -66,10 +87,12 @@ pub type SharedOverlay = Arc<Overlay>;
 #[serde(rename_all = "camelCase")]
 pub struct OverlayView {
     pub settings: OverlaySettings,
-    /// False where the window layer is not built yet (Windows).
+    /// False where there is no window layer (Linux).
     pub supported: bool,
     pub preview: bool,
     pub shortcut: &'static str,
+    /// A condition the platform puts on the overlay, for the settings to show.
+    pub notice: Option<&'static str>,
 }
 
 impl Overlay {
@@ -104,9 +127,10 @@ impl Overlay {
     pub fn view(&self) -> OverlayView {
         OverlayView {
             settings: self.settings(),
-            supported: cfg!(target_os = "macos"),
+            supported: cfg!(any(target_os = "macos", windows)),
             preview: self.preview.load(Ordering::SeqCst),
             shortcut: SHORTCUT,
+            notice: NOTICE,
         }
     }
 
@@ -183,17 +207,17 @@ impl Overlay {
 pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let overlay = Overlay::new(app);
     app.manage(overlay);
-    #[cfg(target_os = "macos")]
-    macos::setup(app)?;
+    #[cfg(any(target_os = "macos", windows))]
+    panels::setup(app)?;
     Ok(())
 }
 
 /// Bring the panels in line with the settings and the game. Cheap when nothing
 /// changed; safe from any thread.
 pub fn apply(app: &AppHandle) {
-    #[cfg(target_os = "macos")]
-    macos::apply(app);
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(any(target_os = "macos", windows))]
+    panels::apply(app);
+    #[cfg(not(any(target_os = "macos", windows)))]
     let _ = app;
 }
 

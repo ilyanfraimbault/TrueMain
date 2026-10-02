@@ -62,7 +62,11 @@ onBeforeUnmount(() => void preview(false))
     <template #body>
       <div v-if="view && !view.supported" class="flex items-start gap-2 text-sm">
         <UIcon name="i-lucide-monitor-x" class="mt-0.5 size-4 shrink-0 text-muted" />
-        <p class="text-muted">The overlay is macOS-only for now. The game page shows the next item in this window.</p>
+        <p class="text-muted">The overlay works on macOS and Windows. The game page shows the next item in this window.</p>
+      </div>
+      <div v-else-if="view?.notice" class="flex items-start gap-2 text-sm">
+        <UIcon name="i-lucide-info" class="mt-0.5 size-4 shrink-0 text-muted" />
+        <p class="text-muted">{{ view.notice }}</p>
       </div>
 
       <template v-if="current">

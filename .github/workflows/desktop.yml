@@ -41,6 +41,10 @@ jobs:
         with:
           workspaces: desktop
       - run: swift build -c release --arch arm64 --arch x86_64 --package-path desktop/capture/macos
+      - name: Check the shell for macOS
+        run: |
+          mkdir -p desktop/app/.output/public
+          cargo check --manifest-path desktop/Cargo.toml -p truemain-desktop
       - run: cargo build --release --manifest-path desktop/Cargo.toml -p capture-spike --target aarch64-apple-darwin
       - run: cargo build --release --manifest-path desktop/Cargo.toml -p capture-spike --target x86_64-apple-darwin
       - name: Package

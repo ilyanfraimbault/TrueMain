@@ -19,7 +19,7 @@ const overlayOpen = ref(false)
 const overlayStatus = computed(() => {
   const view = overlay.value
   if (!view) return null
-  if (!view.supported) return 'The in-game overlay is macOS-only for now.'
+  if (!view.supported) return 'The in-game overlay works on macOS and Windows.'
   if (!view.settings.enabled) return 'The in-game overlay is off.'
   return `The overlay shows over your game; TAB adds the item value. ${view.shortcut} hides it.`
 })
