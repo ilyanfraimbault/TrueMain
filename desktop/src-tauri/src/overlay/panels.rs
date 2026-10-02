@@ -145,6 +145,10 @@ fn apply_panel(app: &AppHandle, which: OverlayPanel, next: Applied) {
     }
     if previous.map(|p| p.visible) != Some(next.visible) {
         platform::show(app, &label, next.visible);
+        // Over a game, not in the settings' preview (#1805).
+        if next.visible && !next.interactive {
+            crate::telemetry::feature(app, crate::telemetry::Feature::OverlayShown);
+        }
         tracing::info!(panel = which.slug(), visible = next.visible, "overlay");
     }
 }

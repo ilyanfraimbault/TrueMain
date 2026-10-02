@@ -392,3 +392,19 @@ standing again five minutes after they fall), elemental drakes (0.15 each, +0.6 
 buff (0.9) and the Elder's (1.1) while they last (three minutes, two and a half — counted from the kill, since the feed
 does not say when a holder dies). The map is read off the game's event feed (`live_client::objectives`), which every
 player sees announced. The draft keeps no win probability (2026-10-02) — #1795.
+
+**The app measures its own use: counters under an anonymous install id, folded per install and day; downloads are
+counted by the site's redirect (2026-10-02).** The site's Umami cannot see the app — a static bundle in a webview with a
+closed CSP — and GitHub's asset counters cannot say who kept the app or what they open. So the shell keeps a handful of
+counters (launches, minutes open, page views, a few features) and sends them every few minutes to a public
+`POST /desktop/telemetry`, which folds each batch into one Mongo document per install and UTC day
+(`desktop_usage_days`): aggregates, not an event log, since every question the admin page asks is a sum or a distinct
+count over install-days. The id is random and drawn on the first launch; nothing read from the League client (Riot ID,
+PUUID, rank, games) and no address is stored. The usage expires after 13 months (the CNIL's ceiling for an
+audience-measurement identifier); the download counters, which identify nobody, are kept. It is on by default and
+turned off by "Share Anonymous Usage Data" in the native menu — not a toggle in the webview, so it costs no styled UI and
+sits where macOS and Windows users look for app settings — and `/download` says what is sent. Downloads are counted on
+the site's own `/api/desktop/download/{platform}` redirect, posted to `/internal` with the log-ingest key so a download
+cannot be forged through the public proxy; crawlers and link previews are skipped. The public endpoint has no secret
+to check — an installed app cannot keep one — so a forged batch is bounded by the per-address rate limit and the
+per-batch caps, a risk taken knowingly for a beta's numbers — #1805.

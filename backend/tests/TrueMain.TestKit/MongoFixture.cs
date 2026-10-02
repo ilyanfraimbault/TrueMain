@@ -22,6 +22,8 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string CandidateStockSnapshotsCollection = "candidate_stock_snapshots";
     public const string CrashesCollection = "crashes";
     public const string EffectiveConfigurationCollection = "effective_configuration";
+    public const string DesktopUsageCollection = "desktop_usage_days";
+    public const string DesktopDownloadsCollection = "desktop_download_days";
 
     private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0")
         // Match PostgresFixture's reasoning: keep Testcontainers' Ryuk reaper
@@ -84,5 +86,8 @@ public sealed class MongoFixture : IAsyncLifetime
         // left behind by one test's factory would show up in the next test's payload.
         await db.DropCollectionAsync(CrashesCollection);
         await db.DropCollectionAsync(EffectiveConfigurationCollection);
+        // The desktop telemetry (#1805): both carry the unique upsert key its store creates on first write.
+        await db.DropCollectionAsync(DesktopUsageCollection);
+        await db.DropCollectionAsync(DesktopDownloadsCollection);
     }
 }

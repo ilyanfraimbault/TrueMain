@@ -3,14 +3,21 @@
 //! Windows, where the window has no menu bar to carry it. Choosing it brings
 //! the window forward and asks the webview to check (`useAppUpdate`), which
 //! owns the updater and says how the check went.
+//!
+//! Next to it, "Share Anonymous Usage Data" (#1805), checked by default: the
+//! switch for the usage counts `telemetry.rs` sends, kept across launches.
 
-use tauri::menu::{Menu, MenuEvent, MenuItem, MenuItemKind, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, MenuItemKind, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{App, AppHandle, Emitter, Manager, Runtime};
+
+use crate::telemetry::SharedTelemetry;
 
 const CHECK_FOR_UPDATES: &str = "check-for-updates";
 const SHOW: &str = "show";
 const QUIT: &str = "quit";
+const SHARE_USAGE: &str = "share-usage";
+const SHARE_USAGE_LABEL: &str = "Share Anonymous Usage Data";
 /// Listened to by `useAppUpdate` in the webview.
 const CHECK_EVENT: &str = "app://check-for-updates";
 
@@ -39,6 +46,7 @@ fn app_menu<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
             None::<&str>,
         )?;
         app_submenu.insert(&check, 1)?;
+        app_submenu.insert(&share_usage(app)?, 2)?;
     }
     app.set_menu(menu)?;
     Ok(())
@@ -58,6 +66,7 @@ fn tray<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
                 true,
                 None::<&str>,
             )?,
+            &share_usage(app)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, QUIT, "Quit TrueMain", true, None::<&str>)?,
         ],
@@ -83,12 +92,26 @@ fn tray<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Checked when the counts are sent. A click toggles the item's own check
+/// mark, and the menu event flips the setting to match.
+fn share_usage<R: Runtime>(app: &App<R>) -> tauri::Result<CheckMenuItem<R>> {
+    let on = app
+        .try_state::<SharedTelemetry>()
+        .is_some_and(|telemetry| telemetry.enabled());
+    CheckMenuItem::with_id(app, SHARE_USAGE, SHARE_USAGE_LABEL, true, on, None::<&str>)
+}
+
 fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
     match event.id().as_ref() {
         CHECK_FOR_UPDATES => {
             show_window(app);
             if let Err(error) = app.emit(CHECK_EVENT, ()) {
                 tracing::warn!(%error, "could not ask the webview to check for updates");
+            }
+        }
+        SHARE_USAGE => {
+            if let Some(telemetry) = app.try_state::<SharedTelemetry>() {
+                telemetry.set_enabled(!telemetry.enabled());
             }
         }
         SHOW => show_window(app),
