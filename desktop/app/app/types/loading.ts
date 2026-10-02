@@ -26,11 +26,14 @@ export interface RecentGame {
 
 /** Mirrors `LoadingPlayer` in `src-tauri/src/loading.rs`. */
 export interface LoadingPlayer {
+  /** Empty for an anonymous player. */
   riotId: string
   championId: number
   team: GameTeam
   position: string
   isMe: boolean
+  /** The player hides their name (Streamer Mode): only their champion shows. */
+  anonymous: boolean
   /** Absent until read, and for good when the client could not read it. */
   form: PlayerForm | null
   failed: boolean

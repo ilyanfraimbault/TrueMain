@@ -10,6 +10,9 @@
 //! one client request; three run at a time, ours first and our lane
 //! opponent's next, so the most useful line is never the last to fill. Each
 //! line is sent as it lands.
+//!
+//! A player who hides their name (Streamer Mode) stays anonymous: their
+//! champion and lane show, never their name, and their history is not read.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -36,12 +39,15 @@ const PARALLEL_READS: usize = 3;
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadingPlayer {
+    /// Empty for an anonymous player.
     pub riot_id: String,
     pub champion_id: i64,
     /// `ORDER` (blue side) or `CHAOS`.
     pub team: &'static str,
     pub position: String,
     pub is_me: bool,
+    /// The player hides their name: nothing about them is read.
+    pub anonymous: bool,
     /// Absent until read, and for good when the client could not read it.
     pub form: Option<PlayerForm>,
     pub failed: bool,
@@ -122,6 +128,9 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
     let gate = Arc::new(Semaphore::new(PARALLEL_READS));
     let mut reads = tokio::task::JoinSet::new();
     for (index, puuid) in puuids.into_iter().enumerate() {
+        let Some(puuid) = puuid else {
+            continue;
+        };
         let (gate, client) = (gate.clone(), client.clone());
         let champion = players[index].champion_id;
         reads.spawn(async move {
@@ -149,8 +158,12 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
 }
 
 /// The ten players, ours first and our lane opponent next, with their puuids
-/// in the same order. `None` when the session never listed them.
-async fn roster(client: &LcuClient, me: Option<&str>) -> Option<(Vec<LoadingPlayer>, Vec<String>)> {
+/// in the same order — none for an anonymous player, whose history is not
+/// read. `None` when the session never listed them.
+async fn roster(
+    client: &LcuClient,
+    me: Option<&str>,
+) -> Option<(Vec<LoadingPlayer>, Vec<Option<String>>)> {
     for _ in 0..SESSION_TRIES {
         if let Ok(Some(session)) = client.gameflow_session().await {
             let data = session.game_data;
@@ -167,8 +180,8 @@ fn ordered(
     blue: &[GameflowPlayer],
     red: &[GameflowPlayer],
     me: Option<&str>,
-) -> (Vec<LoadingPlayer>, Vec<String>) {
-    let mut rows: Vec<(LoadingPlayer, String)> = blue
+) -> (Vec<LoadingPlayer>, Vec<Option<String>>) {
+    let mut rows: Vec<(LoadingPlayer, Option<String>)> = blue
         .iter()
         .map(|player| (player, "ORDER"))
         .chain(red.iter().map(|player| (player, "CHAOS")))
@@ -176,17 +189,20 @@ fn ordered(
             let riot_id = player.riot_id();
             let is_me =
                 me.is_some_and(|me| !riot_id.is_empty() && me.eq_ignore_ascii_case(&riot_id));
+            // Our own line is ours to read, whatever the others are shown.
+            let anonymous = !is_me && player.is_anonymous();
             (
                 LoadingPlayer {
-                    riot_id,
+                    riot_id: if anonymous { String::new() } else { riot_id },
                     champion_id: player.champion_id,
                     team,
                     position: player.selected_position.to_uppercase(),
                     is_me,
+                    anonymous,
                     form: None,
                     failed: false,
                 },
-                player.puuid.clone(),
+                (!anonymous).then(|| player.puuid.clone()),
             )
         })
         .collect();
@@ -230,8 +246,43 @@ mod tests {
         let (players, puuids) = ordered(&blue, &red, Some("me#euw"));
         let names: Vec<&str> = players.iter().map(|p| p.riot_id.as_str()).collect();
         assert_eq!(names, ["Me#EUW", "Mirror#EUW", "Ally#EUW", "Foe#EUW"]);
-        assert_eq!(puuids[1], "puuid-Mirror");
+        assert_eq!(puuids[1].as_deref(), Some("puuid-Mirror"));
         assert!(players[0].is_me);
         assert_eq!(players[1].team, "CHAOS");
+    }
+
+    #[test]
+    fn an_anonymous_player_keeps_their_champion_and_lane_only() {
+        let hidden = GameflowPlayer {
+            name_visibility_type: "HIDDEN".into(),
+            champion_id: 81,
+            ..player("Streamer", "BOTTOM")
+        };
+        let blue = [player("Me", "MIDDLE")];
+        let red = [hidden, player("Foe", "TOP")];
+        let (players, puuids) = ordered(&blue, &red, Some("me#euw"));
+        let anonymous = players
+            .iter()
+            .position(|p| p.anonymous)
+            .expect("one anonymous");
+        assert_eq!(
+            players[anonymous].riot_id, "",
+            "the name the client sent is never kept"
+        );
+        assert_eq!(players[anonymous].champion_id, 81);
+        assert_eq!(players[anonymous].position, "BOTTOM");
+        assert_eq!(puuids[anonymous], None, "their history is not read");
+        assert_eq!(players.iter().filter(|p| p.anonymous).count(), 1);
+    }
+
+    #[test]
+    fn our_own_line_is_read_even_hidden_from_the_others() {
+        let me = GameflowPlayer {
+            name_visibility_type: "HIDDEN".into(),
+            ..player("Me", "MIDDLE")
+        };
+        let (players, puuids) = ordered(&[me], &[], Some("me#euw"));
+        assert!(players[0].is_me && !players[0].anonymous);
+        assert_eq!(puuids[0].as_deref(), Some("puuid-Me"));
     }
 }
