@@ -1,5 +1,5 @@
 import type { StaticItemData } from '#shared/types/static-data'
-import type { GamePlayer, GameState, GameTeam } from '~/types/game'
+import type { GamePlayer, GameState, GameTeam, TeamObjectives } from '~/types/game'
 import { LANES } from '~/types/draft'
 
 /**
@@ -51,21 +51,62 @@ export function laneRows(game: GameState): { ally: GamePlayer | null, enemy: Gam
 }
 
 /**
- * How sharply the estimate turns a lead into a probability. The product
- * owner's call (2026-10-02): an estimate from the item-gold gap alone, not a
- * measured model — a lead worth a tenth of the gold the two teams hold on
- * average reads about 65 %, a fifth about 77 %.
+ * The win-probability formula's weights, in log-odds — the product owner's
+ * call (2026-10-02), a formula rather than a measured model. The item-gold
+ * lead counts relative to the gold the two teams hold on average, so the same
+ * gap weighs more early than late: a lead of a tenth of it alone reads about
+ * 65 %. The map adds to it: three turrets ahead about +9 points from even, an
+ * inhibitor down about +12, the Baron's buff about +21, the Elder's about +25.
  */
-const WIN_STEEPNESS = 6
+const WEIGHTS = {
+  /** Per unit of item-gold lead over the teams' average item gold. */
+  gold: 6,
+  /** Per enemy turret destroyed beyond the other side's count. */
+  turret: 0.12,
+  /** Per enemy inhibitor down right now. */
+  inhibitor: 0.5,
+  /** Per elemental drake beyond the other side's count. */
+  dragon: 0.15,
+  /** On top, for the side on four drakes: the soul. */
+  soul: 0.6,
+  /** While the side holds the Baron's buff. */
+  baron: 0.9,
+  /** While the side holds the Elder's buff. */
+  elder: 1.1,
+} as const
+
+/** Drakes for the dragon soul. */
+const SOUL = 4
+
+/** What one side has on the map at a given moment. */
+function mapEdge(team: TeamObjectives, clock: number): number {
+  const inhibitors = team.inhibitors.filter(respawn => clock < respawn).length
+  return WEIGHTS.turret * team.turrets
+    + WEIGHTS.inhibitor * inhibitors
+    + WEIGHTS.dragon * team.dragons
+    + (team.dragons >= SOUL ? WEIGHTS.soul : 0)
+    + (team.baronUntil !== null && clock < team.baronUntil ? WEIGHTS.baron : 0)
+    + (team.elderUntil !== null && clock < team.elderUntil ? WEIGHTS.elder : 0)
+}
 
 /**
- * The left team's chance to win, estimated from the item-gold gap relative to
- * what the teams hold — so 2000 gold weighs more at ten minutes than at
- * thirty. Even (0.5) before anyone has bought anything.
+ * The left team's chance to win (`leftTeam`) at `clock` (game seconds):
+ * a logistic of its item-gold lead and of what each side holds on the map —
+ * turrets, inhibitors down, drakes and the soul, the Baron's and the Elder's
+ * buffs while they last. Even (0.5) at the start.
  */
-export function winProbability(ours: number, theirs: number): number {
+export function winProbability(game: GameState, items: Record<number, StaticItemData>, clock: number): number {
+  const left = leftTeam(game)
+  const gold = (team: GameTeam) => game.players
+    .filter(player => player.team === team)
+    .reduce((sum, player) => sum + itemGold(player, items), 0)
+  const ours = gold(left)
+  const theirs = gold(left === 'ORDER' ? 'CHAOS' : 'ORDER')
   const average = (ours + theirs) / 2
-  if (average <= 0) return 0.5
-  const lead = (ours - theirs) / average
-  return 1 / (1 + Math.exp(-WIN_STEEPNESS * lead))
+  const lead = average > 0 ? (ours - theirs) / average : 0
+
+  const side = (team: GameTeam) => (team === 'ORDER' ? game.objectives.order : game.objectives.chaos)
+  const map = mapEdge(side(left), clock) - mapEdge(side(left === 'ORDER' ? 'CHAOS' : 'ORDER'), clock)
+
+  return 1 / (1 + Math.exp(-(WEIGHTS.gold * lead + map)))
 }

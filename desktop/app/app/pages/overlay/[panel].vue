@@ -33,7 +33,7 @@ const PLACEHOLDERS: Record<OverlayPanel, string> = {
   'item-value': 'Each team\'s item gold shows here while TAB is held.',
 }
 
-const { game } = useLiveGame()
+const { game, syncedAt } = useLiveGame()
 const { view, fit } = useGameOverlay()
 
 const settings = computed(() => view.value?.settings ?? null)
@@ -82,7 +82,7 @@ useHead({
     <div ref="content" class="relative px-3 py-2.5 text-default" :class="WIDTHS[panel]">
       <template v-if="playing">
         <OverlayNextItem v-if="panel === 'next-item'" :game="playing" />
-        <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="playing" />
+        <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="playing" :synced-at="syncedAt" />
         <OverlayItemValue v-else :game="playing" />
       </template>
       <div v-else class="flex items-center gap-2.5">

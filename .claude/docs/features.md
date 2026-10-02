@@ -258,8 +258,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
   components, runners-up or boots; whole game or only while dead. **Win probability** (160 pt,
   `OverlayWinProbability.vue`): both sides' percentages and a bar in the sides' colours, no labels, the whole game —
-  a logistic of the item-gold lead relative to the teams' average item gold (`utils/item-value.ts`), the product
-  owner's formula, not a measured model. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
+  a logistic of the item-gold lead relative to the teams' average item gold and of the map — turrets, enemy
+  inhibitors down, drakes and the soul, the Baron's and the Elder's buffs while they last — read off the game's event
+  feed into the game state (`live_client::objectives`, sent as a change only when an objective falls); the product
+  owner's formula, not a measured model (`utils/item-value.ts`). **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
   the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). TAB and ⌥⇧O are read
   from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Settings

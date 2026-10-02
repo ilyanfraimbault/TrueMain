@@ -332,9 +332,12 @@ preview, the only time the panels take the mouse), plus size and opacity for all
 No interactive mode in game: nothing on the panels needs a click. macOS only until a Windows pass is measured
 (2026-10-02) — #1673, #1795, #1752.
 
-**The overlay shows a win probability, estimated from the item-gold gap (2026-10-02).** The product owner's call,
+**The overlay shows a win probability, from the item-gold gap and the map (2026-10-02).** The product owner's call,
 reversing for the in-game overlay the "no win probability" line of #1671 and #1747, and knowingly a formula rather than
-a measured model: the left side's chance is a logistic of the item-gold lead relative to the gold the two teams hold on
-average (`utils/item-value.ts`, steepness 6 — a lead of a tenth of that average reads about 65 %, a fifth about 77 %),
-so the same gap weighs more early than late. Its inputs are only what the scoreboard shows. The draft keeps no win
-probability (2026-10-02) — #1795.
+a measured model (`utils/item-value.ts`): a logistic over, in log-odds, the item-gold lead relative to the gold the two
+teams hold on average (×6, so the same gap weighs more early than late — a tenth of that average alone reads about
+65 %), and what each side holds on the map — turrets destroyed (0.12 each), enemy inhibitors down right now (0.5 each,
+standing again five minutes after they fall), elemental drakes (0.15 each, +0.6 for the soul at four), the Baron's
+buff (0.9) and the Elder's (1.1) while they last (three minutes, two and a half — counted from the kill, since the feed
+does not say when a holder dies). The map is read off the game's event feed (`live_client::objectives`), which every
+player sees announced. The draft keeps no win probability (2026-10-02) — #1795.

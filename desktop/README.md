@@ -78,7 +78,7 @@ Tracking issue: **#1671**.
 - **Draws over the game** (#1795, macOS): three small panels, each placed on
   its own — the next item alone (the item and the gold still to earn for it, or
   that it can be bought now), a win probability estimated from the item-gold
-  gap, and, while TAB is held, each team's item gold and each lane's gap —
+  gap and the map (turrets, inhibitors down, drakes, Baron, Elder), and, while TAB is held, each team's item gold and each lane's gap —
   only while the game is the frontmost app, never over the client or anything
   else. Click-through and never focused, so the game keeps every click and key;
   ⌥⇧O hides them for the rest of the game. Set up from the game page (each panel
