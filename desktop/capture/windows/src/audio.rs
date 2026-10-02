@@ -17,9 +17,7 @@ use windows::core::{implement, IUnknown, Interface, Ref, Result, HRESULT};
 use windows::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
 use windows::Win32::Media::Audio::*;
 use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
-use windows::Win32::System::Com::{
-    CoInitializeEx, IAgileObject, IAgileObject_Impl, BLOB, COINIT_MULTITHREADED,
-};
+use windows::Win32::System::Com::{CoInitializeEx, BLOB, COINIT_MULTITHREADED};
 use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
 use windows::Win32::System::Variant::VT_BLOB;
 
@@ -46,6 +44,9 @@ impl Loopback {
             let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
             match open(pid) {
                 Ok((client, capture)) => {
+                    log(&format!(
+                        "sound: the game's process loopback is open (pid {pid})"
+                    ));
                     let _ = ready.send(true);
                     if let Err(error) = read(&client, &capture, &flag, deliver) {
                         log(&format!("the game's sound stopped: {error}"));
@@ -78,7 +79,8 @@ impl Loopback {
     }
 }
 
-#[implement(IActivateAudioInterfaceCompletionHandler, IAgileObject)]
+/// `implement` makes it agile, which the activation requires.
+#[implement(IActivateAudioInterfaceCompletionHandler)]
 struct Activated(mpsc::SyncSender<()>);
 
 impl IActivateAudioInterfaceCompletionHandler_Impl for Activated_Impl {
@@ -87,8 +89,6 @@ impl IActivateAudioInterfaceCompletionHandler_Impl for Activated_Impl {
         Ok(())
     }
 }
-
-impl IAgileObject_Impl for Activated_Impl {}
 
 fn open(pid: u32) -> Result<(IAudioClient, IAudioCaptureClient)> {
     let mut parameters = AUDIOCLIENT_ACTIVATION_PARAMS {
@@ -171,6 +171,7 @@ fn read(
         client.SetEventHandle(event)?;
         client.Start()?;
         let mut silence = Vec::new();
+        let mut first = true;
         let result = (|| {
             while !stop.load(Ordering::SeqCst) {
                 if WaitForSingleObject(event, IDLE.as_millis() as u32) != WAIT_OBJECT_0 {
@@ -186,6 +187,12 @@ fn read(
                     let mut frames = 0;
                     let mut flags = 0;
                     capture.GetBuffer(&mut data, &mut frames, &mut flags, None, None)?;
+                    if first {
+                        first = false;
+                        log(&format!(
+                            "sound: first packet, {frames} frames (flags {flags:#x})"
+                        ));
+                    }
                     let bytes = frames as usize * AUDIO_BLOCK as usize;
                     if flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 != 0 || data.is_null() {
                         silence.resize(bytes, 0);

@@ -363,6 +363,13 @@ fn write_audio(shared: &Mutex<State>, pcm: &[u8]) {
     let skip = (placed.skip as usize * block).min(pcm.len());
     let mut data = vec![0u8; placed.pad as usize * block];
     data.extend_from_slice(&pcm[skip..]);
+    if placed.time == 0 {
+        log(&format!(
+            "sound: first write, {} bytes ({} of silence first)",
+            data.len(),
+            placed.pad
+        ));
+    }
     if let Some(writer) = &state.writer {
         if let Err(error) = writer.write_audio(&data, placed.time) {
             log(&format!("sound not written: {error}"));
