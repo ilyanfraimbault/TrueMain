@@ -68,38 +68,51 @@ try {
     $probe = Events @("probe", "--window-id", "$($window.windowId)")
     Expect ($probe[0].event -eq "window" -and $probe[0].width -gt 0 -and $probe[0].height -gt 0) "probe sizes it at $($probe[0].width)x$($probe[0].height)"
 
-    $video = Join-Path $Out "smoke.mp4"
-    $start = New-Object System.Diagnostics.ProcessStartInfo
-    $start.FileName = $Helper
-    $start.Arguments = "record --out `"$video`" --width 1280 --height 720 --fps 30 --bitrate 4000000 --keyframe-interval 30 --window-id $($window.windowId)"
-    $start.UseShellExecute = $false
-    $start.RedirectStandardInput = $true
-    $start.RedirectStandardOutput = $true
-    $recorder = [System.Diagnostics.Process]::Start($start)
+    function Record([string] $Video, [string[]] $Extra) {
+        $start = New-Object System.Diagnostics.ProcessStartInfo
+        $start.FileName = $Helper
+        $start.Arguments = "record --out `"$Video`" --width 1280 --height 720 --fps 30 --bitrate 4000000 --keyframe-interval 30 --window-id $($window.windowId) $($Extra -join ' ')"
+        $start.UseShellExecute = $false
+        $start.RedirectStandardInput = $true
+        $start.RedirectStandardOutput = $true
+        $recorder = [System.Diagnostics.Process]::Start($start)
 
-    function NextEvent([string] $Name, [int] $TimeoutSeconds) {
-        $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-        while ((Get-Date) -lt $deadline) {
-            $read = $recorder.StandardOutput.ReadLineAsync()
-            if (-not $read.Wait(($deadline - (Get-Date)).TotalMilliseconds)) { break }
-            if ($null -eq $read.Result) { break }
-            Write-Host "  helper: $($read.Result)"
-            $parsed = $read.Result | ConvertFrom-Json
-            if ($parsed.event -eq $Name) { return $parsed }
-            if ($parsed.event -eq "error") { throw "smoke: the helper failed: $($read.Result)" }
+        function Died() {
+            $rest = $recorder.StandardOutput.ReadToEnd()
+            if ($rest) { Write-Host "  helper: $rest" }
+            $recorder.WaitForExit(5000) | Out-Null
+            throw ("smoke: the helper exited with 0x{0:X8}" -f $recorder.ExitCode)
         }
-        throw "smoke: no ``$Name`` from the helper in $TimeoutSeconds s"
+
+        function NextEvent([string] $Name, [int] $TimeoutSeconds) {
+            $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+            while ((Get-Date) -lt $deadline) {
+                $read = $recorder.StandardOutput.ReadLineAsync()
+                if (-not $read.Wait(($deadline - (Get-Date)).TotalMilliseconds)) { break }
+                if ($null -eq $read.Result) { Died }
+                Write-Host "  helper: $($read.Result)"
+                $parsed = $read.Result | ConvertFrom-Json
+                if ($parsed.event -eq $Name) { return $parsed }
+                if ($parsed.event -eq "error") { throw "smoke: the helper failed: $($read.Result)" }
+            }
+            throw "smoke: no ``$Name`` from the helper in $TimeoutSeconds s"
+        }
+
+        $started = NextEvent "started" 30
+        Expect ($started.width -eq 1280 -and $started.height -eq 720) "record $Extra starts at 1280x720 (conversion on the $($started.converter), hardware encoder: $($started.hardware))"
+        Start-Sleep -Seconds $Seconds
+        if ($recorder.HasExited) { Died }
+        $recorder.StandardInput.WriteLine("stop")
+        $stopped = NextEvent "stopped" 60
+        $recorder.WaitForExit(10000) | Out-Null
+        Expect ($stopped.frames -ge (10 * $Seconds)) "record wrote $($stopped.frames) frames ($($stopped.dropped) dropped)"
+        Expect ([math]::Abs($stopped.durationMs - 1000 * $Seconds) -lt 2000) "the video lasts $($stopped.durationMs) ms"
+        Expect ((Get-Item $Video).Length -gt 10000) "the video is $((Get-Item $Video).Length) bytes"
     }
 
-    $started = NextEvent "started" 30
-    Expect ($started.width -eq 1280 -and $started.height -eq 720) "record starts at 1280x720 (conversion on the $($started.converter), hardware encoder: $($started.hardware))"
-    Start-Sleep -Seconds $Seconds
-    $recorder.StandardInput.WriteLine("stop")
-    $stopped = NextEvent "stopped" 60
-    $recorder.WaitForExit(10000) | Out-Null
-    Expect ($stopped.frames -ge (10 * $Seconds)) "record wrote $($stopped.frames) frames ($($stopped.dropped) dropped)"
-    Expect ([math]::Abs($stopped.durationMs - 1000 * $Seconds) -lt 2000) "the video lasts $($stopped.durationMs) ms"
-    Expect ((Get-Item $video).Length -gt 10000) "the video is $((Get-Item $video).Length) bytes"
+    Record (Join-Path $Out "silent.mp4") @("--no-audio")
+    $video = Join-Path $Out "smoke.mp4"
+    Record $video @()
 
     $clip = Join-Path $Out "clip.mp4"
     $clipped = Events @("clip", "--in", $video, "--out", $clip, "--start-ms", "2000", "--end-ms", "5000")
