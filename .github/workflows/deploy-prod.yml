@@ -70,3 +70,20 @@ jobs:
       ssh_key: ${{ secrets.PROD_SSH_KEY }}
       hostinger_api_key: ${{ secrets.HOSTINGER_PROD_API_KEY }}
       env_file: ${{ secrets.PROD_ENV_FILE }}
+
+  desktop:
+    name: Serve the desktop app this release reads
+    needs: rollout
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Promote a held production build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: .github/scripts/desktop-held.sh "${{ github.event.release.tag_name }}"

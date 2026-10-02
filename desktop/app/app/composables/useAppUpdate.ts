@@ -4,9 +4,10 @@ import type { Screen } from '~/types/lcu'
 /**
  * The app updates itself. Each build asks its own site's update feed
  * (`plugins.updater.endpoints`, set per flavour by `desktop-release.yml`)
- * whether a newer signed build exists — preprod's feed offers every version
- * bump merged to develop, production's only the promoted one — at launch and
- * then every fifteen minutes, since the companion stays open all day.
+ * whether a newer signed build exists — preprod's feed offers a build of every
+ * app change merged to develop, production's a version bump once production
+ * runs what it reads — at launch and then every fifteen minutes, since the
+ * companion stays open all day.
  *
  * A newer build is downloaded in the background, then:
  * - at launch, with no champion select or game running, it installs and

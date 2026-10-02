@@ -165,10 +165,11 @@ server, so it uses that same public proxy (`<site>/api`) as its entry point.
 **Every build belongs to one site** (`src-tauri/src/site.rs`): the API it reads,
 the pages it opens in the browser and the update feed it polls. The site is
 `TRUEMAIN_SITE_URL` at build time, production (`https://truemain.lol`) when
-unset. The release workflow builds each version twice — `truemain.*` against
-production, `truemain-<version>.*` (named *TrueMain Beta*, its own bundle
-identifier, so both install side by side) against preprod — and each site's
-download page serves its own (`docs/ci.md`, "Desktop releases"). The preprod
+unset. The release workflow builds `truemain-<version>.*` (named *TrueMain
+Beta*, its own bundle identifier, so both install side by side) against preprod
+for every app change merged to develop, and `truemain.*` against production for
+every version bump — and each site's download page serves its own (`docs/ci.md`,
+"Desktop releases"). The preprod
 address is never in the repository: CI reads it from the
 `DESKTOP_BETA_SITE_URL` secret, and a developer puts it in `desktop/.env.local`
 (gitignored):

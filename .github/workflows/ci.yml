@@ -260,6 +260,12 @@ jobs:
       - name: Rollout verification
         run: .github/scripts/verify-rollout.test.sh
 
+      - name: Desktop app versions
+        run: .github/scripts/desktop-version.test.sh
+
+      - name: Desktop app held builds
+        run: .github/scripts/desktop-held.test.sh
+
   file-size:
     name: File sizes
     runs-on: ubuntu-24.04
