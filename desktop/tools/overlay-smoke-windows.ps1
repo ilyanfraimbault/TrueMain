@@ -267,6 +267,8 @@ $script:app = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $O
 $standIns = @()
 try {
     for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
+    [Desk]::Of([uint32]$script:app.Id) | ForEach-Object { [ordered]@{ title = $_.Title; class = [Desk]::ClassOf($_.Handle); visible = $_.Visible; exStyle = ('0x{0:X8}' -f $_.ExStyle) } } |
+        ConvertTo-Json | Set-Content (Join-Path $Out "0-windows.json")
     Expect ((Panels).Count -eq 5) "the app builds its five panels' windows"
     # The replay has opened the game and every page has measured itself.
     Start-Sleep -Seconds 8
@@ -315,6 +317,10 @@ try {
     Start-Sleep -Seconds 2
     Report "5-game-by-class" | Out-Null
     Expect ((Shown) -eq $InGame) "the game known by its window class alone gets the overlay back ($(Shown))"
+}
+catch {
+    Write-Host "FAIL - $_`n$($_.ScriptStackTrace)"
+    $script:failures += "$_"
 }
 finally {
     $standIns | Where-Object { $_ -and -not $_.HasExited } | ForEach-Object { Stop-Process -Id $_.Id -Force }
