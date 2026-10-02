@@ -9,9 +9,11 @@
 #   cd desktop/app && npm ci && npm run tauri -- build --no-bundle
 #   pwsh desktop/tools/overlay-smoke-windows.ps1 -App desktop/target/release/truemain-desktop.exe
 #
+# The preview is opened from the game page's settings through UI Automation,
+# and a panel is dragged with the mouse, as a player places one.
+#
 # What it cannot stand in for: the real game's renderer (Borderless or
-# Windowed, never Full Screen) and the real anti-cheat. The preview's drag
-# needs a mouse on the settings page and is not driven either.
+# Windowed, never Full Screen) and the real anti-cheat.
 
 param(
     [Parameter(Mandatory = $true)] [string] $App,
@@ -24,7 +26,7 @@ $App = (Resolve-Path $App).Path
 $Tape = (Resolve-Path $Tape).Path
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 
-Add-Type -AssemblyName System.Drawing, System.Windows.Forms
+Add-Type -AssemblyName System.Drawing, System.Windows.Forms, UIAutomationClient, UIAutomationTypes
 Add-Type -TypeDefinition @"
 using System;
 using System.Collections.Generic;
@@ -45,6 +47,8 @@ public static class Desk {
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
     [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int x, int y, uint data, UIntPtr extra);
     [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr window);
     [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr window, IntPtr dc);
     [DllImport("gdi32.dll")] static extern bool BitBlt(IntPtr target, int x, int y, int width, int height, IntPtr source, int sourceX, int sourceY, uint operation);
@@ -211,6 +215,38 @@ function StartStandIn([string] $Exe, [string] $Class, [string] $Title, [string] 
     return $process
 }
 
+# Press a button of the app's main window by its accessible name.
+function Press([string] $Name) {
+    $byProcess = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $script:shell.Id)
+    $main = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $byProcess)
+    $byName = [System.Windows.Automation.AndCondition]::new(
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $Name),
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))
+    for ($i = 0; $i -lt 20; $i++) {
+        $button = if ($main) { $main.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $byName) } else { $null }
+        if ($button) {
+            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            return $true
+        }
+        Start-Sleep -Milliseconds 500
+        if (-not $main) { $main = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $byProcess) }
+    }
+    return $false
+}
+
+# A drag with the left button, in small steps, as a hand would.
+function Drag([int] $FromX, [int] $FromY, [int] $ByX, [int] $ByY) {
+    [Desk]::SetCursorPos($FromX, $FromY) | Out-Null
+    Start-Sleep -Milliseconds 200
+    [Desk]::mouse_event(0x2, 0, 0, 0, [UIntPtr]::Zero)
+    for ($step = 1; $step -le 20; $step++) {
+        Start-Sleep -Milliseconds 25
+        [Desk]::SetCursorPos($FromX + [int]($ByX * $step / 20), $FromY + [int]($ByY * $step / 20)) | Out-Null
+    }
+    Start-Sleep -Milliseconds 200
+    [Desk]::mouse_event(0x4, 0, 0, 0, [UIntPtr]::Zero)
+}
+
 function Key([byte] $Code, [bool] $Down) {
     [Desk]::keybd_event($Code, 0, $(if ($Down) { 0 } else { 2 }), [UIntPtr]::Zero)
 }
@@ -327,6 +363,37 @@ try {
     Start-Sleep -Seconds 2
     Report "5-game-by-class" | Out-Null
     Expect ((Shown) -eq $InGame) "the game known by its window class alone gets the overlay back ($(Shown))"
+
+    # The preview, from the game page's settings: every panel, taking the mouse.
+    Expect (Press "Overlay settings") "the game page opens the overlay settings"
+    Start-Sleep -Seconds 1
+    Expect (Press "Place on screen") "the settings start the preview"
+    Start-Sleep -Seconds 2
+    $state = Report "6-preview"
+    Expect ((Shown) -eq "item-value,loading,next-item,stats,win-probability") "the preview shows every panel ($(Shown))"
+    foreach ($panel in @(Panels | Where-Object Visible)) {
+        Expect (($panel.Styles -band $WS_EX_TRANSPARENT) -eq 0) "$($panel.Slug) takes the mouse in the preview ($($panel.ExStyle))"
+    }
+
+    $before = Panels | Where-Object Slug -eq "win-probability"
+    Drag ([int](($before.Left + $before.Right) / 2)) ([int](($before.Top + $before.Bottom) / 2)) 300 200
+    Start-Sleep -Seconds 1
+    $after = Panels | Where-Object Slug -eq "win-probability"
+    Report "7-dragged" | Out-Null
+    Expect ([Math]::Abs($after.Left - $before.Left - 300) -le 4 -and [Math]::Abs($after.Top - $before.Top - 200) -le 4) "a drag moves the panel (by $($after.Left - $before.Left),$($after.Top - $before.Top))"
+
+    Expect (Press "Done") "the settings end the preview"
+    Start-Sleep -Seconds 1
+    $saved = Get-Content (Join-Path $env:APPDATA "gg.truemain.desktop/overlay-settings.json") -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+    Expect ($null -ne $saved.winProbability.custom) "ending the preview saves where the panel was dragged ($($saved.winProbability.custom | ConvertTo-Json -Compress))"
+
+    $standIns += StartStandIn $gameExe "RiotWindowClass" "League of Legends (TM) Client" $GameColorRef
+    Start-Sleep -Seconds 2
+    Report "8-placed" | Out-Null
+    $placed = Panels | Where-Object Slug -eq "win-probability"
+    Expect ((Shown) -eq $InGame) "back over the game, the in-game panels show ($(Shown))"
+    Expect ([Math]::Abs($placed.Left - $after.Left) -le 2 -and [Math]::Abs($placed.Top - $after.Top) -le 2) "the dragged panel stays where it was put ($($placed.Left),$($placed.Top))"
+    Expect (($placed.Styles -band $WS_EX_TRANSPARENT) -ne 0) "out of the preview, clicks go through again ($($placed.ExStyle))"
 }
 catch {
     Write-Host "FAIL - $_`n$($_.ScriptStackTrace)"
