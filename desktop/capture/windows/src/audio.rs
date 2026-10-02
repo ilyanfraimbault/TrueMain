@@ -100,9 +100,11 @@ fn open(pid: u32) -> Result<(IAudioClient, IAudioCaptureClient)> {
             },
         },
     };
-    let mut blob = PROPVARIANT::default();
+    // `PROPVARIANT`'s `Drop` clears it, which would free the blob — memory
+    // this function owns, on its stack — so it is never dropped.
+    let mut blob = std::mem::ManuallyDrop::new(PROPVARIANT::default());
     // SAFETY: the blob points at `parameters`, alive until activation is done;
-    // the PROPVARIANT is never cleared (it owns nothing).
+    // the PROPVARIANT is never cleared.
     unsafe {
         let inner = &mut *blob.Anonymous.Anonymous;
         inner.vt = VT_BLOB;
@@ -119,7 +121,7 @@ fn open(pid: u32) -> Result<(IAudioClient, IAudioCaptureClient)> {
         let operation = ActivateAudioInterfaceAsync(
             VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
             &IAudioClient::IID,
-            Some(&blob),
+            Some(&*blob),
             &handler,
         )?;
         completed.recv_timeout(ACTIVATION_TIMEOUT).map_err(|_| {
