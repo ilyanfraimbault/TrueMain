@@ -9,7 +9,6 @@ export interface OverlaySettings {
   scale: number
   /** 0.5 – 1 */
   opacity: number
-  panels: { nextItem: boolean, boots: boolean }
 }
 
 export type OverlayShow = 'always' | 'whileDead'
@@ -38,7 +37,6 @@ export const DEV_OVERLAY_VIEW: OverlayView = {
     custom: null,
     scale: 1,
     opacity: 0.95,
-    panels: { nextItem: true, boots: true },
   },
   supported: true,
   preview: false,

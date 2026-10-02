@@ -58,16 +58,6 @@ pub struct OverlayPoint {
     pub y: f64,
 }
 
-/// Which panels the overlay carries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OverlayPanels {
-    /// The next item to complete, with the next purchase and two runners-up.
-    pub next_item: bool,
-    /// The boots, while they are still open.
-    pub boots: bool,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OverlaySettings {
@@ -82,7 +72,6 @@ pub struct OverlaySettings {
     /// The panel's size against its natural one.
     pub scale: f64,
     pub opacity: f64,
-    pub panels: OverlayPanels,
 }
 
 impl Default for OverlaySettings {
@@ -94,10 +83,6 @@ impl Default for OverlaySettings {
             custom: None,
             scale: 1.0,
             opacity: 0.95,
-            panels: OverlayPanels {
-                next_item: true,
-                boots: true,
-            },
         }
     }
 }
@@ -203,7 +188,6 @@ impl OverlaySettings {
             return Self::default();
         };
         let defaults = Self::default();
-        let panels = fields.get("panels");
         let in_range = |min: f64, max: f64| move |value: &f64| (min..=max).contains(value);
 
         Self {
@@ -218,11 +202,6 @@ impl OverlaySettings {
             opacity: parse(fields.get("opacity"))
                 .filter(in_range(MIN_OPACITY, MAX_OPACITY))
                 .unwrap_or(defaults.opacity),
-            panels: OverlayPanels {
-                next_item: parse(panels.and_then(|p| p.get("nextItem")))
-                    .unwrap_or(defaults.panels.next_item),
-                boots: parse(panels.and_then(|p| p.get("boots"))).unwrap_or(defaults.panels.boots),
-            },
         }
     }
 
@@ -369,7 +348,7 @@ mod tests {
     fn reads_leniently_field_by_field() {
         let settings = OverlaySettings::from_json(
             r#"{"enabled":false,"show":"whileDead","anchor":"sideways","scale":9,
-                "opacity":0.7,"custom":{"x":2,"y":0.5},"panels":{"boots":false}}"#,
+                "opacity":0.7,"custom":{"x":2,"y":0.5}}"#,
         );
         assert!(!settings.enabled);
         assert_eq!(settings.show, OverlayShow::WhileDead);
@@ -377,8 +356,6 @@ mod tests {
         assert_eq!(settings.scale, 1.0);
         assert_eq!(settings.opacity, 0.7);
         assert_eq!(settings.custom, None);
-        assert!(settings.panels.next_item);
-        assert!(!settings.panels.boots);
         assert_eq!(
             OverlaySettings::from_json("not json"),
             OverlaySettings::default()

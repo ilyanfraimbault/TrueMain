@@ -1,5 +1,5 @@
-//! The in-game overlay: a panel drawn over the game itself, carrying the
-//! game page's next-item panel (#1747), configured from the app.
+//! The in-game overlay: a panel drawn over the game itself, carrying the next
+//! item to buy (#1795), configured from the app.
 //!
 //! The window layer is macOS's (`macos.rs`), settled by the spike in #1673
 //! (`docs/desktop-overlay-spike.md`): a non-activating `NSPanel` one level above the
@@ -37,7 +37,7 @@ const SETTINGS_FILE: &str = "overlay-settings.json";
 pub const SHORTCUT: &str = "⌥⇧O";
 
 /// The panel's size before its page has measured itself, in points.
-const INITIAL_SIZE: (f64, f64) = (300.0, 120.0);
+const INITIAL_SIZE: (f64, f64) = (232.0, 60.0);
 
 pub struct Overlay {
     settings_path: PathBuf,

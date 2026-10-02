@@ -1,96 +1,58 @@
 <script setup lang="ts">
 import type { GameState } from '~/types/game'
-import { ITEM_CONTEXT_TONE_CLASS } from '#shared/utils/item-context'
 
 /**
- * The game page's next-item panel (`GameNextItem`), narrowed for the overlay:
- * one column a glance over the game can take in — the item, why, the next
- * purchase, then the runners-up and the boots on one line. Same data, from
- * `useNextItemPanel`. Either half can be switched off in the overlay settings.
+ * The overlay's next item: one item and whether the gold in hand buys it —
+ * nothing a glance over the game cannot take in. No components and no
+ * runners-up: which component to buy first is not measured yet, so the
+ * overlay does not pretend to know. The game page's panel (`GameNextItem`)
+ * keeps the full answer; both read `useNextItemPanel`.
  */
-const props = defineProps<{
-  game: GameState
-  nextItem: boolean
-  boots: boolean
-}>()
+const props = defineProps<{ game: GameState }>()
 
-const { pending, answer, statics, build, top, runnersUp, boots: bootCandidates, why, remaining, steps, state, name, percent, affordable } = useNextItemPanel(toRef(props, 'game'))
+const { statics, top, remaining, state, name } = useNextItemPanel(toRef(props, 'game'))
 
-const showFooter = computed(() => state.value === 'ready' && ((props.nextItem && runnersUp.value.length > 0) || (props.boots && bootCandidates.value.length > 0)))
+/** The gold still to earn before it can be bought; 0 once the gold in hand covers it. */
+const missing = computed(() => Math.max(0, remaining.value - props.game.gold))
+
+const message = computed(() => {
+  switch (state.value) {
+    case 'unmeasured': return 'No measured build on this lane yet'
+    case 'complete': return 'Build complete'
+    case 'offline': return 'TrueMain is unreachable'
+    default: return null
+  }
+})
 </script>
 
 <template>
-  <section class="flex flex-col gap-2.5">
-    <header class="flex items-center gap-2">
-      <AppMark class="size-3.5 text-primary" />
-      <span class="stat-label">{{ nextItem ? 'Next item' : 'Boots' }}</span>
-      <span v-if="nextItem && build && !build.onTree" class="text-[11px] text-dimmed">off the mains' path</span>
-      <UIcon v-if="pending && answer" name="i-lucide-loader-circle" class="ml-auto size-3.5 animate-spin text-dimmed" />
-    </header>
-
+  <div class="flex items-center gap-2.5">
     <template v-if="state === 'ready' && top">
-      <div v-if="nextItem" class="flex items-start gap-3">
-        <GameTooltipItemIcon :item="statics[top.itemId] ?? null" :width="44" :height="44" class="size-11 shrink-0 rounded-lg ring-1 ring-primary/60" />
-        <div class="min-w-0 flex-1 space-y-0.5">
-          <p class="truncate text-sm font-semibold text-highlighted">{{ name(top.itemId) }}</p>
-          <p class="text-xs tabular-nums text-muted">{{ percent(top.share) }} of mains</p>
-          <p v-if="why" class="text-xs leading-snug text-muted">
-            <template v-for="(token, index) in why" :key="index">
-              <span :class="token.tone && ITEM_CONTEXT_TONE_CLASS[token.tone]">{{ token.text }}</span>
-            </template>
-          </p>
-        </div>
-      </div>
-
-      <div v-if="nextItem" class="flex flex-wrap items-center gap-1.5">
-        <span
-          v-for="step in steps"
-          :key="step.itemId"
-          class="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] tabular-nums ring-1"
-          :class="affordable(step.cost) ? 'bg-primary/10 text-highlighted ring-primary/40' : 'text-dimmed ring-default'"
-        >
-          <GameTooltipItemIcon :item="statics[step.itemId] ?? null" :width="16" :height="16" class="size-4 rounded-sm" />
-          {{ step.cost }}
-        </span>
-        <span v-if="remaining > 0" class="text-[11px] tabular-nums text-muted">
-          <span class="text-stat-gold">{{ remaining }}</span> to complete
-        </span>
-        <span v-else class="text-[11px] text-stat-gold">Ready to complete</span>
-      </div>
-
-      <div v-if="showFooter" class="flex items-end justify-between gap-3 border-t border-default pt-2">
-        <div v-if="nextItem && runnersUp.length" class="flex items-center gap-1.5">
-          <span class="stat-label mr-0.5">Or</span>
-          <div v-for="candidate in runnersUp" :key="candidate.itemId" class="flex flex-col items-center">
-            <GameTooltipItemIcon :item="statics[candidate.itemId] ?? null" :width="26" :height="26" class="size-[26px] rounded" />
-            <span class="text-[10px] tabular-nums text-dimmed">{{ percent(candidate.share) }}</span>
-          </div>
-        </div>
-        <div v-if="boots && bootCandidates.length" class="ml-auto flex items-center gap-1.5">
-          <span v-if="nextItem" class="stat-label mr-0.5">Boots</span>
-          <div v-for="(candidate, index) in bootCandidates" :key="candidate.itemId" class="flex flex-col items-center">
-            <GameTooltipItemIcon
-              :item="statics[candidate.itemId] ?? null"
-              :width="index === 0 ? 26 : 22"
-              :height="index === 0 ? 26 : 22"
-              class="rounded"
-              :class="index === 0 ? 'size-[26px] ring-1 ring-primary/60' : 'size-[22px] opacity-70'"
-            />
-            <span class="text-[10px] tabular-nums" :class="index === 0 ? 'text-muted' : 'text-dimmed'">{{ percent(candidate.share) }}</span>
-          </div>
-        </div>
+      <GameTooltipItemIcon :item="statics[top.itemId] ?? null" :width="36" :height="36" class="size-9 shrink-0 rounded-md ring-1 ring-primary/60" />
+      <div class="min-w-0 flex-1">
+        <p class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
+          <AppMark class="size-2.5" />
+          Next item
+        </p>
+        <p class="truncate text-[13px] font-semibold leading-tight text-highlighted">{{ name(top.itemId) }}</p>
+        <p v-if="missing === 0" class="flex items-center gap-1 text-[11px] font-medium text-stat-gold">
+          <UIcon name="i-lucide-circle-check" class="size-3" />
+          Can buy now
+        </p>
+        <p v-else class="text-[11px] tabular-nums text-muted">
+          <span class="text-stat-gold">{{ missing }}</span> gold to go
+        </p>
       </div>
     </template>
 
-    <p v-else-if="state === 'unmeasured'" class="text-xs text-muted">No measured builds for this champion on this lane yet.</p>
-    <p v-else-if="state === 'complete'" class="text-xs text-muted">The mains' build is complete.</p>
-    <p v-else-if="state === 'offline'" class="text-xs text-muted">Cannot reach TrueMain right now.</p>
-    <div v-else class="flex items-center gap-3">
-      <USkeleton class="size-11 rounded-lg" />
-      <div class="space-y-1.5">
-        <USkeleton class="h-3.5 w-36" />
-        <USkeleton class="h-3 w-24" />
+    <template v-else>
+      <USkeleton v-if="!message" class="size-9 shrink-0 rounded-md" />
+      <AppMark v-else class="size-4 shrink-0" />
+      <div class="min-w-0 flex-1">
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">Next item</p>
+        <USkeleton v-if="!message" class="mt-1 h-3 w-28" />
+        <p v-else class="text-[11px] text-muted">{{ message }}</p>
       </div>
-    </div>
-  </section>
+    </template>
+  </div>
 </template>

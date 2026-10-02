@@ -8,8 +8,9 @@ import { ITEM_CONTEXT_TONE_CLASS } from '#shared/utils/item-context'
  * can be bought with the gold in hand. Read in two seconds while dead or on
  * the walk out of base, so it carries the decision and nothing else: the
  * item, why when a situation moved it, the next purchase, the two runners-up,
- * and the boots while they are still open. The overlay draws the same panel
- * narrower (`OverlayNextItem`), from the same `useNextItemPanel`.
+ * and the boots while they are still open. The overlay draws only the item
+ * and the gold it still needs (`OverlayNextItem`), from the same
+ * `useNextItemPanel`.
  */
 const props = defineProps<{ game: GameState }>()
 

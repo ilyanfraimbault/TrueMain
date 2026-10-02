@@ -3,8 +3,8 @@ import type { OverlayAnchor, OverlaySettings, OverlayShow } from '~/types/overla
 import { OVERLAY_OPACITY, OVERLAY_SCALE } from '~/types/overlay'
 
 /**
- * The in-game overlay's settings (#1747): on or off, when it shows, where,
- * how large and how see-through, and which panels it carries. Each change is
+ * The in-game overlay's settings (#1795): on or off, when it shows, where,
+ * how large and how see-through. Each change is
  * saved as it is made; the shell's answer is what then shows.
  *
  * Where it sits is chosen two ways: one of four spots on a small screen, or
@@ -147,21 +147,6 @@ onBeforeUnmount(() => void preview(false))
             />
           </section>
 
-          <section class="flex flex-col gap-3">
-            <h3 class="stat-label">Panels</h3>
-            <USwitch
-              :model-value="current.panels.nextItem"
-              label="Next item"
-              description="What to complete next, the purchase toward it and the runners-up."
-              @update:model-value="apply({ panels: { ...current.panels, nextItem: $event } })"
-            />
-            <USwitch
-              :model-value="current.panels.boots"
-              label="Boots"
-              description="While your boots are still open."
-              @update:model-value="apply({ panels: { ...current.panels, boots: $event } })"
-            />
-          </section>
 
           <section class="flex flex-col gap-2">
             <h3 class="stat-label">Shortcut</h3>

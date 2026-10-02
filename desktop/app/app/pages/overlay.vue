@@ -58,24 +58,16 @@ useHead({
 
 <template>
   <div class="origin-top-left" :style="{ transform: `scale(${scale})` }">
-    <div ref="content" class="relative w-[300px] px-3.5 py-3 text-default">
-      <OverlayNextItem
-        v-if="playing && settings && (settings.panels.nextItem || settings.panels.boots)"
-        :game="playing"
-        :next-item="settings.panels.nextItem"
-        :boots="settings.panels.boots"
-      />
+    <div ref="content" class="relative w-[232px] px-3 py-2.5 text-default">
+      <OverlayNextItem v-if="playing" :game="playing" />
       <div v-else class="flex items-center gap-2.5">
         <AppMark class="size-4 shrink-0" />
-        <p class="text-xs text-muted">
-          <template v-if="settings && !settings.panels.nextItem && !settings.panels.boots">Every panel is switched off.</template>
-          <template v-else>Your next item shows here during a game.</template>
-        </p>
+        <p class="text-[11px] leading-snug text-muted">Your next item shows here during a game.</p>
       </div>
 
-      <div v-if="preview" class="mt-2.5 flex items-center gap-1.5 border-t border-default pt-2 text-[11px] text-primary">
-        <UIcon name="i-lucide-move" class="size-3.5" />
-        Drag to place it over your game
+      <div v-if="preview" class="mt-2 flex items-center gap-1.5 border-t border-default pt-1.5 text-[11px] text-primary">
+        <UIcon name="i-lucide-move" class="size-3" />
+        Drag to place it
       </div>
 
       <!-- Over everything in the preview, so a drag starts wherever it is grabbed. -->

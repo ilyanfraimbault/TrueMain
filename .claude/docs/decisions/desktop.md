@@ -314,8 +314,10 @@ spike's measurements (`docs/desktop-overlay-spike.md`) set the window: League's 
 panel sits one level above `CGShieldingWindowLevel` — and, at that level, is shown only while the game's own process is
 frontmost, so it never covers the client or another app (the product owner's rule). It can never become key and ignores
 the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its one shortcut
-is read from the keyboard's state, because over a captured display no hotkey reaches the app. It carries the game
-page's next-item panel (one implementation, `useNextItemPanel`), is on by default and set up from the game page —
-when it shows (whole game or while dead), where (four spots, or anywhere by dragging it in an on-screen preview, the only
-time it takes the mouse), size, opacity and which panels. No interactive mode in game: the spike proved one possible,
+is read from the keyboard's state, because over a captured display no hotkey reaches the app. It carries **one
+item** — the next one, and the gold still to earn for it or that it can be bought now — and nothing else: no
+components (which one to buy first is not measured yet, so the overlay does not pretend to know), no runners-up, no
+boots; the game page keeps the full panel, from the same `useNextItemPanel` (the product owner's call). It is on by
+default and set up from the game page — when it shows (whole game or while dead), where (four spots, or anywhere by
+dragging it in an on-screen preview, the only time it takes the mouse), size and opacity. No interactive mode in game: the spike proved one possible,
 but nothing on the panel needs a click. macOS only until a Windows pass is measured (2026-10-02) — #1673, #1795.
