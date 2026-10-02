@@ -26,7 +26,7 @@ pub use credentials::Credentials;
 pub use detail::GameDetail;
 pub use error::{Error, Result};
 pub use events::{stream_events, LcuEvent};
-pub use form::{PlayerForm, FORM_GAMES};
+pub use form::{PlayerForm, RecentGame, FORM_GAMES, RECENT_GAMES};
 pub use live::LiveClient;
 pub use model::{
     ChampSelectSession, ChampionMastery, CurrentSummoner, DraftState, GameflowPhase,

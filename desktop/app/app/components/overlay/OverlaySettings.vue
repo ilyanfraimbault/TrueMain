@@ -20,7 +20,7 @@ const current = computed(() => view.value?.settings ?? null)
 
 const SHOWS: { value: OverlayShow, label: string }[] = [{ value: 'always', label: 'Whole game' }, { value: 'whileDead', label: 'While dead' }]
 const PANELS: Record<OverlayPanel, { label: string, description: string }> = {
-  'loading': { label: 'Loading screen', description: 'Each player\'s games and win rate on their champion, and their ranked streak.' },
+  'loading': { label: 'Loading screen', description: 'Each player\'s games and win rate on their champion, and their latest games.' },
   'next-item': { label: 'Next item', description: 'The next item to buy, and the gold it still needs.' },
   'win-probability': { label: 'Win probability', description: 'Each side\'s chance to win, estimated from the item-gold gap. On screen the whole game.' },
   'stats': { label: 'Your pace', description: 'CS per minute with its curve, and gold per minute.' },

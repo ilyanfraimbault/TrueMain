@@ -7,8 +7,21 @@ export interface PlayerForm {
   /** Of those, the ones on the champion the player is on now. */
   championGames: number
   championWins: number
-  /** Ranked games won (positive) or lost (negative) in a row; 0 with none read. */
-  streak: number
+  /** The latest of those, newest first, at most ten. */
+  recent: RecentGame[]
+}
+
+/** Mirrors `RecentGame` in `crates/lcu/src/form.rs`. */
+export interface RecentGame {
+  championId: number
+  /** The assigned role; null on a queue without roles. */
+  position: string | null
+  win: boolean
+  kills: number
+  deaths: number
+  assists: number
+  /** Epoch milliseconds. */
+  playedAt: number
 }
 
 /** Mirrors `LoadingPlayer` in `src-tauri/src/loading.rs`. */

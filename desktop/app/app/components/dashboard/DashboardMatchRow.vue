@@ -167,7 +167,6 @@ const lp = computed(() => self.value.lpDelta)
             :width="16"
             :height="16"
             class="size-4 rounded-sm"
-            :class="p.championId === self.championId && side === 0 ? 'ring-1 ring-primary' : 'opacity-80'"
           />
         </div>
       </div>

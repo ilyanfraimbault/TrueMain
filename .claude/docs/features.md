@@ -268,8 +268,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   minute with a sparkline of it from minute 3, and gold per minute (inventory cost plus gold in hand — the API has no
   gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
   (`live_client::pace`). **Loading screen** (440 pt, `loading/LoadingBoard.vue`, #1753), only before the game is read:
-  the ten players lane against lane, ours highlighted, each with their games on their champion among their last twenty
-  Summoner's Rift games and win rate on it ("1st" when none), and a ranked streak chip from two in a row — roster from
+  the ten players lane against lane, each with their games on their champion among their last twenty
+  Summoner's Rift games and win rate on it ("1st" when none), and their last ten Rift games as bars, oldest to newest (blue a win, red a loss), each with a tooltip — champion,
+  role, KDA, date — in the game page's copy (the overlay is click-through, so it shows the bars alone) — roster from
   the client's gameflow session, histories by puuid through the client (`src-tauri/src/loading.rs`,
   `lcu::PlayerForm`), three at a time, ours and our lane opponent's first, never on TrueMain's key; the same board sits
   under the game page's loading state. No true-main mark yet. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
@@ -279,7 +280,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   slideover (`OverlaySettings.vue`): overlay on/off (default on), per panel on/off and a position (five spots,
   `OverlayAnchorPicker.vue`, or anywhere by dragging the panels in an on-screen preview, stored as screen fractions), the
   next item's moment, size 80–140 %, opacity 50–100 %. Rules and settings in `shell-state::overlay` (tested on CI),
-  windows in `src-tauri/src/overlay/` (`panels.rs` drives them, `macos.rs` / `windows.rs` are the window layers).
+  windows in `src-tauri/src/overlay/` (`panels.rs` drives them, `macos.rs` / `windows.rs` are the window layers). On
+  Windows the game is known by its window class (`RiotWindowClass`) or its process name; CI drives the whole overlay
+  over a stand-in game on a Windows desktop (`desktop/tools/overlay-smoke-windows.ps1`, #1806).
 - **Game simulator** (development only, `/dev/game-sim` + `npm run tauri:sim`) — plays the committed synthetic tape
   `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
   reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
@@ -313,8 +316,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   banner when capture stopped working while recordings exist. `?game=<id>` narrows it to one game's clips.
 - **Recap** (`/recordings/:id`, #1777) — the full game's video with the app's controls (play, previous / next moment
   with a 5 s lead-in, mute, full screen; Space, ← →, Shift+← →, M) over a timeline of the whole video: the player's
-  kills (rose-gold chips, multi-kills numbered), deaths (red-ringed) and assists (dots) on the track, objectives above
-  it as icons in the side's colour, the playhead, saved clips as gold bars. Clips are cut by hand: drag across the
+  kills, assists and deaths each on a lane of its own, named by a glyph beside it (#1804) — kills rose-gold chips,
+  multi-kills labelled ×N and gold from a triple kill, assists neutral dots, deaths dark red chips with a skull —;
+  objectives above the lanes in the side's colour (epic monsters as tinted badges, towers and inhibitors as bare
+  glyphs), minute gridlines, the playhead, saved clips as gold bars. Clips are cut by hand: drag across the
   track, or I / O at the playhead (I/O move the selected range's ends), handles to adjust, as many ranges as wanted,
   each named from what it holds ("Triple kill on Ahri", "Kill + Dragon", editable), previewed, saved alone or all at
   once (`clip_save`), then listed under "Saved clips"; unsaved ranges survive leaving the page for the session. A

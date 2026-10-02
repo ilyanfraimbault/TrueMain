@@ -95,6 +95,34 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  overlay-windows:
+    name: Windows overlay
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - run: npm ci
+        working-directory: desktop/app
+      - run: npm run tauri -- build --no-bundle
+        working-directory: desktop/app
+      - run: pwsh desktop/tools/overlay-smoke-windows.ps1 -App desktop/target/release/truemain-desktop.exe -Out "$env:RUNNER_TEMP/overlay-smoke"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: truemain-overlay-smoke-windows
+          path: ${{ runner.temp }}/overlay-smoke
+          retention-days: 7
+          if-no-files-found: ignore
+
   app:
     name: Nuxt app
     runs-on: ubuntu-24.04

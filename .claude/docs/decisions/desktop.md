@@ -361,7 +361,8 @@ preview, the only time the panels take the mouse), plus size and opacity for all
   measurement is not one the app shows.
 - **Loading screen** (#1753): from the loading screen on — never in champion select, where ranked hides the other
   team — each player's games on their champion among their last twenty Summoner's Rift games and their win rate on it,
-  and their ranked streak (shown from two in a row), lane against lane, ours highlighted. Read through the player's own
+  and their last ten of those games as bars, blue a win and red a loss, oldest to newest, each naming its champion,
+  role, KDA and date on hover (#1803: the ranked streak chip it replaces, "W3"/"L4", read as nothing), lane against lane. Read through the player's own
   client (gameflow session for the roster, match history by puuid), three requests at a time, ours and our lane
   opponent's first, never on TrueMain's Riot key. Counts only, no score made of them. Also on the companion window's
   loading state. The true-main mark the issue asks for needs a batch lookup by Riot ID on the API and is left for later.
@@ -377,11 +378,13 @@ No interactive mode in game: nothing on the panels needs a click. macOS only unt
 places, shows and drags them on both platforms, and each platform supplies only its window layer. On Windows that is a
 Tauri window given what Tauri does not combine on its own — `WS_EX_NOACTIVATE` and `SW_SHOWNOACTIVATE` so the game
 keeps the foreground and the keyboard, `WS_EX_LAYERED | WS_EX_TRANSPARENT` so clicks go through (the layered alpha is
-the opacity setting), `WS_EX_TOOLWINDOW` and topmost — shown only while `League of Legends.exe` owns the foreground
-window. Windows draws nothing over a game in exclusive Full Screen, so the settings ask for Borderless or Windowed, as
+the opacity setting), `WS_EX_TOOLWINDOW` and topmost — shown only while the game owns the foreground window, known
+by its window class (`RiotWindowClass`) or its process name (`League of Legends.exe`): the class needs no handle on
+the game's process, which an anti-cheat may refuse (#1806). Windows draws nothing over a game in exclusive Full Screen, so the settings ask for Borderless or Windowed, as
 other League companions do, rather than hooking the game's renderer, which an anti-cheat would see. The shortcut is
 Alt+Shift+O, read with TAB from the keyboard's state as on macOS (no hook, no registered hotkey). Built without a
-Windows tester: CI compiles it, a real game has not been played under it yet — #1798.
+Windows tester: CI drives it on a Windows desktop over a stand-in game (#1806), but a real game has not been played
+under it yet — #1798.
 
 **The overlay shows a win probability, from the item-gold gap and the map (2026-10-02).** The product owner's call,
 reversing for the in-game overlay the "no win probability" line of #1671 and #1747, and knowingly a formula rather than
@@ -392,6 +395,12 @@ standing again five minutes after they fall), elemental drakes (0.15 each, +0.6 
 buff (0.9) and the Elder's (1.1) while they last (three minutes, two and a half — counted from the kill, since the feed
 does not say when a holder dies). The map is read off the game's event feed (`live_client::objectives`), which every
 player sees announced. The draft keeps no win probability (2026-10-02) — #1795.
+
+**The player's own account is never highlighted (2026-10-02).** No tint, ring or bolder name on our row — not on the
+loading screen, the game page's scoreboard, a dashboard match row's team strip, nor the opened match's scoreboard and
+runes. The product owner's call: the player knows which one they are, and the mark only competes with what the row
+says. Ours still orders the sides (our team first, our lane opponent's history read first) and the draft board's
+selected card stays ringed, since that ring marks the selection, not the account — #1803.
 
 **The app measures its own use: counters under an anonymous install id, folded per install and day; downloads are
 counted by the site's redirect (2026-10-02).** The site's Umami cannot see the app — a static bundle in a webview with a
