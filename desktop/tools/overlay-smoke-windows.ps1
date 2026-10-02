@@ -9,6 +9,11 @@
 #   cd desktop/app && npm ci && npm run tauri -- build --no-bundle
 #   pwsh desktop/tools/overlay-smoke-windows.ps1 -App desktop/target/release/truemain-desktop.exe
 #
+# CI builds it for preprod, like the beta (`TRUEMAIN_SITE_URL`), so the panels
+# read the API that has their endpoints. The app's usage counts are turned off
+# first, as the menu does, so a test run is not counted as an install. The site's
+# address is wiped from the app's log, which CI uploads from a public repository.
+#
 # The preview is opened from the game page's settings through UI Automation,
 # and a panel is dragged with the mouse, as a player places one.
 #
@@ -308,6 +313,18 @@ function Report([string] $Name) {
 $WS_EX_TRANSPARENT = 0x20; $WS_EX_TOPMOST = 0x8; $WS_EX_LAYERED = 0x80000; $WS_EX_NOACTIVATE = 0x8000000
 $InGame = "next-item,stats,win-probability"
 
+# What the app menu's "Share Anonymous Usage Data" writes when turned off.
+$config = Join-Path $env:APPDATA "gg.truemain.desktop"
+New-Item -ItemType Directory -Force -Path $config | Out-Null
+@{ installId = [guid]::NewGuid().ToString(); enabled = $false } | ConvertTo-Json | Set-Content (Join-Path $config "telemetry.json")
+
+function Redact([string] $Path) {
+    $site = "$env:TRUEMAIN_SITE_URL".Trim().TrimEnd("/")
+    $text = Get-Content $Path -Raw -ErrorAction SilentlyContinue
+    if (-not $site -or -not $text) { return }
+    $text.Replace($site, "<site>").Replace(([uri]$site).Authority, "<site>") | Set-Content $Path
+}
+
 $env:TRUEMAIN_LCU_REPLAY = $Tape
 $env:TRUEMAIN_LCU_REPLAY_SPEED = "0"
 $env:RUST_LOG = "truemain_desktop_lib=debug,lcu=info"
@@ -407,6 +424,9 @@ catch {
 finally {
     $standIns | Where-Object { $_ -and -not $_.HasExited } | ForEach-Object { Stop-Process -Id $_.Id -Force }
     if (-not $script:shell.HasExited) { Stop-Process -Id $script:shell.Id -Force }
+    $script:shell.WaitForExit(5000) | Out-Null
+    Redact (Join-Path $Out "app.log")
+    Redact (Join-Path $Out "app.err.log")
     Get-Content (Join-Path $Out "app.log") -ErrorAction SilentlyContinue | Select-String "overlay|frontmost|tape|game" | Select-Object -Last 40 | ForEach-Object { Write-Host "app: $_" }
 }
 

@@ -114,7 +114,11 @@ jobs:
         working-directory: desktop/app
       - run: npm run tauri -- build --no-bundle
         working-directory: desktop/app
-      - run: pwsh desktop/tools/overlay-smoke-windows.ps1 -App desktop/target/release/truemain-desktop.exe -Out "$env:RUNNER_TEMP/overlay-smoke"
+        env:
+          TRUEMAIN_SITE_URL: ${{ secrets.DESKTOP_BETA_SITE_URL }}
+      - env:
+          TRUEMAIN_SITE_URL: ${{ secrets.DESKTOP_BETA_SITE_URL }}
+        run: pwsh desktop/tools/overlay-smoke-windows.ps1 -App desktop/target/release/truemain-desktop.exe -Out "$env:RUNNER_TEMP/overlay-smoke"
       - if: always()
         uses: actions/upload-artifact@v7
         with:

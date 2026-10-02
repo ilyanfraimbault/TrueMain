@@ -322,9 +322,13 @@ stand-in's flat colour. The steps are:
 - the preview, opened through UI Automation on the game page's buttons, with a
   panel dragged by the mouse and its place saved and kept.
 
-The build reads production, which may not serve the newest endpoints yet, so a
-panel can say TrueMain is unreachable there. The runner has no GPU, so Windows
-draws no rounded corners. The screenshots, a JSON per step and the app's log
+The build reads preprod, like the beta (`DESKTOP_BETA_SITE_URL`), so the panels
+get their data from the API that has their endpoints. Without the secret, as on
+a fork's PR, it reads production, which may not serve the newest endpoints yet.
+The script turns the app's usage counts off first, the way its menu does, so a
+run is not counted as an install. It wipes the site's address from the app's
+log before the upload. The runner has no GPU, so Windows draws no rounded
+corners. The screenshots, a JSON per step and the app's log
 are uploaded as an artifact.
 
 ## Desktop releases
