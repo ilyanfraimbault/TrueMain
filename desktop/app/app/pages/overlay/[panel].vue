@@ -27,15 +27,18 @@ const WIDTHS: Record<OverlayPanel, string> = {
   'win-probability': 'w-[160px]',
   'item-value': 'w-[300px]',
   'stats': 'w-[176px]',
+  'loading': 'w-[440px]',
 }
 const PLACEHOLDERS: Record<OverlayPanel, string> = {
   'next-item': 'Your next item shows here during a game.',
   'win-probability': 'The win probability shows here during a game.',
   'item-value': 'Each team\'s item gold shows here while TAB is held.',
   'stats': 'Your CS and gold per minute show here during a game.',
+  'loading': 'Each player\'s form shows here on the loading screen.',
 }
 
 const { game, syncedAt } = useLiveGame()
+const { view: loading } = useLoadingPlayers()
 const { view, fit } = useGameOverlay()
 
 const settings = computed(() => view.value?.settings ?? null)
@@ -83,7 +86,8 @@ useHead({
 <template>
   <div class="origin-top-left" :style="{ transform: `scale(${scale})` }">
     <div ref="content" class="relative px-3 py-2.5 text-default" :class="WIDTHS[panel]">
-      <template v-if="playing">
+      <LoadingBoard v-if="panel === 'loading' && loading.players.length" :players="loading.players" />
+      <template v-else-if="playing && panel !== 'loading'">
         <OverlayNextItem v-if="panel === 'next-item'" :game="playing" />
         <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="playing" :synced-at="syncedAt" />
         <OverlayStats v-else-if="panel === 'stats'" :game="playing" />

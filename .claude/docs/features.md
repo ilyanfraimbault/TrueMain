@@ -250,7 +250,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   order is noted as items land; "off the mains' path" says when the build left their tree. Our gold reaches the page in
   50-gold steps (`GOLD_STEP`), the only gold the API exposes. Its data comes from `useNextItemPanel`, shared with the
   overlay. A layers button by the clock (and a status line in the waiting state) opens the overlay settings.
-- **In-game overlay** (#1795, macOS only; window layer from the #1673 spike, `docs/desktop-overlay-spike.md`) — four
+- **In-game overlay** (#1795, macOS only; window layer from the #1673 spike, `docs/desktop-overlay-spike.md`) — five
   panels, each a non-activating `NSPanel` of its own one level above `CGShieldingWindowLevel` (League's Full Screen
   captures the display), never key, click-through, sized to its content, its page on `#/overlay/<panel>`
   (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
@@ -264,7 +264,12 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   owner's formula, not a measured model (`utils/item-value.ts`). **Your pace** (176 pt, `OverlayStats.vue`): CS per
   minute with a sparkline of it from minute 3, and gold per minute (inventory cost plus gold in hand — the API has no
   gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
-  (`live_client::pace`). **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
+  (`live_client::pace`). **Loading screen** (440 pt, `loading/LoadingBoard.vue`, #1753), only before the game is read:
+  the ten players lane against lane, ours highlighted, each with their games on their champion among their last twenty
+  Summoner's Rift games and win rate on it ("1st" when none), and a ranked streak chip from two in a row — roster from
+  the client's gameflow session, histories by puuid through the client (`src-tauri/src/loading.rs`,
+  `lcu::PlayerForm`), three at a time, ours and our lane opponent's first, never on TrueMain's key; the same board sits
+  under the game page's loading state. No true-main mark yet. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
   the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). TAB and ⌥⇧O are read
   from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Settings

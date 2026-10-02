@@ -7,6 +7,7 @@
 
 mod api;
 mod game;
+mod loading;
 mod menu;
 mod overlay;
 mod record;
@@ -287,6 +288,7 @@ pub fn run() {
         .manage(client.clone())
         .manage(GameCache::default())
         .manage(SharedGame::default())
+        .manage(loading::SharedLoading::default())
         .invoke_handler(tauri::generate_handler![
             current_state,
             current_screen,
@@ -315,7 +317,8 @@ pub fn run() {
             overlay::overlay_view,
             overlay::set_overlay_settings,
             overlay::overlay_preview,
-            overlay::overlay_fit
+            overlay::overlay_fit,
+            loading::loading_players
         ])
         // The overlay's panel is a window too: without this, closing the
         // app's window would leave the app running with no window to show.

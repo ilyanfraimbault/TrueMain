@@ -59,6 +59,39 @@ pub struct GameflowGameData {
     /// Zero until the game is created.
     pub game_id: i64,
     pub queue: GameflowQueue,
+    /// Blue side's players, once the game is in progress (the loading screen
+    /// on): the champion select hides them in ranked, the loading screen
+    /// shows them — the line the loading-screen panel keeps (#1753).
+    pub team_one: Vec<GameflowPlayer>,
+    /// Red side's.
+    pub team_two: Vec<GameflowPlayer>,
+}
+
+/// One player of the game, as the session lists them. Which identity fields
+/// are filled moved with the Riot ID migration, so all are kept.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GameflowPlayer {
+    pub puuid: String,
+    pub champion_id: i64,
+    pub game_name: String,
+    pub tag_line: String,
+    pub summoner_name: String,
+    /// `TOP`, `JUNGLE`, `MIDDLE`, `BOTTOM`, `UTILITY`; empty without roles.
+    pub selected_position: String,
+}
+
+impl GameflowPlayer {
+    /// `Name#TAG` when the session carries it, else the summoner name.
+    pub fn riot_id(&self) -> String {
+        if self.game_name.is_empty() {
+            self.summoner_name.clone()
+        } else if self.tag_line.is_empty() {
+            self.game_name.clone()
+        } else {
+            format!("{}#{}", self.game_name, self.tag_line)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
