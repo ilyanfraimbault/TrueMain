@@ -11,9 +11,12 @@
 //!
 //! A game in exclusive Full Screen owns the display and nothing is drawn over
 //! it — the settings say to play in Borderless, as other League companions
-//! do. The panel shows only while the game's process owns the foreground
-//! window, and the shortcut and TAB are read from the keyboard's state, as on
-//! macOS: no hook, no hotkey registration, nothing the game could miss.
+//! do. The panel shows only while the game owns the foreground window, and
+//! the shortcut and TAB are read from the keyboard's state, as on macOS: no
+//! hook, no hotkey registration, nothing the game could miss.
+//!
+//! `desktop/tools/overlay-smoke-windows.ps1` drives all of this on a Windows
+//! desktop in CI, a stand-in window in the game's place.
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use windows::Win32::Foundation::{CloseHandle, COLORREF, HWND};
@@ -25,15 +28,18 @@ use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowLongPtrW, GetWindowThreadProcessId, SetLayeredWindowAttributes,
-    SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE, HWND_TOPMOST, LWA_ALPHA,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+    GetClassNameW, GetForegroundWindow, GetWindowLongPtrW, GetWindowThreadProcessId,
+    SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE,
+    HWND_TOPMOST, LWA_ALPHA, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE,
+    WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
 };
 
 /// The game's own process, as opposed to the client (`LeagueClientUx.exe`):
 /// the panel belongs over this one only.
 const GAME_PROCESS: &str = "League of Legends.exe";
+/// The game's window class. Read without a handle on the game's process,
+/// which an anti-cheat may refuse even for its image name.
+const GAME_CLASS: &str = "RiotWindowClass";
 
 fn hwnd(app: &AppHandle, label: &str) -> Option<HWND> {
     app.get_webview_window(label)?.hwnd().ok()
@@ -60,7 +66,8 @@ pub fn build(
     opacity: f64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
-        .title("TrueMain overlay")
+        // Named after its panel, for the smoke test and any window inspector.
+        .title(format!("TrueMain {label}"))
         .inner_size(super::INITIAL_SIZE.0, super::INITIAL_SIZE.1)
         .decorations(false)
         .resizable(false)
@@ -135,14 +142,25 @@ pub fn set_interactive(app: &AppHandle, label: &str, interactive: bool) {
     }
 }
 
-/// Whether the foreground window belongs to the game's process.
+/// Whether the foreground window is the game's, by its class or its process.
 pub fn game_frontmost() -> bool {
+    // SAFETY: a plain query.
+    let window = unsafe { GetForegroundWindow() };
+    !window.0.is_null() && (class_is_game(window) || process_is_game(window))
+}
+
+fn class_is_game(window: HWND) -> bool {
+    let mut class = [0u16; 64];
+    // SAFETY: a plain query into a buffer it is given the length of.
+    let length = unsafe { GetClassNameW(window, &mut class) };
+    usize::try_from(length).is_ok_and(|length| {
+        String::from_utf16_lossy(&class[..length.min(class.len())]) == GAME_CLASS
+    })
+}
+
+fn process_is_game(window: HWND) -> bool {
     // SAFETY: plain queries; the process handle is closed before returning.
     unsafe {
-        let window = GetForegroundWindow();
-        if window.0.is_null() {
-            return false;
-        }
         let mut pid = 0;
         GetWindowThreadProcessId(window, Some(&mut pid));
         let Ok(process) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else {

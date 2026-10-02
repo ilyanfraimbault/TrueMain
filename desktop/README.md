@@ -100,11 +100,14 @@ Tracking issue: **#1671**.
   not return a rune page yet (#1678).
 - **The dashboard knows the player only by what the client says.** Their own
   numbers need #1682 — our database holds true mains only.
-- **The Windows overlay has not met a League game yet** (#1798). Its windows
-  are built the way Windows overlays are (topmost, non-activating, layered and
-  click-through) and compile on CI, but no one has played under them; and over
-  League in exclusive Full Screen Windows draws nothing, so the settings ask
-  for Borderless.
+- **The Windows overlay has not met a League game yet** (#1798). CI runs it
+  on a Windows desktop over a stand-in game window
+  (`tools/overlay-smoke-windows.ps1`, #1806). The panels are drawn, never take
+  the foreground, let clicks through, and follow TAB, Alt+Shift+O and the window
+  in front. They are placed by a drag in the preview. What only a player can
+  check: a real game in Borderless, under its anti-cheat. Over League in
+  exclusive Full Screen Windows draws nothing, so the settings ask for
+  Borderless.
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.
@@ -310,7 +313,8 @@ desktop/
                           a Mac only; run with capture/spike.sh
   capture/windows/        the Windows capture helper (Rust, Windows.Graphics.Capture +
                           Media Foundation) — its code is cfg(windows), a stub elsewhere
-  tools/                  overlay-probe.swift: the window server's view of a game (#1673)
+  tools/                  overlay-probe.swift: the window server's view of a game (#1673);
+                          overlay-smoke-windows.ps1: the overlay over a stand-in game (#1806)
   src-tauri/              the Tauri v2 shell: owns the connections, derives the state;
                           src/overlay/ is the overlay's windows (macOS, Windows)
   app/                    Nuxt 4 SPA (ssr: false) rendering that state

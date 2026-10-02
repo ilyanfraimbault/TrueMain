@@ -279,7 +279,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   slideover (`OverlaySettings.vue`): overlay on/off (default on), per panel on/off and a position (five spots,
   `OverlayAnchorPicker.vue`, or anywhere by dragging the panels in an on-screen preview, stored as screen fractions), the
   next item's moment, size 80–140 %, opacity 50–100 %. Rules and settings in `shell-state::overlay` (tested on CI),
-  windows in `src-tauri/src/overlay/` (`panels.rs` drives them, `macos.rs` / `windows.rs` are the window layers).
+  windows in `src-tauri/src/overlay/` (`panels.rs` drives them, `macos.rs` / `windows.rs` are the window layers). On
+  Windows the game is known by its window class (`RiotWindowClass`) or its process name; CI drives the whole overlay
+  over a stand-in game on a Windows desktop (`desktop/tools/overlay-smoke-windows.ps1`, #1806).
 - **Game simulator** (development only, `/dev/game-sim` + `npm run tauri:sim`) — plays the committed synthetic tape
   `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
   reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
