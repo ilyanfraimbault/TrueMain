@@ -394,7 +394,10 @@ try {
     Report "8-placed" | Out-Null
     $placed = Panels | Where-Object Slug -eq "win-probability"
     Expect ((Shown) -eq $InGame) "back over the game, the in-game panels show ($(Shown))"
-    Expect ([Math]::Abs($placed.Left - $after.Left) -le 2 -and [Math]::Abs($placed.Top - $after.Top) -le 2) "the dragged panel stays where it was put ($($placed.Left),$($placed.Top))"
+    # A place is the panel's centre, kept as it shrinks out of the preview.
+    $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $centreX = ($placed.Left + $placed.Right) / 2; $centreY = ($placed.Top + $placed.Bottom) / 2
+    Expect ([Math]::Abs($centreX - $saved.winProbability.custom.x * $screen.Width) -le 2 -and [Math]::Abs($centreY - $saved.winProbability.custom.y * $screen.Height) -le 2) "the dragged panel is centred where it was put ($centreX,$centreY)"
     Expect (($placed.Styles -band $WS_EX_TRANSPARENT) -ne 0) "out of the preview, clicks go through again ($($placed.ExStyle))"
 }
 catch {

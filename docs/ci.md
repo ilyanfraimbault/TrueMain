@@ -16,7 +16,7 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; typecheck and static build of its Nuxt app (below) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; typecheck and static build of its Nuxt app (below) |
 | `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
 | `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
@@ -302,6 +302,30 @@ taken, each answer of the helper checked. The runner has no GPU, so frames are
 converted on the CPU and encoded in software there: the job proves the
 protocol, the capture and the files, not a League game or the GPU path. The video, clip and
 thumbnails are uploaded as an artifact.
+
+The `Windows overlay` job (#1806) builds the app as `tauri build --no-bundle`
+does for a release and runs `desktop/tools/overlay-smoke-windows.ps1` on the
+runner's desktop. The app replays `fixtures/ranked-game.jsonl`
+(`TRUEMAIN_LCU_REPLAY`). A stand-in compiled with the .NET Framework's `csc`,
+a full-screen window of the game's class (`RiotWindowClass`) and process name,
+takes the game's place in front. Each step reads the panels' windows: shown,
+extended styles, the window a click at their centre reaches. Each step also
+screenshots the desktop with `CAPTUREBLT`, since layered windows are missing
+from a plain copy, and checks that the panels' pixels are drawn over the
+stand-in's flat colour. The steps are:
+
+- the game in front;
+- TAB held;
+- Alt+Shift+O twice;
+- another app in front;
+- a window of the game's class alone;
+- the preview, opened through UI Automation on the game page's buttons, with a
+  panel dragged by the mouse and its place saved and kept.
+
+The build reads production, which may not serve the newest endpoints yet, so a
+panel can say TrueMain is unreachable there. The runner has no GPU, so Windows
+draws no rounded corners. The screenshots, a JSON per step and the app's log
+are uploaded as an artifact.
 
 ## Desktop releases
 
