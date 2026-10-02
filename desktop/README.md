@@ -100,8 +100,11 @@ Tracking issue: **#1671**.
   not return a rune page yet (#1678).
 - **The dashboard knows the player only by what the client says.** Their own
   numbers need #1682 — our database holds true mains only.
-- **No overlay on Windows yet.** The window layer is macOS's; on Windows the
-  overlay settings say so and the game page carries the panel.
+- **The Windows overlay has not met a League game yet** (#1798). Its windows
+  are built the way Windows overlays are (topmost, non-activating, layered and
+  click-through) and compile on CI, but no one has played under them; and over
+  League in exclusive Full Screen Windows draws nothing, so the settings ask
+  for Borderless.
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.
@@ -309,7 +312,7 @@ desktop/
                           Media Foundation) — its code is cfg(windows), a stub elsewhere
   tools/                  overlay-probe.swift: the window server's view of a game (#1673)
   src-tauri/              the Tauri v2 shell: owns the connections, derives the state;
-                          src/overlay/ is the overlay's window (macOS)
+                          src/overlay/ is the overlay's windows (macOS, Windows)
   app/                    Nuxt 4 SPA (ssr: false) rendering that state
 ```
 

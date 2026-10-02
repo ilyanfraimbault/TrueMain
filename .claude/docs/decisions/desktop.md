@@ -372,6 +372,17 @@ preview, the only time the panels take the mouse), plus size and opacity for all
 No interactive mode in game: nothing on the panels needs a click. macOS only until a Windows pass is measured
 (2026-10-02) — #1673, #1795, #1752.
 
+**On Windows the overlay is the same panels in topmost, non-activating layered windows, over Borderless only
+(2026-10-02).** The panels, their rule and their placement are the macOS ones: one driver (`overlay/panels.rs`) sizes,
+places, shows and drags them on both platforms, and each platform supplies only its window layer. On Windows that is a
+Tauri window given what Tauri does not combine on its own — `WS_EX_NOACTIVATE` and `SW_SHOWNOACTIVATE` so the game
+keeps the foreground and the keyboard, `WS_EX_LAYERED | WS_EX_TRANSPARENT` so clicks go through (the layered alpha is
+the opacity setting), `WS_EX_TOOLWINDOW` and topmost — shown only while `League of Legends.exe` owns the foreground
+window. Windows draws nothing over a game in exclusive Full Screen, so the settings ask for Borderless or Windowed, as
+other League companions do, rather than hooking the game's renderer, which an anti-cheat would see. The shortcut is
+Alt+Shift+O, read with TAB from the keyboard's state as on macOS (no hook, no registered hotkey). Built without a
+Windows tester: CI compiles it, a real game has not been played under it yet — #1798.
+
 **The overlay shows a win probability, from the item-gold gap and the map (2026-10-02).** The product owner's call,
 reversing for the in-game overlay the "no win probability" line of #1671 and #1747, and knowingly a formula rather than
 a measured model (`utils/item-value.ts`): a logistic over, in log-odds, the item-gold lead relative to the gold the two
