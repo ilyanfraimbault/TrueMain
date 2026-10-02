@@ -45,6 +45,16 @@ public static class Desk {
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
     [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr window);
+    [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr window, IntPtr dc);
+    [DllImport("gdi32.dll")] static extern bool BitBlt(IntPtr target, int x, int y, int width, int height, IntPtr source, int sourceX, int sourceY, uint operation);
+
+    /// The screen as composed, layered windows included (CAPTUREBLT).
+    public static void CopyScreen(IntPtr target, int x, int y, int width, int height) {
+        IntPtr screen = GetDC(IntPtr.Zero);
+        BitBlt(target, 0, 0, width, height, screen, x, y, 0x00CC0020 | 0x40000000);
+        ReleaseDC(IntPtr.Zero, screen);
+    }
 
     public struct RECT { public int Left, Top, Right, Bottom; }
     public struct POINT { public int X, Y; }
@@ -173,7 +183,7 @@ function Expect([bool] $Condition, [string] $Message) {
 }
 
 function Panels() {
-    @([Desk]::Of([uint32]$script:app.Id) | Where-Object { $_.Title -like "TrueMain overlay-*" } | ForEach-Object {
+    @([Desk]::Of([uint32]$script:shell.Id) | Where-Object { $_.Title -like "TrueMain overlay-*" } | ForEach-Object {
         [pscustomobject]@{
             Slug    = $_.Title.Substring("TrueMain overlay-".Length)
             Handle  = $_.Handle
@@ -205,13 +215,13 @@ function Key([byte] $Code, [bool] $Down) {
     [Desk]::keybd_event($Code, 0, $(if ($Down) { 0 } else { 2 }), [UIntPtr]::Zero)
 }
 
-# The desktop as composed, layered windows included (CAPTUREBLT).
 function Screenshot([string] $Name) {
     $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
     $bitmap = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $operation = [System.Drawing.CopyPixelOperation]([int][System.Drawing.CopyPixelOperation]::SourceCopy -bor [int][System.Drawing.CopyPixelOperation]::CaptureBlt)
-    $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size, $operation)
+    $dc = $graphics.GetHdc()
+    [Desk]::CopyScreen($dc, $bounds.X, $bounds.Y, $bounds.Width, $bounds.Height)
+    $graphics.ReleaseHdc($dc)
     $graphics.Dispose()
     $bitmap.Save((Join-Path $Out "$Name.png"), [System.Drawing.Imaging.ImageFormat]::Png)
     $bitmap
@@ -263,11 +273,11 @@ $InGame = "next-item,stats,win-probability"
 $env:TRUEMAIN_LCU_REPLAY = $Tape
 $env:TRUEMAIN_LCU_REPLAY_SPEED = "0"
 $env:RUST_LOG = "truemain_desktop_lib=debug,lcu=info"
-$script:app = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app.log") -RedirectStandardError (Join-Path $Out "app.err.log")
+$script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app.log") -RedirectStandardError (Join-Path $Out "app.err.log")
 $standIns = @()
 try {
     for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
-    [Desk]::Of([uint32]$script:app.Id) | ForEach-Object { [ordered]@{ title = $_.Title; class = [Desk]::ClassOf($_.Handle); visible = $_.Visible; exStyle = ('0x{0:X8}' -f $_.ExStyle) } } |
+    [Desk]::Of([uint32]$script:shell.Id) | ForEach-Object { [ordered]@{ title = $_.Title; class = [Desk]::ClassOf($_.Handle); visible = $_.Visible; exStyle = ('0x{0:X8}' -f $_.ExStyle) } } |
         ConvertTo-Json | Set-Content (Join-Path $Out "0-windows.json")
     Expect ((Panels).Count -eq 5) "the app builds its five panels' windows"
     # The replay has opened the game and every page has measured itself.
@@ -324,7 +334,7 @@ catch {
 }
 finally {
     $standIns | Where-Object { $_ -and -not $_.HasExited } | ForEach-Object { Stop-Process -Id $_.Id -Force }
-    if (-not $script:app.HasExited) { Stop-Process -Id $script:app.Id -Force }
+    if (-not $script:shell.HasExited) { Stop-Process -Id $script:shell.Id -Force }
     Get-Content (Join-Path $Out "app.log") -ErrorAction SilentlyContinue | Select-String "overlay|frontmost|tape|game" | Select-Object -Last 40 | ForEach-Object { Write-Host "app: $_" }
 }
 
