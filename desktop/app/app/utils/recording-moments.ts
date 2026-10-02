@@ -50,18 +50,29 @@ export function momentTone(moment: Moment): string {
   }
 }
 
+/** The lanes of the timeline, top to bottom: what the player did, then what was done to them. */
+export const PLAYER_LANES = ['kill', 'assist', 'death'] as const
+
+export type PlayerLane = typeof PLAYER_LANES[number]
+
+export const LANE_NAMES: Record<PlayerLane, string> = { kill: 'Kills', assist: 'Assists', death: 'Deaths' }
+
 /**
- * A player moment's mark on the track: a kill a rose-gold chip, a death a dark
- * chip ringed in red — the two hues sit close, so the fill tells them apart —
- * and an assist a small neutral dot, the least of the three.
+ * A player moment's mark in its lane. Each kind has its own lane, so the mark
+ * only has to read as itself: a kill a filled rose-gold chip (gold from a
+ * triple kill on, the data axis' standout step), an assist a small neutral
+ * dot, a death a dark chip ringed in red.
  */
 export function momentMark(moment: Moment): string {
   switch (moment.kind) {
-    case 'kill': return 'size-4 bg-data-good text-ink-950'
-    case 'death': return 'size-4 bg-ink-950 text-red-400 ring-red-400/80'
-    default: return 'size-2 bg-ink-300'
+    case 'kill': return moment.kills >= 3 ? 'h-4 min-w-4 bg-gold text-ink-950' : 'h-4 min-w-4 bg-data-good text-ink-950'
+    case 'death': return 'size-4 bg-red-950 text-red-300 ring-1 ring-red-400/70'
+    default: return 'size-2 bg-ink-400'
   }
 }
+
+/** Epic monsters are badges above the track; towers and inhibitors, far more frequent, stay bare glyphs. */
+export const isStructure = (moment: Moment) => moment.kind === 'tower' || moment.kind === 'inhibitor'
 
 /** `mm:ss`, or `h:mm:ss` past the hour. */
 export function formatClock(ms: number): string {

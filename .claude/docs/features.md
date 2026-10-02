@@ -313,8 +313,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   banner when capture stopped working while recordings exist. `?game=<id>` narrows it to one game's clips.
 - **Recap** (`/recordings/:id`, #1777) — the full game's video with the app's controls (play, previous / next moment
   with a 5 s lead-in, mute, full screen; Space, ← →, Shift+← →, M) over a timeline of the whole video: the player's
-  kills (rose-gold chips, multi-kills numbered), deaths (red-ringed) and assists (dots) on the track, objectives above
-  it as icons in the side's colour, the playhead, saved clips as gold bars. Clips are cut by hand: drag across the
+  kills, assists and deaths each on a lane of its own, named by a glyph beside it (#1804) — kills rose-gold chips,
+  multi-kills labelled ×N and gold from a triple kill, assists neutral dots, deaths dark red chips with a skull —;
+  objectives above the lanes in the side's colour (epic monsters as tinted badges, towers and inhibitors as bare
+  glyphs), minute gridlines, the playhead, saved clips as gold bars. Clips are cut by hand: drag across the
   track, or I / O at the playhead (I/O move the selected range's ends), handles to adjust, as many ranges as wanted,
   each named from what it holds ("Triple kill on Ahri", "Kill + Dragon", editable), previewed, saved alone or all at
   once (`clip_save`), then listed under "Saved clips"; unsaved ranges survive leaving the page for the session. A
