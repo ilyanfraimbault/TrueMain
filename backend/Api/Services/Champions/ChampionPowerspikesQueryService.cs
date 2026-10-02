@@ -10,17 +10,22 @@ using TrueMain.ReadModels.Champions;
 namespace TrueMain.Services.Champions;
 
 /// <summary>
-/// Builds the champion power curve and its event spikes. The curve is the mean
+/// Builds the champion power curve and its event spikes from the pre-aggregated
+/// timeline tables — no raw per-minute grid is read. The curve is the mean
 /// opponent-relative power per minute, where power blends the gold lead and the
-/// damage lead, each normalized by the global per-minute spread so the two
-/// comparable: <c>P(t) = 0.5·goldDiff/σ_gold(t) + 0.5·dmgDiff/σ_dmg(t)</c>.
+/// damage lead, each normalized by the global per-minute spread so the two are
+/// comparable: <c>P(t) = 0.5·goldDiff/σ_gold(t) + 0.5·dmgDiff/σ_dmg(t)</c>. Because
+/// σ depends only on the minute, the mean power is
+/// <c>0.5·avgGold(t)/σ_gold(t) + 0.5·avgDmg(t)/σ_dmg(t)</c>, so the curve reads the
+/// same additive lead totals as the timeline-leads slice (over every minute) and
+/// reconstructs σ from the lead-spread variance moments.
 ///
-/// A spike is the acceleration of that power around an event — the completion of
-/// a core build item, or a level milestone (6/11/16): the slope of P after the
-/// event minus the slope before, over a ±3 min window, averaged across games.
-/// Correlational, not causal: a champion completes an item earlier partly
-/// because it is already ahead; the opponent-relative + slope-change framing
-/// dampens that but does not remove it.
+/// A spike is the curvature of that aggregate curve around an event — the first
+/// purchase of a core build item, or a level milestone (6/11/16): the slope of P
+/// after the mean event minute minus the slope before, over a ±3 min window.
+/// Correlational, not causal: a champion completes an item earlier partly because
+/// it is already ahead; the opponent-relative + slope-change framing dampens that
+/// but does not remove it.
 ///
 /// Item events are driven by the champion's dominant aggregated build (its
 /// completed items), so no item-metadata classification is needed here.
@@ -35,12 +40,10 @@ public sealed class ChampionPowerspikesQueryService(
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
 
-    // The global per-minute spread is a slowly-changing population statistic and
-    // its query scans broadly, so it gets its own long-lived cache entry.
-    private static readonly TimeSpan SigmaCacheTtl = TimeSpan.FromMinutes(30);
-
     // Half-window (minutes) on each side of an event for the slope-change spike.
     private const int SpikeWindowMinutes = 3;
+
+    private const int MaxMinute = 30;
 
     private static readonly int[] LevelMilestones = [6, 11, 16];
 
@@ -71,78 +74,62 @@ public sealed class ChampionPowerspikesQueryService(
             Patch = normalizedPatch
         };
 
-        // Per (match, minute): the champion's gold/damage lead over its lane
-        // opponent plus the champion's own level. Same opponent pairing as the
-        // timeline-leads read, but every minute and carrying Level.
-        var championRows = db.MatchParticipants
+        // Per-minute lead totals for this slice (every minute 1..30), folded across
+        // the requested patch scope: totals / games give the mean lead, and the
+        // sigma moments give the per-minute spread that normalizes it.
+        var leadQuery = db.ChampionTimelineLeadStats
             .AsNoTracking()
-            .Where(p1 => p1.ChampionId == championId
-                && p1.TeamPosition == position
-                && p1.RiotAccountId != null)
-            .Where(p1 => db.Matches.Any(m =>
-                m.Id == p1.MatchId
-                && m.QueueId == queueId
-                && (normalizedPatch == null || EF.Functions.Like(m.GameVersion, patchPrefix!))));
+            .Where(s => s.ChampionId == championId && s.TeamPosition == position);
+        if (normalizedPatch is not null)
+        {
+            leadQuery = leadQuery.Where(s => s.Patch == normalizedPatch);
+        }
 
-        var diffRows = await championRows
-            .SelectMany(
-                p1 => db.MatchParticipants.Where(p2 =>
-                    p2.MatchId == p1.MatchId
-                    && p2.TeamPosition == p1.TeamPosition
-                    && p2.TeamId != p1.TeamId),
-                (p1, p2) => new { p1, p2 })
-            .SelectMany(
-                pair => db.MatchParticipantTimelineSnapshots.Where(s1 =>
-                    s1.MatchId == pair.p1.MatchId && s1.ParticipantId == pair.p1.ParticipantId),
-                (pair, s1) => new { pair.p2, s1 })
-            .SelectMany(
-                x => db.MatchParticipantTimelineSnapshots.Where(s2 =>
-                    s2.MatchId == x.p2.MatchId
-                    && s2.ParticipantId == x.p2.ParticipantId
-                    && s2.IntervalMinute == x.s1.IntervalMinute),
-                (x, s2) => new DiffRow(
-                    x.s1.MatchId,
-                    x.s1.IntervalMinute,
-                    x.s1.TotalGold - s2.TotalGold,
-                    x.s1.DamageToChampions - s2.DamageToChampions,
-                    x.s1.Level))
+        var leadRows = await leadQuery
+            .GroupBy(s => s.IntervalMinute)
+            .Select(g => new
+            {
+                Minute = g.Key,
+                Games = g.Sum(x => x.Games),
+                Gold = g.Sum(x => x.TotalGoldDiff),
+                Damage = g.Sum(x => x.TotalDamageDiff),
+            })
             .ToListAsync(ct);
 
-        if (diffRows.Count == 0)
+        if (leadRows.Count == 0)
         {
             cache.Set(cacheKey, empty, CacheEntry(CacheTtl));
             return empty;
         }
 
-        var sigmas = await GetGlobalSigmasAsync(queueId, ct);
+        var sigmas = await LoadSigmasAsync(queueId, normalizedPatch, ct);
+        var leadByMinute = leadRows.ToDictionary(r => r.Minute);
 
-        // Per match: minute -> (lead, level), and minute -> power.
-        var byMatch = diffRows
-            .GroupBy(r => r.MatchId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.ToDictionary(r => r.Minute, r => r));
-
-        double? Power(IReadOnlyDictionary<int, DiffRow> series, int minute)
+        // Normalized power at a minute, no floor (the spike windows read this). Null
+        // when the minute is missing or its spread is degenerate on both channels.
+        double? PowerAt(int minute)
         {
-            if (!series.TryGetValue(minute, out var row) || !sigmas.TryGetValue(minute, out var sigma))
+            if (!leadByMinute.TryGetValue(minute, out var lead)
+                || lead.Games <= 0
+                || !sigmas.TryGetValue(minute, out var sigma))
             {
                 return null;
             }
 
             double power = 0;
             var contributed = false;
-            if (sigma.Gold > 0) { power += 0.5 * row.GoldDiff / sigma.Gold; contributed = true; }
-            if (sigma.Damage > 0) { power += 0.5 * row.DmgDiff / sigma.Damage; contributed = true; }
+            if (sigma.Gold > 0) { power += 0.5 * ((double)lead.Gold / lead.Games) / sigma.Gold; contributed = true; }
+            if (sigma.Damage > 0) { power += 0.5 * ((double)lead.Damage / lead.Games) / sigma.Damage; contributed = true; }
             return contributed ? power : null;
         }
 
-        // Slope-change spike around an event minute on one game's power series.
-        double? Spike(IReadOnlyDictionary<int, DiffRow> series, int eventMinute)
+        // Curvature of the aggregate curve around a mean event minute.
+        double? Spike(double meanMinute)
         {
-            var before = Power(series, eventMinute - SpikeWindowMinutes);
-            var at = Power(series, eventMinute);
-            var after = Power(series, eventMinute + SpikeWindowMinutes);
+            var eventMinute = (int)Math.Round(meanMinute, MidpointRounding.AwayFromZero);
+            var before = PowerAt(eventMinute - SpikeWindowMinutes);
+            var at = PowerAt(eventMinute);
+            var after = PowerAt(eventMinute + SpikeWindowMinutes);
             if (before is null || at is null || after is null)
             {
                 return null;
@@ -153,106 +140,29 @@ public sealed class ChampionPowerspikesQueryService(
             return slopeAfter - slopeBefore;
         }
 
-        // Curve: mean power per minute across games (only minutes above the floor).
+        // Curve: mean power per minute, only minutes above the games floor.
         var curve = new List<ChampionPowerCurvePoint>();
         for (var minute = 1; minute <= MaxMinute; minute++)
         {
-            var powers = byMatch.Values
-                .Select(series => Power(series, minute))
-                .Where(p => p is not null)
-                .Select(p => p!.Value)
-                .ToList();
-            if (powers.Count >= minGames)
+            if (!leadByMinute.TryGetValue(minute, out var lead) || lead.Games < minGames)
+            {
+                continue;
+            }
+
+            var power = PowerAt(minute);
+            if (power is not null)
             {
                 curve.Add(new ChampionPowerCurvePoint
                 {
                     Minute = minute,
-                    Power = powers.Average(),
-                    Games = powers.Count
+                    Power = power.Value,
+                    Games = lead.Games,
                 });
             }
         }
 
-        var events = new List<ChampionPowerspikeEvent>();
-
-        // Level milestones: first minute the champion reaches the level, per game.
-        foreach (var milestone in LevelMilestones)
-        {
-            var spikes = new List<double>();
-            var minutes = new List<int>();
-            foreach (var series in byMatch.Values)
-            {
-                var reached = series.Values
-                    .Where(r => r.Level >= milestone)
-                    .Select(r => (int?)r.Minute)
-                    .DefaultIfEmpty(null)
-                    .Min();
-                if (reached is null)
-                {
-                    continue;
-                }
-
-                var spike = Spike(series, reached.Value);
-                if (spike is not null)
-                {
-                    spikes.Add(spike.Value);
-                    minutes.Add(reached.Value);
-                }
-            }
-
-            if (spikes.Count >= minGames)
-            {
-                events.Add(new ChampionPowerspikeEvent
-                {
-                    Type = "level",
-                    RefId = milestone,
-                    AvgMinute = minutes.Average(),
-                    SpikeMagnitude = spikes.Average(),
-                    Games = spikes.Count
-                });
-            }
-        }
-
-        // Item events: the champion's dominant build's completed items.
-        var coreItems = await LoadDominantBuildItemsAsync(championId, position, queueId, normalizedPatch, patchPrefix, ct);
-        if (coreItems.Count > 0)
-        {
-            var itemFirstByMatch = await LoadItemFirstPurchasesAsync(
-                championId, position, queueId, patchPrefix, coreItems, ct);
-
-            foreach (var itemId in coreItems)
-            {
-                var spikes = new List<double>();
-                var minutes = new List<int>();
-                foreach (var (matchId, series) in byMatch)
-                {
-                    if (!itemFirstByMatch.TryGetValue((matchId, itemId), out var firstMs))
-                    {
-                        continue;
-                    }
-
-                    var eventMinute = (int)Math.Round(firstMs / 60_000.0);
-                    var spike = Spike(series, eventMinute);
-                    if (spike is not null)
-                    {
-                        spikes.Add(spike.Value);
-                        minutes.Add(eventMinute);
-                    }
-                }
-
-                if (spikes.Count >= minGames)
-                {
-                    events.Add(new ChampionPowerspikeEvent
-                    {
-                        Type = "item",
-                        RefId = itemId,
-                        AvgMinute = minutes.Average(),
-                        SpikeMagnitude = spikes.Average(),
-                        Games = spikes.Count
-                    });
-                }
-            }
-        }
+        var events = await BuildEventsAsync(
+            championId, position, queueId, normalizedPatch, patchPrefix, minGames, Spike, ct);
 
         var response = new ChampionPowerspikesResponse
         {
@@ -269,38 +179,130 @@ public sealed class ChampionPowerspikesQueryService(
         return response;
     }
 
-    // Per-minute spread of the gold / damage lead across the whole tracked
-    // population, used to make the two comparable. Cached on the queue: it is a
-    // global, slowly-changing scale, not per champion.
-    private async Task<IReadOnlyDictionary<int, (double Gold, double Damage)>> GetGlobalSigmasAsync(
+    // Per-minute gold / damage spread reconstructed from the additive variance
+    // moments, folded across the patch scope (moments are additive, so summing them
+    // is the pooled spread): σ = sqrt((SumSq − Sum²/N) / (N − 1)).
+    private async Task<IReadOnlyDictionary<int, (double Gold, double Damage)>> LoadSigmasAsync(
         int queueId,
+        string? normalizedPatch,
         CancellationToken ct)
     {
-        var key = $"champions:powerspikes:sigmas:{queueId}";
-        if (cache.TryGetValue<IReadOnlyDictionary<int, (double, double)>>(key, out var cachedSigmas)
-            && cachedSigmas is not null)
+        var query = db.TimelineLeadSigmaMoments
+            .AsNoTracking()
+            .Where(s => s.QueueId == queueId);
+        if (normalizedPatch is not null)
         {
-            return cachedSigmas;
+            query = query.Where(s => s.Patch == normalizedPatch);
         }
 
-        FormattableString sql = $@"
-            SELECT s1.""IntervalMinute"" AS ""Minute"",
-                   COALESCE(STDDEV_SAMP(s1.""TotalGold"" - s2.""TotalGold""), 0)::double precision AS ""SigmaGold"",
-                   COALESCE(STDDEV_SAMP(s1.""DamageToChampions"" - s2.""DamageToChampions""), 0)::double precision AS ""SigmaDmg""
-            FROM match_participant_timeline_snapshots s1
-            JOIN match_participants mp1 ON mp1.""MatchId"" = s1.""MatchId"" AND mp1.""ParticipantId"" = s1.""ParticipantId""
-            JOIN match_participants mp2 ON mp2.""MatchId"" = s1.""MatchId""
-                AND mp2.""TeamPosition"" = mp1.""TeamPosition"" AND mp2.""TeamId"" <> mp1.""TeamId""
-            JOIN match_participant_timeline_snapshots s2 ON s2.""MatchId"" = s1.""MatchId""
-                AND s2.""ParticipantId"" = mp2.""ParticipantId"" AND s2.""IntervalMinute"" = s1.""IntervalMinute""
-            JOIN matches m ON m.""Id"" = s1.""MatchId"" AND m.""QueueId"" = {queueId}
-            GROUP BY s1.""IntervalMinute""";
+        var rows = await query
+            .GroupBy(s => s.IntervalMinute)
+            .Select(g => new
+            {
+                Minute = g.Key,
+                N = g.Sum(x => x.N),
+                SumGold = g.Sum(x => x.SumGold),
+                SumSqGold = g.Sum(x => x.SumSqGold),
+                SumDmg = g.Sum(x => x.SumDmg),
+                SumSqDmg = g.Sum(x => x.SumSqDmg),
+            })
+            .ToListAsync(ct);
 
-        var rows = await db.Database.SqlQuery<SigmaRow>(sql).ToListAsync(ct);
-        var sigmas = rows.ToDictionary(r => r.Minute, r => (r.SigmaGold, r.SigmaDmg));
+        var sigmas = new Dictionary<int, (double, double)>();
+        foreach (var row in rows)
+        {
+            if (row.N < 2)
+            {
+                continue;
+            }
 
-        cache.Set(key, (IReadOnlyDictionary<int, (double, double)>)sigmas, CacheEntry(SigmaCacheTtl));
+            sigmas[row.Minute] = (StdDev(row.N, row.SumGold, row.SumSqGold), StdDev(row.N, row.SumDmg, row.SumSqDmg));
+        }
+
         return sigmas;
+    }
+
+    private static double StdDev(long n, double sum, double sumSq)
+    {
+        // Sample variance from moments; clamp tiny negatives from float rounding.
+        var variance = (sumSq - sum * sum / n) / (n - 1);
+        return variance > 0 ? Math.Sqrt(variance) : 0;
+    }
+
+    private async Task<List<ChampionPowerspikeEvent>> BuildEventsAsync(
+        int championId,
+        string position,
+        int queueId,
+        string? normalizedPatch,
+        string? patchPrefix,
+        int minGames,
+        Func<double, double?> spike,
+        CancellationToken ct)
+    {
+        var query = db.ChampionPowerspikeEventStats
+            .AsNoTracking()
+            .Where(s => s.ChampionId == championId && s.TeamPosition == position);
+        if (normalizedPatch is not null)
+        {
+            query = query.Where(s => s.Patch == normalizedPatch);
+        }
+
+        var stats = await query
+            .GroupBy(s => new { s.EventType, s.RefId })
+            .Select(g => new
+            {
+                g.Key.EventType,
+                g.Key.RefId,
+                Games = g.Sum(x => x.Games),
+                SumMinute = g.Sum(x => x.SumEventMinute),
+            })
+            .Where(x => x.Games >= minGames)
+            .ToListAsync(ct);
+
+        if (stats.Count == 0)
+        {
+            return [];
+        }
+
+        // Items are limited to the champion's dominant build; level milestones are
+        // always in scope. Everything else (off-build item buys) is dropped.
+        var coreItems = (await LoadDominantBuildItemsAsync(
+            championId, position, queueId, normalizedPatch, patchPrefix, ct)).ToHashSet();
+
+        var events = new List<ChampionPowerspikeEvent>();
+        foreach (var stat in stats)
+        {
+            var isLevel = string.Equals(stat.EventType, "level", StringComparison.Ordinal);
+            if (isLevel)
+            {
+                if (!LevelMilestones.Contains(stat.RefId))
+                {
+                    continue;
+                }
+            }
+            else if (!coreItems.Contains(stat.RefId))
+            {
+                continue;
+            }
+
+            var meanMinute = (double)stat.SumMinute / stat.Games;
+            var magnitude = spike(meanMinute);
+            if (magnitude is null)
+            {
+                continue;
+            }
+
+            events.Add(new ChampionPowerspikeEvent
+            {
+                Type = stat.EventType,
+                RefId = stat.RefId,
+                AvgMinute = meanMinute,
+                SpikeMagnitude = magnitude.Value,
+                Games = stat.Games,
+            });
+        }
+
+        return events;
     }
 
     // The completed items of the dominant build for the slice: pick the build id
@@ -348,50 +350,6 @@ public sealed class ChampionPowerspikesQueryService(
         return slots.Where(id => id > 0).Distinct().ToList();
     }
 
-    // First ITEM_PURCHASED timestamp of each core item per game, unnested from
-    // the participants' ItemEvents jsonb (same source as item-timings).
-    private async Task<IReadOnlyDictionary<(string MatchId, int ItemId), int>> LoadItemFirstPurchasesAsync(
-        int championId,
-        string position,
-        int queueId,
-        string? patchPrefix,
-        IReadOnlyList<int> coreItems,
-        CancellationToken ct)
-    {
-        var coreItemsArray = coreItems.ToArray();
-
-        FormattableString sql = $@"
-            SELECT mp.""MatchId"" AS ""MatchId"",
-                   e.item_id AS ""ItemId"",
-                   MIN(e.ts)::int AS ""FirstMs""
-            FROM match_participants mp
-            JOIN matches m ON m.""Id"" = mp.""MatchId""
-            CROSS JOIN LATERAL (
-                SELECT (ev->>'ItemId')::int AS item_id,
-                       (ev->>'TimestampMs')::int AS ts
-                FROM jsonb_array_elements(mp.""ItemEvents"") ev
-                WHERE ev->>'EventType' = 'ITEM_PURCHASED'
-                  AND (ev->>'ItemId')::int = ANY({coreItemsArray})
-            ) e
-            WHERE mp.""ChampionId"" = {championId}
-              AND mp.""TeamPosition"" = {position}
-              AND mp.""RiotAccountId"" IS NOT NULL
-              AND m.""QueueId"" = {queueId}
-              AND ({patchPrefix}::text IS NULL OR m.""GameVersion"" LIKE {patchPrefix})
-            GROUP BY mp.""MatchId"", e.item_id";
-
-        var rows = await db.Database.SqlQuery<ItemFirstRow>(sql).ToListAsync(ct);
-        return rows.ToDictionary(r => (r.MatchId, r.ItemId), r => r.FirstMs);
-    }
-
-    private const int MaxMinute = 30;
-
     private static MemoryCacheEntryOptions CacheEntry(TimeSpan ttl)
         => new() { AbsoluteExpirationRelativeToNow = ttl, Size = 1 };
-
-    private sealed record DiffRow(string MatchId, int Minute, int GoldDiff, int DmgDiff, int Level);
-
-    private sealed record SigmaRow(int Minute, double SigmaGold, double SigmaDmg);
-
-    private sealed record ItemFirstRow(string MatchId, int ItemId, int FirstMs);
 }

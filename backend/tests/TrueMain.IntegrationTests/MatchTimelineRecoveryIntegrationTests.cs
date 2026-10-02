@@ -1,5 +1,6 @@
 using Core.Lol.Map;
 using Core.Lol.Identifiers;
+using Core.Options;
 using Data.Entities;
 using Data.Repositories;
 using AwesomeAssertions;
@@ -29,7 +30,10 @@ public sealed class MatchTimelineRecoveryIntegrationTests
 
         await using var db = _fixture.CreateDbContext();
         await using var session = new DataSession(db, new DataRepositoryFactory());
-        var service = new TimelineIngestionService(new FakeRiotMatchClient());
+        var service = new TimelineIngestionService(
+            new FakeRiotMatchClient(),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            TimeProvider.System);
 
         var updated = await service.IngestTimelinesAsync(
             session,

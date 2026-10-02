@@ -25,6 +25,11 @@ public sealed class ChampionTimelineLeadsQueryService(
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
 
+    // champion_timeline_lead_stats now carries every minute 1..30 (it also feeds the
+    // powerspike curve); the leads curve pins the five canonical marks so its shape
+    // is stable across cohorts and unchanged from before the grid was dropped.
+    private static readonly int[] CanonicalLeadMinutes = [5, 10, 15, 20, 30];
+
     public async Task<ChampionTimelineLeadsResponse> GetAsync(
         int championId,
         string position,
@@ -52,7 +57,9 @@ public sealed class ChampionTimelineLeadsQueryService(
         // all-patches view floors on the real total, not on any single patch.
         var query = db.ChampionTimelineLeadStats
             .AsNoTracking()
-            .Where(s => s.ChampionId == championId && s.TeamPosition == position);
+            .Where(s => s.ChampionId == championId
+                && s.TeamPosition == position
+                && CanonicalLeadMinutes.Contains(s.IntervalMinute));
         if (normalizedPatch is not null)
         {
             query = query.Where(s => s.Patch == normalizedPatch);

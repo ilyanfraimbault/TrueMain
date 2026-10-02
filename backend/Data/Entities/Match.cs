@@ -24,5 +24,13 @@ public class Match
 
     public bool TimelineIngested { get; set; }
 
+    /// <summary>
+    /// Set once the match's timeline has been folded into the powerspike/lead
+    /// aggregates. Guards against double-counting when the same match is ingested
+    /// from more than one tracked account (the accumulators are add-only), claimed
+    /// atomically via a conditional update.
+    /// </summary>
+    public bool TimelineAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

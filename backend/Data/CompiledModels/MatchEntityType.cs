@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 11,
+                propertyCount: 12,
                 navigationCount: 1,
                 unnamedIndexCount: 3,
                 keyCount: 1);
@@ -107,6 +107,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(Match).GetField("<QueueId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             queueId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var timelineAggregated = runtimeEntityType.AddProperty(
+                "TimelineAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("TimelineAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<TimelineAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            timelineAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            timelineAggregated.AddAnnotation("Relational:DefaultValue", false);
 
             var timelineIngested = runtimeEntityType.AddProperty(
                 "TimelineIngested",

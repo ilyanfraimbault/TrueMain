@@ -1,5 +1,6 @@
 using Core.Lol.Map;
 using Core.Lol.Identifiers;
+using Core.Options;
 using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -30,7 +31,10 @@ public sealed class MatchIngestionProcessIntegrationTests
             _fixture.CreateSessionFactory(),
             new FakeMatchClaimService(),
             new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System),
-            new TimelineIngestionService(new FakeRiotMatchClient()),
+            new TimelineIngestionService(
+                new FakeRiotMatchClient(),
+                Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+                TimeProvider.System),
             validationService,
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions
             {

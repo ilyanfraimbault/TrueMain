@@ -12,7 +12,6 @@ public class TrueMainDbContext : DbContext
     public DbSet<RiotAccount> RiotAccounts => Set<RiotAccount>();
     public DbSet<Persona> Personas => Set<Persona>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
-    public DbSet<MatchParticipantTimelineSnapshot> MatchParticipantTimelineSnapshots => Set<MatchParticipantTimelineSnapshot>();
     public DbSet<MatchParticipantKillPosition> MatchParticipantKillPositions => Set<MatchParticipantKillPosition>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
     public DbSet<PerkSelectionCatalog> PerkSelectionCatalogs => Set<PerkSelectionCatalog>();
@@ -25,6 +24,13 @@ public class TrueMainDbContext : DbContext
     // timeline curve. Populated by ChampionMatchupLeadAggregationProcess.
     public DbSet<ChampionMatchupStat> ChampionMatchupStats => Set<ChampionMatchupStat>();
     public DbSet<ChampionTimelineLeadStat> ChampionTimelineLeadStats => Set<ChampionTimelineLeadStat>();
+
+    // Powerspike read aggregates (replaces the raw match_participant_timeline_
+    // snapshots grid): per-minute lead spread moments feed the normalized power
+    // curve, and per-event occurrence rows feed the spike magnitudes. Populated
+    // incrementally at timeline ingestion.
+    public DbSet<TimelineLeadSigmaMoment> TimelineLeadSigmaMoments => Set<TimelineLeadSigmaMoment>();
+    public DbSet<ChampionPowerspikeEventStat> ChampionPowerspikeEventStats => Set<ChampionPowerspikeEventStat>();
 
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 

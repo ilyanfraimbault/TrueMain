@@ -7,8 +7,10 @@ namespace Data.Entities;
 /// the per-game diffs (gold/cs/kills/level/xp/damage) plus the game count, with NO
 /// sample floor applied, so the read side can fold rows to the requested patch
 /// scope, divide totals by games for the average, and apply the games floor on the
-/// merged total. Replaces the per-request triple self-join over
-/// <see cref="MatchParticipantTimelineSnapshot"/> (#606).
+/// merged total. Folded incrementally at timeline ingestion (over minutes 1..30):
+/// the timeline-leads read pins the five canonical marks, the powerspike curve
+/// reads them all. Replaces the per-request triple self-join over the raw
+/// per-minute snapshot grid (#606).
 /// </summary>
 public class ChampionTimelineLeadStat
 {

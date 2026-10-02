@@ -1,13 +1,21 @@
 using Core.Lol.Identifiers;
+using Core.Lol.Patches;
+using Core.Options;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
+using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 
-public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) : ITimelineIngestionService
+public sealed class TimelineIngestionService(
+    IRiotMatchClient riotMatchClient,
+    IOptions<MainAnalysisOptions> analysisOptions,
+    TimeProvider timeProvider) : ITimelineIngestionService
 {
+    private readonly int _analysisQueueId = (int)analysisOptions.Value.QueueId;
+
     /// <summary>
     /// Skill events past level 11 add no information for our pattern aggregation
     /// (SkillOrderBuilder only needs to see each basic skill reach rank 2). Cap
@@ -54,7 +62,7 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
         return timelineUpdated;
     }
 
-    private static async Task<bool> ApplyTimelineAsync(
+    private async Task<bool> ApplyTimelineAsync(
         IDataSession session,
         string matchId,
         MatchTimelineDto timeline,
@@ -91,21 +99,51 @@ public sealed class TimelineIngestionService(IRiotMatchClient riotMatchClient) :
                 : [];
         }
 
-        // Replace any existing per-interval snapshots so re-ingesting a timeline is
-        // idempotent: the delete runs first as SQL (clearing the unique-index slots),
-        // then the fresh inserts flush with the participant updates on the caller's
-        // SaveChanges. MatchIngestionProcess wraps this in a transaction, so the delete
-        // and the reinserts commit together (or roll back together on failure) — no
-        // window where the match is left without snapshots.
-        await session.MatchParticipantTimelineSnapshots.DeleteByMatchIdAsync(matchId, ct);
-        session.MatchParticipantTimelineSnapshots.AddRange(TimelineSnapshotBuilder.Build(matchId, timeline));
+        // Fold the timeline into the powerspike/lead aggregates instead of storing a
+        // per-minute snapshot grid. Only the configured analysis queue contributes
+        // (its population is what the champion reads slice). The claim flips
+        // TimelineAggregated false→true atomically, so the same match ingested from a
+        // second tracked account cannot double-count into the add-only accumulators;
+        // it commits or rolls back with MatchIngestionProcess's transaction.
+        await AccumulateTimelineAsync(session, matchId, participants, timeline, ct);
 
         // Bounded early-game kill-participation positions for the roam metric (#536),
-        // replaced idempotently the same way.
+        // replaced idempotently: the delete clears the slots, the fresh inserts flush
+        // with the participant updates on the caller's SaveChanges.
         await session.MatchParticipantKillPositions.DeleteByMatchIdAsync(matchId, ct);
         session.MatchParticipantKillPositions.AddRange(KillPositionBuilder.Build(matchId, timeline));
 
         return true;
+    }
+
+    private async Task AccumulateTimelineAsync(
+        IDataSession session,
+        string matchId,
+        IReadOnlyList<MatchParticipant> participants,
+        MatchTimelineDto timeline,
+        CancellationToken ct)
+    {
+        var info = await session.Matches.GetAggregationInfoAsync(matchId, ct);
+        if (info is null || info.QueueId != _analysisQueueId)
+        {
+            return;
+        }
+
+        var patch = PatchVersion.Normalize(info.GameVersion);
+        if (string.IsNullOrEmpty(patch))
+        {
+            return;
+        }
+
+        // Claim last: only the caller that flips the flag folds the contribution, so
+        // the same match ingested from two accounts is counted exactly once.
+        if (!await session.Matches.TryClaimTimelineAggregationAsync(matchId, ct))
+        {
+            return;
+        }
+
+        var contribution = TimelineAggregationBuilder.Build(info.QueueId, patch, participants, timeline);
+        await session.TimelineAggregates.ApplyAsync(contribution, timeProvider.GetUtcNow().UtcDateTime, ct);
     }
 
     private static void AddItemEventIfApplicable(

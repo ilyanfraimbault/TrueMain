@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("73f8f4d2-9cbe-4ad3-b66f-0a0d04de5bb7"), entityTypeCount: 23)
+            : base(skipDetectChanges: false, modelId: new Guid("88d6b7ce-4c41-4c3f-9fb4-1dc3c647dc05"), entityTypeCount: 24)
         {
         }
 
@@ -26,6 +26,7 @@ namespace Data.CompiledModels
             var championDimSpellPair = ChampionDimSpellPairEntityType.Create(this);
             var championDimStarterItems = ChampionDimStarterItemsEntityType.Create(this);
             var championMatchupStat = ChampionMatchupStatEntityType.Create(this);
+            var championPowerspikeEventStat = ChampionPowerspikeEventStatEntityType.Create(this);
             var championTimelineLeadStat = ChampionTimelineLeadStatEntityType.Create(this);
             var discoveryCursor = DiscoveryCursorEntityType.Create(this);
             var mainCandidate = MainCandidateEntityType.Create(this);
@@ -33,7 +34,6 @@ namespace Data.CompiledModels
             var match = MatchEntityType.Create(this);
             var matchParticipant = MatchParticipantEntityType.Create(this);
             var matchParticipantKillPosition = MatchParticipantKillPositionEntityType.Create(this);
-            var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
             var persona = PersonaEntityType.Create(this);
@@ -41,6 +41,7 @@ namespace Data.CompiledModels
             var rankSnapshot = RankSnapshotEntityType.Create(this);
             var riotAccount = RiotAccountEntityType.Create(this);
             var seedRequest = SeedRequestEntityType.Create(this);
+            var timelineLeadSigmaMoment = TimelineLeadSigmaMomentEntityType.Create(this);
 
             ChampionAggregatePatternEntityType.CreateForeignKey1(championAggregatePattern, championDimBuild);
             ChampionAggregatePatternEntityType.CreateForeignKey2(championAggregatePattern, championDimRunePage);
@@ -52,7 +53,6 @@ namespace Data.CompiledModels
             MatchParticipantEntityType.CreateForeignKey1(matchParticipant, match);
             MatchParticipantEntityType.CreateForeignKey2(matchParticipant, riotAccount);
             MatchParticipantKillPositionEntityType.CreateForeignKey1(matchParticipantKillPosition, match);
-            MatchParticipantTimelineSnapshotEntityType.CreateForeignKey1(matchParticipantTimelineSnapshot, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey1(participantPerkSelection, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey2(participantPerkSelection, perkSelectionCatalog);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
@@ -66,6 +66,7 @@ namespace Data.CompiledModels
             ChampionDimSpellPairEntityType.CreateAnnotations(championDimSpellPair);
             ChampionDimStarterItemsEntityType.CreateAnnotations(championDimStarterItems);
             ChampionMatchupStatEntityType.CreateAnnotations(championMatchupStat);
+            ChampionPowerspikeEventStatEntityType.CreateAnnotations(championPowerspikeEventStat);
             ChampionTimelineLeadStatEntityType.CreateAnnotations(championTimelineLeadStat);
             DiscoveryCursorEntityType.CreateAnnotations(discoveryCursor);
             MainCandidateEntityType.CreateAnnotations(mainCandidate);
@@ -73,7 +74,6 @@ namespace Data.CompiledModels
             MatchEntityType.CreateAnnotations(match);
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
             MatchParticipantKillPositionEntityType.CreateAnnotations(matchParticipantKillPosition);
-            MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
             PersonaEntityType.CreateAnnotations(persona);
@@ -81,9 +81,10 @@ namespace Data.CompiledModels
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);
             RiotAccountEntityType.CreateAnnotations(riotAccount);
             SeedRequestEntityType.CreateAnnotations(seedRequest);
+            TimelineLeadSigmaMomentEntityType.CreateAnnotations(timelineLeadSigmaMoment);
 
             AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-            AddAnnotation("ProductVersion", "10.0.8");
+            AddAnnotation("ProductVersion", "10.0.9");
             AddAnnotation("Relational:MaxIdentifierLength", 63);
         }
     }
