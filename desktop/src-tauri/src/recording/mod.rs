@@ -41,6 +41,7 @@ const HELPER_VAR: &str = "TRUEMAIN_CAPTURE_HELPER";
 const SETTINGS_FILE: &str = "recording-settings.json";
 /// Present once the app has shown macOS's Screen Recording prompt, which
 /// macOS shows once per app: after that, asking again opens System Settings.
+/// Windows has no such prompt (the helper answers granted).
 const ASKED_FILE: &str = "screen-recording-asked";
 
 /// The game the runner is busy with, for the status the page shows.
@@ -164,6 +165,12 @@ impl Recorder {
             ),
             Some(helper) => match media::access(helper, AccessRequest::Check) {
                 Ok(true) => ("ready", None),
+                // Windows asks no permission: a refusal means this Windows
+                // has no window capture at all.
+                Ok(false) if cfg!(windows) => (
+                    "unsupported",
+                    Some("Recording needs Windows 10 version 1903 or later.".into()),
+                ),
                 Ok(false) => ("permission", None),
                 Err(error) => ("missing", Some(error.0)),
             },
@@ -230,25 +237,39 @@ pub(crate) fn emit_recap(app: &AppHandle, id: String) {
 }
 
 /// Where the helper is: an override, the one bundled beside the app's binary
-/// (`Contents/MacOS` on macOS), or in a development build the one `swift
-/// build` leaves in the source tree. `None` where no helper exists yet
-/// (Windows).
+/// (`Contents/MacOS` on macOS, the install folder on Windows), or in a
+/// development build the one built from the source tree — `swift build`'s on
+/// macOS, `cargo build -p truemain-capture`'s on Windows. `None` where no
+/// helper exists (Linux).
 fn helper_path() -> Option<PathBuf> {
     if let Some(path) = std::env::var_os(HELPER_VAR) {
         return Some(PathBuf::from(path));
     }
-    if !cfg!(target_os = "macos") {
+    let name = if cfg!(windows) {
+        "truemain-capture.exe"
+    } else if cfg!(target_os = "macos") {
+        "truemain-capture"
+    } else {
         return None;
-    }
+    };
     let bundled = std::env::current_exe()
         .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join("truemain-capture")))
-        .unwrap_or_else(|| PathBuf::from("truemain-capture"));
+        .and_then(|exe| exe.parent().map(|dir| dir.join(name)))
+        .unwrap_or_else(|| PathBuf::from(name));
     #[cfg(debug_assertions)]
     if !bundled.is_file() {
-        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../capture/macos/.build");
-        for build in ["release", "debug", "apple/Products/Release"] {
-            let candidate = source.join(build).join("truemain-capture");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let candidates: &[&str] = if cfg!(windows) {
+            &["target/release", "target/debug"]
+        } else {
+            &[
+                "capture/macos/.build/release",
+                "capture/macos/.build/debug",
+                "capture/macos/.build/apple/Products/Release",
+            ]
+        };
+        for build in candidates {
+            let candidate = root.join(build).join(name);
             if candidate.is_file() {
                 return Some(candidate);
             }

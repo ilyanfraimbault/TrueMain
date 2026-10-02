@@ -244,6 +244,22 @@ target-triple name, and the app and the spike drive it through one crate (`captu
 clips (an AVFoundation passthrough export) and takes the thumbnails, so the media stack that wrote a file is the one
 that reads it (2026-10-01) — #1745, #1744.
 
+**The Windows capture helper is a Rust executable behind the same protocol, added to the installer at release time
+only.** `desktop/capture/windows` (`truemain-capture.exe`) speaks the macOS helper's commands and events exactly, so
+neither the shell, the runner, the spike nor the pages have a Windows branch. It captures the game's window with
+Windows.Graphics.Capture (no injection, no elevation), converts each frame to NV12 on the GPU with the D3D11 video
+processor and hands the surfaces to Media Foundation's sink writer with hardware transforms on (NVENC, AMF or
+QuickSync, a software encoder only where the GPU has none, reported in `started`), in fragmented MP4 like the macOS
+file. Sound is the game's own process tree through WASAPI process loopback — not the system mix, which would carry a
+voice chat. Rust rather than C++ or C# because the `windows` crate already in the app's lockfile covers every API,
+type-checks from Linux, and keeps one toolchain; a separate process for the same reason as on macOS. It is not in
+`tauri.conf.json`: a Tauri sidecar must exist for every build, `tauri dev` included, so `desktop-release.yml` builds
+it and adds it as `externalBin` for the Windows bundle alone, and a development build finds it in `target/`. Windows
+asks no permission to capture a window, so `access` reports whether the OS has window capture at all (10 1903+), and
+an older Windows reads as unsupported. Without a tester with League on Windows, CI's smoke test records a repainting
+window on a GPU-less runner — it proves the protocol, the file, the clip and the thumbnail, not the game or the
+hardware encoder (2026-10-02) — #1797.
+
 **The app records only against a real client, into a folder the player can find, and asks for Screen Recording
 itself.** A tape or the simulator plays the client's events, not a game window, so neither starts the recorder. The
 default folder is the system's videos folder (`~/Movies/TrueMain`), not the app's hidden data folder: the clips are

@@ -4583,6 +4583,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "truemain-capture"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "windows",
+ "windows-core",
+]
+
+[[package]]
 name = "truemain-desktop"
 version = "0.1.0"
 dependencies = [
