@@ -1,11 +1,11 @@
-import type { OverlaySettings, OverlayView } from '~/types/overlay'
+import type { OverlayPanel, OverlaySettings, OverlayView } from '~/types/overlay'
 import { DEV_OVERLAY_VIEW } from '~/types/overlay'
 
 /**
  * The in-game overlay's settings and preview, as the shell holds them
  * (`src-tauri/src/overlay`). Read by the settings panel in the app's window
- * and by the overlay's own page, each in its own webview: the shell's
- * `overlay://view` event keeps the two in step.
+ * and by each overlay panel's page, each in its own webview: the shell's
+ * `overlay://view` event keeps them in step.
  *
  * In a browser-only `npm run dev` there is no shell: the defaults stand in,
  * changed in memory, so the settings panel can be worked on.
@@ -48,11 +48,11 @@ export function useGameOverlay() {
     view.value = await call('overlay_preview', { on })
   }
 
-  /** The overlay page's measured size, for the panel to take. */
-  async function fit(width: number, height: number) {
+  /** A panel page's measured size, for its window to take. */
+  async function fit(panel: OverlayPanel, width: number, height: number) {
     if (!insideTauri()) return
     const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('overlay_fit', { width, height })
+    await invoke('overlay_fit', { panel, width, height })
   }
 
   return { view, save, preview, fit }

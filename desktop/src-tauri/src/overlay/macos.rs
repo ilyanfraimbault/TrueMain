@@ -8,19 +8,21 @@
 //! - The panel class can never become key and is `NonactivatingPanel`, so the
 //!   game keeps the keyboard; it ignores the mouse outside the preview, so the
 //!   game keeps every click.
-//! - With the display captured no hotkey reaches the app, so the shortcut is
-//!   read from the keyboard's state instead — no permission involved.
+//! - With the display captured no hotkey reaches the app, so the shortcut —
+//!   and TAB, which opens the game's scoreboard and with it the item value —
+//!   are read from the keyboard's state instead, no permission involved.
 //! - `PanelBuilder::no_activate` stays off: it flips the activation policy and
 //!   left the app with none of its windows on screen.
 
 // `tauri_panel!` expands to code clippy flags as a unit return.
 #![allow(clippy::unused_unit)]
 
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
 
 use objc2_app_kit::NSWorkspace;
-use shell_state::overlay::{OverlaySettings, Rect};
+use shell_state::overlay::{OverlayPanel, OverlaySettings, Rect};
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, WebviewUrl,
     WindowEvent,
@@ -29,7 +31,7 @@ use tauri_nspanel::{
     tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
 };
 
-use super::{SharedOverlay, LABEL, VIEW_EVENT};
+use super::{label, SharedOverlay, VIEW_EVENT};
 
 /// `CGShieldingWindowLevel()`, where a game that captured the display draws.
 const SHIELDING_LEVEL: i32 = 2_147_483_628;
@@ -44,7 +46,7 @@ const KEYS_EVERY: Duration = Duration::from_millis(30);
 const FRONTMOST_EVERY: u32 = 8;
 
 tauri_panel! {
-    panel!(OverlayPanel {
+    panel!(OverlayWindow {
         config: {
             can_become_key_window: false,
             can_become_main_window: false,
@@ -54,7 +56,7 @@ tauri_panel! {
     })
 }
 
-/// What was last applied to the window, so `apply` touches it only on change.
+/// What was last applied to a panel's window, so `apply` touches it only on change.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Applied {
     visible: bool,
@@ -64,12 +66,25 @@ struct Applied {
     opacity: f64,
 }
 
-static APPLIED: Mutex<Option<Applied>> = Mutex::new(None);
+static APPLIED: Mutex<Option<HashMap<OverlayPanel, Applied>>> = Mutex::new(None);
 
 pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    for panel in OverlayPanel::ALL {
+        build(app, panel)?;
+    }
+    let watcher = app.clone();
+    std::thread::spawn(move || watch(&watcher));
+    Ok(())
+}
+
+/// One panel's window, hidden, its page on `#/overlay/<panel>`.
+fn build(app: &AppHandle, which: OverlayPanel) -> Result<(), Box<dyn std::error::Error>> {
     let settings = app.state::<SharedOverlay>().settings();
-    let panel = PanelBuilder::<_, OverlayPanel>::new(app, LABEL)
-        .url(WebviewUrl::App("#/overlay".into()))
+    let label = label(which);
+    let panel = PanelBuilder::<_, OverlayWindow>::new(app, &label)
+        .url(WebviewUrl::App(
+            format!("#/overlay/{}", which.slug()).into(),
+        ))
         .title("TrueMain overlay")
         .size(Size::Logical(LogicalSize::new(
             super::INITIAL_SIZE.0,
@@ -102,17 +117,14 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     panel.hide();
 
-    if let Some(window) = app.get_webview_window(LABEL) {
+    if let Some(window) = app.get_webview_window(&label) {
         let handle = app.clone();
         window.on_window_event(move |event| {
             if let WindowEvent::Moved(position) = event {
-                dragged(&handle, *position);
+                dragged(&handle, which, *position);
             }
         });
     }
-
-    let watcher = app.clone();
-    std::thread::spawn(move || watch(&watcher));
     Ok(())
 }
 
@@ -130,17 +142,22 @@ fn screen(app: &AppHandle) -> Option<Rect> {
     })
 }
 
-/// Where the window should be and look, now.
-fn wanted(app: &AppHandle, overlay: &SharedOverlay, settings: &OverlaySettings) -> Option<Applied> {
-    let inputs = overlay.inputs(app);
-    let size = overlay.size();
-    Some(Applied {
-        visible: settings.shows(&inputs),
+/// Where a panel's window should be and look, now.
+fn wanted(
+    overlay: &SharedOverlay,
+    settings: &OverlaySettings,
+    inputs: &shell_state::overlay::OverlayInputs,
+    screen: Rect,
+    panel: OverlayPanel,
+) -> Applied {
+    let size = overlay.size(panel);
+    Applied {
+        visible: settings.shows(panel, inputs),
         interactive: inputs.preview,
-        origin: settings.origin(screen(app)?, size),
+        origin: settings.origin(panel, screen, size),
         size,
         opacity: settings.opacity,
-    })
+    }
 }
 
 pub fn apply(app: &AppHandle) {
@@ -152,21 +169,34 @@ pub fn apply(app: &AppHandle) {
 fn apply_now(app: &AppHandle) {
     let overlay = app.state::<SharedOverlay>().inner().clone();
     let settings = overlay.settings();
-    let Some(next) = wanted(app, &overlay, &settings) else {
+    let inputs = overlay.inputs(app);
+    let Some(screen) = screen(app) else {
         return;
     };
-    let mut applied = APPLIED.lock().expect("overlay state poisoned");
-    if *applied == Some(next) {
+    for panel in OverlayPanel::ALL {
+        let next = wanted(&overlay, &settings, &inputs, screen, panel);
+        apply_panel(app, panel, next);
+    }
+}
+
+/// Main thread only (AppKit).
+fn apply_panel(app: &AppHandle, which: OverlayPanel, next: Applied) {
+    let label = label(which);
+    let mut state = APPLIED.lock().expect("overlay state poisoned");
+    let applied = state.get_or_insert_with(HashMap::new);
+    let previous = applied.get(&which).copied();
+    if previous == Some(next) {
         return;
     }
-    let (Ok(panel), Some(window)) = (app.get_webview_panel(LABEL), app.get_webview_window(LABEL))
-    else {
+    let (Ok(panel), Some(window)) = (
+        app.get_webview_panel(&label),
+        app.get_webview_window(&label),
+    ) else {
         return;
     };
-    let previous = *applied;
     // Recorded before moving the window, so the `Moved` it fires is known as ours.
-    *applied = Some(next);
-    drop(applied);
+    applied.insert(which, next);
+    drop(state);
 
     let resized = previous.map(|p| p.size) != Some(next.size);
     if resized {
@@ -193,21 +223,26 @@ fn apply_now(app: &AppHandle) {
         } else {
             panel.hide();
         }
-        tracing::info!(visible = next.visible, "overlay");
+        tracing::info!(panel = which.slug(), visible = next.visible, "overlay");
     }
 }
 
-/// The panel moved. Ours when it lands where `apply` put it; otherwise the
+/// A panel moved. Ours when it lands where `apply` put it; otherwise the
 /// player dragged it in the preview, and that becomes its custom place.
-fn dragged(app: &AppHandle, position: tauri::PhysicalPosition<i32>) {
+fn dragged(app: &AppHandle, which: OverlayPanel, position: tauri::PhysicalPosition<i32>) {
     let overlay = app.state::<SharedOverlay>().inner().clone();
-    let Some(applied) = *APPLIED.lock().expect("overlay state poisoned") else {
+    let applied = APPLIED
+        .lock()
+        .expect("overlay state poisoned")
+        .as_ref()
+        .and_then(|applied| applied.get(&which).copied());
+    let Some(applied) = applied else {
         return;
     };
     if !applied.interactive {
         return;
     }
-    let Some(window) = app.get_webview_window(LABEL) else {
+    let Some(window) = app.get_webview_window(&label(which)) else {
         return;
     };
     let scale = window.scale_factor().unwrap_or(1.0);
@@ -219,7 +254,10 @@ fn dragged(app: &AppHandle, position: tauri::PhysicalPosition<i32>) {
     let Some(screen) = screen(app) else {
         return;
     };
-    overlay.place(OverlaySettings::point_at(screen, origin, applied.size));
+    overlay.place(
+        which,
+        OverlaySettings::point_at(screen, origin, applied.size),
+    );
     let _ = app.emit(VIEW_EVENT, overlay.view());
     apply(app);
 }
@@ -246,18 +284,21 @@ fn watch(app: &AppHandle) {
             });
         }
 
-        // The shortcut only means something over the game.
+        // The keys only mean something over the game.
         let overlay = app.state::<SharedOverlay>().inner().clone();
-        let down = overlay
+        let front = overlay
             .game_frontmost
-            .load(std::sync::atomic::Ordering::SeqCst)
-            && key_state::shortcut_down();
+            .load(std::sync::atomic::Ordering::SeqCst);
+        let down = front && key_state::shortcut_down();
         if down && !held {
             let hidden = overlay.toggle_hidden();
             tracing::info!(hidden, "overlay shortcut");
             apply(app);
         }
         held = down;
+        if overlay.set_scoreboard(front && key_state::tab_down()) {
+            apply(app);
+        }
         std::thread::sleep(KEYS_EVERY);
     }
 }
@@ -278,6 +319,14 @@ mod key_state {
     const FLAG_OPTION: u64 = 0x0008_0000;
     /// `kVK_ANSI_O`: a key position, so it holds on any keyboard layout.
     const KEY_O: u16 = 0x1F;
+    /// `kVK_Tab`, the game's scoreboard key.
+    const KEY_TAB: u16 = 0x30;
+
+    /// Whether TAB is held — the game's scoreboard is open while it is.
+    pub fn tab_down() -> bool {
+        // SAFETY: a plain C call on value arguments.
+        unsafe { CGEventSourceKeyState(HID_SYSTEM_STATE, KEY_TAB) }
+    }
 
     /// Whether ⌥⇧O is held.
     pub fn shortcut_down() -> bool {

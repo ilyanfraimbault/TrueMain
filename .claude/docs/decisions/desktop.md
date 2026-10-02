@@ -310,14 +310,31 @@ every load the pages make — not only navigations: a filter change or a cold ma
 site keeps #1689 as it is; only reads no click asked for (the in-game next item) stay off the bar — #1788.
 
 **The in-game overlay draws over the game and nowhere else, and never takes an input from it (2026-10-02).** The #1673
-spike's measurements (`docs/desktop-overlay-spike.md`) set the window: League's Full Screen captures the display, so the
-panel sits one level above `CGShieldingWindowLevel` — and, at that level, is shown only while the game's own process is
-frontmost, so it never covers the client or another app (the product owner's rule). It can never become key and ignores
-the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its one shortcut
-is read from the keyboard's state, because over a captured display no hotkey reaches the app. It carries **one
-item** — the next one, and the gold still to earn for it or that it can be bought now — and nothing else: no
-components (which one to buy first is not measured yet, so the overlay does not pretend to know), no runners-up, no
-boots; the game page keeps the full panel, from the same `useNextItemPanel` (the product owner's call). It is on by
-default and set up from the game page — when it shows (whole game or while dead), where (four spots, or anywhere by
-dragging it in an on-screen preview, the only time it takes the mouse), size and opacity. No interactive mode in game: the spike proved one possible,
-but nothing on the panel needs a click. macOS only until a Windows pass is measured (2026-10-02) — #1673, #1795.
+spike's measurements (`docs/desktop-overlay-spike.md`) set the windows: League's Full Screen captures the display, so
+each panel sits one level above `CGShieldingWindowLevel` — and, at that level, is shown only while the game's own
+process is frontmost, so it never covers the client or another app (the product owner's rule). It can never become key
+and ignores the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its
+shortcut and TAB are read from the keyboard's state, because over a captured display no hotkey reaches the app — which
+also settles #1752's macOS question: TAB is detected without an event tap, so without the Input Monitoring permission.
+The overlay is three independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
+default and set up from the game page — each on/off and where (five spots, or anywhere by dragging it in an on-screen
+preview, the only time the panels take the mouse), plus size and opacity for all:
+
+- **Next item**: **one item** — the next one, and the gold still to earn for it or that it can be bought now — and
+  nothing else: no components (which one to buy first is not measured yet, so the overlay does not pretend to know),
+  no runners-up, no boots; the game page keeps the full panel, from the same `useNextItemPanel`. Whole game or only
+  while dead.
+- **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
+- **Item value**: only while TAB is held — each team's item gold, a chevron toward the side ahead with the gap, then
+  each lane's — in its own panel rather than pinned to Riot's scoreboard rows, which move with resolution and HUD scale.
+  Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's rule).
+
+No interactive mode in game: nothing on the panels needs a click. macOS only until a Windows pass is measured
+(2026-10-02) — #1673, #1795, #1752.
+
+**The overlay shows a win probability, estimated from the item-gold gap (2026-10-02).** The product owner's call,
+reversing for the in-game overlay the "no win probability" line of #1671 and #1747, and knowingly a formula rather than
+a measured model: the left side's chance is a logistic of the item-gold lead relative to the gold the two teams hold on
+average (`utils/item-value.ts`, steepness 6 — a lead of a tenth of that average reads about 65 %, a fifth about 77 %),
+so the same gap weighs more early than late. Its inputs are only what the scoreboard shows. The draft keeps no win
+probability (2026-10-02) — #1795.

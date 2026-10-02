@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import type { OverlayAnchor, OverlaySettings, OverlayShow } from '~/types/overlay'
-import { OVERLAY_OPACITY, OVERLAY_SCALE } from '~/types/overlay'
+import type { OverlayAnchor, OverlayPanel, OverlaySettings, OverlayShow } from '~/types/overlay'
+import { OVERLAY_OPACITY, OVERLAY_PANELS, OVERLAY_SCALE, PANEL_KEY } from '~/types/overlay'
 
 /**
- * The in-game overlay's settings (#1795): on or off, when it shows, where,
- * how large and how see-through. Each change is
- * saved as it is made; the shell's answer is what then shows.
+ * The in-game overlay's settings (#1795): the overlay on or off, then each
+ * panel — on or off and where it sits — the next item's moment, and every
+ * panel's size and opacity. Each change is saved as it is made; the shell's
+ * answer is what then shows.
  *
- * Where it sits is chosen two ways: one of four spots on a small screen, or
- * anywhere by dragging the panel itself while the preview shows it on screen
- * — the only time it takes the mouse. Closing the panel ends the preview.
+ * Where a panel sits is chosen two ways: one of five spots on a small screen,
+ * or anywhere by dragging the panel itself while the preview shows them all
+ * on screen — the only time they take the mouse. Closing this ends the
+ * preview.
  */
 const open = defineModel<boolean>('open', { default: false })
 
@@ -17,21 +19,22 @@ const { view, save, preview } = useGameOverlay()
 const current = computed(() => view.value?.settings ?? null)
 
 const SHOWS: { value: OverlayShow, label: string }[] = [{ value: 'always', label: 'Whole game' }, { value: 'whileDead', label: 'While dead' }]
-const ANCHORS: { value: OverlayAnchor, label: string, spot: string }[] = [
-  { value: 'top-left', label: 'Top left', spot: 'left-1.5 top-2' },
-  { value: 'top-right', label: 'Top right', spot: 'right-1.5 top-2' },
-  { value: 'center-left', label: 'Middle left', spot: 'left-1.5 top-1/2 -translate-y-1/2' },
-  { value: 'center-right', label: 'Middle right', spot: 'right-1.5 top-1/2 -translate-y-1/2' },
-]
-
-const place = computed(() => {
-  if (!current.value) return ''
-  if (current.value.custom) return 'Where you dragged it'
-  return ANCHORS.find(anchor => anchor.value === current.value!.anchor)?.label ?? ''
-})
+const PANELS: Record<OverlayPanel, { label: string, description: string }> = {
+  'next-item': { label: 'Next item', description: 'The next item to buy, and the gold it still needs.' },
+  'win-probability': { label: 'Win probability', description: 'Each side\'s chance to win, estimated from the item-gold gap. On screen the whole game.' },
+  'item-value': { label: 'Item value', description: 'While TAB is held: what each team\'s items are worth, and each lane\'s gap.' },
+}
 
 function apply(change: Partial<OverlaySettings>) {
   void save(change)
+}
+function applyPanel(panel: OverlayPanel, change: Partial<OverlaySettings['nextItem']>) {
+  if (!current.value) return
+  const key = PANEL_KEY[panel]
+  apply({ [key]: { ...current.value[key], ...change } })
+}
+function pick(panel: OverlayPanel, anchor: OverlayAnchor) {
+  applyPanel(panel, { anchor, custom: null })
 }
 
 // Sliders save once they settle, not on every step of a drag.
@@ -53,11 +56,11 @@ onBeforeUnmount(() => void preview(false))
 </script>
 
 <template>
-  <USlideover v-model:open="open" title="In-game overlay" description="Over the game only — never over the client or another app." :ui="{ content: 'max-w-sm', body: 'flex flex-col gap-6' }">
+  <USlideover v-model:open="open" title="In-game overlay" description="Over the game only — never over the client or another app." :ui="{ content: 'max-w-md', body: 'flex flex-col gap-6' }">
     <template #body>
       <div v-if="view && !view.supported" class="flex items-start gap-2 text-sm">
         <UIcon name="i-lucide-monitor-x" class="mt-0.5 size-4 shrink-0 text-muted" />
-        <p class="text-muted">The overlay is macOS-only for now. The game page shows the same panel in this window.</p>
+        <p class="text-muted">The overlay is macOS-only for now. The game page shows the next item in this window.</p>
       </div>
 
       <template v-if="current">
@@ -69,51 +72,44 @@ onBeforeUnmount(() => void preview(false))
         />
 
         <div class="flex flex-col gap-6" :class="!current.enabled && 'opacity-50'">
-          <section class="flex flex-col gap-2">
-            <h3 class="stat-label">When</h3>
-            <RecordingsSegmented :model-value="current.show" :items="SHOWS" @update:model-value="apply({ show: $event })" />
-            <p class="text-xs text-muted">
-              <template v-if="current.show === 'whileDead'">Shows while your champion is dead — when the shop is the decision at hand.</template>
-              <template v-else>Shows from the moment the game has loaded to its end.</template>
-            </p>
-          </section>
-
-          <section class="flex flex-col gap-2">
-            <div class="flex items-baseline justify-between">
-              <h3 class="stat-label">Position</h3>
-              <span class="text-xs text-muted">{{ place }}</span>
+          <section class="flex flex-col gap-4">
+            <h3 class="stat-label">Panels</h3>
+            <div v-for="panel in OVERLAY_PANELS" :key="panel" class="flex items-start gap-4">
+              <div class="flex min-w-0 flex-1 flex-col gap-2">
+                <USwitch
+                  :model-value="current[PANEL_KEY[panel]].enabled"
+                  :label="PANELS[panel].label"
+                  :description="PANELS[panel].description"
+                  @update:model-value="applyPanel(panel, { enabled: $event })"
+                />
+                <RecordingsSegmented
+                  v-if="panel === 'next-item' && current.nextItem.enabled"
+                  class="ml-11"
+                  :model-value="current.show"
+                  :items="SHOWS"
+                  @update:model-value="apply({ show: $event })"
+                />
+              </div>
+              <OverlayAnchorPicker
+                :settings="current[PANEL_KEY[panel]]"
+                :class="!current[PANEL_KEY[panel]].enabled && 'pointer-events-none opacity-40'"
+                @pick="pick(panel, $event)"
+              />
             </div>
-            <div class="flex items-center gap-4">
-              <!-- The screen, small: a spot per anchor, and the dragged place when there is one. -->
-              <div class="relative aspect-video w-36 shrink-0 rounded-md bg-elevated ring-1 ring-default">
-                <button
-                  v-for="anchor in ANCHORS"
-                  :key="anchor.value"
-                  type="button"
-                  :aria-label="anchor.label"
-                  :title="anchor.label"
-                  class="absolute h-3.5 w-7 rounded-sm ring-1 transition-colors"
-                  :class="[anchor.spot, !current.custom && current.anchor === anchor.value ? 'bg-primary ring-primary' : 'bg-accented ring-default hover:ring-primary/60']"
-                  @click="apply({ anchor: anchor.value, custom: null })"
-                />
-                <span
-                  v-if="current.custom"
-                  class="absolute h-3.5 w-7 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-primary ring-1 ring-primary"
-                  :style="{ left: `${current.custom.x * 100}%`, top: `${current.custom.y * 100}%` }"
-                />
-              </div>
-              <div class="flex flex-col items-start gap-1.5">
-                <UButton
-                  :label="view?.preview ? 'Done placing' : 'Place on screen'"
-                  :icon="view?.preview ? 'i-lucide-check' : 'i-lucide-move'"
-                  size="xs"
-                  :color="view?.preview ? 'primary' : 'neutral'"
-                  :variant="view?.preview ? 'solid' : 'outline'"
-                  :disabled="!view?.supported"
-                  @click="preview(!view?.preview)"
-                />
-                <p class="text-xs text-muted">{{ view?.preview ? 'The overlay is on your screen: drag it where it goes over your game.' : 'Shows it on screen to drag it anywhere.' }}</p>
-              </div>
+
+            <div class="flex items-center gap-3 rounded-lg bg-elevated/60 px-3 py-2 ring-1 ring-default">
+              <p class="flex-1 text-xs text-muted">
+                {{ view?.preview ? 'The panels are on your screen: drag each where it goes over your game.' : 'Or show the panels on screen and drag each anywhere.' }}
+              </p>
+              <UButton
+                :label="view?.preview ? 'Done' : 'Place on screen'"
+                :icon="view?.preview ? 'i-lucide-check' : 'i-lucide-move'"
+                size="xs"
+                :color="view?.preview ? 'primary' : 'neutral'"
+                :variant="view?.preview ? 'solid' : 'outline'"
+                :disabled="!view?.supported"
+                @click="preview(!view?.preview)"
+              />
             </div>
           </section>
 
@@ -147,12 +143,11 @@ onBeforeUnmount(() => void preview(false))
             />
           </section>
 
-
           <section class="flex flex-col gap-2">
             <h3 class="stat-label">Shortcut</h3>
             <div class="flex items-center gap-2 text-sm text-muted">
               <UKbd size="md">{{ view?.shortcut }}</UKbd>
-              <span>hides it until the game ends; again to bring it back.</span>
+              <span>hides the overlay until the game ends; again to bring it back.</span>
             </div>
           </section>
         </div>

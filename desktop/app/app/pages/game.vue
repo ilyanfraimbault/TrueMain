@@ -20,8 +20,7 @@ const overlayStatus = computed(() => {
   if (!view) return null
   if (!view.supported) return 'The in-game overlay is macOS-only for now.'
   if (!view.settings.enabled) return 'The in-game overlay is off.'
-  const when = view.settings.show === 'whileDead' ? 'while you are dead' : 'over your game'
-  return `The overlay shows ${when}. ${view.shortcut} hides it.`
+  return `The overlay shows over your game; TAB adds the item value. ${view.shortcut} hides it.`
 })
 
 const waiting = computed(() => {

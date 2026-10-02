@@ -75,13 +75,15 @@ Tracking issue: **#1671**.
   the gold left to finish it, the components your gold buys now, two
   runners-up and the boots while you have none. Asked again whenever anyone's
   items change.
-- **Draws it over the game** (#1795, macOS): the next item alone — the item and
-  the gold still to earn for it, or that it can be bought now — in a small
-  overlay over the game itself — only while the game is the frontmost
-  app, never over the client or anything else. Click-through and never focused,
-  so the game keeps every click and key; ⌥⇧O hides it for the rest of the game.
-  Set up from the game page (on/off, whole game or only while dead, one of four
-  spots or anywhere by dragging it in a preview, size, opacity).
+- **Draws over the game** (#1795, macOS): three small panels, each placed on
+  its own — the next item alone (the item and the gold still to earn for it, or
+  that it can be bought now), a win probability estimated from the item-gold
+  gap, and, while TAB is held, each team's item gold and each lane's gap —
+  only while the game is the frontmost app, never over the client or anything
+  else. Click-through and never focused, so the game keeps every click and key;
+  ⌥⇧O hides them for the rest of the game. Set up from the game page (each panel
+  on/off and where — five spots, or anywhere by dragging it in a preview — the
+  next item's moment, size, opacity).
   The window layer is the #1673 spike's verdict, `docs/desktop-overlay-spike.md`.
 
 ## What it does not do yet

@@ -1,8 +1,11 @@
-//! The in-game overlay's settings and the two rules that drive its window:
-//! when it shows, and where.
+//! The in-game overlay's settings and the two rules that drive its windows:
+//! when each panel shows, and where.
 //!
-//! The window itself is the shell's (`src-tauri/src/overlay`), macOS-only and
-//! impossible to build on the Linux CI box; the decisions it applies live here
+//! The overlay is a few independent panels, each its own window placed on its
+//! own (#1671's choice over one HUD): the next item, the win probability, and
+//! the item value, which shows only while the scoreboard (TAB) is held. The
+//! windows are the shell's (`src-tauri/src/overlay`), macOS-only and
+//! impossible to build on the Linux CI box; the decisions they apply live here
 //! so they are tested anywhere. The settings file is read the way the
 //! recording settings are: a value this build does not know, or one out of
 //! range, falls back to its own default rather than failing the file.
@@ -30,7 +33,40 @@ const EDGE_MARGIN: f64 = 16.0;
 /// announcements and, top right, its own score strip.
 const TOP_MARGIN: f64 = 56.0;
 
-/// When the overlay shows during a game.
+/// One panel of the overlay, each in its own window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OverlayPanel {
+    /// The next item to buy, and the gold it still needs.
+    NextItem,
+    /// Each side's chance to win, estimated from the item-gold gap.
+    WinProbability,
+    /// Each team's item gold and each lane's gap, while TAB is held.
+    ItemValue,
+}
+
+impl OverlayPanel {
+    pub const ALL: [OverlayPanel; 3] = [
+        OverlayPanel::NextItem,
+        OverlayPanel::WinProbability,
+        OverlayPanel::ItemValue,
+    ];
+
+    /// The panel's name in a window label and a route.
+    pub fn slug(self) -> &'static str {
+        match self {
+            OverlayPanel::NextItem => "next-item",
+            OverlayPanel::WinProbability => "win-probability",
+            OverlayPanel::ItemValue => "item-value",
+        }
+    }
+
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|panel| panel.slug() == slug)
+    }
+}
+
+/// When the next item shows during a game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OverlayShow {
@@ -40,58 +76,76 @@ pub enum OverlayShow {
     WhileDead,
 }
 
-/// A place on the screen the overlay snaps to.
+/// A place on the screen a panel snaps to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OverlayAnchor {
     TopLeft,
+    TopCenter,
     TopRight,
     CenterLeft,
     CenterRight,
 }
 
-/// Where the player dragged the overlay, as the centre of the panel in
-/// fractions of the screen — so it lands in the same place at any resolution.
+/// Where the player dragged a panel, as its centre in fractions of the screen
+/// — so it lands in the same place at any resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct OverlayPoint {
     pub x: f64,
     pub y: f64,
 }
 
+/// One panel's own settings.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OverlaySettings {
-    /// On by default: the overlay is the app's in-game half, it costs nothing,
-    /// and one shortcut hides it for the game.
+pub struct PanelSettings {
     pub enabled: bool,
-    pub show: OverlayShow,
     pub anchor: OverlayAnchor,
     /// Set by dragging the panel in the preview; wins over `anchor` until the
     /// player picks an anchor again.
     pub custom: Option<OverlayPoint>,
-    /// The panel's size against its natural one.
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverlaySettings {
+    /// The whole overlay. On by default: it is the app's in-game half, it
+    /// costs nothing, and one shortcut hides it for the game.
+    pub enabled: bool,
+    /// When the next item shows; the other panels have their own moment.
+    pub show: OverlayShow,
+    /// Every panel's size against its natural one.
     pub scale: f64,
     pub opacity: f64,
+    pub next_item: PanelSettings,
+    pub win_probability: PanelSettings,
+    pub item_value: PanelSettings,
 }
 
 impl Default for OverlaySettings {
     fn default() -> Self {
+        let at = |anchor| PanelSettings {
+            enabled: true,
+            anchor,
+            custom: None,
+        };
         Self {
             enabled: true,
             show: OverlayShow::Always,
-            anchor: OverlayAnchor::TopLeft,
-            custom: None,
             scale: 1.0,
             opacity: 0.95,
+            next_item: at(OverlayAnchor::TopRight),
+            win_probability: at(OverlayAnchor::TopLeft),
+            item_value: at(OverlayAnchor::TopCenter),
         }
     }
 }
 
-/// What the overlay's visibility depends on besides the settings, measured by
+/// What the panels' visibility depends on besides the settings, measured by
 /// the shell.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct OverlayInputs {
-    /// The settings page asked to see the overlay on screen, to place it.
+    /// The settings page asked to see the panels on screen, to place them.
     pub preview: bool,
     /// The game's own process (not the client) is the frontmost application.
     pub game_frontmost: bool,
@@ -101,6 +155,8 @@ pub struct OverlayInputs {
     pub dead: bool,
     /// The player hid the overlay with the shortcut during this game.
     pub hidden_by_player: bool,
+    /// TAB is held: the game's scoreboard is open.
+    pub scoreboard: bool,
 }
 
 /// A rectangle in points, origin top left.
@@ -113,16 +169,39 @@ pub struct Rect {
 }
 
 impl OverlaySettings {
-    /// Whether the overlay is on screen. Only ever over the game itself: never
+    pub fn panel(&self, panel: OverlayPanel) -> &PanelSettings {
+        match panel {
+            OverlayPanel::NextItem => &self.next_item,
+            OverlayPanel::WinProbability => &self.win_probability,
+            OverlayPanel::ItemValue => &self.item_value,
+        }
+    }
+
+    pub fn panel_mut(&mut self, panel: OverlayPanel) -> &mut PanelSettings {
+        match panel {
+            OverlayPanel::NextItem => &mut self.next_item,
+            OverlayPanel::WinProbability => &mut self.win_probability,
+            OverlayPanel::ItemValue => &mut self.item_value,
+        }
+    }
+
+    /// Whether `panel` is on screen. Only ever over the game itself: never
     /// over the client, another app or the desktop — except in the preview,
-    /// which shows it whatever the settings so it can be placed.
-    pub fn shows(&self, inputs: &OverlayInputs) -> bool {
+    /// which shows every switched-on panel so it can be placed.
+    pub fn shows(&self, panel: OverlayPanel, inputs: &OverlayInputs) -> bool {
+        if !self.panel(panel).enabled {
+            return false;
+        }
         if inputs.preview {
             return true;
         }
-        let moment = match self.show {
-            OverlayShow::Always => true,
-            OverlayShow::WhileDead => inputs.dead,
+        let moment = match panel {
+            OverlayPanel::NextItem => match self.show {
+                OverlayShow::Always => true,
+                OverlayShow::WhileDead => inputs.dead,
+            },
+            OverlayPanel::WinProbability => true,
+            OverlayPanel::ItemValue => inputs.scoreboard,
         };
         self.enabled
             && inputs.in_game
@@ -131,22 +210,25 @@ impl OverlaySettings {
             && moment
     }
 
-    /// The panel's top-left corner on `screen` for a panel of `size`, kept
+    /// `panel`'s top-left corner on `screen` for a window of `size`, kept
     /// entirely on the screen.
-    pub fn origin(&self, screen: Rect, size: (f64, f64)) -> (f64, f64) {
+    pub fn origin(&self, panel: OverlayPanel, screen: Rect, size: (f64, f64)) -> (f64, f64) {
+        let settings = self.panel(panel);
         let (width, height) = size;
-        let (x, y) = match self.custom {
+        let (x, y) = match settings.custom {
             Some(point) => (
                 screen.x + point.x * screen.width - width / 2.0,
                 screen.y + point.y * screen.height - height / 2.0,
             ),
             None => {
                 let left = screen.x + EDGE_MARGIN;
+                let center = screen.x + (screen.width - width) / 2.0;
                 let right = screen.x + screen.width - width - EDGE_MARGIN;
                 let top = screen.y + TOP_MARGIN;
                 let middle = screen.y + (screen.height - height) / 2.0;
-                match self.anchor {
+                match settings.anchor {
                     OverlayAnchor::TopLeft => (left, top),
+                    OverlayAnchor::TopCenter => (center, top),
                     OverlayAnchor::TopRight => (right, top),
                     OverlayAnchor::CenterLeft => (left, middle),
                     OverlayAnchor::CenterRight => (right, middle),
@@ -189,19 +271,29 @@ impl OverlaySettings {
         };
         let defaults = Self::default();
         let in_range = |min: f64, max: f64| move |value: &f64| (min..=max).contains(value);
+        let panel = |key: &str, fallback: PanelSettings| {
+            let field = fields.get(key);
+            PanelSettings {
+                enabled: parse(field.and_then(|f| f.get("enabled"))).unwrap_or(fallback.enabled),
+                anchor: parse(field.and_then(|f| f.get("anchor"))).unwrap_or(fallback.anchor),
+                custom: parse::<OverlayPoint>(field.and_then(|f| f.get("custom"))).filter(
+                    |point| (0.0..=1.0).contains(&point.x) && (0.0..=1.0).contains(&point.y),
+                ),
+            }
+        };
 
         Self {
             enabled: parse(fields.get("enabled")).unwrap_or(defaults.enabled),
             show: parse(fields.get("show")).unwrap_or(defaults.show),
-            anchor: parse(fields.get("anchor")).unwrap_or(defaults.anchor),
-            custom: parse::<OverlayPoint>(fields.get("custom"))
-                .filter(|point| (0.0..=1.0).contains(&point.x) && (0.0..=1.0).contains(&point.y)),
             scale: parse(fields.get("scale"))
                 .filter(in_range(MIN_SCALE, MAX_SCALE))
                 .unwrap_or(defaults.scale),
             opacity: parse(fields.get("opacity"))
                 .filter(in_range(MIN_OPACITY, MAX_OPACITY))
                 .unwrap_or(defaults.opacity),
+            next_item: panel("nextItem", defaults.next_item),
+            win_probability: panel("winProbability", defaults.win_probability),
+            item_value: panel("itemValue", defaults.item_value),
         }
     }
 
@@ -233,6 +325,7 @@ fn clamp_into(at: f64, start: f64, length: f64, extent: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use OverlayPanel::*;
 
     const SCREEN: Rect = Rect {
         x: 0.0,
@@ -253,69 +346,99 @@ mod tests {
     #[test]
     fn shows_only_over_the_game_itself() {
         let settings = OverlaySettings::default();
-        assert!(settings.shows(&in_game()));
+        assert!(settings.shows(NextItem, &in_game()));
+        assert!(settings.shows(WinProbability, &in_game()));
         // Another app in front, even with a game running.
-        assert!(!settings.shows(&OverlayInputs {
+        let away = OverlayInputs {
             game_frontmost: false,
             ..in_game()
-        }));
+        };
+        assert!(OverlayPanel::ALL.iter().all(|p| !settings.shows(*p, &away)));
         // The game process in front but no game read yet (loading screen).
-        assert!(!settings.shows(&OverlayInputs {
+        let loading = OverlayInputs {
             in_game: false,
             ..in_game()
-        }));
-        assert!(!settings.shows(&OverlayInputs::default()));
+        };
+        assert!(!settings.shows(NextItem, &loading));
     }
 
     #[test]
-    fn the_shortcut_and_the_switch_hide_it() {
+    fn the_item_value_waits_for_the_scoreboard() {
         let settings = OverlaySettings::default();
-        assert!(!settings.shows(&OverlayInputs {
+        assert!(!settings.shows(ItemValue, &in_game()));
+        assert!(settings.shows(
+            ItemValue,
+            &OverlayInputs {
+                scoreboard: true,
+                ..in_game()
+            }
+        ));
+    }
+
+    #[test]
+    fn the_shortcut_and_the_switches_hide_it() {
+        let settings = OverlaySettings::default();
+        let hidden = OverlayInputs {
             hidden_by_player: true,
+            scoreboard: true,
             ..in_game()
-        }));
+        };
+        assert!(OverlayPanel::ALL
+            .iter()
+            .all(|p| !settings.shows(*p, &hidden)));
         let off = OverlaySettings {
             enabled: false,
             ..settings
         };
-        assert!(!off.shows(&in_game()));
+        assert!(!off.shows(WinProbability, &in_game()));
+        let mut one_off = settings;
+        one_off.win_probability.enabled = false;
+        assert!(!one_off.shows(WinProbability, &in_game()));
+        assert!(one_off.shows(NextItem, &in_game()));
     }
 
     #[test]
-    fn while_dead_waits_for_a_death() {
+    fn while_dead_holds_the_next_item_only() {
         let settings = OverlaySettings {
             show: OverlayShow::WhileDead,
             ..OverlaySettings::default()
         };
-        assert!(!settings.shows(&in_game()));
-        assert!(settings.shows(&OverlayInputs {
-            dead: true,
-            ..in_game()
-        }));
+        assert!(!settings.shows(NextItem, &in_game()));
+        assert!(settings.shows(WinProbability, &in_game()));
+        assert!(settings.shows(
+            NextItem,
+            &OverlayInputs {
+                dead: true,
+                ..in_game()
+            }
+        ));
     }
 
     #[test]
-    fn the_preview_shows_whatever_the_settings() {
-        let off = OverlaySettings {
+    fn the_preview_shows_every_switched_on_panel() {
+        let mut settings = OverlaySettings {
             enabled: false,
             ..OverlaySettings::default()
         };
-        assert!(off.shows(&OverlayInputs {
+        settings.item_value.enabled = false;
+        let preview = OverlayInputs {
             preview: true,
             ..OverlayInputs::default()
-        }));
+        };
+        assert!(settings.shows(NextItem, &preview));
+        assert!(settings.shows(WinProbability, &preview));
+        assert!(!settings.shows(ItemValue, &preview));
     }
 
     #[test]
     fn anchors_sit_inside_the_margins() {
         let at = |anchor| {
-            OverlaySettings {
-                anchor,
-                ..OverlaySettings::default()
-            }
-            .origin(SCREEN, SIZE)
+            let mut settings = OverlaySettings::default();
+            settings.next_item.anchor = anchor;
+            settings.origin(NextItem, SCREEN, SIZE)
         };
         assert_eq!(at(OverlayAnchor::TopLeft), (16.0, 56.0));
+        assert_eq!(at(OverlayAnchor::TopCenter), (1130.0, 56.0));
         assert_eq!(at(OverlayAnchor::TopRight), (2244.0, 56.0));
         assert_eq!(at(OverlayAnchor::CenterLeft), (16.0, 660.0));
         assert_eq!(at(OverlayAnchor::CenterRight), (2244.0, 660.0));
@@ -323,12 +446,15 @@ mod tests {
 
     #[test]
     fn a_dragged_position_round_trips_and_stays_on_screen() {
-        let point = OverlaySettings::point_at(SCREEN, (1000.0, 400.0), SIZE);
-        let settings = OverlaySettings {
-            custom: Some(point),
-            ..OverlaySettings::default()
-        };
-        assert_eq!(settings.origin(SCREEN, SIZE), (1000.0, 400.0));
+        let mut settings = OverlaySettings::default();
+        settings.win_probability.custom =
+            Some(OverlaySettings::point_at(SCREEN, (1000.0, 400.0), SIZE));
+        assert_eq!(
+            settings.origin(WinProbability, SCREEN, SIZE),
+            (1000.0, 400.0)
+        );
+        // Only that panel moved.
+        assert_eq!(settings.origin(NextItem, SCREEN, SIZE), (2244.0, 56.0));
 
         // The same place on a smaller screen, and never off its edge.
         let small = Rect {
@@ -336,26 +462,32 @@ mod tests {
             height: 720.0,
             ..SCREEN
         };
-        assert_eq!(settings.origin(small, SIZE), (425.0, 170.0));
-        let corner = OverlaySettings {
-            custom: Some(OverlayPoint { x: 1.0, y: 1.0 }),
-            ..OverlaySettings::default()
-        };
-        assert_eq!(corner.origin(SCREEN, SIZE), (2260.0, 1320.0));
+        assert_eq!(settings.origin(WinProbability, small, SIZE), (425.0, 170.0));
+        settings.win_probability.custom = Some(OverlayPoint { x: 1.0, y: 1.0 });
+        assert_eq!(
+            settings.origin(WinProbability, SCREEN, SIZE),
+            (2260.0, 1320.0)
+        );
     }
 
     #[test]
     fn reads_leniently_field_by_field() {
         let settings = OverlaySettings::from_json(
-            r#"{"enabled":false,"show":"whileDead","anchor":"sideways","scale":9,
-                "opacity":0.7,"custom":{"x":2,"y":0.5}}"#,
+            r#"{"enabled":false,"show":"whileDead","scale":9,"opacity":0.7,
+                "nextItem":{"anchor":"sideways","custom":{"x":2,"y":0.5}},
+                "itemValue":{"enabled":false,"anchor":"center-left"}}"#,
         );
         assert!(!settings.enabled);
         assert_eq!(settings.show, OverlayShow::WhileDead);
-        assert_eq!(settings.anchor, OverlayAnchor::TopLeft);
         assert_eq!(settings.scale, 1.0);
         assert_eq!(settings.opacity, 0.7);
-        assert_eq!(settings.custom, None);
+        assert_eq!(settings.next_item, OverlaySettings::default().next_item);
+        assert!(!settings.item_value.enabled);
+        assert_eq!(settings.item_value.anchor, OverlayAnchor::CenterLeft);
+        assert_eq!(
+            settings.win_probability,
+            OverlaySettings::default().win_probability
+        );
         assert_eq!(
             OverlaySettings::from_json("not json"),
             OverlaySettings::default()
@@ -366,14 +498,21 @@ mod tests {
     fn saves_what_it_reads() {
         let dir = std::env::temp_dir().join(format!("overlay-settings-{}", std::process::id()));
         let path = dir.join("overlay-settings.json");
-        let settings = OverlaySettings {
-            anchor: OverlayAnchor::CenterRight,
-            custom: Some(OverlayPoint { x: 0.25, y: 0.75 }),
+        let mut settings = OverlaySettings {
             scale: 1.2,
             ..OverlaySettings::default()
         };
+        settings.item_value.custom = Some(OverlayPoint { x: 0.25, y: 0.75 });
         settings.save(&path).unwrap();
         assert_eq!(OverlaySettings::load(&path), settings);
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn panels_round_trip_through_their_slug() {
+        for panel in OverlayPanel::ALL {
+            assert_eq!(OverlayPanel::from_slug(panel.slug()), Some(panel));
+        }
+        assert_eq!(OverlayPanel::from_slug("hud"), None);
     }
 }

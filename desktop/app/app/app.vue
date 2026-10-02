@@ -4,12 +4,12 @@ const router = useRouter()
 const route = useRoute()
 
 /**
- * The overlay's panel loads this same bundle on `/overlay` in its own webview
+ * Each overlay panel loads this same bundle on `/overlay/<panel>` in its own webview
  * (`src-tauri/src/overlay`): the page alone, with none of the window's work —
  * no recordings, no update offer, and above all no phase navigation, which
  * would carry the overlay off its page.
  */
-const overlay = route.path === '/overlay'
+const overlay = route.path.startsWith('/overlay/')
 
 // Followed for as long as the window lives, so a game's updates are never
 // missed while another page is open.

@@ -250,16 +250,23 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   order is noted as items land; "off the mains' path" says when the build left their tree. Our gold reaches the page in
   50-gold steps (`GOLD_STEP`), the only gold the API exposes. Its data comes from `useNextItemPanel`, shared with the
   overlay. A layers button by the clock (and a status line in the waiting state) opens the overlay settings.
-- **In-game overlay** (#1795, macOS only; window layer from the #1673 spike, `docs/desktop-overlay-spike.md`) — a
-  232 pt card with **one item**: the next item's icon and name, and the gold still to earn for it or "Can buy now" — no
-  components, runners-up or boots, since which component to buy first is not measured
-  (`overlay/OverlayNextItem.vue` on `pages/overlay.vue`, its own webview outside the app's shell) in a non-activating `NSPanel` one level above `CGShieldingWindowLevel` (League's Full Screen captures the
-  display), never key, click-through, sized to its content. Shown only while the game process is frontmost and a game is
-  read — never over the client or another app — for the whole game or only while dead; ⌥⇧O (read from the keyboard's
-  state: no hotkey reaches the app over a captured display) hides it until the game ends. Settings slideover
-  (`overlay/OverlaySettings.vue`): on/off (default on), when, one of four spots or anywhere by dragging the panel in an
-  on-screen preview (stored as screen fractions), size 80–140 %, opacity 50–100 %. Rules and settings
-  in `shell-state::overlay` (tested on CI), window in `src-tauri/src/overlay/`. Windows: reported unsupported.
+- **In-game overlay** (#1795, macOS only; window layer from the #1673 spike, `docs/desktop-overlay-spike.md`) — three
+  panels, each a non-activating `NSPanel` of its own one level above `CGShieldingWindowLevel` (League's Full Screen
+  captures the display), never key, click-through, sized to its content, its page on `#/overlay/<panel>`
+  (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
+  read — never over the client or another app; ⌥⇧O hides them until the game ends. **Next item** (232 pt,
+  `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
+  components, runners-up or boots; whole game or only while dead. **Win probability** (160 pt,
+  `OverlayWinProbability.vue`): both sides' percentages and a bar in the sides' colours, no labels, the whole game —
+  a logistic of the item-gold lead relative to the teams' average item gold (`utils/item-value.ts`), the product
+  owner's formula, not a measured model. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
+  team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
+  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). TAB and ⌥⇧O are read
+  from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Settings
+  slideover (`OverlaySettings.vue`): overlay on/off (default on), per panel on/off and a position (five spots,
+  `OverlayAnchorPicker.vue`, or anywhere by dragging the panels in an on-screen preview, stored as screen fractions), the
+  next item's moment, size 80–140 %, opacity 50–100 %. Rules and settings in `shell-state::overlay` (tested on CI),
+  windows in `src-tauri/src/overlay/`. Windows: reported unsupported.
 - **Game simulator** (development only, `/dev/game-sim` + `npm run tauri:sim`) — plays the committed synthetic tape
   `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
   reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
@@ -326,8 +333,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
   "Check for Updates…" runs the check on demand: in the app menu on macOS, in the tray icon's menu on Windows.
   Unsigned by Apple and Microsoft for the beta.
-- **Not present**: win probability (by design), rune import button (#1678), the overlay on Windows, in-game advice
-  beyond the next item (gold standing, loading screen — #1752, #1753), TrueMain's
+- **Not present**: win probability in the draft (by design), rune import button (#1678), the overlay on Windows, the
+  gold standing in the companion window (it is in the overlay, on TAB) and the loading screen (#1753), TrueMain's
   performance score and participants' ranks in the dashboard's history, LP history from before the app was installed
   (#1682), automatic clips (#1766) and instant replay (#1767), changing the recordings folder from the app.
 

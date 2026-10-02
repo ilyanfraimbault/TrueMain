@@ -1,25 +1,46 @@
-/** Mirrors `OverlaySettings` in `crates/shell-state/src/overlay.rs`. */
-export interface OverlaySettings {
+/** Mirrors `OverlayPanel` in `crates/shell-state/src/overlay.rs`: one window each. */
+export type OverlayPanel = 'next-item' | 'win-probability' | 'item-value'
+export const OVERLAY_PANELS: OverlayPanel[] = ['next-item', 'win-probability', 'item-value']
+
+export type OverlayShow = 'always' | 'whileDead'
+export type OverlayAnchor = 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center-right'
+
+/** Mirrors `PanelSettings`. */
+export interface OverlayPanelSettings {
   enabled: boolean
-  show: OverlayShow
   anchor: OverlayAnchor
   /** Where the panel was dragged, as its centre in fractions of the screen; wins over `anchor`. */
   custom: { x: number, y: number } | null
-  /** 0.8 – 1.4 */
-  scale: number
-  /** 0.5 – 1 */
-  opacity: number
 }
 
-export type OverlayShow = 'always' | 'whileDead'
-export type OverlayAnchor = 'top-left' | 'top-right' | 'center-left' | 'center-right'
+/** Mirrors `OverlaySettings`. */
+export interface OverlaySettings {
+  /** The whole overlay. */
+  enabled: boolean
+  /** When the next item shows. */
+  show: OverlayShow
+  /** 0.8 – 1.4, every panel. */
+  scale: number
+  /** 0.5 – 1, every panel. */
+  opacity: number
+  nextItem: OverlayPanelSettings
+  winProbability: OverlayPanelSettings
+  itemValue: OverlayPanelSettings
+}
+
+/** The settings key of each panel. */
+export const PANEL_KEY = {
+  'next-item': 'nextItem',
+  'win-probability': 'winProbability',
+  'item-value': 'itemValue',
+} as const satisfies Record<OverlayPanel, keyof OverlaySettings>
 
 /** Mirrors `OverlayView` in `src-tauri/src/overlay/mod.rs`. */
 export interface OverlayView {
   settings: OverlaySettings
-  /** False where the overlay's window is not built yet (Windows). */
+  /** False where the overlay's windows are not built yet (Windows). */
   supported: boolean
-  /** The settings page is showing the panel on screen to place it. */
+  /** The settings page is showing the panels on screen to place them. */
   preview: boolean
   /** The hide/show key, as the player presses it. */
   shortcut: string
@@ -33,10 +54,11 @@ export const DEV_OVERLAY_VIEW: OverlayView = {
   settings: {
     enabled: true,
     show: 'always',
-    anchor: 'top-left',
-    custom: null,
     scale: 1,
     opacity: 0.95,
+    nextItem: { enabled: true, anchor: 'top-right', custom: null },
+    winProbability: { enabled: true, anchor: 'top-left', custom: null },
+    itemValue: { enabled: true, anchor: 'top-center', custom: null },
   },
   supported: true,
   preview: false,
