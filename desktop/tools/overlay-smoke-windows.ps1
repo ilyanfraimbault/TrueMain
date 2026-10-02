@@ -21,12 +21,29 @@
 # Windowed, never Full Screen) and the real anti-cheat.
 
 param(
-    [Parameter(Mandatory = $true)] [string] $App,
+    [string] $App,
     [string] $Tape = (Join-Path $PSScriptRoot "../fixtures/ranked-game.jsonl"),
-    [string] $Out = (Join-Path ([System.IO.Path]::GetTempPath()) "truemain-overlay-smoke")
+    [string] $Out = (Join-Path ([System.IO.Path]::GetTempPath()) "truemain-overlay-smoke"),
+    # Only wipe the site's address from the logs in -Out: CI runs it before the
+    # upload even when the test itself was cut short.
+    [switch] $RedactOnly
 )
 
 $ErrorActionPreference = "Stop"
+
+function Redact([string] $Path) {
+    $site = "$env:TRUEMAIN_SITE_URL".Trim().TrimEnd("/")
+    $text = Get-Content $Path -Raw -ErrorAction SilentlyContinue
+    if (-not $site -or -not $text) { return }
+    $text.Replace($site, "<site>").Replace(([uri]$site).Authority, "<site>") | Set-Content $Path
+}
+
+if ($RedactOnly) {
+    Redact (Join-Path $Out "app.log")
+    Redact (Join-Path $Out "app.err.log")
+    return
+}
+if (-not $App) { throw "smoke: -App is the app's executable" }
 $App = (Resolve-Path $App).Path
 $Tape = (Resolve-Path $Tape).Path
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
@@ -317,13 +334,6 @@ $InGame = "next-item,stats,win-probability"
 $config = Join-Path $env:APPDATA "gg.truemain.desktop"
 New-Item -ItemType Directory -Force -Path $config | Out-Null
 @{ installId = [guid]::NewGuid().ToString(); enabled = $false } | ConvertTo-Json | Set-Content (Join-Path $config "telemetry.json")
-
-function Redact([string] $Path) {
-    $site = "$env:TRUEMAIN_SITE_URL".Trim().TrimEnd("/")
-    $text = Get-Content $Path -Raw -ErrorAction SilentlyContinue
-    if (-not $site -or -not $text) { return }
-    $text.Replace($site, "<site>").Replace(([uri]$site).Authority, "<site>") | Set-Content $Path
-}
 
 $env:TRUEMAIN_LCU_REPLAY = $Tape
 $env:TRUEMAIN_LCU_REPLAY_SPEED = "0"

@@ -327,7 +327,8 @@ get their data from the API that has their endpoints. Without the secret, as on
 a fork's PR, it reads production, which may not serve the newest endpoints yet.
 The script turns the app's usage counts off first, the way its menu does, so a
 run is not counted as an install. It wipes the site's address from the app's
-log before the upload. The runner has no GPU, so Windows draws no rounded
+log before the upload, and a step that runs even when the test was cut short
+(`-RedactOnly`) does it again. The runner has no GPU, so Windows draws no rounded
 corners. The screenshots, a JSON per step and the app's log
 are uploaded as an artifact.
 
