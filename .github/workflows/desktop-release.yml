@@ -97,6 +97,13 @@ jobs:
           cp "$bin/truemain-capture" desktop/src-tauri/binaries/truemain-capture
           codesign --force --sign - desktop/src-tauri/binaries/truemain-capture
           lipo -archs desktop/src-tauri/binaries/truemain-capture
+      - name: Build the capture helper
+        if: matrix.name == 'Windows'
+        shell: bash
+        run: |
+          cargo build --release --manifest-path desktop/Cargo.toml -p truemain-capture
+          mkdir -p desktop/src-tauri/binaries
+          cp desktop/target/release/truemain-capture.exe desktop/src-tauri/binaries/truemain-capture-x86_64-pc-windows-msvc.exe
       - name: Build the flavours
         shell: bash
         env:
@@ -132,6 +139,14 @@ jobs:
                 }))
               ' > desktop/flavor.json
             fi
+            if [ "${{ matrix.name }}" = "Windows" ]; then
+              node -e '
+                const fs = require("fs")
+                const flavor = JSON.parse(fs.readFileSync("desktop/flavor.json", "utf8"))
+                flavor.bundle = { ...flavor.bundle, externalBin: ["binaries/truemain-capture"] }
+                fs.writeFileSync("desktop/flavor.json", JSON.stringify(flavor))
+              '
+            fi
             out="dist/$flavor"
             mkdir -p "$out"
             rm -rf "$BUNDLE"
@@ -144,6 +159,7 @@ jobs:
               cp "$BUNDLE"/macos/*.app.tar.gz "$out/$name.app.tar.gz"
               cp "$BUNDLE"/macos/*.app.tar.gz.sig "$out/$name.app.tar.gz.sig"
             else
+              test -f desktop/target/release/truemain-capture.exe
               cp "$BUNDLE"/nsis/*-setup.exe "$out/$name.exe"
               cp "$BUNDLE"/nsis/*-setup.exe.sig "$out/$name.exe.sig"
             fi

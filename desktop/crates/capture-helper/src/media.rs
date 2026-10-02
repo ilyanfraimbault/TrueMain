@@ -7,12 +7,12 @@
 //! are meant for a blocking thread.
 
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use game_recording::CaptureError;
 use serde_json::Value;
 
-use crate::{error_of, parse_events};
+use crate::{command, error_of, parse_events};
 
 /// What to do about the Screen Recording permission when it is not granted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +95,7 @@ pub fn thumbnail(
 
 /// Run the helper once and return the `expected` event it answered with.
 fn run(binary: &Path, args: &[&str], expected: &str) -> Result<Value, CaptureError> {
-    let output = Command::new(binary)
+    let output = command(binary)
         .args(args)
         .stdin(Stdio::null())
         .stderr(Stdio::null())

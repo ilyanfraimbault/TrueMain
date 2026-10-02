@@ -24,9 +24,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop
-      - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -- --check
-      - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike --all-targets -- -D warnings
-      - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike
+      - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -p truemain-capture -- --check
+      - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -p truemain-capture --all-targets -- -D warnings
+      - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -p truemain-capture
 
   capture-macos:
     name: macOS capture spike
@@ -62,6 +62,34 @@ jobs:
           name: truemain-capture-spike-macos
           path: truemain-capture-spike-macos.tar.gz
           retention-days: 30
+
+  capture-windows:
+    name: Windows capture helper and shell
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - run: cargo clippy --manifest-path desktop/Cargo.toml -p truemain-capture -p capture-helper --all-targets -- -D warnings
+      - run: cargo test --manifest-path desktop/Cargo.toml -p truemain-capture -p capture-helper
+      - name: Check the shell for Windows
+        run: |
+          New-Item -ItemType Directory -Force desktop/app/.output/public | Out-Null
+          cargo check --manifest-path desktop/Cargo.toml -p truemain-desktop
+      - run: cargo build --release --manifest-path desktop/Cargo.toml -p truemain-capture
+      - run: pwsh desktop/capture/windows/smoke.ps1 -Helper desktop/target/release/truemain-capture.exe -Out "$env:RUNNER_TEMP/capture-smoke"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: truemain-capture-smoke-windows
+          path: ${{ runner.temp }}/capture-smoke
+          retention-days: 7
+          if-no-files-found: ignore
 
   app:
     name: Nuxt app

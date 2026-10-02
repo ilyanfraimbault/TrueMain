@@ -16,7 +16,7 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; typecheck and static build of its Nuxt app (below) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; typecheck and static build of its Nuxt app (below) |
 | `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
 | `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
@@ -290,6 +290,19 @@ app's own build. It smoke-runs each binary for its usage error, then uploads
 them as one `.tar.gz` — tarred because an artifact's zip drops the executable
 bit — so the spike can be run on a Mac without a toolchain.
 
+The `Windows capture helper and shell` job (#1797) runs clippy and the tests
+of the Windows helper (`desktop/capture/windows`, a workspace crate whose code
+is all `cfg(windows)` — the Linux job only formats it and tests its
+platform-free parts) and of `capture-helper` on a Windows runner, checks that
+the Tauri shell compiles for Windows (its `cfg(windows)` paths are compiled
+nowhere else before a release), then builds the helper and runs
+`desktop/capture/windows/smoke.ps1`: a window that repaints itself is recorded
+for eight seconds, a clip is cut out of the video and two thumbnails are
+taken, each answer of the helper checked. The runner has no GPU, so frames are
+converted on the CPU and encoded in software there: the job proves the
+protocol, the capture and the files, not a League game or the GPU path. The video, clip and
+thumbnails are uploaded as an artifact.
+
 ## Desktop releases
 
 The desktop companion has its own version, never the site's release flow (#1719,
@@ -359,7 +372,11 @@ It builds on the two platforms the app supports, each on its own runner:
   so the app's seal covers a signed executable. The job then checks the helper
   is in the bundle and that the bundle's signature verifies.
 - **Windows** (`windows-2025`): the NSIS `-setup.exe`, which is also what the
-  updater installs. Not code-signed.
+  updater installs. Not code-signed. The capture helper (#1797) is built first
+  and copied to `src-tauri/binaries/` under its target-triple name; the job
+  then adds it to `flavor.json` as `bundle.externalBin`, which installs it
+  beside `TrueMain.exe`. It is not in `tauri.conf.json` because a sidecar
+  listed there must exist for every build, `tauri dev` included.
 
 Each update artifact is signed with the updater key, the
 `TAURI_SIGNING_PRIVATE_KEY` repository secret; the public half is

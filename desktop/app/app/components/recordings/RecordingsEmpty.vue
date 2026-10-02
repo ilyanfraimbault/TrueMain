@@ -42,7 +42,7 @@ const content = computed<{ icon: string, title: string, description: string, act
         actions: [{ label: 'Allow Screen Recording', icon: 'i-lucide-monitor', onClick: () => void requestPermission() }],
       }
     case 'unsupported':
-      return { icon: 'i-lucide-monitor-x', title: 'Recording is not available here yet', description: status.value?.message ?? 'Recording works on macOS for now; Windows comes next.', actions: [] }
+      return { icon: 'i-lucide-monitor-x', title: 'Recording is not available here', description: status.value?.message ?? 'Recording works on macOS 13.3 and Windows 10 (1903) or later.', actions: [] }
     case 'missing':
       return { icon: 'i-lucide-triangle-alert', title: 'The recorder is missing', description: `${status.value?.message ?? 'Part of the app is missing.'} Reinstalling the app brings it back.`, actions: [] }
     case 'off':

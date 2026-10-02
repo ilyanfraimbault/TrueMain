@@ -105,9 +105,11 @@ Tracking issue: **#1671**.
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.
-- **Game recording is macOS only.** No Windows capture helper exists yet
-  (#1745's Windows half waits for a tester); on Windows the Recordings page
-  says so. Automatic clips (#1766) and instant replay (#1767) are not built.
+- **Game recording on Windows has not met a League game yet.** The Windows
+  helper (#1797) is tested by CI on a repainting window, on a runner with no
+  GPU; a real game, the hardware encoders and the display modes wait for a
+  tester (#1745's Windows half). Automatic clips (#1766) and instant replay
+  (#1767) are not built.
 
 ## Recording games
 
@@ -123,6 +125,25 @@ on Windows) unless the player picked a folder; clips cut in the recap go to
 its `clips/` subfolder, each its own `clip.mp4` + `clip.json` + thumbnail. The
 helper also cuts the clips (a passthrough export, no re-encoding) and takes the
 thumbnails (`crates/capture-helper`, shared with the spike).
+
+There is one helper per platform, speaking the same JSON-lines protocol
+(`capture/macos/Sources/truemain-capture/main.swift` documents it), so nothing
+above the helper knows which one runs:
+
+- **macOS** — `capture/macos`, Swift: ScreenCaptureKit on the game's window,
+  AVAssetWriter through VideoToolbox.
+- **Windows** — `capture/windows`, Rust (#1797): Windows.Graphics.Capture on
+  the game's window (`League of Legends (TM) Client`, process `League of
+  Legends.exe`), each frame converted to NV12 and scaled on the GPU by the
+  D3D11 video processor (on the CPU where the GPU has none — a virtual machine,
+  a CI runner — which `started` reports as `"converter": "cpu"`), encoded by
+  Media Foundation with hardware transforms (NVENC, AMF, QuickSync — software
+  only where the GPU has none, reported as `"hardware": false`). Sound is the game's process tree
+  through WASAPI process loopback (Windows 10 2004+; without it the game
+  records silent), never the system mix. Clips are a Media Foundation
+  passthrough copy, thumbnails a decoded frame written through WIC. Windows
+  asks no permission to capture a window; on Windows 11 the yellow capture
+  border is turned off, on Windows 10 it cannot be.
 
 Recording needs a real client and a real game window: a tape or the simulator
 plays the client's events but records nothing. Screen Recording is asked for
@@ -144,9 +165,15 @@ webview through Tauri's asset protocol (`convertFileSrc`).
 
 In development the shell finds the helper `swift build` leaves in
 `capture/macos/.build/` — build it once with
-`swift build -c release --package-path desktop/capture/macos` — or the one
-named by `TRUEMAIN_CAPTURE_HELPER`. The permission is then the terminal's,
-since the terminal starts `tauri dev`.
+`swift build -c release --package-path desktop/capture/macos` — or, on
+Windows, the one `cargo build -p truemain-capture` leaves in `target/`, or the
+one named by `TRUEMAIN_CAPTURE_HELPER`. On macOS the permission is then the
+terminal's, since the terminal starts `tauri dev`.
+
+`capture/windows/smoke.ps1` checks the Windows helper without League: it
+records a window that repaints itself, cuts a clip and takes thumbnails, and
+checks every answer (CI runs it; on a machine with a GPU it also exercises the
+hardware encoder).
 
 ## Sharing with the site
 
@@ -278,6 +305,8 @@ desktop/
                           reports what it measured (#1745)
   capture/macos/          the macOS capture helper (Swift, ScreenCaptureKit) — built on
                           a Mac only; run with capture/spike.sh
+  capture/windows/        the Windows capture helper (Rust, Windows.Graphics.Capture +
+                          Media Foundation) — its code is cfg(windows), a stub elsewhere
   tools/                  overlay-probe.swift: the window server's view of a game (#1673)
   src-tauri/              the Tauri v2 shell: owns the connections, derives the state;
                           src/overlay/ is the overlay's window (macOS)
@@ -286,7 +315,7 @@ desktop/
 
 The crates deliberately carry no Tauri dependency, so they build and test on
 any platform — including Linux CI, where the shell itself cannot build. Run
-their tests with `cargo test -p lcu -p live-client -p shell-state -p game-recording -p capture-helper` from
+their tests with `cargo test -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p truemain-capture` from
 `desktop/`.
 
 The **navigation rule lives in Rust** (`crates/shell-state/src/lib.rs`), not in the
@@ -455,6 +484,15 @@ swift build -c release --package-path ../capture/macos
 mkdir -p ../src-tauri/binaries && cp "$(swift build -c release --package-path ../capture/macos --show-bin-path)/truemain-capture" ../src-tauri/binaries/
 codesign --force --sign - ../src-tauri/binaries/truemain-capture
 npm run tauri build        # bundles into desktop/target/release/bundle
+```
+
+On Windows the helper is a sidecar the release workflow adds (`docs/ci.md`,
+"Desktop releases"); a local installer with recording needs the same:
+
+```sh
+cargo build --release -p truemain-capture   # from desktop/
+mkdir -p src-tauri/binaries && cp target/release/truemain-capture.exe src-tauri/binaries/truemain-capture-x86_64-pc-windows-msvc.exe
+cd app && npm run tauri build -- --config '{"bundle":{"externalBin":["binaries/truemain-capture"]}}'
 ```
 
 For development, with hot reload and the app pointed at the Nuxt dev server:

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/lcu", "crates/live-client", "crates/shell-state", "crates/game-recording", "crates/capture-helper", "crates/capture-spike", "src-tauri"]
+members = ["crates/lcu", "crates/live-client", "crates/shell-state", "crates/game-recording", "crates/capture-helper", "crates/capture-spike", "capture/windows", "src-tauri"]
 
 [workspace.package]
 version = "0.1.0"

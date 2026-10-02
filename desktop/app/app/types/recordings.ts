@@ -28,7 +28,8 @@ export interface RecordingSettingsView {
 /**
  * ready: the helper is there and Screen Recording is allowed.
  * permission: Screen Recording is not allowed for the app (macOS).
- * unsupported: no capture helper on this platform yet (Windows).
+ * unsupported: no capture helper on this platform (Linux), or a Windows too
+ *   old for window capture (before 10 1903).
  * missing: the helper should be there and is not (a broken install).
  */
 export type CaptureAvailability = 'ready' | 'permission' | 'unsupported' | 'missing'

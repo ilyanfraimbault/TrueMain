@@ -53,7 +53,7 @@ const availability = computed(() => {
   switch (status.value?.availability) {
     case 'ready': return { icon: 'i-lucide-circle-check', tone: 'text-data-good', text: 'Ready to record.' }
     case 'permission': return { icon: 'i-lucide-shield-alert', tone: 'text-warning', text: status.value.message ?? 'Screen Recording is not allowed for TrueMain.' }
-    case 'unsupported': return { icon: 'i-lucide-monitor-x', tone: 'text-muted', text: status.value.message ?? 'Recording is not available on this system yet.' }
+    case 'unsupported': return { icon: 'i-lucide-monitor-x', tone: 'text-muted', text: status.value.message ?? 'Recording is not available on this system.' }
     case 'missing': return { icon: 'i-lucide-triangle-alert', tone: 'text-warning', text: status.value.message ?? 'The recorder is missing: reinstall the app.' }
     default: return { icon: 'i-lucide-circle-help', tone: 'text-muted', text: 'Recording is not part of this build.' }
   }

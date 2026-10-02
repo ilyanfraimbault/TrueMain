@@ -286,12 +286,15 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   JSON lines) and `game-recording`'s session, then writes the video, its highlights, a `report.md` of what it measured
   and a `player.html` that jumps to each moment. Built by CI as a downloadable macOS artifact; not part of the app.
   How to run it: `docs/desktop-capture-spike.md`.
-- **Game recording** (macOS, #1744) — off until the player turns it on. A game of a recorded queue is captured by
-  the helper bundled in the app (`capture-helper` crate, `src-tauri/src/recording/`), its clock and live feed
+- **Game recording** (macOS and Windows, #1744, #1797) — off until the player turns it on. A game of a recorded
+  queue is captured by the helper bundled in the app (`desktop/capture/macos`, ScreenCaptureKit; `desktop/capture/windows`,
+  Windows.Graphics.Capture + Media Foundation — driven by the `capture-helper` crate from `src-tauri/src/recording/`),
+  its clock and live feed
   followed so the moments land on the video; at the end the video is closed and the recap opens on it
   (`recording://recap`), then the recording is finalised from the match history's timeline (kills, deaths, assists,
   multi-kills grouped; dragons, Elder, Baron, Herald, grubs, Atakhan, towers, inhibitors with the side that took
-  them; K/D/A and result) and a thumbnail is taken. Recordings live in `~/Movies/TrueMain`, clips cut in the recap in
+  them; K/D/A and result) and a thumbnail is taken. Recordings live in `~/Movies/TrueMain` (`Videos\TrueMain` on
+  Windows), clips cut in the recap in
   its `clips/` (each its own file, cut without re-encoding, outliving the full game, never deleted by the budget).
   The disk budget deletes the oldest full games the player did not keep.
 - **Recordings** (`/recordings`, #1755) — the full games and clips on disk, laid out as DPM's recordings page in the
@@ -302,7 +305,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   kind icon — scissors for a clip, film for a full game — and title, a full game reading as champion · result; K/D/A,
   KDA ratio, queue; "Recording" / "Finalising" on a game not ready), each with a menu (favourite or keep, show in
   Finder / Explorer, delete with a confirmation). Empty states: recording off (what an hour costs, from the shell's
-  estimate), nothing yet, nothing matching; capture not allowed (a button asking macOS), unsupported, missing; and a
+  estimate), nothing yet, nothing matching; capture not allowed (a button asking macOS), unsupported (Linux, Windows
+  before 10 1903), missing; and a
   banner when capture stopped working while recordings exist. `?game=<id>` narrows it to one game's clips.
 - **Recap** (`/recordings/:id`, #1777) — the full game's video with the app's controls (play, previous / next moment
   with a 5 s lead-in, mute, full screen; Space, ← →, Shift+← →, M) over a timeline of the whole video: the player's

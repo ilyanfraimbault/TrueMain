@@ -155,7 +155,7 @@ impl HelperCapture {
 
     /// Ask the helper which window it would record, and its size in pixels.
     pub fn probe(&self) -> Result<Value, CaptureError> {
-        let output = Command::new(&self.binary)
+        let output = command(&self.binary)
             .arg("probe")
             .args(self.window_args())
             .stderr(Stdio::inherit())
@@ -236,7 +236,7 @@ impl Capture for HelperCapture {
             output.bitrate_bps = bitrate_bps;
         }
 
-        let mut command = Command::new(&self.binary);
+        let mut command = command(&self.binary);
         command
             .arg("record")
             .arg("--out")
@@ -353,6 +353,21 @@ impl Capture for HelperCapture {
         self.stopped = Some(stopped);
         Ok(stopped.duration_ms)
     }
+}
+
+/// The helper as a child process. On Windows it is a console program started
+/// from a windowed app, which would otherwise open a console window over the
+/// game.
+pub(crate) fn command(binary: &Path) -> Command {
+    #[allow(unused_mut)]
+    let mut command = Command::new(binary);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
 }
 
 pub(crate) fn parse_events(stdout: &[u8]) -> Vec<Value> {
