@@ -284,3 +284,14 @@ Beta* with its own bundle identifier, so a tester keeps both installed. The prep
 `desktop/.env.local`. The webview no longer opens URLs itself: it asks the shell to open a *path* on the build's site
 (`open_on_site`), which replaces the shell plugin's origin-scoped `open`. Revises the line of #1772 that the
 updater polls production only (2026-10-01) — #1779.
+
+**The in-game overlay draws over the game and nowhere else, and never takes an input from it (2026-10-02).** The #1673
+spike's measurements (`docs/desktop-overlay-spike.md`) set the window: League's Full Screen captures the display, so the
+panel sits one level above `CGShieldingWindowLevel` — and, at that level, is shown only while the game's own process is
+frontmost, so it never covers the client or another app (the product owner's rule). It can never become key and ignores
+the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its one shortcut
+is read from the keyboard's state, because over a captured display no hotkey reaches the app. It carries the game
+page's next-item panel (one implementation, `useNextItemPanel`), is on by default and set up from the game page —
+when it shows (whole game or while dead), where (four spots, or anywhere by dragging it in an on-screen preview, the only
+time it takes the mouse), size, opacity and which panels. No interactive mode in game: the spike proved one possible,
+but nothing on the panel needs a click. macOS only until a Windows pass is measured (2026-10-02) — #1673, #1795.

@@ -28,11 +28,8 @@ tauri-plugin-shell = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
-tauri-plugin-global-shortcut = { version = "2", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-tauri-nspanel = { version = "2.1", optional = true }
-objc2-app-kit = { version = "0.3", optional = true, features = ["NSWorkspace", "NSRunningApplication"] }
+tauri-nspanel = "2.1"
+objc2-app-kit = { version = "0.3", features = ["NSWorkspace", "NSRunningApplication"] }
 
-[features]
-overlay-spike = ["dep:tauri-nspanel", "dep:tauri-plugin-global-shortcut", "dep:objc2-app-kit"]

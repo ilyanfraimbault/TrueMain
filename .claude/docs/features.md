@@ -243,7 +243,17 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   behind it in the site's item-context wording, the gold left to complete it and its missing components (Data Dragon
   recipe) ringed when the gold in hand buys them, the two runners-up, and the boots while none are held. Our completion
   order is noted as items land; "off the mains' path" says when the build left their tree. Our gold reaches the page in
-  50-gold steps (`GOLD_STEP`), the only gold the API exposes.
+  50-gold steps (`GOLD_STEP`), the only gold the API exposes. Its data comes from `useNextItemPanel`, shared with the
+  overlay. A layers button by the clock (and a status line in the waiting state) opens the overlay settings.
+- **In-game overlay** (#1795, macOS only; window layer from the #1673 spike, `docs/desktop-overlay-spike.md`) — the
+  next-item panel narrowed to 300 pt (`overlay/OverlayNextItem.vue` on `pages/overlay.vue`, its own webview outside the
+  app's shell) in a non-activating `NSPanel` one level above `CGShieldingWindowLevel` (League's Full Screen captures the
+  display), never key, click-through, sized to its content. Shown only while the game process is frontmost and a game is
+  read — never over the client or another app — for the whole game or only while dead; ⌥⇧O (read from the keyboard's
+  state: no hotkey reaches the app over a captured display) hides it until the game ends. Settings slideover
+  (`overlay/OverlaySettings.vue`): on/off (default on), when, one of four spots or anywhere by dragging the panel in an
+  on-screen preview (stored as screen fractions), size 80–140 %, opacity 50–100 %, next item / boots. Rules and settings
+  in `shell-state::overlay` (tested on CI), window in `src-tauri/src/overlay/`. Windows: reported unsupported.
 - **Game simulator** (development only, `/dev/game-sim` + `npm run tauri:sim`) — plays the committed synthetic tape
   `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
   reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
@@ -307,8 +317,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   a GitHub pre-release with a signed update manifest per flavour. Preprod's `/download` offers its flavour at once,
   truemain.lol's the production one once promoted; the installed app offers each newer build of its own site at
   launch (Tauri updater, feed on that site). Unsigned by Apple and Microsoft for the beta.
-- **Not present**: win probability (by design), rune import button (#1678), in-game overlay (#1673), in-game advice
-  (next item, gold standing, loading screen — #1749–#1753), TrueMain's
+- **Not present**: win probability (by design), rune import button (#1678), the overlay on Windows, in-game advice
+  beyond the next item (gold standing, loading screen — #1752, #1753), TrueMain's
   performance score and participants' ranks in the dashboard's history, LP history from before the app was installed
   (#1682), automatic clips (#1766) and instant replay (#1767), changing the recordings folder from the app.
 

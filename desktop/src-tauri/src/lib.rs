@@ -7,8 +7,7 @@
 
 mod api;
 mod game;
-#[cfg(all(feature = "overlay-spike", target_os = "macos"))]
-mod overlay_spike;
+mod overlay;
 mod record;
 mod recording;
 #[cfg(debug_assertions)]
@@ -274,10 +273,8 @@ pub fn run() {
     let client = SharedClient::default();
 
     let builder = tauri::Builder::default();
-    #[cfg(all(feature = "overlay-spike", target_os = "macos"))]
-    let builder = builder
-        .plugin(tauri_nspanel::init())
-        .plugin(overlay_spike::plugin());
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
 
     builder
         .plugin(tauri_plugin_shell::init())
@@ -313,15 +310,25 @@ pub fn run() {
             recording::clip_save,
             recording::clip_update,
             recording::clip_delete,
-            recording::reveal_recording_file
+            recording::reveal_recording_file,
+            overlay::overlay_view,
+            overlay::set_overlay_settings,
+            overlay::overlay_preview,
+            overlay::overlay_fit
         ])
+        // The overlay's panel is a window too: without this, closing the
+        // app's window would leave the app running with no window to show.
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
+        })
         .setup(move |app| {
             let handle = app.handle().clone();
             let (recorder, phases) = recording::Recorder::new(&handle);
             app.manage(recorder.clone());
             recording::start(&handle, recorder, phases);
-            #[cfg(all(feature = "overlay-spike", target_os = "macos"))]
-            overlay_spike::setup(&handle)?;
+            overlay::setup(&handle)?;
             tauri::async_runtime::spawn(supervisor::run(handle, shared, client));
             Ok(())
         })

@@ -96,7 +96,10 @@ const sideLabel = (team: GameTeam, ours: boolean) => {
         <span class="stat-value text-2xl leading-none text-enemy">{{ kills(right) }}</span>
       </div>
 
-      <span class="justify-self-end stat-value text-xl leading-none tabular-nums" title="Game time">{{ minutes(clock) }}</span>
+      <div class="flex items-center gap-3 justify-self-end">
+        <span class="stat-value text-xl leading-none tabular-nums" title="Game time">{{ minutes(clock) }}</span>
+        <slot name="actions" />
+      </div>
     </header>
 
     <GameNextItem v-if="game.myTeam" :game="game" />

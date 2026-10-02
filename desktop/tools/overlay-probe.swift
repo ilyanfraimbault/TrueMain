@@ -5,7 +5,7 @@
 // with its layer and bounds, plus every screen's frame. Run it in a terminal
 // before starting the game and read the log afterwards:
 //
-//   swift desktop/overlay-spike/probe.swift 900 | tee overlay-probe.log
+//   swift desktop/tools/overlay-probe.swift 900 | tee overlay-probe.log
 //
 // The argument is how many seconds to run (default 600). Needs no permission:
 // window owners, layers and bounds are readable without Screen Recording; only
