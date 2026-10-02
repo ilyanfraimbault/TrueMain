@@ -82,7 +82,6 @@ const view = ref<(typeof VIEWS)[number]['value']>('scoreboard')
           :key="side.teamId"
           :players="side.players"
           :team-id="side.teamId"
-          :self-id="self?.participantId ?? null"
           :champions="champions"
           :items="items"
           :summoner-spells="summonerSpells"
@@ -102,7 +101,6 @@ const view = ref<(typeof VIEWS)[number]['value']>('scoreboard')
       <DashboardRunes
         v-if="view === 'runes'"
         :sides="sides"
-        :self-id="self?.participantId ?? null"
         :champions="champions"
         :rune-tree="runeTree"
       />

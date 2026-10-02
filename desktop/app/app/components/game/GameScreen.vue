@@ -112,7 +112,6 @@ const sideLabel = (team: GameTeam, ours: boolean) => {
             :player="row.ally"
             :clock="clock"
             class="-mx-2 rounded-lg px-2 py-1"
-            :class="row.ally?.isMe && 'bg-primary/8'"
           />
           <div class="flex justify-center">
             <img v-if="row.lane" :src="laneIconUrl(row.lane)" :alt="LANE_LABELS[row.lane]" :title="LANE_LABELS[row.lane]" class="size-5 opacity-70">
@@ -122,7 +121,6 @@ const sideLabel = (team: GameTeam, ours: boolean) => {
             :clock="clock"
             mirrored
             class="-mx-2 rounded-lg px-2 py-1"
-            :class="row.enemy?.isMe && 'bg-primary/8'"
           />
         </li>
       </ul>

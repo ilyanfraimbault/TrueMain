@@ -19,7 +19,6 @@ import type {
 const props = defineProps<{
   players: MatchDetailParticipant[]
   teamId: number
-  selfId: number | null
   champions: ChampionStaticListItem[]
   items: Record<number, StaticItemData>
   summonerSpells: Record<number, StaticSummonerSpellData>
@@ -54,7 +53,6 @@ const kda = (p: MatchDetailParticipant) => (p.deaths === 0 ? 'Perfect' : ((p.kil
         v-for="p in players"
         :key="p.participantId"
         class="grid h-10 grid-cols-[1.75rem_minmax(0,1fr)_4rem_3.25rem_4.5rem_auto] items-center gap-2.5 rounded px-1"
-        :class="p.participantId === selfId ? 'bg-primary/8' : ''"
       >
         <div class="relative">
           <SkeletonImage
@@ -68,10 +66,7 @@ const kda = (p: MatchDetailParticipant) => (p.deaths === 0 ? 'Perfect' : ((p.kil
           <span class="absolute -bottom-1 -right-1 rounded-sm bg-default px-0.5 text-[8px] font-bold leading-3 tabular-nums text-muted">{{ p.champLevel }}</span>
         </div>
 
-        <span
-          class="truncate text-xs"
-          :class="p.participantId === selfId ? 'font-semibold text-highlighted' : 'text-muted'"
-        >{{ p.gameName ?? p.summonerName }}</span>
+        <span class="truncate text-xs text-default">{{ p.gameName ?? p.summonerName }}</span>
 
         <div class="leading-none tabular-nums">
           <p class="text-xs font-medium text-default">

@@ -5,8 +5,8 @@ import { LANES } from '~/types/draft'
 
 /**
  * The loading screen (#1753): each player's games on the champion they are
- * on among their last twenty and their win rate on it, and their ranked
- * streak — ours on the left, theirs on the right, lane against lane. Read
+ * on among their last twenty and their win rate on it, and their latest games
+ * as bars — ours on the left, theirs on the right, lane against lane. Read
  * through the player's own client from the loading screen on, never before.
  * Counts only: no score made of them.
  */
@@ -38,7 +38,6 @@ const rate = (player: LoadingPlayer) => {
         v-for="player in column"
         :key="player.riotId"
         class="flex items-center gap-2 rounded-md px-1 py-0.5"
-        :class="player.isMe && 'bg-primary/10 ring-1 ring-primary/40'"
       >
         <img
           v-if="portraitOf(player.championId)"
@@ -57,11 +56,7 @@ const rate = (player: LoadingPlayer) => {
           <p v-else-if="player.failed" class="text-[11px] text-dimmed">–</p>
           <USkeleton v-else class="mt-1 h-2 w-12" />
         </div>
-        <span
-          v-if="player.form && Math.abs(player.form.streak) >= 2"
-          class="shrink-0 rounded px-1 py-px text-[10px] font-semibold tabular-nums"
-          :class="player.form.streak > 0 ? 'bg-data-good/15 text-data-good' : 'bg-elevated text-muted'"
-        >{{ player.form.streak > 0 ? 'W' : 'L' }}{{ Math.abs(player.form.streak) }}</span>
+        <LoadingRecent v-if="player.form?.recent.length" :games="player.form.recent" />
       </li>
     </ul>
   </div>
