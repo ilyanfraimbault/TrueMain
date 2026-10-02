@@ -217,20 +217,22 @@ function StartStandIn([string] $Exe, [string] $Class, [string] $Title, [string] 
 
 # Press a button of the app's main window by its accessible name.
 function Press([string] $Name) {
-    $byProcess = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $script:shell.Id)
-    $main = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $byProcess)
-    $byName = [System.Windows.Automation.AndCondition]::new(
-        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $Name),
-        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button))
+    $isMain = [System.Windows.Automation.AndCondition]::new(
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $script:shell.Id),
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "TrueMain"))
+    $isButton = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+    $buttons = @()
     for ($i = 0; $i -lt 20; $i++) {
-        $button = if ($main) { $main.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $byName) } else { $null }
+        $main = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $isMain)
+        $buttons = if ($main) { @($main.FindAll([System.Windows.Automation.TreeScope]::Descendants, $isButton)) } else { @() }
+        $button = $buttons | Where-Object { $_.Current.Name -eq $Name } | Select-Object -First 1
         if ($button) {
             $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
             return $true
         }
         Start-Sleep -Milliseconds 500
-        if (-not $main) { $main = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $byProcess) }
     }
+    Write-Host "no '$Name' among the main window's buttons: $(@($buttons | ForEach-Object { "'$($_.Current.Name)'" }) -join ', ')"
     return $false
 }
 
