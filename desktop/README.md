@@ -79,7 +79,7 @@ Tracking issue: **#1671**.
   its own — the next item alone (the item and the gold still to earn for it, or
   that it can be bought now), a win probability estimated from the item-gold
   gap and the map (turrets, inhibitors down, drakes, Baron, Elder), your CS per
-  minute with its curve and gold per minute, the loading screen's ten players
+  minute with its curve and gold per minute, the loading screen's ten players (an anonymous one — Streamer Mode — as their champion alone)
   (games and win rate on their champion, latest games as win/loss bars — #1753), and, while TAB is held, each team's item gold and each lane's gap —
   only while the game is the frontmost app, never over the client or anything
   else. Click-through and never focused, so the game keeps every click and key;

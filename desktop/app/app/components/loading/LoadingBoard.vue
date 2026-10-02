@@ -8,7 +8,8 @@ import { LANES } from '~/types/draft'
  * on among their last twenty and their win rate on it, and their latest games
  * as bars — ours on the left, theirs on the right, lane against lane. Read
  * through the player's own client from the loading screen on, never before.
- * Counts only: no score made of them.
+ * Counts only: no score made of them. A player who hides their name shows
+ * as their champion, anonymous, with nothing read about them.
  */
 const props = defineProps<{ players: LoadingPlayer[] }>()
 
@@ -36,7 +37,7 @@ const rate = (player: LoadingPlayer) => {
     <ul v-for="(column, index) in columns" :key="index" class="flex flex-col gap-1">
       <li
         v-for="player in column"
-        :key="player.riotId"
+        :key="`${player.team}-${player.position}-${player.championId}`"
         class="flex items-center gap-2 rounded-md px-1 py-0.5"
       >
         <img
@@ -48,13 +49,21 @@ const rate = (player: LoadingPlayer) => {
         >
         <span v-else class="size-7 shrink-0 rounded bg-elevated" />
         <div class="min-w-0 flex-1 leading-tight">
-          <p class="truncate text-xs font-medium text-highlighted">{{ name(player.riotId) }}</p>
-          <p v-if="player.form && player.form.championGames > 0" class="text-[11px] tabular-nums text-muted">
-            {{ player.form.championGames }} · <span :class="rate(player) >= 50 ? 'text-data-good' : 'text-data-bad'">{{ rate(player) }}%</span>
-          </p>
-          <p v-else-if="player.form" class="text-[11px] text-dimmed">1st</p>
-          <p v-else-if="player.failed" class="text-[11px] text-dimmed">–</p>
-          <USkeleton v-else class="mt-1 h-2 w-12" />
+          <template v-if="player.anonymous">
+            <p class="flex items-center gap-1 truncate text-xs font-medium text-muted">
+              <UIcon name="i-lucide-eye-off" class="size-3 shrink-0" />{{ nameOf(player.championId) }}
+            </p>
+            <p class="text-[11px] text-dimmed">Anonymous</p>
+          </template>
+          <template v-else>
+            <p class="truncate text-xs font-medium text-highlighted">{{ name(player.riotId) }}</p>
+            <p v-if="player.form && player.form.championGames > 0" class="text-[11px] tabular-nums text-muted">
+              {{ player.form.championGames }} · <span :class="rate(player) >= 50 ? 'text-data-good' : 'text-data-bad'">{{ rate(player) }}%</span>
+            </p>
+            <p v-else-if="player.form" class="text-[11px] text-dimmed">1st</p>
+            <p v-else-if="player.failed" class="text-[11px] text-dimmed">–</p>
+            <USkeleton v-else class="mt-1 h-2 w-12" />
+          </template>
         </div>
         <LoadingRecent v-if="player.form?.recent.length" :games="player.form.recent" />
       </li>

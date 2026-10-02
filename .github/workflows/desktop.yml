@@ -81,10 +81,10 @@ jobs:
           workspaces: desktop
       - run: cargo clippy --manifest-path desktop/Cargo.toml -p truemain-capture -p capture-helper --all-targets -- -D warnings
       - run: cargo test --manifest-path desktop/Cargo.toml -p truemain-capture -p capture-helper
-      - name: Check the shell for Windows
+      - name: Test the shell on Windows
         run: |
           New-Item -ItemType Directory -Force desktop/app/.output/public | Out-Null
-          cargo check --manifest-path desktop/Cargo.toml -p truemain-desktop
+          cargo test --manifest-path desktop/Cargo.toml -p truemain-desktop
       - run: cargo build --release --manifest-path desktop/Cargo.toml -p truemain-capture
       - run: pwsh desktop/capture/windows/smoke.ps1 -Helper desktop/target/release/truemain-capture.exe -Out "$env:RUNNER_TEMP/capture-smoke"
       - if: always()

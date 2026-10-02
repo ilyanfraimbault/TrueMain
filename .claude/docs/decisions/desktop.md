@@ -366,6 +366,9 @@ preview, the only time the panels take the mouse), plus size and opacity for all
   client (gameflow session for the roster, match history by puuid), three requests at a time, ours and our lane
   opponent's first, never on TrueMain's Riot key. Counts only, no score made of them. Also on the companion window's
   loading state. The true-main mark the issue asks for needs a batch lookup by Riot ID on the API and is left for later.
+  A player who hides their name (Streamer Mode: the session marks them `nameVisibilityType: HIDDEN`, or leaves out
+  their puuid or name) stays anonymous: their champion and lane show with "Anonymous", never a name even if the client
+  sent one, and their history is not requested. Our own line is read whatever the others are shown.
 - **Item value**: only while TAB is held — each team's item gold, a chevron toward the side ahead with the gap, then
   each lane's — in its own panel rather than pinned to Riot's scoreboard rows, which move with resolution and HUD scale.
   Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's rule).

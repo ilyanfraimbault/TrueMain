@@ -293,9 +293,10 @@ bit — so the spike can be run on a Mac without a toolchain.
 The `Windows capture helper and shell` job (#1797) runs clippy and the tests
 of the Windows helper (`desktop/capture/windows`, a workspace crate whose code
 is all `cfg(windows)` — the Linux job only formats it and tests its
-platform-free parts) and of `capture-helper` on a Windows runner, checks that
-the Tauri shell compiles for Windows (its `cfg(windows)` paths are compiled
-nowhere else before a release), then builds the helper and runs
+platform-free parts) and of `capture-helper` on a Windows runner, builds and
+runs the Tauri shell's tests on Windows (its `cfg(windows)` paths are compiled
+nowhere else before a release, and no other job can build the shell to test it:
+Linux lacks its GTK libraries), then builds the helper and runs
 `desktop/capture/windows/smoke.ps1`: a window that repaints itself is recorded
 for eight seconds, a clip is cut out of the video and two thumbnails are
 taken, each answer of the helper checked. The runner has no GPU, so frames are
@@ -320,7 +321,10 @@ stand-in's flat colour. The steps are:
 - another app in front;
 - a window of the game's class alone;
 - the preview, opened through UI Automation on the game page's buttons, with a
-  panel dragged by the mouse and its place saved and kept.
+  panel dragged by the mouse and its place saved and kept;
+- the loading screen: the app restarted on the same tape without its game
+  readings, so the game is in progress but not read yet, and the loading panel
+  alone shows over the stand-in.
 
 The build reads preprod, like the beta (`DESKTOP_BETA_SITE_URL`), so the panels
 get their data from the API that has their endpoints. Without the secret, as on

@@ -273,7 +273,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   role, KDA, date — in the game page's copy (the overlay is click-through, so it shows the bars alone) — roster from
   the client's gameflow session, histories by puuid through the client (`src-tauri/src/loading.rs`,
   `lcu::PlayerForm`), three at a time, ours and our lane opponent's first, never on TrueMain's key; the same board sits
-  under the game page's loading state. No true-main mark yet. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
+  under the game page's loading state. A player who hides their name (Streamer Mode) shows as their champion and
+  "Anonymous", their history never requested. No true-main mark yet. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
   the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). TAB and ⌥⇧O are read
   from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Settings

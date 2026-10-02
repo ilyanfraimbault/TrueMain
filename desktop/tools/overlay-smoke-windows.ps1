@@ -38,9 +38,9 @@ function Redact([string] $Path) {
     $text.Replace($site, "<site>").Replace(([uri]$site).Authority, "<site>") | Set-Content $Path
 }
 
+$Logs = @("app.log", "app.err.log", "app-loading.log", "app-loading.err.log")
 if ($RedactOnly) {
-    Redact (Join-Path $Out "app.log")
-    Redact (Join-Path $Out "app.err.log")
+    $Logs | ForEach-Object { Redact (Join-Path $Out $_) }
     return
 }
 if (-not $App) { throw "smoke: -App is the app's executable" }
@@ -426,6 +426,25 @@ try {
     $centreX = ($placed.Left + $placed.Right) / 2; $centreY = ($placed.Top + $placed.Bottom) / 2
     Expect ([Math]::Abs($centreX - $saved.winProbability.custom.x * $screen.Width) -le 2 -and [Math]::Abs($centreY - $saved.winProbability.custom.y * $screen.Height) -le 2) "the dragged panel is centred where it was put ($centreX,$centreY)"
     Expect (($placed.Styles -band $WS_EX_TRANSPARENT) -ne 0) "out of the preview, clicks go through again ($($placed.ExStyle))"
+
+    # The loading screen: the game in progress, its API not answering yet —
+    # the same tape without its game readings, in a new run of the app.
+    Stop-Process -Id $script:shell.Id -Force
+    $script:shell.WaitForExit(5000) | Out-Null
+    $loadingTape = Join-Path $Out "loading.jsonl"
+    Get-Content $Tape | Where-Object { $_ -notmatch '"kind":"game"' } | Set-Content $loadingTape
+    $env:TRUEMAIN_LCU_REPLAY = $loadingTape
+    $script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app-loading.log") -RedirectStandardError (Join-Path $Out "app-loading.err.log")
+    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
+    Start-Sleep -Seconds 5
+    $standIns += StartStandIn $gameExe "RiotWindowClass" "League of Legends (TM) Client" $GameColorRef
+    Start-Sleep -Seconds 3
+    $state = Report "9-loading-screen"
+    Expect ((Shown) -eq "loading") "on the loading screen, the loading panel alone shows ($(Shown))"
+    $loading = $state.panels | Where-Object { $_.slug -eq "loading" -and $_.visible }
+    if ($loading) {
+        Expect ($loading.hit -eq "RiotWindowClass" -and $loading.gameShare -lt 0.5 -and $loading.colors -ge 6) "the loading panel is drawn and click-through (game colour $([Math]::Round($loading.gameShare * 100))%, $($loading.colors) colours, hit $($loading.hit))"
+    }
 }
 catch {
     Write-Host "FAIL - $_`n$($_.ScriptStackTrace)"
@@ -435,8 +454,7 @@ finally {
     $standIns | Where-Object { $_ -and -not $_.HasExited } | ForEach-Object { Stop-Process -Id $_.Id -Force }
     if (-not $script:shell.HasExited) { Stop-Process -Id $script:shell.Id -Force }
     $script:shell.WaitForExit(5000) | Out-Null
-    Redact (Join-Path $Out "app.log")
-    Redact (Join-Path $Out "app.err.log")
+    $Logs | ForEach-Object { Redact (Join-Path $Out $_) }
     Get-Content (Join-Path $Out "app.log") -ErrorAction SilentlyContinue | Select-String "overlay|frontmost|tape|game" | Select-Object -Last 40 | ForEach-Object { Write-Host "app: $_" }
 }
 
