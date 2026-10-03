@@ -13,6 +13,8 @@ import type { ChampionStaticData, RuneTreeResponse, StaticItemData, StaticSummon
  * - the runes go beside the rest from a 36rem container rather than the site's
  *   48rem, since the pane is ~630 px. The two columns are the same height the
  *   site sized them to (148 / 152 px), so neither leaves a hollow under it.
+ *
+ * The runes carry the import button in their corner (#1678).
  */
 withDefaults(defineProps<{
   summonerSpells: BuildSummonerSpells | null
@@ -28,7 +30,9 @@ withDefaults(defineProps<{
   runeTree: RuneTreeResponse | null
   /** Said in the runes column when the sample carried no rune page. */
   noRunesMessage?: string | null
-}>(), { summonersPending: false, noRunesMessage: null })
+  /** Names the page the import button pushes into the client; no button without it. */
+  championName?: string | null
+}>(), { summonersPending: false, noRunesMessage: null, championName: null })
 </script>
 
 <template>
@@ -45,8 +49,9 @@ withDefaults(defineProps<{
         </div>
       </div>
 
-      <div class="w-full shrink-0 overflow-hidden @xl:w-[272px]">
+      <div class="relative w-full shrink-0 overflow-hidden @xl:w-[272px]">
         <ChampionCoreRunes v-if="runePage && runeTree" :page="runePage" :tree="runeTree" :size="36" :keystone-size="39" />
+        <BuildRuneImport v-if="runePage && championName !== null" :page="runePage" :champion="championName" class="absolute right-0 top-0" />
         <p v-else-if="!runePage && noRunesMessage" class="text-sm text-muted">{{ noRunesMessage }}</p>
       </div>
     </div>

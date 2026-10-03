@@ -181,6 +181,7 @@ const emptyMessage = computed(() => {
         :summoners-pending="staticPending"
         :rune-tree="runeTree"
         :no-runes-message="shown.key === 'draft' ? 'No rune data in the sampled games.' : null"
+        :champion-name="championStatic(championId)?.championName ?? ''"
       />
       <!-- The site's tree, drawn smaller and tighter to fit the pane. It is the build path too,
            item by item; a build with no branch to draw (a true main's thin sample) states the path instead. -->

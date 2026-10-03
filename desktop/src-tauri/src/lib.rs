@@ -12,6 +12,7 @@ mod menu;
 mod overlay;
 mod record;
 mod recording;
+mod runes;
 #[cfg(debug_assertions)]
 mod sim;
 mod site;
@@ -321,6 +322,7 @@ pub fn run() {
             overlay::overlay_preview,
             overlay::overlay_fit,
             loading::loading_players,
+            runes::import_runes,
             telemetry::telemetry_page
         ])
         // The overlay's panel is a window too: without this, closing the
