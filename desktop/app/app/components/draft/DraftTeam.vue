@@ -37,6 +37,18 @@ function tierOf(row: TeamRow): string | null {
 
 const dragging = ref<Lane | null>(null)
 
+/** WebKit starts no drag that carries no data, so the lane rides along as text. */
+function onDragStart(event: DragEvent, lane: Lane | null) {
+  dragging.value = lane
+  if (!event.dataTransfer || !lane) return
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', lane)
+}
+
+function onDragOver(event: DragEvent) {
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+}
+
 function onDrop(lane: Lane | null) {
   if (dragging.value && lane && dragging.value !== lane) emit('swap', dragging.value, lane)
   dragging.value = null
@@ -74,7 +86,7 @@ function label(row: TeamRow) {
       v-for="(row, index) in rows"
       :key="`${team}-${index}`"
       class="flex min-w-0 flex-col items-center gap-1.5"
-      @dragover.prevent
+      @dragover.prevent="onDragOver"
       @drop.prevent="onDrop(row.lane)"
     >
       <button
@@ -84,7 +96,7 @@ function label(row: TeamRow) {
         :draggable="correctable && row.championId !== null"
         :aria-label="label(row)"
         @click="emit('view', row.championId!)"
-        @dragstart="dragging = row.lane"
+        @dragstart="onDragStart($event, row.lane)"
         @dragend="dragging = null"
       >
         <DraftCard

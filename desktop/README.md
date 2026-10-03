@@ -347,6 +347,11 @@ The **navigation rule lives in Rust** (`crates/shell-state/src/lib.rs`), not in 
 frontend: which screen belongs to which phase is a product decision, and two
 implementations of it would drift.
 
+The main window runs with `dragDropEnabled: false`. Left on, Tauri takes every
+drop at the native level to report dropped files, and the page's own HTML5
+drag and drop — dragging an enemy onto another lane in champion select — never
+receives its `drop`. The app reads no dropped file, so nothing is lost.
+
 ## Testing without a game
 
 Champion select is the app's subject and the hardest state to reach: it needs a

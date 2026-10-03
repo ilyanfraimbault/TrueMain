@@ -17,7 +17,8 @@
         "height": 760,
         "resizable": false,
         "maximizable": false,
-        "decorations": true
+        "decorations": true,
+        "dragDropEnabled": false
       }
     ],
     "security": {
