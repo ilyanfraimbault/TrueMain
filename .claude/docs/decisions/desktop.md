@@ -257,6 +257,13 @@ target-triple name, and the app and the spike drive it through one crate (`captu
 clips (an AVFoundation passthrough export) and takes the thumbnails, so the media stack that wrote a file is the one
 that reads it (2026-10-01) — #1745, #1744.
 
+**On macOS the app records the game's display with only the game's windows drawn, not the game's window.** A
+full-screen game is not composited by the window server, so ScreenCaptureKit's window capture of it delivers only
+idle frames: a full-screen ranked game left a black 21 s file for a 33 min game. The display filtered to the game's
+app gets the picture whether the game runs full screen or windowed, and still leaves the overlay's panels out.
+Windows keeps the window: its helper's display source is the whole monitor, with no per-app filter (2026-10-03) —
+#1826.
+
 **The Windows capture helper is a Rust executable behind the same protocol, added to the installer at release time
 only.** `desktop/capture/windows` (`truemain-capture.exe`) speaks the macOS helper's commands and events exactly, so
 neither the shell, the runner, the spike nor the pages have a Windows branch. It captures the game's window with

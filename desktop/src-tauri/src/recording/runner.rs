@@ -38,6 +38,16 @@ const EVENTS_EVERY: u32 = 2;
 const HISTORY_WAIT: Duration = Duration::from_secs(300);
 const HISTORY_RETRY: Duration = Duration::from_secs(10);
 const THUMBNAIL_WIDTH: u32 = 640;
+/// What the helper captures. On macOS, the display with only the game's
+/// windows drawn: a full-screen game is not composited, so its window alone
+/// sends nothing but idle frames — a black video that ends seconds after the
+/// loading screen. On Windows, the window: a display there is the whole
+/// monitor, everything on it included.
+const SOURCE: &str = if cfg!(target_os = "macos") {
+    "display"
+} else {
+    "window"
+};
 
 fn in_game(phase: GameflowPhase) -> bool {
     matches!(phase, GameflowPhase::InProgress | GameflowPhase::Reconnect)
@@ -113,7 +123,7 @@ async fn record_game(
     let session: SharedSession = Arc::new(Mutex::new(Session::new(HelperCapture::new(
         helper.to_path_buf(),
         None,
-        "window".into(),
+        SOURCE.into(),
         true,
     ))));
 
