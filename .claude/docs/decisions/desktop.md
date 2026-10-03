@@ -346,8 +346,10 @@ and ignores the mouse in game: the game keeps every click and key, and the overl
 shortcut and TAB are read from the keyboard's state, because over a captured display no hotkey reaches the app — which
 also settles #1752's macOS question: TAB is detected without an event tap, so without the Input Monitoring permission.
 The overlay is five independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
-default and set up from the game page — each on/off and where (five spots, or anywhere by dragging it in an on-screen
-preview, the only time the panels take the mouse), plus size and opacity for all:
+default and set up on its own Overlay page since #1819 (2026-10-03; the game page's slideover before) — each on/off and
+where, by dragging it on a copy of the screen, taking it off with its ×, and dragging it back from a column of the
+hidden panels, or by dragging it in an on-screen preview, the only time the panels take the mouse — plus size and
+opacity for all. The five fixed spots stay each panel's default place, no longer a picker:
 
 - **Next item**: **one item** — the next one, and the gold still to earn for it or that it can be bought now — and
   nothing else: no components (which one to buy first is not measured yet, so the overlay does not pretend to know),

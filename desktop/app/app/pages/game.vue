@@ -7,14 +7,13 @@
  * In development a game can be played from a recorded tape without League —
  * `/dev/game-sim`, or `TRUEMAIN_LCU_REPLAY` (desktop/README.md).
  *
- * The in-game overlay is set up from here (`OverlaySettings`): the page that
- * shows the same panels in this window.
+ * The in-game overlay is set up on its own page (`/overlay`), linked from
+ * here: the page that shows the same panels in this window.
  */
 const { state, screen } = useLcuState()
 const { game, syncedAt } = useLiveGame()
 const { view: loading } = useLoadingPlayers()
 const { view: overlay } = useGameOverlay()
-const overlayOpen = ref(false)
 
 const overlayStatus = computed(() => {
   const view = overlay.value
@@ -44,7 +43,7 @@ const waiting = computed(() => {
   <div class="h-full">
     <GameScreen v-if="screen === 'in-game' && game" :game="game" :synced-at="syncedAt">
       <template #actions>
-        <UButton icon="i-lucide-layers" color="neutral" variant="ghost" size="sm" aria-label="Overlay settings" title="Overlay settings" @click="overlayOpen = true" />
+        <UButton icon="i-lucide-layers" color="neutral" variant="ghost" size="sm" to="/overlay" aria-label="Overlay settings" title="Overlay settings" />
       </template>
     </GameScreen>
 
@@ -62,10 +61,8 @@ const waiting = computed(() => {
       <div v-if="overlayStatus" class="relative mt-4 flex items-center gap-3 rounded-lg bg-elevated/60 py-1.5 pl-3 pr-1.5 ring-1 ring-default">
         <UIcon name="i-lucide-layers" class="size-4 text-primary" />
         <span class="text-xs text-muted">{{ overlayStatus }}</span>
-        <UButton label="Customize" color="neutral" variant="ghost" size="xs" @click="overlayOpen = true" />
+        <UButton label="Customize" color="neutral" variant="ghost" size="xs" to="/overlay" />
       </div>
     </div>
-
-    <OverlaySettings v-model:open="overlayOpen" />
   </div>
 </template>

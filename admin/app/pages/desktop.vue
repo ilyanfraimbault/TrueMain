@@ -28,6 +28,7 @@ const PAGE_LABELS: Record<string, string> = {
   favorites: 'Favorites',
   draft: 'Champ select',
   game: 'Game',
+  overlay: 'Overlay',
   recordings: 'Recordings',
   recording: 'Recording',
   clip: 'Clip',

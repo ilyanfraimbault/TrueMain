@@ -47,6 +47,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
       // Lit while a game runs, wherever the player is.
       badge: screen.value === 'in-game' ? LIVE : undefined,
     },
+    { label: 'Overlay', icon: 'i-lucide-layers', to: '/overlay', active: route.path === '/overlay' },
     // Only once the shell has answered for recording: a build without it has no page to open.
     ...(recording.value
       ? [{

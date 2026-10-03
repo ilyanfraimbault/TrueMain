@@ -199,7 +199,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 `desktop/README.md`; decisions in [`decisions/desktop.md`](decisions/desktop.md).
 
 - **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select, Game — each
-  badged "Live" during its phase; Recordings, badged "Rec" while a game is recorded, listed once the shell answers for
+  badged "Live" during its phase; Overlay; Recordings, badged "Rec" while a game is recorded, listed once the shell answers for
   recording), player card (Riot ID, level, client status), top bar with a ⌘K champion search (no
   back/forward, no patch label). Hash routing; the gameflow phase opens `/draft` on its own, and `/game` from home or
   the draft (never from a page opened by hand); leaving either phase goes home only from its page.
@@ -250,7 +250,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   recipe) ringed when the gold in hand buys them, the two runners-up, and the boots while none are held. Our completion
   order is noted as items land; "off the mains' path" says when the build left their tree. Our gold reaches the page in
   50-gold steps (`GOLD_STEP`), the only gold the API exposes. Its data comes from `useNextItemPanel`, shared with the
-  overlay. A layers button by the clock (and a status line in the waiting state) opens the overlay settings.
+  overlay. A layers button by the clock (and a status line's "Customize" in the waiting state) opens the Overlay page.
 - **In-game overlay** (#1795 on macOS, window layer from the #1673 spike, `docs/desktop-overlay-spike.md`; #1798 on
   Windows) — five panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
   `CGShieldingWindowLevel` (League's Full Screen captures the display), on Windows a topmost `WS_EX_NOACTIVATE` layered
@@ -277,10 +277,16 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   "Anonymous", their history never requested. No true-main mark yet. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
   the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). TAB and ⌥⇧O are read
-  from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Settings
-  slideover (`OverlaySettings.vue`): overlay on/off (default on), per panel on/off and a position (five spots,
-  `OverlayAnchorPicker.vue`, or anywhere by dragging the panels in an on-screen preview, stored as screen fractions), the
-  next item's moment, size 80–140 %, opacity 50–100 %. Rules and settings in `shell-state::overlay` (tested on CI),
+  from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Set up on
+  the **Overlay page** (`/overlay`, sidebar, any time — #1819): a copy of the screen at its aspect ratio (the window's
+  screen, 1920 × 1080 in a browser) with the game's minimap and ability bar outlined, each panel that is on drawn where
+  it sits (its anchor spot, or where it was dragged — the shell's rule mirrored in `utils/overlay-layout.ts`; small
+  panels drawn at least 108 × 24 px around their true centre, said under the screen). Drag a panel to move it (stored as
+  its centre in screen fractions); its × (shown on hover), Delete, or a drop on the side takes it off; arrow keys nudge
+  it 1 % (Shift 5 %). The **Hidden panels** column on the right lists the panels that are off — drag one onto the
+  screen, or click it to bring it back where it was. Beside them: "Place on screen" (the panels themselves, dragged over
+  the real screen), "Reset positions" (every panel back to its spot), overlay on/off (default on), the next item's
+  moment, size 80–140 %, opacity 50–100 %, the shortcut (`OverlayLayoutEditor.vue`, `OverlayPanelMock.vue`). Rules and settings in `shell-state::overlay` (tested on CI),
   windows in `src-tauri/src/overlay/` (`panels.rs` drives them, `macos.rs` / `windows.rs` are the window layers). On
   Windows the game is known by its window class (`RiotWindowClass`) or its process name; CI drives the whole overlay
   over a stand-in game on a Windows desktop (`desktop/tools/overlay-smoke-windows.ps1`, #1806).
