@@ -15,6 +15,7 @@ const PAGE_KEYS: Record<string, string> = {
   'favorites': 'favorites',
   'draft': 'draft',
   'game': 'game',
+  'overlay': 'overlay',
   'recordings': 'recordings',
   'recordings-id': 'recording',
   'recordings-clips-id': 'clip',

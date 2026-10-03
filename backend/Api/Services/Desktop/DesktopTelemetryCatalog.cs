@@ -22,6 +22,7 @@ public static partial class DesktopTelemetryCatalog
         "favorites",
         "draft",
         "game",
+        "overlay",
         "recordings",
         "recording",
         "clip",

@@ -425,7 +425,7 @@ is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chu
 that is never fetched.
 
 The overlay's page opens the same way, alone, as the panel shows it:
-`?scenario=in-game-late#/overlay` (reload after changing only the hash — the
+`?scenario=in-game-late#/overlay/next-item` (reload after changing only the hash — the
 page stands outside the app's shell from its first load), and `&preview` adds
 the placing state. Its window — level, focus, click-through, the frontmost
 rule, dragging — exists only in the shell; `tools/overlay-probe.swift` reads
