@@ -79,19 +79,16 @@ pub struct GameflowPlayer {
     pub summoner_name: String,
     /// `TOP`, `JUNGLE`, `MIDDLE`, `BOTTOM`, `UTILITY`; empty without roles.
     pub selected_position: String,
-    /// `HIDDEN` for a player whose name the client keeps from us (Streamer
-    /// Mode, patch 25.20), as the champion select marks one; absent otherwise.
-    pub name_visibility_type: String,
 }
 
 impl GameflowPlayer {
-    /// The player chose not to be known in this game: the client marks the
-    /// name hidden, or leaves out the name or the puuid it would be looked
-    /// up by. Their name and their history are then never read (#1753).
+    /// The client keeps this player's identity from us: it leaves out the
+    /// name or the puuid it would be looked up by. Their history is then
+    /// never read (#1753). The session's `nameVisibilityType` is no signal:
+    /// it keeps the champion select's `HIDDEN` for every ranked player while
+    /// sending their name and puuid at the loading screen.
     pub fn is_anonymous(&self) -> bool {
-        self.name_visibility_type.eq_ignore_ascii_case("HIDDEN")
-            || self.puuid.trim().is_empty()
-            || self.riot_id().trim().is_empty()
+        self.puuid.trim().is_empty() || self.riot_id().trim().is_empty()
     }
 
     /// `Name#TAG` when the session carries it, else the summoner name.
@@ -553,17 +550,15 @@ mod tests {
     }
 
     #[test]
-    fn a_hidden_or_nameless_player_is_anonymous() {
+    fn only_a_player_without_a_puuid_or_a_name_is_anonymous() {
         let named = serde_json::json!({ "puuid": "p-1", "gameName": "Lumen", "tagLine": "EUW", "championId": 254 });
         assert!(!gameflow_player(named.clone()).is_anonymous());
 
-        let mut hidden = named.clone();
-        hidden["nameVisibilityType"] = "HIDDEN".into();
-        assert!(gameflow_player(hidden).is_anonymous());
-
-        let mut visible = named.clone();
-        visible["nameVisibilityType"] = "VISIBLE".into();
-        assert!(!gameflow_player(visible).is_anonymous());
+        // Ranked keeps the champion select's flag on every player of the
+        // loading screen, names and puuids sent all the same.
+        let mut ranked = named.clone();
+        ranked["nameVisibilityType"] = "HIDDEN".into();
+        assert!(!gameflow_player(ranked).is_anonymous());
 
         let mut no_puuid = named.clone();
         no_puuid["puuid"] = "".into();
