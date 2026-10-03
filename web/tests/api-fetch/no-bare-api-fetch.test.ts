@@ -19,19 +19,17 @@ const LEGACY = new Set([
   'components/OgImage/Truemain.satori.vue',
   // Hand-rolled per-viewer fetchers, client-only by construction — never through the
   // shared SSR payload (decisions/web-frontend-rules.md).
-  'composables/useCompositionBuild.ts',
-  'composables/useCompositionBuildGames.ts',
   'composables/useTruemainActivity.ts',
-  'composables/useTruemainMatches.ts',
-  'composables/useTruemainProfile.ts',
   'composables/useTruemainRankHistory.ts',
-  'composables/useTruemainSearch.ts',
   // Reads a Nitro static route, not the backend, and is being reworked for the
   // prerendered pages (#1617) — migrate it once that lands.
   'plugins/champion-slugs.ts',
 ])
 
 const APP_DIR = fileURLToPath(new URL('../../app', import.meta.url))
+// The layer shared with the desktop app (#1732): a bare `/api` fetch there is
+// also a call the app cannot make, since it has no `/api` to reach.
+const LAYER_DIR = fileURLToPath(new URL('../../layers/common/app', import.meta.url))
 const BARE_API_FETCH = /\$fetch\s*(?:<[^()]*>)?\(\s*[`'"]\/api\//
 
 function sourceFiles(dir: string): string[] {
@@ -49,9 +47,10 @@ function withoutComments(source: string): string {
     .replace(/^\s*\/\/.*$/gm, '')
 }
 
-const offenders = sourceFiles(APP_DIR)
-  .filter(path => BARE_API_FETCH.test(withoutComments(readFileSync(path, 'utf8'))))
-  .map(path => relative(APP_DIR, path).split('\\').join('/'))
+const offenders = [APP_DIR, LAYER_DIR]
+  .flatMap(dir => sourceFiles(dir)
+    .filter(path => BARE_API_FETCH.test(withoutComments(readFileSync(path, 'utf8'))))
+    .map(path => `${dir === LAYER_DIR ? 'layers/common/' : ''}${relative(dir, path).split('\\').join('/')}`))
   .sort()
 
 describe('backend calls', () => {

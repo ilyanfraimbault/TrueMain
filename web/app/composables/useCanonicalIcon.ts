@@ -1,4 +1,4 @@
-import { ICON_FETCH_SIZE } from '~/utils/icon-fetch'
+import { ICON_FETCH_SIZE } from '#common/utils/icon-fetch'
 
 /**
  * Builds the canonical `/_ipx/…` URL for an icon: fixed {@link ICON_FETCH_SIZE}

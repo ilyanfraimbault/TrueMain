@@ -1,0 +1,75 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* The site's design system — palette, data axis, elevation ladder, utilities. */
+@import "../../../../../web/layers/common/app/assets/css/theme.css";
+
+/* The companion app is dark-only, like the site: it sits next to a game. */
+:root {
+  color-scheme: dark;
+}
+
+@theme static {
+  /* The two sides of a draft, in the client's own convention: blue is us, red
+     is them. Tints and hairlines only — never a fill behind text. */
+  --color-ally: #4f8fff;
+  --color-enemy: #ff4d5e;
+}
+
+/*
+ * Champion art is the material the draft is made of, and it needs a scrim to
+ * carry text.
+ *
+ * `art-fade-x` — a hero band: art anchored right, fading to the page towards
+ * the left where the text sits.
+ *
+ * `art-vignette` — a full-bleed backdrop, so the art is a mood, not a subject.
+ */
+@utility art-fade-x {
+  background: linear-gradient(
+    to right,
+    var(--ui-bg-muted) 0%,
+    color-mix(in oklch, var(--ui-bg-muted) 92%, transparent) 30%,
+    color-mix(in oklch, var(--ui-bg-muted) 45%, transparent) 60%,
+    color-mix(in oklch, var(--ui-bg-muted) 20%, transparent) 100%
+  );
+}
+
+@utility art-vignette {
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 45%, color-mix(in oklch, var(--ui-bg-muted) 88%, transparent), transparent 100%),
+    linear-gradient(to bottom, color-mix(in oklch, var(--ui-bg-muted) 40%, transparent), var(--ui-bg-muted) 100%);
+}
+
+/*
+ * A pick card's floor: the bottom of the portrait darkened for its tier mark,
+ * then washed with the tier's own colour from `--tier` — the way the reference
+ * client tints a card by its grade. Set `--tier` on the card.
+ */
+@utility card-floor {
+  background:
+    linear-gradient(to top, color-mix(in oklch, var(--tier, transparent) 42%, transparent) 0%, transparent 55%),
+    linear-gradient(to top, color-mix(in oklch, var(--color-ink-950) 85%, transparent) 0%, transparent 45%);
+}
+
+/* The pulse under "waiting for the client": a heartbeat, not a spinner. */
+@keyframes tm-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@utility animate-tm-pulse {
+  animation: tm-pulse 2.2s ease-in-out infinite;
+}
+
+/* The pending bar: a highlight sweeping across, left to right. */
+@keyframes tm-scan {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+/* Thin, dark scrollbars: the window is small and a default bar is a stripe of white. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-border-accented) transparent;
+}

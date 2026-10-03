@@ -1,4 +1,5 @@
 using Core.Lol.Patches;
+using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Data.ItemContext;
@@ -90,27 +91,61 @@ public sealed class ChampionProfileSnapshot
             .Distinct()
             .ToListAsync(ct);
 
-        var window = patches
-            .Select(raw => PatchVersion.TryParse(raw, out var version) ? (Raw: raw, Version: version) : default)
-            .Where(entry => entry.Raw is not null && entry.Version <= target)
-            .OrderByDescending(entry => entry.Version)
-            .Take(lookbackPatches + 1)
-            .ToList();
-
-        if (window.Count == 0)
+        var windowPatches = Window(patches, target, lookbackPatches);
+        if (windowPatches.Count == 0)
         {
             return Empty;
         }
-
-        var windowPatches = window.Select(entry => entry.Raw).ToList();
-        var rank = window
-            .Select((entry, index) => (entry.Raw, Index: index))
-            .ToDictionary(entry => entry.Raw, entry => entry.Index, StringComparer.Ordinal);
 
         var rows = await db.ChampionProfileStats
             .AsNoTracking()
             .Where(profile => windowPatches.Contains(profile.Patch) && profile.Games >= minGames)
             .ToListAsync(ct);
+
+        return Build(rows, windowPatches);
+    }
+
+    /// <summary>
+    /// The same resolution over rows already in memory — an offline evaluation replaying
+    /// exported profiles must classify a draft exactly as the fold does.
+    /// </summary>
+    public static ChampionProfileSnapshot FromRows(
+        IReadOnlyCollection<ChampionProfileStat> rows,
+        string patch,
+        int lookbackPatches,
+        int minGames)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+
+        if (!PatchVersion.TryParse(patch, out var target))
+        {
+            return Empty;
+        }
+
+        var qualifying = rows.Where(row => row.Games >= minGames).ToList();
+        var windowPatches = Window(qualifying.Select(row => row.Patch).Distinct().ToList(), target, lookbackPatches);
+        if (windowPatches.Count == 0)
+        {
+            return Empty;
+        }
+
+        return Build([.. qualifying.Where(row => windowPatches.Contains(row.Patch))], windowPatches);
+    }
+
+    /// <summary>The newest qualifying patches at or before the target, newest first.</summary>
+    private static List<string> Window(IReadOnlyCollection<string> patches, PatchVersion target, int lookbackPatches)
+        => [.. patches
+            .Select(raw => PatchVersion.TryParse(raw, out var version) ? (Raw: raw, Version: version) : default)
+            .Where(entry => entry.Raw is not null && entry.Version <= target)
+            .OrderByDescending(entry => entry.Version)
+            .Take(lookbackPatches + 1)
+            .Select(entry => entry.Raw)];
+
+    private static ChampionProfileSnapshot Build(IReadOnlyList<ChampionProfileStat> rows, IReadOnlyList<string> windowPatches)
+    {
+        var rank = windowPatches
+            .Select((raw, index) => (Raw: raw, Index: index))
+            .ToDictionary(entry => entry.Raw, entry => entry.Index, StringComparer.Ordinal);
 
         var byPosition = new Dictionary<(int, string), ChampionProfileFacts>();
         var byChampion = new Dictionary<int, ChampionProfileFacts>();

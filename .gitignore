@@ -35,3 +35,6 @@ ROADMAP.md
 !.claude/docs/
 
 CLAUDE.local.md
+
+# Output of desktop/tools/overlay-probe.swift (window-server listings of a local machine)
+overlay-probe.log

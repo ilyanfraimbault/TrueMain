@@ -1,3 +1,4 @@
+using Data.Desktop;
 using Data.Metrics.Mongo;
 using Data.Ops.Mongo;
 using Microsoft.Extensions.Configuration;
@@ -98,6 +99,10 @@ public static class MongoLoggingServiceCollectionExtensions
         // publisher, read by the Api for the admin configuration page. Registered in both hosts
         // like the stores above — the Api never writes, the Ingestor never reads.
         services.TryAddSingleton<IEffectiveConfigurationStore, EffectiveConfigurationStore>();
+
+        // The desktop app's usage and the site's installer downloads (#1805): written by the
+        // Api from the app's batches and the site's download route, read by the admin page.
+        services.TryAddSingleton<IDesktopTelemetryStore, DesktopTelemetryStore>();
 
         return services;
     }

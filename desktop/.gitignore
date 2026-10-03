@@ -1,0 +1,9 @@
+target/
+node_modules/
+.nuxt/
+.output/
+app/dist/
+src-tauri/gen/
+src-tauri/binaries/
+flavor.json
+.env.local

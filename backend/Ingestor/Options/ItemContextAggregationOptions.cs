@@ -99,4 +99,33 @@ public class ItemContextAggregationOptions
 
     /// <summary>Most findings kept on one verdict, draft-time situations first and strongest lift within them. Three is what a hover card can carry without becoming a table.</summary>
     public int MaxAxesPerVerdict { get; set; } = 3;
+
+    /// <summary>The next-item model's terms (#1749), rebuilt beside the verdicts.</summary>
+    public NextItemModelOptions NextItem { get; set; } = new();
+}
+
+/// <summary>
+/// How the next-item terms (#1749) are derived from the item-context counters.
+/// </summary>
+public class NextItemModelOptions
+{
+    /// <summary>
+    /// Strength of the prior a bucket's share is shrunk towards, in games: a bucket's
+    /// share is <c>(games + k·share overall) / (bucket games + k)</c>. A 30-game bucket
+    /// barely moves an item, a 3 000-game one moves it by what it measured — which is what
+    /// lets the model keep every bucket instead of the verdicts' hard floors.
+    /// </summary>
+    public double PriorGames { get; set; } = 50d;
+
+    /// <summary>Share of its branch below which an item is not offered as a candidate at all.</summary>
+    public double MinCandidateShare { get; set; } = 0.02;
+
+    /// <summary>
+    /// Games the served patch must hold on a branch before its base shares stand alone;
+    /// below it the base widens backwards through the window, like a thin verdict axis.
+    /// </summary>
+    public int MinBaseBranchGames { get; set; } = 30;
+
+    /// <summary>|log-ratio| below which a term is not stored: a shift under 1% of an item's share changes no ranking.</summary>
+    public double MinWeight { get; set; } = 0.01;
 }

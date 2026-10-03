@@ -1,5 +1,5 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
-import { isChampionPosition, type ChampionPosition } from '~/utils/positions'
+import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
 import { resolveChampionStaticPatch } from '~/utils/champion-patch'
 
 type Filters = ReturnType<typeof useChampionFilters>['filters']

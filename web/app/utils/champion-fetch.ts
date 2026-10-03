@@ -1,5 +1,5 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
-import { fetchErrorStatus } from '~/utils/errors'
+import { fetchErrorStatus } from '#common/utils/errors'
 
 /**
  * The slice the page requests — the page filters the global champion endpoint

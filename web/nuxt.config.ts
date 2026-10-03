@@ -27,7 +27,7 @@ const cachedIpxHandler = defineNuxtModule({
 export default defineNuxtConfig({
   // `cachedIpxHandler` must come before `@nuxt/image` so the route is already
   // registered when the module decides whether to install its own.
-  modules: [cachedIpxHandler, '@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo'],
+  modules: [cachedIpxHandler, '@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo', '@nuxt/scripts'],
   // Canonical site identity for SEO (canonical links, sitemap, robots, OG/
   // schema.org defaults). `url` is the production default; override per
   // environment with `NUXT_PUBLIC_SITE_URL` (nuxt-site-config reads it
@@ -113,8 +113,9 @@ export default defineNuxtConfig({
       height: 630,
     },
   },
-  // Self-host the two families the app uses (see the `--font-*` vars in
-  // main.css): Inter for everything the reader reads, measurements included, and
+  // Self-host the two families the app uses (see the `--font-*` vars in the
+  // shared layer's theme.css): Inter for everything the reader reads,
+  // measurements included, and
   // Geist Mono for the few places monospace is the meaning — tier letters, the
   // empty-slot glyph, hex codes. Declared explicitly so the download doesn't rely
   // on CSS scanning of the *theme vars* — the family names only ever appear
@@ -144,7 +145,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       // The app is dark-only. Nuxt UI keys its own theme off the `.dark` class,
-      // and the surface ladder in main.css is written to out-specify it either
+      // and the surface ladder in theme.css is written to out-specify it either
       // way, but pinning the class server-side means the very first painted
       // frame is already dark — without it the document flashes Nuxt UI's light
       // defaults until @nuxtjs/color-mode's script runs.
@@ -190,6 +191,14 @@ export default defineNuxtConfig({
         }
       }
     },
+    // @nuxt/scripts registers its first-party proxy (`/_scripts/p/**`) on every
+    // server build, configured or not. Nothing here proxies a script (Umami is
+    // loaded from our own instance, unbundled), so the route only answered
+    // 500 "First-party proxy not configured" to whoever probed it, and its
+    // undici-based fetcher added ~1 MB to the server output (#1622, measured).
+    'nitro:config'(config) {
+      config.handlers = config.handlers?.filter(handler => handler?.route !== '/_scripts/p/**')
+    },
   },
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
@@ -201,10 +210,8 @@ export default defineNuxtConfig({
   // again, so they would be pinned for good to a theme that is no longer
   // designed or tested. Moving to a fresh storage key retires those values in
   // one line: the new key is never written (no toggle exists), so every visit
-  // falls through to the preference below.
+  // falls through to the preference (dark, set by `layers/common`).
   colorMode: {
-    preference: 'dark',
-    fallback: 'dark',
     storageKey: 'truemain-color-mode',
   },
   image: {
@@ -256,6 +263,10 @@ export default defineNuxtConfig({
     // NUXT_LOG_INGEST_KEY. Empty keeps error forwarding off
     // (server/plugins/log-forwarding.ts).
     logIngestKey: '',
+    // Which desktop app builds the site offers (#1772), from NUXT_DESKTOP_CHANNEL:
+    // `stable` serves only a release promoted by hand, `beta` (preprod) the newest
+    // build too. See server/utils/desktop-release.ts.
+    desktopChannel: 'stable',
     public: {
       // Which deployed environment this container is (`preprod` / `production`),
       // and the build running in it — the preprod pipeline stamps a prerelease

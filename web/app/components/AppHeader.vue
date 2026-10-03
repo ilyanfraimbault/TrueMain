@@ -42,6 +42,14 @@ const items = computed<NavigationMenuItem[]>(() => [
     to: '/truemains/favorites',
     active: route.path === '/truemains/favorites',
   },
+  {
+    // The desktop companion (#1719), flagged while it is a beta.
+    label: 'Desktop app',
+    icon: 'i-lucide-monitor-down',
+    to: '/download',
+    active: route.path === '/download',
+    badge: { label: 'Beta', color: 'primary', variant: 'subtle', size: 'sm' },
+  },
 ])
 
 // A floating bar rather than a full-width strip: the root is a transparent

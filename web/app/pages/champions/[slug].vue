@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { POSITION_BY_VALUE, type ChampionPosition } from '~/utils/positions'
-import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '~/utils/elo-brackets'
-import { isLoadingStatus } from '~/utils/async-data'
+import { POSITION_BY_VALUE, type ChampionPosition } from '#common/utils/positions'
+import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '#common/utils/elo-brackets'
+import { isLoadingStatus } from '#common/utils/async-data'
 import type {
   ChampionScalingBucket,
   ChampionTrendPoint,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '#common/utils/positions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Position + elo + patch + matchup pickers for the champion page, laid out as

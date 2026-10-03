@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatCompactCount } from '~~/shared/utils/counts'
-import { isLoadingStatus } from '~/utils/async-data'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 // The homepage title leads with the brand, so opt out of the global
 // `%s · TrueMain` template — it would duplicate the name in search results.
@@ -157,6 +157,10 @@ await Promise.all([overviewFetch, truemainsReady])
         </dl>
       </div>
     </section>
+
+    <!-- The desktop app, announced before the panels it brings into
+         champion select. -->
+    <HomeDesktopBetaPanel />
 
     <!-- Live data panels — equal-width halves so the two read as a balanced
          pair and the truemains rows have room for champion + play-rate

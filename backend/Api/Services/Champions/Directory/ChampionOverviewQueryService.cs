@@ -59,7 +59,7 @@ public sealed class ChampionOverviewQueryService(
         // S-tiers read as the meta. Mirrors the ordering the homepage teaser used
         // to do client-side (home/TierlistPanel.vue) before this endpoint existed.
         var topRows = result.Summaries
-            .OrderBy(summary => TierRank(summary.Tier))
+            .OrderBy(summary => ChampionTierCalculator.TierRank(summary.Tier))
             .ThenByDescending(summary => summary.Games)
             .Take(limit)
             .Select(summary => new ChampionOverviewRowReadModel
@@ -80,13 +80,5 @@ public sealed class ChampionOverviewQueryService(
             GamesAnalyzed = gamesAnalyzed,
             TopRows = topRows,
         };
-    }
-
-    // Unrecognised tiers (shouldn't happen — every summary row is stamped by
-    // ChampionTierCalculator) sort last rather than throwing.
-    private static int TierRank(string tier)
-    {
-        var index = Array.IndexOf(ChampionTierCalculator.TierOrder, tier);
-        return index < 0 ? ChampionTierCalculator.TierOrder.Length : index;
     }
 }

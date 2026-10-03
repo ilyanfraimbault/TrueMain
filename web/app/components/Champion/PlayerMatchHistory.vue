@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '~/utils/positions'
+import type { ChampionPosition } from '#common/utils/positions'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,

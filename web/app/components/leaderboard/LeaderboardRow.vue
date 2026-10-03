@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { formatPercentage, getPositionIconUrl, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
+import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { formatCount } from '~~/shared/utils/counts'
-import { POSITION_BY_VALUE } from '~/utils/positions'
-import { isApexTier } from '~/utils/tiers'
-import { winRateTone } from '~/utils/rate-tone'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { isApexTier } from '#common/utils/tiers'
+import { winRateTone } from '#common/utils/rate-tone'
 
 // One row of the leaderboard. The whole row navigates to the player's profile
 // via a stretched overlay link, while the top-champion icons are their own
@@ -28,20 +29,11 @@ const props = defineProps<{
   maxRank?: number
 }>()
 
-const profileHref = computed(() => {
-  const tag = props.row.identity.tagLine
-  return tag
-    ? `/truemains/${encodeURIComponent(`${props.row.identity.gameName}-${tag}`)}`
-    : `/truemains/${encodeURIComponent(props.row.identity.gameName)}`
-})
-
 // Slug for this player's truemain pages — `{gameName}-{tagLine}` (or just the
-// name when untagged). Drives the player-scoped champion links below; the slug
-// is URL-encoded by <ChampionLink>.
-const rowNameTag = computed(() => {
-  const { gameName, tagLine } = props.row.identity
-  return tagLine ? `${gameName}-${tagLine}` : gameName
-})
+// name when untagged). Drives the profile link and the player-scoped champion
+// links below; the slug is URL-encoded by the path helper and <ChampionLink>.
+const rowNameTag = computed(() => truemainNameTag(props.row.identity.gameName, props.row.identity.tagLine))
+const profileHref = computed(() => truemainProfilePath(rowNameTag.value))
 
 // The stretched profile link is an empty overlay (no text), so it needs an
 // explicit accessible name.
@@ -49,9 +41,6 @@ const profileAriaLabel = computed(() => {
   const { gameName, tagLine } = props.row.identity
   return tagLine ? `${gameName} #${tagLine}` : gameName
 })
-
-const profileIconUrl = computed(() =>
-  getProfileIconUrl(props.row.identity.profileIconId, props.patch))
 
 // One-trick pony marker next to the name. A player can be an OTP of at most one
 // champion (play rate ≥ 85% leaves no room for a second main), so any flagged
@@ -222,50 +211,34 @@ const positionIcons = computed(() => {
       #{{ row.rank }}
     </span>
 
-    <!-- Avatar -->
-    <!-- Rows appear in long lists (/truemains) and in the champion page's
-         sidebar, always below the build panel: lazy so they leave the initial
-         request burst to the above-the-fold icons. Rows near the viewport are
-         unaffected — the browser fetches lazy images well before they scroll
-         in. Same call the match-history rows already make. -->
-    <SkeletonImage
-      v-if="profileIconUrl"
-      :src="profileIconUrl"
-      :alt="row.identity.gameName"
-      class="size-10 shrink-0 rounded"
-      width="40"
-      height="40"
+    <!-- The player, through the shared identity (#1734) with no link of its
+         own — the stretched overlay above is the row's link. Given a heavier
+         flex-grow than the centring spacers so the Riot ID claims roughly half
+         the free space (fitting untruncated) while the spacers still keep the
+         champion roughly centred; capped so it can't run away on ultra-wide
+         screens. The avatar now sits inside this item, so its basis and caps
+         carry the avatar's 40px + gap the bare name column never had to. The
+         tag never truncates — the name absorbs the clipping. -->
+    <Account
+      :identity="row.identity"
+      :region="row.region"
+      :patch="patch"
+      size="lg"
+      :to="false"
       loading="lazy"
-    />
-    <div v-else class="size-10 shrink-0 rounded bg-elevated/60" aria-hidden="true" />
-
-    <!-- Name + tag, region flag sits under the name as a small badge. Given a
-         heavier flex-grow than the centring spacers so the Riot ID claims
-         roughly half the free space (fitting untruncated) while the spacers
-         still keep the champion roughly centred. Capped so it can't run away on
-         ultra-wide screens. -->
-    <div class="min-w-0 flex-[3] @2xl:max-w-72 @4xl:max-w-80 @5xl:max-w-96">
-      <!-- Game name and tag are one identifier, so the tag never truncates: it
-           holds its width (`shrink-0`) and the name absorbs the clipping. The
-           name is set a notch below the row's body size and the tag a notch
-           below that — the hierarchy reads without the name having to be big,
-           which is what let the pair fit in the sidebar at all. -->
-      <div class="flex items-baseline gap-1 truncate">
-        <span class="truncate text-sm font-bold text-default">{{ row.identity.gameName }}</span>
-        <span v-if="row.identity.tagLine" class="shrink-0 text-[11px] text-muted">#{{ row.identity.tagLine }}</span>
-        <!-- One-trick pony marker. `relative z-10` lifts it above the stretched
-             profile-link overlay so its tooltip is reachable on hover. -->
+      class="flex-[3_1_3.25rem] @2xl:max-w-[21.25rem] @4xl:max-w-[23.25rem] @5xl:max-w-[27.25rem]"
+    >
+      <!-- One-trick pony marker. `relative z-10` lifts it above the stretched
+           profile-link overlay so its tooltip is reachable on hover. -->
+      <template v-if="isOtp" #badge>
         <span
-          v-if="isOtp"
           class="relative z-10 shrink-0 self-center rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-amber-200 ring-1 ring-amber-400/50"
           title="One-trick pony"
         >
           OTP
         </span>
-      </div>
-      <!-- A flex line, not inline: inline reserved a descender-height line box around the flag. -->
-      <div class="mt-0.5 flex"><LeaderboardRegionFlag :region="row.region" :width="18" /></div>
-    </div>
+      </template>
+    </Account>
 
     <!-- Primary / secondary lane. Same 22px icon as the champion list's
          position column; the primary lane matches its full opacity, and only

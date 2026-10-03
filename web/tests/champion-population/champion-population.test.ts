@@ -3,7 +3,7 @@ import {
   EVERYONE_QUERY_PARAM,
   EVERYONE_QUERY_VALUE,
   resolveTruemainsOnly,
-} from '~~/app/utils/champion-population'
+} from '#common/utils/champion-population'
 
 describe('resolveTruemainsOnly', () => {
   it('is on when the param is absent', () => {

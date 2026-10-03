@@ -1,0 +1,30 @@
+name: Desktop promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: App version to serve on truemain.lol (e.g. 0.2.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote desktop-v${{ inputs.version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Serve the release on the stable channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        run: .github/scripts/desktop-promote.sh "$VERSION"

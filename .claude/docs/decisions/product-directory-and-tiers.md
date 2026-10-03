@@ -57,6 +57,13 @@ that no tooltip opens on touch, so the link's `aria-label` carries name, lane an
 string is also what a screen reader gets, and it is the reason the missing ban rate is dropped from it
 entirely rather than announced as "dash BR".
 
+**The tier list carries the directory's header and filter row, control for control (2026-10-01).**
+Same `PageHeader` (eyebrow + title), same grid — position picker left, champion search centred, rank + truemains
+toggle + patch grouped on the right at the compact size — so moving between `/champions` and
+`/champions/tierlist` keeps every control in place instead of reshuffling four of them across the row. The
+champion search came along with it: on the tier list it narrows the tier cards to that champion's lines
+(client-side, `?championId=`, no refetch), and tiers left empty are hidden. Product owner's call.
+
 ## A patch is served only once it can fill a directory (2026-08-12)
 
 **#1109.** The public reads used to default to the newest patch holding *any* aggregate row, and the directory
@@ -122,3 +129,29 @@ the number underneath it was patch-scoped and would otherwise have overstated it
   invited the reader to treat a half-hour-cached number as a live counter, and a site whose pitch is honest
   sample sizes should not be the site that rounds 999,600 up to `1M`. One decimal below 10 (`4.1k`), none
   above (`490k`), where it is noise.
+
+## The directory listing reads one page from `GET /champions/directory` (2026-10-01)
+
+The `/champions` page used to download the whole directory (`GET /champions`, a few hundred lines) and filter by
+lane and champion and paginate in the browser. With the listing on `UTable` and its headers sorting
+(`web-frontend-rules.md`), the product owner asked that the page fetch only what it shows (#1734).
+
+- **A new route, not a new shape for the old one.** `GET /champions/directory` takes `patch`, `eloBracket`,
+  `truemainsOnly`, `position`, `championId`, `sort` (`pickRate` | `winRate` | `banRate` | `games` | `tier`),
+  `order` and `page`/`pageSize` (1–100), and answers `{ rows, page, pageSize, total, patchVersion }`. The bare
+  `GET /champions` array stays as is for the consumers that want every line — the OG card, the sitemap's
+  lastmod — so neither had to change, and one route never has two shapes.
+- **No SQL of its own; one cache entry per ordering, not per page.** `ChampionDirectoryQueryService` reads the
+  same cached summaries as `GET /champions`, the tier list and the homepage, then filters and orders them in
+  memory. The ordered list goes through `IChampionReadCache` like every champion read (#1368, pinned by
+  `ChampionReadCacheRegistrationTests`), keyed on the filters and the order but not the page: paging is a slice
+  of one entry, so the shared size-limited cache holds what visitors ask for (a lane, a sort, a direction)
+  rather than every page of every combination.
+- **Order rules** (`ChampionDirectoryOrdering`, pure and unit-tested): descending is strongest first; a null ban
+  rate (not observed, #920) and an unrecognised tier stay last in both directions — "not measured" is not the
+  bottom of the scale; `tier` orders by letter then `tierScore`; every order ends on pick rate, games, champion
+  and lane, so a line never moves between pages from one request to the next. `sort`/`order` are presentation
+  preferences: an unknown value falls back to the default instead of a 400; a bad lane or elo is still a 400.
+- `patchVersion` rides the envelope, so a page that lists nothing still tells the patch picker which patch it
+  shows (the page used to read it off `rows[0]`). A page past the end is empty with the real total, and the page
+  steps back to page 1.

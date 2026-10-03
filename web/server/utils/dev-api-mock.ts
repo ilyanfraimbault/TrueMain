@@ -40,6 +40,8 @@ import type {
   LeaderboardRowResponse,
   RegionSlug,
 } from '~~/shared/types/leaderboard'
+import type { ChampionDirectoryResponse, ChampionDirectorySort } from '~~/shared/types/champion-directory'
+import { CHAMPION_DIRECTORY_SORTS } from '~~/shared/types/champion-directory'
 import type { CompositionBuildGamesResponse, CompositionBuildResponse, CompositionGame } from '~~/shared/types/composition'
 import type { TruemainDedication } from '~~/shared/types/dedication'
 import type {
@@ -384,6 +386,61 @@ async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
       },
     }
   })
+}
+
+// Champion directory page (#1734), mirroring GET /champions/directory: the
+// summaries above narrowed by lane and champion, ordered with the backend's
+// rules (`ChampionDirectoryOrdering` — descending is strongest first, a null
+// ban rate and an unknown tier stay last both ways, the same tie-breakers) and
+// paged. The fixture ignores patch, elo and population like `/champions` does.
+const DIRECTORY_TIER_ORDER = ['S', 'A', 'B', 'C', 'D']
+
+async function mockChampionDirectory(query: Record<string, unknown>): Promise<ChampionDirectoryResponse> {
+  const summaries = await mockChampionSummaries()
+  const { page, pageSize } = pageParams(query, 50, 100)
+  const position = typeof query.position === 'string' ? query.position : null
+  const championId = Number.parseInt(String(query.championId ?? ''), 10) || null
+  const sort = typeof query.sort === 'string' && (CHAMPION_DIRECTORY_SORTS as readonly string[]).includes(query.sort)
+    ? query.sort as ChampionDirectorySort
+    : 'pickRate'
+  const sign = query.order === 'asc' ? 1 : -1
+
+  const tierRank = (tier: string) => {
+    const index = DIRECTORY_TIER_ORDER.indexOf(tier)
+    return index < 0 ? DIRECTORY_TIER_ORDER.length : index
+  }
+  const primary = (a: ChampionSummaryResponse, b: ChampionSummaryResponse): number => {
+    switch (sort) {
+      case 'winRate': return sign * (a.winRate - b.winRate)
+      case 'games': return sign * (a.games - b.games)
+      case 'banRate':
+        return Number(a.banRate === null) - Number(b.banRate === null)
+          || sign * ((a.banRate ?? 0) - (b.banRate ?? 0))
+      case 'tier':
+        return Number(tierRank(a.tier) === DIRECTORY_TIER_ORDER.length) - Number(tierRank(b.tier) === DIRECTORY_TIER_ORDER.length)
+          || -sign * (tierRank(a.tier) - tierRank(b.tier))
+          || sign * (a.tierScore - b.tierScore)
+      default: return sign * (a.pickRate - b.pickRate)
+    }
+  }
+
+  const lines = summaries
+    .filter(line => !position || line.position === position)
+    .filter(line => !championId || line.championId === championId)
+    .sort((a, b) => primary(a, b)
+      || b.pickRate - a.pickRate
+      || b.games - a.games
+      || a.championId - b.championId
+      || (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))
+
+  const start = (page - 1) * pageSize
+  return {
+    rows: lines.slice(start, start + pageSize),
+    page,
+    pageSize,
+    total: lines.length,
+    patchVersion: summaries[0]?.patchVersion ?? await latestShortPatch(),
+  }
 }
 
 // Homepage overview (#972): a small, pre-sorted slice of the summaries above
@@ -1168,7 +1225,8 @@ export function pageParams(
 }
 
 function mockLeaderboard(query: Record<string, unknown>): LeaderboardResponse {
-  const { page, pageSize } = pageParams(query, 25, 100)
+  // Capped at 50, the backend's `[Range(1, 50)]`.
+  const { page, pageSize } = pageParams(query, 25, 50)
   const region = typeof query.region === 'string' ? query.region : null
   const position = typeof query.position === 'string' ? query.position : null
   const championId = Number.parseInt(String(query.championId ?? ''), 10) || null
@@ -2222,6 +2280,7 @@ export async function resolveDevApiMock(
   body?: unknown,
 ): Promise<unknown | undefined> {
   if (path === '/champions') return mockChampionSummaries()
+  if (path === '/champions/directory') return mockChampionDirectory(query)
   if (path === '/champions/overview') return mockChampionOverview(query)
 
   const compositionGamesMatch = path.match(/^\/champions\/(\d+)\/composition-build\/games$/)

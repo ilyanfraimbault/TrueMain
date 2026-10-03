@@ -3,8 +3,8 @@
  *
  * Satori resolves neither CSS custom properties nor Tailwind utilities, so the
  * two things the cards cannot borrow from the app are the `@theme` colours in
- * `app/assets/css/main.css` and anything expressed as a class. Those are
- * restated below as literal hex; when a brand colour moves in `main.css`, it
+ * `layers/common/app/assets/css/theme.css` and anything expressed as a class. Those are
+ * restated below as literal hex; when a brand colour moves in `theme.css`, it
  * moves here too.
  *
  * Everything that is *already* a plain value or a pure function — `TIER_HEX`,
@@ -18,11 +18,11 @@
  * than on what we wrote.
  */
 
-export { formatTier as formatRank, TIER_HEX as RANK_COLOR } from '~/utils/tiers'
-export { eloBracketLabel as formatEloBracket } from '~/utils/elo-brackets'
+export { formatTier as formatRank, TIER_HEX as RANK_COLOR } from '#common/utils/tiers'
+export { eloBracketLabel as formatEloBracket } from '#common/utils/elo-brackets'
 export { formatCount } from '~~/shared/utils/counts'
 
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
 
 /** `--color-ink-950`, the app's darkest surface — the card ground. */
 export const INK = '#0b0b0d'
@@ -51,7 +51,7 @@ export const GOLD_HAIRLINE = 'rgba(217, 182, 118, 0.22)'
  * down to iron at D. This one has no hex counterpart in `app/utils` —
  * `TierBadge.vue` reaches for it through `bg-tier-*` classes — so it is
  * restated here rather than imported, and **has to be updated by hand whenever
- * main.css moves**: Satori cannot resolve a CSS variable, which is why these
+ * theme.css moves**: Satori cannot resolve a CSS variable, which is why these
  * are literals in the first place. An unknown or missing tier is deliberately
  * absent from the map: the card drops the badge, mirroring the badge's own
  * dash-instead-of-a-guess behaviour.

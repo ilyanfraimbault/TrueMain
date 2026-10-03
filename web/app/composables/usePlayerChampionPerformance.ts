@@ -1,6 +1,6 @@
 import type { PlayerChampionPerformanceResponse } from '~~/shared/types/performance'
-import type { ChampionPosition } from '~/utils/positions'
-import { fetchErrorStatus } from '~/utils/errors'
+import type { ChampionPosition } from '#common/utils/positions'
+import { fetchErrorStatus } from '#common/utils/errors'
 
 export interface UsePlayerChampionPerformanceOptions {
   /** Patch to pin; omitted means every patch. */

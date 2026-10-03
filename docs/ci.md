@@ -12,10 +12,13 @@ two environments and the migration path in detail.
 | `ci.yml` | PRs, pushes to `develop`/`master`, manual | Build, test and sanity-check whatever the change touches |
 | `claude-review.yml` | PRs to `develop`/`master` | Automated formal code review |
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
-| `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out |
+| `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → serve a held desktop app build the release catches up with |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; typecheck and static build of its Nuxt app (below) |
+| `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
+| `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
 `.github/actions/migration-script` is the composite action every job that
 needs the idempotent EF migration script goes through (`migrate-fresh` in CI,
@@ -267,6 +270,218 @@ version sort ranks `1.20.0-rc.4` above `1.20.0`, so anything reading "the
 latest release" must filter to bare `MAJOR.MINOR.PATCH`. `-rc.` and `.` are
 legal in a Docker reference, `+` is not, which is why the version is a semver
 prerelease and not build metadata.
+
+## Desktop app checks
+
+The desktop app renders the site's shared pages from `web/layers/common` and
+reads the site's `web/shared` types (#1732), so a change on the site's side can
+break the app without touching `desktop/`. `desktop.yml` therefore also runs on
+those two paths, and its `Nuxt app` job typechecks the app and builds its static
+bundle (`npm run generate`, what `tauri build` runs) with only the app's own
+dependencies installed — the same conditions as `desktop-release.yml`, where a
+shared file importing a package the app lacks would otherwise fail first.
+
+The `macOS capture spike` job builds the game-recording spike (#1745): the
+Swift capture helper (`desktop/capture/macos`, ScreenCaptureKit, so only a Mac
+can compile it — the Linux job never sees it) and the Rust runner
+(`capture-spike`, which drives it through the `capture-helper` crate the app
+uses too), both universal (arm64 + x86_64) and ad-hoc signed like the
+app's own build. It smoke-runs each binary for its usage error, then uploads
+them as one `.tar.gz` — tarred because an artifact's zip drops the executable
+bit — so the spike can be run on a Mac without a toolchain.
+
+The `Windows capture helper and shell` job (#1797) runs clippy and the tests
+of the Windows helper (`desktop/capture/windows`, a workspace crate whose code
+is all `cfg(windows)` — the Linux job only formats it and tests its
+platform-free parts) and of `capture-helper` on a Windows runner, builds and
+runs the Tauri shell's tests on Windows (its `cfg(windows)` paths are compiled
+nowhere else before a release, and no other job can build the shell to test it:
+Linux lacks its GTK libraries), then builds the helper and runs
+`desktop/capture/windows/smoke.ps1`: a window that repaints itself is recorded
+for eight seconds, a clip is cut out of the video and two thumbnails are
+taken, each answer of the helper checked. The runner has no GPU, so frames are
+converted on the CPU and encoded in software there: the job proves the
+protocol, the capture and the files, not a League game or the GPU path. The video, clip and
+thumbnails are uploaded as an artifact.
+
+The `Windows overlay` job (#1806) builds the app as `tauri build --no-bundle`
+does for a release and runs `desktop/tools/overlay-smoke-windows.ps1` on the
+runner's desktop. The app replays `fixtures/ranked-game.jsonl`
+(`TRUEMAIN_LCU_REPLAY`). A stand-in compiled with the .NET Framework's `csc`,
+a full-screen window of the game's class (`RiotWindowClass`) and process name,
+takes the game's place in front. Each step reads the panels' windows: shown,
+extended styles, the window a click at their centre reaches. Each step also
+screenshots the desktop with `CAPTUREBLT`, since layered windows are missing
+from a plain copy, and checks that the panels' pixels are drawn over the
+stand-in's flat colour. The steps are:
+
+- the game in front;
+- TAB held;
+- Alt+Shift+O twice;
+- another app in front;
+- a window of the game's class alone;
+- the preview, opened through UI Automation on the game page's buttons, with a
+  panel dragged by the mouse and its place saved and kept;
+- the loading screen: the app restarted on the same tape without its game
+  readings, so the game is in progress but not read yet, and the loading panel
+  alone shows over the stand-in.
+
+The build reads preprod, like the beta (`DESKTOP_BETA_SITE_URL`), so the panels
+get their data from the API that has their endpoints. Without the secret, as on
+a fork's PR, it reads production, which may not serve the newest endpoints yet.
+The script turns the app's usage counts off first, the way its menu does, so a
+run is not counted as an install. It wipes the site's address from the app's
+log before the upload, and a step that runs even when the test was cut short
+(`-RedactOnly`) does it again. The runner has no GPU, so Windows draws no rounded
+corners. The screenshots, a JSON per step and the app's log
+are uploaded as an artifact.
+
+## Desktop releases
+
+The desktop companion has its own version, never the site's release flow (#1719,
+#1772): `version` in `desktop/src-tauri/tauri.conf.json`, bumped by hand in a PR.
+Since #1799 nothing else is by hand. `desktop-release.yml` runs on every
+`develop` push that touches the app — `desktop/`, and the site's shared pages and
+types (`web/layers/`, `web/shared/`), Markdown aside — and its `Versions to build`
+job (`.github/scripts/desktop-version.sh`, tested by `desktop-version.test.sh` in
+the `deploy-scripts` CI job)
+decides what it builds:
+
+- **always, a preprod build**, versioned `X.Y.Z-beta.N` with the run number and
+  published as the pre-release `desktop-vX.Y.Z-beta.N`. The Tauri updater
+  installs a build only when its version is strictly greater than the installed
+  one, so a commit SHA — unique but not ordered — cannot be the version; it is in
+  the release's notes instead. `X.Y.Z` is the version being worked towards: the
+  configured one while its production build does not exist, the next patch once
+  it does, because semver ranks `0.4.0-beta.N` below `0.4.0`. The beta's version
+  is written in the preprod flavour's config overlay; the file keeps the bumped
+  version. Only the last ten betas are kept — release and tag — so the list does
+  not grow by several releases a day.
+- **on a version bump, a production build** — when no `desktop-vX.Y.Z` release
+  exists yet, so a failed bump build is rebuilt by the next run, or by *Run
+  workflow* on `develop`. It is created as a **draft** `desktop-vX.Y.Z`, then
+  served at once if production already runs what it reads (below).
+
+The version must be `MAJOR.MINOR.PATCH`, and the workflow refuses any branch but
+`develop`. A re-run of the same run reuses its run number: the beta is then
+skipped with a notice, so a new beta takes a new run. GitHub keeps one run
+pending behind the one building and cancels the older pending ones, so a burst of
+merges builds the first and the last; a bump in a cancelled run is built by the
+next one, since the bump is read from the file and not from the push.
+
+Each flavour is a separate build (#1779): a build reads the API, opens the pages
+and polls the update feed of the site it was built for (`TRUEMAIN_SITE_URL`,
+`desktop/src-tauri/src/site.rs`), so the app downloaded from preprod must be a
+different binary from the one downloaded from truemain.lol.
+
+| flavour | site | files | update feed | app |
+| --- | --- | --- | --- | --- |
+| production | `https://truemain.lol` | `truemain.dmg`, `truemain.exe` | `latest.json` | *TrueMain*, `gg.truemain.desktop` |
+| preprod | the `DESKTOP_BETA_SITE_URL` secret | `truemain-<version>.dmg`, `truemain-<version>.exe` | `latest-beta.json` | *TrueMain Beta*, `gg.truemain.desktop.beta` |
+
+The browser saves an installer under its asset name, so a preprod download says
+its version and a production one does not. The preprod flavour is the
+production config plus an overlay the job writes (`tauri build --config`): its
+version, its own name and identifier, so the two install side by side; its own
+update feed, preprod's `/api/desktop/latest.json`; and, while preprod has no TLS,
+`dangerousInsecureTransportProtocol` — the updater still verifies every archive
+against the signing key, the flag only lets it read the feed over HTTP. The
+preprod origin is a secret because the repository is public and never names its
+hosts; the job fails when it is missing or is not a bare origin. When a run builds
+both flavours, they build in the same job, one after the other, so the second
+reuses the first's compiled dependencies. The Windows installer takes
+`X.Y.Z.0` as its numeric file version: NSIS drops the `-beta.N`, which the app
+itself keeps.
+
+It builds on the two platforms the app supports, each on its own runner:
+
+- **macOS** (`macos-15`): one universal binary (`--target universal-apple-darwin`,
+  both Rust targets installed), bundled as a `.dmg` and as the `.app.tar.gz` the
+  updater installs. Ad-hoc signed (`bundle.macOS.signingIdentity: "-"`), which is
+  what lets an unsigned app run on Apple Silicon at all; not notarised. The Swift
+  capture helper (#1744) is built universal first, ad-hoc signed on its own and
+  copied to `src-tauri/binaries/` (gitignored), from where `bundle.macOS.files`
+  puts it in `Contents/MacOS` beside the app's binary — signed before bundling,
+  so the app's seal covers a signed executable. The job then checks the helper
+  is in the bundle and that the bundle's signature verifies.
+- **Windows** (`windows-2025`): the NSIS `-setup.exe`, which is also what the
+  updater installs. Not code-signed. The capture helper (#1797) is built first
+  and copied to `src-tauri/binaries/` under its target-triple name; the job
+  then adds it to `flavor.json` as `bundle.externalBin`, which installs it
+  beside `TrueMain.exe`. It is not in `tauri.conf.json` because a sidecar
+  listed there must exist for every build, `tauri dev` included.
+
+Each update artifact is signed with the updater key, the
+`TAURI_SIGNING_PRIVATE_KEY` repository secret; the public half is
+`plugins.updater.pubkey` in the app's config. The key has no password, so
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is left unset and reaches the build empty;
+a key rotated to one with a password needs that secret too. Losing the private
+key means the installed apps can no longer be updated: every tester would have
+to reinstall a build carrying a new public key. Each publish job writes its
+flavour's updater manifest (`.github/scripts/desktop-manifest.sh`, both macOS
+keys pointing at the one universal archive) and creates its release:
+`latest-beta.json` on the beta pre-release, `latest.json` on the production
+draft. Neither carries GitHub's "Latest" badge, which stays the site's.
+
+`deploy-prod.yml` runs on every *published* release, so its `preflight` job
+skips `desktop-v*` tags and the whole deploy with it. A release created or
+edited by a workflow's own `GITHUB_TOKEN` triggers no workflow anyway; the guard
+covers one published by hand.
+
+### Production follows production
+
+The production app calls the production API, and the pages it shares with the
+site (#1732) as they were on `develop` when it was built — the champion
+directory reads `/champions/directory`, for one. Served before production runs
+the same endpoints, those pages would fail in every installed app. So a
+production build stays a draft — invisible to the site and to the updater —
+until `.github/scripts/desktop-held.sh` (tested by `desktop-held.test.sh`, same CI
+job) finds
+the site release running in production **aligned** with it:
+
+- the release contains the bump commit (it was cut from `develop` after the
+  merge), or
+- the two do not differ on what the app reads: `web/`, and the API behind it
+  (`backend/Api`, `backend/Core`, `backend/Data`).
+
+The check runs twice. Right after the bump's build, `desktop-release.yml` runs it
+against the tag of the last successful `Deploy Prod` run — a bump that changed
+nothing the site serves goes out at once. Then `deploy-prod.yml`'s `desktop` job
+runs it after every site release's rollout, so a bump that needed new endpoints
+goes out with the release that deploys them. The newest aligned draft is
+promoted; one older than the stable release never is.
+
+A promotion (`.github/scripts/desktop-promote.sh`) turns the release into a full
+release after checking it carries the production flavour's installers and
+manifest, moves any previous stable desktop release back to pre-release, and
+deletes held drafts older than it. Exactly one release is stable at a time.
+`desktop-promote.yml` runs the same script by hand, with a version: to serve a
+held build early, or to roll back — promoting an older version serves it again
+on the download page, though the updater never downgrades an installed app. A
+rolled-back version is a pre-release, not a draft, so no site release re-promotes
+it.
+
+The site reads the releases rather than the app linking to GitHub:
+`/api/desktop/download/{platform}` and the updater's feed
+`/api/desktop/latest.json` resolve a `desktop-v*` release, so a new app version
+needs no site deploy. Which one depends on the site's channel,
+`NUXT_DESKTOP_CHANNEL` in the compose files:
+
+- **`beta`** (preprod): the newest release carrying the preprod flavour's
+  manifest (`latest-beta.json`) — every app change merged to `develop`, within
+  five minutes — and its installers (`truemain-<version>.*`).
+- **`stable`** (production, and the default for anything else): the release that
+  is not a pre-release, and its production flavour (`truemain.*`, `latest.json`).
+  Until one is served, production offers no app.
+
+GitHub lists releases newest first, a hundred a page: the site reads further
+pages (five at most) until its channel's release turns up, since the site's own
+releases and the betas push the stable one down.
+
+A channel never serves the other's flavour, so an app never leaves the site it
+was downloaded from, updates included. Each flavour's updater polls its own
+site (`plugins.updater.endpoints`): the preprod app is offered every new build,
+the production app every version production has caught up with.
 
 ## Load test
 

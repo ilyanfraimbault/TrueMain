@@ -4,7 +4,7 @@ import type { RankHistoryEntry } from '~~/shared/types/rank-history'
 import {
   rankScore,
   tierHex,
-} from '~/utils/tiers'
+} from '#common/utils/tiers'
 
 const props = withDefaults(defineProps<{
   ranked: ProfileRanked | null
@@ -346,7 +346,7 @@ const showEmptyChart = computed(
  * `components/line/index.js`), which a plain CSS declaration outranks without
  * needing `!important`. Emotion suffixes the path's generated class with
  * "-linePath" (see `label: linePath` in that package's `components/line/
- * style.js`) — same targeting trick as the tooltip override in main.css.
+ * style.js`) — same targeting trick as the tooltip override in theme.css.
  */
 .rank-chart :deep([class*="-linePath"]) {
   stroke: v-bind(lineStroke);

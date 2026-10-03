@@ -6,7 +6,7 @@ import {
   LANE_DOMINANT_GOLD,
   LANE_EVEN_GOLD,
   LANE_VERDICT_MIN_GAMES,
-} from '~/utils/lane-verdict'
+} from '#common/utils/lane-verdict'
 
 const SAMPLE = LANE_VERDICT_MIN_GAMES
 

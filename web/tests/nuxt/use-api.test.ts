@@ -1,7 +1,7 @@
 import { flushPromises } from '@vue/test-utils'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { describeFetchError, fetchErrorStatus } from '~/utils/errors'
+import { describeFetchError, fetchErrorStatus } from '#common/utils/errors'
 
 // `useRequestFetch()` is what forwards the visitor's `X-Forwarded-For` when a call runs
 // during SSR (#1557) — on the server Nuxt hands back a fetcher bound to the incoming
@@ -62,6 +62,29 @@ describe('useApiFetch', () => {
     await flushPromises()
 
     expect(requestFetch).toHaveBeenCalledWith('/truemains', { baseURL: '/api', query: { page: 1 }, signal: expect.any(AbortSignal) })
+  })
+
+  it('asks the directory for one page, sending only what differs from the defaults (#1734)', async () => {
+    requestFetch.mockResolvedValue({ rows: [], page: 2, pageSize: 50, total: 0, patchVersion: '16.19' })
+    const { component } = probe(() => useChampionDirectory({
+      patch: undefined,
+      eloBracket: 'MASTER_PLUS',
+      truemainsOnly: true,
+      position: 'TOP',
+      championId: null,
+      order: { sort: 'winRate', order: 'desc' },
+      page: 2,
+      pageSize: 50,
+    }))
+
+    await mountSuspended(component)
+    await vi.waitFor(() => expect(requestFetch).toHaveBeenCalled())
+
+    expect(requestFetch).toHaveBeenCalledWith('/champions/directory', {
+      baseURL: '/api',
+      query: { pageSize: 50, page: 2, eloBracket: 'MASTER_PLUS', position: 'TOP', sort: 'winRate' },
+      signal: expect.any(AbortSignal),
+    })
   })
 
   it('keeps the status a handler branches on, so a 404 still means "empty"', async () => {

@@ -3,7 +3,6 @@ using Data;
 using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
@@ -19,7 +18,9 @@ using TrueMain.Services.Champions.Matchups;
 using TrueMain.Services.Champions.Progression;
 using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Draft;
+using TrueMain.Services.Champions.NextItem;
 using TrueMain.Services.Champions.Synergies;
+using TrueMain.Services.Desktop;
 using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Ops.Candidates;
 using TrueMain.Services.Ops.Configuration;
@@ -289,15 +290,11 @@ builder.Services.AddOptions<DatabaseOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-builder.Services
-    .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
-    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
-        ApiKeyAuthenticationDefaults.Scheme,
-        _ => { });
-builder.Services.AddAuthorization();
+builder.Services.AddTrueMainOpsAuthentication();
 
 builder.Services.AddTrueMainRateLimiting(builder.Configuration);
 builder.Services.AddTrueMainLogIngest(builder.Configuration);
+builder.Services.AddTrueMainDesktopTelemetry();
 
 // The one door every champion read goes through: shared cache + single flight, keyed
 // by the ingestor's aggregation version rather than by a 60s clock (#1368). Registered
@@ -309,6 +306,7 @@ builder.Services.AddScoped<IChampionReadCache, ChampionReadCache>();
 builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
 builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryService>();
 builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryService>();
+builder.Services.AddScoped<IChampionDirectoryQueryService, ChampionDirectoryQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
 builder.Services.AddScoped<IChampionItemContextQueryService, ChampionItemContextQueryService>();
@@ -328,6 +326,9 @@ builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRe
 // distribution at all, exactly on the rare picks a guess is most needed for.
 builder.Services.AddScoped<ILanePriorQueryService, LanePriorQueryService>();
 builder.Services.AddScoped<IDraftRecommendationQueryService, DraftRecommendationQueryService>();
+// The in-game next-item panel (#1749): a lookup in the model the item-context fold
+// derives, combined with the game's situation; reuses the draft's lane priors.
+builder.Services.AddScoped<INextItemQueryService, NextItemQueryService>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
 // identically. Patch-cached inside the provider, which clocks how long a

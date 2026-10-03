@@ -1,0 +1,30 @@
+{
+  "name": "truemain-desktop-app",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "nuxt dev --port 3003",
+    "generate": "nuxt generate",
+    "build": "nuxt generate",
+    "typecheck": "nuxt typecheck",
+    "tauri": "cd .. && node --env-file-if-exists=.env.local app/node_modules/@tauri-apps/cli/tauri.js",
+    "tauri:sim": "TRUEMAIN_LCU_SIM=http://localhost:3003/__sim/lcu npm run tauri -- dev"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^4.11.1",
+    "@tauri-apps/api": "~2.12.0",
+    "@tauri-apps/plugin-process": "~2.4.0",
+    "@tauri-apps/plugin-shell": "~2.3.0",
+    "@tauri-apps/plugin-updater": "~2.13.0",
+    "nuxt": "^4.5.2",
+    "vue": "^3.5.43"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.137",
+    "@tauri-apps/cli": "~2.12.1",
+    "@types/node": "^26.6.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "vue-tsc": "^3.3.11"
+  }
+}

@@ -1,4 +1,4 @@
-import type { RegionSlug } from '~~/shared/types/leaderboard'
+import type { RegionSlug } from '../types/leaderboard'
 
 // Maps a Riot platform id (e.g. `EUW1`, `KR`) to the region slug the UI
 // exposes as a flag. Mirrors the backend's RegionFilterParser.RouteToSlug:

@@ -58,6 +58,10 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionItemContextTotal> ChampionItemContextTotals => Set<ChampionItemContextTotal>();
     public DbSet<ChampionItemContextVerdict> ChampionItemContextVerdicts => Set<ChampionItemContextVerdict>();
 
+    // The next-item model (#1749): terms derived from the two counters above beside the
+    // verdicts, read by the desktop app's in-game panel through POST champions/{id}/next-item.
+    public DbSet<ChampionNextItemTerm> ChampionNextItemTerms => Set<ChampionNextItemTerm>();
+
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 
     // Junction-table aggregate + globally-deduplicated dimension tables: the

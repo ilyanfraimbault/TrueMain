@@ -1,0 +1,477 @@
+//! Recording a client session, and playing it back without a client.
+//!
+//! Champion select is the app's whole subject and the hardest thing to reach:
+//! it needs a real game, it lasts a couple of minutes, and it cannot be paused
+//! to look at a panel. A tape turns one real champion select into a fixture
+//! that replays as often as needed. The game that follows is the same problem
+//! at thirty minutes, so a tape also carries the game's own Live Client Data
+//! readings (`Reading::Game`), polled while the phase is `InProgress`.
+//!
+//! A tape holds the **raw client payloads**, not the app's derived state, so a
+//! replay exercises the same parsing, the same state derivation and the same
+//! navigation rule the live path uses. A fixture of `AppState` would prove only
+//! that the frontend renders.
+//!
+//! # What is recorded, and what deliberately is not
+//!
+//! The client's WebSocket carries *everything* it does — friends, chat, store,
+//! notifications. The recorder keeps only the endpoints the supervisor acts
+//! on, which is what a replay needs and nothing else. A tape still contains the
+//! player's Riot ID and the PUUIDs of everyone in the lobby, so it is personal
+//! data: tapes are gitignored, and the committed fixture is synthetic.
+//!
+//! # Why not a fake client instead
+//!
+//! Standing a fake LCU server on localhost would exercise more of the stack,
+//! but `tls.rs` pins Riot's root and verifies the chain for real. A fake server
+//! cannot produce that chain, so it would only work by opening a TLS hole in a
+//! binary that ships. Replaying above the transport costs that coverage and
+//! keeps the hole closed.
+
+use std::io::Write;
+use std::path::Path;
+use std::time::{Duration, Instant};
+
+use serde::{Deserialize, Serialize};
+
+use crate::error::{Error, Result};
+use crate::events::LcuEvent;
+
+/// One line of a tape: what was read, and how long after the session started.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Entry {
+    /// Milliseconds since the session was attached. The first reading is at 0.
+    pub at_ms: u64,
+    #[serde(flatten)]
+    pub reading: Reading,
+}
+
+/// What a line holds. `kind` is the discriminant, so a tape stays readable and
+/// hand-editable — building a scenario by hand is a supported use.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Reading {
+    /// `/lol-summoner/v1/current-summoner`, read once at attach.
+    Summoner { data: serde_json::Value },
+    /// `/lol-champion-mastery/v1/local-player/champion-mastery`, read once per
+    /// login: at attach when the player is already logged in, otherwise just
+    /// after the login event, which puts it mid-tape (see
+    /// [`Tape::later_masteries`]).
+    Mastery { data: serde_json::Value },
+    /// `/lol-gameflow/v1/gameflow-phase`, read once at attach. The raw client
+    /// value, quoted exactly as the client sends it.
+    Phase { data: serde_json::Value },
+    /// `/lol-champ-select/v1/session`, read once at attach. `null` when the
+    /// session was attached outside champion select.
+    Session { data: serde_json::Value },
+    /// `https://127.0.0.1:2999/liveclientdata/allgamedata`, the running
+    /// game's own API (`live-client`), polled while the phase is `InProgress`.
+    /// The raw body, unlike the readings above: the in-game panels still to
+    /// come read fields the app does not parse yet, and a tape that dropped
+    /// them could not be used to build those panels. It names all ten players.
+    Game { data: serde_json::Value },
+    /// One change the client pushed afterwards.
+    Event {
+        uri: String,
+        #[serde(default = "update")]
+        event_type: String,
+        data: serde_json::Value,
+    },
+}
+
+fn update() -> String {
+    "Update".to_string()
+}
+
+/// The readings taken at attach, before any event.
+#[derive(Debug, Clone, Default)]
+pub struct Initial {
+    pub summoner: Option<serde_json::Value>,
+    /// Absent when nobody was logged in at attach — the reading then follows
+    /// the login, see [`Tape::later_masteries`] — and from every tape recorded
+    /// before the app read mastery, which replays with an empty pool.
+    pub mastery: Option<serde_json::Value>,
+    pub phase: Option<serde_json::Value>,
+    pub session: Option<serde_json::Value>,
+}
+
+/// A recorded session.
+#[derive(Debug, Clone, Default)]
+pub struct Tape {
+    pub entries: Vec<Entry>,
+}
+
+impl Tape {
+    /// Parse a tape from JSON Lines.
+    ///
+    /// A malformed line is an error rather than a skip: a replay that silently
+    /// drops a pick would be a fixture that lies, which is worse than no
+    /// fixture. Blank lines are ignored so a tape can be spaced out by hand.
+    pub fn parse(text: &str) -> Result<Self> {
+        let mut entries = Vec::new();
+        for (index, line) in text.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let entry: Entry = serde_json::from_str(line)
+                .map_err(|error| Error::MalformedTape(format!("line {}: {error}", index + 1)))?;
+            entries.push(entry);
+        }
+        Ok(Self { entries })
+    }
+
+    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
+        Self::parse(&std::fs::read_to_string(path)?)
+    }
+
+    /// The readings taken at attach: everything before the first pushed event
+    /// or game reading.
+    ///
+    /// Defined by position rather than by timestamp, so a hand-written tape
+    /// that leaves every `at_ms` at 0 still opens on the state it describes.
+    pub fn initial(&self) -> Initial {
+        let mut initial = Initial::default();
+        for entry in &self.entries {
+            match &entry.reading {
+                Reading::Summoner { data } => initial.summoner = Some(data.clone()),
+                Reading::Mastery { data } => initial.mastery = Some(data.clone()),
+                Reading::Phase { data } => initial.phase = Some(data.clone()),
+                Reading::Session { data } => initial.session = Some(data.clone()),
+                Reading::Event { .. } | Reading::Game { .. } => break,
+            }
+        }
+        initial
+    }
+
+    /// Mastery readings taken after the opening, in the order they were taken.
+    ///
+    /// The live app attaches before the player logs in more often than not, so
+    /// on a recorded tape the mastery reading usually sits after the login
+    /// event rather than in the opening. A replay hands these out one per
+    /// login, on the same rule the live app reads them on, instead of opening
+    /// on a pool the app could not have known yet.
+    pub fn later_masteries(&self) -> Vec<serde_json::Value> {
+        self.entries
+            .iter()
+            .skip_while(|entry| !entry.reading.is_played())
+            .filter_map(|entry| match &entry.reading {
+                Reading::Mastery { data } => Some(data.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The pushed events, each with the delay to wait before delivering it.
+    ///
+    /// The delay is relative to the previous event, so a caller can honour the
+    /// original pacing by sleeping between them — or ignore it and deliver the
+    /// whole tape at once.
+    pub fn events(&self) -> Vec<(Duration, LcuEvent)> {
+        let mut out = Vec::new();
+        let mut previous = None;
+        for entry in &self.entries {
+            let Reading::Event {
+                uri,
+                event_type,
+                data,
+            } = &entry.reading
+            else {
+                continue;
+            };
+            out.push((
+                gap(&mut previous, entry.at_ms),
+                LcuEvent {
+                    uri: uri.clone(),
+                    event_type: event_type.clone(),
+                    data: data.clone(),
+                },
+            ));
+        }
+        out
+    }
+
+    /// Everything a replay delivers after the opening — the client's events
+    /// and the game's readings, interleaved as they were recorded — each with
+    /// the delay since the one before it.
+    pub fn timeline(&self) -> Vec<(Duration, Played)> {
+        let mut out = Vec::new();
+        let mut previous = None;
+        for entry in &self.entries {
+            let played = match &entry.reading {
+                Reading::Event {
+                    uri,
+                    event_type,
+                    data,
+                } => Played::Event(LcuEvent {
+                    uri: uri.clone(),
+                    event_type: event_type.clone(),
+                    data: data.clone(),
+                }),
+                Reading::Game { data } => Played::Game(data.clone()),
+                _ => continue,
+            };
+            out.push((gap(&mut previous, entry.at_ms), played));
+        }
+        out
+    }
+}
+
+/// One step of a replay after its opening.
+#[derive(Debug, Clone)]
+pub enum Played {
+    /// A change the client pushed.
+    Event(LcuEvent),
+    /// One `allgamedata` reading of the running game.
+    Game(serde_json::Value),
+}
+
+impl Reading {
+    /// Whether a replay delivers this reading over time rather than opening
+    /// on it.
+    fn is_played(&self) -> bool {
+        matches!(self, Reading::Event { .. } | Reading::Game { .. })
+    }
+}
+
+/// The wait before a reading at `at_ms`, relative to the one before it.
+///
+/// A tape written by hand may not have ordered timestamps; a negative gap is
+/// treated as no wait rather than rejected.
+fn gap(previous: &mut Option<u64>, at_ms: u64) -> Duration {
+    let wait = at_ms.saturating_sub(previous.unwrap_or(at_ms));
+    *previous = Some(at_ms);
+    Duration::from_millis(wait)
+}
+
+/// Appends readings to a tape file as a live session runs.
+///
+/// Every write is best-effort: a recorder that failed must never take the app
+/// down with it, so failures are logged once and then swallowed.
+pub struct Recorder {
+    file: std::fs::File,
+    started: Instant,
+    broken: bool,
+}
+
+impl Recorder {
+    pub fn create(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)?;
+        }
+        Ok(Self {
+            file: std::fs::File::create(path)?,
+            started: Instant::now(),
+            broken: false,
+        })
+    }
+
+    pub fn write(&mut self, reading: Reading) {
+        if self.broken {
+            return;
+        }
+        let entry = Entry {
+            at_ms: self.started.elapsed().as_millis() as u64,
+            reading,
+        };
+        if let Err(error) = self.append(&entry) {
+            tracing::warn!(%error, "could not write to the tape; recording stops here");
+            self.broken = true;
+        }
+    }
+
+    fn append(&mut self, entry: &Entry) -> Result<()> {
+        let mut line = serde_json::to_string(entry).map_err(|e| Error::Decode(e.to_string()))?;
+        line.push('\n');
+        self.file.write_all(line.as_bytes())?;
+        self.file.flush()?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TAPE: &str = r#"
+{"at_ms":0,"kind":"summoner","data":{"gameName":"Tester","tagLine":"EUW"}}
+{"at_ms":0,"kind":"mastery","data":[{"championId":103,"championPoints":1200}]}
+{"at_ms":0,"kind":"phase","data":"ChampSelect"}
+{"at_ms":0,"kind":"session","data":{"myTeam":[]}}
+{"at_ms":1000,"kind":"event","uri":"/lol-champ-select/v1/session","event_type":"Update","data":{"myTeam":[{"cellId":0}]}}
+{"at_ms":1500,"kind":"event","uri":"/lol-gameflow/v1/gameflow-phase","event_type":"Update","data":"InProgress"}
+"#;
+
+    #[test]
+    fn reads_the_attach_readings_back() {
+        let initial = Tape::parse(TAPE).unwrap().initial();
+        assert_eq!(initial.summoner.unwrap()["gameName"], "Tester");
+        assert_eq!(initial.mastery.unwrap()[0]["championId"], 103);
+        assert_eq!(initial.phase.unwrap(), "ChampSelect");
+        assert!(initial.session.is_some());
+    }
+
+    #[test]
+    fn the_committed_fixture_parses_and_opens_on_a_pool() {
+        let tape = Tape::parse(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/ranked-draft.jsonl"
+        )))
+        .unwrap();
+        let mastery: Vec<crate::ChampionMastery> =
+            serde_json::from_value(tape.initial().mastery.unwrap()).unwrap();
+        assert_eq!(mastery.len(), 12);
+        assert!(!tape.events().is_empty());
+    }
+
+    #[test]
+    fn a_mastery_reading_in_the_opening_is_not_handed_out_again_later() {
+        assert!(Tape::parse(TAPE).unwrap().later_masteries().is_empty());
+    }
+
+    #[test]
+    fn a_tape_recorded_before_mastery_was_read_still_replays() {
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"summoner","data":{"gameName":"Tester","tagLine":"EUW"}}
+{"at_ms":0,"kind":"phase","data":"ChampSelect"}
+{"at_ms":10,"kind":"event","uri":"/lol-gameflow/v1/gameflow-phase","data":"InProgress"}"#,
+        )
+        .unwrap();
+        let initial = tape.initial();
+        assert!(initial.summoner.is_some());
+        assert!(initial.mastery.is_none());
+        assert!(tape.later_masteries().is_empty());
+        assert_eq!(tape.events().len(), 1);
+    }
+
+    #[test]
+    fn a_mastery_read_after_a_login_is_kept_for_that_login_rather_than_the_opening() {
+        // The usual recording: attached at the login screen, the login arrives
+        // as an event, and the mastery read it triggered follows it.
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"phase","data":"None"}
+{"at_ms":10,"kind":"event","uri":"/lol-summoner/v1/current-summoner","data":{"gameName":"Late","tagLine":"EUW"}}
+{"at_ms":20,"kind":"mastery","data":[{"championId":61,"championPoints":900}]}
+{"at_ms":30,"kind":"event","uri":"/lol-gameflow/v1/gameflow-phase","data":"Lobby"}"#,
+        )
+        .unwrap();
+        assert!(tape.initial().mastery.is_none());
+        let later = tape.later_masteries();
+        assert_eq!(later.len(), 1);
+        assert_eq!(later[0][0]["championId"], 61);
+        assert_eq!(
+            tape.events().len(),
+            2,
+            "a reading is not an event to deliver"
+        );
+    }
+
+    #[test]
+    fn keeps_the_events_in_order_with_the_gap_between_them() {
+        let events = Tape::parse(TAPE).unwrap().events();
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            events[0].0,
+            Duration::ZERO,
+            "the first event waits for nothing"
+        );
+        assert_eq!(events[0].1.uri, "/lol-champ-select/v1/session");
+        assert_eq!(events[1].0, Duration::from_millis(500));
+        assert_eq!(events[1].1.data, "InProgress");
+    }
+
+    #[test]
+    fn a_reading_after_the_first_event_is_not_part_of_the_opening_state() {
+        // Ordering carries meaning: a summoner line recorded later is a *later*
+        // reading, and must not silently become the state the tape opens on.
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"phase","data":"Lobby"}
+{"at_ms":10,"kind":"event","uri":"/lol-gameflow/v1/gameflow-phase","data":"ChampSelect"}
+{"at_ms":20,"kind":"summoner","data":{"gameName":"Late","tagLine":"EUW"}}"#,
+        )
+        .unwrap();
+        assert!(tape.initial().summoner.is_none());
+    }
+
+    #[test]
+    fn a_hand_written_tape_may_leave_every_timestamp_at_zero() {
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"phase","data":"ChampSelect"}
+{"at_ms":0,"kind":"event","uri":"/lol-champ-select/v1/session","data":{"myTeam":[]}}"#,
+        )
+        .unwrap();
+        assert_eq!(tape.events()[0].0, Duration::ZERO);
+        assert_eq!(tape.initial().phase.unwrap(), "ChampSelect");
+    }
+
+    #[test]
+    fn game_readings_play_between_the_events_at_their_own_pace() {
+        // Attached mid-game: the opening is the phase, then the game's polls
+        // and the phase leaving it arrive over time, in recorded order.
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"phase","data":"InProgress"}
+{"at_ms":2000,"kind":"game","data":{"gameData":{"gameTime":61.0}}}
+{"at_ms":4000,"kind":"game","data":{"gameData":{"gameTime":63.0}}}
+{"at_ms":4500,"kind":"event","uri":"/lol-gameflow/v1/gameflow-phase","data":"WaitingForStats"}"#,
+        )
+        .unwrap();
+        assert_eq!(tape.initial().phase.unwrap(), "InProgress");
+        let timeline = tape.timeline();
+        assert_eq!(timeline.len(), 3);
+        assert!(
+            matches!(&timeline[0].1, Played::Game(data) if data["gameData"]["gameTime"] == 61.0)
+        );
+        assert_eq!(timeline[1].0, Duration::from_millis(2000));
+        assert!(matches!(&timeline[2].1, Played::Event(event) if event.data == "WaitingForStats"));
+        assert_eq!(timeline[2].0, Duration::from_millis(500));
+        assert_eq!(
+            tape.events().len(),
+            1,
+            "a game reading is not a client event"
+        );
+    }
+
+    #[test]
+    fn a_game_reading_ends_the_opening() {
+        let tape = Tape::parse(
+            r#"{"at_ms":0,"kind":"phase","data":"InProgress"}
+{"at_ms":10,"kind":"game","data":{}}
+{"at_ms":20,"kind":"summoner","data":{"gameName":"Late","tagLine":"EUW"}}"#,
+        )
+        .unwrap();
+        assert!(tape.initial().summoner.is_none());
+    }
+
+    #[test]
+    fn event_type_defaults_so_a_tape_can_be_written_without_it() {
+        let tape = Tape::parse(r#"{"at_ms":0,"kind":"event","uri":"/x","data":null}"#).unwrap();
+        assert_eq!(tape.events()[0].1.event_type, "Update");
+    }
+
+    #[test]
+    fn a_malformed_line_is_refused_rather_than_skipped() {
+        let error = Tape::parse("{\"at_ms\":0,\"kind\":\"phase\",\"data\":\"Lobby\"}\nnot json")
+            .unwrap_err();
+        assert!(matches!(error, Error::MalformedTape(ref m) if m.contains("line 2")));
+    }
+
+    #[test]
+    fn a_recorded_tape_reads_back_as_what_was_written() {
+        let path = std::env::temp_dir().join(format!("tape-{}.jsonl", std::process::id()));
+        let mut recorder = Recorder::create(&path).unwrap();
+        recorder.write(Reading::Phase {
+            data: serde_json::json!("ChampSelect"),
+        });
+        recorder.write(Reading::Event {
+            uri: "/lol-champ-select/v1/session".into(),
+            event_type: "Update".into(),
+            data: serde_json::json!({"myTeam": []}),
+        });
+
+        let tape = Tape::load(&path).unwrap();
+        assert_eq!(tape.initial().phase.unwrap(), "ChampSelect");
+        assert_eq!(tape.events().len(), 1);
+        std::fs::remove_file(&path).ok();
+    }
+}

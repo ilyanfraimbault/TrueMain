@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NuxtError } from '#app'
 import { MAIN_CONTENT_ID } from '~/utils/route-focus'
-import { describeHttpStatus } from '~/utils/errors'
+import { describeHttpStatus } from '#common/utils/errors'
 
 const props = defineProps<{ error: NuxtError }>()
 

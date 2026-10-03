@@ -1,5 +1,5 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
-import { fetchErrorStatus } from '~/utils/errors'
+import { fetchErrorStatus } from '#common/utils/errors'
 import { resolveGlobalChampion } from '~/utils/champion-fetch'
 
 type Filters = ReturnType<typeof useChampionFilters>['filters']

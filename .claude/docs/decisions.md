@@ -69,7 +69,9 @@ Last verified against `develop` on 2026-09-02.
 - The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions — #966
 - A champion gets at most two lines in the directory — its dominant lanes — and the cap is applied before tiering — #1082
 - A tier-list chip is a portrait and its lane badge — the name and the three rates are tooltip content
+- The tier list carries the directory's header and filter row, control for control (2026-10-01)
 - A patch is served only once it can fill a directory (2026-08-12) — #1109, #1107
+- The directory listing reads `GET /champions/directory`: one page, filtered and ordered in memory over the cached directory (one read-cache entry per ordering, sliced per page); the bare `GET /champions` array stays (2026-10-01) — #1734
 - The homepage hero counts a lifetime, compactly, and never names a patch (2026-08-16) — #1109
 
 ## Champion synergies — [`decisions/product-synergies.md`](decisions/product-synergies.md)
@@ -133,6 +135,8 @@ Last verified against `develop` on 2026-09-02.
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
 - A backend request nobody waits for any more is cancelled: every fetch forwards an abort signal (2026-09-27) — #1712
 - A row rendered on more than one surface sizes off its own width, not the viewport — #967
+- The full-page lists (truemains, champions) are `UTable`s with header sorting bound to the URL and served by the API; a row navigates through `@select` (2026-10-01) — #1726, #1734
+- A player is drawn by one `Account` component (UUser + a canonical-URL `UAvatar`, rounded square); the search palette is the exception (2026-10-01) — #1734
 - A tooltip trigger keeps the same DOM element for the life of the component
 - Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698
 - A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15) — #1585
@@ -183,6 +187,8 @@ Last verified against `develop` on 2026-09-02.
 - A thin item-context bucket widens backwards through patches, both ends together, and records the window it used — #1450
 - The item context carries no elo dimension: splitting by rank would starve the buckets the feature rests on — #1450
 - Known gap: an item-context axis does not hold the lane opponent out, because that needs an opponent dimension ~70x the counters — #1450, #1462
+- The next-item model is a naive-Bayes sum of shrunk log-ratios over the item-context counters, derived beside the verdicts; it predicts the mains' choice, never a win-rate argmax (2026-10-01) — #1749
+- Measured on held-out games before shipping: composition moves boots (right 400 vs 215 where it overrides the base order), barely legendaries (534 vs 509) — enemy builds are the lever; correlated axes are summed, grouping measured no better (2026-10-01) — #1749, #1750
 - No pick+ban "presence" figure, despite it being standard elsewhere — #920
 - A dimension's identity is enforced by the schema (canonical UNIQUE index, CHECK, generated key), not repaired afterwards (2026-09-03) — #1418, #911
 - Rank snapshots are capped at one row per account per UTC day (DB-level unique index) — #907
@@ -311,6 +317,42 @@ Last verified against `develop` on 2026-09-02.
 - Logs opens on Warning and above (an explicit `?level=` still wins), and pages are reachable by name through a ⌘K palette rather than a longer sidebar (2026-09-03) — #1415, #1416
 - The admin portal has one status vocabulary and one duration ladder (2026-08-28) — #924, #1024
 - The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28) — #1249
+
+## Desktop companion — [`decisions/desktop.md`](decisions/desktop.md)
+
+- The app follows the reference client's layout — a sidebar to every site section; the gameflow phase still opens the draft — #1671
+- No win probability: the draft strip carries the clock, the middle the lane duel (lane win rate only) — #1671
+- One selected card on the draft board, ringed in the primary colour: the player's by default, any placed champion on click (build + lane duel); its lane opponent faintly ringed (2026-09-28) — #1671
+- Champion select is the live draft only; a draft played by hand is a dev tool (`/dev/draft-sim`) feeding the shell the client's payloads (2026-09-28) — #1671
+- An enemy's lane is corrected from its lane icon (a menu of lanes); guessed lanes carry no "?"; build header = icon, name, lane icon (2026-09-29) — #1671
+- No browser chrome in the app: no back/forward arrows, no patch label (2026-09-28) — #1671
+- Lists are tables with fixed columns under headers (truemains, champions); the tier list is the site's tier cards (2026-09-30) — #1719; superseded for every page the app shares with the site (#1732)
+- The home page announces the app right under the hero, above "This patch"; `/download` shows a real capture of the app (live API data, never a fixture podium) over plain typography, no icon-tile cards; the home banner shows the dashboard whole, on fixture data by the product owner's exception (2026-10-01) — #1725
+- The beta ships unsigned as `desktop-v*` GitHub pre-releases, resolved by the site (download + update feed), and updates itself on the player's click (2026-09-28, revised 2026-10-01) — #1719
+- App version bumped by hand; each bump merged to develop builds a pre-release preprod serves; production serves only a build promoted by hand (`Desktop promote`) (2026-10-01; revised by #1799) — #1772
+- Every app change merged to develop builds a `X.Y.Z-beta.N` preprod build; a bump's production build goes out by itself once the site release in production contains it or matches it on `web/` + `backend/{Api,Core,Data}` (2026-10-02) — #1799
+- Each app version is built twice — production flavour (`truemain.*`) and preprod flavour (`truemain-<version>.*`, *TrueMain Beta*) — and each site serves, and updates, only the build that reads it (2026-10-01) — #1779
+- The app polls its own site's feed every 15 min, downloads in the background, installs itself at launch outside champion select/game and otherwise offers "Restart now"; "Check for Updates…" in the macOS app menu / a Windows tray menu (2026-10-01) — #1789
+- Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; enemy-team component is #1713 — #1675
+- The app draws the site's components as labelled twin copies, with app behaviour in shims beside them; superseded page by page by the shared layer — #1687, #1732
+- The pages the app shares with the site (champions, tier list, matchup, truemains, favorites) are one implementation in `web/layers/common`, which both apps extend (2026-10-01) — #1732
+- A tab changes on click (the app's own `<Suspense>` over the shared page's await, header + skeleton); a bar across the window's top edge runs on every page load, not only navigations — the site keeps #1689 (2026-10-01) — #1788
+- Dashboard roles come from the participant slot on role-assigning queues, never the client's lane guess; a game's build and skill orders from TrueMain's copy, left out when only the client has the game (2026-10-01) — #1768
+- The build pane shows the site's core without its build path (the tree draws it), runes beside; build rows are icons only; a true main's click shows their own build (2026-09-28) — #1671
+- Icons bundled at build time, hash routing, images drawn without a `load` gate (WKWebView)
+- In-game overlay: five panels in their own windows — loading screen (form on the champion + last ten games as win/loss bars, via the client, #1753, #1803; a Streamer Mode player stays anonymous, nothing read about them), next item (one item, gold still needed or "Can buy now"), win probability (always), your pace (CS/min + curve, gold/min; no damage/min — not in the API), item value (TAB held); over the game process only, above the captured display, never key, click-through; TAB and the shortcut read from the keyboard's state (no Input Monitoring); macOS and Windows (2026-10-02) — #1673, #1795, #1752
+- The overlay on Windows: the same panels through one platform-neutral driver, each a topmost non-activating layered window, over Borderless/Windowed only (Windows draws nothing over exclusive Full Screen), Alt+Shift+O (2026-10-02) — #1798
+- Win probability in the overlay, a formula over the item-gold gap and the map (turrets, inhibitors down, drakes/soul, Baron, Elder) — the product owner's call, reversing #1671's line for in game; the draft keeps none (2026-10-02) — #1795
+- The player's own account is never highlighted — loading screen, game page, match rows, scoreboard, runes; ours only orders the sides (2026-10-02) — #1803
+- Desktop usage is measured by the app itself (anonymous install id, counters folded per install and UTC day in Mongo, 13-month TTL, opt-out in the native menu), downloads by the site's redirect; nothing read from the League client is sent (2026-10-02) — #1805
+- Game recording: two quality choices (resolution, 30/60 fps), everything else derived; highlights from the timeline, live feed as fallback; disk budget drops the oldest unpinned; unsigned beta and a GPL capture library both accepted (2026-10-01) — #1744, #1754
+- Screen capture runs in a native helper process per platform (Swift + ScreenCaptureKit + VideoToolbox on macOS), driven over JSON lines; encoder settings still computed in Rust; shipped inside the app bundle, also cutting clips and taking thumbnails (2026-10-01) — #1745, #1744
+- The Windows helper is Rust (Windows.Graphics.Capture + D3D11 video processor + Media Foundation hardware encoders, WASAPI process loopback for the game's sound only), same protocol, added to the installer as a sidecar at release time only (2026-10-02) — #1797
+- The app records only against a real client, into the system's videos folder; objectives from the match timeline only; Screen Recording asked from the Recordings page (2026-10-01) — #1744
+- Clips are cut by hand from the post-game recap in v1 (reverses #1744's "no trimming by hand"); saved clips are never pruned by the budget; the recap opens on its own only over the game page or the dashboard; Recordings page in DPM's layout (2026-10-01) — #1755, #1777
+- The dashboard reads the player's record from their own client (history, ranked, profile skin, scoreboards, timelines), not TrueMain's API; the site's ranked card as a twin; the match row, its accordion (a compact same-surface match detail), champions and roles derived from the site's; LP history noted locally; form = last 5 vs own average, no composite score (2026-09-30) — #1683
+- The running game is read from its Live Client Data API every 2 s while `InProgress`, sent as a snapshot then numbered changes; `/game` opens from home or the draft only, shows the scoreboard's own information; enemy visibility still to verify live (2026-10-01) — #1748
+- The next item sits over the game board: the mains' next legendary, one reason, the gold left and the components buyable now, two runners-up and the boots; asked on item changes only; our gold in 50-gold steps (2026-10-01) — #1751
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 

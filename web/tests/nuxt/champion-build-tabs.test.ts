@@ -3,8 +3,8 @@ import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { ChampionBuildTabs, ChampionBuildTabsSkeleton, UApp } from '#components'
 import type { ChampionResponse } from '~~/shared/types/champions'
-import { PLACEHOLDER_BUILDS, PLACEHOLDER_CHAMPION_STATIC } from '~/utils/build-placeholder'
-import { isLoadingStatus } from '~/utils/async-data'
+import { PLACEHOLDER_BUILDS, PLACEHOLDER_CHAMPION_STATIC } from '#common/utils/build-placeholder'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 const CHAMPION_ID = 266
 

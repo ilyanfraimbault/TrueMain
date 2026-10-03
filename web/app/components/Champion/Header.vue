@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = withDefaults(defineProps<{

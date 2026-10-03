@@ -1,0 +1,150 @@
+name: Desktop
+
+on:
+  pull_request:
+    paths: ["desktop/**", "web/layers/**", "web/shared/**", ".github/workflows/desktop.yml"]
+  push:
+    branches: [develop, master]
+    paths: ["desktop/**", "web/layers/**", "web/shared/**", ".github/workflows/desktop.yml"]
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lcu:
+    name: Rust crates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -p truemain-capture -- --check
+      - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -p truemain-capture --all-targets -- -D warnings
+      - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -p truemain-capture
+
+  capture-macos:
+    name: macOS capture spike
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - run: swift build -c release --arch arm64 --arch x86_64 --package-path desktop/capture/macos
+      - name: Check the shell for macOS
+        run: |
+          mkdir -p desktop/app/.output/public
+          cargo check --manifest-path desktop/Cargo.toml -p truemain-desktop
+      - run: cargo build --release --manifest-path desktop/Cargo.toml -p capture-spike --target aarch64-apple-darwin
+      - run: cargo build --release --manifest-path desktop/Cargo.toml -p capture-spike --target x86_64-apple-darwin
+      - name: Package
+        run: |
+          bin="$(swift build -c release --arch arm64 --arch x86_64 --package-path desktop/capture/macos --show-bin-path)"
+          mkdir -p dist/truemain-capture-spike
+          cp "$bin/truemain-capture" dist/truemain-capture-spike/
+          lipo -create -output dist/truemain-capture-spike/truemain-capture-spike \
+            desktop/target/aarch64-apple-darwin/release/truemain-capture-spike \
+            desktop/target/x86_64-apple-darwin/release/truemain-capture-spike
+          codesign --force --sign - dist/truemain-capture-spike/truemain-capture dist/truemain-capture-spike/truemain-capture-spike
+          lipo -archs dist/truemain-capture-spike/truemain-capture
+          lipo -archs dist/truemain-capture-spike/truemain-capture-spike
+          { dist/truemain-capture-spike/truemain-capture || true; } | grep -q "\"kind\":\"usage\""
+          if dist/truemain-capture-spike/truemain-capture-spike --help; then exit 1; fi
+          tar -czf truemain-capture-spike-macos.tar.gz -C dist truemain-capture-spike
+      - uses: actions/upload-artifact@v7
+        with:
+          name: truemain-capture-spike-macos
+          path: truemain-capture-spike-macos.tar.gz
+          retention-days: 30
+
+  capture-windows:
+    name: Windows capture helper and shell
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - run: cargo clippy --manifest-path desktop/Cargo.toml -p truemain-capture -p capture-helper --all-targets -- -D warnings
+      - run: cargo test --manifest-path desktop/Cargo.toml -p truemain-capture -p capture-helper
+      - name: Test the shell on Windows
+        run: |
+          New-Item -ItemType Directory -Force desktop/app/.output/public | Out-Null
+          cargo test --manifest-path desktop/Cargo.toml -p truemain-desktop
+      - run: cargo build --release --manifest-path desktop/Cargo.toml -p truemain-capture
+      - run: pwsh desktop/capture/windows/smoke.ps1 -Helper desktop/target/release/truemain-capture.exe -Out "$env:RUNNER_TEMP/capture-smoke"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: truemain-capture-smoke-windows
+          path: ${{ runner.temp }}/capture-smoke
+          retention-days: 7
+          if-no-files-found: ignore
+
+  overlay-windows:
+    name: Windows overlay
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - run: npm ci
+        working-directory: desktop/app
+      - run: npm run tauri -- build --no-bundle
+        working-directory: desktop/app
+        env:
+          TRUEMAIN_SITE_URL: ${{ secrets.DESKTOP_BETA_SITE_URL }}
+      - env:
+          TRUEMAIN_SITE_URL: ${{ secrets.DESKTOP_BETA_SITE_URL }}
+        run: pwsh desktop/tools/overlay-smoke-windows.ps1 -App desktop/target/release/truemain-desktop.exe -Out "$env:RUNNER_TEMP/overlay-smoke"
+      - if: always()
+        env:
+          TRUEMAIN_SITE_URL: ${{ secrets.DESKTOP_BETA_SITE_URL }}
+        run: pwsh desktop/tools/overlay-smoke-windows.ps1 -RedactOnly -Out "$env:RUNNER_TEMP/overlay-smoke"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: truemain-overlay-smoke-windows
+          path: ${{ runner.temp }}/overlay-smoke
+          retention-days: 7
+          if-no-files-found: ignore
+
+  app:
+    name: Nuxt app
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: desktop/app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run generate

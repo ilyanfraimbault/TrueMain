@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RUNE_TREE_KEY_PREFIX, staticFetchKey } from '~/composables/useBuildAssets'
+import { RUNE_TREE_KEY_PREFIX, staticFetchKey } from '#common/composables/useBuildAssets'
 
 describe('staticFetchKey', () => {
   it('suffixes the prefix with the resolved patch', () => {

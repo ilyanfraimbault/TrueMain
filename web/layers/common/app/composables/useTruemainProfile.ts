@@ -1,0 +1,57 @@
+import type { ProfileResponse } from '#shared/types/profile'
+
+interface UseTruemainProfileOptions {
+  /** Hold the request back while false — see {@link useTruemainFetch}. */
+  enabled?: MaybeRefOrGetter<boolean>
+}
+
+/**
+ * Single-shot fetch of a truemain profile for the given <c>nameTag</c>.
+ * Mirrors the contract of <c>useTruemainMatches</c> — 404 from the API is
+ * surfaced as <c>notFound = true</c> so the page can render an empty state
+ * instead of an error.
+ *
+ * Client-only by design (private-ish, no SSR cross-pollination between
+ * viewers) — see {@link useTruemainFetch} for the shared lifecycle.
+ */
+export function useTruemainProfile(
+  nameTag: MaybeRefOrGetter<string>,
+  options: UseTruemainProfileOptions = {},
+) {
+  const data = ref<ProfileResponse | null>(null)
+  const apiFetch = useApiFetch()
+
+  const { isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<ProfileResponse>(nameTag, {
+    enabled: options.enabled,
+    request: (tag, signal) => apiFetch<ProfileResponse | null>(
+      `/truemains/${encodeURIComponent(tag)}/profile`,
+      { ignoreResponseError: true, signal },
+    ),
+    // Anything missing the identity object we treat as a 404.
+    validate: (response): response is ProfileResponse =>
+      Boolean(response && typeof response === 'object' && response.identity),
+    onResponse: (response) => { data.value = response },
+    onClear: () => { data.value = null },
+  })
+
+  async function refresh() {
+    data.value = null
+    notFound.value = false
+    isInitialLoading.value = true
+    await execute()
+  }
+
+  // Intentionally exposing raw refs (not `readonly()` wrappers) — readonly
+  // proxies cascade DeepReadonly across the entire response shape, which
+  // then collides with the consuming components' mutable prop types
+  // (`ProfileMainChampion[]` vs. `readonly ProfileMainChampion[]`).
+  return {
+    data,
+    isLoading,
+    isInitialLoading,
+    notFound,
+    error,
+    ready,
+    refresh,
+  }
+}

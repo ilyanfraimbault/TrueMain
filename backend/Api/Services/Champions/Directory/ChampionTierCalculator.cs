@@ -101,6 +101,17 @@ internal static class ChampionTierCalculator
     public static readonly string[] TierOrder = [TierS, TierA, TierB, TierC, TierD];
 
     /// <summary>
+    /// A tier letter's place in <see cref="TierOrder"/> — 0 for S. An unrecognised
+    /// letter (shouldn't happen: every summary row is stamped here) ranks after D
+    /// rather than throwing, so a sort puts it last.
+    /// </summary>
+    public static int TierRank(string tier)
+    {
+        var index = Array.IndexOf(TierOrder, tier);
+        return index < 0 ? TierOrder.Length : index;
+    }
+
+    /// <summary>
     /// One row's inputs for tiering. <see cref="Position"/> scopes the
     /// pick/ban/win percentile ranks — every metric is normalized only
     /// against other rows sharing the same position. Games/Wins (rather than

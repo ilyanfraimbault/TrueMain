@@ -1,0 +1,46 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { StaticPerkData } from '#shared/types/static-data'
+
+defineOptions({ inheritAttrs: false })
+
+const props = withDefaults(defineProps<{
+  perk?: StaticPerkData | null
+  width?: number | string
+  height?: number | string
+  /** Native lazy-loading hint forwarded to the icon (`'lazy'` below the fold). */
+  loading?: 'lazy' | 'eager'
+}>(), {
+  perk: null,
+  width: 36,
+  height: 36,
+  loading: undefined,
+})
+
+const hasPerk = computed(() => Boolean(props.perk))
+</script>
+
+<template>
+  <GameTooltipLazyTooltip
+    :disabled="!hasPerk"
+    :delay-duration="150"
+    :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
+  >
+    <SkeletonImage
+      v-bind="$attrs"
+      :src="perk?.iconUrl"
+      :alt="perk?.name"
+      :width="width"
+      :height="height"
+      :loading="loading"
+    />
+    <template
+      v-if="perk"
+      #content
+    >
+      <GameTooltipSurface>
+        <GameTooltipPerkBody :perk="perk" />
+      </GameTooltipSurface>
+    </template>
+  </GameTooltipLazyTooltip>
+</template>

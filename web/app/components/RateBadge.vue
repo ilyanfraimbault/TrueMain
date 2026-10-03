@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { variationShareTone } from '~/utils/rate-tone'
+import { variationShareTone } from '#common/utils/rate-tone'
 
 // `games` is what the percentages are computed from. It used to sit next to the
 // badges (#923) because a matchup slice is usually small — measured on
