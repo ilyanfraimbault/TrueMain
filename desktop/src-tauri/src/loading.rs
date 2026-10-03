@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn an_anonymous_player_keeps_their_champion_and_lane_only() {
         let hidden = GameflowPlayer {
-            name_visibility_type: "HIDDEN".into(),
+            puuid: String::new(),
             champion_id: 81,
             ..player("Streamer", "BOTTOM")
         };
@@ -276,13 +276,25 @@ mod tests {
     }
 
     #[test]
-    fn our_own_line_is_read_even_hidden_from_the_others() {
-        let me = GameflowPlayer {
-            name_visibility_type: "HIDDEN".into(),
-            ..player("Me", "MIDDLE")
+    fn a_ranked_session_marking_everyone_hidden_hides_no_one() {
+        // The session keeps the champion select's `nameVisibilityType: HIDDEN`
+        // on every ranked player, while sending their names and puuids.
+        let hidden = |name: &str, position: &str| {
+            serde_json::from_value::<GameflowPlayer>(serde_json::json!({
+                "puuid": format!("puuid-{name}"),
+                "gameName": name,
+                "tagLine": "EUW",
+                "selectedPosition": position,
+                "nameVisibilityType": "HIDDEN",
+            }))
+            .expect("a gameflow player")
         };
-        let (players, puuids) = ordered(&[me], &[], Some("me#euw"));
-        assert!(players[0].is_me && !players[0].anonymous);
-        assert_eq!(puuids[0].as_deref(), Some("puuid-Me"));
+        let blue = [hidden("Me", "MIDDLE"), hidden("Ally", "TOP")];
+        let red = [hidden("Foe", "TOP"), hidden("Mirror", "MIDDLE")];
+        let (players, puuids) = ordered(&blue, &red, Some("me#euw"));
+        assert!(players
+            .iter()
+            .all(|p| !p.anonymous && !p.riot_id.is_empty()));
+        assert!(puuids.iter().all(Option::is_some));
     }
 }
