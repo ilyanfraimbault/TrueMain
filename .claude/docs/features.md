@@ -231,6 +231,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that
   main's own build on the champion — and the site's core blocks (runes beside summoners/skills/starter/boots, no build
   path) over the site's build tree drawn smaller.
+- **Rune import** (#1678) — a small ghost icon in the runes' top-right corner, on every build the build view shows
+  (draft, lane builds, a true main's, and the app's champion page), there whenever the client is connected; its label
+  is its tooltip. A click pushes the page on screen into the client as `TrueMain: <champion>` and selects it
+  (`runes::import_runes` → `LcuClient::import_rune_page`): the TrueMain page is replaced in place on the next import,
+  never one per game; with every slot taken and none of them ours, a toast asks the player to free one — no page of
+  theirs is ever deleted. An incomplete page (an empty slot) is refused. Every outcome is a toast. Nothing is written
+  without the click.
 - **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a champion select filled by clicking
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
   payloads through a dev-server relay, so the app runs its real champion select live without a game.
@@ -373,7 +380,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   failed send keeps its counts for the next. Nothing read from the League client is sent. "Share Anonymous Usage
   Data", checked by default, in the macOS app menu / Windows tray menu turns it off for good; a debug build never
   sends (`TRUEMAIN_TELEMETRY_DEV` overrides). Read back on the admin's `/desktop`.
-- **Not present**: win probability in the draft (by design), rune import button (#1678), the
+- **Not present**: win probability in the draft (by design), summoner spell import, the
   gold standing in the companion window (it is in the overlay, on TAB) and the loading screen (#1753), TrueMain's
   performance score and participants' ranks in the dashboard's history, LP history from before the app was installed
   (#1682), automatic clips (#1766) and instant replay (#1767), changing the recordings folder from the app.

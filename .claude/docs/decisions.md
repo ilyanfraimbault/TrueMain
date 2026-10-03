@@ -344,6 +344,7 @@ Last verified against `develop` on 2026-09-02.
 - The overlay on Windows: the same panels through one platform-neutral driver, each a topmost non-activating layered window, over Borderless/Windowed only (Windows draws nothing over exclusive Full Screen), Alt+Shift+O (2026-10-02) — #1798
 - The overlay is set up on its own sidebar page, out of game: a copy of the screen to drag panels on, × to hide one, a column of hidden panels to drag back (2026-10-03) — #1819
 - Win probability in the overlay, a formula over the item-gold gap and the map (turrets, inhibitors down, drakes/soul, Baron, Elder) — the product owner's call, reversing #1671's line for in game; the draft keeps none (2026-10-02) — #1795
+- Runes are imported on a click only, from a discreet corner icon; the app reuses its one `TrueMain: ` page and never deletes a page of the player's; no spell import (2026-10-03) — #1678
 - The player's own account is never highlighted — loading screen, game page, match rows, scoreboard, runes; ours only orders the sides (2026-10-02) — #1803
 - Desktop usage is measured by the app itself (anonymous install id, counters folded per install and UTC day in Mongo, 13-month TTL, opt-out in the native menu), downloads by the site's redirect; nothing read from the League client is sent (2026-10-02) — #1805
 - Game recording: two quality choices (resolution, 30/60 fps), everything else derived; highlights from the timeline, live feed as fallback; disk budget drops the oldest unpinned; unsigned beta and a GPL capture library both accepted (2026-10-01) — #1744, #1754

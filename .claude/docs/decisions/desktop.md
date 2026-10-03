@@ -424,3 +424,14 @@ the site's own `/api/desktop/download/{platform}` redirect, posted to `/internal
 cannot be forged through the public proxy; crawlers and link previews are skipped. The public endpoint has no secret
 to check — an installed app cannot keep one — so a forged batch is bounded by the per-address rate limit and the
 per-batch caps, a risk taken knowingly for a beta's numbers — #1805.
+
+**Runes are imported on a click only, from a discreet icon in the runes' corner (2026-10-03).** The one place the app
+writes to the client, so it never fires on a pick, a lock or a phase change: Riot's player-facing policy forbids an
+application acting on the player's behalf, and an import on click is a tool where an import on lock is an automation.
+The app owns one page, recognised by its `TrueMain: ` name prefix, and replaces it in place on every import rather than
+adding a page per game. With every slot taken and no page of ours, it tells the player to free one and touches nothing
+— deleting a page the player made to make room is never acceptable. The button is a small ghost icon whose label lives
+in its tooltip (the product owner asked for it discreet but always there), on every build the build view shows, not
+only the draft's: a lane build or a true main's page is as much a choice to take as the draft's. Summoner spells are
+not imported — the issue asked for them only if as safe, and the client's spell slots are part of champion select's
+own state, not a page the app can own and reuse — #1678.
