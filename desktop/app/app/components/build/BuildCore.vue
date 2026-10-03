@@ -51,8 +51,8 @@ withDefaults(defineProps<{
 
       <div class="relative w-full shrink-0 overflow-hidden @xl:w-[272px]">
         <ChampionCoreRunes v-if="runePage && runeTree" :page="runePage" :tree="runeTree" :size="36" :keystone-size="39" />
-        <BuildRuneImport v-if="runePage && championName !== null" :page="runePage" :champion="championName" class="absolute right-0 top-0" />
         <p v-else-if="!runePage && noRunesMessage" class="text-sm text-muted">{{ noRunesMessage }}</p>
+        <BuildRuneImport v-if="runePage && runeTree && championName !== null" :page="runePage" :champion="championName" class="absolute right-0 top-0" />
       </div>
     </div>
   </div>
