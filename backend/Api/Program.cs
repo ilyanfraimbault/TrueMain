@@ -181,7 +181,7 @@ builder.Services.AddOptions<ChampionsListOptions>()
     .Validate(
         options => options.MinSynergyPlayRate is >= 0d and < 1d,
         "ChampionsList:MinSynergyPlayRate must be in [0, 1).")
-    // A share too, but 1 is a meaningful setting here: BaselineSet.IsRealLane
+    // A share too, but 1 is a meaningful setting here: SynergyBaselineSet.IsRealLane
     // divides a champion's games in one lane by its games across all lanes, which
     // is exactly 1 for a mono-lane champion. So [0, 1], closed on both ends.
     .Validate(

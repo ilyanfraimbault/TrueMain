@@ -1,8 +1,6 @@
 using Core.Lol.Ranking;
-using Core.Lol.Synergy;
 using Core.Options;
 using Data;
-using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
@@ -11,6 +9,88 @@ using TrueMain.Services.Champions.Matchups;
 using TrueMain.Services.Champions.Scopes;
 
 namespace TrueMain.Services.Champions.Synergies;
+
+public interface IChampionSynergyQueryService
+{
+    /// <summary>
+    /// Lists the teammates a champion performs best with at a lane, ranked by
+    /// synergy (observed minus expected win rate) rather than by raw pair win
+    /// rate, from the pre-aggregated <c>champion_synergy_stats</c> table.
+    /// </summary>
+    /// <param name="championId">Riot champion id the pairing is measured from.</param>
+    /// <param name="position">
+    /// Canonical Riot team position (<c>TOP</c> / <c>JUNGLE</c> / <c>MIDDLE</c> /
+    /// <c>BOTTOM</c> / <c>UTILITY</c>) the champion is played at. Required and
+    /// already validated by the caller.
+    /// </param>
+    /// <param name="patch">
+    /// Requested patch (<c>major.minor</c> or full Riot version); null spans every
+    /// patch the aggregate holds. Applied identically to the pair rows and to the
+    /// baselines they are measured against, so both always describe one cohort.
+    /// </param>
+    /// <param name="partnerPosition">
+    /// Optional narrowing to a single partner lane. Filters the returned pairs only
+    /// — the cohort reference point stays the whole scope, so narrowing the list
+    /// never moves the numbers already in it.
+    /// </param>
+    /// <param name="eloBracket">
+    /// Optional elo filter — an exact tier (<c>GOLD</c>) or a cumulative "X+"
+    /// threshold (<c>GOLD_PLUS</c>); null / <c>ALL</c> spans every band. Selects on
+    /// the tracked player's rank, the same side the aggregate is keyed on.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>
+    /// The partner list ordered by synergy descending, with the champion's own
+    /// baseline and the cohort reference point attached. Empty (still a 200) when
+    /// no pair clears the games floor, or when the champion's own sample is too
+    /// thin for an expected win rate to mean anything.
+    /// </returns>
+    Task<ChampionSynergiesResponse> GetSynergiesAsync(
+        int championId,
+        string position,
+        string? patch,
+        string? partnerPosition,
+        string? eloBracket,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Extends a chosen duo to a trio: for the games where this champion and this
+    /// partner played together, the third teammates that over- or under-performed
+    /// what the three marginals predicted. Computed live from
+    /// <c>match_participants</c> — the triple space is far too sparse to
+    /// pre-aggregate — and therefore scoped to the retention window.
+    /// </summary>
+    /// <param name="championId">Riot champion id of the queried champion.</param>
+    /// <param name="position">Canonical Riot team position of the queried champion.</param>
+    /// <param name="partnerChampionId">Riot champion id of the already-chosen partner.</param>
+    /// <param name="partnerPosition">
+    /// Canonical Riot team position of that partner. Must differ from
+    /// <paramref name="position"/>; an identical value simply matches nothing,
+    /// since one team cannot field two players in a lane.
+    /// </param>
+    /// <param name="patch">
+    /// Requested patch (<c>major.minor</c> or full Riot version); null spans every
+    /// patch still inside the retention window.
+    /// </param>
+    /// <param name="eloBracket">
+    /// Optional elo filter, applied to the queried champion's side exactly as in
+    /// <see cref="GetSynergiesAsync"/>.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>
+    /// The duo's own game count and win rate plus the qualifying third picks,
+    /// ordered by synergy descending. An empty completion list is the normal
+    /// answer for a rarely-played duo, not an error.
+    /// </returns>
+    Task<ChampionTrioSynergiesResponse> GetTrioSynergiesAsync(
+        int championId,
+        string position,
+        int partnerChampionId,
+        string partnerPosition,
+        string? patch,
+        string? eloBracket,
+        CancellationToken ct);
+}
 
 /// <summary>
 /// Champion synergies query (#922) — the duo slice and its on-demand trio
@@ -90,7 +170,7 @@ public sealed class ChampionSynergyQueryService(
             PartnerPosition = partnerPosition,
             MinGames = minGames,
             ChampionGames = self.Games,
-            ChampionWinRate = RateMath.Rate(self.Wins, self.Games),
+            ChampionWinRate = self.WinRate,
             CohortWinRate = baselines.CohortWinRate,
         };
 
@@ -134,7 +214,7 @@ public sealed class ChampionSynergyQueryService(
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        var selfWinRate = RateMath.Rate(self.Wins, self.Games);
+        var selfWinRate = self.WinRate;
         var partners = new List<ChampionSynergyEntry>(rows.Count);
 
         foreach (var row in rows)
@@ -155,9 +235,9 @@ public sealed class ChampionSynergyQueryService(
                 continue;
             }
 
-            var allyWinRate = RateMath.Rate(ally.Wins, ally.Games);
+            var allyWinRate = ally.WinRate;
             var observed = RateMath.Rate(row.Wins, row.Games);
-            var expected = SynergyMath.ExpectedWinRate(selfWinRate, [allyWinRate], baselines.CohortWinRate);
+            var expected = baselines.ExpectedWinRate(selfWinRate, [allyWinRate]);
 
             partners.Add(new ChampionSynergyEntry
             {
@@ -313,8 +393,8 @@ public sealed class ChampionSynergyQueryService(
             return response;
         }
 
-        var selfWinRate = RateMath.Rate(self.Wins, self.Games);
-        var partnerWinRate = RateMath.Rate(partnerBaseline.Wins, partnerBaseline.Games);
+        var selfWinRate = self.WinRate;
+        var partnerWinRate = partnerBaseline.WinRate;
         var completions = new List<ChampionTrioSynergyEntry>(rows.Count);
 
         foreach (var row in rows)
@@ -337,12 +417,9 @@ public sealed class ChampionSynergyQueryService(
                 continue;
             }
 
-            var thirdWinRate = RateMath.Rate(third.Wins, third.Games);
+            var thirdWinRate = third.WinRate;
             var observed = RateMath.Rate(row.Wins, row.Games);
-            var expected = SynergyMath.ExpectedWinRate(
-                selfWinRate,
-                [partnerWinRate, thirdWinRate],
-                baselines.CohortWinRate);
+            var expected = baselines.ExpectedWinRate(selfWinRate, [partnerWinRate, thirdWinRate]);
 
             completions.Add(new ChampionTrioSynergyEntry
             {
@@ -377,7 +454,7 @@ public sealed class ChampionSynergyQueryService(
     /// beats building a large IN list — which the trio path would otherwise need
     /// twice, once for the pair and once for every candidate third pick.
     /// </summary>
-    private async Task<BaselineSet> ReadBaselinesAsync(
+    private async Task<SynergyBaselineSet> ReadBaselinesAsync(
         string? normalizedPatch,
         IReadOnlyCollection<string>? bands,
         CancellationToken ct)
@@ -394,7 +471,7 @@ public sealed class ChampionSynergyQueryService(
 
         var rows = await query
             .GroupBy(b => new { b.Side, b.ChampionId, b.TeamPosition })
-            .Select(g => new BaselineRow(
+            .Select(g => new SynergyBaselineRow(
                 g.Key.Side,
                 g.Key.ChampionId,
                 g.Key.TeamPosition,
@@ -402,117 +479,6 @@ public sealed class ChampionSynergyQueryService(
                 g.Sum(x => x.Wins)))
             .ToListAsync(ct);
 
-        return BaselineSet.From(rows);
-    }
-
-    private sealed record BaselineRow(string Side, int ChampionId, string TeamPosition, int Games, int Wins);
-
-    /// <summary>
-    /// The marginals for one scope, indexed for lookup.
-    /// <see cref="CohortGames"/> / <see cref="CohortWins"/> sum the <c>SELF</c> side,
-    /// which is exactly one row per tracked participant per folded match — so the
-    /// cohort rate is the tracked population's overall win rate and never
-    /// double-counts a game the way summing the four-per-participant <c>ALLY</c> side
-    /// would.
-    /// </summary>
-    private sealed class BaselineSet
-    {
-        private readonly Dictionary<(int ChampionId, string Position), Marginal> _self;
-        private readonly Dictionary<(int ChampionId, string Position), Marginal> _ally;
-
-        /// <summary>Ally games per champion summed over every lane — <see cref="IsRealLane"/>'s denominator.</summary>
-        private readonly Dictionary<int, int> _laneTotals;
-
-        private BaselineSet(
-            Dictionary<(int, string), Marginal> self,
-            Dictionary<(int, string), Marginal> ally,
-            Dictionary<int, int> laneTotals,
-            int cohortGames,
-            int cohortWins)
-        {
-            _self = self;
-            _ally = ally;
-            _laneTotals = laneTotals;
-            CohortGames = cohortGames;
-            CohortWins = cohortWins;
-        }
-
-        public int CohortGames { get; }
-
-        public int CohortWins { get; }
-
-        public double CohortWinRate => RateMath.Rate(CohortWins, CohortGames);
-
-        public static BaselineSet From(IReadOnlyList<BaselineRow> rows)
-        {
-            var self = new Dictionary<(int, string), Marginal>();
-            var ally = new Dictionary<(int, string), Marginal>();
-            var laneTotals = new Dictionary<int, int>();
-            var cohortGames = 0;
-            var cohortWins = 0;
-
-            foreach (var row in rows)
-            {
-                if (string.Equals(row.Side, SynergyBaselineSide.Self, StringComparison.Ordinal))
-                {
-                    self[(row.ChampionId, row.TeamPosition)] = new Marginal(row.Games, row.Wins);
-                    cohortGames += row.Games;
-                    cohortWins += row.Wins;
-                }
-                else if (string.Equals(row.Side, SynergyBaselineSide.Ally, StringComparison.Ordinal))
-                {
-                    ally[(row.ChampionId, row.TeamPosition)] = new Marginal(row.Games, row.Wins);
-                    laneTotals[row.ChampionId] = laneTotals.GetValueOrDefault(row.ChampionId, 0) + row.Games;
-                }
-            }
-
-            return new BaselineSet(self, ally, laneTotals, cohortGames, cohortWins);
-        }
-
-        /// <summary>The champion's own marginal, or an empty one when it has no games in scope.</summary>
-        public Marginal Self(int championId, string position)
-            => _self.GetValueOrDefault((championId, position), Marginal.Empty);
-
-        /// <summary>The champion's marginal as somebody's teammate, or an empty one.</summary>
-        public Marginal Ally(int championId, string position)
-            => _ally.GetValueOrDefault((championId, position), Marginal.Empty);
-
-        /// <summary>
-        /// Whether <paramref name="position"/> is a lane this champion actually plays:
-        /// its share of the champion's ally games across every lane, against
-        /// <paramref name="minLanePlayRate"/>. A champion with no ally games at all in
-        /// scope fails — nothing is known about its roles, and the caller's other
-        /// floors have already established the pairing is thin.
-        ///
-        /// <para>
-        /// The denominator is the whole <c>ALLY</c> side for that champion, which is
-        /// why this lives on the baseline set rather than being derived from the
-        /// pairing rows: those are already filtered to one champion's teammates and to
-        /// lanes other than its own, so a share computed from them would measure the
-        /// wrong thing — Udyr would read as a 100% toplaner on a jungler's page purely
-        /// because his jungle games cannot appear there.
-        /// </para>
-        /// </summary>
-        public bool IsRealLane(int championId, string position, double minLanePlayRate)
-        {
-            if (minLanePlayRate <= 0d)
-            {
-                return true;
-            }
-
-            var lane = Ally(championId, position).Games;
-            if (lane == 0)
-            {
-                return false;
-            }
-
-            var acrossLanes = _laneTotals.GetValueOrDefault(championId, 0);
-            return acrossLanes > 0 && (double)lane / acrossLanes >= minLanePlayRate;
-        }
-    }
-
-    private readonly record struct Marginal(int Games, int Wins)
-    {
-        public static Marginal Empty { get; } = new(0, 0);
+        return SynergyBaselineSet.From(rows);
     }
 }
