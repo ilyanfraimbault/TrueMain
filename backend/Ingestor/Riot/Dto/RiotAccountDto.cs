@@ -2,14 +2,14 @@ using System.Text.Json.Serialization;
 
 namespace Ingestor.Riot.Dto;
 
-public class RiotAccountDto
+public sealed record RiotAccountDto
 {
     [JsonPropertyName("puuid")]
-    public string Puuid { get; set; } = string.Empty;
+    public string Puuid { get; init; } = string.Empty;
 
     [JsonPropertyName("gameName")]
-    public string? GameName { get; set; }
+    public string? GameName { get; init; }
 
     [JsonPropertyName("tagLine")]
-    public string? TagLine { get; set; }
+    public string? TagLine { get; init; }
 }
