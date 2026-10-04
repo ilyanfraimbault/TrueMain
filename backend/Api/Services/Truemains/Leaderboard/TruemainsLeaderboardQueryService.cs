@@ -92,7 +92,7 @@ public sealed class TruemainsLeaderboardQueryService(
     // Ranked solo queue. Matches the queue used by MainStatsCalculator
     // for main_champion_stats, so the "games" / KDA / winrate cell stays
     // consistent with the player's top-champions cell on the same row.
-    internal const int RankedQueueId =(int)LolQueueId.RankedSoloDuo;
+    internal const int RankedQueueId = (int)LolQueueId.RankedSoloDuo;
 
     private readonly LeaderboardRanking ranking = new(db, dbFactory, mainAnalysisOptions, cache, logger);
 
