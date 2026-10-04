@@ -281,3 +281,34 @@ re-migration happened to be complete (TEST-5).
 `TrueMainWebApplicationFactory.TimeProvider = new FixedTimeProvider(...)` (TestKit) rather than tuning offsets,
 so a run straddling UTC midnight cannot seed one day and query the next (TEST-9).
 
+## Analyzers: VS Threading and Roslynator on every project, tuned for bugs not style (2026-10-05)
+
+**`Microsoft.VisualStudio.Threading.Analyzers` and `Roslynator.Analyzers` are referenced once, from
+`backend/Directory.Build.props` (versions in `Directory.Packages.props`), and their severities live in the root
+`.editorconfig`.** With `TreatWarningsAsErrors`, anything at warning fails CI, so a severity is a decision about
+what blocks a merge (#294).
+
+- **VSTHRD: shipped severities kept** — sync-over-async (VSTHRD002), `async void` (VSTHRD100/101), unobserved
+  fire-and-forget (VSTHRD110), `null` returned for a `Task` (VSTHRD114), the `Async` suffix (VSTHRD200) and the
+  rest of the defaults stay errors. The codebase had no finding on any of them when they landed.
+- **VSTHRD003 and VSTHRD011 are off.** Both guard deadlocks against a `JoinableTaskFactory` / UI thread; ASP.NET
+  Core and the worker host have neither, so their findings (one leaderboard continuation, the three
+  `Lazy<Task<T>>` caches, ~25 test `TaskCompletionSource` awaits) were all false. The caches already evict a
+  faulted load, which is the real hazard of `Lazy<Task<T>>`; `AsyncLazy<T>` would add a runtime dependency on
+  `Microsoft.VisualStudio.Threading` for nothing.
+- **VSTHRD103 is a suggestion.** 590 of its 594 findings were `DbSet.Add`/`AddRange` (EF Core documents
+  `AddAsync` as needed only for async value generators such as HiLo — `Add` is the correct call) and Mongo's
+  `Aggregate()` (a fluent builder that does no I/O). The rule offers no per-method exclusion, so an error would
+  only teach people to suppress it.
+- **Tests:** VSTHRD200 (fakes mirror the names of what they replace) and RCS1194 (one-off test exception types)
+  are off.
+- **Roslynator: its catalog stays at its shipped info/hidden severities** — IDE hints, never a build failure.
+  Promoting the stylistic rules would churn hundreds of files and catch no bug. The few rules it ships as
+  warnings are kept (their 4 findings were fixed: 3 missing `<summary>`, one `ToUpper() == ToUpper()`), and nine
+  rules that catch real defects are promoted to warning: RCS1044 (`throw ex`), RCS1059 (lock on a public
+  instance), RCS1075 (empty `catch (Exception)`), RCS1202 (`as` then member access), RCS1210 (`null` for a
+  `Task`), RCS1215 (always-true/false expression), RCS1229 (task returned from inside a `using`), RCS1234
+  (duplicate enum value), RCS1261 (sync dispose of an `IAsyncDisposable`, whose 8 test findings became
+  `await using`).
+
+Promoting another rule is a one-line `.editorconfig` change, made in the PR that fixes its findings.

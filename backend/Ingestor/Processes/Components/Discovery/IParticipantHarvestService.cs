@@ -14,6 +14,7 @@ public interface IParticipantHarvestService
         CancellationToken ct);
 }
 
+/// <summary>What one harvest run wrote, and how much of the eligible pool it covered.</summary>
 /// <param name="CandidatesInserted">New harvest candidates added this run.</param>
 /// <param name="CandidatesUpdated">
 /// Existing harvest candidates whose observed stats were refreshed. This counts ALL stat

@@ -51,7 +51,7 @@ public sealed class WorkerFailureMetricsTests
     [Fact]
     public async Task ExecuteAsync_IncrementsFailureCounter_TaggedWithProcessAndMode_WhenAProcessThrows()
     {
-        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        await using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
         var meterFactory = provider.GetRequiredService<IMeterFactory>();
         using var collector = new MetricCollector<long>(
             meterFactory, IngestorMetrics.MeterName, IngestorMetrics.RunFailuresCounterName);
@@ -75,7 +75,7 @@ public sealed class WorkerFailureMetricsTests
     [Fact]
     public async Task ExecuteAsync_IncrementsFailureCounterOncePerFailingProcess_WhenRunningFullSequence()
     {
-        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        await using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
         var meterFactory = provider.GetRequiredService<IMeterFactory>();
         using var collector = new MetricCollector<long>(
             meterFactory, IngestorMetrics.MeterName, IngestorMetrics.RunFailuresCounterName);
@@ -111,7 +111,7 @@ public sealed class WorkerFailureMetricsTests
     [Fact]
     public async Task ExecuteAsync_LeavesFailureCounterUntouched_WhenEveryProcessSucceeds()
     {
-        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        await using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
         var meterFactory = provider.GetRequiredService<IMeterFactory>();
         using var collector = new MetricCollector<long>(
             meterFactory, IngestorMetrics.MeterName, IngestorMetrics.RunFailuresCounterName);
@@ -131,7 +131,7 @@ public sealed class WorkerFailureMetricsTests
     [Fact]
     public async Task ExecuteAsync_LeavesFailureCounterUntouched_WhenShutdownCancelsTheRun()
     {
-        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        await using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
         var meterFactory = provider.GetRequiredService<IMeterFactory>();
         using var collector = new MetricCollector<long>(
             meterFactory, IngestorMetrics.MeterName, IngestorMetrics.RunFailuresCounterName);
@@ -156,7 +156,7 @@ public sealed class WorkerFailureMetricsTests
     [Fact]
     public async Task ExecuteAsync_TagsTheFailureAsWholeRun_WhenTheRunFailsOutsideAnyProcess()
     {
-        using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        await using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
         var meterFactory = provider.GetRequiredService<IMeterFactory>();
         using var collector = new MetricCollector<long>(
             meterFactory, IngestorMetrics.MeterName, IngestorMetrics.RunFailuresCounterName);

@@ -95,7 +95,7 @@ public sealed class CommunityDragonResilienceExtensionsTests
             $"{clientName}-standard",
             options => options.Retry.Delay = TimeSpan.Zero);
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient(clientName);
 
         using var response = await client.GetAsync(

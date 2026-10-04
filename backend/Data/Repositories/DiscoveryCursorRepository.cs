@@ -12,6 +12,7 @@ public sealed class DiscoveryCursorRepository(TrueMainDbContext db) : IDiscovery
         return cursor?.Offset;
     }
 
+    /// <summary>Stores the platform's discovery offset, creating its cursor row if needed.</summary>
     /// <remarks>
     /// A single parameterised INSERT … ON CONFLICT (#500): the previous tracked
     /// read + Add/mutate re-queried the row that <see cref="GetOffsetAsync"/> had
