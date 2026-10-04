@@ -287,12 +287,14 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Set up on
   the **Overlay page** (`/overlay`, sidebar, any time — #1819): a copy of the screen at its aspect ratio (the window's
   screen, 1920 × 1080 in a browser) with the game's minimap and ability bar outlined, each panel that is on drawn where
-  it sits (its anchor spot, or where it was dragged — the shell's rule mirrored in `utils/overlay-layout.ts`; small
-  panels drawn at least 108 × 24 px around their true centre, said under the screen). Drag a panel to move it (stored as
-  its centre in screen fractions); its × (shown on hover), Delete, or a drop on the side takes it off; arrow keys nudge
+  it sits (its anchor spot, or where it was dragged — the shell's rule mirrored in `utils/overlay-layout.ts`) as itself:
+  the real panel over a sample game (`OverlayPanelSample.vue`, `utils/overlay-sample.ts`), shrunk to the screen's scale
+  and sized by measuring it, so its edges are where they will be in game (#1857). Drag a panel to move it (stored as a
+  fraction of the room the screen leaves around it, 0 = left/top edge, 1 = right/bottom, so a panel against an edge
+  stays there whatever its size; settings file v2, v1's centre-based places dropped); its × (shown on hover), Delete, or a drop on the side takes it off; arrow keys nudge
   it 1 % (Shift 5 %). The **Hidden panels** column on the right lists the panels that are off — drag one onto the
   screen, or click it to bring it back where it was. Beside them: "Place on screen" (the panels themselves, dragged over
-  the real screen), "Reset positions" (every panel back to its spot), overlay on/off (default on), the next item's
+  the real screen — each with the sample when no game runs, its "drag" marker drawn over it so it keeps its in-game size), "Reset positions" (every panel back to its spot), overlay on/off (default on), the next item's
   moment, size 80–140 %, opacity 50–100 %, the shortcut (`OverlayLayoutEditor.vue`, `OverlayPanelMock.vue`). Rules and settings in `shell-state::overlay` (tested on CI),
   windows in `src-tauri/src/overlay/` (`panels.rs` drives them, `macos.rs` / `windows.rs` are the window layers). On
   Windows the game is known by its window class (`RiotWindowClass`) or its process name; CI drives the whole overlay

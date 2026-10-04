@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { OverlayPanel } from '~/types/overlay'
 import { OVERLAY_PANELS } from '~/types/overlay'
-import { SAMPLE_NEXT_ITEM, sampleGame, sampleLoadingView } from '~/utils/overlay-sample'
+import { PANEL_WIDTHS } from '~/utils/overlay-layout'
 
 /**
  * One panel of the in-game overlay (#1795) — `next-item`, `win-probability`
@@ -25,13 +25,6 @@ const panel = computed<OverlayPanel>(() => {
   return (OVERLAY_PANELS as string[]).includes(slug) ? slug as OverlayPanel : 'next-item'
 })
 
-const WIDTHS: Record<OverlayPanel, string> = {
-  'next-item': 'w-[232px]',
-  'win-probability': 'w-[160px]',
-  'item-value': 'w-[300px]',
-  'stats': 'w-[176px]',
-  'loading': 'w-[440px]',
-}
 const PLACEHOLDERS: Record<OverlayPanel, string> = {
   'next-item': 'Your next item shows here during a game.',
   'win-probability': 'The win probability shows here during a game.',
@@ -50,17 +43,8 @@ const scale = computed(() => settings.value?.scale ?? 1)
 // The next item and the pace are ours; the other panels read a spectated game too.
 const OURS: OverlayPanel[] = ['next-item', 'stats']
 const playing = computed(() => (!OURS.includes(panel.value) || game.value?.myTeam ? game.value : null))
-
 // A real game always wins over the sample.
-const sample = computed(() => (preview.value && !playing.value ? sampleGame() : null))
-const shown = computed(() => playing.value ?? sample.value)
-const players = computed(() => {
-  if (loading.value.players.length) return loading.value.players
-  return preview.value ? sampleLoadingView().players : []
-})
 const isSample = computed(() => (panel.value === 'loading' ? !loading.value.players.length : !playing.value))
-const sampleSyncedAt = Date.now()
-const { items: statics } = useStaticData()
 
 const devPreview = ref(false)
 onMounted(async () => {
@@ -99,22 +83,15 @@ useHead({
 
 <template>
   <div class="origin-top-left" :style="{ transform: `scale(${scale})` }">
-    <div ref="content" class="relative px-3 py-2.5 text-default" :class="WIDTHS[panel]">
-      <LoadingBoard v-if="panel === 'loading' && players.length" :players="players" />
-      <template v-else-if="shown && panel !== 'loading'">
-        <template v-if="panel === 'next-item'">
-          <OverlayNextItem v-if="playing" :game="playing" />
-          <OverlayNextItemCard
-            v-else
-            :item="statics[SAMPLE_NEXT_ITEM.itemId] ?? null"
-            :name="statics[SAMPLE_NEXT_ITEM.itemId]?.name ?? 'Zhonya\'s Hourglass'"
-            :missing="SAMPLE_NEXT_ITEM.missing"
-          />
-        </template>
-        <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="shown" :synced-at="playing ? syncedAt : sampleSyncedAt" />
-        <OverlayStats v-else-if="panel === 'stats'" :game="shown" />
-        <OverlayItemValue v-else :game="shown" />
+    <div ref="content" class="relative px-3 py-2.5 text-default" :style="{ width: `${PANEL_WIDTHS[panel]}px` }">
+      <LoadingBoard v-if="panel === 'loading' && loading.players.length" :players="loading.players" />
+      <template v-else-if="playing && panel !== 'loading'">
+        <OverlayNextItem v-if="panel === 'next-item'" :game="playing" />
+        <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="playing" :synced-at="syncedAt" />
+        <OverlayStats v-else-if="panel === 'stats'" :game="playing" />
+        <OverlayItemValue v-else :game="playing" />
       </template>
+      <OverlayPanelSample v-else-if="preview" :panel="panel" />
       <div v-else class="flex items-center gap-2.5">
         <AppMark class="size-4 shrink-0" />
         <p class="text-[11px] leading-snug text-muted">{{ PLACEHOLDERS[panel] }}</p>
