@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { pageParams, resolveDevApiMock, tierFor } from '~~/server/utils/dev-api-mock'
 import type { ChampionDirectoryResponse } from '~~/shared/types/champion-directory'
 import type { ChampionMainsComparison } from '~~/shared/types/champions'
+import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 
 // `resolveDevApiMock` reaches two auto-imported server globals: `$fetch`
 // (via latestShortPatch, for the DDragon version list) and `createError`
@@ -77,6 +78,18 @@ describe('resolveDevApiMock', () => {
     const page = await resolveDevApiMock('/champions/directory', { position: 'JUNGLE', pageSize: '100' }) as ChampionDirectoryResponse
     expect(page.rows.length).toBe(page.total)
     expect(page.rows.every(row => row.position === 'JUNGLE')).toBe(true)
+  })
+
+  it.each([
+    ['games', (row: LeaderboardRowResponse) => row.stats.games],
+    ['kda', (row: LeaderboardRowResponse) => row.stats.kda ?? -1],
+    ['winRate', (row: LeaderboardRowResponse) => row.stats.winRate ?? -1],
+  ] as const)('orders the whole truemains board by %s, then pages it', async (sort, figure) => {
+    const first = await resolveDevApiMock('/truemains', { sort, pageSize: '10' }) as LeaderboardResponse
+    const second = await resolveDevApiMock('/truemains', { sort, pageSize: '10', page: '2' }) as LeaderboardResponse
+    const values = [...first.rows, ...second.rows].map(figure)
+    expect(values).toEqual([...values].sort((a, b) => b - a))
+    expect(second.rows[0]?.rank).toBe(11)
   })
 
   it('resolves a known player route (Sheiden-1234)', async () => {

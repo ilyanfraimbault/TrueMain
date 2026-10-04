@@ -25,10 +25,14 @@ export type RegionSlug = typeof REGION_SLUGS[number]
 
 /**
  * Ranking column of the leaderboard. `rank` is current ranked standing (the
- * default); `dedication` ranks by the truemain dedication score. Anything the
- * backend doesn't recognise falls back to `rank`.
+ * default); `dedication` ranks by the truemain dedication score; `games`,
+ * `kda` and `winRate` rank by the row's Games / KDA / WR figure (#1737). Every
+ * order is descending. Anything the backend doesn't recognise falls back to
+ * `rank`.
  */
-export type LeaderboardSort = 'rank' | 'dedication'
+export const LEADERBOARD_SORTS = ['rank', 'dedication', 'games', 'kda', 'winRate'] as const
+
+export type LeaderboardSort = typeof LEADERBOARD_SORTS[number]
 
 export interface LeaderboardResponse {
   rows: LeaderboardRowResponse[]
