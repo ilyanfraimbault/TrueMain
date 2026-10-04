@@ -14,7 +14,7 @@ public interface IDataSession : IAsyncDisposable
     ILadderSyncCursorRepository LadderSyncCursors { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
-    Task<IDataTransaction>BeginTransactionAsync(CancellationToken ct);
+    Task<IDataTransaction> BeginTransactionAsync(CancellationToken ct);
 
     /// <summary>
     /// Detaches everything the change tracker holds, so a long batched loop stops
