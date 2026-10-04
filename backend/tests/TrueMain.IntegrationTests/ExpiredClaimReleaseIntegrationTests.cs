@@ -179,7 +179,7 @@ public sealed class ExpiredClaimReleaseIntegrationTests
         return await new RiotAccountRepository(db).ClaimAccountsForMatchIngestAtomicallyAsync(
             new Dictionary<string, int> { ["KR"] = 5 },
             5,
-            0.7,
+            new Dictionary<string, double> { ["KR"] = 0.7 },
             nowUtc,
             TimeSpan.FromMinutes(30),
             CancellationToken.None);

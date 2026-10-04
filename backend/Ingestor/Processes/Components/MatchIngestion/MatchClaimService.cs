@@ -77,30 +77,31 @@ public sealed class MatchClaimService(
         var quotas = PlatformBudgetAllocator.Allocate(platforms, batchSize, coverage);
 
         // The same deficit signal, one level up (#1361): the allocator decides *where* the
-        // batch goes, this decides *what* it is spent on. Far below
-        // Coverage:TargetMainsPerChampion the batch tilts towards new candidates (breadth —
+        // batch goes, this decides *what* each platform's slots are spent on. Far below
+        // Coverage:TargetMainsPerChampion a platform tilts towards new candidates (breadth —
         // there are champions with no main at all to deepen); at target it tilts back towards
-        // established mains (depth, #900). Quota-weighted, so the platforms actually receiving
-        // the batch are the ones that decide its composition, and the configured share stays
-        // the midpoint of the range.
-        var effectiveShare = ResolveEstablishedMainShare(establishedMainShare, quotas, coverage);
+        // established mains (depth, #900). Per platform since #1533: one quota-weighted scalar
+        // made a saturated region keep paying for breadth it did not need while diluting the
+        // thin ones' share with a deficit that was not theirs.
+        var shares = ResolveEstablishedMainShares(establishedMainShare, quotas, coverage);
 
         logger.LogInformation(
-            "Claim allocation for a batch of {BatchSize} at establishedMainShare {Share:0.###} "
+            "Claim allocation for a batch of {BatchSize} at a quota-weighted establishedMainShare {Share:0.###} "
             + "(configured {ConfiguredShare}): {Quotas}.",
             batchSize,
-            effectiveShare,
+            QuotaWeightedMean(shares, quotas, establishedMainShare),
             establishedMainShare,
             string.Join(", ", quotas
                 .OrderBy(entry => entry.Key, StringComparer.Ordinal)
-                .Select(entry => $"{entry.Key}={entry.Value} (deficit {coverage.MeanDeficit(entry.Key):P0})")));
+                .Select(entry => $"{entry.Key}={entry.Value} (deficit {coverage.MeanDeficit(entry.Key):P0}, "
+                    + $"share {shares[entry.Key]:0.###})")));
 
         await using var transaction = await session.BeginTransactionAsync(ct);
 
         var accounts = await session.RiotAccounts.ClaimAccountsForMatchIngestAtomicallyAsync(
             quotas,
             batchSize,
-            effectiveShare,
+            shares,
             timeProvider.GetUtcNow().UtcDateTime,
             lease,
             ct);
@@ -135,30 +136,41 @@ public sealed class MatchClaimService(
     }
 
     /// <summary>
-    /// The quota-weighted mean coverage deficit of the platforms in the batch, turned into an
-    /// established-main share around the configured midpoint (#1361).
+    /// Each platform's own coverage deficit turned into its established-main share around the
+    /// configured midpoint (#1361, per platform since #1533).
     /// </summary>
     /// <remarks>
-    /// A neutral snapshot returns the configured share unchanged. Its deficits are all 0, which
-    /// means "no signal" rather than "fully covered" — reading it as full coverage would tilt a
-    /// cold-start claim towards established mains that do not exist yet.
+    /// A neutral snapshot returns the configured share unchanged for every platform. Its
+    /// deficits are all 0, which means "no signal" rather than "fully covered" — reading it as
+    /// full coverage would tilt a cold-start claim towards established mains that do not exist
+    /// yet. The share is linear in the deficit, so short of the [0, 1] clamp the quota-weighted
+    /// mean of these shares is exactly the single scalar the claim used before: the total
+    /// split is redistributed between platforms, not inflated.
     /// </remarks>
-    private double ResolveEstablishedMainShare(
+    private Dictionary<string, double> ResolveEstablishedMainShares(
         double configuredShare,
         IReadOnlyDictionary<string, int> quotas,
         ChampionCoverageSnapshot coverage)
     {
+        var swing = intakeOptions.Value.EstablishedMainShareSwing;
+
+        return quotas.Keys.ToDictionary(
+            platform => platform,
+            platform => coverage.IsNeutral
+                ? Math.Clamp(configuredShare, 0d, 1d)
+                : IntakeCapacity.AdaptiveEstablishedMainShare(configuredShare, swing, coverage.MeanDeficit(platform)),
+            StringComparer.Ordinal);
+    }
+
+    /// <summary>The batch-level share the per-platform split amounts to, for the log line.</summary>
+    private static double QuotaWeightedMean(
+        IReadOnlyDictionary<string, double> shares,
+        IReadOnlyDictionary<string, int> quotas,
+        double configuredShare)
+    {
         var totalQuota = quotas.Values.Sum();
-        if (coverage.IsNeutral || totalQuota <= 0)
-        {
-            return Math.Clamp(configuredShare, 0d, 1d);
-        }
-
-        var weightedDeficit = quotas.Sum(entry => coverage.MeanDeficit(entry.Key) * entry.Value) / totalQuota;
-
-        return IntakeCapacity.AdaptiveEstablishedMainShare(
-            configuredShare,
-            intakeOptions.Value.EstablishedMainShareSwing,
-            weightedDeficit);
+        return totalQuota <= 0
+            ? Math.Clamp(configuredShare, 0d, 1d)
+            : quotas.Sum(entry => shares[entry.Key] * entry.Value) / totalQuota;
     }
 }

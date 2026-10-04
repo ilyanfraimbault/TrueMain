@@ -52,7 +52,7 @@ public sealed class RiotAccountClaimIntegrationTests
         var claimed = await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
             new Dictionary<string, int> { ["KR"] = 1 },
             1,
-            0.7,
+            new Dictionary<string, double> { ["KR"] = 0.7 },
             now,
             TimeSpan.FromMinutes(30),
             CancellationToken.None);
@@ -79,13 +79,46 @@ public sealed class RiotAccountClaimIntegrationTests
         var claimed = await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
             new Dictionary<string, int> { ["KR"] = 4 },
             4,
-            0.75,
+            new Dictionary<string, double> { ["KR"] = 0.75 },
             now,
             TimeSpan.FromMinutes(30),
             CancellationToken.None);
 
         claimed.Should().HaveCount(4);
         claimed.Count(key => key.Puuid.StartsWith("puuid-main-", StringComparison.Ordinal)).Should().Be(3);
+    }
+
+    [Fact]
+    public async Task ClaimAccountsForMatchIngestAtomicallyAsync_ShouldApplyEachPlatformItsOwnEstablishedShare()
+    {
+        // #1533: a saturated platform spends on depth, a thin one on breadth. Both platforms
+        // offer four established mains and four queued candidates for a quota of four; the
+        // single scalar this replaced (their mean, 0.5) would have split both 2/2.
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        foreach (var platform in new[] { "KR", "EUW1" })
+        {
+            await SeedEstablishedMainsAsync(4, lastMatchIngestAtUtc: now.AddHours(-1), platformId: platform);
+            await SeedClaimableAccountsAsync(4, MatchIngestStatus.Idle, null, platform);
+        }
+
+        await using var db = _fixture.CreateDbContext();
+        var repo = new RiotAccountRepository(db);
+
+        var claimed = await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
+            new Dictionary<string, int> { ["KR"] = 4, ["EUW1"] = 4 },
+            8,
+            new Dictionary<string, double> { ["KR"] = 0.75, ["EUW1"] = 0.25 },
+            now,
+            TimeSpan.FromMinutes(30),
+            CancellationToken.None);
+
+        claimed.Should().HaveCount(8);
+        int MainsOn(string platform) => claimed.Count(key =>
+            key.PlatformId == platform && key.Puuid.StartsWith("puuid-main-", StringComparison.Ordinal));
+        MainsOn("KR").Should().Be(3);
+        MainsOn("EUW1").Should().Be(1);
     }
 
     [Fact]
@@ -104,7 +137,7 @@ public sealed class RiotAccountClaimIntegrationTests
         var claimed = await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
             new Dictionary<string, int> { ["KR"] = 10 },
             10,
-            0.7,
+            new Dictionary<string, double> { ["KR"] = 0.7 },
             now,
             TimeSpan.FromMinutes(30),
             CancellationToken.None);
@@ -126,7 +159,7 @@ public sealed class RiotAccountClaimIntegrationTests
         var claimed = await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
             new Dictionary<string, int> { ["KR"] = 3 },
             3,
-            0.7,
+            new Dictionary<string, double> { ["KR"] = 0.7 },
             DateTime.UtcNow,
             TimeSpan.FromMinutes(30),
             CancellationToken.None);
@@ -134,20 +167,24 @@ public sealed class RiotAccountClaimIntegrationTests
         claimed.Should().HaveCount(3);
     }
 
-    private async Task SeedEstablishedMainsAsync(int count, DateTime lastMatchIngestAtUtc, bool isActive = true)
+    private async Task SeedEstablishedMainsAsync(
+        int count,
+        DateTime lastMatchIngestAtUtc,
+        bool isActive = true,
+        string platformId = "KR")
     {
         await using var db = _fixture.CreateDbContext();
         var now = DateTime.UtcNow;
 
         for (var i = 1; i <= count; i++)
         {
-            var puuid = $"puuid-main-{i}";
+            var puuid = platformId == "KR" ? $"puuid-main-{i}" : $"puuid-main-{platformId}-{i}";
             db.RiotAccounts.Add(new RiotAccount
             {
                 Puuid = puuid,
-                PlatformId = "KR",
+                PlatformId = platformId,
                 GameName = $"main-{i}",
-                TagLine = "KR1",
+                TagLine = platformId,
                 SummonerId = $"sum-main-{i}",
                 ProfileIconId = 1,
                 SummonerLevel = 300,
@@ -159,7 +196,7 @@ public sealed class RiotAccountClaimIntegrationTests
 
             db.MainChampionStats.Add(new MainChampionStat
             {
-                PlatformId = "KR",
+                PlatformId = platformId,
                 Puuid = puuid,
                 ChampionId = 22,
                 TotalMatches = 30,
@@ -177,20 +214,24 @@ public sealed class RiotAccountClaimIntegrationTests
         await db.SaveChangesAsync();
     }
 
-    private async Task SeedClaimableAccountsAsync(int count, MatchIngestStatus status, DateTime? claimedAtUtc)
+    private async Task SeedClaimableAccountsAsync(
+        int count,
+        MatchIngestStatus status,
+        DateTime? claimedAtUtc,
+        string platformId = "KR")
     {
         await using var db = _fixture.CreateDbContext();
         var now = DateTime.UtcNow;
 
         for (var i = 1; i <= count; i++)
         {
-            var puuid = $"puuid-{i}";
+            var puuid = platformId == "KR" ? $"puuid-{i}" : $"puuid-{platformId}-{i}";
             db.RiotAccounts.Add(new RiotAccount
             {
                 Puuid = puuid,
-                PlatformId = "KR",
+                PlatformId = platformId,
                 GameName = $"player-{i}",
-                TagLine = "KR1",
+                TagLine = platformId,
                 SummonerId = $"sum-{i}",
                 ProfileIconId = 1,
                 SummonerLevel = 100,
@@ -202,7 +243,7 @@ public sealed class RiotAccountClaimIntegrationTests
 
             db.MainCandidates.Add(new MainCandidate
             {
-                PlatformId = "KR",
+                PlatformId = platformId,
                 Puuid = puuid,
                 ChampionId = 1,
                 ChampionRankInMasteryTop = 1,
@@ -221,6 +262,6 @@ public sealed class RiotAccountClaimIntegrationTests
         await using var db = _fixture.CreateDbContext();
         var repo = new RiotAccountRepository(db);
         return await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
-            new Dictionary<string, int> { ["KR"] = 2 }, 2, 0.7, nowUtc, lease, CancellationToken.None);
+            new Dictionary<string, int> { ["KR"] = 2 }, 2, new Dictionary<string, double> { ["KR"] = 0.7 }, nowUtc, lease, CancellationToken.None);
     }
 }

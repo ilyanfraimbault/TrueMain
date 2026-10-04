@@ -143,7 +143,7 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
             new Dictionary<string, int> { ["KR"] = take },
             take,
             // Established mains only in these fixtures, so the share does not split the batch.
-            1.0,
+            new Dictionary<string, double> { ["KR"] = 1.0 },
             now,
             TimeSpan.FromMinutes(30),
             CancellationToken.None);

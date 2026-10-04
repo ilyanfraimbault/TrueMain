@@ -37,9 +37,12 @@ public interface IRiotAccountRepository
 
     /// <summary>
     /// Atomically claims the next accounts to ingest matches for.
-    /// <c>establishedMainShare</c> is the share of the batch reserved for accounts that are
-    /// already active established mains, the remainder going to <c>Queued</c> candidates
-    /// (#900) — a floor, not a partition: whatever one class cannot fill spills to the other.
+    /// <c>establishedMainShares</c> is, per platform, the share of that platform's quota
+    /// reserved for accounts that are already active established mains, the remainder going
+    /// to <c>Queued</c> candidates (#900) — a floor, not a partition: whatever one class cannot
+    /// fill spills to the other within the platform. Per platform since #1533, so a saturated
+    /// region and a thin one each get the split their own coverage calls for. A platform
+    /// missing from the map reserves nothing for established mains (they still take the spill).
     /// <para>
     /// <c>platformQuotas</c> is the per-platform slot allocation (#1150), computed by the
     /// caller from the coverage deficit. It is a floor too: a platform that cannot fill its
@@ -51,7 +54,7 @@ public interface IRiotAccountRepository
     Task<List<AccountKey>> ClaimAccountsForMatchIngestAtomicallyAsync(
         IReadOnlyDictionary<string, int> platformQuotas,
         int batchSize,
-        double establishedMainShare,
+        IReadOnlyDictionary<string, double> establishedMainShares,
         DateTime nowUtc,
         TimeSpan lease,
         CancellationToken ct);
