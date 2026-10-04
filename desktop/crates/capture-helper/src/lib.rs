@@ -216,6 +216,14 @@ impl HelperCapture {
     }
 }
 
+/// Never leave a recording helper behind: dropped mid-recording (the app
+/// quitting, a panic in the runner), the capture would outlive the app.
+impl Drop for HelperCapture {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
 impl Capture for HelperCapture {
     fn start(&mut self, video_path: &Path, quality: Quality) -> Result<(), CaptureError> {
         // Fresh slots for every attempt: an error from a start that failed
@@ -339,7 +347,12 @@ impl Capture for HelperCapture {
             let _ = writeln!(stdin, "stop").and_then(|()| stdin.flush());
         }
         let result = self.wait_for("stopped", STOP_TIMEOUT, true);
-        if let Some(mut child) = self.child.take() {
+        // A helper that never said `stopped` may be stuck in ScreenCaptureKit
+        // with the capture still running — and macOS still showing it
+        // recording. Kill it rather than wait on it forever.
+        if result.is_err() {
+            self.kill();
+        } else if let Some(mut child) = self.child.take() {
             let _ = child.wait();
         }
         self.stdin = None;
@@ -494,5 +507,55 @@ esac
         assert_eq!(*capture.failure.lock().unwrap(), None);
         assert_eq!(capture.stop().unwrap(), 1000);
         assert_eq!(*capture.failure.lock().unwrap(), None);
+    }
+
+    /// A stand-in helper that starts recording and never stops, whatever it
+    /// is told — the one ScreenCaptureKit left hanging — and leaves its pid.
+    #[cfg(unix)]
+    fn stuck_helper(dir: &Path) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let script = dir.join("truemain-capture");
+        std::fs::write(
+            &script,
+            format!(
+                r#"#!/bin/sh
+case "$1" in
+probe) echo '{{"event":"window","width":1920,"height":1080}}' ;;
+record)
+  echo $$ > "{pid}"
+  echo '{{"event":"started"}}'
+  exec sleep 600
+  ;;
+esac
+"#,
+                pid = dir.join("pid").display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_dropped_capture_does_not_leave_its_helper_running() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut capture =
+            HelperCapture::new(stuck_helper(dir.path()), None, "window".into(), false);
+        let quality = game_recording::RecordingSettings::default().quality;
+        capture
+            .start(&dir.path().join("game.mp4"), quality)
+            .unwrap();
+        let pid = std::fs::read_to_string(dir.path().join("pid")).unwrap();
+
+        drop(capture);
+
+        let alive = std::process::Command::new("kill")
+            .args(["-0", pid.trim()])
+            .stderr(Stdio::null())
+            .status()
+            .unwrap()
+            .success();
+        assert!(!alive, "the helper {} is still running", pid.trim());
     }
 }

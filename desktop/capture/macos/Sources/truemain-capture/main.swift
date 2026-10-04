@@ -119,6 +119,18 @@ func record(_ arguments: [String]) async {
         stopSignal.fire()
     }
 
+    // The shell gone — quit, crashed, replaced by an update — ends it too: an
+    // orphaned helper would keep capturing, macOS showing the screen shared,
+    // with nobody left to stop it. Stdin may outlive the shell (a grandchild
+    // holding the pipe), the parent changing to launchd does not.
+    let shell = getppid()
+    let orphanWatch = DispatchSource.makeTimerSource(queue: .global())
+    orphanWatch.schedule(deadline: .now() + 1, repeating: 1)
+    orphanWatch.setEventHandler {
+        if getppid() != shell { stopSignal.fire() }
+    }
+    orphanWatch.resume()
+
     var signalSources: [DispatchSourceSignal] = []
     for sig in [SIGINT, SIGTERM] {
         signal(sig, SIG_IGN)
@@ -146,9 +158,19 @@ func record(_ arguments: [String]) async {
 
     await stopSignal.wait()
     timer.cancel()
+    orphanWatch.cancel()
     signalSources.forEach { $0.cancel() }
+    // ScreenCaptureKit's stop and the writer's close are callbacks that have
+    // been seen never to come back, leaving the capture running for good.
+    // The file is written in one-second fragments: exiting without the close
+    // keeps all but the last second. Inside the shell's own 60-second wait.
+    DispatchQueue.global().asyncAfter(deadline: .now() + stopDeadline) {
+        fail("capture", "the capture did not stop within \(Int(stopDeadline)) seconds", code: 6)
+    }
     await recorder.stop()
 }
+
+let stopDeadline: TimeInterval = 30
 
 /// Fired once, by whichever of stdin, a signal or the capture itself gets
 /// there first; waited on by the main task.
