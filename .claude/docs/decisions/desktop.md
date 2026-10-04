@@ -233,6 +233,16 @@ levels, K/D/A, spells, death timers, each side's kills and the clock — and not
 undecided until checked in a live game; the gold and next-item panels may only read enemy information the player can
 see (`desktop/README.md`, "Reading the game") (2026-10-01) — #1748.
 
+**The Game page's player lines say who each player is, not what the scoreboard already shows** (reverses #1748's
+"shows what the in-game scoreboard shows"). Items and K/D/A are on the game's own TAB scoreboard; a second copy in
+the companion told the player nothing. Each line keeps the portrait, level, death timer and spells, and carries
+instead what the loading screen read through the client (#1753): the Solo/Duo standing (a ranked Flex one when there
+is no Solo/Duo standing), whether the role is the player's own — at least half of their recent role-assigned games
+in it — or an autofill — under a quarter — the games, win rate and KDA on the champion among their last twenty
+("First time" with none), a streak of three or more, and the last ten games as bars. One more client request per
+player (the standing); still never TrueMain's Riot key, still no composite score (#1671). Premades and other players'
+mastery wait on a live check of what the client answers (2026-10-04) — #1828.
+
 **The dashboard reads a game's roles from the participant slot, and its build and skill orders from TrueMain.** The
 client's history lane is Riot's old position guess and files a roaming laner as a second jungler (a top Yone counted
 twelve jungle games out of twenty). On a queue that assigns roles (normal draft, Solo/Duo, Flex, Swiftplay, Quickplay,
