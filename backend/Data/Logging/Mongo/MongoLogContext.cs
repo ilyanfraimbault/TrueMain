@@ -260,23 +260,21 @@ public sealed class MongoLogContext : IDisposable
             return;
         }
 
-        // #1035: the upsert key widened from (bucketStartUtc, endpoint, statusCode)
-        // to include callerProcess, so two different callers landing in the same
-        // minute/endpoint/status now upsert two documents instead of one. The old
-        // 3-field unique index would reject the second as a duplicate key, so it
-        // must be dropped before the new 4-field one is created.
+        // The upsert key widened twice — callerProcess (#1035), then route (#1458) — so one
+        // minute/endpoint/status now upserts one document per caller and host. Each older
+        // unique index would reject the extra documents as duplicates: drop them first.
         await MongoIndexes.DropIfExistsAsync(RiotApiCallRollups, "ux_bucket_endpoint_status", ct);
+        await MongoIndexes.DropIfExistsAsync(RiotApiCallRollups, "ux_bucket_endpoint_status_caller", ct);
 
         var models = new List<CreateIndexModel<RiotApiCallRollupDocument>>
         {
-            // The upsert key: one rollup per minute/endpoint/status/caller. Unique so
-            // a concurrency race can't split a bucket into duplicate documents.
+            // The upsert key: one rollup per minute/endpoint/status/caller/route. Unique
+            // so a concurrency race can't split a bucket into duplicate documents.
             new(Builders<RiotApiCallRollupDocument>.IndexKeys
-                    .Ascending(doc => doc.BucketStartUtc)
-                    .Ascending(doc => doc.Endpoint)
-                    .Ascending(doc => doc.StatusCode)
-                    .Ascending(doc => doc.CallerProcess),
-                new CreateIndexOptions { Name = "ux_bucket_endpoint_status_caller", Unique = true }),
+                    .Ascending(doc => doc.BucketStartUtc).Ascending(doc => doc.Endpoint)
+                    .Ascending(doc => doc.StatusCode).Ascending(doc => doc.CallerProcess)
+                    .Ascending(doc => doc.Route),
+                new CreateIndexOptions { Name = "ux_bucket_endpoint_status_caller_route", Unique = true }),
             // The window lower bound (bucketStartUtc >= since) is on every read; a
             // descending index serves it and the newest-first rate-limit lookup.
             new(Builders<RiotApiCallRollupDocument>.IndexKeys.Descending(doc => doc.BucketStartUtc),

@@ -3,7 +3,7 @@ namespace Data.Metrics.Mongo;
 /// <summary>
 /// Relative time window the <c>/ops/riot-usage</c> panel can request. Each window
 /// fixes both the lower time bound and the time-series bucket size so the chart
-/// stays readable (roughly 12–28 buckets per window).
+/// stays readable (roughly 12–30 buckets per window).
 /// </summary>
 public enum RiotUsageWindow
 {
@@ -14,7 +14,13 @@ public enum RiotUsageWindow
     Last24Hours,
 
     /// <summary>Last 7 days, bucketed in 6-hour steps.</summary>
-    Last7Days
+    Last7Days,
+
+    /// <summary>
+    /// Last 30 days, bucketed daily (#1458) — the rollup retention, so a throughput ramp
+    /// step can be read against the weeks before it.
+    /// </summary>
+    Last30Days
 }
 
 /// <summary>

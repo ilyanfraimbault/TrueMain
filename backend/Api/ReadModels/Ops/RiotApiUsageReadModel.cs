@@ -9,7 +9,7 @@ namespace TrueMain.ReadModels.Ops;
 /// </summary>
 public sealed record RiotApiUsageReadModel
 {
-    /// <summary>The resolved window key echoed back: <c>1h</c> / <c>24h</c> / <c>7d</c>.</summary>
+    /// <summary>The resolved window key echoed back: <c>1h</c> / <c>24h</c> / <c>7d</c> / <c>30d</c>.</summary>
     public string Window { get; init; } = string.Empty;
 
     /// <summary>Lower time bound the metrics were aggregated from (UTC).</summary>

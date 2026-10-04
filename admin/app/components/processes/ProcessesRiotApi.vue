@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // Riot API tab of the Processes page (#1410), formerly the standalone
 // `/riot-api` page — Riot usage is a pipeline signal, not a destination of its
-// own. Call counts per endpoint, status-code breakdown,
-// rate-limit status and a call-volume time-series from `GET /api/ops/riot-usage`,
-// over a relative window. Metrics are sourced from the per-call `riot_api_calls`
-// Mongo collection the Ingestor writes via its HTTP metrics handler.
+// own. Quota per routing host and lane duty cycle from `GET /api/ops/riot-quota`
+// (#1458), then call counts per endpoint, status codes and call volume from
+// `GET /api/ops/riot-usage`, over one relative window. Both read the per-minute
+// `riot_api_call_rollups` the Ingestor writes via its HTTP metrics handler.
 import type { TableColumn } from '@nuxt/ui'
 import type {
   RiotCallerUsage,
@@ -18,6 +18,7 @@ const WINDOW_ITEMS: { label: string, value: RiotUsageWindow }[] = [
   { label: 'Last hour', value: '1h' },
   { label: 'Last 24h', value: '24h' },
   { label: 'Last 7 days', value: '7d' },
+  { label: 'Last 30 days', value: '30d' },
 ]
 
 // `selectedWindow` (not `window`) to avoid shadowing the browser global.
@@ -37,10 +38,13 @@ const { data, pending, error, refresh } = useRiotUsage(filters)
 // same filters when a re-fetch failed (Nuxt resets `data` on error). `null` = nothing
 // measured, so the panel renders no figures instead of a fabricated quiet window.
 const usage = useLastGoodPayload(data, () => JSON.stringify(filters.value))
+// Per-host quota and lane duty cycle (#1458): window-scoped, never endpoint-filtered —
+// a host's budget is shared by every endpoint it serves.
+const { data: quotaData, pending: quotaPending, error: quotaError, refresh: refreshQuota } = useRiotQuota(selectedWindow)
+const quota = useLastGoodPayload(quotaData, () => selectedWindow.value)
 
 const endpoints = computed<RiotEndpointUsage[]>(() => usage.value?.endpoints ?? [])
 const statusCodes = computed<RiotStatusCount[]>(() => usage.value?.statusCodes ?? [])
-const rateLimit = computed(() => usage.value?.rateLimit ?? null)
 const callerBreakdown = computed<RiotCallerUsage[]>(() => usage.value?.callerBreakdown ?? [])
 const headroom = computed(() => usage.value?.headroom ?? null)
 
@@ -138,9 +142,6 @@ function buildRateBuckets(
     }))
     .sort((a, b) => a.windowSeconds - b.windowSeconds)
 }
-const appRateBuckets = computed(() =>
-  buildRateBuckets(rateLimit.value?.appRateLimit, rateLimit.value?.appRateLimitCount),
-)
 function formatWindowSeconds(seconds: number): string {
   if (seconds % 3600 === 0) {
     return `${seconds / 3600}h`
@@ -197,6 +198,9 @@ function formatCallBucketLabel(iso: string): string {
   if (Number.isNaN(date.getTime())) {
     return iso
   }
+  if (selectedWindow.value === '30d') {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
   if (selectedWindow.value === '7d') {
     return date.toLocaleString('en-US', {
       month: 'short',
@@ -228,24 +232,14 @@ const callerLabelFormatter = computed(() =>
   indexLabelFormatter(callerChartData.value, row => row.label),
 )
 
-// --- Budget headroom -----------------------------------------------------------
-// Arithmetic on measured cost per account (#1035), always over the last 7 days
-// regardless of the panel's selected window — see RiotApiUsageQueryService.
-function formatCallsPerDay(value: number | null): string {
-  return value === null ? '—' : `${formatNumber(Math.round(value))}/day`
-}
-const bindingLimitLabel = computed(() => {
-  const binding = headroom.value?.bindingLimit
-  if (!binding) {
-    return null
-  }
-  return `${formatNumber(binding.limit)} calls / ${formatWindowSeconds(binding.windowSeconds)} → ${formatCallsPerDay(binding.maxCallsPerDay)}`
-})
-
 // --- Endpoint table ----------------------------------------------------------
 const sorting = ref([{ id: 'calls', desc: true }])
-// The page's single navbar refresh button drives whichever tab is open.
-defineExpose({ refresh, pending })
+// The page's single navbar refresh button drives whichever tab is open; it re-reads both.
+const anyPending = computed(() => pending.value || quotaPending.value)
+defineExpose({
+  refresh: () => Promise.all([refresh(), refreshQuota()]),
+  pending: anyPending,
+})
 
 const columns: TableColumn<RiotEndpointUsage>[] = [
   { accessorKey: 'endpoint', header: ({ column }) => sortableHeader(column, 'Endpoint') },
@@ -301,43 +295,16 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
     </p>
     <ProcessesRiotApiSummary :usage="usage" />
 
-    <!-- Rate limit + status codes -->
+    <FetchErrorAlert
+      v-if="quotaError"
+      :error="quotaError"
+      title="Failed to load the Riot quota per host"
+      class="mb-6"
+    />
+    <ProcessesRiotQuota v-if="quota" :quota="quota" />
+
+    <!-- Status codes + budget headroom -->
     <div class="grid gap-6 lg:grid-cols-2 mb-6">
-      <UCard>
-        <template #header>
-          <div class="flex items-center justify-between gap-2">
-            <PanelTitle variant="label" title="App rate limit" />
-            <UBadge
-              v-if="rateLimit?.observedAtUtc"
-              color="neutral"
-              variant="subtle"
-              :label="formatDateTime(rateLimit.observedAtUtc)"
-            />
-          </div>
-        </template>
-
-        <div v-if="appRateBuckets.length" class="flex flex-col gap-4">
-          <div v-for="bucket in appRateBuckets" :key="bucket.windowSeconds">
-            <div class="flex items-center justify-between text-sm">
-              <span class="text-muted">per {{ formatWindowSeconds(bucket.windowSeconds) }}</span>
-              <span class="tabular-nums text-highlighted">
-                {{ formatNumber(bucket.count) }} / {{ formatNumber(bucket.limit) }}
-              </span>
-            </div>
-            <UProgress
-              class="mt-1"
-              :model-value="bucket.count"
-              :max="bucket.limit || 1"
-              :color="rateColor(bucket.count, bucket.limit)"
-              size="sm"
-            />
-          </div>
-        </div>
-        <p v-else class="text-sm text-muted">
-          No rate-limit headers seen in this window.
-        </p>
-      </UCard>
-
       <UCard>
         <template #header>
           <PanelTitle variant="label" title="Status codes" />
@@ -373,6 +340,8 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
           No calls recorded in this window.
         </p>
       </UCard>
+
+      <ProcessesRiotApiHeadroom :headroom="headroom" />
     </div>
 
     <!-- Call volume over time -->
@@ -401,97 +370,32 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
       />
     </UCard>
 
-    <!-- Consumption by caller + budget headroom -->
-    <div class="grid gap-6 lg:grid-cols-2 mb-6">
-      <UCard>
-        <template #header>
-          <PanelTitle variant="label" title="Consumption by caller" />
-        </template>
+    <!-- Consumption by caller -->
+    <UCard class="mb-6">
+      <template #header>
+        <PanelTitle variant="label" title="Consumption by caller" />
+      </template>
 
-        <USkeleton v-if="pending" :style="{ height: `${callerChartHeight}px` }" class="w-full" />
-        <div
-          v-else-if="callerChartData.length === 0"
-          class="flex h-[120px] items-center justify-center text-sm text-muted"
-        >
-          No calls recorded in this window.
-        </div>
-        <ChartsBarChart
-          v-else
-          :data="callerChartData"
-          :height="callerChartHeight"
-          :categories="callerCategories"
-          :y-axis="['calls']"
-          :y-num-ticks="callerChartData.length"
-          :x-formatter="formatCount"
-          :y-formatter="callerLabelFormatter"
-          :tooltip-title-formatter="labelTooltipTitle"
-          v-bind="horizontalBarProps(120)"
-        />
-      </UCard>
-
-      <UCard>
-        <template #header>
-          <PanelTitle variant="label" title="Budget headroom" />
-        </template>
-
-        <div v-if="headroom?.sufficientData" class="flex flex-col gap-4">
-          <div>
-            <p class="text-xs text-muted uppercase">
-              More accounts fit
-            </p>
-            <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
-              ≈ {{ formatNumber(headroom.additionalAccountsHeadroom ?? 0) }}
-            </p>
-          </div>
-          <dl class="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <dt class="text-muted">
-                Tracked accounts
-              </dt>
-              <dd class="tabular-nums text-highlighted">
-                {{ formatNumber(headroom.trackedAccounts) }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-muted">
-                Cost per account
-              </dt>
-              <dd class="tabular-nums text-highlighted">
-                {{ formatCallsPerDay(headroom.callsPerAccountPerDay) }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-muted">
-                Binding limit
-              </dt>
-              <dd class="tabular-nums text-highlighted">
-                {{ bindingLimitLabel }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-muted">
-                Spare capacity
-              </dt>
-              <dd class="tabular-nums text-highlighted">
-                {{ formatCallsPerDay(headroom.spareCallsPerDay) }}
-              </dd>
-            </div>
-          </dl>
-        </div>
-        <p v-else class="text-sm text-muted">
-          Not enough data yet to estimate: {{ (headroom?.observedWindowHours ?? 0).toFixed(1) }}h observed,
-          {{ (headroom?.requiredWindowHours ?? 24).toFixed(0) }}h needed.
-          <template v-if="headroom && headroom.observedWindowHours >= headroom.requiredWindowHours">
-            <template v-if="headroom.trackedAccounts === 0">
-              No accounts are tracked yet.
-            </template>
-            <template v-else>
-              No rate-limit snapshot has been seen yet.
-            </template>
-          </template>
-        </p>
-      </UCard>
-    </div>
+      <USkeleton v-if="pending" :style="{ height: `${callerChartHeight}px` }" class="w-full" />
+      <div
+        v-else-if="callerChartData.length === 0"
+        class="flex h-[120px] items-center justify-center text-sm text-muted"
+      >
+        No calls recorded in this window.
+      </div>
+      <ChartsBarChart
+        v-else
+        :data="callerChartData"
+        :height="callerChartHeight"
+        :categories="callerCategories"
+        :y-axis="['calls']"
+        :y-num-ticks="callerChartData.length"
+        :x-formatter="formatCount"
+        :y-formatter="callerLabelFormatter"
+        :tooltip-title-formatter="labelTooltipTitle"
+        v-bind="horizontalBarProps(120)"
+      />
+    </UCard>
 
     <!-- Endpoint breakdown -->
     <UCard :ui="{ body: 'p-0 sm:p-0' }">

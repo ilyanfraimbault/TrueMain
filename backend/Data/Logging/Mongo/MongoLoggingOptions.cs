@@ -171,11 +171,12 @@ public sealed class MongoLoggingOptions
     /// <summary>
     /// Retention window for the <c>riot_api_call_rollups</c> metrics collection
     /// (#93), enforced by a native Mongo TTL index on <c>bucketStartUtc</c>.
-    /// Defaults to 14 days — the panel's widest window is 7 days, so a fortnight
-    /// gives headroom while keeping the rollup collection bounded. Set to
+    /// Defaults to 30 days, the panel's widest window (#1458): a throughput ramp step
+    /// has to be readable against the weeks before it, and 14 days cut that comparison
+    /// short. Cheap — the rollups are per minute, a few tens of MB a month. Set to
     /// <see cref="TimeSpan.Zero"/> or negative to disable the TTL index.
     /// </summary>
-    public TimeSpan RiotApiCallsRetention { get; set; } = TimeSpan.FromDays(14);
+    public TimeSpan RiotApiCallsRetention { get; set; } = TimeSpan.FromDays(30);
 
     /// <summary>
     /// Retention window for the <c>db_table_size_snapshots</c> collection (#925),

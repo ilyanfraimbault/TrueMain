@@ -11,7 +11,7 @@ public interface IRiotApiUsageQueryService
 {
     /// <summary>
     /// Builds the Riot API usage read-model for the given relative
-    /// <paramref name="window"/> (<c>1h</c> / <c>24h</c> / <c>7d</c>; unknown or
+    /// <paramref name="window"/> (<c>1h</c> / <c>24h</c> / <c>7d</c> / <c>30d</c>; unknown or
     /// null defaults to 24h), optionally restricted to a single
     /// <paramref name="endpoint"/> key.
     /// </summary>
@@ -114,15 +114,17 @@ public sealed class RiotApiUsageQueryService(IRiotApiUsageQuery query, TrueMainD
     }
 
     /// <summary>
-    /// Maps the query-string window (<c>1h</c> / <c>24h</c> / <c>7d</c>) to the
-    /// Data window enum and the canonical key echoed back. Unknown/blank values
-    /// default to 24h so a malformed param degrades gracefully.
+    /// Maps the query-string window (<c>1h</c> / <c>24h</c> / <c>7d</c> / <c>30d</c>) to
+    /// the Data window enum and the canonical key echoed back. Unknown/blank values
+    /// default to 24h so a malformed param degrades gracefully. Shared with
+    /// <see cref="RiotQuotaQueryService"/>, whose panel sits under the same selector.
     /// </summary>
-    private static (RiotUsageWindow Window, string Key) ResolveWindow(string? window)
+    internal static (RiotUsageWindow Window, string Key) ResolveWindow(string? window)
         => (window?.Trim().ToLowerInvariant()) switch
         {
             "1h" => (RiotUsageWindow.LastHour, "1h"),
             "7d" => (RiotUsageWindow.Last7Days, "7d"),
+            "30d" => (RiotUsageWindow.Last30Days, "30d"),
             _ => (RiotUsageWindow.Last24Hours, "24h")
         };
 
