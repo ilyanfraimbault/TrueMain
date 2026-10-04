@@ -61,13 +61,13 @@ const {
 } = useTruemainRankHistory(nameTag)
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
-  if (!identity) return nameTag.value
+  if (!identity) return truemainSlugLabel(nameTag.value) // pre-fetch: from the route alone (#948)
   return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
 })
 // Same identity, without the tag line: used inline in copy ("Faker vs mains"),
-// where the full Riot ID would be noise. Falls back to the raw slug while the
+// where the full Riot ID would be noise. Derived from the slug while the
 // profile fetch is in flight, like `playerLabel`.
-const playerName = computed(() => profile.value?.identity?.gameName ?? nameTag.value)
+const playerName = computed(() => profile.value?.identity?.gameName ?? parseTruemainNameTag(nameTag.value)?.gameName ?? nameTag.value)
 const profilePath = computed(() => truemainProfilePath(nameTag.value))
 
 // Shared static-data plumbing (see useChampionDetailStatics). This page
