@@ -29,4 +29,10 @@ public sealed class PipelineHealthOptions
     /// level to 0 or less to disable it.
     /// </summary>
     public double DiskForecastRedDays { get; set; } = 30;
+
+    /// <summary>
+    /// Days of ingestion the region-balance panel (#1153) totals and charts per platform. Not a
+    /// threshold — the panel judges nothing — only how far back the trend reaches.
+    /// </summary>
+    public int RegionBalanceWindowDays { get; set; } = 14;
 }

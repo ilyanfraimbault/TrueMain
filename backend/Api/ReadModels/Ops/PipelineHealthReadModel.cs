@@ -47,6 +47,12 @@ public sealed record PipelineHealthReadModel
     public RawDataFreshnessReadModel RawData { get; init; } = new();
 
     public PipelineGapReadModel Gaps { get; init; } = new();
+
+    /// <summary>
+    /// Per-platform balance (#1153). Informational: it feeds no signal and does not move the
+    /// verdict — where the balance becomes a problem is a threshold nobody has set yet.
+    /// </summary>
+    public RegionBalanceReadModel RegionBalance { get; init; } = new();
 }
 
 /// <summary>

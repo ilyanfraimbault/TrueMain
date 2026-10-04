@@ -132,6 +132,17 @@ public static class IngestorEffectiveConfigurationCatalog
             + "established-main share swings with the coverage deficit."
     };
 
+    private static EffectiveConfigurationSectionDescriptor Coverage { get; } = new()
+    {
+        SectionName = CoverageOptions.SectionName,
+        OptionsType = typeof(CoverageOptions),
+        Title = "Coverage",
+        Description =
+            "The active mains per champion per region the pipeline aims for. Its distance from "
+            + "this target is the coverage deficit that splits each match-ingest claim across "
+            + "regions, and the health cockpit's region-balance panel reads it from here."
+    };
+
     public static EffectiveConfigurationCatalog Instance { get; } = new(
         ProcessName: "Ingestor",
         Sections:
@@ -146,6 +157,7 @@ public static class IngestorEffectiveConfigurationCatalog
             Harvest,
             MainActivity,
             MatchIngestion,
+            Coverage,
             Intake,
             LaneOutcomeAggregation,
             MatchDataRetention
