@@ -1,9 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 public class AccountRefreshOptions
 {
     public const string SectionName = "AccountRefresh";
 
+    [Range(1, int.MaxValue)]
     public int BatchSize { get; set; } = 200;
 
     /// <summary>
@@ -13,6 +16,7 @@ public class AccountRefreshOptions
     /// snapshots for the duration of hundreds of HTTP round-trips, and every SaveChanges
     /// re-ran DetectChanges over all of them.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int SaveBatchSize { get; set; } = 25;
 
     /// <summary>
@@ -28,6 +32,7 @@ public class AccountRefreshOptions
     /// per-account path within one cycle.
     /// </para>
     /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "10675199.02:48:05.4775807")]
     public TimeSpan RankSyncFreshness { get; set; } = TimeSpan.FromHours(12);
 
     /// <summary>
@@ -46,5 +51,6 @@ public class AccountRefreshOptions
     /// can fill them. <see cref="TimeSpan.Zero"/> disables the skip.
     /// </para>
     /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "10675199.02:48:05.4775807")]
     public TimeSpan ProfileSyncFreshness { get; set; } = TimeSpan.FromDays(7);
 }

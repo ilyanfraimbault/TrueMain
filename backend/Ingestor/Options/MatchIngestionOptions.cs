@@ -1,17 +1,24 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 public class MatchIngestionOptions
 {
     public const string SectionName = "MatchIngestion";
 
+    [Range(1, int.MaxValue)]
     public int BatchSize { get; set; } = 50;
 
+    [Range(1, 100)]
     public int MatchesPerAccount { get; set; } = 20;
 
+    [Range(1, int.MaxValue)]
     public int SaveBatchSizeMatches { get; set; } = 10;
 
+    [Range(1, int.MaxValue)]
     public int MaxMatchFetchConcurrency { get; set; } = 4;
 
+    [Range(1, int.MaxValue)]
     public int ClaimLeaseMinutes { get; set; } = 30;
 
     /// <summary>
@@ -38,6 +45,7 @@ public class MatchIngestionOptions
     /// carries the share back up, and no one has to re-tune anything.
     /// </para>
     /// </summary>
+    [Range(0d, 1d)]
     public double EstablishedMainShare { get; set; } = 0.6;
 
     /// <summary>

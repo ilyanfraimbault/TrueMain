@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 public class DiscoveryOptions
@@ -28,6 +30,7 @@ public class DiscoveryOptions
     /// </summary>
     public List<string> TierScope { get; set; } = [];
 
+    [Range(1, int.MaxValue)]
     public int TopChampionsPerAccount { get; set; } = 10;
 
     public int MaxLastPlayDays { get; set; } = 10;
@@ -43,10 +46,12 @@ public class DiscoveryOptions
     /// over. Both deployed stacks override it regardless — 750 in prod, 100 in preprod.
     /// </para>
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int MaxAccountsPerPlatformPerRun { get; set; } = 500;
 
     public int NewAccountsTarget { get; set; } = 50;
 
+    [Range(1, int.MaxValue)]
     public int SaveBatchSize { get; set; } = 50;
 
     /// <summary>
@@ -86,5 +91,6 @@ public class DiscoveryOptions
     /// seen. <see cref="TimeSpan.Zero"/> restores the pre-#1358 behaviour of always calling.
     /// </para>
     /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "10675199.02:48:05.4775807")]
     public TimeSpan ProfileSyncFreshness { get; set; } = TimeSpan.FromDays(7);
 }

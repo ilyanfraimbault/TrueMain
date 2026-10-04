@@ -1,9 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 public class RiotOptions
 {
     public const string SectionName = "Riot";
 
+    [Required]
     public string ApiKey { get; set; } = string.Empty;
 
     /// <summary>
@@ -15,6 +18,7 @@ public class RiotOptions
     /// therefore the ingestor's <c>HttpClient.Timeout</c> for the Riot clients —
     /// to an unreasonable length rather than failing fast (#855).
     /// </summary>
+    [Range(1, 10)]
     public int MaxRetryAttempts { get; set; } = 3;
 
     /// <summary>
@@ -22,6 +26,7 @@ public class RiotOptions
     /// Riot API. Riot answers quickly even when throttling (a 429 is immediate),
     /// so this matches the standard resilience handler's 10s default.
     /// </summary>
+    [Range(1, 600)]
     public int AttemptTimeoutSeconds { get; set; } = 10;
 
     /// <summary>
@@ -33,6 +38,7 @@ public class RiotOptions
     /// <c>AttemptTimeoutSeconds * (MaxRetryAttempts + 1)</c> when configured lower
     /// — see <see cref="EffectiveTotalRequestTimeout"/> for the resolved value.
     /// </summary>
+    [Range(1, 3600)]
     public int TotalRequestTimeoutSeconds { get; set; } = 180;
 
     /// <summary>

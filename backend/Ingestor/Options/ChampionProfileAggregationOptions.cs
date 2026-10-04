@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -13,6 +15,7 @@ public class ChampionProfileAggregationOptions
     /// sibling folds: a batch loads ten slim participant rows and up to twenty 10/15-minute
     /// snapshots per match, never the ItemEvents jsonb.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int MatchBatchSize { get; set; } = 500;
 
     /// <summary>
@@ -21,6 +24,7 @@ public class ChampionProfileAggregationOptions
     /// history — most of it pre-#1448 rows that fold to nothing but still have to be
     /// flagged — before settling on the freshly-ingested tail.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxMatchesPerRun { get; set; } = 20000;
 
     /// <summary>
@@ -29,5 +33,6 @@ public class ChampionProfileAggregationOptions
     /// and up (Gnar's 400 is the ranged outlier), so the gap between 300 and 400 is where
     /// the line goes.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int RangedAttackRangeThreshold { get; set; } = 350;
 }

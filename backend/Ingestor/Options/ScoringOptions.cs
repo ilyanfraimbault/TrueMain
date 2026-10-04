@@ -1,15 +1,20 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 public class ScoringOptions
 {
     public const string SectionName = "Scoring";
 
+    [Range(1, int.MaxValue)]
     public int TopNPerPlatform { get; set; } = 200;
 
     public int MaxLastPlayDays { get; set; } = 10;
 
+    [Range(1, int.MaxValue)]
     public int TopChampionsPerAccount { get; set; } = 10;
 
+    [Range(1, int.MaxValue)]
     public int BatchSize { get; set; } = 5000;
 
     /// <summary>
@@ -21,12 +26,16 @@ public class ScoringOptions
     /// nothing changes until the key is set — the same convention as the aggregation folds'
     /// <c>MaxMatchesPerRun</c>.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxCandidatesPerRun { get; set; }
 
+    [Range(0d, double.MaxValue)]
     public double RecencyWeight { get; set; } = 0.65;
 
+    [Range(0d, double.MaxValue)]
     public double RankWeight { get; set; } = 0.20;
 
+    [Range(0d, double.MaxValue)]
     public double PointsWeight { get; set; } = 0.15;
 
     /// <summary>
@@ -34,6 +43,7 @@ public class ScoringOptions
     /// maining under-covered champions up the ranking so they cross the top-N ingestion
     /// queue, without changing the IsMain definition. Set to 0 to disable the bonus.
     /// </summary>
+    [Range(0d, double.MaxValue)]
     public double ScarcityWeight { get; set; } = 0.25;
 
     /// <summary>
@@ -43,6 +53,7 @@ public class ScoringOptions
     /// Harvested candidates reuse the combined rank+points weight as their merit weight,
     /// so they stay on the same 0-100 scale as ladder candidates in the top-N.
     /// </summary>
+    [Range(0d, double.MaxValue, MinimumIsExclusive = true)]
     public double HarvestObservedGamesLogNormalizer { get; set; } = 1.5;
 
     /// <summary>
@@ -55,5 +66,6 @@ public class ScoringOptions
     /// without a redeploy while the other is not.
     /// </para>
     /// </summary>
+    [Range(0d, double.MaxValue, MinimumIsExclusive = true)]
     public double ChampionPointsLogNormalizer { get; set; } = 6.0;
 }
