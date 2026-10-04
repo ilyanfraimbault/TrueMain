@@ -1,6 +1,7 @@
 import type { ChampionDirectoryResponse } from '#shared/types/champion-directory'
 import type { ChampionSummaryResponse } from '#shared/types/champions'
 import { DEFAULT_DIRECTORY_ORDER, type DirectoryOrder } from '#common/utils/table-sorting'
+import { describeStaleFetchError } from '#common/utils/errors'
 
 interface UseChampionDirectoryOptions {
   patch: MaybeRefOrGetter<string | null | undefined>
@@ -63,11 +64,21 @@ export function useChampionDirectory(options: UseChampionDirectoryOptions) {
       }),
     },
   )
-  const { data, status, error } = directoryFetch
+  const { status, refresh } = directoryFetch
+  // A failed filter, sort or page click keeps the previous page of rows on
+  // screen and answers the click with a toast (#1668); only a failed first
+  // load is the page's inline alert.
+  const actionToast = useActionToast()
+  const { data, error, staleError } = useRefetchFallback(directoryFetch, {
+    onStaleFailure: failure => actionToast.failure('Could not update the champion list', describeStaleFetchError(failure)),
+  })
 
   const rows = computed<ChampionSummaryResponse[]>(() => data.value?.rows ?? [])
   const total = computed(() => data.value?.total ?? 0)
   const pageSize = computed(() => data.value?.pageSize ?? options.pageSize)
+  // The page the rows on screen belong to — not the URL's after a failed pager
+  // click, so stale rows keep their own rank numbers.
+  const page = computed(() => data.value?.page ?? 1)
   const patchVersion = computed(() => data.value?.patchVersion ?? '')
   const isLoading = computed(() => status.value === 'pending' || status.value === 'idle')
 
@@ -83,11 +94,14 @@ export function useChampionDirectory(options: UseChampionDirectoryOptions) {
   return {
     rows,
     total,
+    page,
     pageSize,
     patchVersion,
     isLoading,
     isInitialLoading,
     error,
+    staleError,
+    refresh,
     // A client-side navigation waits under the loading bar for the first page (#1689).
     ready: directoryFetch.then(() => undefined),
   }

@@ -5,7 +5,9 @@
  * would otherwise leave no trace on screen — a link copied, a form submitted, a
  * batch finished. It never reports a page or a panel failing to load: that is
  * `FetchErrorAlert`'s job, and an alert stays on screen where a toast does not.
- * Nothing shows both for one event.
+ * Nothing shows both for one event. The one fetch failure it does report is a
+ * *refetch* the reader triggered — a filter or pager click — that failed while
+ * the previous content stayed on screen (`useRefetchFallback`, #1668).
  *
  * The colour/icon pairs live here rather than at each `toast.add` so the
  * vocabulary cannot drift one call site at a time — which is exactly how the

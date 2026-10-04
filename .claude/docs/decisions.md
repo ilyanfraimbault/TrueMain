@@ -171,7 +171,7 @@ Last verified against `develop` on 2026-09-02.
 - Measurements are set in Inter again: the mono stat face is withdrawn — #1060, #1111
 - Long-form text uses Nuxt UI's prose layer, themed to the site's scale; non-global components, +3.6 KB gzip CSS accepted (2026-09-17) — #1624
 - Page transitions are a fade-in of the content only, run by Vue's `<Transition>` once the destination has resolved; the old page leaves at once, never `out-in`; none on query-only navigations or reduced motion (2026-09-18, 2026-09-23, 2026-09-27) — #1621, #1689, #1714
-- One error vocabulary: `UError` for a dead route, `FetchErrorAlert` for a dead region, a toast only for an action — never two surfaces for one failure (2026-09-22) — #1661, #1234
+- One error vocabulary: `UError` for a dead route, `FetchErrorAlert` for a dead region, a toast only for an action — never two surfaces for one failure; a failed refetch keeps the previous content, one toast + a stale notice (2026-09-22, #1668 2026-10-05) — #1661, #1668, #1234
 - Empty states go through `UEmpty`, themed like the cards; an empty state is not an error, and "player not found" stays one (2026-09-22) — #1669, #1681, #1661, #862
 - Keycap edge on surfaces and filled buttons; translucency returns for the floating header only; type stays Inter set tight with rose eyebrows, primary buttons stay rose gold (2026-09-27) — #1709, #1060
 - Nuxt UI feeds Tailwind only the themes of the components the site uses (`componentDetection`): entry CSS 38.9 → 29.5 KB gzip, no visual change (2026-10-04) — #1641

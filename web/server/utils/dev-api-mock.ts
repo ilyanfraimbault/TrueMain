@@ -30,6 +30,7 @@ import type {
   ChampionSummaryResponse,
   ChampionSynergies,
   ChampionSynergyEntry,
+  ChampionTierListResponse,
   ChampionTrendResponse,
   ChampionTrioSynergies,
   ChampionTrioSynergyEntry,
@@ -441,6 +442,36 @@ async function mockChampionDirectory(query: Record<string, unknown>): Promise<Ch
     pageSize,
     total: lines.length,
     patchVersion: summaries[0]?.patchVersion ?? await latestShortPatch(),
+  }
+}
+
+// Tier list (`GET /champions/tierlist`): the summaries above grouped by their
+// per-lane tier, narrowed to one lane when asked. Like the directory, the
+// fixture ignores patch, elo and population.
+async function mockChampionTierList(query: Record<string, unknown>): Promise<ChampionTierListResponse> {
+  const summaries = await mockChampionSummaries()
+  const position = typeof query.position === 'string' ? query.position : null
+  const lines = summaries.filter(line => !position || line.position === position)
+  const tiers = DIRECTORY_TIER_ORDER
+    .map(tier => ({
+      tier,
+      entries: lines
+        .filter(line => line.tier === tier)
+        .sort((a, b) => b.tierScore - a.tierScore)
+        .map(line => ({
+          championId: line.championId,
+          position: line.position,
+          games: line.games,
+          winRate: line.winRate,
+          pickRate: line.pickRate,
+          banRate: line.banRate,
+        })),
+    }))
+    .filter(group => group.entries.length > 0)
+  return {
+    patchVersion: summaries[0]?.patchVersion ?? await latestShortPatch(),
+    position,
+    tiers,
   }
 }
 
@@ -1764,6 +1795,25 @@ export function devApiMockEnabled(): boolean {
 }
 
 /**
+ * The failure knob (#1668): with `NUXT_DEV_MOCK_FAIL` set to a regular
+ * expression, every mocked request whose `path?query` (plus the JSON body of a
+ * POST) matches it answers a 500 instead of its fixture. Lets a page's failure
+ * states be eyeballed without a backend — e.g. `NUXT_DEV_MOCK_FAIL='page=2'`
+ * loads the first page of a listing and fails the pager click to the second.
+ */
+export function devApiMockForcedFailure(
+  pathname: string,
+  query: Record<string, unknown>,
+  body: unknown,
+): boolean {
+  const pattern = process.env.NUXT_DEV_MOCK_FAIL
+  if (!pattern) return false
+  const search = new URLSearchParams(Object.entries(query).map(([key, value]) => [key, String(value)]))
+  const subject = `${pathname}?${search}${body === undefined ? '' : JSON.stringify(body)}`
+  return new RegExp(pattern).test(subject)
+}
+
+/**
  * `decodeURIComponent` that returns `undefined` on a malformed `%` sequence
  * (e.g. `foo%2`) instead of throwing a `URIError` — the caller treats that as
  * an unknown segment (clean 404) rather than letting it bubble up as a generic
@@ -2323,6 +2373,7 @@ export async function resolveDevApiMock(
 ): Promise<unknown | undefined> {
   if (path === '/champions') return mockChampionSummaries()
   if (path === '/champions/directory') return mockChampionDirectory(query)
+  if (path === '/champions/tierlist') return mockChampionTierList(query)
   if (path === '/champions/overview') return mockChampionOverview(query)
 
   const compositionGamesMatch = path.match(/^\/champions\/(\d+)\/composition-build\/games$/)

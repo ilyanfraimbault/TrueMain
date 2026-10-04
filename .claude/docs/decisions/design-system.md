@@ -260,13 +260,22 @@ what let it spread to every page that fetched.
   trace: a link copied, a form submitted, a bulk run finished. **Never a page-load failure.** A toast
   disappears, and the message a reader most needs to re-read is the one explaining why a panel is empty.
 
-**The carve-out that was considered and found empty.** The one honest case for a toast on a fetch failure is
-a *refetch* — a filter click that fails while the previous content stays on screen, where the action needs an
-answer and the inline alert may be scrolled out of view. It has no call sites: Nuxt's `useAsyncData` resets
-`data` to `options.default()` in its catch (`asyncData.js`), and every one of these templates renders the
-alert as the head of a `v-if` / `v-else-if` chain — so a failed refetch wipes the content and the alert takes
-its place, initial load and refetch alike. Building the mechanism for zero call sites is how a design system
-starts lying about itself; keeping the old rows on a failed refetch is a separate change, tracked on its own.
+**The refetch carve-out, built in #1668.** The one honest case for a toast on a fetch failure is a
+*refetch* — a filter, sort or pager click that fails while the previous content stays on screen, where the
+action needs an answer and the inline alert may be scrolled out of view. #1661 found it with no call sites
+(Nuxt's `useAsyncData` resets `data` to `options.default()` in its catch, so a failed refetch wiped the content
+and the alert took its place) and left it to #1668. `useRefetchFallback` (`web/layers/common`) now keeps the
+last payload a request *succeeded* with and splits the failure in two: nothing to keep (the first load) →
+`error`, the inline alert, no toast, unchanged; previous payload standing in → `staleError`, reported **once**
+as `useActionToast().failure` plus a muted `StaleContentNotice` ("Couldn't update — showing the previous
+results", with Retry) beside the content — a notice, never a second alert. Wired on `/champions`, the tier list,
+`/champions/[slug]` (and its player-scoped mirror, which shares `useChampion`), `/truemains` and `/matchup`. A
+payload is never kept across its **scope** — the champion a page or a recommendation is about — so another
+champion's build is never drawn under this one's name; inside it, rows fetched under the previous filters are
+kept on purpose, which is the opposite of the admin's same-key `useLastGoodPayload` (#1426). The leaderboard
+composable opts in per consumer (`refetchFailureTitle`): the champion page's Truemains card does not, since its
+"refetch" is another champion. The dev mock has a knob for it: `NUXT_DEV_MOCK_FAIL=<regex>` fails every mocked
+request whose `path?query` (plus a POST body) matches.
 
 **Both apps now have an `error.vue`, and both render inside their own chrome.** Web's replaced a hand-rolled
 centred panel that sat outside `AppHeader` / `AppFooter` — it told a visitor they had left the site. The

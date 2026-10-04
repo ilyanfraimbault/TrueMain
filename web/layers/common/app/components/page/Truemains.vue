@@ -80,9 +80,13 @@ const {
   isInitialLoading: leaderboardInitialLoading,
   isLoading: leaderboardLoading,
   error: leaderboardError,
+  staleError: leaderboardStaleError,
+  refresh: refreshLeaderboard,
   ready: leaderboardReady,
 } = useTruemainsLeaderboard(currentPage, {
   pageSize: LEADERBOARD_PAGE_SIZE,
+  // A failed filter, sort or page click keeps the previous rows (#1668).
+  refetchFailureTitle: 'Could not update the leaderboard',
   region: filterRegion,
   position: filterPosition,
   championId: filterChampionId,
@@ -137,6 +141,12 @@ await leaderboardReady
     <FetchErrorAlert
       :error="leaderboardError"
       title="Failed to load the leaderboard"
+    />
+
+    <StaleContentNotice
+      :error="leaderboardStaleError"
+      subject="the previous results"
+      :on-retry="() => refreshLeaderboard()"
     />
 
     <UEmpty

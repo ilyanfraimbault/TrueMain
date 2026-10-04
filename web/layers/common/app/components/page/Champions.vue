@@ -48,7 +48,7 @@ const directory = useChampionDirectory({
   page: currentPage,
   pageSize: PAGE_SIZE,
 })
-const { rows: summaries, total, patchVersion, error: directoryError } = directory
+const { rows: summaries, total, page: rowsPage, patchVersion, error: directoryError, staleError: directoryStaleError } = directory
 
 // Static fetches use `useLazyAsyncData` (not `useLazyFetch`) so the handler
 // closure can call `markStaticFetched` after the network round trip — the
@@ -232,10 +232,17 @@ await directory.ready
       />
 
       <template v-else>
+        <!-- A failed filter/sort/page click: the previous rows stay, marked stale (#1668). -->
+        <StaleContentNotice
+          :error="directoryStaleError"
+          subject="the previous results"
+          :on-retry="() => directory.refresh()"
+        />
+
         <ChampionDirectoryTable
           v-if="isColdLoading || rows.length > 0"
           :rows="rows"
-          :offset="(currentPage - 1) * PAGE_SIZE"
+          :offset="(rowsPage - 1) * PAGE_SIZE"
           :order="order"
           :loading="isColdLoading"
           :refreshing="directory.isLoading.value"
