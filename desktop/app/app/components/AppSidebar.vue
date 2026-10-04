@@ -11,7 +11,7 @@ const route = useRoute()
 const { screen } = useLcuState()
 const { status: recording } = useRecordings()
 // A downloaded update stays one click away after its toast is gone.
-const { readyVersion: updateVersion, installing: updating, restart: restartToUpdate } = useAppUpdate()
+const { readyVersion: updateVersion, installing: updating, stalled: updateStalled, restart: restartToUpdate } = useAppUpdate()
 
 const isActive = (prefix: string) => route.path === prefix || route.path.startsWith(`${prefix}/`)
 
@@ -84,7 +84,7 @@ onMounted(async () => {
         size="xs"
         variant="soft"
         class="ml-6 mt-2"
-        :loading="updating"
+        :loading="updating && !updateStalled"
         @click="restartToUpdate"
       />
     </div>
