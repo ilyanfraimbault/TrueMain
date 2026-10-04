@@ -110,6 +110,19 @@ export default defineNuxtConfig({
     // champion's win rate on the card is never more than an hour behind the
     // page it was shared from.
     cacheMaxAgeSeconds: 60 * 60,
+    security: {
+      // The module's 15 s default is shorter than a cold champion card (#1545).
+      // Measured on preprod: island-fetch 13.5 s + render 3.8 s = 17.4 s, the
+      // island almost entirely waiting on `GET /champions` for the card's
+      // filter — a slice only the cards read, so nothing else keeps the API's
+      // cache warm for it, and a cold key cost 6–12.5 s there. At 15 s the
+      // first crawler got a 408 and, worse, nothing was cached, so the next
+      // unfurl started from zero again. 30 s covers the measured worst case
+      // with headroom. It is a ceiling, not a cost: a warm render answers from
+      // the cache in milliseconds, and the 408 still bounds a stuck upstream.
+      // The same value bounds the island fetch and the renderer hooks.
+      renderTimeout: 30_000,
+    },
     defaults: {
       // Discord/X render 2:1 previews; 1200×630 is the size both crop to
       // without letterboxing.
