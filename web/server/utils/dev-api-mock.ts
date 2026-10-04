@@ -1793,6 +1793,30 @@ function wellFormedRiotId(riotId: string): boolean {
 }
 
 /**
+ * Reserved Riot IDs that stage the mains-comparison `INSUFFICIENT_SAMPLE`
+ * states (#868), keyed by lowercased tag line: type `Thin#PLAYER`,
+ * `Thin#MAINS` or `Thin#BOTH` in the panel to put the account side, the mains
+ * side, or both below `minGames`. No seeded player is named `Thin`, so these
+ * never shadow a real mock account.
+ */
+const THIN_SAMPLE_ACCOUNTS: Record<string, { player: boolean, mains: boolean }> = {
+  player: { player: true, mains: false },
+  mains: { player: false, mains: true },
+  both: { player: true, mains: true },
+}
+
+function thinSampleFixture(riotId: string): { identity: ProfileIdentity, player: boolean, mains: boolean } | null {
+  const [gameName, tagLine] = riotId.trim().split(/[#-]/)
+  if (gameName?.toLowerCase() !== 'thin' || !tagLine) return null
+  const fixture = THIN_SAMPLE_ACCOUNTS[tagLine.toLowerCase()]
+  if (!fixture) return null
+  return {
+    ...fixture,
+    identity: { gameName: 'Thin', tagLine: tagLine.toUpperCase(), platformId: 'EUW1', profileIconId: 29, summonerLevel: 120 },
+  }
+}
+
+/**
  * Account-vs-mains head-to-head (#528). Mirrors the backend's database-only
  * contract, including the parts that only differ in edge cases — a mock that
  * contradicts the contract is worse than none, because it makes a wrong
@@ -1806,6 +1830,8 @@ function wellFormedRiotId(riotId: string): boolean {
  *   invariants the read model documents (`winRate = wins / games`,
  *   `sampleMet = games >= minGames`, `status` following from both sides)
  *   cannot drift out of the mock the way a hardcoded `status: 'OK'` did.
+ * - The seeded players always clear the floor, so the `INSUFFICIENT_SAMPLE`
+ *   notice is staged through the reserved {@link THIN_SAMPLE_ACCOUNTS} (#868).
  */
 async function mockMainsComparison(
   id: number,
@@ -1837,12 +1863,19 @@ async function mockMainsComparison(
 
   // The mock players are keyed on the `Name-TAG` slug; the endpoint takes the
   // typed `Name#TAG` form, so normalise before the lookup.
-  const player = findPlayer(account.replace('#', '-'))
-  if (!player) return { ...base, status: 'UNKNOWN_ACCOUNT', player: null, mains: null }
+  const thin = thinSampleFixture(account)
+  const player = thin ? null : findPlayer(account.replace('#', '-'))
+  const playerIdentity = thin?.identity ?? player?.row.identity
+  if (!playerIdentity) return { ...base, status: 'UNKNOWN_ACCOUNT', player: null, mains: null }
 
-  const side = (seed: number, identity: ProfileIdentity | null, players: number): ChampionComparisonSide => {
+  const side = (seed: number, identity: ProfileIdentity | null, players: number, belowFloor = false): ChampionComparisonSide => {
     const rng = mulberry32(seed)
-    const games = 6 + Math.floor(rng() * 60) + (players > 1 ? 200 : 0)
+    // A thin side lands on 1..minGames-1 recorded games; one draw either way,
+    // so the rest of the side's stats stay identical to the seeded ones.
+    const roll = rng()
+    const games = belowFloor
+      ? 1 + Math.floor(roll * (minGames - 1))
+      : 6 + Math.floor(roll * 60) + (players > 1 ? 200 : 0)
     const deaths = round3(3 + rng() * 3)
     const kills = round3(4 + rng() * 5)
     const assists = round3(4 + rng() * 5)
@@ -1868,7 +1901,7 @@ async function mockMainsComparison(
     }
   }
 
-  const playerSide = side(s.id * 907 + 11, player.row.identity, 1)
+  const playerSide = side(s.id * 907 + 11, playerIdentity, 1, thin?.player)
 
   // A named target we don't hold: the player column stays populated, matching
   // ChampionMainsComparisonQueryService — only the yardstick is missing.
@@ -1878,8 +1911,8 @@ async function mockMainsComparison(
   }
 
   const mainsSide = target
-    ? side(s.id * 911 + 13, target.row.identity, 1)
-    : side(s.id * 919 + 17, null, 12)
+    ? side(s.id * 911 + 13, target.row.identity, 1, thin?.mains)
+    : side(s.id * 919 + 17, null, 12, thin?.mains)
 
   return {
     ...base,
