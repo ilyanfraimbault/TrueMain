@@ -69,6 +69,18 @@ renderer was rejected as still beta; a hand-rolled SVG→PNG route through the a
 rejected because `node:*-alpine` ships no system fonts, so text would not render — Satori takes font
 buffers directly, which is exactly the problem it solves — #926.
 
+**A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04).**
+The module's 15 s `renderTimeout` was shorter than a cold champion card: measured on preprod, island
+fetch 13.5 s + render 3.8 s = 17.4 s, the island almost entirely waiting on `GET /champions` for the
+card's filter (6–12.5 s on a cold key). That slice is read by the cards alone, so nothing else keeps the
+API's cache warm for it. A 408 also caches nothing, so every unfurl of an unvisited link started from
+zero — and crawlers ask once. `ogImage.security.renderTimeout` is 30 s: the cold card completes and is
+cached for every later unfurl, and the 408 still bounds a stuck upstream. Rejected: prerendering every
+champion card (build weight for artwork almost nobody shares) and a periodic warm-up of the card's
+upstream (recurring backend compute for a slice only crawlers read). Not solved here: a crawler whose own
+timeout is shorter than a cold render still sees no image on that first fetch; only a faster cold
+`GET /champions` closes that — #1545.
+
 **OG image URLs are signed with a secret regenerated at every build, and that is left as the default.**
 Without a secret, the encoded URL params are attacker-controllable, including the module's `html`
 option — an arbitrary-HTML renderer on our own origin. Pinning a stable `NUXT_OG_IMAGE_SECRET` would

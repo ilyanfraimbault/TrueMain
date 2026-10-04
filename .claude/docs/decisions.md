@@ -125,6 +125,7 @@ Last verified against `develop` on 2026-09-02.
 - The champion link graph was server-rendered, then removed — the pages are back to zero internal champion links — #1123, #1209, #147
 - A platform-dependent `UKbd` cannot be server-rendered — #1209
 - OG image rendering is on, pinned to Satori + resvg, and deliberately reaches exactly two pages — #551, #926, #600
+- A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04) — #1545
 - OG image URLs are signed with a secret regenerated at every build, and that is left as the default — #926
 - The sitemap advertises champions, not players (2026-09-01) — #862, #1337, #551
 
