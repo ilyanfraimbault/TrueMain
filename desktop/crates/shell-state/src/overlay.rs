@@ -276,16 +276,30 @@ impl OverlaySettings {
             .unwrap_or_default()
     }
 
-    /// Parse leniently: each field that does not parse, or is out of range,
-    /// is that field's default.
+    /// Parse the settings file leniently: each field that does not parse, or
+    /// is out of range, is that field's default.
     pub fn from_json(body: &str) -> Self {
         let Ok(Value::Object(fields)) = serde_json::from_str::<Value>(body) else {
             return Self::default();
         };
-        let defaults = Self::default();
         // Before version 2 a dragged place was the panel's centre: read as
         // version 2 it would land elsewhere, so the panel goes back to its spot.
         let current = parse::<u32>(fields.get("version")).is_some_and(|v| v >= 2);
+        Self::from_fields(&fields, current)
+    }
+
+    /// Parse settings the app sends, as leniently as the file. They are
+    /// always this build's format: the app holds what the shell gave it, which
+    /// carries no version — only the file does.
+    pub fn from_app(body: &str) -> Self {
+        let Ok(Value::Object(fields)) = serde_json::from_str::<Value>(body) else {
+            return Self::default();
+        };
+        Self::from_fields(&fields, true)
+    }
+
+    fn from_fields(fields: &serde_json::Map<String, Value>, current: bool) -> Self {
+        let defaults = Self::default();
         let in_range = |min: f64, max: f64| move |value: &f64| (min..=max).contains(value);
         let panel = |key: &str, fallback: PanelSettings| {
             let field = fields.get(key);
@@ -505,6 +519,21 @@ mod tests {
         assert_eq!(
             OverlaySettings::from_json(new).stats.custom,
             Some(OverlayPoint { x: 0.9, y: 0.5 })
+        );
+    }
+
+    #[test]
+    fn a_place_the_app_sends_is_kept_without_a_version() {
+        // What the shell hands the app, and the app sends back with a change.
+        let mut settings = OverlaySettings::default();
+        settings.stats.custom = Some(OverlayPoint { x: 0.9, y: 0.5 });
+        let sent = serde_json::to_string(&settings).unwrap();
+        assert_eq!(OverlaySettings::from_app(&sent), settings);
+        assert_eq!(
+            OverlaySettings::from_app(r#"{"stats":{"custom":{"x":2,"y":0.5}}}"#)
+                .stats
+                .custom,
+            None
         );
     }
 
