@@ -88,7 +88,7 @@ export default defineNuxtConfig({
   // #926 supplies the artwork (app/components/OgImage/*.satori.vue), so the
   // trade flips; the *cost* half of that note still stands and is why the
   // setup below stays deliberately narrow:
-  //   - only the two pages that have a card call `defineOgImageComponent()`;
+  //   - only the two pages that have a card call `defineOgImage()`;
   //     every other page keeps the plain og:title/og:description seo-utils
   //     already derives, and never touches the renderer;
   //   - the `.satori.vue` suffix pins the renderer to Satori + resvg (added as

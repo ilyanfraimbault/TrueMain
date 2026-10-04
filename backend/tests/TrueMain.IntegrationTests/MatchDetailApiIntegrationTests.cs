@@ -396,7 +396,6 @@ public sealed class MatchDetailApiIntegrationTests
 
         db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
         {
-            Id = Guid.NewGuid(),
             MatchId = MatchId,
             ParticipantId = participantId,
             Catalog = catalog,

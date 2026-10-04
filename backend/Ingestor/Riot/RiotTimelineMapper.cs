@@ -15,7 +15,7 @@ internal static class RiotTimelineMapper
         var events = new List<MatchTimelineEventDto>();
 
         // Riot can send an explicit null for any collection (e.g. "participantFrames": null),
-        // which System.Text.Json honours over the DTO's `= new()` default. Guard every nested
+        // which System.Text.Json honours over the DTO's `= []` default. Guard every nested
         // collection so a single degenerate frame/match can't NRE and poison the ingestion queue.
         var sourceFrames = timeline.Info?.Frames ?? [];
         var frames = new List<MatchTimelineFrameDto>(sourceFrames.Count);

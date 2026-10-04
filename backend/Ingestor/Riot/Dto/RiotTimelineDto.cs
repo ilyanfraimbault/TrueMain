@@ -2,122 +2,122 @@ using System.Text.Json.Serialization;
 
 namespace Ingestor.Riot.Dto;
 
-public class RiotTimelineDto
+public sealed record RiotTimelineDto
 {
     [JsonPropertyName("info")]
-    public RiotTimelineInfoDto Info { get; set; } = new();
+    public RiotTimelineInfoDto Info { get; init; } = new();
 }
 
-public class RiotTimelineInfoDto
+public sealed record RiotTimelineInfoDto
 {
     [JsonPropertyName("frames")]
-    public List<RiotTimelineFrameDto> Frames { get; set; } = new();
+    public IReadOnlyList<RiotTimelineFrameDto> Frames { get; init; } = [];
 }
 
-public class RiotTimelineFrameDto
+public sealed record RiotTimelineFrameDto
 {
     [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
+    public long Timestamp { get; init; }
 
     [JsonPropertyName("events")]
-    public List<RiotTimelineEventDto> Events { get; set; } = new();
+    public IReadOnlyList<RiotTimelineEventDto> Events { get; init; } = [];
 
     [JsonPropertyName("participantFrames")]
-    public Dictionary<string, RiotTimelineParticipantFrameDto> ParticipantFrames { get; set; } = new();
+    public IReadOnlyDictionary<string, RiotTimelineParticipantFrameDto> ParticipantFrames { get; init; } = new Dictionary<string, RiotTimelineParticipantFrameDto>();
 }
 
-public class RiotTimelineParticipantFrameDto
+public sealed record RiotTimelineParticipantFrameDto
 {
     [JsonPropertyName("participantId")]
-    public int ParticipantId { get; set; }
+    public int ParticipantId { get; init; }
 
     [JsonPropertyName("position")]
-    public RiotTimelinePositionDto? Position { get; set; }
+    public RiotTimelinePositionDto? Position { get; init; }
 
     [JsonPropertyName("currentGold")]
-    public int CurrentGold { get; set; }
+    public int CurrentGold { get; init; }
 
     [JsonPropertyName("totalGold")]
-    public int TotalGold { get; set; }
+    public int TotalGold { get; init; }
 
     [JsonPropertyName("level")]
-    public int Level { get; set; }
+    public int Level { get; init; }
 
     [JsonPropertyName("xp")]
-    public int Xp { get; set; }
+    public int Xp { get; init; }
 
     [JsonPropertyName("minionsKilled")]
-    public int MinionsKilled { get; set; }
+    public int MinionsKilled { get; init; }
 
     [JsonPropertyName("jungleMinionsKilled")]
-    public int JungleMinionsKilled { get; set; }
+    public int JungleMinionsKilled { get; init; }
 
     [JsonPropertyName("damageStats")]
-    public RiotTimelineDamageStatsDto? DamageStats { get; set; }
+    public RiotTimelineDamageStatsDto? DamageStats { get; init; }
 }
 
-public class RiotTimelinePositionDto
+public sealed record RiotTimelinePositionDto
 {
     [JsonPropertyName("x")]
-    public int X { get; set; }
+    public int X { get; init; }
 
     [JsonPropertyName("y")]
-    public int Y { get; set; }
+    public int Y { get; init; }
 }
 
-public class RiotTimelineDamageStatsDto
+public sealed record RiotTimelineDamageStatsDto
 {
     [JsonPropertyName("totalDamageDoneToChampions")]
-    public int TotalDamageDoneToChampions { get; set; }
+    public int TotalDamageDoneToChampions { get; init; }
 
     [JsonPropertyName("magicDamageDoneToChampions")]
-    public int MagicDamageDoneToChampions { get; set; }
+    public int MagicDamageDoneToChampions { get; init; }
 
     [JsonPropertyName("physicalDamageDoneToChampions")]
-    public int PhysicalDamageDoneToChampions { get; set; }
+    public int PhysicalDamageDoneToChampions { get; init; }
 
     [JsonPropertyName("trueDamageDoneToChampions")]
-    public int TrueDamageDoneToChampions { get; set; }
+    public int TrueDamageDoneToChampions { get; init; }
 }
 
-public class RiotTimelineEventDto
+public sealed record RiotTimelineEventDto
 {
     [JsonPropertyName("type")]
-    public string Type { get; set; } = string.Empty;
+    public string Type { get; init; } = string.Empty;
 
     [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
+    public long Timestamp { get; init; }
 
     [JsonPropertyName("participantId")]
-    public int? ParticipantId { get; set; }
+    public int? ParticipantId { get; init; }
 
     [JsonPropertyName("itemId")]
-    public int? ItemId { get; set; }
+    public int? ItemId { get; init; }
 
     [JsonPropertyName("beforeId")]
-    public int? BeforeId { get; set; }
+    public int? BeforeId { get; init; }
 
     [JsonPropertyName("afterId")]
-    public int? AfterId { get; set; }
+    public int? AfterId { get; init; }
 
     [JsonPropertyName("skillSlot")]
-    public int? SkillSlot { get; set; }
+    public int? SkillSlot { get; init; }
 
     [JsonPropertyName("levelUpType")]
-    public string? LevelUpType { get; set; }
+    public string? LevelUpType { get; init; }
 
     [JsonPropertyName("killerId")]
-    public int? KillerId { get; set; }
+    public int? KillerId { get; init; }
 
     [JsonPropertyName("victimId")]
-    public int? VictimId { get; set; }
+    public int? VictimId { get; init; }
 
     [JsonPropertyName("creatorId")]
-    public int? CreatorId { get; set; }
+    public int? CreatorId { get; init; }
 
     [JsonPropertyName("assistingParticipantIds")]
-    public List<int>? AssistingParticipantIds { get; set; }
+    public IReadOnlyList<int>? AssistingParticipantIds { get; init; }
 
     [JsonPropertyName("position")]
-    public RiotTimelinePositionDto? Position { get; set; }
+    public RiotTimelinePositionDto? Position { get; init; }
 }

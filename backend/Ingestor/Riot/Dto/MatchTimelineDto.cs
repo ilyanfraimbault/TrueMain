@@ -1,74 +1,74 @@
 namespace Ingestor.Riot.Dto;
 
-public class MatchTimelineDto
+public sealed record MatchTimelineDto
 {
-    public List<MatchTimelineEventDto> Events { get; set; } = new();
+    public IReadOnlyList<MatchTimelineEventDto> Events { get; init; } = [];
 
-    public List<MatchTimelineFrameDto> Frames { get; set; } = new();
+    public IReadOnlyList<MatchTimelineFrameDto> Frames { get; init; } = [];
 }
 
-public class MatchTimelineFrameDto
+public sealed record MatchTimelineFrameDto
 {
-    public int TimestampMs { get; set; }
+    public int TimestampMs { get; init; }
 
-    public List<MatchParticipantFrameDto> ParticipantFrames { get; set; } = new();
+    public IReadOnlyList<MatchParticipantFrameDto> ParticipantFrames { get; init; } = [];
 }
 
-public class MatchParticipantFrameDto
+public sealed record MatchParticipantFrameDto
 {
-    public int ParticipantId { get; set; }
+    public int ParticipantId { get; init; }
 
     // Null when the frame carries no position, kept distinct from a real (0, 0)
     // coordinate so pathing/heatmap consumers (#535) can drop GPS-less frames.
-    public int? X { get; set; }
+    public int? X { get; init; }
 
-    public int? Y { get; set; }
+    public int? Y { get; init; }
 
-    public int CurrentGold { get; set; }
+    public int CurrentGold { get; init; }
 
-    public int TotalGold { get; set; }
+    public int TotalGold { get; init; }
 
-    public int Level { get; set; }
+    public int Level { get; init; }
 
-    public int Xp { get; set; }
+    public int Xp { get; init; }
 
-    public int MinionsKilled { get; set; }
+    public int MinionsKilled { get; init; }
 
-    public int JungleMinionsKilled { get; set; }
+    public int JungleMinionsKilled { get; init; }
 
     // Only the total is propagated. The Riot payload also splits magic/physical/true
     // damage to champions (deserialized in RiotTimelineDamageStatsDto) — intentionally
     // not mapped here (YAGNI); add them if a downstream analytic needs the breakdown.
-    public int TotalDamageToChampions { get; set; }
+    public int TotalDamageToChampions { get; init; }
 }
 
-public class MatchTimelineEventDto
+public sealed record MatchTimelineEventDto
 {
-    public int ParticipantId { get; set; }
+    public int ParticipantId { get; init; }
 
-    public int TimestampMs { get; set; }
+    public int TimestampMs { get; init; }
 
-    public string Type { get; set; } = string.Empty;
+    public string Type { get; init; } = string.Empty;
 
-    public int? ItemId { get; set; }
+    public int? ItemId { get; init; }
 
-    public int? BeforeId { get; set; }
+    public int? BeforeId { get; init; }
 
-    public int? AfterId { get; set; }
+    public int? AfterId { get; init; }
 
-    public int? SkillSlot { get; set; }
+    public int? SkillSlot { get; init; }
 
-    public string? LevelUpType { get; set; }
+    public string? LevelUpType { get; init; }
 
-    public int? KillerId { get; set; }
+    public int? KillerId { get; init; }
 
-    public int? VictimId { get; set; }
+    public int? VictimId { get; init; }
 
-    public int? CreatorId { get; set; }
+    public int? CreatorId { get; init; }
 
-    public IReadOnlyList<int> AssistingParticipantIds { get; set; } = [];
+    public IReadOnlyList<int> AssistingParticipantIds { get; init; } = [];
 
-    public int? PositionX { get; set; }
+    public int? PositionX { get; init; }
 
-    public int? PositionY { get; set; }
+    public int? PositionY { get; init; }
 }

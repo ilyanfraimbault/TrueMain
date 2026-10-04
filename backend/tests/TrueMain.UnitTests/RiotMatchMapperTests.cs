@@ -54,9 +54,8 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_DetectsPrimaryAndSubStyleFromPerkDescriptions()
     {
-        var dto = BuildMatch();
-        dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1",
-            primaryStyleId: 8000, subStyleId: 8400));
+        var dto = BuildMatch(participants: [BuildParticipant(participantId: 1, puuid: "p-1",
+            primaryStyleId: 8000, subStyleId: 8400)]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -69,10 +68,9 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_DefaultsBothStyles_WhenPerkStylesMissing()
     {
-        var dto = BuildMatch();
         var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
-        participantDto.Perks.Styles.Clear();
-        dto.Info.Participants.Add(participantDto);
+        var dto = BuildMatch(participants:
+            [participantDto with { Perks = participantDto.Perks with { Styles = [] } }]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -83,10 +81,13 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_AliasesTrinketAsItem6()
     {
-        var dto = BuildMatch();
-        var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
-        participantDto.Item6 = 3340;
-        dto.Info.Participants.Add(participantDto);
+        var dto = BuildMatch(participants:
+        [
+            BuildParticipant(participantId: 1, puuid: "p-1") with
+            {
+                Item6 = 3340
+            }
+        ]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -97,11 +98,14 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_CopiesTheRoleBoundItem()
     {
-        var dto = BuildMatch();
-        var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
-        participantDto.Item6 = 3363;
-        participantDto.RoleBoundItem = 3006;
-        dto.Info.Participants.Add(participantDto);
+        var dto = BuildMatch(participants:
+        [
+            BuildParticipant(participantId: 1, puuid: "p-1") with
+            {
+                Item6 = 3363,
+                RoleBoundItem = 3006
+            }
+        ]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -112,11 +116,14 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_CopiesDamageDealtToChampionsAndVisionScore()
     {
-        var dto = BuildMatch();
-        var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
-        participantDto.TotalDamageDealtToChampions = 27431;
-        participantDto.VisionScore = 42;
-        dto.Info.Participants.Add(participantDto);
+        var dto = BuildMatch(participants:
+        [
+            BuildParticipant(participantId: 1, puuid: "p-1") with
+            {
+                TotalDamageDealtToChampions = 27431,
+                VisionScore = 42
+            }
+        ]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -127,8 +134,7 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_DefaultsDamageAndVisionScore_ToZero()
     {
-        var dto = BuildMatch();
-        dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
+        var dto = BuildMatch(participants: [BuildParticipant(participantId: 1, puuid: "p-1")]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -140,9 +146,11 @@ public sealed class RiotMatchMapperTests
     public void Map_AssignsRiotAccountId_WhenParticipantPuuidMatchesPlatformAndPuuid()
     {
         var accountId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-        var dto = BuildMatch();
-        dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "matched-puuid"));
-        dto.Info.Participants.Add(BuildParticipant(participantId: 2, puuid: "other-puuid"));
+        var dto = BuildMatch(participants:
+        [
+            BuildParticipant(participantId: 1, puuid: "matched-puuid"),
+            BuildParticipant(participantId: 2, puuid: "other-puuid")
+        ]);
 
         var accounts = new Dictionary<AccountKey, RiotAccount>
         {
@@ -164,8 +172,7 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_LeavesItemAndSkillEventsEmpty_AsTimelineHydratesThemSeparately()
     {
-        var dto = BuildMatch();
-        dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
+        var dto = BuildMatch(participants: [BuildParticipant(participantId: 1, puuid: "p-1")]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -176,11 +183,8 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_PreservesParticipantOrderAndCount()
     {
-        var dto = BuildMatch();
-        for (var i = 1; i <= 10; i++)
-        {
-            dto.Info.Participants.Add(BuildParticipant(participantId: i, puuid: $"puuid-{i}"));
-        }
+        var dto = BuildMatch(participants:
+            [.. Enumerable.Range(1, 10).Select(i => BuildParticipant(participantId: i, puuid: $"puuid-{i}"))]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -191,14 +195,16 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_CorrectsTeamPosition_WhenOneLaneIsMissingAndOneMemberIsUnresolved()
     {
-        var dto = BuildMatch();
-        dto.Info.Participants.Add(BuildParticipant(1, "p-1", teamId: 100, teamPosition: "TOP"));
-        dto.Info.Participants.Add(BuildParticipant(2, "p-2", teamId: 100, teamPosition: "JUNGLE"));
-        // MIDDLE is missing on team 100, and this member's position is blank —
-        // the unambiguous pairing this fix targets.
-        dto.Info.Participants.Add(BuildParticipant(3, "p-3", teamId: 100, teamPosition: ""));
-        dto.Info.Participants.Add(BuildParticipant(4, "p-4", teamId: 100, teamPosition: "BOTTOM"));
-        dto.Info.Participants.Add(BuildParticipant(5, "p-5", teamId: 100, teamPosition: "UTILITY"));
+        var dto = BuildMatch(participants:
+        [
+            BuildParticipant(1, "p-1", teamId: 100, teamPosition: "TOP"),
+            BuildParticipant(2, "p-2", teamId: 100, teamPosition: "JUNGLE"),
+            // MIDDLE is missing on team 100, and this member's position is blank —
+            // the unambiguous pairing this fix targets.
+            BuildParticipant(3, "p-3", teamId: 100, teamPosition: ""),
+            BuildParticipant(4, "p-4", teamId: 100, teamPosition: "BOTTOM"),
+            BuildParticipant(5, "p-5", teamId: 100, teamPosition: "UTILITY")
+        ]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -208,14 +214,16 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_LeavesTeamPositionsUntouched_WhenMultipleMembersAreUnresolved()
     {
-        var dto = BuildMatch();
-        dto.Info.Participants.Add(BuildParticipant(1, "p-1", teamId: 100, teamPosition: "TOP"));
-        dto.Info.Participants.Add(BuildParticipant(2, "p-2", teamId: 100, teamPosition: "JUNGLE"));
-        // Two gaps (MIDDLE, UTILITY) and two unresolved members — ambiguous which
-        // unresolved member goes where, so neither is guessed.
-        dto.Info.Participants.Add(BuildParticipant(3, "p-3", teamId: 100, teamPosition: ""));
-        dto.Info.Participants.Add(BuildParticipant(4, "p-4", teamId: 100, teamPosition: "BOTTOM"));
-        dto.Info.Participants.Add(BuildParticipant(5, "p-5", teamId: 100, teamPosition: ""));
+        var dto = BuildMatch(participants:
+        [
+            BuildParticipant(1, "p-1", teamId: 100, teamPosition: "TOP"),
+            BuildParticipant(2, "p-2", teamId: 100, teamPosition: "JUNGLE"),
+            // Two gaps (MIDDLE, UTILITY) and two unresolved members — ambiguous which
+            // unresolved member goes where, so neither is guessed.
+            BuildParticipant(3, "p-3", teamId: 100, teamPosition: ""),
+            BuildParticipant(4, "p-4", teamId: 100, teamPosition: "BOTTOM"),
+            BuildParticipant(5, "p-5", teamId: 100, teamPosition: "")
+        ]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -226,13 +234,15 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_LeavesTeamPositionsUntouched_WhenTeamIsNotFullHeadcount()
     {
-        var dto = BuildMatch();
-        dto.Info.Participants.Add(BuildParticipant(1, "p-1", teamId: 100, teamPosition: "TOP"));
-        dto.Info.Participants.Add(BuildParticipant(2, "p-2", teamId: 100, teamPosition: "JUNGLE"));
-        // Only 4 members on the team — the wrong-headcount case is already flagged
-        // separately and must not be papered over with a guessed lane.
-        dto.Info.Participants.Add(BuildParticipant(3, "p-3", teamId: 100, teamPosition: ""));
-        dto.Info.Participants.Add(BuildParticipant(4, "p-4", teamId: 100, teamPosition: "BOTTOM"));
+        var dto = BuildMatch(participants:
+        [
+            BuildParticipant(1, "p-1", teamId: 100, teamPosition: "TOP"),
+            BuildParticipant(2, "p-2", teamId: 100, teamPosition: "JUNGLE"),
+            // Only 4 members on the team — the wrong-headcount case is already flagged
+            // separately and must not be papered over with a guessed lane.
+            BuildParticipant(3, "p-3", teamId: 100, teamPosition: ""),
+            BuildParticipant(4, "p-4", teamId: 100, teamPosition: "BOTTOM")
+        ]);
 
         var result = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow);
 
@@ -243,6 +253,7 @@ public sealed class RiotMatchMapperTests
         => new Dictionary<AccountKey, RiotAccount>();
 
     private static RiotMatchDto BuildMatch(
+        IReadOnlyList<RiotParticipantDto>? participants = null,
         string gameVersion = "16.4.1",
         int queueId = 420,
         int mapId = 11,
@@ -261,7 +272,7 @@ public sealed class RiotMatchMapperTests
                 GameStartTimestamp = startTimestampMs,
                 GameDuration = gameDuration,
                 GameVersion = gameVersion,
-                Participants = []
+                Participants = participants ?? []
             }
         };
     }
@@ -269,19 +280,22 @@ public sealed class RiotMatchMapperTests
     [Fact]
     public void Map_CarriesParticipantContextFields()
     {
-        var dto = BuildMatch();
-        var participantDto = BuildParticipant(participantId: 1, puuid: "p-1");
-        participantDto.PhysicalDamageDealtToChampions = 12_000;
-        participantDto.MagicDamageDealtToChampions = 3_000;
-        participantDto.TrueDamageDealtToChampions = 500;
-        participantDto.TotalHeal = 4_200;
-        participantDto.TotalHealsOnTeammates = 1_100;
-        participantDto.TotalDamageShieldedOnTeammates = 900;
-        participantDto.TimeCCingOthers = 38;
-        participantDto.TotalTimeCCDealt = 210;
-        participantDto.TotalDamageTaken = 21_000;
-        participantDto.DamageSelfMitigated = 15_500;
-        dto.Info.Participants.Add(participantDto);
+        var dto = BuildMatch(participants:
+        [
+            BuildParticipant(participantId: 1, puuid: "p-1") with
+            {
+                PhysicalDamageDealtToChampions = 12_000,
+                MagicDamageDealtToChampions = 3_000,
+                TrueDamageDealtToChampions = 500,
+                TotalHeal = 4_200,
+                TotalHealsOnTeammates = 1_100,
+                TotalDamageShieldedOnTeammates = 900,
+                TimeCCingOthers = 38,
+                TotalTimeCCDealt = 210,
+                TotalDamageTaken = 21_000,
+                DamageSelfMitigated = 15_500
+            }
+        ]);
 
         var participant = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow).Participants[0];
 
@@ -302,8 +316,7 @@ public sealed class RiotMatchMapperTests
     {
         // "Not measured" must survive the mapping as null: a zero here would be
         // folded into the champion profiles as a real measurement.
-        var dto = BuildMatch();
-        dto.Info.Participants.Add(BuildParticipant(participantId: 1, puuid: "p-1"));
+        var dto = BuildMatch(participants: [BuildParticipant(participantId: 1, puuid: "p-1")]);
 
         var participant = RiotMatchMapper.Map(dto, TestPlatform, EmptyAccountMap(), FixedNow).Participants[0];
 
