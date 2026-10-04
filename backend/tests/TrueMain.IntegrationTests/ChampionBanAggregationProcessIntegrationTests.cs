@@ -5,6 +5,7 @@ using Core.Options;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.TestKit;
@@ -158,6 +159,39 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_FoldsInCappedBatches_AndConvergesOnTheSingleBatchTotals()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await SeedMatchesAsync(count: 7, bands: [EloBracket.Gold], bans: [(100, Banned)]);
+
+        // Batches of 2 under a cap of 5: 2 + 2 + 1 this run, the last 2 on the next. Every
+        // batch upserts the same rows again, so the counters only add up if the conflict
+        // branch adds rather than replaces (#1239).
+        var process = CreateProcess(new BanAggregationOptions { MatchBatchSize = 2, MaxMatchesPerRun = 5 });
+
+        var first = (BanAggregationSummary)(await process.RunCoreAsync(CancellationToken.None))!;
+        first.Matches.Should().Be(5);
+        first.Batches.Should().Be(3);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            (await db.Matches.CountAsync(m => !m.BansAggregated)).Should().Be(2, "the run cap left the tail pending");
+        }
+
+        var second = (BanAggregationSummary)(await process.RunCoreAsync(CancellationToken.None))!;
+        second.Matches.Should().Be(2);
+        second.Batches.Should().Be(1);
+
+        await using var verify = _fixture.CreateDbContext();
+        var stats = await verify.ChampionBanStats.AsNoTracking().ToListAsync();
+        stats.Should().HaveCount(2);
+        stats.Should().AllSatisfy(stat => stat.Bans.Should().Be(7));
+        var totals = await verify.BanScopeTotals.AsNoTracking().ToListAsync();
+        totals.Should().HaveCount(2);
+        totals.Should().AllSatisfy(total => total.Matches.Should().Be(7));
+    }
+
+    [Fact]
     public async Task RunAsync_SkipsMatchesFromOtherQueues()
     {
         await _fixture.ResetDatabaseAsync();
@@ -171,11 +205,11 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
             .Should().Be(3, "an out-of-queue match is left pending, exactly as the other folds leave it");
     }
 
-    private ChampionBanAggregationProcess CreateProcess()
+    private ChampionBanAggregationProcess CreateProcess(BanAggregationOptions? options = null)
         => new(
             NullLogger<ChampionBanAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
-            Microsoft.Extensions.Options.Options.Create(new BanAggregationOptions()),
+            Microsoft.Extensions.Options.Options.Create(options ?? new BanAggregationOptions()),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
 

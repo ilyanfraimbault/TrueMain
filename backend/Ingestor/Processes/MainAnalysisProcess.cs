@@ -79,17 +79,20 @@ public sealed class MainAnalysisProcess(
         var summary = new AnalysisSummary();
         var processingBatchSize = Math.Max(1, options.ProcessingBatchSize);
 
-        for (var i = 0; i < accounts.Count; i += processingBatchSize)
+        var batchStart = 0;
+
+        foreach (var batch in accounts.Chunk(processingBatchSize))
         {
-            var batch = accounts.Skip(i).Take(processingBatchSize).ToList();
             var batchResult = await AnalyzeBatchAsync(batch, options, coverage, nowUtc, ct);
             summary.Merge(batchResult);
 
             logger.LogDebug(
                 "Processed batch {BatchStart}-{BatchEnd}/{Total} accounts.",
-                i + 1,
-                Math.Min(i + processingBatchSize, accounts.Count),
+                batchStart + 1,
+                batchStart + batch.Length,
                 accounts.Count);
+
+            batchStart += batch.Length;
         }
 
         return summary;
