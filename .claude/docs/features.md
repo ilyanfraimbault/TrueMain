@@ -370,6 +370,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   offers its newest beta at once, truemain.lol's the production build once it is served. The installed app checks its own site's feed (Tauri updater) at
   launch and every 15 minutes, downloads a newer build in the background and installs it itself at launch when no
   champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
+  An install that has not restarted the app 30 s in swaps its progress toast for "Restart now" (a plain relaunch, never a
+  second install over the running one, #1793).
   "Check for Updates…" runs the check on demand: in the app menu on macOS, in the tray icon's menu on Windows.
   Unsigned by Apple and Microsoft for the beta.
 - **Usage counts** (#1805, `src-tauri/src/telemetry.rs`): a random install id drawn on the first launch
