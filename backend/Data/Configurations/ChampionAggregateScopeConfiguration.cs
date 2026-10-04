@@ -62,6 +62,7 @@ public sealed class ChampionAggregateScopeConfiguration : IEntityTypeConfigurati
 
         entity.HasOne(e => e.RiotAccount)
             .WithMany()
-            .HasForeignKey(e => e.RiotAccountId);
+            .HasForeignKey(e => e.RiotAccountId)
+            .IsRequired();
     }
 }
