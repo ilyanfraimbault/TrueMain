@@ -18,7 +18,7 @@ namespace TrueMain.IntegrationTests;
 /// <c>?sort=dedication</c> path pages on.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class TruemainsDedicationApiIntegrationTests
+public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -27,10 +27,13 @@ public sealed class TruemainsDedicationApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Profile_scores_the_signature_champion_from_its_play_rate_and_mastery()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var account = Account("devoted-puuid", "Devoted", "EUW1");
@@ -88,7 +91,6 @@ public sealed class TruemainsDedicationApiIntegrationTests
     [Fact]
     public async Task Profile_scores_a_main_with_unread_mastery_on_play_rate_alone()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var account = Account("fresh-puuid", "Fresh", "EUW1");
@@ -118,7 +120,6 @@ public sealed class TruemainsDedicationApiIntegrationTests
     [Fact]
     public async Task Leaderboard_sorted_by_dedication_reorders_the_rank_ladder()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Two accounts whose rank order is the inverse of their dedication:
@@ -169,7 +170,6 @@ public sealed class TruemainsDedicationApiIntegrationTests
     [Fact]
     public async Task Leaderboard_scores_the_filtered_champion_not_the_top_main()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var account = Account("flex-puuid", "Flex", "EUW1");
@@ -209,7 +209,6 @@ public sealed class TruemainsDedicationApiIntegrationTests
     [Fact]
     public async Task Leaderboard_scores_the_same_champion_under_both_sorts_with_a_position_filter()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // One account, two mains in different lanes. The TOP main is the top main
@@ -265,7 +264,6 @@ public sealed class TruemainsDedicationApiIntegrationTests
     [Fact]
     public async Task Leaderboard_pages_a_dedication_sort_from_one_cached_ranking()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Three accounts, descending score: play rate carries the heaviest
@@ -325,7 +323,6 @@ public sealed class TruemainsDedicationApiIntegrationTests
     [Fact]
     public async Task Leaderboard_falls_back_to_the_rank_order_for_an_unknown_sort()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var top = Account("top-puuid", "TopRank", "EUW1");

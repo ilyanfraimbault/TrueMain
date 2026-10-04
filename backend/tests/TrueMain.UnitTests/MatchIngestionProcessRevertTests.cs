@@ -6,7 +6,6 @@ using Ingestor.Processes;
 using Ingestor.Processes.Components.MatchIngestion;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 

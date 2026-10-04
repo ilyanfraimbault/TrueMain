@@ -16,7 +16,7 @@ namespace TrueMain.IntegrationTests;
 /// (synchronous insert into <c>audit_events</c>).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MongoLoggingIntegrationTests
+public sealed class MongoLoggingIntegrationTests : IAsyncLifetime
 {
     private readonly MongoFixture _mongo;
 
@@ -25,11 +25,13 @@ public sealed class MongoLoggingIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task DiagnosticSink_DrainsChannelAndPersistsWarningsToLogsCollection()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 
@@ -75,8 +77,6 @@ public sealed class MongoLoggingIntegrationTests
     [Fact]
     public async Task DiagnosticSink_PersistsRegisteredOpsEventsBelowMinimumLevel()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 
@@ -126,8 +126,6 @@ public sealed class MongoLoggingIntegrationTests
     [Fact]
     public async Task DiagnosticSink_AppliesPerProviderCategoryRulesFromConfiguration()
     {
-        await _mongo.ResetAsync();
-
         // The production appsettings silence Polly resilience telemetry below
         // Error for the Mongo provider only ("Logging:Mongo:LogLevel:Polly").
         // The [ProviderAlias("Mongo")] rule is applied by the logging factory
@@ -167,8 +165,6 @@ public sealed class MongoLoggingIntegrationTests
     [Fact]
     public async Task EnsureIndexes_RecreatesTtlIndex_WhenRetentionChanges()
     {
-        await _mongo.ResetAsync();
-
         var collection = _mongo.GetCollection<MongoLogDocument>(MongoFixture.LogsCollection);
 
         // First boot: a 30-day TTL window.
@@ -217,8 +213,6 @@ public sealed class MongoLoggingIntegrationTests
     [Fact]
     public async Task AuditLog_WritesLosslesslyToAuditEventsCollection()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         // No need to start the host for the audit writer; it inserts synchronously.
         var auditLog = host.Services.GetRequiredService<IAuditLog>();
@@ -252,8 +246,6 @@ public sealed class MongoLoggingIntegrationTests
     [Fact]
     public async Task DiagnosticSink_PersistsTheRequestARecordBelongsTo()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 
@@ -305,8 +297,6 @@ public sealed class MongoLoggingIntegrationTests
     [Fact]
     public async Task DiagnosticSink_PersistsACountOfTheRecordsAFullChannelDropped()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost(new Dictionary<string, string?>
         {
             ["MongoLogging:Capacity"] = "2"

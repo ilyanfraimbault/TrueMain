@@ -23,7 +23,7 @@ namespace TrueMain.IntegrationTests;
 /// window and the thing a per-player bound would silently get wrong.
 /// </remarks>
 [Collection(IntegrationCollection.Name)]
-public sealed class TruemainActivityApiIntegrationTests
+public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
 {
     private const int RankedQueueId = 420;
     private const int Yasuo = 157;
@@ -41,11 +41,13 @@ public sealed class TruemainActivityApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Returns_404_for_an_unknown_or_malformed_name_tag()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
@@ -58,7 +60,6 @@ public sealed class TruemainActivityApiIntegrationTests
     [Fact]
     public async Task Draws_every_day_of_the_patch_including_the_ones_before_the_player_joined_it()
     {
-        await _fixture.ResetDatabaseAsync();
         var midday = Midday;
 
         var account = Account("grinder-puuid", "Grinder");
@@ -123,7 +124,6 @@ public sealed class TruemainActivityApiIntegrationTests
     [Fact]
     public async Task Clamps_the_month_window_to_the_oldest_game_retention_still_holds()
     {
-        await _fixture.ResetDatabaseAsync();
         var midday = Midday;
 
         var account = Account("pruned-puuid", "Pruned");
@@ -153,7 +153,6 @@ public sealed class TruemainActivityApiIntegrationTests
     [Fact]
     public async Task Draws_the_full_month_when_the_retained_history_reaches_back_far_enough()
     {
-        await _fixture.ResetDatabaseAsync();
         var midday = Midday;
 
         var account = Account("veteran-puuid", "Veteran");
@@ -184,7 +183,6 @@ public sealed class TruemainActivityApiIntegrationTests
     [Fact]
     public async Task Folds_the_same_games_three_ways_over_three_windows_of_one_unit()
     {
-        await _fixture.ResetDatabaseAsync();
         var midday = Midday;
 
         var account = Account("threeways-puuid", "ThreeWays");
@@ -230,7 +228,6 @@ public sealed class TruemainActivityApiIntegrationTests
     [Fact]
     public async Task Leaves_the_day_window_empty_on_a_rest_day_without_emptying_the_others()
     {
-        await _fixture.ResetDatabaseAsync();
         var midday = Midday;
 
         var account = Account("resting-puuid", "Resting");
@@ -264,7 +261,6 @@ public sealed class TruemainActivityApiIntegrationTests
     [Fact]
     public async Task Draws_the_patch_for_a_player_who_has_not_queued_a_single_game_on_it()
     {
-        await _fixture.ResetDatabaseAsync();
         var midday = Midday;
 
         var account = Account("absent-puuid", "Absent");
@@ -303,7 +299,6 @@ public sealed class TruemainActivityApiIntegrationTests
     [Fact]
     public async Task Measures_the_window_on_the_current_patch_not_on_the_whole_retained_history()
     {
-        await _fixture.ResetDatabaseAsync();
         var midday = Midday;
 
         var account = Account("twopatch-puuid", "TwoPatch");
@@ -335,7 +330,6 @@ public sealed class TruemainActivityApiIntegrationTests
     [Fact]
     public async Task Counts_only_the_tracked_ranked_queue_so_the_windows_share_one_population()
     {
-        await _fixture.ResetDatabaseAsync();
         var midday = Midday;
 
         var account = Account("flex-puuid", "FlexPlayer");
@@ -365,8 +359,6 @@ public sealed class TruemainActivityApiIntegrationTests
     [Fact]
     public async Task Reports_an_empty_patch_series_when_no_tracked_match_carries_a_patch()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // A known account and an empty match table: there is no patch to measure,
         // and inventing a window from nothing would be a fabricated claim.
         var account = Account("fresh-puuid", "Fresh");

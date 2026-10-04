@@ -14,7 +14,7 @@ namespace TrueMain.IntegrationTests;
 /// one candidate champion.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MainCandidateRepositoryIntegrationTests
+public sealed class MainCandidateRepositoryIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -23,11 +23,13 @@ public sealed class MainCandidateRepositoryIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task SetStatusForAccountsAsync_ShouldCountAccountOnce_WhenItHasMultipleCandidateChampions()
     {
-        await _fixture.ResetDatabaseAsync();
-
         const string platformId = "KR";
         const string puuid = "puuid-multi-champ";
 
@@ -61,8 +63,6 @@ public sealed class MainCandidateRepositoryIntegrationTests
     [Fact]
     public async Task SetStatusForAccountsAsync_ShouldGroupAndUpdateAcrossMultiplePlatforms()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var accounts = new[]
         {
             (PlatformId: "KR", Puuid: "puuid-kr-1"),

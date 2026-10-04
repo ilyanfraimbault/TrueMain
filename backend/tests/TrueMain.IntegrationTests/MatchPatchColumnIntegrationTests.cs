@@ -16,7 +16,7 @@ namespace TrueMain.IntegrationTests;
 /// trailing junk) rather than only the Riot-shaped ones.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchPatchColumnIntegrationTests(PostgresFixture fixture)
+public sealed class MatchPatchColumnIntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
     private static readonly string[] GameVersions =
     [
@@ -37,11 +37,13 @@ public sealed class MatchPatchColumnIntegrationTests(PostgresFixture fixture)
         "   ",
     ];
 
+    public async ValueTask InitializeAsync() => await fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task The_generated_patch_column_agrees_with_PatchVersion_on_every_shape()
     {
-        await fixture.ResetDatabaseAsync();
-
         await using (var seed = fixture.CreateDbContext())
         {
             for (var i = 0; i < GameVersions.Length; i++)
@@ -83,8 +85,6 @@ public sealed class MatchPatchColumnIntegrationTests(PostgresFixture fixture)
         // STORED means "recomputed on write", not "computed once": a match whose
         // version is corrected must not keep the old patch, or it would sit in the
         // wrong slice of every champion read for as long as it is retained.
-        await fixture.ResetDatabaseAsync();
-
         await using (var seed = fixture.CreateDbContext())
         {
             seed.Matches.Add(new MatchBuilder()

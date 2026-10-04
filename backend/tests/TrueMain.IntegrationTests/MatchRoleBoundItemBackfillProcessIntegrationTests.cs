@@ -14,7 +14,7 @@ namespace TrueMain.IntegrationTests;
 /// timeline, while other roles and rows that already carry Riot's value are left alone.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchRoleBoundItemBackfillProcessIntegrationTests
+public sealed class MatchRoleBoundItemBackfillProcessIntegrationTests : IAsyncLifetime
 {
     private const string MatchId = "m-role-bound";
     private const int Greaves = 3006;
@@ -28,11 +28,13 @@ public sealed class MatchRoleBoundItemBackfillProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ResolvesLegacyBotLaneRows_AndLeavesTheRestAlone()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             db.Matches.Add(new MatchBuilder().WithId(MatchId).Build());

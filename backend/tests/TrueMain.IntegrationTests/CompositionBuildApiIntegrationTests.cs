@@ -20,7 +20,7 @@ namespace TrueMain.IntegrationTests;
 /// metadata is faked so the test never talks to CommunityDragon.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CompositionBuildApiIntegrationTests
+public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
 {
     private const int Champion = 157; // Yone
     private const int RoleOpponent = 238; // Zed
@@ -34,11 +34,13 @@ public sealed class CompositionBuildApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task PostCompositionBuild_ReturnsWinWeightedRecommendationWithConfidence()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Two wins vs the requested role opponent on the same build, one loss
         // vs another mid on a different build. The role opponent is a hard
         // requirement, applied in SQL since #1659: only the two matchup games are
@@ -90,8 +92,6 @@ public sealed class CompositionBuildApiIntegrationTests
     [Fact]
     public async Task PostCompositionBuildGames_ListsTheSelectionWithScoresAndPilots()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await SeedGameAsync("COMPG_MAIN", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
         await SeedGameAsync("COMPG_OTHER", win: false, enemyMid: RoleOpponent, buildOrder: [3072, 3026]);
         // The non-matchup game is hard-filtered out of the selection, so the
@@ -156,8 +156,6 @@ public sealed class CompositionBuildApiIntegrationTests
     [Fact]
     public async Task PostCompositionBuild_EmptyPoolAndDraft_ReturnsHonestlyEmptyRecommendation()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -178,8 +176,6 @@ public sealed class CompositionBuildApiIntegrationTests
     [Fact]
     public async Task PostCompositionBuild_ExplicitNullSlotLists_AreTreatedAsEmpty()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -276,8 +272,6 @@ public sealed class CompositionBuildApiIntegrationTests
     [Fact]
     public async Task PostCompositionBuild_JudgesTheLaneOverTheSampledGamesThemselves()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Three games of the matchup: one lane clearly won, one clearly lost, one
         // inside the threshold band. The third is the reason `decidedGames` is its
         // own counter — it is measurable, and it decides nothing.
@@ -318,7 +312,6 @@ public sealed class CompositionBuildApiIntegrationTests
     [Fact]
     public async Task PostCompositionBuild_ReportsAnUnjudgeableLaneAsUnknownRatherThanEven()
     {
-        await _fixture.ResetDatabaseAsync();
         // A sampled game whose timeline was never ingested: a real game, not a lane
         // anyone can call. Zeroes here would print a dead-even lane out of nothing.
         await SeedGameAsync("COMPL_NOSNAP", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);

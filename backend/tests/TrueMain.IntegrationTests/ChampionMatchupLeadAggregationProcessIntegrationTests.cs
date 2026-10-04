@@ -11,7 +11,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
+public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const int Champion = 157; // Yone
@@ -35,10 +35,13 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_AggregatesMatchupsFromRawRows()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -60,7 +63,6 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_AggregatesAllChampionsInOneGlobalPass()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
         // A second champion the same account also mains: one pass must land both,
         // which is the property the per-champion work-list used to break.
@@ -91,7 +93,6 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_SkipsGamesWhereThePlayerIsNotAMainOfTheChampion()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
         // Same tracked account, a champion it is not a main of. This used to fold —
         // the gate was "an account we know" — which is what put 3.2× more games
@@ -117,7 +118,6 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_DoesNotDoubleCountOnRerunWithNoNewMatches()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
@@ -136,7 +136,6 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_AccumulatesAcrossBatchesAsNewMatchesArrive()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
@@ -156,7 +155,6 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_KeepsAggregatesForPatchesWhoseMatchesWerePurged()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();

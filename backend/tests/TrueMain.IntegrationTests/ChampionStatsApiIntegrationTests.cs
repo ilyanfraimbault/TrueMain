@@ -10,7 +10,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionStatsApiIntegrationTests
+public sealed class ChampionStatsApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -20,10 +20,13 @@ public sealed class ChampionStatsApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetChampionStatsAsync_ShouldAggregateGamesAndMainCountsUnfiltered()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionStatsAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -65,7 +68,6 @@ public sealed class ChampionStatsApiIntegrationTests
     [Fact]
     public async Task GetChampionStatsAsync_ShouldApplyMatchScopedFiltersToGamesButRegionOnlyToMains()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionStatsAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -96,8 +98,6 @@ public sealed class ChampionStatsApiIntegrationTests
     [Fact]
     public async Task GetChampionStatsAsync_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

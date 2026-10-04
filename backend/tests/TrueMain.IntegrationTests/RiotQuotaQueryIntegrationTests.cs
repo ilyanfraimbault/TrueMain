@@ -13,7 +13,7 @@ namespace TrueMain.IntegrationTests;
 /// server-side.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class RiotQuotaQueryIntegrationTests
+public sealed class RiotQuotaQueryIntegrationTests : IAsyncLifetime
 {
     private readonly MongoFixture _mongo;
 
@@ -22,10 +22,13 @@ public sealed class RiotQuotaQueryIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetAsync_SplitsCallsPerRoute_WithActiveMinutesConsumersAndFreshestHeaders()
     {
-        await _mongo.ResetAsync();
         var minute = TruncateToMinute(DateTime.UtcNow.AddMinutes(-10));
         await SeedAsync(
             // Two rollups in the same europe minute: one active minute, not two.
@@ -77,8 +80,6 @@ public sealed class RiotQuotaQueryIntegrationTests
     [Fact]
     public async Task GetAsync_EmptyCollection_ReturnsNoRoutesAndNoOldestBucket()
     {
-        await _mongo.ResetAsync();
-
         using var context = BuildContext();
         var usage = await new RiotQuotaQuery(context).GetAsync(RiotUsageWindow.Last30Days, CancellationToken.None);
 
@@ -91,7 +92,6 @@ public sealed class RiotQuotaQueryIntegrationTests
     [Fact]
     public async Task ProcessRunIntervals_ReturnRunsOverlappingTheWindow_EndingRunningOnesAtTheirHeartbeat()
     {
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
         var since = now.AddHours(-1);
         var runs = _mongo.GetCollection<ProcessRunDocument>(MongoFixture.ProcessRunsCollection);

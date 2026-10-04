@@ -16,7 +16,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionMatchupApiIntegrationTests
+public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420; // Ranked Solo/Duo, matched by MainAnalysis:QueueId below.
     private const int Champion = 157; // Yone
@@ -39,10 +39,13 @@ public sealed class ChampionMatchupApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetChampionMatchupsAsync_CountsOnlyLaneOpponentGames()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchupSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -75,7 +78,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_FiltersToRequestedPatch()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchupSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -101,7 +103,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_FiltersToRequestedEloBracket()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedBracketedMatchupSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -128,7 +129,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_ExcludesOpponentsBelowMinGames()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchupSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -150,7 +150,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_WithOpponent_ReturnsThatMatchupBelowTheFloor()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchupSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -178,7 +177,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_AveragesTheGoldGapOverTheLanesItWasMeasuredOn()
     {
-        await _fixture.ResetDatabaseAsync();
         // Two patch slices of the same matchup, each with its own gap sample. The
         // measured lanes (20 + 5) are deliberately fewer than the judged ones
         // (30 + 8): the average must divide by the former.
@@ -205,7 +203,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_ReportsNoGoldGapWhenNoneWasEverMeasured()
     {
-        await _fixture.ResetDatabaseAsync();
         // The shape every row folded before #976 has: lane outcomes, no gap. Dividing
         // the empty sum by the judged lanes would print +0 gold — "dead even", the most
         // decisive-looking value the number takes — out of data that does not exist.
@@ -228,7 +225,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_WithOpponent_CarriesLaneDataFromTheAggregate()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedOpponentScopeSampleAsync();
         // The lane counters the fold would have written for that head-to-head.
         await StampLaneCountersAsync(OtherOpponent, laneWins: 9, laneLosses: 3, goldDiffSum: 3300, goldDiffGames: 12);
@@ -255,7 +251,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_AgreesWithTheLeaderboardOnTheSameMatchup()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchupSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -283,7 +278,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_ExcludesOpponentsBelowTheShareOfGamesFloor()
     {
-        await _fixture.ResetDatabaseAsync();
         // 9 980 games against Zed and 20 against Talon. Talon is well clear of the
         // absolute floor of 10 — and is 0.2% of the champion's matchups, under the
         // 0.5% share floor. This is the case an absolute floor cannot express: on a
@@ -313,7 +307,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_BoundsTheWinRateBySampleSize()
     {
-        await _fixture.ResetDatabaseAsync();
         // Two matchups a raw win-rate sort ranks the wrong way round: Talon at 60%
         // over 20 games, Zed at 56% over 9 980. Talon's rate is higher and its
         // interval is enormous (±20 points), so its *lower* bound — what the panel
@@ -343,7 +336,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_WithholdsTheLaneRateBelowItsOwnFloor()
     {
-        await _fixture.ResetDatabaseAsync();
         // 40 games, of which only 6 lanes were ever decided. The games floors say
         // nothing about that sample: it is roughly half the size on production, and
         // was printing "100% lane" off seven decided lanes — the most confident cell
@@ -365,7 +357,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampionMatchupsAsync_WithOpponent_KeepsLaneDataUnknown()
     {
-        await _fixture.ResetDatabaseAsync();
         var nameTag = await SeedOpponentScopeSampleAsync();
         await StampLaneCountersAsync(OtherOpponent, laneWins: 9, laneLosses: 3, goldDiffSum: 3300, goldDiffGames: 12);
 
@@ -388,8 +379,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_ReturnsBadRequestForInvalidPosition()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -403,8 +392,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [InlineData(-7)]
     public async Task GetChampionMatchupsAsync_ReturnsBadRequestForNonPositiveOpponent(int opponent)
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -418,7 +405,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampionMatchupsAsync_ScopesToThatPlayersGames()
     {
-        await _fixture.ResetDatabaseAsync();
         var nameTag = await SeedScopedMatchupSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -450,7 +436,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampionMatchupsAsync_UsesLowerPerPlayerFloor()
     {
-        await _fixture.ResetDatabaseAsync();
         var nameTag = await SeedPlayerFloorSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -476,7 +461,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampionMatchupsAsync_WithOpponent_StaysScopedToThePlayer()
     {
-        await _fixture.ResetDatabaseAsync();
         var nameTag = await SeedOpponentScopeSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -505,7 +489,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampionMatchupsAsync_ReportsTheShareOfThePlayersOwnField()
     {
-        await _fixture.ResetDatabaseAsync();
         // The account owns 8 Yone-vs-Zed lane games and 2 Yone-vs-Talon: ten games
         // in its field on this champion and lane, and the denominator of both shares.
         var nameTag = await SeedPlayerFieldSampleAsync();
@@ -537,7 +520,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_OrdersTiedWinRatesByOpponent()
     {
-        await _fixture.ResetDatabaseAsync();
         // Two matchups on exactly the same win rate — the common case at these
         // sample sizes, and the one a bare OrderByDescending leaves to whatever
         // order the rows happened to arrive in.
@@ -562,7 +544,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetChampionMatchupsAsync_ReturnsBadRequestForAnUnrecognisedEloBracket()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedBracketedMatchupSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -585,8 +566,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampionMatchupsAsync_ReturnsNotFoundForUnknownNameTag()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -598,8 +577,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampionMatchupsAsync_ReturnsBadRequestForInvalidPosition()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -615,8 +592,6 @@ public sealed class ChampionMatchupApiIntegrationTests
     [InlineData(-7)]
     public async Task GetPlayerChampionMatchupsAsync_ReturnsBadRequestForNonPositiveOpponent(int opponent)
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 

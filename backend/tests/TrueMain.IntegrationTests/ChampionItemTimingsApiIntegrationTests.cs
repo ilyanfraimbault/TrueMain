@@ -10,7 +10,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionItemTimingsApiIntegrationTests
+public sealed class ChampionItemTimingsApiIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const int Champion = 157; // Yone
@@ -27,10 +27,13 @@ public sealed class ChampionItemTimingsApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetChampionItemTimingsAsync_AveragesFirstPurchase_OrderedEarliestFirst()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedItemTimingsAsync(games: 12);
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -60,7 +63,6 @@ public sealed class ChampionItemTimingsApiIntegrationTests
     [Fact]
     public async Task GetChampionItemTimingsAsync_FiltersToRequestedPatch()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedItemTimingsAsync(games: 12); // all on 16.4.521.123
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -81,7 +83,6 @@ public sealed class ChampionItemTimingsApiIntegrationTests
     [Fact]
     public async Task GetChampionItemTimingsAsync_FiltersToRequestedEloBracket()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedBracketedItemTimingsAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -106,8 +107,6 @@ public sealed class ChampionItemTimingsApiIntegrationTests
     [Fact]
     public async Task GetChampionItemTimingsAsync_ReturnsEmptyWhenNoGames()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -120,8 +119,6 @@ public sealed class ChampionItemTimingsApiIntegrationTests
     [Fact]
     public async Task GetChampionItemTimingsAsync_ReturnsBadRequestForInvalidPosition()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 

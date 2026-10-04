@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class TableStatsApiIntegrationTests
+public sealed class TableStatsApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -17,13 +17,15 @@ public sealed class TableStatsApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetTableStatsAsync_ShouldReturnPublicSchemaTableSizes()
     {
         // The schema is migrated by the fixture; reset just clears data. The
         // catalog still reports every public table.
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -74,8 +76,6 @@ public sealed class TableStatsApiIntegrationTests
     [Fact]
     public async Task GetTableStatsAsync_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

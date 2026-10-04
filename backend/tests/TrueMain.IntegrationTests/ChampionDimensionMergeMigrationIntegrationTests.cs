@@ -22,14 +22,17 @@ namespace TrueMain.IntegrationTests;
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionDimensionMergeMigrationIntegrationTests(PostgresFixture fixture)
+public sealed class ChampionDimensionMergeMigrationIntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture = fixture;
+
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task Merge_FoldsTheSplitBasketsGamesOntoOneRow_AndLeavesNoOrphanPattern()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var guards = await _fixture.SuspendChampionDimensionGuardsAsync();
 
         await using var db = _fixture.CreateDbContext();
@@ -75,7 +78,6 @@ public sealed class ChampionDimensionMergeMigrationIntegrationTests(PostgresFixt
     [Fact]
     public async Task Merge_CollapsesAGroupLargerThanAPair()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var guards = await _fixture.SuspendChampionDimensionGuardsAsync();
 
         await using var db = _fixture.CreateDbContext();
@@ -117,8 +119,6 @@ public sealed class ChampionDimensionMergeMigrationIntegrationTests(PostgresFixt
     [Fact]
     public async Task Merge_IsANoOp_WhenNothingIsSplit()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var db = _fixture.CreateDbContext();
         var scope = SeedScope(db);
         var build = SeedBuild(db);

@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// aggregation that recomputes the band every cycle.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests
+public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const int Champion = 157; // Yone
@@ -30,11 +30,13 @@ public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_StampsEachTrackedRow_WithNearestSnapshotBand()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var silverGameStart = new DateTime(2026, 1, 10, 12, 0, 0, DateTimeKind.Utc);
         var masterGameStart = new DateTime(2026, 2, 20, 12, 0, 0, DateTimeKind.Utc);
 
@@ -57,8 +59,6 @@ public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests
     [Fact]
     public async Task RunAsync_DefersRowWithoutSnapshot_ThenSelfHealsOnceSnapshotArrives()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var gameStart = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
         var account = await SeedAccountAsync("enrich-defer", "enrich-defer-puuid");
         var matchId = await AddGameAsync("m-defer", gameStart, account.Id);
@@ -80,8 +80,6 @@ public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests
     [Fact]
     public async Task RunAsync_StampsGenuineUnranked_WhenSnapshotHasNoTier()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var gameStart = new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc);
         var account = await SeedAccountAsync("enrich-unranked", "enrich-unranked-puuid");
         var matchId = await AddGameAsync("m-unranked", gameStart, account.Id);
@@ -97,8 +95,6 @@ public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests
     [Fact]
     public async Task RunAsync_LeavesUntrackedRowsUntouched()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var gameStart = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
         // No RiotAccountId → an anonymous participant that merely shared a tracked
         // player's game. It is never a source row for any panel, so it is skipped.
@@ -111,8 +107,6 @@ public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests
     [Fact]
     public async Task RunAsync_DoesNotRestampAlreadyEnrichedRows()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var gameStart = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
         var account = await SeedAccountAsync("enrich-stable", "enrich-stable-puuid");
         // Pre-stamped GOLD, with a snapshot that would resolve to MASTER. The

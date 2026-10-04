@@ -214,6 +214,7 @@ Last verified against `develop` on 2026-09-02.
 - A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541, #124
 - Ingestor options: bounds are attributes checked by a generated validator, cross-field rules stay lambdas (2026-10-04) — #271
 - A role is a string from `LanePositions` (no enum, `MID`/`BOT` accepted on input); timeline marks live once in `Data` (2026-10-04) — #1232
+- Integration test classes reset their stores in `InitializeAsync`; migration replays get a scratch database; clocks are frozen through the factory (2026-10-05) — #1246
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 

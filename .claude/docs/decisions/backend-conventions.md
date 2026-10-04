@@ -262,3 +262,22 @@ translates, derived from `All`.
 by the snapshot builder (what is written), match-data retention (what survives the prune, #772), the
 performance score (what is iterated) and the dev seed. It is a two-way invariant: a mark removed on one side
 only would drop a lead without an error, so no consumer keeps its own copy.
+
+## Integration tests: resets in `InitializeAsync`, migration replays on a scratch database, frozen clocks (2026-10-05)
+
+**Every integration test class that touches a store implements `IAsyncLifetime` and resets it in
+`InitializeAsync` (`PostgresFixture.ResetDatabaseAsync`, `MongoFixture.ResetAsync`) — no test body opens with
+the reset.** xUnit builds a class instance per test, so the reset still runs before every test; what changes is
+that a test can no longer forget it. A missing reset in a test that reads is invisible on reading and only shows
+up as an order dependency, which the per-test copy (some 540 lines) had already produced: classes with ten
+facts and six resets (#1246, TEST-6). A helper that re-seeds *within* one test may still reset mid-test.
+
+**A test that drives the migrator itself works on `PostgresFixture.CreateScratchDatabase()`**, a database of its
+own on the shared container, dropped on disposal. The shared database is migrated once and never recreated
+mid-suite: dropping it behind the fixture worked only because the collection is serialised and the final
+re-migration happened to be complete (TEST-5).
+
+**An API test whose seed and assertion are both anchored to "now" freezes the host's clock** with
+`TrueMainWebApplicationFactory.TimeProvider = new FixedTimeProvider(...)` (TestKit) rather than tuning offsets,
+so a run straddling UTC midnight cannot seed one day and query the next (TEST-9).
+

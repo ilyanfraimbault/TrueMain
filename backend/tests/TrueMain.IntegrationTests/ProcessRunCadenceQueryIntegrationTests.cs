@@ -7,7 +7,7 @@ using MongoDB.Driver;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ProcessRunCadenceQueryIntegrationTests
+public sealed class ProcessRunCadenceQueryIntegrationTests : IAsyncLifetime
 {
     private readonly MongoFixture _mongo;
 
@@ -16,10 +16,13 @@ public sealed class ProcessRunCadenceQueryIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetLastCompletedRunStartAsync_ReturnsLatestCompleted_IgnoringRunning()
     {
-        await _mongo.ResetAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
         var latestCompleted = now.AddHours(-1);
 
@@ -44,7 +47,6 @@ public sealed class ProcessRunCadenceQueryIntegrationTests
     [Fact]
     public async Task GetLastCompletedRunStartAsync_IgnoresSkipped_SoTheGuardCannotReArmItself()
     {
-        await _mongo.ResetAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
         var lastRealRun = now.AddHours(-20);
 
@@ -72,7 +74,6 @@ public sealed class ProcessRunCadenceQueryIntegrationTests
     [Fact]
     public async Task GetLastCompletedRunStartAsync_ReturnsNull_WhenEveryRunWasSkipped()
     {
-        await _mongo.ResetAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
 
         await Collection().InsertManyAsync(
@@ -93,7 +94,6 @@ public sealed class ProcessRunCadenceQueryIntegrationTests
     [Fact]
     public async Task GetLastCompletedRunStartAsync_CountsFailed_SoAFailedAttemptStillSpendsItsInterval()
     {
-        await _mongo.ResetAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
         var failedAttempt = now.AddHours(-1);
 
@@ -115,8 +115,6 @@ public sealed class ProcessRunCadenceQueryIntegrationTests
     [Fact]
     public async Task GetLastCompletedRunStartAsync_ReturnsNull_WhenNoCompletedRun()
     {
-        await _mongo.ResetAsync();
-
         await Collection().InsertOneAsync(Run("Discovery", DateTime.UtcNow, ProcessRunStatus.Running));
 
         using var context = BuildContext();

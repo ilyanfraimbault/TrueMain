@@ -14,7 +14,7 @@ using NSubstitute;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class RankSnapshotIngestionTests
+public sealed class RankSnapshotIngestionTests : IAsyncLifetime
 {
     private const string Platform = "KR";
 
@@ -25,10 +25,13 @@ public sealed class RankSnapshotIngestionTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunCoreAsync_FirstInsert_PersistsExactSoloEntry()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-first");
 
         var process = BuildProcess(
@@ -54,7 +57,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_UnchangedRank_DoesNotInsertNewRow()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-unchanged");
         await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, EarlierToday(TimeSpan.FromHours(1)));
 
@@ -71,7 +73,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_TierChangeSameDay_OverwritesTodaysSnapshot()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-tier-change");
         await SeedSnapshotAsync(account.Id, "GOLD", "I", 100, EarlierToday(TimeSpan.FromHours(2)));
 
@@ -95,7 +96,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_DivisionChangeSameDay_OverwritesTodaysSnapshot()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-division-change");
         await SeedSnapshotAsync(account.Id, "GOLD", "II", 100, EarlierToday(TimeSpan.FromHours(2)));
 
@@ -118,7 +118,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_LpDeltaSameDay_OverwritesTodaysSnapshot()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-lp-delta");
         await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, EarlierToday(TimeSpan.FromHours(2)));
 
@@ -140,7 +139,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_LpDeltaPreviousDay_InsertsNewSnapshot()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-lp-delta-new-day");
         await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, DateTime.UtcNow.AddDays(-1));
 
@@ -163,7 +161,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_UnrankedAccount_DoesNotInsertSnapshot()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-unranked");
 
         // Returns only RANKED_FLEX_SR — should be ignored since we only track soloQ.
@@ -188,7 +185,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_EmptyLeagueResponse_DoesNotInsertSnapshot()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-empty");
 
         var process = BuildProcess(); // no entries
@@ -203,7 +199,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_ProfileFailure_StillInsertsRankSnapshot()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-profile-fail");
         var originalName = account.GameName;
 
@@ -232,7 +227,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_RankFailure_StillUpdatesProfile()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-rank-fail");
 
         var accountClient = Substitute.For<IRiotAccountClient>();
@@ -263,7 +257,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_SuccessfulRankIngest_BumpsLastRankSyncAtUtc()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-bump");
 
         var process = BuildProcess(soloEntry: SoloEntry("GOLD", "II", 50));
@@ -278,7 +271,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_RecentLastRankSync_SkipsLeagueByPuuidCall()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-skip-fresh");
 
         // Simulate a snapshot the Discovery flow just wrote.
@@ -321,7 +313,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task DeletingRiotAccount_CascadesSnapshots()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-cascade");
         await SeedSnapshotAsync(account.Id, "GOLD", "II", 50, DateTime.UtcNow.AddDays(-2));
         await SeedSnapshotAsync(account.Id, "GOLD", "II", 73, DateTime.UtcNow.AddDays(-1));
@@ -339,7 +330,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_ByPuuid404_WithResolvableRiotId_RecoversPuuidAndStaysActive()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-stale");
 
         var accountClient = Substitute.For<IRiotAccountClient>();
@@ -371,7 +361,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_ByPuuid404_WithUnresolvableRiotId_MarksInvalid()
     {
-        await _fixture.ResetDatabaseAsync();
         var account = await SeedAccountAsync("puuid-gone");
 
         var accountClient = Substitute.For<IRiotAccountClient>();
@@ -397,7 +386,6 @@ public sealed class RankSnapshotIngestionTests
     [Fact]
     public async Task RunCoreAsync_ByPuuid404_WithNoRiotId_MarksInvalidWithoutLookup()
     {
-        await _fixture.ResetDatabaseAsync();
         Guid accountId;
         await using (var db = _fixture.CreateDbContext())
         {

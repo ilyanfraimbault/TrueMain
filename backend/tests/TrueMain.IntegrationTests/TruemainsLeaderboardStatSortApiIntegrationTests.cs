@@ -14,7 +14,7 @@ namespace TrueMain.IntegrationTests;
 /// standing.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class TruemainsLeaderboardStatSortApiIntegrationTests
+public sealed class TruemainsLeaderboardStatSortApiIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -22,6 +22,10 @@ public sealed class TruemainsLeaderboardStatSortApiIntegrationTests
     {
         _fixture = fixture;
     }
+
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     // Ranked standing: Apex (Challenger) > Master > Diamond > Fresh.
     //
@@ -93,7 +97,6 @@ public sealed class TruemainsLeaderboardStatSortApiIntegrationTests
 
     private async Task SeedBoardAsync()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var apex = Account("apex-puuid", "Apex", "EUW1");

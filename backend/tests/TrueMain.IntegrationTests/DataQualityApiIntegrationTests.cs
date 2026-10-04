@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// (old-stuck-behind-newer-healthy, unprofiled-queue zero-duration).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class DataQualityApiIntegrationTests
+public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -27,10 +27,13 @@ public sealed class DataQualityApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetIncompleteMatches_GroupsFlaggedMatchesByIssue_AndScopesByQueue()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -71,7 +74,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetIncompleteMatches_FlagsDuplicateChampionOnALaneTeam()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -95,7 +97,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetIncompleteMatches_FiltersToASingleIssueType()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -113,8 +114,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetIncompleteMatches_FindsOldStuckTimeline_BehindManyNewerHealthyMatches()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         await using (var db = _fixture.CreateDbContext())
         {
@@ -157,8 +156,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetIncompleteMatches_FlagsZeroDuration_OnAnUnprofiledQueue()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         await using (var db = _fixture.CreateDbContext())
         {
@@ -208,7 +205,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetIncompleteMatches_FiltersByQueue()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -232,8 +228,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetIncompleteMatches_FiltersByMinAgeHours_ExcludingMatchesYoungerThanTheFloor()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         await using (var db = _fixture.CreateDbContext())
         {
@@ -265,8 +259,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetIncompleteMatches_PaginatesEachGroup_ReturningTheExpectedSecondPageSlice()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         // Five zero-duration SR matches with strictly descending start times so the
         // newest-first order is deterministic: DQ_PAGE_0 newest … DQ_PAGE_4 oldest.
@@ -306,7 +298,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetMatchDetail_LaysOutTeamsByPosition_AndHighlightsTheGap()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -347,7 +338,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetMatchDetail_ReportsActualVsExpectedPlayers_WhenARosterIsShort()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -371,7 +361,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetMatchDetail_RendersBothStandardTeams_WhenOneTeamHasNoRows()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -400,8 +389,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task GetMatchDetail_ReturnsNotFound_ForUnknownMatch()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
@@ -412,8 +399,6 @@ public sealed class DataQualityApiIntegrationTests
     [Fact]
     public async Task DataQualityEndpoints_RequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

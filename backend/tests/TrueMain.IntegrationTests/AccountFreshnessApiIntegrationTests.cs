@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class AccountFreshnessApiIntegrationTests
+public sealed class AccountFreshnessApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -29,11 +29,17 @@ public sealed class AccountFreshnessApiIntegrationTests
         _mongo = mongo;
     }
 
-    [Fact]
-    public async Task PostFreshness_ReportsKnownUnknownInvalidAndNeverIngested_InOneCall()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetDatabaseAsync();
         await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task PostFreshness_ReportsKnownUnknownInvalidAndNeverIngested_InOneCall()
+    {
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -90,8 +96,6 @@ public sealed class AccountFreshnessApiIntegrationTests
     [Fact]
     public async Task PostFreshness_MatchesCaseInsensitively_AndScopesToThePlatform()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -126,9 +130,6 @@ public sealed class AccountFreshnessApiIntegrationTests
     [Fact]
     public async Task PostFreshness_RejectsAnOversizedBatchAndAnUnknownPlatform()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
@@ -151,8 +152,6 @@ public sealed class AccountFreshnessApiIntegrationTests
     [Fact]
     public async Task PostFreshness_ResolvesADuplicateRiotIdByLastActivity_NotByHavingBeenIngested()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
 
         // A Riot ID is mutable and recyclable, so a renamed account and whoever took its old
@@ -188,9 +187,6 @@ public sealed class AccountFreshnessApiIntegrationTests
     [Fact]
     public async Task PostFreshness_ReturnsEmpty_ForAnEmptyBatch()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 

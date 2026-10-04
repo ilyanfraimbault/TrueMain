@@ -24,7 +24,7 @@ namespace TrueMain.IntegrationTests;
 /// same ranking, after a real Postgres round trip.</para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchSummariesPerformanceIntegrationTests
+public sealed class MatchSummariesPerformanceIntegrationTests : IAsyncLifetime
 {
     private const string NameTag = "PerfFeed-KR1";
     private const string Puuid = "puuid-match-summaries-performance";
@@ -37,10 +37,13 @@ public sealed class MatchSummariesPerformanceIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetAsync_scores_and_places_the_row_from_a_full_match()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedMatchAsync();
 
@@ -58,7 +61,6 @@ public sealed class MatchSummariesPerformanceIntegrationTests
     [Fact]
     public async Task GetAsync_agrees_with_the_match_detail_service_on_the_same_game()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedMatchAsync();
 
@@ -81,7 +83,6 @@ public sealed class MatchSummariesPerformanceIntegrationTests
     [Fact]
     public async Task GetAsync_denies_the_accolade_to_the_best_raw_kda_on_the_winning_side()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedMatchAsync();
 
@@ -108,7 +109,6 @@ public sealed class MatchSummariesPerformanceIntegrationTests
     [Fact]
     public async Task GetAsync_still_scores_a_match_with_no_timeline_at_all()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedMatchAsync(withTimeline: false);
 

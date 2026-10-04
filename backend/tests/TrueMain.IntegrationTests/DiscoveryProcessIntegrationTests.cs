@@ -14,7 +14,7 @@ using TrueMain.TestKit;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class DiscoveryProcessIntegrationTests
+public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -23,11 +23,13 @@ public sealed class DiscoveryProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ShouldPersistDiscoveredAccountsThroughTheProcessPath()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var process = new DiscoveryProcess(
             NullLogger<DiscoveryProcess>.Instance,
             new FakeRiotPlatformClient(),
@@ -74,8 +76,6 @@ public sealed class DiscoveryProcessIntegrationTests
     [Fact]
     public async Task RunAsync_AdvancesAndWrapsTheSlidingWindowCursor_AcrossRuns()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var sessionFactory = _fixture.CreateSessionFactory();
 
         DiscoveryProcess BuildProcess() => new(
@@ -111,8 +111,6 @@ public sealed class DiscoveryProcessIntegrationTests
     [Fact]
     public async Task RunAsync_WhenPerAccountWorkThrows_StillAdvancesTheCursorSoTheSweepMovesOn()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var process = new DiscoveryProcess(
             NullLogger<DiscoveryProcess>.Instance,
             new MasteryFailingRiotPlatformClient(),
@@ -151,8 +149,6 @@ public sealed class DiscoveryProcessIntegrationTests
     [Fact]
     public async Task UpsertOffsetAsync_InsertsThenUpdatesTheSameRow_WithoutSaveChanges()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var sessionFactory = _fixture.CreateSessionFactory();
         var insertedAtUtc = new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Utc);
         var updatedAtUtc = insertedAtUtc.AddHours(1);
@@ -193,8 +189,6 @@ public sealed class DiscoveryProcessIntegrationTests
     [Fact]
     public async Task RunAsync_WhenLadderEntryHasNoRank_DoesNotWriteSnapshot()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var process = new DiscoveryProcess(
             NullLogger<DiscoveryProcess>.Instance,
             new FakeRiotPlatformClient(),
@@ -223,8 +217,6 @@ public sealed class DiscoveryProcessIntegrationTests
     [Fact]
     public async Task RunAsync_WhenLatestSnapshotMatchesLadder_DoesNotInsertDuplicate()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Seed an existing account with a snapshot matching what the ladder will return.
         await using (var seedDb = _fixture.CreateDbContext())
         {
@@ -286,8 +278,6 @@ public sealed class DiscoveryProcessIntegrationTests
     [Fact]
     public async Task RunAsync_WithMultipleSaveSlices_PersistsTheInPlaceSnapshotUpdateOfEverySlice()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Two accounts, each with a same-day snapshot the ladder rank will change —
         // the update-in-place branch of RankSnapshotWriter, not the insert branch. The
         // capture time is clamped into today (TestInstants): "an hour ago" is yesterday
@@ -367,8 +357,6 @@ public sealed class DiscoveryProcessIntegrationTests
     [Fact]
     public async Task RunAsync_WhenOnePlatformFails_StillDiscoversRemainingPlatforms()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var process = new DiscoveryProcess(
             NullLogger<DiscoveryProcess>.Instance,
             new FakeRiotPlatformClient(),
@@ -405,8 +393,6 @@ public sealed class DiscoveryProcessIntegrationTests
     [Fact]
     public async Task RunAsync_WhenAllPlatformsFail_ThrowsSoTheRunIsRecordedAsFailed()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var process = new DiscoveryProcess(
             NullLogger<DiscoveryProcess>.Instance,
             new FakeRiotPlatformClient(),

@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class PipelineHealthApiIntegrationTests
+public sealed class PipelineHealthApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -22,11 +22,17 @@ public sealed class PipelineHealthApiIntegrationTests
         _mongo = mongo;
     }
 
-    [Fact]
-    public async Task GetPipelineHealthAsync_ShouldReturnProcessAndFreshnessSignals()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetDatabaseAsync();
         await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task GetPipelineHealthAsync_ShouldReturnProcessAndFreshnessSignals()
+    {
         await SeedPipelineHealthAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -73,9 +79,6 @@ public sealed class PipelineHealthApiIntegrationTests
     [Fact]
     public async Task GetPipelineHealthAsync_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -89,9 +92,6 @@ public sealed class PipelineHealthApiIntegrationTests
     [Fact]
     public async Task GetPipelineHealthAsync_ShouldRejectInvalidOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

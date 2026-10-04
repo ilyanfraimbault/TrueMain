@@ -11,7 +11,7 @@ namespace TrueMain.IntegrationTests;
 /// <c>OnRejected</c>, the rejection recorder, the Mongo sink.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class RateLimitLoggingIntegrationTests
+public sealed class RateLimitLoggingIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _postgres;
     private readonly MongoFixture _mongo;
@@ -22,11 +22,13 @@ public sealed class RateLimitLoggingIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RejectedRequest_IsPersistedAsARateLimitRejectedRow()
     {
-        await _mongo.ResetAsync();
-
         await using var factory = new TrueMainWebApplicationFactory<Program>(
             _postgres,
             [

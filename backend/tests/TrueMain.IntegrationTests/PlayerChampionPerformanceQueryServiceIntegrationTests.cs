@@ -19,7 +19,7 @@ namespace TrueMain.IntegrationTests;
 /// actually carried.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDisposable
+public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsyncLifetime
 {
     private const string NameTag = "PerfSummoner-KR1";
     private const string Puuid = "puuid-player-champion-performance";
@@ -41,13 +41,17 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
         _fixture = fixture;
     }
 
-    public void Dispose() => _cache.Dispose();
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync()
+    {
+        _cache.Dispose();
+        return ValueTask.CompletedTask;
+    }
 
     [Fact]
     public async Task GetAsync_returns_null_for_an_unknown_account()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var db = _fixture.CreateDbContext();
         var response = await CreateService(db).GetAsync(
             "NoSuchPlayer-KR1", ChampionId, patch: null, position: null, CancellationToken.None);
@@ -58,7 +62,6 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     [Fact]
     public async Task GetAsync_suppresses_the_averages_below_the_sample_floor()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedGamesAsync(count: MinGames - 1);
 
@@ -76,7 +79,6 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     [Fact]
     public async Task GetAsync_grades_the_sample_and_reports_per_component_coverage()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6, timelineOnFirstGamesOnly: 4);
 
@@ -109,7 +111,6 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     [Fact]
     public async Task GetAsync_scopes_the_sample_to_the_requested_position()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6);
 
@@ -126,7 +127,6 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     [Fact]
     public async Task GetAsync_canonicalises_the_patch_before_it_queries_or_caches_on_it()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6);
 
@@ -152,7 +152,6 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     [Fact]
     public async Task GetAsync_canonicalises_the_lane_before_it_queries_or_caches_on_it()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6);
 
@@ -175,7 +174,6 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     [Fact]
     public async Task GetAsync_does_not_widen_a_lane_it_cannot_canonicalise()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6);
 
@@ -194,7 +192,6 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     [Fact]
     public async Task GetAsync_breaks_window_ties_on_the_match_id()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         // Twenty-one games sharing one start instant, so the window boundary falls
         // inside a tie: without a total order the twenty graded games are whichever

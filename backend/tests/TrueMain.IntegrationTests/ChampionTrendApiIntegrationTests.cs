@@ -19,7 +19,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionTrendApiIntegrationTests
+public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
 {
     private const int ChampionId = 157; // Yone
     private const int OtherChampionId = 238; // Zed — fattens the MIDDLE lane total
@@ -45,10 +45,13 @@ public sealed class ChampionTrendApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetChampionTrendAsync_ReturnsPerPatchSeriesOldestToNewest()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedTrendAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -82,7 +85,6 @@ public sealed class ChampionTrendApiIntegrationTests
     [Fact]
     public async Task GetChampionTrendAsync_RespectsRequestedPosition()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedTrendAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -105,7 +107,6 @@ public sealed class ChampionTrendApiIntegrationTests
     [Fact]
     public async Task GetChampionTrendAsync_CapsSeriesToFiveMostRecentPatches()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedSevenMiddlePatchesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -130,7 +131,6 @@ public sealed class ChampionTrendApiIntegrationTests
     [Fact]
     public async Task GetChampionTrendAsync_ReturnsEmptySeriesForUnknownChampion()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedTrendAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -152,7 +152,6 @@ public sealed class ChampionTrendApiIntegrationTests
     [Fact]
     public async Task GetChampionTrendAsync_KeepsAMalformedPatchOldestAndWarnsOncePerQuery()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedTrendAggregatesAsync(includeCorruptPatchRow: true);
 
         using var logs = new CapturingLoggerProvider(typeof(ChampionTrendQueryService).FullName!);

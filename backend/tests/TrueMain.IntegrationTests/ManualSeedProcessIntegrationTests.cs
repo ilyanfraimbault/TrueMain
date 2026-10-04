@@ -15,7 +15,7 @@ using MongoDB.Driver;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ManualSeedProcessIntegrationTests : IDisposable
+public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
     private readonly MongoFixture _mongo;
@@ -34,14 +34,21 @@ public sealed class ManualSeedProcessIntegrationTests : IDisposable
         }));
     }
 
-    public void Dispose() => _context.Dispose();
+    public async ValueTask InitializeAsync()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _context.Dispose();
+        return ValueTask.CompletedTask;
+    }
 
     [Fact]
     public async Task RunAsync_ResolvableRiotId_UpsertsAccountAndQueuesCandidatesAndMarksIngested()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         var requestId = Guid.NewGuid();
         await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1");
 
@@ -86,9 +93,6 @@ public sealed class ManualSeedProcessIntegrationTests : IDisposable
     [Fact]
     public async Task RunAsync_UnresolvableRiotId_MarksFailedWithoutCreatingAccount()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         var requestId = Guid.NewGuid();
         await SeedRequestAsync(requestId, "Ghost", "NA1", "NA1");
 
@@ -114,9 +118,6 @@ public sealed class ManualSeedProcessIntegrationTests : IDisposable
     [Fact]
     public async Task RunAsync_RiotThrows_MarksFailedWithTruncatedError()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         var requestId = Guid.NewGuid();
         await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1");
 
@@ -135,9 +136,6 @@ public sealed class ManualSeedProcessIntegrationTests : IDisposable
     [Fact]
     public async Task RunAsync_CancelledAfterClaim_ResetsRequestToPendingAndRethrows()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         var requestId = Guid.NewGuid();
         await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1");
 

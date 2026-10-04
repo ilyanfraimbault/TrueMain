@@ -9,7 +9,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionSummariesApiIntegrationTests
+public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -18,10 +18,13 @@ public sealed class ChampionSummariesApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task ListChampionsAsync_ReturnsAllSummariesForActivePatch()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedSummariesAcrossManyChampionsAsync();
 
         await using var factory = CreateFactory();
@@ -44,7 +47,6 @@ public sealed class ChampionSummariesApiIntegrationTests
     [Fact]
     public async Task ListChampionsAsync_ComputesAggregatedFieldsForKnownSlice()
     {
-        await _fixture.ResetDatabaseAsync();
         var seededAtUtc = await SeedSummariesAcrossManyChampionsAsync();
 
         await using var factory = CreateFactory();
@@ -133,8 +135,6 @@ public sealed class ChampionSummariesApiIntegrationTests
     [Fact]
     public async Task ListChampionsAsync_DropsLinesBelowTheSampleFloor()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // One well-sampled (champion, lane) line and one below the 20-game floor.
         // Only the well-sampled one should surface: a 3-game line is noise that
         // would otherwise fluke to the top/bottom of the tier percentiles.
@@ -197,8 +197,6 @@ public sealed class ChampionSummariesApiIntegrationTests
     [Fact]
     public async Task ListChampionsAsync_KeepsOnlyEachChampionsDominantLanes()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Champion 300 flexes across four lanes; champion 301 is a one-lane
         // champion with a 4% off-role pick. Without the cap the directory
         // prints six lines for two champions — the shape that makes it 5 × N.
@@ -358,8 +356,6 @@ public sealed class ChampionSummariesApiIntegrationTests
         // "No champion stats for this patch yet" because the reads had switched onto a
         // patch holding seven one-game lines. It must now stay on the patch that can
         // still answer the question, and say so in every row's patchVersion.
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         var accountId = Guid.Parse("44444444-4444-4444-4444-444444444444");
 

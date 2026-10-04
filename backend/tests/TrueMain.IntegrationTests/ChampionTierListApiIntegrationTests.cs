@@ -9,7 +9,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionTierListApiIntegrationTests
+public sealed class ChampionTierListApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string[] ValidTiers = ["S", "A", "B", "C", "D"];
 
@@ -20,10 +20,13 @@ public sealed class ChampionTierListApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetTierList_GroupsEveryRowIntoOrderedTiersForActivePatch()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedManyChampionsAsync();
 
         await using var factory = CreateFactory();
@@ -75,7 +78,6 @@ public sealed class ChampionTierListApiIntegrationTests
     [Fact]
     public async Task GetTierList_FiltersToASinglePosition()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedManyChampionsAsync();
 
         await using var factory = CreateFactory();
@@ -107,7 +109,6 @@ public sealed class ChampionTierListApiIntegrationTests
         // score is not serialized on ChampionTierEntryReadModel, so it is checked
         // indirectly below: the tier list's within-group order has to be the
         // directory rows sorted by TierScore desc, then ChampionId.
-        await _fixture.ResetDatabaseAsync();
         await SeedManyChampionsAsync();
 
         await using var factory = CreateFactory();
@@ -164,7 +165,6 @@ public sealed class ChampionTierListApiIntegrationTests
         // and the tier is lane-relative — so scoping to MIDDLE cannot move a
         // MIDDLE row to another tier. This is the invariant that let #1240
         // delete the tier list's own re-tiering pass.
-        await _fixture.ResetDatabaseAsync();
         await SeedManyChampionsAsync();
 
         await using var factory = CreateFactory();
@@ -202,8 +202,6 @@ public sealed class ChampionTierListApiIntegrationTests
     [Fact]
     public async Task GetTierList_RejectsAnUnknownPosition()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

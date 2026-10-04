@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchTimelineRecoveryIntegrationTests
+public sealed class MatchTimelineRecoveryIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -38,10 +38,13 @@ public sealed class MatchTimelineRecoveryIntegrationTests
         return await service.WriteAsync(session, plan, saveBatchSize, ct);
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task TimelineIngestionService_ShouldRepairPendingTimelineAndMarkMatchAsIngested()
     {
-        await _fixture.ResetDatabaseAsync();
         const string matchId = "KR_100";
 
         await SeedPendingMatchAsync(matchId);
@@ -75,7 +78,6 @@ public sealed class MatchTimelineRecoveryIntegrationTests
     [Fact]
     public async Task TimelineIngestionService_ShouldIsolateATruncatedTimelineAndKeepIngestingTheRest()
     {
-        await _fixture.ResetDatabaseAsync();
         const string truncatedMatchId = "KR_200";
         const string healthyMatchId = "KR_201";
 

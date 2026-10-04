@@ -21,7 +21,7 @@ namespace TrueMain.IntegrationTests;
 /// nothing.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionBanAggregationProcessIntegrationTests
+public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const int Banned = 266;      // Aatrox, banned in the seeded games.
@@ -36,10 +36,13 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_CountsABanOncePerMatch_AcrossTheAllBandAndEachPlayerBand()
     {
-        await _fixture.ResetDatabaseAsync();
         // Both teams ban Aatrox in every match: two ban rows, one banned match.
         await SeedMatchesAsync(count: 4, bands: [EloBracket.Gold], bans: [(100, Banned), (200, Banned)]);
 
@@ -61,7 +64,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_CountsBanlessMatchesInTheDenominator()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync(count: 3, bands: [EloBracket.Gold], bans: [(100, Banned)]);
         await SeedMatchesAsync(count: 7, bands: [EloBracket.Gold], bans: [], matchPrefix: "clean");
 
@@ -83,7 +85,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_StoresAllBandSeparately_BecauseBandsOverlapAndCannotBeSummed()
     {
-        await _fixture.ResetDatabaseAsync();
         // One match, two tracked players in different bands: it counts once in
         // GOLD, once in PLATINUM and once in ALL. Summing the bands would say two
         // matches; only the stored ALL row says one.
@@ -104,7 +105,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_FoldsIntoTheAllBandOnly_WhenNoParticipantHasBeenEloStamped()
     {
-        await _fixture.ResetDatabaseAsync();
         // Elo enrichment defers participants with no rank snapshot, leaving the
         // band blank. Those matches must still be counted, in ALL alone.
         await SeedMatchesAsync(count: 5, bands: [], bans: [(100, Banned)]);
@@ -121,7 +121,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_DoesNotDoubleCountOnRerunWithNoNewMatches()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync(count: 6, bands: [EloBracket.Gold], bans: [(100, Banned)]);
 
         var process = CreateProcess();
@@ -140,7 +139,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_AccumulatesAcrossRunsAsNewMatchesArrive()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync(count: 6, bands: [EloBracket.Gold], bans: [(100, Banned)]);
 
         var process = CreateProcess();
@@ -161,7 +159,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_FoldsInCappedBatches_AndConvergesOnTheSingleBatchTotals()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync(count: 7, bands: [EloBracket.Gold], bans: [(100, Banned)]);
 
         // Batches of 2 under a cap of 5: 2 + 2 + 1 this run, the last 2 on the next. Every
@@ -194,7 +191,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_SkipsMatchesFromOtherQueues()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync(count: 3, bands: [EloBracket.Gold], bans: [(100, Banned)], queueId: 450);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);

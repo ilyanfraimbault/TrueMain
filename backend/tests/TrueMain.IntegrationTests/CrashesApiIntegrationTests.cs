@@ -15,7 +15,7 @@ namespace TrueMain.IntegrationTests;
 /// log tail, and the derived explanation.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CrashesApiIntegrationTests
+public sealed class CrashesApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
 
@@ -28,11 +28,17 @@ public sealed class CrashesApiIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync()
+    {
+        await _postgres.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Requires_the_ops_api_key()
     {
-        await ResetAsync();
-
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -47,7 +53,6 @@ public sealed class CrashesApiIntegrationTests
     [Fact]
     public async Task Returns_crashes_newest_first_with_a_stable_shape_and_its_filter_catalogs()
     {
-        await ResetAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -93,7 +98,6 @@ public sealed class CrashesApiIntegrationTests
     [Fact]
     public async Task Filters_by_process()
     {
-        await ResetAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -108,7 +112,6 @@ public sealed class CrashesApiIntegrationTests
     [Fact]
     public async Task Filters_by_source_case_insensitively_and_returns_nothing_for_an_unknown_one()
     {
-        await ResetAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -130,7 +133,6 @@ public sealed class CrashesApiIntegrationTests
     [Fact]
     public async Task Searches_message_and_stack_trace_case_insensitively_with_literal_metacharacters()
     {
-        await ResetAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -150,7 +152,6 @@ public sealed class CrashesApiIntegrationTests
     [Fact]
     public async Task Treats_since_as_an_inclusive_lower_bound()
     {
-        await ResetAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -170,7 +171,6 @@ public sealed class CrashesApiIntegrationTests
     [Fact]
     public async Task Pages_the_list_while_reporting_the_unpaged_total_and_clamping_the_page_size()
     {
-        await ResetAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -196,7 +196,6 @@ public sealed class CrashesApiIntegrationTests
     [Fact]
     public async Task Carries_the_whole_report_so_the_panel_needs_no_detail_call()
     {
-        await ResetAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -226,7 +225,6 @@ public sealed class CrashesApiIntegrationTests
     [Fact]
     public async Task Explains_an_unclean_shutdown_that_carries_no_exception_at_all()
     {
-        await ResetAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -244,12 +242,6 @@ public sealed class CrashesApiIntegrationTests
         entry.ExitCode.Should().Be(137);
         entry.WorkingSetBytes.Should().Be(3L * 1024 * 1024 * 1024);
         entry.Explanation.Should().Contain("out-of-memory");
-    }
-
-    private async Task ResetAsync()
-    {
-        await _postgres.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
     }
 
     private ApiWebApplicationFactory CreateFactory() => new(_postgres, _mongo);

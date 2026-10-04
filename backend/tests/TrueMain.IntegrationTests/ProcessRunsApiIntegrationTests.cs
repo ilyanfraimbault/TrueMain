@@ -10,7 +10,7 @@ using MongoDB.Driver;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ProcessRunsApiIntegrationTests
+public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -22,11 +22,17 @@ public sealed class ProcessRunsApiIntegrationTests
         _mongo = mongo;
     }
 
-    [Fact]
-    public async Task GetProcessRunsAsync_ShouldReturnRunsNewestFirstWithRollup()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetDatabaseAsync();
         await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task GetProcessRunsAsync_ShouldReturnRunsNewestFirstWithRollup()
+    {
         await SeedProcessRunsAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -105,8 +111,6 @@ public sealed class ProcessRunsApiIntegrationTests
     [Fact]
     public async Task GetProcessRunsAsync_WithSince_ShouldNarrowFailureWindowConsistently()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         await SeedProcessRunsAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -148,9 +152,6 @@ public sealed class ProcessRunsApiIntegrationTests
     [Fact]
     public async Task GetProcessRunsAsync_ShouldSurfaceRunningRunAsLatestStatus()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         // A process with an earlier success and a now-in-flight Running row. The
         // Running row has the newest StartedAtUtc, so it is the latest run and the
         // rollup must report it as the current status (the "what's running now"
@@ -192,9 +193,6 @@ public sealed class ProcessRunsApiIntegrationTests
     [Fact]
     public async Task GetProcessRunsAsync_WithoutSince_ShouldReturnOldRunsCappedByLimitNewestFirst()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         // Seed ONLY runs older than a week. The old behaviour (a default now-7d
         // lower bound on the runs list) would return an empty list here — the bug.
         // With the fix the runs list is unbounded by default, and so is the
@@ -243,9 +241,6 @@ public sealed class ProcessRunsApiIntegrationTests
     [Fact]
     public async Task GetProcessRunsAsync_WithPaging_ShouldReturnRequestedSliceWithTotals()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         // Five PagedJob runs, one hour apart, newest-first order:
         // -1h Failed, -2h Success, -3h Failed, -4h Success, -5h Success.
         var now = DateTime.UtcNow;
@@ -313,8 +308,6 @@ public sealed class ProcessRunsApiIntegrationTests
     [Fact]
     public async Task GetProcessRunsAsync_ShouldSurfaceSummaryJsonAndApplyFilters()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         await SeedProcessRunsAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -352,9 +345,6 @@ public sealed class ProcessRunsApiIntegrationTests
     [Fact]
     public async Task GetProcessRunsAsync_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

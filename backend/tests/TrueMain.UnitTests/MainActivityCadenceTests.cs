@@ -8,7 +8,6 @@ using Ingestor.Processes.Summaries;
 using Ingestor.Riot;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 

@@ -8,7 +8,6 @@ using Ingestor.Ranking;
 using Ingestor.Riot;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 

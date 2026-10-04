@@ -12,14 +12,17 @@ namespace TrueMain.IntegrationTests;
 /// documents the read side would then sum.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mongo)
+public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mongo) : IAsyncLifetime
 {
     private static readonly DateTime Instant = new(2026, 8, 5, 9, 30, 0, DateTimeKind.Utc);
+
+    public async ValueTask InitializeAsync() => await mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task UpsertHourAsync_RefreshesTheHourInPlaceRatherThanAppending()
     {
-        await mongo.ResetAsync();
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
 
@@ -40,7 +43,6 @@ public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mon
     [Fact]
     public async Task UpsertHourAsync_KeepsPlatformsAndStatusesApartWithinOneHour()
     {
-        await mongo.ResetAsync();
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
 
@@ -63,7 +65,6 @@ public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mon
     [Fact]
     public async Task GetHistoryAsync_ExcludesHoursBeforeTheWindow()
     {
-        await mongo.ResetAsync();
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
 
