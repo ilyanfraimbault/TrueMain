@@ -66,7 +66,6 @@ public static class PerkSelectionSeed
 
             db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
             {
-                Id = Guid.NewGuid(),
                 MatchId = matchId,
                 ParticipantId = participantId,
                 // Navigation rather than the FK: the catalog id is an identity column and
