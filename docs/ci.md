@@ -37,7 +37,7 @@ which downstream jobs are worth a runner:
 
 | Output | Paths | Gates |
 | ------ | ----- | ----- |
-| `backend` | `backend/**` | backend build + unit + integration tests, API and Ingestor image builds |
+| `backend` | `backend/**`, `global.json` | backend build + unit + integration tests, API and Ingestor image builds |
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` / `admin` | `web/**` / `admin/**` | the frontend job for that app, its image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
@@ -67,6 +67,13 @@ CI builds **Release** with code-style analyzers as errors, so a Debug build
 passing locally proves nothing. Unit and integration tests run on the same
 runner after one build: splitting them would cost a second restore and build
 to parallelise a suite that runs in about the same time.
+
+Both test projects are xunit v3 (#299), which runs on Microsoft Testing Platform
+only — VSTest is not supported from xunit.v3 4.0. The repo-root `global.json`
+switches `dotnet test` to that runner (`"test": {"runner":
+"Microsoft.Testing.Platform"}`), which is why the steps pass the project with
+`--project` instead of positionally. It sits at the root rather than under
+`backend/` so the command also works when run from the repo root.
 
 ### Frontend
 

@@ -56,9 +56,23 @@ public sealed class ChampionDimensionIdentityIntegrationTests(PostgresFixture fi
                 DROP CONSTRAINT "{ChampionDimensionCanonicalKeys.RunePageCanonicalCheckName}";
             """);
 
-        var swapped = await InsertRawRunePageAsync(secondary1: 8451, secondary2: 8444);
+        try
+        {
+            var swapped = await InsertRawRunePageAsync(secondary1: 8451, secondary2: 8444);
 
-        swapped.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
+            swapped.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
+        }
+        finally
+        {
+            // The schema is shared by the whole collection: put the CHECK back, or every
+            // later test that relies on it (or suspends it) runs against a disarmed table.
+            await db.Database.ExecuteSqlRawAsync(
+                $"""
+                ALTER TABLE champion_dim_rune_pages
+                    ADD CONSTRAINT "{ChampionDimensionCanonicalKeys.RunePageCanonicalCheckName}"
+                    CHECK ({ChampionDimensionCanonicalKeys.RunePageCanonicalCheck});
+                """);
+        }
     }
 
     [Fact]
