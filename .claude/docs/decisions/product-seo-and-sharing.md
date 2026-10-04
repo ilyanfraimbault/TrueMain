@@ -62,7 +62,7 @@ It shipped disabled in #551 for one stated reason — "no dedicated share artwor
 would be build weight for no benefit". #926 supplies the artwork, which flips the benefit half but not
 the cost half, so the setup stays narrow: the `.satori.vue` suffix pins the renderer (no `.browser.vue`
 component exists, so playwright and a headless Chromium never enter the image), only `/champions/:id`
-and `/truemains/:nameTag` call `defineOgImageComponent()`, and every render is cached for 1 h. That
+and `/truemains/:nameTag` call `defineOgImage()`, and every render is cached for 1 h. That
 matters because the renderer runs inside the web container on a VPS that has already been taken down by
 one process's memory (#600) — the crawler-only traffic pattern is what keeps it cold. The **takumi**
 renderer was rejected as still beta; a hand-rolled SVG→PNG route through the already-present `sharp` was
