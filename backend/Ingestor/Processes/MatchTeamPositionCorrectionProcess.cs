@@ -18,7 +18,7 @@ public sealed class MatchTeamPositionCorrectionProcess(
     ILogger<MatchTeamPositionCorrectionProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory) : IIngestorProcess
 {
-    private static readonly int TeamSize = QueueDataQualityProfile.LanePositions.Count;
+    private static readonly int TeamSize = LanePositions.All.Count;
 
     // Bounds how many ambiguous (match, team) pairs are inspected per run. Once
     // RiotMatchMapper's ingestion-time fix stops new gaps from appearing, this

@@ -16,21 +16,22 @@ public sealed class PositionParameterTests
     [InlineData("middle", "MIDDLE")]
     [InlineData("BOTTOM", "BOTTOM")]
     [InlineData("utility", "UTILITY")]
+    [InlineData("mid", "MIDDLE")]
+    [InlineData(" Bot ", "BOTTOM")]
     public void NormalizePosition_UppercasesAndValidatesAgainstKnownPositions(string? input, string? expected)
     {
         PositionParameter.Normalize(input).Should().Be(expected);
     }
 
     [Theory]
-    [InlineData("mid")]
     [InlineData("adc")]
     [InlineData("support")]
     [InlineData("not-a-position")]
     public void NormalizePosition_ReturnsNull_ForUnknownPositions(string input)
     {
-        // Riot's canonical position vocabulary does not include shorthand
-        // like "mid" or "adc" — they're rejected so the query layer can
-        // distinguish "client typo" from "no filter".
+        // Only MID and BOT are accepted as short forms (they abbreviate the
+        // canonical word); role names like "adc" or "support" are rejected so
+        // the query layer can distinguish "client typo" from "no filter".
         PositionParameter.Normalize(input).Should().BeNull();
     }
 }

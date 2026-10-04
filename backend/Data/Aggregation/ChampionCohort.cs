@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Microsoft.EntityFrameworkCore;
 
 namespace Data.Aggregation;
@@ -86,7 +87,11 @@ public static class ChampionCohort
     /// <c>TeamPosition</c> cannot be placed in a composition, a matchup or a lane, so it
     /// is not part of any champion cohort — on either side of a pairing.
     /// </summary>
-    public static readonly string[] CanonicalPositions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+    /// <remarks>
+    /// <see cref="LanePositions.All"/> materialised as an array: this is the form EF Core
+    /// translates to <c>= ANY(@p)</c> when a fold or a read filters on it.
+    /// </remarks>
+    public static readonly string[] CanonicalPositions = [.. LanePositions.All];
 
     /// <summary>Whether <paramref name="teamPosition"/> is one of <see cref="CanonicalPositions"/>.</summary>
     public static bool IsCanonicalPosition(string? teamPosition)

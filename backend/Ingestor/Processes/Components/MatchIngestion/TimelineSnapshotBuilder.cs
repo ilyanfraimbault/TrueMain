@@ -16,8 +16,6 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 /// </remarks>
 internal static class TimelineSnapshotBuilder
 {
-    internal static readonly int[] IntervalMinutes = [5, 10, 15, 20, 30];
-
     // A minute mark is only captured if a frame sits within half a minute of it,
     // so games that ended before a mark simply produce no row for it.
     private const int FrameMatchToleranceMs = 30_000;
@@ -51,7 +49,7 @@ internal static class TimelineSnapshotBuilder
             }
         }
 
-        foreach (var minute in IntervalMinutes)
+        foreach (var minute in TimelineSnapshotMarks.Minutes)
         {
             var frame = SelectFrame(timeline.Frames, minute * 60_000);
             if (frame is null)
