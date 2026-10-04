@@ -26,7 +26,7 @@ for large fills, where a full stop would shout.
 
 **One-sided is a claim about the bottom of the axis.** The top has a second, rarer step: `--color-gold` above
 `--color-data-good`, for a *standout* value — a Perfect KDA, a 75+ performance score
-([`MatchRow.vue`](../app/components/match/MatchRow.vue)). It stays `--color-gold` rather than becoming a
+([`MatchRowKda.vue`](../layers/common/app/components/match/MatchRowKda.vue), [`MatchRowPerformance.vue`](../layers/common/app/components/match/MatchRowPerformance.vue)). It stays `--color-gold` rather than becoming a
 `--color-data-standout` deliberately: it is the same token the MVP crown wears, so the number and the accolade
 say the same thing, and a second name for one hex is how those two drift apart. It is the one member of the
 axis that is **text and small marks only** — a gold fill would out-shout the accent it exists to cap. Use it
