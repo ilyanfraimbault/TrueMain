@@ -193,6 +193,16 @@ export default defineNuxtConfig({
   // typography is themed once under `ui.prose` in `app.config.ts`.
   ui: {
     prose: true,
+    // Without it Nuxt UI hands Tailwind the theme of *every* component it ships
+    // as a source, used or not, and all their utilities land in the stylesheet
+    // every page downloads. Detection scans the layers' `app/` dirs for `U*`
+    // names (templates and scripts) and keeps only those themes plus their
+    // dependencies: the entry CSS drops from 38.9 to 29.5 KB gzip (#1641,
+    // measured). Its one blind spot is a Nuxt UI component chosen at runtime
+    // from a string — list such a component here (`['Modal']`) instead of `true`.
+    experimental: {
+      componentDetection: true,
+    },
   },
   hooks: {
     // Nuxt UI registers the ~45 `Prose*` components as *global*, which is what
