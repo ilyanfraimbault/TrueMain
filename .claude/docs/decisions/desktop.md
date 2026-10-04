@@ -61,8 +61,8 @@ unchanged. A verbatim copy over the size limit (`LeaderboardRow.vue`) is recorde
 twin rather than split away from it. The app's window is fixed and narrower than the site's pages, so where a site
 row does not fit, the twin carries marked width adjustments (the leaderboard row gives the Riot ID its content width
 and reserves the sub-mains column only where it shows) and the build view's narrow column uses the site's compact
-home-page row instead, with the tag under the name — a truncated name was the first thing reported. The layer that would end the copies is #1687
-(2026-09-27).
+home-page row instead, with the tag under the name — a truncated name was the first thing reported. The layer that would end the copies was #1687
+(2026-09-27); it shipped as #1732 and #1756 (build core view).
 
 **The pages the app shares with the site are one implementation, in a Nuxt layer both apps extend (2026-10-01).**
 The product owner's call: champions, tier list, matchup, truemains and favorites must be *the same pages* in the app

@@ -193,19 +193,31 @@ the behaviour it encodes is pinned by a test in *both* suites. Labelled copies a
 `server/utils/ddragon-patch.ts` and `server/api/static/champions.get.ts`; the champion handlers differ only by
 the admin's `requireUserSession` gate, so any other difference in a diff is a regression, not a variant.
 
-**A local Nuxt layer was weighed and rejected for now (2026-09-17, #1623).** The argument against a package does
-not apply to a layer: a local layer has no version and is never published. The layer loses on build plumbing
-instead. The images build from `./web` and `./admin` contexts, so a root-level `layers/` directory is invisible
-to both Docker builds. Each app also has its own `node_modules` and the repo root has none, so bare imports inside
-layer files have nothing to resolve against. Adopting a layer would mean moving both production builds to the
-repo root, giving the layer its own dependency story, and making the CI `changes` gate run both apps for it. All
-of that to share about 300 near-identical, rarely touched lines (`proxy-path`, `abandoned-request`,
-`log-forwarder`, `log-forwarding`). The pairs that really drifted need their differences reconciled whatever the
-mechanism, and a layer does not do that for them. Worth revisiting if the shared surface grows substantially, or
-if the image builds move to the repo root for another reason.
+**A root-level Nuxt layer shared by `web/` and `admin/` was weighed and rejected (2026-09-17, #1623).** The
+argument against a package does not apply to a layer: a local layer has no version and is never published. That
+layer lost on build plumbing instead. The images build from `./web` and `./admin` contexts, so a root-level
+`layers/` directory is invisible to both Docker builds. Each app also has its own `node_modules` and the repo root
+has none, so bare imports inside layer files have nothing to resolve against. Adopting it would have meant moving
+both production builds to the repo root, giving the layer its own dependency story, and making the CI `changes`
+gate run both apps for it. All of that to share about 300 near-identical, rarely touched lines (`proxy-path`,
+`abandoned-request`, `log-forwarder`, `log-forwarding`). The pairs that really drifted need their differences
+reconciled whatever the mechanism, and a layer does not do that for them.
+
+**A layer now exists, between the site and the desktop app, not the admin (2026-10-01, #1732; #1684).** The desktop
+app (#1671) was the "shared surface grows substantially" trigger #1623 named, and #1732 (#1741–#1756) took the
+layer route for it: the pages the app renders identically to the site, and everything they are built from, live in
+`web/layers/common` (`decisions/desktop.md`, the layer's `README.md`). Putting the layer *inside* `web/` is what
+removes #1623's objection for that pair: the site's image still builds from `./web` alone, and the desktop app is
+not Docker-built, so it extends `../../web/layers/common` directly. The admin does **not** extend it. For the admin
+the 2026-09-17 reasoning still holds unchanged: its image builds from `./admin`, where `web/layers/common` is as
+invisible as a root-level `layers/` would be, and the web↔admin shared surface is still the few hundred lines
+above. Web↔admin sharing therefore stays on labelled twins. That pairing has not been re-decided since #1623; its
+revisit condition is unchanged — the shared surface growing substantially, or the image builds moving to the repo
+root for another reason.
 
 The guard against drift will be a CI check (#1625, not yet shipped): the twin pairs are declared, and a pair that differs outside
-lines marked app-specific fails the build.
+lines marked app-specific fails the build. It covers whatever twins remain — web↔admin, and the desktop app's own
+pages that still copy a site component (`decisions/desktop.md`).
 
 `PATCH_PATTERN` (`^\d+\.\d+\.\d+$`) sits next to `normalizeDataDragonPatch`, which produces the value it
 validates — that function expands the short `16.5` form the backend scopes expose and passes everything else
