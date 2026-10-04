@@ -11,6 +11,9 @@
 //! opponent's next, so the most useful line is never the last to fill. Each
 //! line is sent as it lands.
 //!
+//! The session lists the players by puuid, without their names since the
+//! Riot ID migration: each name is read by puuid, with the history.
+//!
 //! A player who hides their name (Streamer Mode) stays anonymous: their
 //! champion and lane show, never their name, and their history is not read.
 
@@ -39,7 +42,7 @@ const PARALLEL_READS: usize = 3;
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadingPlayer {
-    /// Empty for an anonymous player.
+    /// Empty for an anonymous player, and until the name is read.
     pub riot_id: String,
     pub champion_id: i64,
     /// `ORDER` (blue side) or `CHAOS`.
@@ -96,11 +99,20 @@ pub fn follow(app: &AppHandle, state: &AppState) {
     let Some(client) = client else {
         return;
     };
-    let me = state.riot_id.clone();
+    let riot_id = state.riot_id.clone();
     let handle = app.clone();
     let shared = loading.clone();
     *task = Some(tauri::async_runtime::spawn(async move {
-        read(&handle, &shared, &client, me.as_deref()).await;
+        let puuid = client
+            .current_summoner()
+            .await
+            .map(|summoner| summoner.puuid)
+            .unwrap_or_default();
+        let me = Me {
+            puuid,
+            riot_id: riot_id.unwrap_or_default(),
+        };
+        read(&handle, &shared, &client, &me).await;
     }));
 }
 
@@ -118,7 +130,22 @@ fn publish(app: &AppHandle, loading: &Loading, change: impl FnOnce(&mut LoadingV
     let _ = app.emit(EVENT, view);
 }
 
-async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>, me: Option<&str>) {
+/// Who we are, to find our own line: by puuid, the session's key, or by name.
+#[derive(Debug, Default)]
+struct Me {
+    puuid: String,
+    riot_id: String,
+}
+
+impl Me {
+    fn is(&self, player: &GameflowPlayer) -> bool {
+        let riot_id = player.riot_id();
+        (!self.puuid.is_empty() && self.puuid == player.puuid)
+            || (!riot_id.is_empty() && self.riot_id.eq_ignore_ascii_case(&riot_id))
+    }
+}
+
+async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>, me: &Me) {
     let Some((players, puuids)) = roster(client, me).await else {
         tracing::info!("the game's roster could not be read from the client");
         return;
@@ -133,18 +160,35 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
         };
         let (gate, client) = (gate.clone(), client.clone());
         let champion = players[index].champion_id;
+        let named = !players[index].riot_id.is_empty();
         reads.spawn(async move {
             let _permit = gate.acquire_owned().await;
+            let name = if named {
+                None
+            } else {
+                match client.summoner_by_puuid(&puuid).await {
+                    Ok(summoner) if !summoner.game_name.is_empty() => Some(summoner.riot_id()),
+                    Ok(_) => None,
+                    Err(error) => {
+                        tracing::debug!(%error, "a player's name could not be read");
+                        None
+                    }
+                }
+            };
             let history = client.match_history_of(&puuid, FORM_GAMES).await;
             (
                 index,
+                name,
                 history.map(|history| PlayerForm::from_history(&history, champion)),
             )
         });
     }
-    while let Some(Ok((index, form))) = reads.join_next().await {
+    while let Some(Ok((index, name, form))) = reads.join_next().await {
         publish(app, loading, |view| {
             if let Some(player) = view.players.get_mut(index) {
+                if let Some(name) = name {
+                    player.riot_id = name;
+                }
                 match form {
                     Ok(form) => player.form = Some(form),
                     Err(error) => {
@@ -160,10 +204,7 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
 /// The ten players, ours first and our lane opponent next, with their puuids
 /// in the same order — none for an anonymous player, whose history is not
 /// read. `None` when the session never listed them.
-async fn roster(
-    client: &LcuClient,
-    me: Option<&str>,
-) -> Option<(Vec<LoadingPlayer>, Vec<Option<String>>)> {
+async fn roster(client: &LcuClient, me: &Me) -> Option<(Vec<LoadingPlayer>, Vec<Option<String>>)> {
     for _ in 0..SESSION_TRIES {
         if let Ok(Some(session)) = client.gameflow_session().await {
             let data = session.game_data;
@@ -179,7 +220,7 @@ async fn roster(
 fn ordered(
     blue: &[GameflowPlayer],
     red: &[GameflowPlayer],
-    me: Option<&str>,
+    me: &Me,
 ) -> (Vec<LoadingPlayer>, Vec<Option<String>>) {
     let mut rows: Vec<(LoadingPlayer, Option<String>)> = blue
         .iter()
@@ -187,8 +228,7 @@ fn ordered(
         .chain(red.iter().map(|player| (player, "CHAOS")))
         .map(|(player, team)| {
             let riot_id = player.riot_id();
-            let is_me =
-                me.is_some_and(|me| !riot_id.is_empty() && me.eq_ignore_ascii_case(&riot_id));
+            let is_me = me.is(player);
             // Our own line is ours to read, whatever the others are shown.
             let anonymous = !is_me && player.is_anonymous();
             (
@@ -228,6 +268,13 @@ fn ordered(
 mod tests {
     use super::*;
 
+    fn me() -> Me {
+        Me {
+            puuid: String::new(),
+            riot_id: "me#euw".into(),
+        }
+    }
+
     fn player(name: &str, position: &str) -> GameflowPlayer {
         GameflowPlayer {
             puuid: format!("puuid-{name}"),
@@ -243,7 +290,7 @@ mod tests {
     fn ours_first_then_our_lane_opponent_then_the_games_order() {
         let blue = [player("Ally", "TOP"), player("Me", "MIDDLE")];
         let red = [player("Foe", "TOP"), player("Mirror", "MIDDLE")];
-        let (players, puuids) = ordered(&blue, &red, Some("me#euw"));
+        let (players, puuids) = ordered(&blue, &red, &me());
         let names: Vec<&str> = players.iter().map(|p| p.riot_id.as_str()).collect();
         assert_eq!(names, ["Me#EUW", "Mirror#EUW", "Ally#EUW", "Foe#EUW"]);
         assert_eq!(puuids[1].as_deref(), Some("puuid-Mirror"));
@@ -260,7 +307,7 @@ mod tests {
         };
         let blue = [player("Me", "MIDDLE")];
         let red = [hidden, player("Foe", "TOP")];
-        let (players, puuids) = ordered(&blue, &red, Some("me#euw"));
+        let (players, puuids) = ordered(&blue, &red, &me());
         let anonymous = players
             .iter()
             .position(|p| p.anonymous)
@@ -291,10 +338,39 @@ mod tests {
         };
         let blue = [hidden("Me", "MIDDLE"), hidden("Ally", "TOP")];
         let red = [hidden("Foe", "TOP"), hidden("Mirror", "MIDDLE")];
-        let (players, puuids) = ordered(&blue, &red, Some("me#euw"));
+        let (players, puuids) = ordered(&blue, &red, &me());
         assert!(players
             .iter()
             .all(|p| !p.anonymous && !p.riot_id.is_empty()));
         assert!(puuids.iter().all(Option::is_some));
+    }
+
+    #[test]
+    fn the_sessions_nameless_players_are_known_by_puuid_not_anonymous() {
+        let nameless = |name: &str, position: &str| GameflowPlayer {
+            game_name: String::new(),
+            tag_line: String::new(),
+            ..player(name, position)
+        };
+        let me = Me {
+            puuid: "puuid-Me".into(),
+            riot_id: "Me#EUW".into(),
+        };
+        let (players, puuids) = ordered(
+            &[nameless("Ally", "TOP"), nameless("Me", "MIDDLE")],
+            &[nameless("Mirror", "MIDDLE")],
+            &me,
+        );
+        assert!(players[0].is_me, "ours, found by puuid");
+        assert_eq!(
+            puuids[1].as_deref(),
+            Some("puuid-Mirror"),
+            "our lane opponent next"
+        );
+        assert!(players.iter().all(|p| !p.anonymous));
+        assert!(
+            puuids.iter().all(Option::is_some),
+            "every name and history is read"
+        );
     }
 }

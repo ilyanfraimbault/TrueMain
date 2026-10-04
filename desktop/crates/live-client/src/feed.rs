@@ -291,4 +291,19 @@ mod tests {
         assert_eq!(feed.ingest(&serde_json::json!("not a payload")), None);
         assert!(feed.current().is_none());
     }
+
+    #[test]
+    fn the_ten_players_before_the_game_starts_are_not_a_game_yet() {
+        let mut loading = fixture().remove(0);
+        loading["events"]["Events"] = serde_json::json!([]);
+        loading["gameData"]["gameTime"] = serde_json::json!(0.0);
+        let mut feed = GameFeed::default();
+        feed.follow(true);
+        assert_eq!(feed.ingest(&loading), None);
+        assert!(feed.current().is_none());
+        assert!(matches!(
+            feed.ingest(&fixture()[0]),
+            Some(Emission::Snapshot(Some(_)))
+        ));
+    }
 }

@@ -328,9 +328,9 @@ stand-in's flat colour. The steps are:
 - a window of the game's class alone;
 - the preview, opened through UI Automation on the game page's buttons, with a
   panel dragged by the mouse and its place saved and kept;
-- the loading screen: the app restarted on the same tape without its game
-  readings, so the game is in progress but not read yet, and the loading panel
-  alone shows over the stand-in.
+- the loading screen: the app restarted on the same tape with its first game
+  reading made into the loading screen's (ten players, no `GameStart`, clock
+  at zero), and no panel shows over the stand-in.
 
 The build reads preprod, like the beta (`DESKTOP_BETA_SITE_URL`), so the panels
 get their data from the API that has their endpoints. Without the secret, as on

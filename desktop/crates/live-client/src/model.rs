@@ -18,6 +18,18 @@ pub struct AllGameData {
     pub game_data: GameData,
 }
 
+impl AllGameData {
+    /// The game itself has started: its feed opened on `GameStart`. Before
+    /// that — the loading screen — the API already lists the ten players and
+    /// their champions, but nothing in the game has happened yet.
+    pub fn started(&self) -> bool {
+        self.events
+            .events
+            .iter()
+            .any(|event| event.event_name == "GameStart")
+    }
+}
+
 /// The game's event feed: every event since the start, on every reading.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]

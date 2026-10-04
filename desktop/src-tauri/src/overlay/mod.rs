@@ -35,7 +35,6 @@ use shell_state::overlay::{OverlayInputs, OverlayPanel, OverlayPoint, OverlaySet
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::game::SharedGame;
-use crate::supervisor::SharedState;
 
 /// A panel's window, and the route its webview loads.
 pub fn label(panel: OverlayPanel) -> String {
@@ -170,12 +169,6 @@ impl Overlay {
             dead,
             hidden_by_player: self.hidden_by_player.load(Ordering::SeqCst),
             scoreboard: self.scoreboard.load(Ordering::SeqCst),
-            loading_screen: app
-                .state::<SharedState>()
-                .lock()
-                .expect("state mutex poisoned")
-                .phase
-                == lcu::GameflowPhase::InProgress,
         }
     }
 

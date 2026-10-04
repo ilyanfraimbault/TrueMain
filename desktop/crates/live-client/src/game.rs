@@ -169,8 +169,12 @@ const SPELL_SUFFIX: &str = "_DisplayName";
 
 impl GameState {
     /// The state one payload describes, or `None` when it describes no game
-    /// yet — no players, as around the loading screen.
+    /// yet: the loading screen, whether the API answers it with no players or
+    /// with all ten before the game has started.
     pub fn from_payload(data: &AllGameData) -> Option<Self> {
+        if !data.started() {
+            return None;
+        }
         let game_time = data.game_data.game_time;
         let players: Vec<GamePlayer> = data
             .all_players
@@ -410,6 +414,7 @@ mod tests {
         serde_json::from_value(serde_json::json!({
             "activePlayer": { "riotId": "Me#EUW", "riotIdGameName": "Me", "summonerName": "Me#EUW" },
             "allPlayers": players,
+            "events": { "Events": [{ "EventID": 0, "EventName": "GameStart", "EventTime": 0.04 }] },
             "gameData": { "gameTime": game_time, "gameMode": "CLASSIC", "mapNumber": 11 }
         }))
         .unwrap()
@@ -465,6 +470,13 @@ mod tests {
     #[test]
     fn a_payload_without_players_is_no_game_yet() {
         assert!(GameState::from_payload(&payload(serde_json::json!([]), 0.0)).is_none());
+    }
+
+    #[test]
+    fn the_players_before_the_game_starts_are_no_game_yet() {
+        let mut data = payload(serde_json::Value::Array(duo()), 0.0);
+        data.events.events.clear();
+        assert!(GameState::from_payload(&data).is_none());
     }
 
     #[test]

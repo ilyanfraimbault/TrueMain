@@ -149,6 +149,13 @@ impl LcuClient {
         .await
     }
 
+    /// Any player's Riot ID, by puuid: the gameflow session lists the game's
+    /// players without their names.
+    pub async fn summoner_by_puuid(&self, puuid: &str) -> Result<CurrentSummoner> {
+        self.get_json(&format!("/lol-summoner/v2/summoners/puuid/{puuid}"))
+            .await
+    }
+
     /// One game's full scoreboard — all ten participants, which the history
     /// list leaves out.
     pub async fn game(&self, game_id: i64) -> Result<HistoryGame> {
