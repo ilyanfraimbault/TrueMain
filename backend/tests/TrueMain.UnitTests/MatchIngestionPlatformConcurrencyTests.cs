@@ -5,7 +5,6 @@ using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Processes.Summaries;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -103,7 +102,7 @@ public sealed class MatchIngestionPlatformConcurrencyTests
         {
             var session = Substitute.For<IDataSession>();
             session.BeginTransactionAsync(Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult(Substitute.For<IDbContextTransaction>()));
+                .Returns(Task.FromResult(Substitute.For<IDataTransaction>()));
             return Task.FromResult(session);
         });
 

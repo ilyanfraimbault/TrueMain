@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Storage;
-
 namespace Data.Repositories;
 
 public sealed class DataSession : IDataSession
@@ -36,8 +34,8 @@ public sealed class DataSession : IDataSession
     public Task<int> SaveChangesAsync(CancellationToken ct)
         => _db.SaveChangesAsync(ct);
 
-    public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken ct)
-        => _db.Database.BeginTransactionAsync(ct);
+    public async Task<IDataTransaction> BeginTransactionAsync(CancellationToken ct)
+        => new DataTransaction(await _db.Database.BeginTransactionAsync(ct));
 
     public void ClearTracking()
         => _db.ChangeTracker.Clear();
