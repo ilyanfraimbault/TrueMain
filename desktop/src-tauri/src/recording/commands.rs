@@ -45,7 +45,6 @@ pub fn set_recording_settings(
 ) -> Result<SettingsView, String> {
     let settings = RecordingSettings::from_json(&settings.to_string());
     recorder.replace_settings(settings).map_err(text)?;
-    recorder.allow_folder(&app);
     let protect = recorder
         .activity()
         .folder

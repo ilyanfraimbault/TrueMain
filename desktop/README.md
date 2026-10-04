@@ -167,7 +167,10 @@ at the playhead, several ranges, each named and saved as its own file — and ke
 or deletes the full game; a **clip player** renames, favourites and deletes a
 clip; the **settings** slideover holds the short list of choices; and a
 dashboard row offers **Watch** when its game was recorded. Files reach the
-webview through Tauri's asset protocol (`convertFileSrc`).
+webview through the shell's `recording` scheme (`src-tauri/src/recording/files.rs`),
+limited to the recordings folder. Not Tauri's asset protocol: it answers every
+range with at most 1000 KiB, and WebKit drops a video track whose sample table
+(past ~36 minutes at 60 fps) comes back short, so long games played black (#1830).
 
 In development the shell finds the helper `swift build` leaves in
 `capture/macos/.build/` — build it once with

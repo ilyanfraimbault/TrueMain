@@ -292,6 +292,24 @@ pub fn run() {
         .manage(GameCache::default())
         .manage(SharedGame::default())
         .manage(loading::SharedLoading::default())
+        .register_asynchronous_uri_scheme_protocol(
+            recording::files::SCHEME,
+            |context, request, responder| {
+                // The recorder is managed in `setup`; a request before then
+                // gets an answer, not a panic.
+                let Some(recorder) = context
+                    .app_handle()
+                    .try_state::<recording::SharedRecorder>()
+                else {
+                    responder.respond(recording::files::unavailable());
+                    return;
+                };
+                let folder = recorder.folder();
+                tauri::async_runtime::spawn_blocking(move || {
+                    responder.respond(recording::files::serve(&request, &folder));
+                });
+            },
+        )
         .invoke_handler(tauri::generate_handler![
             current_state,
             current_screen,

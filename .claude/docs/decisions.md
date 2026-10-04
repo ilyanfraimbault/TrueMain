@@ -125,6 +125,7 @@ Last verified against `develop` on 2026-09-02.
 - The champion link graph was server-rendered, then removed — the pages are back to zero internal champion links — #1123, #1209, #147
 - A platform-dependent `UKbd` cannot be server-rendered — #1209
 - OG image rendering is on, pinned to Satori + resvg, and deliberately reaches exactly two pages — #551, #926, #600
+- A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04) — #1545
 - OG image URLs are signed with a secret regenerated at every build, and that is left as the default — #926
 - The sitemap advertises champions, not players (2026-09-01) — #862, #1337, #551
 
@@ -207,7 +208,7 @@ Last verified against `develop` on 2026-09-02.
 - Configuration defaults live in the class, and the two champion games floors are two keys — #1034, #860, #889
 - A unit of work covers the writes and nothing else (2026-08-28) — #264, #1229
 - `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07) — #1520, #1451
-- A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541
+- A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541, #124
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
@@ -286,6 +287,7 @@ Last verified against `develop` on 2026-09-02.
 - The candidate stock is snapshotted hourly, because it cannot be reconstructed afterwards — #1403
 - A recorded zero is a measurement; an unmeasured period is absent — #1403, #924
 - A stock is sampled across time and summed across platforms — never the other way round — #1403
+- The candidate level is charted in rows or accounts, with the unit stated; accounts are snapshotted, not derived at read time — #1534
 - Daily storage snapshots go to Mongo and are keyed on the day, not the run — #925
 - The disk forecast is absent rather than approximate when the data can't support it — #680, #925
 - Logs and metrics live in MongoDB, not Postgres, with two different guarantees — #416
@@ -350,6 +352,7 @@ Last verified against `develop` on 2026-09-02.
 - Game recording: two quality choices (resolution, 30/60 fps), everything else derived; highlights from the timeline, live feed as fallback; disk budget drops the oldest unpinned; unsigned beta and a GPL capture library both accepted (2026-10-01) — #1744, #1754
 - Screen capture runs in a native helper process per platform (Swift + ScreenCaptureKit + VideoToolbox on macOS), driven over JSON lines; encoder settings still computed in Rust; shipped inside the app bundle, also cutting clips and taking thumbnails (2026-10-01) — #1745, #1744
 - macOS records the game's display filtered to the game's windows (a full-screen game's window sends only idle frames); Windows keeps the window, its display is the whole monitor (2026-10-03) — #1826
+- Recordings are served by the app's own `recording` scheme (explicit ranges answered in full, recordings folder only), not Tauri's asset protocol, whose 1000 KiB range cap blacked out games past ~36 min (2026-10-04) — #1830
 - The Windows helper is Rust (Windows.Graphics.Capture + D3D11 video processor + Media Foundation hardware encoders, WASAPI process loopback for the game's sound only), same protocol, added to the installer as a sidecar at release time only (2026-10-02) — #1797
 - The app records only against a real client, into the system's videos folder; objectives from the match timeline only; Screen Recording asked from the Recordings page (2026-10-01) — #1744
 - Clips are cut by hand from the post-game recap in v1 (reverses #1744's "no trimming by hand"); saved clips are never pruned by the budget; the recap opens on its own only over the game page or the dashboard; Recordings page in DPM's layout (2026-10-01) — #1755, #1777

@@ -62,12 +62,24 @@ It shipped disabled in #551 for one stated reason — "no dedicated share artwor
 would be build weight for no benefit". #926 supplies the artwork, which flips the benefit half but not
 the cost half, so the setup stays narrow: the `.satori.vue` suffix pins the renderer (no `.browser.vue`
 component exists, so playwright and a headless Chromium never enter the image), only `/champions/:id`
-and `/truemains/:nameTag` call `defineOgImageComponent()`, and every render is cached for 1 h. That
+and `/truemains/:nameTag` call `defineOgImage()`, and every render is cached for 1 h. That
 matters because the renderer runs inside the web container on a VPS that has already been taken down by
 one process's memory (#600) — the crawler-only traffic pattern is what keeps it cold. The **takumi**
 renderer was rejected as still beta; a hand-rolled SVG→PNG route through the already-present `sharp` was
 rejected because `node:*-alpine` ships no system fonts, so text would not render — Satori takes font
 buffers directly, which is exactly the problem it solves — #926.
+
+**A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04).**
+The module's 15 s `renderTimeout` was shorter than a cold champion card: measured on preprod, island
+fetch 13.5 s + render 3.8 s = 17.4 s, the island almost entirely waiting on `GET /champions` for the
+card's filter (6–12.5 s on a cold key). That slice is read by the cards alone, so nothing else keeps the
+API's cache warm for it. A 408 also caches nothing, so every unfurl of an unvisited link started from
+zero — and crawlers ask once. `ogImage.security.renderTimeout` is 30 s: the cold card completes and is
+cached for every later unfurl, and the 408 still bounds a stuck upstream. Rejected: prerendering every
+champion card (build weight for artwork almost nobody shares) and a periodic warm-up of the card's
+upstream (recurring backend compute for a slice only crawlers read). Not solved here: a crawler whose own
+timeout is shorter than a cold render still sees no image on that first fetch; only a faster cold
+`GET /champions` closes that — #1545.
 
 **OG image URLs are signed with a secret regenerated at every build, and that is left as the default.**
 Without a secret, the encoded URL params are attacker-controllable, including the module's `html`

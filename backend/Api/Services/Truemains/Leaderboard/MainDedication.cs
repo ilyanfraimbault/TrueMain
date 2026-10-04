@@ -228,7 +228,7 @@ internal static class MainDedication
     /// </summary>
     /// <remarks>
     /// The predicate must stay in lock-step with
-    /// <c>TruemainsLeaderboardQueryService.CountAsync</c> — every filter lands on
+    /// <c>LeaderboardEligibility.CountAsync</c> — every filter lands on
     /// the same <c>main_champion_stats</c> row, so <c>?championId=X&amp;position=Y</c>
     /// means "has an X main played in Y" and the total agrees with the ranked
     /// slice. This is membership only: nothing selected here reaches the score,

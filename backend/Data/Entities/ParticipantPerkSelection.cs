@@ -1,9 +1,11 @@
 namespace Data.Entities;
 
+/// <summary>
+/// One rune selection of one participant. Keyed by (MatchId, ParticipantId, PerkSelectionCatalogId)
+/// — no surrogate id (#124).
+/// </summary>
 public class ParticipantPerkSelection
 {
-    public Guid Id { get; set; }
-
     public string MatchId { get; set; } = string.Empty;
 
     public int ParticipantId { get; set; }

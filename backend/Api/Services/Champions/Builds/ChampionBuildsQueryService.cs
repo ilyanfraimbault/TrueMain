@@ -10,6 +10,60 @@ using TrueMain.Services.Champions.Scopes;
 
 namespace TrueMain.Services.Champions.Builds;
 
+public interface IChampionBuildsQueryService
+{
+    /// <summary>
+    /// Returns the top builds for a champion at a given patch + position,
+    /// each build keyed by (first completed item, primary keystone) and
+    /// carrying the four UI sections — core, variations, build tree, rune
+    /// pages. <see langword="null"/> means the champion has no aggregated
+    /// data on the active queue (404 territory).
+    /// </summary>
+    /// <param name="championId">Riot champion id to build the page for.</param>
+    /// <param name="patch">
+    /// Requested patch (<c>major.minor</c> or full Riot version); when null
+    /// the dominant patch in the scope is resolved automatically.
+    /// </param>
+    /// <param name="position">
+    /// Requested Riot team position; when null the dominant position is
+    /// resolved automatically.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <param name="scope">
+    /// Optional player narrowing. When omitted the response aggregates the
+    /// global pool; when a player scope is supplied every aggregate is
+    /// computed only from that player's games on the champion. The
+    /// <see cref="ChampionBuildsScope.MinGames"/> value only *prefers* a patch
+    /// with enough games when resolving which to render — it no longer gates:
+    /// a thinly-played champion still returns a (low-confidence) build. Only a
+    /// total absence of aggregated data yields <see langword="null"/> (404).
+    /// </param>
+    /// <param name="eloBracket">
+    /// Optional elo filter (per <c>Core.Lol.Ranking.EloBracket</c>): <c>ALL</c>,
+    /// a bare tier (e.g. <c>GOLD</c> — that tier only), or a <c>TIER_PLUS</c>
+    /// form (e.g. <c>GOLD_PLUS</c> — that tier and above). When null or
+    /// <c>ALL</c> the response spans every tier; otherwise it recomputes the
+    /// builds / skill order / win rate from the selected tier(s) only and
+    /// reports its <see cref="ChampionResponse.EloCoverage"/> /
+    /// <see cref="ChampionResponse.MinSampleMet"/>.
+    /// </param>
+    /// <param name="truemainsOnly">
+    /// When <see langword="true"/> (the default) the build is folded only from
+    /// accounts that are <em>mains</em> of the champion — the site's truemain
+    /// population, and the only population the aggregate held before #1346.
+    /// When <see langword="false"/> it widens to every tracked player's games on
+    /// the champion.
+    /// </param>
+    Task<ChampionResponse?> GetAsync(
+        int championId,
+        string? patch,
+        string? position,
+        ChampionBuildsScope? scope = null,
+        string? eloBracket = null,
+        bool truemainsOnly = true,
+        CancellationToken ct = default);
+}
+
 public sealed class ChampionBuildsQueryService(
     TrueMainDbContext db,
     IOptions<MainAnalysisOptions> options,
@@ -17,13 +71,6 @@ public sealed class ChampionBuildsQueryService(
     IChampionReadCache cache)
     : IChampionBuildsQueryService
 {
-    // Build tabs and per-dimension variations are shared with the live matchup
-    // fold — both feed the same panel, see ChampionBuildDisplayCaps.
-    private const int MaxBuilds = ChampionBuildDisplayCaps.MaxBuilds;
-    private const double MinBuildPickRate = 0.05;
-    private const int VariationsTopN = ChampionBuildDisplayCaps.MaxVariations;
-    private const int RunePagesTopN = 3;
-
     public Task<ChampionResponse?> GetAsync(
         int championId,
         string? patch,
@@ -114,28 +161,11 @@ public sealed class ChampionBuildsQueryService(
             return BuildResponse([]);
         }
 
-        var groups = rows
-            .GroupBy(row => new BuildKey(row.BuildItem0, row.PrimaryKeystoneId))
-            .Select(group => new PendingBuild(
-                group.Key,
-                group.ToList(),
-                group.Sum(row => row.Games),
-                group.Sum(row => row.Wins)))
-            .Where(pending => (double)pending.Games / totalGames > MinBuildPickRate)
-            .OrderByDescending(pending => pending.Games)
-            .ThenBy(pending => pending.Key.FirstItemId)
-            .ThenBy(pending => pending.Key.PrimaryKeystoneId)
-            .Take(MaxBuilds)
-            .ToList();
-
-        if (groups.Count == 0)
+        var perGroupAggregates = ChampionBuildDistributions.Fold(rows, totalGames);
+        if (perGroupAggregates.Count == 0)
         {
             return BuildResponse([]);
         }
-
-        var perGroupAggregates = groups
-            .Select(pending => AggregateGroup(pending))
-            .ToList();
 
         var spellIds = UniqueIds(perGroupAggregates.SelectMany(ga => ga.TopSpells.Select(t => t.Id)));
         var skillIds = UniqueIds(perGroupAggregates.SelectMany(ga => ga.TopSkills.Select(t => t.Id)));
@@ -156,7 +186,7 @@ public sealed class ChampionBuildsQueryService(
             .ToDictionaryAsync(dim => dim.Id, ct);
 
         var builds = perGroupAggregates
-            .Select(ga => MaterializeBuild(
+            .Select(ga => ChampionBuildDistributions.Materialize(
                 ga, totalGames,
                 dimSpellPairs, dimSkillOrders, dimStarterItems, dimRunePages))
             .ToList();
@@ -192,7 +222,7 @@ public sealed class ChampionBuildsQueryService(
                 truemainsOnly: truemainsOnly)
             .SumAsync(s => s.Games, ct);
 
-    private async Task<IReadOnlyList<ChampionPatternEnrichedRow>> FetchRowsAsync(
+    private async Task<IReadOnlyList<ChampionBuildDistributions.ChampionPatternEnrichedRow>> FetchRowsAsync(
         IReadOnlyList<Guid> scopeIds,
         CancellationToken ct)
     {
@@ -234,7 +264,7 @@ public sealed class ChampionBuildsQueryService(
             .ToListAsync(ct);
 
         return raw
-            .Select(row => new ChampionPatternEnrichedRow(
+            .Select(row => new ChampionBuildDistributions.ChampionPatternEnrichedRow(
                 row.SpellPairId,
                 row.SkillOrderId,
                 row.StarterItemsId,
@@ -253,295 +283,6 @@ public sealed class ChampionBuildsQueryService(
             .ToList();
     }
 
-    private static GroupAggregates AggregateGroup(PendingBuild pending)
-    {
-        var sliceGames = pending.Games;
-        var rows = pending.Rows;
-
-        var topSpells = AggregateByGuid(
-            rows, r => r.SpellPairId, r => r.Games, r => r.Wins, VariationsTopN);
-        var topSkills = AggregateByGuid(
-            rows, r => r.SkillOrderId, r => r.Games, r => r.Wins, VariationsTopN);
-        var topStarters = AggregateByGuid(
-            rows, r => r.StarterItemsId, r => r.Games, r => r.Wins, VariationsTopN);
-        var topRunes = AggregateByGuid(
-            rows, r => r.RunePageId, r => r.Games, r => r.Wins, RunePagesTopN);
-        var topBoots = AggregateBoots(rows, VariationsTopN);
-
-        // Build the (pruned) tree once and derive the highlighted item path
-        // from the same tree, so anything the path includes is guaranteed to
-        // be visible in the build-tree visualization (no "ghost" deep items).
-        var sequences = rows
-            .Select(row => new ChampionBuildPathAnalyzer.BuildSequence(
-                row.BuildItem1, row.BuildItem2, row.BuildItem3,
-                row.BuildItem4, row.BuildItem5, row.BuildItem6,
-                row.Games, row.Wins))
-            .ToList();
-        var buildTree = ChampionBuildPathAnalyzer.BuildItemTree(sequences, sliceGames);
-        var (itemPath, itemPathGames, itemPathWins) = ChampionBuildPathAnalyzer.WalkPath(
-            buildTree, pending.Key.FirstItemId, sliceGames, pending.Wins);
-
-        return new GroupAggregates(
-            pending.Key,
-            pending.Rows,
-            pending.Games,
-            pending.Wins,
-            topSpells,
-            topSkills,
-            topStarters,
-            topRunes,
-            topBoots,
-            itemPath,
-            itemPathGames,
-            itemPathWins,
-            buildTree);
-    }
-
-    private static List<DimAggregate> AggregateByGuid(
-        IReadOnlyList<ChampionPatternEnrichedRow> rows,
-        Func<ChampionPatternEnrichedRow, Guid> idSelector,
-        Func<ChampionPatternEnrichedRow, int> gamesSelector,
-        Func<ChampionPatternEnrichedRow, int> winsSelector,
-        int topN)
-        => rows
-            .GroupBy(idSelector)
-            .Select(group => new DimAggregate(
-                group.Key,
-                group.Sum(gamesSelector),
-                group.Sum(winsSelector)))
-            .OrderByDescending(aggregate => aggregate.Games)
-            .ThenByDescending(aggregate => aggregate.Wins)
-            .ThenBy(aggregate => aggregate.Id)
-            .Take(topN)
-            .ToList();
-
-    private static List<BootsAggregate> AggregateBoots(
-        IReadOnlyList<ChampionPatternEnrichedRow> rows,
-        int topN)
-        => rows
-            .Where(row => row.BootsItemId > 0)
-            .GroupBy(row => row.BootsItemId)
-            .Select(group => new BootsAggregate(
-                group.Key,
-                group.Sum(row => row.Games),
-                group.Sum(row => row.Wins)))
-            .OrderByDescending(aggregate => aggregate.Games)
-            .ThenByDescending(aggregate => aggregate.Wins)
-            .ThenBy(aggregate => aggregate.ItemId)
-            .Take(topN)
-            .ToList();
-
     private static List<Guid> UniqueIds(IEnumerable<Guid> source)
         => source.Distinct().ToList();
-
-    private static ChampionBuildReadModel MaterializeBuild(
-        GroupAggregates aggregates,
-        int totalGames,
-        Dictionary<Guid, ChampionDimSpellPair> spellDims,
-        Dictionary<Guid, ChampionDimSkillOrder> skillDims,
-        Dictionary<Guid, ChampionDimStarterItems> starterDims,
-        Dictionary<Guid, ChampionDimRunePage> runeDims)
-    {
-        var sliceGames = aggregates.Games;
-        var spellVariations = aggregates.TopSpells
-            .Select(agg => MaterializeSpell(agg, sliceGames, spellDims))
-            .Where(option => option is not null)
-            .Select(option => option!)
-            .ToList();
-        var skillVariations = aggregates.TopSkills
-            .Select(agg => MaterializeSkill(agg, sliceGames, skillDims))
-            .Where(option => option is not null)
-            .Select(option => option!)
-            .ToList();
-        var starterVariations = aggregates.TopStarters
-            .Select(agg => MaterializeStarter(agg, sliceGames, starterDims))
-            .Where(option => option is not null)
-            .Select(option => option!)
-            .ToList();
-        var bootsVariations = aggregates.TopBoots
-            .Select(agg => MaterializeBoots(agg, sliceGames))
-            .ToList();
-        var runePages = aggregates.TopRunes
-            .Select(agg => MaterializeRunePage(agg, sliceGames, runeDims))
-            .Where(option => option is not null)
-            .Select(option => option!)
-            .ToList();
-
-        var itemPath = new BuildItemPathReadModel
-        {
-            ItemIds = aggregates.ItemPath,
-            Games = aggregates.ItemPathGames,
-            PickRate = RateMath.Rate(aggregates.ItemPathGames, sliceGames),
-            WinRate = RateMath.Rate(aggregates.ItemPathWins, aggregates.ItemPathGames)
-        };
-
-        return new ChampionBuildReadModel
-        {
-            FirstItemId = aggregates.Key.FirstItemId,
-            PrimaryKeystoneId = aggregates.Key.PrimaryKeystoneId,
-            Games = sliceGames,
-            PickRate = RateMath.Rate(sliceGames, totalGames),
-            WinRate = RateMath.Rate(aggregates.Wins, sliceGames),
-            Core = new BuildCoreReadModel
-            {
-                ItemPath = itemPath,
-                Boots = bootsVariations.FirstOrDefault(),
-                StarterItems = starterVariations.FirstOrDefault(),
-                SummonerSpells = spellVariations.FirstOrDefault(),
-                SkillOrder = skillVariations.FirstOrDefault(),
-                RunePage = runePages.FirstOrDefault()
-            },
-            Variations = new BuildVariationsReadModel
-            {
-                Boots = bootsVariations,
-                StarterItems = starterVariations,
-                SummonerSpells = spellVariations,
-                SkillOrder = skillVariations
-            },
-            BuildTree = aggregates.BuildTree
-                .Select(node => ChampionBuildPathAnalyzer.ToReadModel(node, sliceGames))
-                .ToList(),
-            RunePages = runePages
-        };
-    }
-
-    private static BuildSummonerSpellsReadModel? MaterializeSpell(
-        DimAggregate aggregate,
-        int sliceGames,
-        Dictionary<Guid, ChampionDimSpellPair> dims)
-    {
-        if (!dims.TryGetValue(aggregate.Id, out var dim))
-        {
-            return null;
-        }
-        return new BuildSummonerSpellsReadModel
-        {
-            Spell1Id = dim.Spell1Id,
-            Spell2Id = dim.Spell2Id,
-            Games = aggregate.Games,
-            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
-            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
-        };
-    }
-
-    private static BuildSkillOrderReadModel? MaterializeSkill(
-        DimAggregate aggregate,
-        int sliceGames,
-        Dictionary<Guid, ChampionDimSkillOrder> dims)
-    {
-        if (!dims.TryGetValue(aggregate.Id, out var dim))
-        {
-            return null;
-        }
-        var sequence = string.IsNullOrEmpty(dim.SkillOrderKey)
-            ? Array.Empty<string>()
-            : dim.SkillOrderKey.Split('-', StringSplitOptions.RemoveEmptyEntries);
-        return new BuildSkillOrderReadModel
-        {
-            Sequence = sequence,
-            Games = aggregate.Games,
-            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
-            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
-        };
-    }
-
-    private static BuildItemSetReadModel? MaterializeStarter(
-        DimAggregate aggregate,
-        int sliceGames,
-        Dictionary<Guid, ChampionDimStarterItems> dims)
-    {
-        if (!dims.TryGetValue(aggregate.Id, out var dim))
-        {
-            return null;
-        }
-        return new BuildItemSetReadModel
-        {
-            ItemIds = dim.StarterItems,
-            Games = aggregate.Games,
-            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
-            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
-        };
-    }
-
-    private static BuildItemSetReadModel MaterializeBoots(BootsAggregate aggregate, int sliceGames)
-        => new()
-        {
-            ItemIds = [aggregate.ItemId],
-            Games = aggregate.Games,
-            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
-            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
-        };
-
-    private static BuildRunePageReadModel? MaterializeRunePage(
-        DimAggregate aggregate,
-        int sliceGames,
-        Dictionary<Guid, ChampionDimRunePage> dims)
-    {
-        if (!dims.TryGetValue(aggregate.Id, out var dim))
-        {
-            return null;
-        }
-        return new BuildRunePageReadModel
-        {
-            PrimaryStyleId = dim.PrimaryStyleId,
-            PrimaryKeystoneId = dim.PrimaryKeystoneId,
-            PrimaryPerk1Id = dim.PrimaryPerk1Id,
-            PrimaryPerk2Id = dim.PrimaryPerk2Id,
-            PrimaryPerk3Id = dim.PrimaryPerk3Id,
-            SecondaryStyleId = dim.SecondaryStyleId,
-            SecondaryPerk1Id = dim.SecondaryPerk1Id,
-            SecondaryPerk2Id = dim.SecondaryPerk2Id,
-            StatOffense = dim.StatOffense,
-            StatFlex = dim.StatFlex,
-            StatDefense = dim.StatDefense,
-            Games = aggregate.Games,
-            PickRate = RateMath.Rate(aggregate.Games, sliceGames),
-            WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
-        };
-    }
-
-    private readonly record struct BuildKey(int FirstItemId, int PrimaryKeystoneId);
-
-    private sealed record PendingBuild(
-        BuildKey Key,
-        IReadOnlyList<ChampionPatternEnrichedRow> Rows,
-        int Games,
-        int Wins);
-
-    private sealed record GroupAggregates(
-        BuildKey Key,
-        IReadOnlyList<ChampionPatternEnrichedRow> Rows,
-        int Games,
-        int Wins,
-        IReadOnlyList<DimAggregate> TopSpells,
-        IReadOnlyList<DimAggregate> TopSkills,
-        IReadOnlyList<DimAggregate> TopStarters,
-        IReadOnlyList<DimAggregate> TopRunes,
-        IReadOnlyList<BootsAggregate> TopBoots,
-        IReadOnlyList<int> ItemPath,
-        int ItemPathGames,
-        int ItemPathWins,
-        IReadOnlyList<ChampionBuildPathAnalyzer.TreeNode> BuildTree);
-
-    private readonly record struct DimAggregate(Guid Id, int Games, int Wins);
-
-    private readonly record struct BootsAggregate(int ItemId, int Games, int Wins);
-
-    private sealed record ChampionPatternEnrichedRow(
-        Guid SpellPairId,
-        Guid SkillOrderId,
-        Guid StarterItemsId,
-        Guid RunePageId,
-        int BuildItem0,
-        int BuildItem1,
-        int BuildItem2,
-        int BuildItem3,
-        int BuildItem4,
-        int BuildItem5,
-        int BuildItem6,
-        int BootsItemId,
-        int PrimaryKeystoneId,
-        int Games,
-        int Wins);
-
 }

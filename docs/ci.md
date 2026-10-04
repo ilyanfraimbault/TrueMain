@@ -16,7 +16,7 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; typecheck and static build of its Nuxt app (below) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; typecheck, unit tests and static build of its Nuxt app (below) |
 | `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
 | `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
@@ -280,6 +280,12 @@ those two paths, and its `Nuxt app` job typechecks the app and builds its static
 bundle (`npm run generate`, what `tauri build` runs) with only the app's own
 dependencies installed — the same conditions as `desktop-release.yml`, where a
 shared file importing a package the app lacks would otherwise fail first.
+Between the two it runs the app's vitest suite (`npm run test`, #1724): pure
+tests of the dashboard's rules — each game's LP gain from the locally noted
+standings, recent form against the player's average — in a bare happy-dom
+environment with no Nuxt runtime. `npm ci` runs `nuxt prepare` (the app's
+`postinstall`, as on `web/` and `admin/`) because the tests' TypeScript
+transform reads the generated `.nuxt` tsconfig.
 
 The `macOS capture spike` job builds the game-recording spike (#1745): the
 Swift capture helper (`desktop/capture/macos`, ScreenCaptureKit, so only a Mac

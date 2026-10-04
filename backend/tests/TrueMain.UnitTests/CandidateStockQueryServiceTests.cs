@@ -45,6 +45,40 @@ public sealed class CandidateStockQueryServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_CarriesDistinctAccountsAlongsideRows_SummedAcrossPlatforms()
+    {
+        var hour = new DateTime(2026, 8, 5, 9, 0, 0, DateTimeKind.Utc);
+        var store = StoreWith(
+            new CandidateStockSnapshotPoint(hour, "EUW1", "Validated", 400, 100),
+            new CandidateStockSnapshotPoint(hour, "KR", "Validated", 80, 20),
+            new CandidateStockSnapshotPoint(hour, "EUW1", "Queued", 30, 30));
+
+        var result = await CreateService(store).GetAsync(
+            IngestionTimeGranularity.Hour, windowDays: 7, CancellationToken.None);
+
+        var bucket = result.Buckets.Should().ContainSingle().Subject;
+        bucket.Validated.Should().Be(480, "rows are one per (account, champion)");
+        bucket.Accounts.Should().NotBeNull();
+        bucket.Accounts!.Validated.Should().Be(120, "accounts are distinct per platform, and platforms are disjoint");
+        bucket.Accounts.Queued.Should().Be(30);
+    }
+
+    [Fact]
+    public async Task GetAsync_ReportsNoAccounts_ForAReadingThatPredatesTheField()
+    {
+        var hour = new DateTime(2026, 8, 5, 9, 0, 0, DateTimeKind.Utc);
+        var store = StoreWith(
+            new CandidateStockSnapshotPoint(hour, "EUW1", "Validated", 400, 100),
+            Point(hour, "KR", "Validated", 80));
+
+        var result = await CreateService(store).GetAsync(
+            IngestionTimeGranularity.Hour, windowDays: 7, CancellationToken.None);
+
+        result.Buckets.Should().ContainSingle().Which.Accounts.Should()
+            .BeNull("a sum missing a whole region would read as a measurement");
+    }
+
+    [Fact]
     public async Task GetAsync_KeepsTheLastReadingOfAPeriod_RatherThanAddingThemUp()
     {
         var day = new DateTime(2026, 8, 4, 0, 0, 0, DateTimeKind.Utc);

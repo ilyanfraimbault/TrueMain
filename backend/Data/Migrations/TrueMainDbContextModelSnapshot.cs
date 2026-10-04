@@ -102,8 +102,6 @@ namespace Data.Migrations
 
                     b.HasIndex("StarterItemsId");
 
-                    b.HasIndex("ScopeId", "BuildId");
-
                     b.HasIndex("ScopeId", "RunePageId");
 
                     b.HasIndex("ScopeId", "SkillOrderId");
@@ -1557,12 +1555,7 @@ namespace Data.Migrations
 
             modelBuilder.Entity("Data.Entities.ParticipantPerkSelection", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
                     b.Property<string>("MatchId")
-                        .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
@@ -1572,12 +1565,9 @@ namespace Data.Migrations
                     b.Property<int>("PerkSelectionCatalogId")
                         .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                    b.HasKey("MatchId", "ParticipantId", "PerkSelectionCatalogId");
 
                     b.HasIndex("PerkSelectionCatalogId");
-
-                    b.HasIndex("MatchId", "ParticipantId", "PerkSelectionCatalogId")
-                        .IsUnique();
 
                     b.ToTable("participant_perk_selections", (string)null);
                 });

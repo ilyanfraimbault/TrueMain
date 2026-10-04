@@ -227,7 +227,8 @@ actually use. The Guid PK was never scanned once, yet cost 16 bytes per row and 
 UUIDs on one of the largest tables in the database — and, B-trees never shrinking on disk, it stayed at the
 size of the retired per-minute grid (#1599) long after the rows were gone. #1697 promoted the unique index to
 the primary key (`ADD CONSTRAINT ... PRIMARY KEY USING INDEX`: no index build, no table rewrite) and dropped
-the column.
+the column. #124 did the same for `participant_perk_selections`, keyed by `(MatchId, ParticipantId,
+PerkSelectionCatalogId)`.
 
 A surrogate key still earns its place where rows have no stable natural identity, or where other tables
 reference the row and a wide composite FK would be copied into each of them. A leaf table nobody references
