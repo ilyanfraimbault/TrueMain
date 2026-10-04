@@ -1,4 +1,5 @@
 import type { GameTeam } from '~/types/game'
+import type { RankedQueue } from '~/types/record'
 
 /** Mirrors `PlayerForm` in `crates/lcu/src/form.rs`. */
 export interface PlayerForm {
@@ -7,8 +8,22 @@ export interface PlayerForm {
   /** Of those, the ones on the champion the player is on now. */
   championGames: number
   championWins: number
+  /** Kills, deaths and assists summed over the games on the champion. */
+  championKills: number
+  championDeaths: number
+  championAssists: number
+  /** The roles the player was given, most played first, over role-assigned queues. */
+  positions: PositionGames[]
+  /** The run the latest games make: 3 for three wins in a row, -2 for two losses. */
+  streak: number
   /** The latest of those, newest first, at most ten. */
   recent: RecentGame[]
+}
+
+/** Mirrors `PositionGames` in `crates/lcu/src/form.rs`. */
+export interface PositionGames {
+  position: string
+  games: number
 }
 
 /** Mirrors `RecentGame` in `crates/lcu/src/form.rs`. */
@@ -37,6 +52,12 @@ export interface LoadingPlayer {
   /** Absent until read, and for good when the client could not read it. */
   form: PlayerForm | null
   failed: boolean
+  /** Solo/Duo, else a ranked Flex; null until read, when unranked, or unreadable. */
+  rank: RankedQueue | null
+  /** The standing was read: a null `rank` is then an unranked player. */
+  rankRead: boolean
+  /** The client could not read the standing. */
+  rankFailed: boolean
 }
 
 export interface LoadingView {

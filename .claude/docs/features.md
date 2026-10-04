@@ -245,16 +245,21 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 - **Game** (`/game`, #1748) — while the phase is `InProgress` the shell polls the game's Live Client Data API
   (`127.0.0.1:2999/liveclientdata/allgamedata`, every 2 s, backing off to 5 s while the game loads; `crates/live-client`)
   and sends the webview a snapshot, then only changes (items, level, K/D/A, death with respawn time, respawn), numbered
-  so a missed one triggers a re-read. The page: the ten players lane by lane, ours left and theirs mirrored right —
-  portrait with level, summoner spells, Riot ID, K/D/A, six items + trinket (stack counts, a new item ringed for 4 s),
-  a dead player greyed under a respawn countdown — under a strip with the map, each side's kills and a running game
-  clock. A loading state until the game has started (`GameStart`), with **the loading screen board** (#1753,
-  `loading/LoadingBoard.vue`): the ten players lane against lane, each with their games on their champion among their
-  last twenty Rift games and win rate on it ("1st" when none), and their last ten as win/loss bars with tooltips —
-  roster from the client's gameflow session, names and histories by puuid through the client
-  (`src-tauri/src/loading.rs`), three at a time, ours and our lane opponent's first, never on TrueMain's key; a
-  Streamer Mode player shows as their champion and "Anonymous", nothing read. A waiting state outside a game. What the API reveals about enemies is
-  documented in `desktop/README.md` and still to verify in a live game.
+  so a missed one triggers a re-read. The page: the ten players lane by lane, ours left (our own line tinted) and
+  theirs mirrored right — portrait with level, summoner spells, a dead player greyed under a respawn countdown, and
+  **who they are** (#1828, `game/GamePlayerIntel.vue`, `utils/player-intel.ts`) instead of the items and K/D/A the
+  game's scoreboard already shows: Riot ID, Solo/Duo crest + tier + LP (a ranked Flex standing tagged "Flex" when
+  there is none, "Placements", "Unranked"; season record in the tooltip), a role chip — "Main role" (≥ ½ of their
+  recent role-assigned games here), "Secondary role", or "Autofill · Jungle main" (< ¼) — a streak chip from three
+  games on, then their win rate, games and KDA on the champion among their last twenty ("First time" with none) over
+  their last ten games as the loading screen's bars — all from the loading screen's read (`useLoadingPlayers`, one more
+  client request per player for the standing), matched to the live player by Riot ID, an anonymous one by side and
+  champion; a standing still being read shows a placeholder, one the client could not read shows nothing — under a
+  strip with the map, each side's kills and a running game clock. A loading state until the game has started
+  (`GameStart`), with the loading screen board (#1753, `loading/LoadingBoard.vue`: form on the champion and last ten
+  games as bars, names and histories read by puuid through the client — #1869), a waiting
+  state outside a game. What the API reveals about enemies is documented in `desktop/README.md` and still to verify in
+  a live game.
   Over the board, when we are a player, **the next item** (#1751, `game/GameNextItem.vue`): the legendary the mains
   complete next from where our build stands in a game like this one (`POST /champions/{id}/next-item`, #1749 — asked on
   every item change of any of the ten, settled 600 ms, never on a timer), its share of the mains, the strongest situation
@@ -273,10 +278,12 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
   components, runners-up or boots; whole game or only while dead. **Win probability** (160 pt,
   `OverlayWinProbability.vue`): both sides' percentages and a bar in the sides' colours, no labels, the whole game —
-  a logistic of the item-gold lead relative to the teams' average item gold and of the map — turrets, enemy
-  inhibitors down, drakes and the soul, the Baron's and the Elder's buffs while they last — read off the game's event
-  feed into the game state (`live_client::objectives`, sent as a change only when an objective falls); the product
-  owner's formula, not a measured model (`utils/item-value.ts`). **Your pace** (176 pt, `OverlayStats.vue`): CS per
+  a logistic of each lane's creep-score, level and kill lead over the opposite lane, weighted by a regression fitted
+  on our ranked games (interpolated between 5, 10, 15, 20 and 30 minutes; the support's lead weighs little; creep
+  scores sent in steps of 10), and of the map — turrets, enemy inhibitors down, drakes and the soul, the Baron's and
+  the Elder's buffs while they last — read off the game's event feed into the game state (`live_client::objectives`,
+  sent as a change only when an objective falls); the map's weights are the product owner's, not measured
+  (`utils/item-value.ts`, #1864). **Your pace** (176 pt, `OverlayStats.vue`): CS per
   minute with a sparkline of it from minute 3, and gold per minute (inventory cost plus gold in hand — the API has no
   gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
   (`live_client::pace`). **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
@@ -285,12 +292,14 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Set up on
   the **Overlay page** (`/overlay`, sidebar, any time — #1819): a copy of the screen at its aspect ratio (the window's
   screen, 1920 × 1080 in a browser) with the game's minimap and ability bar outlined, each panel that is on drawn where
-  it sits (its anchor spot, or where it was dragged — the shell's rule mirrored in `utils/overlay-layout.ts`; small
-  panels drawn at least 108 × 24 px around their true centre, said under the screen). Drag a panel to move it (stored as
-  its centre in screen fractions); its × (shown on hover), Delete, or a drop on the side takes it off; arrow keys nudge
+  it sits (its anchor spot, or where it was dragged — the shell's rule mirrored in `utils/overlay-layout.ts`) as itself:
+  the real panel over a sample game (`OverlayPanelSample.vue`, `utils/overlay-sample.ts`), shrunk to the screen's scale
+  and sized by measuring it, so its edges are where they will be in game (#1857). Drag a panel to move it (stored as a
+  fraction of the room the screen leaves around it, 0 = left/top edge, 1 = right/bottom, so a panel against an edge
+  stays there whatever its size; settings file v2, v1's centre-based places dropped); its × (shown on hover), Delete, or a drop on the side takes it off; arrow keys nudge
   it 1 % (Shift 5 %). The **Hidden panels** column on the right lists the panels that are off — drag one onto the
   screen, or click it to bring it back where it was. Beside them: "Place on screen" (the panels themselves, dragged over
-  the real screen), "Reset positions" (every panel back to its spot), overlay on/off (default on), the next item's
+  the real screen — each with the sample when no game runs, its "drag" marker drawn over it so it keeps its in-game size), "Reset positions" (every panel back to its spot), overlay on/off (default on), the next item's
   moment, size 80–140 %, opacity 50–100 %, the shortcut (`OverlayLayoutEditor.vue`, `OverlayPanelMock.vue`). Rules and settings in `shell-state::overlay` (tested on CI),
   windows in `src-tauri/src/overlay/` (`panels.rs` drives them, `macos.rs` / `windows.rs` are the window layers). On
   Windows the game is known by its window class (`RiotWindowClass`) or its process name; CI drives the whole overlay
@@ -327,7 +336,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   before 10 1903), missing; and a
   banner when capture stopped working while recordings exist. `?game=<id>` narrows it to one game's clips.
 - **Recap** (`/recordings/:id`, #1777) — the full game's video with the app's controls (play, previous / next moment
-  with a 5 s lead-in, mute, full screen; Space, ← →, Shift+← →, M) over a timeline of the whole video: the player's
+  with a 5 s lead-in, mute, full screen; Space, ← →, Shift+← →, M, F) over a timeline of the whole video — full screen
+  (#1865) puts the window itself in full screen with the controls and the timeline floating over the video, faded out
+  while the mouse rests during playback: the player's
   kills, assists and deaths each on a lane of its own, named by a glyph beside it (#1804) — kills rose-gold chips,
   multi-kills labelled ×N and gold from a triple kill, assists neutral dots, deaths dark red chips with a skull —;
   objectives above the lanes in the side's colour (epic monsters as tinted badges, towers and inhibitors as bare

@@ -234,6 +234,7 @@ mod tests {
                         p.kills,
                         p.deaths,
                         p.assists,
+                        p.creep_score,
                         p.dead,
                     )
                 })
@@ -251,7 +252,7 @@ mod tests {
         feed.ingest(&readings[0]);
         let mut later = readings[0].clone();
         later["gameData"]["gameTime"] = serde_json::json!(16.2);
-        later["allPlayers"][2]["scores"]["creepScore"] = serde_json::json!(1);
+        later["allPlayers"][2]["scores"]["wardScore"] = serde_json::json!(1.5);
         assert_eq!(feed.ingest(&later), None);
         assert_eq!(feed.current().unwrap().game_time, 16.2);
     }

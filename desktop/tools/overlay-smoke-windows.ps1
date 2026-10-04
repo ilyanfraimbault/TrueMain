@@ -425,10 +425,12 @@ try {
     Report "8-placed" | Out-Null
     $placed = Panels | Where-Object Slug -eq "win-probability"
     Expect ((Shown) -eq $InGame) "back over the game, the in-game panels show ($(Shown))"
-    # A place is the panel's centre, kept as it shrinks out of the preview.
+    # A place is a fraction of the room the screen leaves around the panel,
+    # so its corner follows it at whatever size it takes out of the preview.
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-    $centreX = ($placed.Left + $placed.Right) / 2; $centreY = ($placed.Top + $placed.Bottom) / 2
-    Expect ([Math]::Abs($centreX - $saved.winProbability.custom.x * $screen.Width) -le 2 -and [Math]::Abs($centreY - $saved.winProbability.custom.y * $screen.Height) -le 2) "the dragged panel is centred where it was put ($centreX,$centreY)"
+    $wantX = $saved.winProbability.custom.x * ($screen.Width - ($placed.Right - $placed.Left))
+    $wantY = $saved.winProbability.custom.y * ($screen.Height - ($placed.Bottom - $placed.Top))
+    Expect ([Math]::Abs($placed.Left - $wantX) -le 2 -and [Math]::Abs($placed.Top - $wantY) -le 2) "the dragged panel sits where it was put ($($placed.Left),$($placed.Top), wanted $wantX,$wantY)"
     Expect (($placed.Styles -band $WS_EX_TRANSPARENT) -ne 0) "out of the preview, clicks go through again ($($placed.ExStyle))"
 
     # The loading screen: the game in progress, its API already listing the

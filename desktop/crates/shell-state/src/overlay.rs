@@ -19,8 +19,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The settings file's format version, written into it so a later format can
-/// migrate rather than guess.
-pub const SETTINGS_VERSION: u32 = 1;
+/// migrate rather than guess. Version 2 reads a dragged place against the
+/// screen's free space rather than as the panel's centre (`OverlayPoint`).
+pub const SETTINGS_VERSION: u32 = 2;
 
 pub const MIN_SCALE: f64 = 0.8;
 pub const MAX_SCALE: f64 = 1.4;
@@ -91,8 +92,11 @@ pub enum OverlayAnchor {
     CenterRight,
 }
 
-/// Where the player dragged a panel, as its centre in fractions of the screen
-/// — so it lands in the same place at any resolution.
+/// Where the player dragged a panel, as a fraction of the room the screen
+/// leaves around it on each axis: 0 against the left (top) edge, 1 against
+/// the right (bottom) one. So it lands in the same place at any resolution,
+/// and a panel against an edge stays against it whatever size it takes —
+/// its centre would drift off the edge when it grows or shrinks.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct OverlayPoint {
     pub x: f64,
@@ -225,8 +229,8 @@ impl OverlaySettings {
         let (width, height) = size;
         let (x, y) = match settings.custom {
             Some(point) => (
-                screen.x + point.x * screen.width - width / 2.0,
-                screen.y + point.y * screen.height - height / 2.0,
+                screen.x + point.x * (screen.width - width).max(0.0),
+                screen.y + point.y * (screen.height - height).max(0.0),
             ),
             None => {
                 let left = screen.x + EDGE_MARGIN;
@@ -253,10 +257,11 @@ impl OverlaySettings {
     /// The custom position a panel dragged to `origin` stands for.
     pub fn point_at(screen: Rect, origin: (f64, f64), size: (f64, f64)) -> OverlayPoint {
         let fraction = |start: f64, length: f64, at: f64, extent: f64| {
-            if length <= 0.0 {
+            let room = length - extent;
+            if room <= 0.0 {
                 return 0.5;
             }
-            ((at + extent / 2.0 - start) / length).clamp(0.0, 1.0)
+            ((at - start) / room).clamp(0.0, 1.0)
         };
         OverlayPoint {
             x: fraction(screen.x, screen.width, origin.0, size.0),
@@ -278,6 +283,9 @@ impl OverlaySettings {
             return Self::default();
         };
         let defaults = Self::default();
+        // Before version 2 a dragged place was the panel's centre: read as
+        // version 2 it would land elsewhere, so the panel goes back to its spot.
+        let current = parse::<u32>(fields.get("version")).is_some_and(|v| v >= 2);
         let in_range = |min: f64, max: f64| move |value: &f64| (min..=max).contains(value);
         let panel = |key: &str, fallback: PanelSettings| {
             let field = fields.get(key);
@@ -285,7 +293,9 @@ impl OverlaySettings {
                 enabled: parse(field.and_then(|f| f.get("enabled"))).unwrap_or(fallback.enabled),
                 anchor: parse(field.and_then(|f| f.get("anchor"))).unwrap_or(fallback.anchor),
                 custom: parse::<OverlayPoint>(field.and_then(|f| f.get("custom"))).filter(
-                    |point| (0.0..=1.0).contains(&point.x) && (0.0..=1.0).contains(&point.y),
+                    |point| {
+                        current && (0.0..=1.0).contains(&point.x) && (0.0..=1.0).contains(&point.y)
+                    },
                 ),
             }
         };
@@ -471,11 +481,30 @@ mod tests {
             height: 720.0,
             ..SCREEN
         };
-        assert_eq!(settings.origin(WinProbability, small, SIZE), (425.0, 170.0));
+        assert_eq!(settings.origin(WinProbability, small, SIZE), (434.0, 182.0));
         settings.win_probability.custom = Some(OverlayPoint { x: 1.0, y: 1.0 });
         assert_eq!(
             settings.origin(WinProbability, SCREEN, SIZE),
             (2260.0, 1320.0)
+        );
+    }
+
+    #[test]
+    fn a_panel_against_an_edge_stays_there_whatever_its_size() {
+        let mut settings = OverlaySettings::default();
+        settings.stats.custom = Some(OverlaySettings::point_at(SCREEN, (2260.0, 0.0), SIZE));
+        let (x, y) = settings.origin(Stats, SCREEN, (176.0, 90.0));
+        assert_eq!((x + 176.0, y), (SCREEN.width, 0.0));
+    }
+
+    #[test]
+    fn a_dragged_place_from_before_version_2_is_dropped() {
+        let old = r#"{"version":1,"stats":{"enabled":true,"anchor":"top-left","custom":{"x":0.9,"y":0.5}}}"#;
+        assert_eq!(OverlaySettings::from_json(old).stats.custom, None);
+        let new = r#"{"version":2,"stats":{"enabled":true,"anchor":"top-left","custom":{"x":0.9,"y":0.5}}}"#;
+        assert_eq!(
+            OverlaySettings::from_json(new).stats.custom,
+            Some(OverlayPoint { x: 0.9, y: 0.5 })
         );
     }
 
