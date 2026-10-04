@@ -152,7 +152,7 @@ public sealed class MatchDataQualityDetailQueryService(TrueMainDbContext db) : I
             {
                 // Lay the team across the five canonical lanes, flagging gaps and
                 // any participant whose champion repeats on the team.
-                slots = QueueDataQualityProfile.LanePositions
+                slots = LanePositions.All
                     .Select(position =>
                     {
                         var occupant = members.FirstOrDefault(m =>

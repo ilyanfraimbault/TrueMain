@@ -30,9 +30,6 @@ public sealed class MatchSummariesPerformanceIntegrationTests
     private const string Puuid = "puuid-match-summaries-performance";
     private const string MatchId = "PERF_FEED_MATCH_1";
 
-    /// <summary>The canonical marks the ingestor stores, and the ones the scorer folds.</summary>
-    private static readonly int[] CanonicalMinutes = [5, 10, 15, 20, 30];
-
     private readonly PostgresFixture _fixture;
 
     public MatchSummariesPerformanceIntegrationTests(PostgresFixture fixture)
@@ -236,7 +233,7 @@ public sealed class MatchSummariesPerformanceIntegrationTests
                 continue;
             }
 
-            foreach (var minute in CanonicalMinutes)
+            foreach (var minute in TimelineSnapshotMarks.Minutes)
             {
                 // Gold / cs / xp scale with the minute so the leads stay
                 // plausible at every mark. Self is behind their lane opponent,

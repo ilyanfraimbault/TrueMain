@@ -14,7 +14,7 @@ public class MatchParticipantTimelineSnapshot
 
     public int ParticipantId { get; set; }
 
-    /// <summary>Canonical minute mark this snapshot represents (5, 10, 15, 20, 30).</summary>
+    /// <summary>Canonical minute mark this snapshot represents — one of <see cref="TimelineSnapshotMarks.Minutes"/>.</summary>
     public int IntervalMinute { get; set; }
 
     /// <summary>Actual timestamp of the source frame, in milliseconds.</summary>

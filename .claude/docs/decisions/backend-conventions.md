@@ -246,3 +246,19 @@ The generator substitutes its own `RangeAttribute` copy that ignores `ErrorMessa
 none: the stock message names the class and property (`ScoringOptions.BatchSize must be between 1 and ...`),
 which is enough to find the key; what a bound means lives in the property docs. A new options class gets its
 validator line in `OptionsValidators.cs` and is registered through `AddOptionsWithValidator`.
+
+## A role is a string from `LanePositions`, and the timeline marks live once in `Data` (2026-10-04)
+
+**The five lane positions are `Core/Lol/Map/LanePositions.All` (`TOP`/`JUNGLE`/`MIDDLE`/`BOTTOM`/`UTILITY`),
+the same string the schema stores in `TeamPosition` — there is no role enum beside it.** The `LolPosition`
+enum was offered as authoritative but named in two files and never persisted, so it was removed rather than
+spread (#1232, DATA-11). Two entry points, one per question: `IsLane` is the exact, stored-data test;
+`Normalize` canonicalises client input (trim, upper-case, `MID`→`MIDDLE`, `BOT`→`BOTTOM`) and is what every
+`position` parameter goes through, so `/truemains?position=mid` and `/champions?position=mid` now agree.
+Role names (`adc`, `support`) stay rejected. `ChampionCohort.CanonicalPositions` is the array form EF Core
+translates, derived from `All`.
+
+**The canonical timeline marks `{5, 10, 15, 20, 30}` are `Data/Entities/TimelineSnapshotMarks.Minutes`**, read
+by the snapshot builder (what is written), match-data retention (what survives the prune, #772), the
+performance score (what is iterated) and the dev seed. It is a two-way invariant: a mark removed on one side
+only would drop a lead without an error, so no consumer keeps its own copy.

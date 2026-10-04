@@ -39,8 +39,8 @@ public sealed class ChampionDraftController(IDraftRecommendationQueryService dra
         [FromBody] DraftRequest request,
         CancellationToken ct = default)
     {
-        var position = (request.Position ?? string.Empty).Trim().ToUpperInvariant();
-        if (!Core.Lol.Map.QueueDataQualityProfile.LanePositions.Contains(position))
+        var position = Core.Lol.Map.LanePositions.Normalize(request.Position);
+        if (position is null)
         {
             return BadRequest(new ProblemDetails
             {

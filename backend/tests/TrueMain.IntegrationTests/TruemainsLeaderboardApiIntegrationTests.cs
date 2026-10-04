@@ -315,6 +315,10 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         middles.Rows.Select(r => r.Identity.GameName)
             .Should().BeEquivalentTo(["MidYasuo", "MidAhri"]);
 
+        // The short form filters the same lane rather than silently filtering nothing (#1232).
+        var mids = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=mid");
+        mids!.Total.Should().Be(2);
+
         // championId=157 → only Yasuo main.
         var yasuoMains = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?championId=157");
         yasuoMains!.Total.Should().Be(1);

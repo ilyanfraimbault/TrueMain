@@ -1,9 +1,9 @@
 using Core.Options;
 using Data;
+using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Intake;
-using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Processes.Components.Retention;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
@@ -87,7 +87,7 @@ public sealed class MatchDataRetentionProcess(
 
     /// <summary>
     /// Reduces the timeline snapshots of timeline-ingested matches to the
-    /// <see cref="TimelineSnapshotBuilder.IntervalMinutes"/>, deleting every intermediate
+    /// <see cref="TimelineSnapshotMarks.Minutes"/>, deleting every intermediate
     /// minute the dense grid used to store and flagging the match so it is never re-scanned. Batched, one transaction each:
     /// the first run backfills tens of millions of rows across the existing dense grid,
     /// so an unbounded delete would be a lock and WAL hazard — each committed batch frees
@@ -128,7 +128,7 @@ public sealed class MatchDataRetentionProcess(
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             deletedSnapshots += await db.MatchParticipantTimelineSnapshots
                 .Where(snapshot => batchIds.Contains(snapshot.MatchId)
-                    && !TimelineSnapshotBuilder.IntervalMinutes.Contains(snapshot.IntervalMinute))
+                    && !TimelineSnapshotMarks.Minutes.Contains(snapshot.IntervalMinute))
                 .ExecuteDeleteAsync(ct);
             prunedMatches += await db.Matches
                 .Where(match => batchIds.Contains(match.Id))

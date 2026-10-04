@@ -34,10 +34,9 @@ public sealed class SeedGenerator(
     private const string PlatformId = "EUW1";
     private const int BlueTeamId = 100;
     private const int RedTeamId = 200;
-    private static readonly int[] IntervalMinutes = [5, 10, 15, 20, 30];
 
     // The minute the lane outcome is judged at, matching
-    // ChampionLaneOutcomeAggregationProcess. Must stay one of IntervalMinutes, or
+    // ChampionLaneOutcomeAggregationProcess. Must stay one of TimelineSnapshotMarks.Minutes, or
     // no snapshot pair exists to judge from and every lane counter stays 0.
     private const int LaneOutcomeMinute = 15;
 
@@ -398,14 +397,14 @@ public sealed class SeedGenerator(
         var bias = (self.WinRate - 0.5) * 20;
         int? laneGoldDiff = null;
         int? laneXpDiff = null;
-        foreach (var minute in IntervalMinutes)
+        foreach (var minute in TimelineSnapshotMarks.Minutes)
         {
             if (minute * 60 > durationSeconds)
             {
                 break;
             }
 
-            var driftIndex = Array.IndexOf(IntervalMinutes, minute) + 1;
+            var driftIndex = Array.IndexOf(TimelineSnapshotMarks.Minutes, minute) + 1;
             var drift = driftIndex * (bias + rng.NextDouble(-1.6, 1.6));
 
             var selfGold = 500 + minute * 380 + rng.NextInt(-150, 150);

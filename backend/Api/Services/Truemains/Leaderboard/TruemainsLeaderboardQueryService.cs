@@ -108,7 +108,7 @@ public sealed class TruemainsLeaderboardQueryService(
     {
         var totalSw = Stopwatch.StartNew();
 
-        var normalizedPosition = NormalizePosition(position);
+        var normalizedPosition = LanePositions.Normalize(position);
         var championFilter = championId is > 0 ? championId : null;
         var clampedPageSize = pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize);
         var clampedPage = Math.Max(page, 1);
@@ -349,21 +349,6 @@ public sealed class TruemainsLeaderboardQueryService(
         var result = await query();
         sw.Stop();
         return (result, sw.Elapsed.TotalMilliseconds);
-    }
-
-    private static string? NormalizePosition(string? position)
-    {
-        if (string.IsNullOrWhiteSpace(position))
-        {
-            return null;
-        }
-
-        var normalized = position.Trim().ToUpperInvariant();
-        return normalized switch
-        {
-            "TOP" or "JUNGLE" or "MIDDLE" or "BOTTOM" or "UTILITY" => normalized,
-            _ => null,
-        };
     }
 
     private static LeaderboardResponse Empty(int page, int pageSize) => new()

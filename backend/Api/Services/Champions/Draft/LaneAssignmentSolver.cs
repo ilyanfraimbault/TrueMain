@@ -114,7 +114,7 @@ public static class LaneAssignmentSolver
             .Where(pin => champions.Contains(pin.Key))
             .ToDictionary(pin => pin.Key, pin => pin.Value);
 
-        var lanes = QueueDataQualityProfile.LanePositions;
+        var lanes = LanePositions.All;
         var placements = EnumeratePlacements(champions, lanes, pinned);
         if (placements.Count == 0)
         {
@@ -228,7 +228,7 @@ public static class LaneAssignmentSolver
         // champion far harder than an unknown one.
         if (!priors.TryGetValue(championId, out var prior) || prior.Games == 0 || prior.ByLane.Count == 0)
         {
-            return 1d / QueueDataQualityProfile.LanePositions.Count;
+            return 1d / LanePositions.All.Count;
         }
 
         return prior.ByLane.TryGetValue(lane, out var probability)

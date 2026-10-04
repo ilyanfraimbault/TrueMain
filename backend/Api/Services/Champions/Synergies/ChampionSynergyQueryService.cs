@@ -1,6 +1,7 @@
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
@@ -118,10 +119,6 @@ public sealed class ChampionSynergyQueryService(
     IChampionReadCache cache)
     : IChampionSynergyQueryService
 {
-    // The five canonical lane positions — the same set the aggregation folds, so a
-    // third teammate on a garbage TeamPosition is not offered as a trio completion.
-    private static readonly string[] CanonicalPositions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-
     public Task<ChampionSynergiesResponse> GetSynergiesAsync(
         int championId,
         string position,
@@ -364,7 +361,9 @@ public sealed class ChampionSynergyQueryService(
                     && p3.TeamId == p1.TeamId
                     && p3.TeamPosition != p1.TeamPosition
                     && p3.TeamPosition != partnerPosition
-                    && CanonicalPositions.Contains(p3.TeamPosition)),
+                    // The folds' lane set: a third teammate on a garbage
+                    // TeamPosition is not offered as a trio completion.
+                    && ChampionCohort.CanonicalPositions.Contains(p3.TeamPosition)),
                 (p1, p3) => new { p3.ChampionId, p3.TeamPosition, p1.Win })
             .GroupBy(x => new { x.ChampionId, x.TeamPosition })
             .Select(g => new
