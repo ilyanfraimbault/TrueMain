@@ -58,6 +58,26 @@ request is still *worth fetching*. The Nitro proxy already aborts the upstream c
 one, so the cancellation reaches the API. `tests/api-fetch/abort-signal.test.ts` fails on a backend call that
 forwards no signal — #1712.
 
+**`onServerPrefetch` stays in the client bundle so `useId()` agrees across hydration; a table column never
+renders an empty-string header (2026-10-04).** Every champion page load in a production build reported
+`Hydration completed but contains mismatches`. Vue's `useId()` prefixes an id with the number of async
+boundaries opened before it, and a component that registers a `serverPrefetch` hook opens one. Nuxt's
+composable tree-shaking strips `onServerPrefetch(...)` from the client bundle, so a component that calls it
+unconditionally opens a boundary during SSR and none during hydration. `@nuxt/icon`'s CSS-mode icon (behind
+every `UIcon`) does exactly that, so every Reka/Nuxt UI id rendered after the header's icons came out as
+`v-2-…` on the server and `v-0-…` in the browser. Dev builds skip the tree-shaking, so `nuxt dev` (mock API
+included) never showed it, and only a production build does. `web/modules/keep-server-prefetch-on-client.ts`
+removes `onServerPrefetch` from the client tree-shake list. The hook is never called in a browser, so the cost
+is one registration per component. Nuxt's own `useAsyncData` already compensates the same way by hand (it
+seeds `instance.sp = []` on the client). The fix applies to every caller, third-party ones included, rather
+than patching `@nuxt/icon` or switching icons to SVG mode. The `/truemains` leaderboard had a second, unrelated
+mismatch. Its follow column's `header: ''` renders nothing in the server HTML, but its hydration still claims a
+node, so it swallows the slot's closing anchor. That column is now named by an `sr-only` `#follow-header` slot,
+and no `UTable` column on an SSR page may use an empty-string header. To find the next mismatch, build with
+`vite.define.__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ = 'true'` and serve `.output` with `TZ=UTC`. A
+fragment-anchor mismatch prints no detail even then, so instrument `logMismatchError` in the client Vue
+runtime — #1590.
+
 - **A row rendered on more than one surface sizes off its own width, not the viewport** (#967).
   `MatchRow` and `LeaderboardRow` are `@container`s. The same row sits full-width on a page, in a ~33rem
   drawer and in a sidebar, so a viewport `xl:` breakpoint told the narrow copy it owned the page and its
