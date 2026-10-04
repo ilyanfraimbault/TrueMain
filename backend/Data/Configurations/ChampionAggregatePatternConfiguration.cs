@@ -37,8 +37,8 @@ public sealed class ChampionAggregatePatternConfiguration : IEntityTypeConfigura
         // Per-pivot indexes for the read-side correlation queries
         // ("for build X, what runes / skills / spells / starters") that
         // PR 6.3 will introduce. ScopeId leads each one because every
-        // correlation query is scope-bound.
-        entity.HasIndex(e => new { e.ScopeId, e.BuildId });
+        // correlation query is scope-bound. (ScopeId, BuildId) has no
+        // dedicated index: it is the leading prefix of the UNIQUE one above.
         entity.HasIndex(e => new { e.ScopeId, e.RunePageId });
         entity.HasIndex(e => new { e.ScopeId, e.SkillOrderId });
         entity.HasIndex(e => new { e.ScopeId, e.SpellPairId });
