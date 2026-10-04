@@ -104,8 +104,8 @@ public sealed class CandidateQueryService(
 
         if (!string.IsNullOrWhiteSpace(platformId))
         {
-            var platform = platformId.Trim();
-            query = query.Where(row => row.candidate.PlatformId.ToUpper() == platform.ToUpper());
+            var platform = platformId.Trim().ToUpperInvariant();
+            query = query.Where(row => row.candidate.PlatformId.ToUpper() == platform);
         }
 
         var (namePart, tagPart) = RiotIdSearchTerm.Split(search);

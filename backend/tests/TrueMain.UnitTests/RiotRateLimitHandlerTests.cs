@@ -86,7 +86,7 @@ public sealed class RiotRateLimitHandlerTests
             .AddRiotResilienceHandler()
             .ConfigurePrimaryHttpMessageHandler(() => new StubHandler(HttpStatusCode.OK));
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient("riot");
         client.Timeout = TimeSpan.FromSeconds(30);
 

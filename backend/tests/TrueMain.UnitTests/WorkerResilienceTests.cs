@@ -65,7 +65,7 @@ public sealed class WorkerResilienceTests
         // The full sequence claims, so the startup claim release resolves this (#1513).
         services.AddSingleton(Substitute.For<IMatchClaimService>());
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var countingScopeFactory = new CountingScopeFactory(
             provider.GetRequiredService<IServiceScopeFactory>());
         var lifetime = Substitute.For<IHostApplicationLifetime>();

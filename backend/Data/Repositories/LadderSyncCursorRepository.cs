@@ -10,6 +10,7 @@ public sealed class LadderSyncCursorRepository(TrueMainDbContext db) : ILadderSy
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.PlatformId == platformId, ct);
 
+    /// <summary>Stores the platform's ladder-sync position, creating its cursor row if needed.</summary>
     /// <remarks>
     /// A single parameterised INSERT … ON CONFLICT, for the same reason as
     /// <see cref="DiscoveryCursorRepository.UpsertOffsetAsync"/> (#500): the read above is
