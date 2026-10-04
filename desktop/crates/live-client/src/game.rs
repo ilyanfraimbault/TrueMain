@@ -6,7 +6,8 @@
 //! change on nearly every reading; carrying them would turn every poll into a
 //! change, which is exactly what the frontend is not to receive. A panel that
 //! needs one of them adds it here with the pace it actually needs — our gold,
-//! for the next-item panel (#1751), moves in steps of [`GOLD_STEP`].
+//! for the next-item panel (#1751), moves in steps of [`GOLD_STEP`]; every
+//! player's creep score, for the win probability, in steps of [`CS_STEP`].
 
 use serde::{Deserialize, Serialize};
 
@@ -47,6 +48,11 @@ pub struct GameState {
 /// every ten seconds or so, a last hit or a kill at once — fine enough to say
 /// what can be bought now, coarse enough not to make every poll a change.
 pub const GOLD_STEP: i64 = 50;
+
+/// The pace a player's creep score moves at on the frontend: a wave is about
+/// a step, so a lane sends a change every half minute or so rather than at
+/// each last hit — the win probability weighs it per ten anyway.
+pub const CS_STEP: i64 = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
@@ -95,6 +101,9 @@ pub struct GamePlayer {
     pub kills: i64,
     pub deaths: i64,
     pub assists: i64,
+    /// Minions and monsters killed, as the scoreboard counts them, floored
+    /// to [`CS_STEP`].
+    pub creep_score: i64,
     pub dead: bool,
     /// The game time the player comes back at, while dead.
     pub respawn_at: Option<f64>,
@@ -141,6 +150,7 @@ pub enum GameChange {
         kills: i64,
         deaths: i64,
         assists: i64,
+        creep_score: i64,
     },
     Died {
         player: usize,
@@ -226,14 +236,19 @@ impl GameState {
                     level: after.level,
                 });
             }
-            if (before.kills, before.deaths, before.assists)
-                != (after.kills, after.deaths, after.assists)
+            if (
+                before.kills,
+                before.deaths,
+                before.assists,
+                before.creep_score,
+            ) != (after.kills, after.deaths, after.assists, after.creep_score)
             {
                 changes.push(GameChange::Score {
                     player,
                     kills: after.kills,
                     deaths: after.deaths,
                     assists: after.assists,
+                    creep_score: after.creep_score,
                 });
             }
             match (before.dead, after.dead) {
@@ -294,11 +309,13 @@ impl GameState {
                     kills,
                     deaths,
                     assists,
+                    creep_score,
                     ..
                 } => {
                     player.kills = *kills;
                     player.deaths = *deaths;
                     player.assists = *assists;
+                    player.creep_score = *creep_score;
                 }
                 GameChange::Died { respawn_at, .. } => {
                     player.dead = true;
@@ -378,6 +395,7 @@ impl GamePlayer {
             kills: player.scores.kills,
             deaths: player.scores.deaths,
             assists: player.scores.assists,
+            creep_score: player.scores.creep_score.max(0) / CS_STEP * CS_STEP,
             dead: player.is_dead,
             respawn_at: player
                 .is_dead
@@ -520,12 +538,25 @@ mod tests {
     }
 
     #[test]
-    fn creep_score_moving_is_not_a_change() {
+    fn creep_score_is_a_change_only_when_it_crosses_a_step() {
         let before = state(duo(), 100.0);
         let mut players = duo();
+        players[0]["scores"]["creepScore"] = serde_json::json!(9);
+        let within = state(players.clone(), 102.0);
+        assert_eq!(before.diff(&within), Some(vec![]));
+
         players[0]["scores"]["creepScore"] = serde_json::json!(14);
-        let after = state(players, 102.0);
-        assert_eq!(before.diff(&after), Some(vec![]));
+        let crossed = state(players, 104.0);
+        assert_eq!(
+            before.diff(&crossed),
+            Some(vec![GameChange::Score {
+                player: 0,
+                kills: 0,
+                deaths: 0,
+                assists: 0,
+                creep_score: 10
+            }])
+        );
     }
 
     #[test]
@@ -555,7 +586,8 @@ mod tests {
                     player: 0,
                     kills: 1,
                     deaths: 0,
-                    assists: 0
+                    assists: 0,
+                    creep_score: 0
                 },
             ]
         );

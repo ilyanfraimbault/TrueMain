@@ -123,7 +123,7 @@ internal static class LeaderboardTopBuilds
 
             // Hydrate each combo with its dim values, dropping rows whose dim
             // lookup is missing (transient ingest state) or whose first item /
-            // keystone is malformed — same guard as LoadTopBuildsAsync.
+            // keystone is malformed — same guard as ChampionDirectoryTopBuilds.
             var enriched = accountChampion
                 .Select(row => new
                 {
@@ -140,7 +140,7 @@ internal static class LeaderboardTopBuilds
             }
 
             // Dominant (firstItem, keystone) bucket — same tie-break order as
-            // LoadTopBuildsAsync (games desc, firstItem asc, keystone asc) so a
+            // ChampionDirectoryTopBuilds (games desc, firstItem asc, keystone asc) so a
             // player's leaderboard cell and their champion page agree.
             var topBucket = enriched
                 .GroupBy(row => (FirstItemId: row.FirstItem, KeystoneId: row.Rune.PrimaryKeystoneId))

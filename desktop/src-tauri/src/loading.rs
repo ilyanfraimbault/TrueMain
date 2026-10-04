@@ -1,13 +1,15 @@
-//! The loading screen (#1753): who is in the game and how each player has
-//! been doing — games on the champion they are on and how they went, and
-//! their latest games one by one — read through the player's own League
-//! client, never on TrueMain's Riot key.
+//! The loading screen (#1753) and the Game page's player lines (#1828): who
+//! is in the game and how each player has been doing — games on the champion
+//! they are on and how they went, the roles they were given, their streak and
+//! latest games, and their ranked standing — read through the player's own
+//! League client, never on TrueMain's Riot key.
 //!
 //! Read once the phase is `InProgress`: champion select hides the other
 //! team's names in ranked, the loading screen shows them, and that is the line
 //! kept. The Live Client API does not answer until the game has loaded, so the
 //! roster comes from the client's gameflow session. Each player's history is
-//! one client request; three run at a time, ours first and our lane
+//! one client request and their standing another, queued after every history;
+//! three requests run at a time, ours first and our lane
 //! opponent's next, so the most useful line is never the last to fill. Each
 //! line is sent as it lands.
 //!
@@ -17,7 +19,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use lcu::{GameflowPhase, GameflowPlayer, LcuClient, PlayerForm, FORM_GAMES};
+use lcu::{GameflowPhase, GameflowPlayer, LcuClient, PlayerForm, RankedQueue, FORM_GAMES};
 use serde::Serialize;
 use shell_state::AppState;
 use tauri::async_runtime::JoinHandle;
@@ -51,6 +53,13 @@ pub struct LoadingPlayer {
     /// Absent until read, and for good when the client could not read it.
     pub form: Option<PlayerForm>,
     pub failed: bool,
+    /// Solo/Duo, else a ranked Flex (`RankedStats::headline`). Absent until
+    /// read, for an unranked player, and when the client could not read it.
+    pub rank: Option<RankedQueue>,
+    /// The standing was read: an absent `rank` is then an unranked player.
+    pub rank_read: bool,
+    /// The client could not read the standing.
+    pub rank_failed: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -127,10 +136,14 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
 
     let gate = Arc::new(Semaphore::new(PARALLEL_READS));
     let mut reads = tokio::task::JoinSet::new();
-    for (index, puuid) in puuids.into_iter().enumerate() {
-        let Some(puuid) = puuid else {
-            continue;
-        };
+    let readable: Vec<(usize, String)> = puuids
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, puuid)| Some((index, puuid?)))
+        .collect();
+    // Every history is queued before any standing: the semaphore hands out its
+    // permits in order, so the standings never hold up the form lines.
+    for (index, puuid) in readable.iter().cloned() {
         let (gate, client) = (gate.clone(), client.clone());
         let champion = players[index].champion_id;
         reads.spawn(async move {
@@ -138,23 +151,45 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
             let history = client.match_history_of(&puuid, FORM_GAMES).await;
             (
                 index,
-                history.map(|history| PlayerForm::from_history(&history, champion)),
+                Read::Form(history.map(|history| PlayerForm::from_history(&history, champion))),
             )
         });
     }
-    while let Some(Ok((index, form))) = reads.join_next().await {
+    for (index, puuid) in readable {
+        let (gate, client) = (gate.clone(), client.clone());
+        reads.spawn(async move {
+            let _permit = gate.acquire_owned().await;
+            (index, Read::Rank(client.ranked_stats_of(&puuid).await))
+        });
+    }
+    while let Some(Ok((index, read))) = reads.join_next().await {
         publish(app, loading, |view| {
-            if let Some(player) = view.players.get_mut(index) {
-                match form {
-                    Ok(form) => player.form = Some(form),
-                    Err(error) => {
-                        tracing::debug!(%error, "a player's history could not be read");
-                        player.failed = true;
-                    }
+            let Some(player) = view.players.get_mut(index) else {
+                return;
+            };
+            match read {
+                Read::Form(Ok(form)) => player.form = Some(form),
+                Read::Form(Err(error)) => {
+                    tracing::debug!(%error, "a player's history could not be read");
+                    player.failed = true;
+                }
+                Read::Rank(Ok(stats)) => {
+                    player.rank = stats.headline();
+                    player.rank_read = true;
+                }
+                Read::Rank(Err(error)) => {
+                    tracing::debug!(%error, "a player's rank could not be read");
+                    player.rank_failed = true;
                 }
             }
         });
     }
+}
+
+/// One client answer about one player.
+enum Read {
+    Form(lcu::Result<PlayerForm>),
+    Rank(lcu::Result<lcu::record::RankedStats>),
 }
 
 /// The ten players, ours first and our lane opponent next, with their puuids
@@ -201,6 +236,9 @@ fn ordered(
                     anonymous,
                     form: None,
                     failed: false,
+                    rank: None,
+                    rank_read: false,
+                    rank_failed: false,
                 },
                 (!anonymous).then(|| player.puuid.clone()),
             )
