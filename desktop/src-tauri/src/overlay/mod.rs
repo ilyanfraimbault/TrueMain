@@ -234,7 +234,7 @@ pub fn set_overlay_settings(
     overlay: State<'_, SharedOverlay>,
     settings: serde_json::Value,
 ) -> Result<OverlayView, String> {
-    let settings = OverlaySettings::from_json(&settings.to_string());
+    let settings = OverlaySettings::from_app(&settings.to_string());
     overlay
         .replace_settings(settings)
         .map_err(|error| error.to_string())?;
