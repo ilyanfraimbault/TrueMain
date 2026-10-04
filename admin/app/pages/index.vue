@@ -5,8 +5,7 @@
 // (no filters). Everything is real: empty/zero responses render honest zero
 // states, never fabricated series.
 import type { IngestionTimeGranularity, MatchTimeGranularity } from '~~/shared/types/ops'
-import { detectorStatusMeta } from '~~/shared/utils/detector-status'
-import { formatNumber, formatTimeAgo } from '~~/shared/utils/format'
+import { formatNumber } from '~~/shared/utils/format'
 
 const { data: stats, pending, error, refresh } = useOverviewStats()
 
@@ -15,11 +14,14 @@ const { data: stats, pending, error, refresh } = useOverviewStats()
 // behind it. The Overview remains the post-login landing page, so this is where
 // "is anything on fire?" gets answered without a click.
 const {
-  data: health,
+  data: fetchedHealth,
   pending: healthPending,
   error: healthError,
   refresh: refreshHealth,
 } = usePipelineHealth()
+
+// The last good verdict survives a failed refresh (#1427), see HealthVerdictStrip.
+const health = useLastGoodPayload(fetchedHealth, 'pipeline-health')
 
 // The strip answers "is anything on fire?", so it keeps itself current on a 30 s
 // timer (#1411). Only the strip: the totals and histograms below move on a
@@ -37,8 +39,6 @@ const {
 async function refreshAll() {
   await Promise.all([refresh(), refreshNow()])
 }
-
-const healthVerdict = computed(() => detectorStatusMeta(health.value?.status))
 
 // --- Matches over time -------------------------------------------------------
 // Histogram of match counts by GAME date at a selectable granularity. The select
@@ -322,40 +322,12 @@ const topChampionsLoading = computed(
         class="mb-6"
       />
 
-      <!-- Health verdict strip (#1031). The Overview stays the landing page, so the
-           cockpit's one-line answer is surfaced here rather than making an operator
-           navigate to find out whether anything is on fire. Deliberately the verdict and
-           nothing else: the tiles and the signals live on /health.
-
-           Its own fetch, so a broken /ops/pipeline-health costs this strip and not the
-           panel below it — and says so in place rather than rendering a healthy-looking
-           blank. -->
-      <NuxtLink
-        v-if="healthPending || health || healthError"
-        to="/health"
-        class="group block mb-6 rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
-      >
-        <UCard class="transition-colors group-hover:bg-elevated/50">
-          <USkeleton v-if="healthPending && !health" class="h-6 w-72" />
-          <div v-else class="flex items-center gap-3">
-            <UIcon
-              :name="healthVerdict.icon"
-              class="size-5 shrink-0"
-              :class="healthError ? 'text-dimmed' : healthVerdict.text"
-            />
-            <p class="text-sm grow min-w-0 truncate" :class="healthError ? 'text-dimmed italic' : 'text-highlighted'">
-              {{ healthError ? 'Pipeline health could not be loaded.' : health?.headline }}
-            </p>
-            <span v-if="health && !healthError" class="text-xs text-muted shrink-0">
-              {{ formatTimeAgo(health.evaluatedAtUtc) }}
-            </span>
-            <UIcon
-              name="i-lucide-arrow-up-right"
-              class="size-4 shrink-0 text-dimmed group-hover:text-muted"
-            />
-          </div>
-        </UCard>
-      </NuxtLink>
+      <HealthVerdictStrip
+        :health="health"
+        :pending="healthPending"
+        :failed="!!healthError"
+        class="mb-6"
+      />
 
       <!-- Matches over time -->
       <UCard :ui="{ root: 'overflow-visible' }" class="mb-6">

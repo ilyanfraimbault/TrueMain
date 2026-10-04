@@ -17,7 +17,13 @@ import {
   processStatusColor,
 } from '~~/shared/utils/pipeline-health'
 
-const { data, pending, error, refresh } = usePipelineHealth()
+const { data: fetched, pending, error, refresh } = usePipelineHealth()
+
+// What the cockpit draws (#1427): the current payload, or the last good one when a refresh
+// failed — Nuxt resets `data` on error, and a slow evaluation timing out at the proxy used to
+// blank the verdict and every tile. The verdict carries its own evaluation time, printed
+// below, so a kept payload says how old it is rather than passing for live.
+const data = useLastGoodPayload(fetched, 'pipeline-health')
 
 // The cockpit is read as live — it is the "is it on fire right now" page — so it
 // re-evaluates itself on a 30 s timer instead of waiting for a reload (#1411).
@@ -92,7 +98,9 @@ const visibleProcesses = computed(() =>
       <FetchErrorAlert
         v-if="error"
         :error="error"
-        title="Failed to load pipeline health"
+        :title="data
+          ? 'Refresh failed — showing the last verdict, evaluated ' + formatTimeAgo(data.evaluatedAtUtc)
+          : 'Failed to load pipeline health'"
         class="mb-6"
       />
 

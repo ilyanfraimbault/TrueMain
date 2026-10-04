@@ -1535,7 +1535,10 @@ re-mesurer, pour qu'une tuile ne puisse jamais contredire la page vers laquelle 
 pointe. Le verdict vit ici et non dans le front, parce qu'un seuil est une décision
 métier et qu'un second consommateur (l'alerting) doit obtenir la même réponse.
 
-Pas de paramètre.
+Pas de paramètre. La réponse est mise en cache 30 s et single-flightée (#1427) : des
+appels concurrents partagent une seule évaluation, et `evaluatedAtUtc` dit son âge. Les
+compteurs du corpus brut (`rawMatchCount`, `rawParticipantCount`) ont leur propre cache
+de 10 min — le comptage des participants est la lecture la plus coûteuse de l'évaluation.
 
 **Réponse `200`** — `PipelineHealthReadModel`
 
