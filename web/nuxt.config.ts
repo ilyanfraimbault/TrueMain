@@ -234,6 +234,15 @@ export default defineNuxtConfig({
       }
     },
   },
+  experimental: {
+    // Inline the payload in the HTML of the first render and keep
+    // `_payload.json` for client-side navigation only (#1618). It only ever
+    // applies to the `swr` text pages below — Nuxt extracts payloads at
+    // runtime for cached routes alone; every other page always inlines.
+    // Measured: one fewer request on a first visit to those pages, client
+    // navigation unchanged. It is Nuxt 5's default.
+    payloadExtraction: 'client',
+  },
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
   // Dark-only: there is no colour-mode toggle in the header any more. The

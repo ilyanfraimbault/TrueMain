@@ -36,6 +36,7 @@ public sealed class PipelineHealthQueryService(
     IProcessRunStore processRunStore,
     IDataQualityDetectorsQueryService dataQualityDetectors,
     IDbStorageHistoryQueryService storageHistory,
+    IRegionBalanceQueryService regionBalance,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     IOptions<PipelineHealthOptions> pipelineHealthOptions,
     IOptions<StorageHistoryOptions> storageHistoryOptions,
@@ -64,6 +65,7 @@ public sealed class PipelineHealthQueryService(
         var processes = await BuildProcessesAsync(nowUtc, ct);
         var rawData = await BuildRawDataAsync(queueId, ct);
         var gaps = await BuildGapsAsync(rawData, ct);
+        var balance = await SafeRegionBalanceAsync(nowUtc, ct);
 
         // Each composed signal is wrapped: one broken sub-signal degrades to its own
         // `unknown` with the reason on the tile, and must neither blind the others nor fail
@@ -100,7 +102,8 @@ public sealed class PipelineHealthQueryService(
             Signals = signals,
             Processes = processes,
             RawData = rawData,
-            Gaps = gaps
+            Gaps = gaps,
+            RegionBalance = balance
         };
     }
 
@@ -314,6 +317,31 @@ public sealed class PipelineHealthQueryService(
                 UnmeasurableSignal("dataQuality", "Data quality", "/data-quality", reason),
                 UnmeasurableSignal("ingestionLag", "Ingestion lag & queues", "/data-quality", reason)
             ];
+        }
+        finally
+        {
+            ct.ThrowIfCancellationRequested();
+        }
+    }
+
+    /// <summary>
+    /// The region-balance panel (#1153), degraded to its reason on failure like any signal: a
+    /// broken per-region read must cost that panel, not the cockpit.
+    /// </summary>
+    private async Task<RegionBalanceReadModel> SafeRegionBalanceAsync(DateTime nowUtc, CancellationToken ct)
+    {
+        try
+        {
+            return await regionBalance.GetAsync(nowUtc, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Pipeline-health region balance failed to measure");
+
+            return new RegionBalanceReadModel
+            {
+                UnknownReason = SanitizeError(ex.Message, environment.IsProduction()) ?? "internal error"
+            };
         }
         finally
         {

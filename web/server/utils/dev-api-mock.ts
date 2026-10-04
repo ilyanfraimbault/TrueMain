@@ -40,6 +40,7 @@ import type {
   LeaderboardRowResponse,
   RegionSlug,
 } from '~~/shared/types/leaderboard'
+import { parseLeaderboardSort } from '~~/shared/utils/leaderboard-sort'
 import type { ChampionDirectoryResponse, ChampionDirectorySort } from '~~/shared/types/champion-directory'
 import { CHAMPION_DIRECTORY_SORTS } from '~~/shared/types/champion-directory'
 import type { CompositionBuildGamesResponse, CompositionBuildResponse, CompositionGame } from '~~/shared/types/composition'
@@ -1244,13 +1245,21 @@ function mockLeaderboard(query: Record<string, unknown>): LeaderboardResponse {
       : rows.filter(p => p.row.topChampions.some(c => c.isOtp))
   }
 
-  // `?sort=dedication` re-ranks on the dedication score, as the backend does
-  // (score desc, then a stable tiebreak). Anything else keeps the seeded ladder
-  // order, which already stands in for the ranked-standing sort.
-  if (query.sort === 'dedication') {
-    rows = [...rows].sort((a, b) =>
-      (b.row.dedication?.score ?? -1) - (a.row.dedication?.score ?? -1)
-      || a.nameTag.localeCompare(b.nameTag))
+  // `?sort=dedication|games|kda|winRate` re-ranks on that figure, as the
+  // backend does (desc, a missing figure last, then the ladder order as the
+  // tiebreak — `sort` is stable). Anything else keeps the seeded ladder order,
+  // which already stands in for the ranked-standing sort.
+  const sort = parseLeaderboardSort(query.sort)
+  if (sort !== 'rank') {
+    const figure = (p: typeof rows[number]): number | null => {
+      switch (sort) {
+        case 'dedication': return p.row.dedication?.score ?? null
+        case 'games': return p.row.stats.games || null
+        case 'kda': return p.row.stats.kda
+        case 'winRate': return p.row.stats.winRate
+      }
+    }
+    rows = [...rows].sort((a, b) => (figure(b) ?? -1) - (figure(a) ?? -1))
   }
 
   const start = (page - 1) * pageSize

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -37,12 +39,14 @@ public class RiotRateLimitOptions
     /// second process sharing the key — and its windows are fixed where ours are sliding,
     /// so spending the last permit of a window is what turns a small mismatch into a 429.
     /// </summary>
+    [Range(0d, 0.5, MaximumIsExclusive = true)]
     public double SafetyHeadroom { get; set; } = 0.05;
 
     /// <summary>
     /// Penalty applied to a bucket when Riot answers 429 without a <c>Retry-After</c>
     /// header, in seconds.
     /// </summary>
+    [Range(1, 600)]
     public int DefaultRetryAfterSeconds { get; set; } = 5;
 
     /// <summary>
@@ -57,5 +61,6 @@ public class RiotRateLimitOptions
     /// if it was wrong, and the response's own count headers resynchronise the window — which
     /// recovers, where an unbounded wait would simply stall the pipeline behind one call.
     /// </remarks>
+    [Range(1, 3600)]
     public int MaxPermitWaitSeconds { get; set; } = 600;
 }

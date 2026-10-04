@@ -1,4 +1,5 @@
 import type { LeaderboardResponse, LeaderboardRowResponse, LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
+import { parseLeaderboardSort } from '#shared/utils/leaderboard-sort'
 
 interface UseTruemainsLeaderboardOptions {
   /** Page size to request per fetch. Omitted = use the backend default (25). */
@@ -69,10 +70,9 @@ export function useTruemainsLeaderboard(
     return typeof value === 'number' && value > 0 ? value : null
   })
   const otpOnlyRef = computed(() => toValue(options.otpOnly) === true)
-  // Only `dedication` is ever sent: the default ranking has a clean URL and
-  // shares the unfiltered cache key on both sides.
-  const sortRef = computed<LeaderboardSort>(() =>
-    toValue(options.sort) === 'dedication' ? 'dedication' : 'rank')
+  // The default `rank` is never sent: it has a clean URL and shares the
+  // unfiltered cache key on both sides.
+  const sortRef = computed<LeaderboardSort>(() => parseLeaderboardSort(toValue(options.sort)))
 
   function buildQuery() {
     const query: Record<string, string | number | boolean> = {
@@ -83,7 +83,7 @@ export function useTruemainsLeaderboard(
     if (positionRef.value) query.position = positionRef.value
     if (championIdRef.value) query.championId = championIdRef.value
     if (otpOnlyRef.value) query.otpOnly = true
-    if (sortRef.value === 'dedication') query.sort = 'dedication'
+    if (sortRef.value !== 'rank') query.sort = sortRef.value
     return query
   }
 

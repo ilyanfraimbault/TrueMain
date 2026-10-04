@@ -243,6 +243,17 @@ in it — or an autofill — under a quarter — the games, win rate and KDA on 
 player (the standing); still never TrueMain's Riot key, still no composite score (#1671). Premades and other players'
 mastery wait on a live check of what the client answers (2026-10-04) — #1828.
 
+**Each lane on the Game page carries an estimate of the side it favours** (revises #1828's "still no composite
+score" for the lane, never for a player). The product owner wants the face-offs read at a glance: an arrow between the
+two players towards the favoured side, with its chance. It starts from TrueMain's head-to-head of the two champions at
+the position, pulled towards 50 % by 30 games of an even record, and moves in log-odds by each player's form on the
+champion they are on — their last ten games on it, looked for up to a hundred games back: win rate (pulled by four
+even games) and the gold, CS and XP leads over that game's lane opponent at fifteen minutes (the opponent is the same
+slot on the other team in a role queue, so one timeline request a game, through the client). Weights per role —
+win rate / gold / CS / XP: top and mid 40/25/20/15, jungle 50/30/0/20, bot 40/25/25/10, support 70/15/0/15 — since a
+jungler's farm and a support's gold say little. The figures behind it are not shown, only the arrow and its chance;
+anonymous or unread players count as even. Tuned after real games (2026-10-04) — #1863.
+
 **The dashboard reads a game's roles from the participant slot, and its build and skill orders from TrueMain.** The
 client's history lane is Riot's old position guess and files a roaming laner as a second jungler (a top Yone counted
 twelve jungle games out of twenty). On a queue that assigns roles (normal draft, Solo/Duo, Flex, Swiftplay, Quickplay,

@@ -14,6 +14,7 @@ pub mod detail;
 pub mod error;
 pub mod events;
 pub mod form;
+pub mod laning;
 pub mod live;
 pub mod model;
 pub mod record;
@@ -27,6 +28,9 @@ pub use detail::GameDetail;
 pub use error::{Error, Result};
 pub use events::{stream_events, LcuEvent};
 pub use form::{PlayerForm, PositionGames, RecentGame, FORM_GAMES, RECENT_GAMES};
+pub use laning::{
+    gaps_at_fifteen, laning_games, LaningForm, LaningGame, LANING_DEPTH, LANING_GAMES,
+};
 pub use live::LiveClient;
 pub use model::{
     ChampSelectSession, ChampionMastery, CurrentSummoner, DraftState, GameflowPhase,

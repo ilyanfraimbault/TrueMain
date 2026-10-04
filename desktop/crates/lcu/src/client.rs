@@ -142,9 +142,20 @@ impl LcuClient {
     /// `count` of another player's games, newest first — read by the client
     /// under the player's own session, never on TrueMain's Riot key (#1753).
     pub async fn match_history_of(&self, puuid: &str, count: usize) -> Result<MatchHistory> {
-        let end = count.saturating_sub(1);
+        self.match_history_page_of(puuid, 0, count).await
+    }
+
+    /// `count` of another player's games, skipping their latest `begin` — how
+    /// the Game page looks further back for their games on a champion (#1863).
+    pub async fn match_history_page_of(
+        &self,
+        puuid: &str,
+        begin: usize,
+        count: usize,
+    ) -> Result<MatchHistory> {
+        let end = (begin + count).saturating_sub(1);
         self.get_json(&format!(
-            "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex={end}"
+            "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begin}&endIndex={end}"
         ))
         .await
     }

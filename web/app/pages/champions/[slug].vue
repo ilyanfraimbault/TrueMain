@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { POSITION_BY_VALUE, type ChampionPosition } from '#common/utils/positions'
-import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '#common/utils/elo-brackets'
+import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { ELO_BRACKET_ALL, eloBracketLabel } from '#common/utils/elo-brackets'
 import { isLoadingStatus } from '#common/utils/async-data'
-import type {
-  ChampionScalingBucket,
-  ChampionTrendPoint,
-} from '~~/shared/types/champions'
-import type { ChampionStaticData, ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
-import type { ChampionBuildSummary } from '~~/shared/types/champion-build-summary'
+
+// Layout plus wiring: the fetching and derivation live in composables
+// (`useChampionBuildSummary`, `useChampionPageSeo`, `useChampionSliceControls`,
+// `useChampionPanelSnapshots`), each documenting the constraints it carries.
 
 const route = useRoute()
 
@@ -102,190 +100,33 @@ const { data: championTrend, pending: trendPending } = useChampionTrend(champion
 const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
 
-// The build in words, server-rendered (#1123) — the one piece of build content
-// that reaches the HTML before JS runs. Everything else on this page is
-// `server: false`, so a crawler used to receive a shell under a title promising
-// a build.
-//
-// Not a hydration risk, and specifically not #149's: that was a *client-only*
-// fetch racing SSR and winning, so the server rendered content while the
-// client's first render started in its loading state. This one is SSR-enabled
-// and its result travels in the Nuxt payload, so the client's hydration render
-// reads the same object the server rendered from — the two agree by
-// construction. The interactive panels stay client-only exactly as they were.
-//
-// Keyed on the **URL** filters, not on `selectedPatch`/`selectedPosition`:
-// those reconcile to the aggregate's resolved values once the client-only
-// champion fetch lands, which would change the key after hydration and cost a
-// second round trip (plus a visible re-render) on every load. The URL filters
-// are identical on the server and at hydration, and the endpoint resolves the
-// same defaults the aggregate does, so both describe the same slice.
-//
-// Awaited with the champion fetch: for the HTML on the server, under the loading bar on a
-// client-side navigation (#1689). `useApiFetch` forwards the visitor during SSR (#1557).
-const apiFetch = useApiFetch()
-const buildSummaryFetch = useAsyncData(
-  () => [
-    'champion-build-summary',
-    championId.value,
-    filters.value.patch ?? '',
-    filters.value.position ?? '',
-    filters.value.eloBracket ?? '',
-    filters.value.opponentChampionId ?? '',
-    // The population belongs in the key like every other slice dimension: the
-    // request below carries it, and two populations sharing one entry means one
-    // gets served under the other's filter. `watch: [championId, filters]` masks
-    // it in the live path (a fresh object every recompute forces a refetch), but
-    // the key is what SSR payload reuse keys on.
-    filters.value.truemainsOnly ? 'truemains' : 'everyone',
-  ].join('-'),
-  (_nuxtApp, { signal }) => apiFetch<ChampionBuildSummary>(`/champion-summary/${championId.value}`, {
-    query: {
-      patch: filters.value.patch || undefined,
-      position: filters.value.position || undefined,
-      eloBracket: filters.value.eloBracket || undefined,
-      // Same reason as the matchup filter below: without it the prose describes
-      // the truemain build under panels folded from every player.
-      truemainsOnly: filters.value.truemainsOnly ? undefined : 'false',
-      // #923's matchup filter re-slices every build section server-side, so the
-      // summary has to carry it or it describes the global build in prose right
-      // under panels showing the matchup's.
-      opponentChampionId: filters.value.opponentChampionId || undefined,
-    },
-    signal,
-  }),
-  {
-    watch: [championId, filters],
-    // `default` rather than letting `data` start as `undefined`: "not fetched
-    // yet", "the fetch failed" and "the slice has nothing to say" are one state
-    // for this block — it renders nothing — so giving them one value keeps the
-    // component from having to distinguish three nothings.
-    default: () => null,
-  },
-)
+// The build in words (#1123), SSR-enabled and awaited with the champion fetch.
+const buildSummaryFetch = useChampionBuildSummary(championId, filters)
 await Promise.all([buildSummaryFetch, championReady])
 const { data: buildSummary } = buildSummaryFetch
 
-useSeoMeta({
-  title: () => seoDisplayName.value
-    ? `${seoDisplayName.value}${seoPositionLabel.value ? ` ${seoPositionLabel.value}` : ''} Build`
-    : `Champion ${championId.value} Build`,
-  description: () => seoDisplayName.value
-    ? `${seoDisplayName.value} build guide: best runes, items and skill order`
-      + `${seoPositionLabel.value ? ` for ${seoPositionLabel.value}` : ''}, based on real ranked games. `
-      + `See the top OTP ${seoDisplayName.value} one-tricks on TrueMain.`
-    : `Champion builds, runes and skill order from true main players.`,
-})
-
-// Copy shown in the native share sheet and as the X post text. Built from the
-// same SSR-safe display name the title uses, so it never reads "Champion 103".
-const shareTitle = computed(() =>
-  seoDisplayName.value
-    ? `${seoDisplayName.value}${seoPositionLabel.value ? ` ${seoPositionLabel.value}` : ''} build on TrueMain`
-    : 'Champion build on TrueMain',
-)
-const shareDescription = computed(() =>
-  seoDisplayName.value
-    ? `Runes, items and skill order for ${seoDisplayName.value}, from real one-tricks.`
-    : 'Runes, items and skill orders from true main players.',
-)
-
-// Dynamic share card (#926). Only *identifiers* are handed over — the champion
-// id plus whatever slice the shared URL pinned. Everything this page renders is
-// fetched `server: false` (the #149 hydration fix), so at SSR — the moment this
-// og:image URL is minted — there is not a single number available to pass. The
-// card therefore resolves its own slice through `/api/og/champion/{id}` when a
-// crawler renders it, which also keeps the extra query off the human page-view
-// path. Props are resolved once (no client-side follow-up), but filters live in
-// the query string, so a crawler's SSR render of a copied link gets its card.
-defineOgImage('Champion', {
+const { shareTitle, shareDescription, breadcrumbItems } = useChampionPageSeo({
   championId,
-  position: computed(() => filters.value.position ?? undefined),
-  eloBracket: computed(() => filters.value.eloBracket ?? undefined),
-  patch: computed(() => filters.value.patch ?? undefined),
+  filters,
+  seoDisplayName,
+  seoPositionLabel,
 })
 
-useSchemaOrg([
-  defineWebPage({
-    name: () => seoDisplayName.value ? `${seoDisplayName.value} Build` : undefined,
-    description: () => `${seoDisplayName.value ?? 'Champion'} runes, items and skill order.`,
-  }),
-  defineBreadcrumb({
-    itemListElement: [
-      { name: 'Champions', item: '/champions' },
-      { name: () => seoDisplayName.value ?? `Champion ${championId.value}` },
-    ],
-  }),
-])
-
-// Visible breadcrumb, mirroring the schema.org hierarchy above. Uses the
-// SSR-safe `seoDisplayName` (client-only `displayName` is null during SSR) so
-// the crumb renders the champion name in the server HTML, not `Champion {id}`.
-const breadcrumbItems = computed(() => [
-  { label: 'Champions', to: '/champions' },
-  { label: seoDisplayName.value ?? `Champion ${championId.value}` },
-])
-
-// Elo filter (issue #526). Bind to the API-returned filter once available so
-// the rank select reflects what's actually shown; fall back to the URL filter
-// for the optimistic render before the fetch resolves.
-const selectedEloBracket = computed<string>(() =>
-  normalizeEloBracket(champion.value?.eloBracket || filters.value.eloBracket),
-)
-
-// The elo filter forwarded to every live panel (matchups / scaling /
-// item-timings). Always a concrete bracket now that the page default is
-// Master+ rather than the server's ALL: a panel left to its own default would
-// quietly render every tier beside a header that says Master+.
-const eloBracketParam = computed(() => filters.value.eloBracket)
-
-// Matchup filter (#923): opponents are every champion but this one — there is no
-// matchup against yourself. The picker is hidden until the static list resolves,
-// since it searches by name.
-const opponentOptions = computed<ChampionStaticListItem[] | undefined>(() =>
-  staticList.value?.filter(entry => entry.championId !== championId.value))
-
-// A matchup is scoped to a lane on the backend (the self-join matches both sides
-// on the position), so picking an opponent without one would 400. Pin the
-// position being displayed at the same time.
-async function onOpponentChange(value: number | null) {
-  const position = selectedPosition.value ?? champion.value?.position ?? null
-  await setFilter({
-    opponentChampionId: value,
-    ...(value && position ? { position: position as ChampionPosition } : {}),
-  })
-}
-
-// A rank filter with no data: the fetch 404'd on a specific rank (the champion
-// may well have builds in other ranks). Distinct from the champion-level "no
-// data at all" state below — here we keep the rank select so the user can pick
-// another rank instead of hitting a dead end.
-const noDataForRank = computed(() =>
-  notEnoughData.value && selectedEloBracket.value !== ELO_BRACKET_ALL,
-)
-
-// Thin-sample qualifier, carried by the header's warning-triangle tooltip (the
-// idiom the retired-sample card and the builder panels already use) rather than
-// a full-width alert: it qualifies the numbers, it is not news.
-//
-// The one thing worth saying is that the sample is small — `minSampleMet` is
-// the API's own verdict on that (games >= ChampionsList:MinBuildSampleGames).
-// It deliberately no longer mentions how much of the all-rank population the
-// bracket covers: a reader deciding whether to trust this build cares that it
-// rests on 12 games, not that Master+ is 3% of everyone.
-//
-// `null` when there is nothing to qualify: the header keys the icon off it.
-const bracketNoticeText = computed<string | null>(() => {
-  if (!champion.value || champion.value.minSampleMet) return null
-
-  const games = champion.value.totalGames
-  const countedGames = `${games} ${games === 1 ? 'game' : 'games'}`
-  // Name the rank only when one is pinned: "Only 12 games in All ranks" is not
-  // a sentence.
-  const scope = selectedEloBracket.value === ELO_BRACKET_ALL
-    ? countedGames
-    : `${countedGames} in ${eloBracketLabel(selectedEloBracket.value)}`
-  return `Only ${scope}, so this build isn't very representative.`
+const {
+  selectedEloBracket,
+  eloBracketParam,
+  opponentOptions,
+  onOpponentChange,
+  noDataForRank,
+  bracketNoticeText,
+} = useChampionSliceControls({
+  championId,
+  champion,
+  notEnoughData,
+  filters,
+  setFilter,
+  staticList,
+  selectedPosition,
 })
 
 // Win rate by game duration (issue #537). Follows the resolved lane like the
@@ -300,68 +141,25 @@ const { data: championScaling, pending: scalingPending } = useChampionScaling(
   eloBracketParam,
 )
 
-// When useChampion's 404 fallback drops the URL filters (no data for the
-// champion on that patch/position) the API returns the default slice, but the
-// dead patch/position query param lingers in the URL. Once the fetch resolves,
-// reconcile the URL with what was actually loaded so a no-data selection snaps
-// the address bar back to the initial state instead of pinning a stale filter.
-// The watch fires when champion data changes (never on the optimistic
-// stale-data phase) and once immediately on mount if champion is already
-// populated (e.g. an SSR payload) — so the dead filter is reconciled on the
-// first render too, not only on the next change. A *valid* selection — where
-// the API echoes the request — never triggers a reset.
-watch(champion, (data) => {
-  if (!data) return
-  // Only reset when the API actually returned a (truthy) value that differs:
-  // a missing/empty patch or position in the response means "no slice info",
-  // not "your valid filter was dropped", so it must never clear a live filter.
-  const updates: { patch?: string | null, position?: ChampionPosition | null } = {}
-  if (filters.value.patch && data.patch && filters.value.patch !== data.patch) updates.patch = null
-  if (filters.value.position && data.position && filters.value.position !== data.position) updates.position = null
-  if (updates.patch !== undefined || updates.position !== undefined) setFilter(updates).catch(console.error)
-}, { immediate: true })
-
 // Each section drives its own skeleton off its own async status via the
 // shared isLoadingStatus util.
-
-// ─── Lazy-hydration snapshots ───────────────────────────────────────────────
-// The charts/panels below are `hydrate-on-visible` (their JS is heavy —
-// nuxt-charts — so it's kept out of the initial hydration pass, #820) but
-// every value they render comes from client-only (`server: false`)
-// composables. SSR always renders their empty/loading state; without
-// freezing, a child's *deferred* hydration (on scroll, well after the
-// client-only fetches have resolved) would reconcile against that stale SSR
-// snapshot using already-loaded data — a hydration mismatch on every one of
-// them, forcing Vue to discard and rebuild each subtree exactly as it enters
-// the viewport (#834/#837 — that's what caused the reported scroll jank).
-// `useLazyHydrationSnapshot` keeps each child's first (hydration) render
-// identical to SSR; `@vue:mounted="…Snapshot.reveal"` on the child then swaps
-// in the live, reactive value as a normal post-hydration update.
-const trendSnapshot = useLazyHydrationSnapshot(
-  { points: [] as ChampionTrendPoint[], loading: true },
-  () => ({ points: championTrend.value?.points ?? [], loading: trendPending.value }),
-)
-const scalingSnapshot = useLazyHydrationSnapshot(
-  { buckets: [] as ChampionScalingBucket[], scalingIndex: null as number | null, loading: true },
-  () => ({
-    buckets: championScaling.value?.buckets ?? [],
-    scalingIndex: championScaling.value?.scalingIndex ?? null,
-    loading: scalingPending.value,
-  }),
-)
-const truemainsSnapshot = useLazyHydrationSnapshot(
-  { champions: [] as ChampionStaticListItem[], itemsMap: {} as Record<number, StaticItemData>, patch: null as string | null },
-  () => ({ champions: staticList.value ?? [], itemsMap: itemsMap.value ?? {}, patch: latestVersion.value }),
-)
-const matchupsSnapshot = useLazyHydrationSnapshot(
-  { champions: [] as ChampionStaticListItem[] },
-  () => ({ champions: staticList.value ?? [] }),
-)
-const synergiesSnapshot = useLazyHydrationSnapshot(
-  { champions: [] as ChampionStaticListItem[] },
-  () => ({ champions: staticList.value ?? [] }),
-)
+const {
+  trendSnapshot,
+  scalingSnapshot,
+  truemainsSnapshot,
+  matchupsSnapshot,
+  synergiesSnapshot,
+} = useChampionPanelSnapshots({
+  trend: championTrend,
+  trendPending,
+  scaling: championScaling,
+  scalingPending,
+  staticList,
+  itemsMap,
+  latestVersion,
+})
 </script>
+
 
 <template>
   <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">

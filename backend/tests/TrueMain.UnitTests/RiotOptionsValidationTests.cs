@@ -38,7 +38,7 @@ public sealed class RiotOptionsValidationTests
         // inflate EffectiveTotalRequestTimeout (and HttpClient.Timeout with it) to an
         // unreasonable length instead of dividing toward zero. Still worth a bound.
         validate.Should().Throw<OptionsValidationException>()
-            .WithMessage("*Riot:MaxRetryAttempts must be between 1 and 10.*");
+            .WithMessage("*RiotOptions.MaxRetryAttempts must be between 1 and 10.*");
     }
 
     [Fact]

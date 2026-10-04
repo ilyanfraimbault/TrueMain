@@ -27,6 +27,7 @@ public sealed class ParticipantPerkSelectionConfiguration : IEntityTypeConfigura
         entity.HasOne(e => e.Catalog)
             .WithMany()
             .HasForeignKey(e => e.PerkSelectionCatalogId)
+            .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
 
         // Hard FK to matches so a half-ingested match (mid-flow rollback)

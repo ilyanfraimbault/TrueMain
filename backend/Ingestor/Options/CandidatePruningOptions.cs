@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -18,5 +20,6 @@ public class CandidatePruningOptions
     /// than this. Should exceed the match-retention window so an actively-observed player is
     /// not pruned only to be re-harvested next run.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int PruneAfterDays { get; set; } = 30;
 }

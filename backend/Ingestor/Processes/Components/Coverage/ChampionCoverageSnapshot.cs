@@ -1,3 +1,5 @@
+using Core.Coverage;
+
 namespace Ingestor.Processes.Components.Coverage;
 
 /// <summary>
@@ -47,7 +49,7 @@ public sealed class ChampionCoverageSnapshot
         // not one to leave load-bearing.
         _mainsByPlatformChampion = mainsByPlatformChampion.ToDictionary(
             pair => pair.Key, pair => pair.Value, PlatformChampionComparer.Instance);
-        _targetMainsPerChampion = Math.Max(1, targetMainsPerChampion);
+        _targetMainsPerChampion = CoverageDeficit.NormalizeTarget(targetMainsPerChampion);
 
         // The champion universe is the union across platforms, not each platform's own keys:
         // a champion with zero mains on KR has no key there, and that absence is exactly the
@@ -133,8 +135,7 @@ public sealed class ChampionCoverageSnapshot
             return 0;
         }
 
-        var deficit = (_targetMainsPerChampion - MainsFor(platformId, championId)) / (double)_targetMainsPerChampion;
-        return Math.Clamp(deficit, 0, 1);
+        return CoverageDeficit.Of(MainsFor(platformId, championId), _targetMainsPerChampion);
     }
 
     /// <summary>
@@ -150,18 +151,11 @@ public sealed class ChampionCoverageSnapshot
     /// </summary>
     public double MeanDeficit(string platformId)
     {
-        if (IsNeutral || ChampionIds.Count == 0)
-        {
-            return 0;
-        }
-
-        var total = 0d;
-        foreach (var championId in ChampionIds)
-        {
-            total += Deficit(platformId, championId);
-        }
-
-        return Math.Clamp(total / ChampionIds.Count, 0, 1);
+        // The arithmetic lives in Core so the admin cockpit (#1153) reads the same number.
+        return IsNeutral
+            ? 0
+            : CoverageDeficit.Mean(
+                ChampionIds, championId => MainsFor(platformId, championId), _targetMainsPerChampion);
     }
 
     /// <summary>

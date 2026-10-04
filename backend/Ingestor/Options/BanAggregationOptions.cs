@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -14,6 +16,7 @@ public class BanAggregationOptions
     /// set per match is smaller still (ten ban rows and the participants' elo bands,
     /// no per-participant fan-out), so the same order of magnitude is comfortable.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int MatchBatchSize { get; set; } = 500;
 
     /// <summary>
@@ -22,5 +25,6 @@ public class BanAggregationOptions
     /// match, since bans could not be backfilled — so this only ever caps the
     /// matches ingested since the previous run. 0 means no cap.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxMatchesPerRun { get; set; } = 20000;
 }

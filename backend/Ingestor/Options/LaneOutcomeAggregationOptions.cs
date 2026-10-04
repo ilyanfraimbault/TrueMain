@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Core.Lol.Lane;
 namespace Ingestor.Options;
 
@@ -34,5 +35,6 @@ public class LaneOutcomeAggregationOptions
     /// them, and frozen patches can never be recomputed (#466).
     /// </para>
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int GoldLeadThreshold { get; set; } = LaneOutcomeRules.DefaultGoldLeadThreshold;
 }
