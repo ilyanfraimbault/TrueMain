@@ -15,6 +15,12 @@ namespace TrueMain.ReadModels.Ops;
 /// </summary>
 public sealed record RegionBalanceReadModel
 {
+    /// <summary>
+    /// When these figures were measured. Up to five minutes older than the cockpit's own
+    /// evaluation time: the panel is cached, and says so rather than borrowing that timestamp.
+    /// </summary>
+    public DateTime MeasuredAtUtc { get; init; }
+
     /// <summary>Days covered by <see cref="DailyMatches"/> and each platform's window total.</summary>
     public int WindowDays { get; init; }
 

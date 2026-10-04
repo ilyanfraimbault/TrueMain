@@ -3,6 +3,7 @@ using Data;
 using Data.Ops.Mongo;
 using Data.Queries;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
@@ -24,9 +25,29 @@ public sealed class RegionBalanceQueryService(
     TrueMainDbContext db,
     IEffectiveConfigurationStore configurationStore,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
-    IOptions<PipelineHealthOptions> pipelineHealthOptions) : IRegionBalanceQueryService
+    IOptions<PipelineHealthOptions> pipelineHealthOptions,
+    IMemoryCache cache) : IRegionBalanceQueryService
 {
+    private static readonly object CacheKey = new();
+
+    /// <summary>
+    /// The cockpit re-evaluates every 30 s while it is open (#1411), and the distinct-account
+    /// count alone takes seconds on a corpus the size of prod's. The balance moves on a pipeline
+    /// cadence measured in hours, so five minutes of staleness costs nothing a reader could act on.
+    /// </summary>
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
+
     public async Task<RegionBalanceReadModel> GetAsync(DateTime nowUtc, CancellationToken ct)
+    {
+        if (cache.TryGetValue(CacheKey, out RegionBalanceReadModel? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        return cache.Store(CacheKey, await MeasureAsync(nowUtc, ct), CacheTtl);
+    }
+
+    private async Task<RegionBalanceReadModel> MeasureAsync(DateTime nowUtc, CancellationToken ct)
     {
         var windowDays = Math.Max(1, pipelineHealthOptions.Value.RegionBalanceWindowDays);
 
@@ -73,6 +94,7 @@ public sealed class RegionBalanceQueryService(
 
         return RegionBalanceCalculator.Build(new RegionBalanceInputs
         {
+            MeasuredAtUtc = nowUtc,
             WindowDays = windowDays,
             WindowStartUtc = windowStartUtc,
             Configuration = configuration,

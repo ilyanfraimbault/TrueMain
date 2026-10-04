@@ -340,3 +340,35 @@ groups. The palette carries one thing the sidebar cannot: the destinations that 
 consolidation from hiding them. Consequence worth stating: a tabbed page reads its tab from `?view=` at setup,
 so each of those pages now *watches* the query — a palette jump from a page to one of its own tabs changes only
 the query, and the component is reused — #1415, #1416.
+
+## The cockpit's region balance is informational, and its deficit is the allocator's own (2026-10-04)
+
+**Decision.** `/health` carries a per-region panel (#1153): accounts, active-main accounts, ranked matches
+ingested over `PipelineHealth:RegionBalanceWindowDays` (default 14) with each region's share, the mean coverage
+deficit, the share of champions below `Coverage:TargetMainsPerChampion`, and the claim share the allocator
+derives from that deficit — plus a stacked daily bar chart of matches ingested per region. It rides on the
+existing `GET /ops/pipeline-health` payload (`regionBalance`) rather than a parallel endpoint, and it feeds **no
+signal**: it does not move the verdict.
+
+**Why.**
+
+- *Same number as the allocator, by construction.* The deficit arithmetic moved to `Core/Coverage/CoverageDeficit`
+  and the active-main count to `Data/Queries/ActiveMainCoverageQuery`; the ingestor's `ChampionCoverageSnapshot`
+  and `PlatformBudgetAllocator` and the Api's `RegionBalanceCalculator` all call them. A unit test computes the
+  panel's figures and the allocator's split from the same counts and requires them to agree.
+- *The target and the claimed regions come from the Ingestor's published configuration*
+  (`MatchIngestion:Platforms`, and a `Coverage` section added to the Ingestor's catalog for this), not from a
+  default in the Api. Until the Ingestor has published `Coverage`, the coverage columns are **null with a
+  reason**, never computed against a guessed target. This is a server-side read of the #1034 channel, so the
+  #1249 rule (the admin's own region list stays a checked-in constant) is untouched. A region the corpus holds
+  but the claim no longer covers stays in the table, flagged `not claimed` — narrowing `Platforms:Active` must
+  show up, not make a row disappear.
+- *Informational, not a signal.* Where an imbalance becomes a problem is a threshold nobody has set; inventing
+  one here would be a verdict without a decision behind it. The panel is the glance; promoting it to a tile is
+  a later call.
+- *Matches by ingestion day (`CreatedAtUtc`), not game day.* The allocator balances spend, and a backfill of
+  last month's games is this week's spend. Bars because it is a flow; stacked because the regions sum to the
+  day's total.
+- *Cached five minutes* (`measuredAtUtc` stated on the panel): the cockpit refreshes every 30 s and the
+  distinct-account count takes seconds on a production-sized corpus, while the balance moves on a cadence of
+  hours.

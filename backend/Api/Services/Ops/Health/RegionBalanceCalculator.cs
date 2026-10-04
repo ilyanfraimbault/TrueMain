@@ -18,6 +18,8 @@ public sealed record IngestorCoverageConfiguration(
 /// <summary>Everything <see cref="RegionBalanceCalculator.Build"/> reads, already measured.</summary>
 public sealed record RegionBalanceInputs
 {
+    public required DateTime MeasuredAtUtc { get; init; }
+
     public required int WindowDays { get; init; }
 
     public required DateTime WindowStartUtc { get; init; }
@@ -159,6 +161,7 @@ public static class RegionBalanceCalculator
 
         return new RegionBalanceReadModel
         {
+            MeasuredAtUtc = inputs.MeasuredAtUtc,
             WindowDays = inputs.WindowDays,
             WindowStartUtc = inputs.WindowStartUtc,
             TargetMainsPerChampion = target,

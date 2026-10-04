@@ -290,6 +290,13 @@ const visibleProcesses = computed(() =>
         </ul>
       </section>
 
+      <!-- Per-region balance (#1153): informational, absent from an API older than it. -->
+      <HealthRegionBalance
+        v-if="data?.regionBalance"
+        :balance="data.regionBalance"
+        class="mb-8"
+      />
+
       <!-- The raw measurements the signals were judged from, stated without a verdict. -->
       <section v-if="rawData || gaps" class="grid gap-4 lg:grid-cols-2">
         <UCard v-if="rawData">

@@ -141,6 +141,7 @@ public sealed class RegionBalanceCalculatorTests
 
     private static RegionBalanceInputs Inputs(int? target, IReadOnlyList<string> claim) => new()
     {
+        MeasuredAtUtc = WindowStart,
         WindowDays = 14,
         WindowStartUtc = WindowStart,
         Configuration = new IngestorCoverageConfiguration(target, claim, WindowStart, target is null ? "missing" : null),
