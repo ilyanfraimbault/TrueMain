@@ -127,6 +127,11 @@ dotnet_diagnostic.CA1822.severity = none        # static OK dans les tests
 # volontairement cette propriété (#291) pour ne pas dépendre du NoWarn CS1591 global.
 # Sans ça, Roslyn échoue le build avec l'erreur EnableGenerateDocumentationFile.
 dotnet_diagnostic.IDE0005.severity = none
+# xUnit1051 (xunit v3, #299) asks every call that accepts a CancellationToken to pass
+# TestContext.Current.CancellationToken. The suites set no test timeouts and nothing
+# cancels a run mid-test, so threading the token through ~950 existing calls would buy
+# nothing; the rule stays off for tests.
+dotnet_diagnostic.xUnit1051.severity = none
 
 # Migrations EF : code auto-généré, on n'applique pas les règles de style.
 # Les migrations sont générées par `dotnet ef migrations add ...` et ne sont pas
