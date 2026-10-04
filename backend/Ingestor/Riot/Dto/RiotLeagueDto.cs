@@ -2,32 +2,32 @@ using System.Text.Json.Serialization;
 
 namespace Ingestor.Riot.Dto;
 
-public class RiotLeagueListDto
+public sealed record RiotLeagueListDto
 {
     [JsonPropertyName("tier")]
-    public string? Tier { get; set; }
+    public string? Tier { get; init; }
 
     [JsonPropertyName("entries")]
-    public List<RiotLeagueEntryDto> Entries { get; set; } = new();
+    public IReadOnlyList<RiotLeagueEntryDto> Entries { get; init; } = [];
 }
 
-public class RiotLeagueEntryDto
+public sealed record RiotLeagueEntryDto
 {
     [JsonPropertyName("summonerId")]
-    public string? SummonerId { get; set; }
+    public string? SummonerId { get; init; }
 
     [JsonPropertyName("puuid")]
-    public string? Puuid { get; set; }
+    public string? Puuid { get; init; }
 
     [JsonPropertyName("rank")]
-    public string? Rank { get; set; }
+    public string? Rank { get; init; }
 
     [JsonPropertyName("leaguePoints")]
-    public int LeaguePoints { get; set; }
+    public int LeaguePoints { get; init; }
 
     [JsonPropertyName("wins")]
-    public int Wins { get; set; }
+    public int Wins { get; init; }
 
     [JsonPropertyName("losses")]
-    public int Losses { get; set; }
+    public int Losses { get; init; }
 }

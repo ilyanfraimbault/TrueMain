@@ -2,49 +2,49 @@ using System.Text.Json.Serialization;
 
 namespace Ingestor.Riot.Dto;
 
-public class RiotMatchDto
+public sealed record RiotMatchDto
 {
     [JsonPropertyName("metadata")]
-    public RiotMatchMetadataDto Metadata { get; set; } = new();
+    public RiotMatchMetadataDto Metadata { get; init; } = new();
 
     [JsonPropertyName("info")]
-    public RiotMatchInfoDto Info { get; set; } = new();
+    public RiotMatchInfoDto Info { get; init; } = new();
 }
 
-public class RiotMatchMetadataDto
+public sealed record RiotMatchMetadataDto
 {
     [JsonPropertyName("matchId")]
-    public string MatchId { get; set; } = string.Empty;
+    public string MatchId { get; init; } = string.Empty;
 }
 
-public class RiotMatchInfoDto
+public sealed record RiotMatchInfoDto
 {
     [JsonPropertyName("queueId")]
-    public int QueueId { get; set; }
+    public int QueueId { get; init; }
 
     [JsonPropertyName("mapId")]
-    public int MapId { get; set; }
+    public int MapId { get; init; }
 
     [JsonPropertyName("gameMode")]
-    public string GameMode { get; set; } = string.Empty;
+    public string GameMode { get; init; } = string.Empty;
 
     [JsonPropertyName("gameType")]
-    public string GameType { get; set; } = string.Empty;
+    public string GameType { get; init; } = string.Empty;
 
     [JsonPropertyName("gameStartTimestamp")]
-    public long GameStartTimestamp { get; set; }
+    public long GameStartTimestamp { get; init; }
 
     [JsonPropertyName("gameDuration")]
-    public long GameDuration { get; set; }
+    public long GameDuration { get; init; }
 
     [JsonPropertyName("gameVersion")]
-    public string GameVersion { get; set; } = string.Empty;
+    public string GameVersion { get; init; } = string.Empty;
 
     [JsonPropertyName("participants")]
-    public List<RiotParticipantDto> Participants { get; set; } = new();
+    public IReadOnlyList<RiotParticipantDto> Participants { get; init; } = [];
 
     [JsonPropertyName("teams")]
-    public List<RiotTeamDto> Teams { get; set; } = new();
+    public IReadOnlyList<RiotTeamDto> Teams { get; init; } = [];
 }
 
 /// <summary>
@@ -53,16 +53,16 @@ public class RiotMatchInfoDto
 /// from <see cref="RiotParticipantDto"/>, so binding them would duplicate state
 /// the participant rows already carry.
 /// </summary>
-public class RiotTeamDto
+public sealed record RiotTeamDto
 {
     [JsonPropertyName("teamId")]
-    public int TeamId { get; set; }
+    public int TeamId { get; init; }
 
     [JsonPropertyName("bans")]
-    public List<RiotBanDto> Bans { get; set; } = new();
+    public IReadOnlyList<RiotBanDto> Bans { get; init; } = [];
 }
 
-public class RiotBanDto
+public sealed record RiotBanDto
 {
     /// <summary>
     /// The banned champion, or <c>-1</c> when that ban slot went unused (a player
@@ -70,58 +70,58 @@ public class RiotBanDto
     /// to be filtered out before the ban is stored.
     /// </summary>
     [JsonPropertyName("championId")]
-    public int ChampionId { get; set; }
+    public int ChampionId { get; init; }
 
     [JsonPropertyName("pickTurn")]
-    public int PickTurn { get; set; }
+    public int PickTurn { get; init; }
 }
 
-public class RiotParticipantDto
+public sealed record RiotParticipantDto
 {
     [JsonPropertyName("participantId")]
-    public int ParticipantId { get; set; }
+    public int ParticipantId { get; init; }
 
     [JsonPropertyName("puuid")]
-    public string Puuid { get; set; } = string.Empty;
+    public string Puuid { get; init; } = string.Empty;
 
     [JsonPropertyName("summonerName")]
-    public string SummonerName { get; set; } = string.Empty;
+    public string SummonerName { get; init; } = string.Empty;
 
     [JsonPropertyName("summonerLevel")]
-    public int SummonerLevel { get; set; }
+    public int SummonerLevel { get; init; }
 
     [JsonPropertyName("championId")]
-    public int ChampionId { get; set; }
+    public int ChampionId { get; init; }
 
     [JsonPropertyName("teamId")]
-    public int TeamId { get; set; }
+    public int TeamId { get; init; }
 
     [JsonPropertyName("teamPosition")]
-    public string TeamPosition { get; set; } = string.Empty;
+    public string TeamPosition { get; init; } = string.Empty;
 
     [JsonPropertyName("individualPosition")]
-    public string IndividualPosition { get; set; } = string.Empty;
+    public string IndividualPosition { get; init; } = string.Empty;
 
     [JsonPropertyName("lane")]
-    public string Lane { get; set; } = string.Empty;
+    public string Lane { get; init; } = string.Empty;
 
     [JsonPropertyName("role")]
-    public string Role { get; set; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
 
     [JsonPropertyName("win")]
-    public bool Win { get; set; }
+    public bool Win { get; init; }
 
     [JsonPropertyName("kills")]
-    public int Kills { get; set; }
+    public int Kills { get; init; }
 
     [JsonPropertyName("deaths")]
-    public int Deaths { get; set; }
+    public int Deaths { get; init; }
 
     [JsonPropertyName("assists")]
-    public int Assists { get; set; }
+    public int Assists { get; init; }
 
     [JsonPropertyName("totalDamageDealtToChampions")]
-    public int TotalDamageDealtToChampions { get; set; }
+    public int TotalDamageDealtToChampions { get; init; }
 
     /// <summary>
     /// Per-participant context Riot reports alongside the totals (#1448): the
@@ -130,119 +130,119 @@ public class RiotParticipantDto
     /// downstream instead of a zero.
     /// </summary>
     [JsonPropertyName("physicalDamageDealtToChampions")]
-    public int? PhysicalDamageDealtToChampions { get; set; }
+    public int? PhysicalDamageDealtToChampions { get; init; }
 
     [JsonPropertyName("magicDamageDealtToChampions")]
-    public int? MagicDamageDealtToChampions { get; set; }
+    public int? MagicDamageDealtToChampions { get; init; }
 
     [JsonPropertyName("trueDamageDealtToChampions")]
-    public int? TrueDamageDealtToChampions { get; set; }
+    public int? TrueDamageDealtToChampions { get; init; }
 
     [JsonPropertyName("totalHeal")]
-    public int? TotalHeal { get; set; }
+    public int? TotalHeal { get; init; }
 
     [JsonPropertyName("totalHealsOnTeammates")]
-    public int? TotalHealsOnTeammates { get; set; }
+    public int? TotalHealsOnTeammates { get; init; }
 
     [JsonPropertyName("totalDamageShieldedOnTeammates")]
-    public int? TotalDamageShieldedOnTeammates { get; set; }
+    public int? TotalDamageShieldedOnTeammates { get; init; }
 
     [JsonPropertyName("timeCCingOthers")]
-    public int? TimeCCingOthers { get; set; }
+    public int? TimeCCingOthers { get; init; }
 
     [JsonPropertyName("totalTimeCCDealt")]
-    public int? TotalTimeCCDealt { get; set; }
+    public int? TotalTimeCCDealt { get; init; }
 
     [JsonPropertyName("totalDamageTaken")]
-    public int? TotalDamageTaken { get; set; }
+    public int? TotalDamageTaken { get; init; }
 
     [JsonPropertyName("damageSelfMitigated")]
-    public int? DamageSelfMitigated { get; set; }
+    public int? DamageSelfMitigated { get; init; }
 
     [JsonPropertyName("visionScore")]
-    public int VisionScore { get; set; }
+    public int VisionScore { get; init; }
 
     [JsonPropertyName("goldEarned")]
-    public int GoldEarned { get; set; }
+    public int GoldEarned { get; init; }
 
     [JsonPropertyName("totalMinionsKilled")]
-    public int TotalMinionsKilled { get; set; }
+    public int TotalMinionsKilled { get; init; }
 
     [JsonPropertyName("neutralMinionsKilled")]
-    public int NeutralMinionsKilled { get; set; }
+    public int NeutralMinionsKilled { get; init; }
 
     [JsonPropertyName("champLevel")]
-    public int ChampLevel { get; set; }
+    public int ChampLevel { get; init; }
 
     [JsonPropertyName("item0")]
-    public int Item0 { get; set; }
+    public int Item0 { get; init; }
 
     [JsonPropertyName("item1")]
-    public int Item1 { get; set; }
+    public int Item1 { get; init; }
 
     [JsonPropertyName("item2")]
-    public int Item2 { get; set; }
+    public int Item2 { get; init; }
 
     [JsonPropertyName("item3")]
-    public int Item3 { get; set; }
+    public int Item3 { get; init; }
 
     [JsonPropertyName("item4")]
-    public int Item4 { get; set; }
+    public int Item4 { get; init; }
 
     [JsonPropertyName("item5")]
-    public int Item5 { get; set; }
+    public int Item5 { get; init; }
 
     [JsonPropertyName("item6")]
-    public int Item6 { get; set; }
+    public int Item6 { get; init; }
 
     [JsonPropertyName("roleBoundItem")]
-    public int RoleBoundItem { get; set; }
+    public int RoleBoundItem { get; init; }
 
     [JsonPropertyName("summoner1Id")]
-    public int Summoner1Id { get; set; }
+    public int Summoner1Id { get; init; }
 
     [JsonPropertyName("summoner2Id")]
-    public int Summoner2Id { get; set; }
+    public int Summoner2Id { get; init; }
 
     [JsonPropertyName("perks")]
-    public RiotPerksDto Perks { get; set; } = new();
+    public RiotPerksDto Perks { get; init; } = new();
 }
 
-public class RiotPerksDto
+public sealed record RiotPerksDto
 {
     [JsonPropertyName("statPerks")]
-    public RiotStatPerksDto StatPerks { get; set; } = new();
+    public RiotStatPerksDto StatPerks { get; init; } = new();
 
     [JsonPropertyName("styles")]
-    public List<RiotPerkStyleDto> Styles { get; set; } = new();
+    public IReadOnlyList<RiotPerkStyleDto> Styles { get; init; } = [];
 }
 
-public class RiotStatPerksDto
+public sealed record RiotStatPerksDto
 {
     [JsonPropertyName("defense")]
-    public int Defense { get; set; }
+    public int Defense { get; init; }
 
     [JsonPropertyName("flex")]
-    public int Flex { get; set; }
+    public int Flex { get; init; }
 
     [JsonPropertyName("offense")]
-    public int Offense { get; set; }
+    public int Offense { get; init; }
 }
 
-public class RiotPerkStyleDto
+public sealed record RiotPerkStyleDto
 {
     [JsonPropertyName("style")]
-    public int Style { get; set; }
+    public int Style { get; init; }
 
     [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
 
     [JsonPropertyName("selections")]
-    public List<RiotPerkSelectionDto> Selections { get; set; } = new();
+    public IReadOnlyList<RiotPerkSelectionDto> Selections { get; init; } = [];
 }
 
-public class RiotPerkSelectionDto
+public sealed record RiotPerkSelectionDto
 {
     [JsonPropertyName("perk")]
-    public int Perk { get; set; }
+    public int Perk { get; init; }
 }
