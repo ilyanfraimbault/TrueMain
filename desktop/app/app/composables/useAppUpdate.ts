@@ -17,6 +17,13 @@ import type { Screen } from '~/types/lcu'
  *   they never click. A restart in the middle of champion select would cost
  *   them the draft, so the app never restarts under a running phase.
  *
+ * An install that has not restarted the app after `INSTALL_DEADLINE_MS` —
+ * seen once on macOS, the bundle untouched and the process still running
+ * (#1793) — drops the progress toast for a "Restart now". The shell's install
+ * cannot be cancelled from here, so the stalled one is never retried in this
+ * run: the restart either opens the new build or the old one, whose launch
+ * check offers the update again.
+ *
  * "Check for Updates…" — in the app menu on macOS, the tray icon's menu on
  * Windows (`src-tauri/src/menu.rs`) — runs the same check on demand and says
  * how it went. Otherwise a failed check stays silent: the app works on the
@@ -27,6 +34,8 @@ const POLL_INTERVAL_MS = 15 * 60 * 1000
 // How long the launch check waits for the shell's first state before treating the phase as unknown.
 const STATE_WAIT_MS = 10 * 1000
 const BUSY_SCREENS: Screen[] = ['draft', 'in-game']
+// A healthy install restarts the app in about ten seconds.
+export const INSTALL_DEADLINE_MS = 30 * 1000
 
 // The downloaded build waiting for a restart. Not reactive state: it is a
 // handle on the shell's side, and the app has a single window for its life.
@@ -38,12 +47,16 @@ export function useAppUpdate() {
   /** The version downloaded and waiting for a restart, for the sidebar. */
   const readyVersion = useState<string | null>('app-update-ready', () => null)
   const installing = useState<boolean>('app-update-installing', () => false)
+  /** An install past its deadline: the app offers a plain restart instead of waiting on it. */
+  const stalled = useState<boolean>('app-update-stalled', () => false)
   const started = useState<boolean>('app-update-started', () => false)
   let checking = false
 
   async function install(update: Update) {
     if (installing.value) return
     installing.value = true
+    // Not cleared on success: a relaunch that returns has not restarted anything.
+    const deadline = setTimeout(() => stall(update.version), INSTALL_DEADLINE_MS)
     try {
       // Windows hands over to the installer here, which quits the app and
       // reopens it; macOS swaps the bundle in place and restarts below.
@@ -52,6 +65,8 @@ export function useAppUpdate() {
       await relaunch()
     }
     catch {
+      clearTimeout(deadline)
+      stalled.value = false
       installing.value = false
       toast.remove('app-update')
       toast.add({ title: 'The update could not be installed', description: 'It will be offered again at the next launch.', color: 'error', icon: 'i-lucide-circle-alert' })
@@ -74,8 +89,33 @@ export function useAppUpdate() {
     return stateReady.value && !BUSY_SCREENS.includes(screen.value)
   }
 
+  /**
+   * The install is still running, or hung, past its deadline. `installing`
+   * stays set: a second install over the first one could leave half a bundle.
+   */
+  function stall(version: string) {
+    stalled.value = true
+    say({
+      title: `Updating TrueMain to ${version} is taking longer than expected`,
+      description: 'Restart now to finish. If the update was not applied, it is offered again at the next launch.',
+      icon: 'i-lucide-hourglass',
+      actions: [{ label: 'Restart now', onClick: () => void relaunchNow() }],
+    })
+  }
+
+  async function relaunchNow() {
+    try {
+      const { relaunch } = await import('@tauri-apps/plugin-process')
+      await relaunch()
+    }
+    catch {
+      say({ title: 'TrueMain could not restart', description: 'Quit and reopen the app to finish the update.', icon: 'i-lucide-circle-alert', color: 'error' })
+    }
+  }
+
   async function restart() {
-    if (downloaded) await install(downloaded)
+    if (stalled.value) await relaunchNow()
+    else if (downloaded) await install(downloaded)
   }
 
   /**
@@ -171,5 +211,5 @@ export function useAppUpdate() {
     stopListening = await listen('app://check-for-updates', () => void check('manual'))
   }
 
-  return { start, restart, readyVersion, installing }
+  return { start, restart, readyVersion, installing, stalled }
 }
