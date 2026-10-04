@@ -32,6 +32,7 @@ function line(overrides: Partial<LoadingPlayer> = {}): LoadingPlayer {
     rank: null,
     rankRead: false,
     rankFailed: false,
+    laning: null,
     ...overrides,
   }
 }

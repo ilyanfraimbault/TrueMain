@@ -13,6 +13,8 @@
 const { state, screen } = useLcuState()
 const { game, syncedAt } = useLiveGame()
 const { view: loading } = useLoadingPlayers()
+/** Each lane's edge (#1863), drawn on the board while the game loads. */
+const edges = useLaneEdges(() => loading.value.players)
 const { view: overlay } = useGameOverlay()
 
 const overlayStatus = computed(() => {
@@ -57,7 +59,7 @@ const waiting = computed(() => {
         <h1 class="text-2xl font-semibold tracking-tight text-highlighted">{{ waiting.title }}</h1>
         <p class="max-w-sm text-sm text-muted">{{ waiting.body }}</p>
       </div>
-      <LoadingBoard v-if="screen === 'in-game' && loading.players.length" :players="loading.players" class="surface relative w-full max-w-xl rounded-xl p-3 text-left" />
+      <LoadingBoard v-if="screen === 'in-game' && loading.players.length" :players="loading.players" :edges="edges" class="surface relative w-full max-w-2xl rounded-xl p-3 text-left" />
       <div v-if="overlayStatus" class="relative mt-4 flex items-center gap-3 rounded-lg bg-elevated/60 py-1.5 pl-3 pr-1.5 ring-1 ring-default">
         <UIcon name="i-lucide-layers" class="size-4 text-primary" />
         <span class="text-xs text-muted">{{ overlayStatus }}</span>

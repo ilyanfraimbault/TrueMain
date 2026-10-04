@@ -255,8 +255,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   their last ten games as the loading screen's bars — all from the loading screen's read (`useLoadingPlayers`, one more
   client request per player for the standing), matched to the live player by Riot ID, an anonymous one by side and
   champion; a standing still being read shows a placeholder, one the client could not read shows nothing — under a
-  strip with the map, each side's kills and a running game clock. A loading state until the game answers, a waiting
-  state outside a game. What the API reveals about enemies is documented in `desktop/README.md` and still to verify in
+  strip with the map, each side's kills and a running game clock. Between each lane's two players, **the lane's edge**
+  (#1863, `game/GameLaneEdge.vue`, `utils/lane-edge.ts`, `useLaneEdges`): an arrow towards the favoured side (doubled
+  from 60 %) with its chance — TrueMain's head-to-head of the two champions at that position (`/champions/{id}/matchups?opponent=`,
+  pulled towards even under ~30 games), moved by each player's last ten games on their champion (win rate, and gold /
+  CS / XP leads over that game's lane opponent at 15 min, from the client's timelines; weights per role), the figures
+  themselves not shown. The same arrows sit between the two columns of the waiting state's loading board. A loading
+  state until the game answers, a waiting state outside a game. What the API reveals about enemies is documented in `desktop/README.md` and still to verify in
   a live game.
   Over the board, when we are a player, **the next item** (#1751, `game/GameNextItem.vue`): the legendary the mains
   complete next from where our build stands in a game like this one (`POST /champions/{id}/next-item`, #1749 — asked on
