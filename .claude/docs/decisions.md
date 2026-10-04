@@ -136,6 +136,7 @@ Last verified against `develop` on 2026-09-02.
 - A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own `pending` — #1234
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
 - A backend request nobody waits for any more is cancelled: every fetch forwards an abort signal (2026-09-27) — #1712
+- `onServerPrefetch` stays in the client bundle so `useId()` agrees across hydration; a table column never renders an empty-string header (2026-10-04) — #1590
 - A row rendered on more than one surface sizes off its own width, not the viewport — #967
 - The full-page lists (truemains, champions) are `UTable`s with header sorting bound to the URL and served by the API; a row navigates through `@select` (2026-10-01) — #1726, #1734
 - A player is drawn by one `Account` component (UUser + a canonical-URL `UAvatar`, rounded square); the search palette is the exception (2026-10-01) — #1734

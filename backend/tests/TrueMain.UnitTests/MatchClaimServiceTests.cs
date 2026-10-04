@@ -4,7 +4,6 @@ using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MatchIngestion;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TrueMain.UnitTests.Fixtures;
@@ -97,7 +96,7 @@ public sealed class MatchClaimServiceTests
 
         var sessionFactory = Substitute.For<IDataSessionFactory>();
         var session = Substitute.For<IDataSession>();
-        var transaction = Substitute.For<IDbContextTransaction>();
+        var transaction = Substitute.For<IDataTransaction>();
 
         var riotAccounts = Substitute.For<IRiotAccountRepository>();
         var mainCandidates = Substitute.For<IMainCandidateRepository>();
@@ -196,7 +195,7 @@ public sealed class MatchClaimServiceTests
         session.RiotAccounts.Returns(riotAccounts);
         session.MainCandidates.Returns(mainCandidates);
         session.BeginTransactionAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Substitute.For<IDbContextTransaction>()));
+            .Returns(Task.FromResult(Substitute.For<IDataTransaction>()));
         sessionFactory.CreateAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(session));
 
@@ -255,7 +254,7 @@ public sealed class MatchClaimServiceTests
         session.RiotAccounts.Returns(riotAccounts);
         session.MainCandidates.Returns(Substitute.For<IMainCandidateRepository>());
         session.BeginTransactionAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Substitute.For<IDbContextTransaction>()));
+            .Returns(Task.FromResult(Substitute.For<IDataTransaction>()));
         var sessionFactory = Substitute.For<IDataSessionFactory>();
         sessionFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(session));
 

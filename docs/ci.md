@@ -541,6 +541,14 @@ mongo, umami, caddy), which no Dockerfile references; our own
 tag is chosen by the deploy, not by a registry lookup. Every stream targets
 `develop`.
 
+The NuGet stream has one extra group, `ef-core`, matching every
+`Microsoft.EntityFrameworkCore*` package at any update type and declared before
+`minor-and-patch` (Dependabot assigns a dependency to the first group that matches).
+The runtime, `Relational` and `Design` packages must move in lockstep: `Design`
+drives `dotnet ef` and the compiled-model generator, and a `Relational` pin below
+the one the Npgsql provider pulls in is silently lifted anyway, so a split bump
+leaves a misleading version on the page (#1637).
+
 ## Images
 
 - `web` and `admin`: three-stage build (`deps` → `build` → `runner`), the

@@ -67,8 +67,11 @@ var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain
 var healthChecks = builder.Services.AddHealthChecks();
 if (!string.IsNullOrWhiteSpace(healthConnectionString))
 {
+    // Probe through the shared NpgsqlDataSource registered by AddTrueMainData: the
+    // connection-string overload builds a data source of its own, i.e. a second pool
+    // outside the connection budget (#1637).
     healthChecks.AddNpgSql(
-        healthConnectionString,
+        serviceProvider => serviceProvider.GetRequiredService<Npgsql.NpgsqlDataSource>(),
         name: "postgres",
         tags: ["ready"]);
 }
