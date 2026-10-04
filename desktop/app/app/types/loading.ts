@@ -54,6 +54,10 @@ export interface LoadingPlayer {
   failed: boolean
   /** Solo/Duo, else a ranked Flex; null until read, when unranked, or unreadable. */
   rank: RankedQueue | null
+  /** The standing was read: a null `rank` is then an unranked player. */
+  rankRead: boolean
+  /** The client could not read the standing. */
+  rankFailed: boolean
 }
 
 export interface LoadingView {

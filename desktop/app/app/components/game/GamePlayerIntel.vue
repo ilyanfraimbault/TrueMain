@@ -39,9 +39,11 @@ const name = computed(() => props.riotId.split('#')[0] ?? '')
 const tag = computed(() => props.riotId.split('#')[1] ?? '')
 
 const form = computed(() => props.line?.form ?? null)
-/** The history and the standing land together: once one is in, a missing standing means unranked. */
+/** Something about this player is still to come: the line itself, their history or their standing. */
+const expected = computed(() => (props.reading || Boolean(props.line)) && !props.line?.anonymous)
 const settled = computed(() => Boolean(props.line && (props.line.form || props.line.failed)))
-const pending = computed(() => !settled.value && (props.reading || Boolean(props.line)) && !props.line?.anonymous)
+const pending = computed(() => !settled.value && expected.value)
+const rankPending = computed(() => !props.line?.rankRead && !props.line?.rankFailed && expected.value)
 
 // ─── Rank ───────────────────────────────────────────────────────────────────
 
@@ -110,8 +112,8 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
           <span v-if="ranked.queueType === 'RANKED_FLEX_SR'" class="rounded-sm px-1 text-[9px] font-semibold uppercase tracking-wide text-dimmed ring-1 ring-default" title="No Solo/Duo standing: their Flex one">Flex</span>
         </template>
         <span v-else-if="rank" class="text-[11px] text-muted" :title="rankTitle">Placements · {{ rank.wins + rank.losses }} played</span>
-        <USkeleton v-else-if="pending" class="h-3 w-20" />
-        <span v-else-if="settled" class="text-[11px] text-dimmed">Unranked</span>
+        <USkeleton v-else-if="rankPending" class="h-3 w-20" />
+        <span v-else-if="line?.rankRead" class="text-[11px] text-dimmed">Unranked</span>
       </div>
 
       <div v-if="fit || streak" class="flex flex-wrap items-center gap-1" :class="mirrored && 'flex-row-reverse'">
