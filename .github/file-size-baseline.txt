@@ -5,7 +5,7 @@ admin/app/components/accounts/AccountsPipeline.vue	784	400
 admin/app/components/accounts/AccountsSeed.vue	1092	400
 admin/app/components/accounts/AccountsTrace.vue	892	400
 admin/app/components/CrashesPanel.vue	578	400
-admin/app/components/processes/ProcessesRiotApi.vue	611	400
+admin/app/components/processes/ProcessesRiotApi.vue	578	400
 admin/app/composables/useOps.ts	443	300
 admin/app/pages/database.vue	512	400
 admin/app/pages/data-quality.vue	601	400
