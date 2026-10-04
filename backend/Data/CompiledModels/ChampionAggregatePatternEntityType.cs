@@ -24,7 +24,7 @@ namespace Data.CompiledModels
                 propertyCount: 9,
                 navigationCount: 6,
                 foreignKeyCount: 6,
-                unnamedIndexCount: 11,
+                unnamedIndexCount: 10,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -121,21 +121,18 @@ namespace Data.CompiledModels
                 new[] { starterItemsId });
 
             var index4 = runtimeEntityType.AddIndex(
-                new[] { scopeId, buildId });
-
-            var index5 = runtimeEntityType.AddIndex(
                 new[] { scopeId, runePageId });
 
-            var index6 = runtimeEntityType.AddIndex(
+            var index5 = runtimeEntityType.AddIndex(
                 new[] { scopeId, skillOrderId });
 
-            var index7 = runtimeEntityType.AddIndex(
+            var index6 = runtimeEntityType.AddIndex(
                 new[] { scopeId, spellPairId });
 
-            var index8 = runtimeEntityType.AddIndex(
+            var index7 = runtimeEntityType.AddIndex(
                 new[] { scopeId, starterItemsId });
 
-            var index9 = runtimeEntityType.AddIndex(
+            var index8 = runtimeEntityType.AddIndex(
                 new[] { scopeId, buildId, runePageId, skillOrderId, spellPairId, starterItemsId },
                 unique: true);
 
