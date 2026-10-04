@@ -328,6 +328,7 @@ builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryS
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
 builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
+builder.Services.AddScoped<IRegionBalanceQueryService, RegionBalanceQueryService>();
 builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
 builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
 builder.Services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQueryService>();

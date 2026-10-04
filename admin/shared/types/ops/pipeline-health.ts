@@ -77,4 +77,56 @@ export interface PipelineHealth {
   processes: ProcessHealth[]
   rawData: RawDataFreshness
   gaps: PipelineGaps
+  /** Absent from an API older than #1153. */
+  regionBalance?: RegionBalance
+}
+
+/** One platform's row of the region-balance panel (#1153). */
+export interface PlatformBalance {
+  platformId: string
+  /** Whether the match-ingest claim allocates to it; null when the claim's platforms are unknown. */
+  inClaim: boolean | null
+  /** Tracked Riot accounts, any status. */
+  accounts: number
+  /** Distinct accounts holding at least one active main. */
+  activeMainAccounts: number
+  /** Ranked matches ingested within the window (by ingestion time). */
+  matchesInWindow: number
+  /** Share of every platform's window total; null when nothing was ingested. */
+  matchShare: number | null
+  /** Mean per-champion coverage deficit in [0, 1] — the allocator's signal. Null when unknown. */
+  meanCoverageDeficit: number | null
+  /** Champions of the shared universe below the target here. Null when unknown. */
+  championsBelowTarget: number | null
+  championsBelowTargetShare: number | null
+  /** Share of a claim batch the allocator gives it; null outside the claim or when unknown. */
+  claimShare: number | null
+}
+
+/** Matches ingested on one platform on one UTC day. Days without a row ingested nothing. */
+export interface PlatformDailyMatches {
+  /** `YYYY-MM-DD`, UTC. */
+  day: string
+  platformId: string
+  matches: number
+}
+
+/** Per-region balance (#1153). Informational: it does not move the verdict. */
+export interface RegionBalance {
+  /** When measured — cached up to 5 min, so it can trail `evaluatedAtUtc`. */
+  measuredAtUtc: string
+  windowDays: number
+  windowStartUtc: string
+  /** `Coverage:TargetMainsPerChampion` as the Ingestor published it; null when unknown. */
+  targetMainsPerChampion: number | null
+  claimPlatforms: string[] | null
+  configurationCapturedAtUtc: string | null
+  /** Set iff the target is unknown — the coverage columns are then null, never zero. */
+  coverageUnknownReason: string | null
+  /** Champions with an active main anywhere — the deficit's denominator. */
+  championUniverse: number
+  platforms: PlatformBalance[]
+  dailyMatches: PlatformDailyMatches[]
+  /** Set when the panel could not be measured at all. */
+  unknownReason: string | null
 }
