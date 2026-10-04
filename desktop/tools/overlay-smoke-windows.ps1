@@ -237,12 +237,16 @@ function StartStandIn([string] $Exe, [string] $Class, [string] $Title, [string] 
     return $process
 }
 
-# Press a button of the app's main window by its accessible name.
+# Press a button of the app's main window by its accessible name — or a link:
+# a button that navigates (`to=`) is an anchor, e.g. the game page's
+# "Overlay settings" since the overlay got its own page (#1822, #1834).
 function Press([string] $Name) {
     $isMain = [System.Windows.Automation.AndCondition]::new(
         [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $script:shell.Id),
         [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "TrueMain"))
-    $isButton = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+    $isButton = [System.Windows.Automation.OrCondition]::new(
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button),
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Hyperlink))
     $buttons = @()
     for ($i = 0; $i -lt 20; $i++) {
         $main = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $isMain)
