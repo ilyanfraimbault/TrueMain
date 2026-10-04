@@ -33,19 +33,16 @@ const filters = computed(() => ({
 }))
 
 const { data, pending, error, refresh } = useRiotUsage(filters)
+// What the panel draws (#1426): the current payload, or the last good one for these
+// same filters when a re-fetch failed (Nuxt resets `data` on error). `null` = nothing
+// measured, so the panel renders no figures instead of a fabricated quiet window.
+const usage = useLastGoodPayload(data, () => JSON.stringify(filters.value))
 
-const endpoints = computed<RiotEndpointUsage[]>(() => data.value?.endpoints ?? [])
-const statusCodes = computed<RiotStatusCount[]>(() => data.value?.statusCodes ?? [])
-const totalCalls = computed(() => data.value?.totalCalls ?? 0)
-const totalErrors = computed(() => data.value?.totalErrors ?? 0)
-const errorRate = computed(() => data.value?.errorRate ?? 0)
-const avgLatencyMs = computed(() => data.value?.avgLatencyMs ?? 0)
-const rateLimit = computed(() => data.value?.rateLimit ?? null)
-const callerBreakdown = computed<RiotCallerUsage[]>(() => data.value?.callerBreakdown ?? [])
-const headroom = computed(() => data.value?.headroom ?? null)
-
-// --- Summary -----------------------------------------------------------------
-const errorRatePct = computed(() => formatPercent(errorRate.value, 1))
+const endpoints = computed<RiotEndpointUsage[]>(() => usage.value?.endpoints ?? [])
+const statusCodes = computed<RiotStatusCount[]>(() => usage.value?.statusCodes ?? [])
+const rateLimit = computed(() => usage.value?.rateLimit ?? null)
+const callerBreakdown = computed<RiotCallerUsage[]>(() => usage.value?.callerBreakdown ?? [])
+const headroom = computed(() => usage.value?.headroom ?? null)
 
 // --- Status-code breakdown ---------------------------------------------------
 // Coloured chips rather than a chart: the 200/429/5xx split reads best as a
@@ -180,7 +177,7 @@ function methodRateBucket(row: RiotEndpointUsage): RateBucket | null {
 // and never stacked — `Retries` is documented as a SUBSET of `Calls`, so a stack
 // would draw a total that counts every 429 twice.
 const timeSeriesData = computed(() =>
-  (data.value?.timeSeries ?? []).map(bucket => ({
+  (usage.value?.timeSeries ?? []).map(bucket => ({
     label: formatCallBucketLabel(bucket.bucketUtc),
     calls: bucket.calls,
     retries: bucket.retries,
@@ -279,10 +276,10 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
     />
     <div class="flex-1" />
     <UBadge
-      v-if="!pending"
+      v-if="usage && !pending"
       color="neutral"
       variant="subtle"
-      :label="`${formatNumber(totalCalls)} calls`"
+      :label="`${formatNumber(usage.totalCalls)} calls`"
     />
   </div>
 
@@ -293,320 +290,290 @@ const columns: TableColumn<RiotEndpointUsage>[] = [
     class="mb-6"
   />
 
-  <!-- Summary tiles -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <UCard>
-      <p class="text-xs text-muted uppercase">
-        Total calls
-      </p>
-      <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
-        {{ formatNumber(totalCalls) }}
-      </p>
-    </UCard>
-    <UCard>
-      <p class="text-xs text-muted uppercase">
-        Error rate
-      </p>
-      <p
-        class="mt-1 text-2xl font-semibold tabular-nums"
-        :class="errorRate > 0 ? 'text-error' : 'text-highlighted'"
-      >
-        {{ errorRatePct }}
-      </p>
-      <p class="text-xs text-muted tabular-nums">
-        {{ formatNumber(totalErrors) }} errors
-      </p>
-    </UCard>
-    <UCard>
-      <p class="text-xs text-muted uppercase">
-        Avg latency
-      </p>
-      <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
-        {{ formatElapsed(avgLatencyMs) }}
-      </p>
-    </UCard>
-    <UCard>
-      <p class="text-xs text-muted uppercase">
-        Endpoints used
-      </p>
-      <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
-        {{ formatNumber(endpoints.length) }}
-      </p>
-    </UCard>
+  <!-- A failed fetch with nothing measured renders the alert alone: no tile or
+       empty state may read as "zero calls" (#1426). -->
+  <div v-if="!usage && pending" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <USkeleton v-for="n in 4" :key="n" class="h-[88px]" />
   </div>
+  <template v-else-if="usage">
+    <p v-if="error" class="-mt-4 mb-6 text-sm text-muted">
+      Showing the last successful reading, generated {{ formatDateTime(usage.generatedAtUtc) }}.
+    </p>
+    <ProcessesRiotApiSummary :usage="usage" />
 
-  <!-- Rate limit + status codes -->
-  <div class="grid gap-6 lg:grid-cols-2 mb-6">
-    <UCard>
-      <template #header>
-        <div class="flex items-center justify-between gap-2">
-          <PanelTitle variant="label" title="App rate limit" />
-          <UBadge
-            v-if="rateLimit?.observedAtUtc"
-            color="neutral"
-            variant="subtle"
-            :label="formatDateTime(rateLimit.observedAtUtc)"
-          />
-        </div>
-      </template>
-
-      <div v-if="appRateBuckets.length" class="flex flex-col gap-4">
-        <div v-for="bucket in appRateBuckets" :key="bucket.windowSeconds">
-          <div class="flex items-center justify-between text-sm">
-            <span class="text-muted">per {{ formatWindowSeconds(bucket.windowSeconds) }}</span>
-            <span class="tabular-nums text-highlighted">
-              {{ formatNumber(bucket.count) }} / {{ formatNumber(bucket.limit) }}
-            </span>
-          </div>
-          <UProgress
-            class="mt-1"
-            :model-value="bucket.count"
-            :max="bucket.limit || 1"
-            :color="rateColor(bucket.count, bucket.limit)"
-            size="sm"
-          />
-        </div>
-      </div>
-      <p v-else class="text-sm text-muted">
-        No rate-limit headers seen in this window.
-      </p>
-    </UCard>
-
-    <UCard>
-      <template #header>
-        <PanelTitle variant="label" title="Status codes" />
-      </template>
-
-      <div v-if="statusCodes.length" class="flex flex-col gap-2">
-        <div
-          v-for="status in statusCodes"
-          :key="status.statusCode"
-          class="flex items-center justify-between gap-3 text-sm"
-        >
-          <UBadge
-            :color="statusColor(status.statusCode)"
-            variant="subtle"
-            :label="statusLabel(status.statusCode)"
-          />
-          <div class="flex-1 h-1.5 rounded-full bg-elevated overflow-hidden">
-            <div
-              class="h-full rounded-full"
-              :class="statusBarClass(status.statusCode)"
-              :style="{ width: statusBarWidth(status.count) }"
+    <!-- Rate limit + status codes -->
+    <div class="grid gap-6 lg:grid-cols-2 mb-6">
+      <UCard>
+        <template #header>
+          <div class="flex items-center justify-between gap-2">
+            <PanelTitle variant="label" title="App rate limit" />
+            <UBadge
+              v-if="rateLimit?.observedAtUtc"
+              color="neutral"
+              variant="subtle"
+              :label="formatDateTime(rateLimit.observedAtUtc)"
             />
           </div>
-          <span class="tabular-nums text-highlighted w-16 text-right">
-            {{ formatNumber(status.count) }}
-          </span>
-          <span class="tabular-nums text-muted w-14 text-right">
-            {{ formatPercentOrDash(statusShare(status.count), 1) }}
-          </span>
-        </div>
-      </div>
-      <p v-else class="text-sm text-muted">
-        No calls recorded in this window.
-      </p>
-    </UCard>
-  </div>
-
-  <!-- Call volume over time -->
-  <UCard class="mb-6" :ui="{ root: 'overflow-visible' }">
-    <template #header>
-      <PanelTitle variant="label" title="Call volume over time" />
-    </template>
-    <USkeleton v-if="pending" class="h-[260px] w-full" />
-    <div
-      v-else-if="timeSeriesData.length === 0"
-      class="flex h-[260px] items-center justify-center text-sm text-muted"
-    >
-      No calls recorded in this window.
-    </div>
-    <ChartsBarChart
-      v-else
-      :data="timeSeriesData"
-      :height="260"
-      :categories="timeSeriesCategories"
-      :y-axis="['calls', 'retries']"
-      :x-num-ticks="Math.min(timeSeriesData.length, 8)"
-      :x-formatter="timeSeriesXFormatter"
-      :y-formatter="formatCount"
-      :tooltip-title-formatter="labelTooltipTitle"
-      v-bind="multiTimeBarProps()"
-    />
-  </UCard>
-
-  <!-- Consumption by caller + budget headroom -->
-  <div class="grid gap-6 lg:grid-cols-2 mb-6">
-    <UCard>
-      <template #header>
-        <PanelTitle variant="label" title="Consumption by caller" />
-      </template>
-
-      <USkeleton v-if="pending" :style="{ height: `${callerChartHeight}px` }" class="w-full" />
-      <div
-        v-else-if="callerChartData.length === 0"
-        class="flex h-[120px] items-center justify-center text-sm text-muted"
-      >
-        No calls recorded in this window.
-      </div>
-      <ChartsBarChart
-        v-else
-        :data="callerChartData"
-        :height="callerChartHeight"
-        :categories="callerCategories"
-        :y-axis="['calls']"
-        :y-num-ticks="callerChartData.length"
-        :x-formatter="formatCount"
-        :y-formatter="callerLabelFormatter"
-        :tooltip-title-formatter="labelTooltipTitle"
-        v-bind="horizontalBarProps(120)"
-      />
-    </UCard>
-
-    <UCard>
-      <template #header>
-        <PanelTitle variant="label" title="Budget headroom" />
-      </template>
-
-      <div v-if="headroom?.sufficientData" class="flex flex-col gap-4">
-        <div>
-          <p class="text-xs text-muted uppercase">
-            More accounts fit
-          </p>
-          <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
-            ≈ {{ formatNumber(headroom.additionalAccountsHeadroom ?? 0) }}
-          </p>
-        </div>
-        <dl class="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <dt class="text-muted">
-              Tracked accounts
-            </dt>
-            <dd class="tabular-nums text-highlighted">
-              {{ formatNumber(headroom.trackedAccounts) }}
-            </dd>
-          </div>
-          <div>
-            <dt class="text-muted">
-              Cost per account
-            </dt>
-            <dd class="tabular-nums text-highlighted">
-              {{ formatCallsPerDay(headroom.callsPerAccountPerDay) }}
-            </dd>
-          </div>
-          <div>
-            <dt class="text-muted">
-              Binding limit
-            </dt>
-            <dd class="tabular-nums text-highlighted">
-              {{ bindingLimitLabel }}
-            </dd>
-          </div>
-          <div>
-            <dt class="text-muted">
-              Spare capacity
-            </dt>
-            <dd class="tabular-nums text-highlighted">
-              {{ formatCallsPerDay(headroom.spareCallsPerDay) }}
-            </dd>
-          </div>
-        </dl>
-      </div>
-      <p v-else class="text-sm text-muted">
-        Not enough data yet to estimate: {{ (headroom?.observedWindowHours ?? 0).toFixed(1) }}h observed,
-        {{ (headroom?.requiredWindowHours ?? 24).toFixed(0) }}h needed.
-        <template v-if="headroom && headroom.observedWindowHours >= headroom.requiredWindowHours">
-          <template v-if="headroom.trackedAccounts === 0">
-            No accounts are tracked yet.
-          </template>
-          <template v-else>
-            No rate-limit snapshot has been seen yet.
-          </template>
         </template>
-      </p>
-    </UCard>
-  </div>
 
-  <!-- Endpoint breakdown -->
-  <UCard :ui="{ body: 'p-0 sm:p-0' }">
-    <template #header>
-      <div class="flex items-center justify-between gap-2">
-        <PanelTitle title="Endpoints" />
-        <UBadge
-          v-if="!pending"
-          color="neutral"
-          variant="subtle"
-          :label="`${formatNumber(endpoints.length)} endpoints`"
-        />
-      </div>
-    </template>
-
-    <UTable
-      v-model:sorting="sorting"
-      :data="endpoints"
-      :columns="columns"
-      :loading="pending"
-      loading-color="primary"
-      :ui="{ td: 'py-2' }"
-    >
-      <template #endpoint-cell="{ row }">
-        <span class="font-mono text-sm text-highlighted">
-          {{ row.original.endpoint }}
-        </span>
-      </template>
-      <template #calls-cell="{ row }">
-        <div class="text-right tabular-nums font-medium text-highlighted">
-          {{ formatNumber(row.original.calls) }}
-        </div>
-      </template>
-      <template #successes-cell="{ row }">
-        <div class="text-right tabular-nums text-success">
-          {{ formatNumber(row.original.successes) }}
-        </div>
-      </template>
-      <template #errors-cell="{ row }">
-        <div
-          class="text-right tabular-nums"
-          :class="row.original.errors > 0 ? 'text-error' : 'text-muted'"
-        >
-          {{ formatNumber(row.original.errors) }}
-        </div>
-      </template>
-      <template #avgLatencyMs-cell="{ row }">
-        <div class="text-right tabular-nums text-muted">
-          {{ formatElapsed(row.original.avgLatencyMs) }}
-        </div>
-      </template>
-      <template #methodLimit-cell="{ row }">
-        <!-- `[methodRateBucket(...)]` computes it exactly once per row; the single
-             iteration then branches on `bucket` instead of recomputing it. -->
-        <template v-for="bucket in [methodRateBucket(row.original)]" :key="row.original.endpoint">
-          <div v-if="bucket" class="w-32">
-            <div class="flex items-center justify-between text-xs text-muted tabular-nums">
-              <span>per {{ formatWindowSeconds(bucket.windowSeconds) }}</span>
-              <span>{{ formatNumber(bucket.count) }} / {{ formatNumber(bucket.limit) }}</span>
+        <div v-if="appRateBuckets.length" class="flex flex-col gap-4">
+          <div v-for="bucket in appRateBuckets" :key="bucket.windowSeconds">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-muted">per {{ formatWindowSeconds(bucket.windowSeconds) }}</span>
+              <span class="tabular-nums text-highlighted">
+                {{ formatNumber(bucket.count) }} / {{ formatNumber(bucket.limit) }}
+              </span>
             </div>
             <UProgress
+              class="mt-1"
               :model-value="bucket.count"
               :max="bucket.limit || 1"
               :color="rateColor(bucket.count, bucket.limit)"
               size="sm"
             />
           </div>
-          <span v-else class="text-sm text-muted">—</span>
+        </div>
+        <p v-else class="text-sm text-muted">
+          No rate-limit headers seen in this window.
+        </p>
+      </UCard>
+
+      <UCard>
+        <template #header>
+          <PanelTitle variant="label" title="Status codes" />
         </template>
+
+        <div v-if="statusCodes.length" class="flex flex-col gap-2">
+          <div
+            v-for="status in statusCodes"
+            :key="status.statusCode"
+            class="flex items-center justify-between gap-3 text-sm"
+          >
+            <UBadge
+              :color="statusColor(status.statusCode)"
+              variant="subtle"
+              :label="statusLabel(status.statusCode)"
+            />
+            <div class="flex-1 h-1.5 rounded-full bg-elevated overflow-hidden">
+              <div
+                class="h-full rounded-full"
+                :class="statusBarClass(status.statusCode)"
+                :style="{ width: statusBarWidth(status.count) }"
+              />
+            </div>
+            <span class="tabular-nums text-highlighted w-16 text-right">
+              {{ formatNumber(status.count) }}
+            </span>
+            <span class="tabular-nums text-muted w-14 text-right">
+              {{ formatPercentOrDash(statusShare(status.count), 1) }}
+            </span>
+          </div>
+        </div>
+        <p v-else class="text-sm text-muted">
+          No calls recorded in this window.
+        </p>
+      </UCard>
+    </div>
+
+    <!-- Call volume over time -->
+    <UCard class="mb-6" :ui="{ root: 'overflow-visible' }">
+      <template #header>
+        <PanelTitle variant="label" title="Call volume over time" />
       </template>
-      <template #lastCalledAtUtc-cell="{ row }">
-        <div class="text-right text-sm text-muted">
-          {{ formatDateTime(row.original.lastCalledAtUtc) }}
+      <USkeleton v-if="pending" class="h-[260px] w-full" />
+      <div
+        v-else-if="timeSeriesData.length === 0"
+        class="flex h-[260px] items-center justify-center text-sm text-muted"
+      >
+        No calls recorded in this window.
+      </div>
+      <ChartsBarChart
+        v-else
+        :data="timeSeriesData"
+        :height="260"
+        :categories="timeSeriesCategories"
+        :y-axis="['calls', 'retries']"
+        :x-num-ticks="Math.min(timeSeriesData.length, 8)"
+        :x-formatter="timeSeriesXFormatter"
+        :y-formatter="formatCount"
+        :tooltip-title-formatter="labelTooltipTitle"
+        v-bind="multiTimeBarProps()"
+      />
+    </UCard>
+
+    <!-- Consumption by caller + budget headroom -->
+    <div class="grid gap-6 lg:grid-cols-2 mb-6">
+      <UCard>
+        <template #header>
+          <PanelTitle variant="label" title="Consumption by caller" />
+        </template>
+
+        <USkeleton v-if="pending" :style="{ height: `${callerChartHeight}px` }" class="w-full" />
+        <div
+          v-else-if="callerChartData.length === 0"
+          class="flex h-[120px] items-center justify-center text-sm text-muted"
+        >
+          No calls recorded in this window.
+        </div>
+        <ChartsBarChart
+          v-else
+          :data="callerChartData"
+          :height="callerChartHeight"
+          :categories="callerCategories"
+          :y-axis="['calls']"
+          :y-num-ticks="callerChartData.length"
+          :x-formatter="formatCount"
+          :y-formatter="callerLabelFormatter"
+          :tooltip-title-formatter="labelTooltipTitle"
+          v-bind="horizontalBarProps(120)"
+        />
+      </UCard>
+
+      <UCard>
+        <template #header>
+          <PanelTitle variant="label" title="Budget headroom" />
+        </template>
+
+        <div v-if="headroom?.sufficientData" class="flex flex-col gap-4">
+          <div>
+            <p class="text-xs text-muted uppercase">
+              More accounts fit
+            </p>
+            <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
+              ≈ {{ formatNumber(headroom.additionalAccountsHeadroom ?? 0) }}
+            </p>
+          </div>
+          <dl class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt class="text-muted">
+                Tracked accounts
+              </dt>
+              <dd class="tabular-nums text-highlighted">
+                {{ formatNumber(headroom.trackedAccounts) }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted">
+                Cost per account
+              </dt>
+              <dd class="tabular-nums text-highlighted">
+                {{ formatCallsPerDay(headroom.callsPerAccountPerDay) }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted">
+                Binding limit
+              </dt>
+              <dd class="tabular-nums text-highlighted">
+                {{ bindingLimitLabel }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted">
+                Spare capacity
+              </dt>
+              <dd class="tabular-nums text-highlighted">
+                {{ formatCallsPerDay(headroom.spareCallsPerDay) }}
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <p v-else class="text-sm text-muted">
+          Not enough data yet to estimate: {{ (headroom?.observedWindowHours ?? 0).toFixed(1) }}h observed,
+          {{ (headroom?.requiredWindowHours ?? 24).toFixed(0) }}h needed.
+          <template v-if="headroom && headroom.observedWindowHours >= headroom.requiredWindowHours">
+            <template v-if="headroom.trackedAccounts === 0">
+              No accounts are tracked yet.
+            </template>
+            <template v-else>
+              No rate-limit snapshot has been seen yet.
+            </template>
+          </template>
+        </p>
+      </UCard>
+    </div>
+
+    <!-- Endpoint breakdown -->
+    <UCard :ui="{ body: 'p-0 sm:p-0' }">
+      <template #header>
+        <div class="flex items-center justify-between gap-2">
+          <PanelTitle title="Endpoints" />
+          <UBadge
+            v-if="!pending"
+            color="neutral"
+            variant="subtle"
+            :label="`${formatNumber(endpoints.length)} endpoints`"
+          />
         </div>
       </template>
 
-      <template #empty>
-        <div class="py-10 text-center text-sm text-muted">
-          No Riot API calls recorded in this window.
-        </div>
-      </template>
-    </UTable>
-  </UCard>
+      <UTable
+        v-model:sorting="sorting"
+        :data="endpoints"
+        :columns="columns"
+        :loading="pending"
+        loading-color="primary"
+        :ui="{ td: 'py-2' }"
+      >
+        <template #endpoint-cell="{ row }">
+          <span class="font-mono text-sm text-highlighted">
+            {{ row.original.endpoint }}
+          </span>
+        </template>
+        <template #calls-cell="{ row }">
+          <div class="text-right tabular-nums font-medium text-highlighted">
+            {{ formatNumber(row.original.calls) }}
+          </div>
+        </template>
+        <template #successes-cell="{ row }">
+          <div class="text-right tabular-nums text-success">
+            {{ formatNumber(row.original.successes) }}
+          </div>
+        </template>
+        <template #errors-cell="{ row }">
+          <div
+            class="text-right tabular-nums"
+            :class="row.original.errors > 0 ? 'text-error' : 'text-muted'"
+          >
+            {{ formatNumber(row.original.errors) }}
+          </div>
+        </template>
+        <template #avgLatencyMs-cell="{ row }">
+          <div class="text-right tabular-nums text-muted">
+            {{ formatElapsed(row.original.avgLatencyMs) }}
+          </div>
+        </template>
+        <template #methodLimit-cell="{ row }">
+          <!-- `[methodRateBucket(...)]` computes it exactly once per row; the single
+               iteration then branches on `bucket` instead of recomputing it. -->
+          <template v-for="bucket in [methodRateBucket(row.original)]" :key="row.original.endpoint">
+            <div v-if="bucket" class="w-32">
+              <div class="flex items-center justify-between text-xs text-muted tabular-nums">
+                <span>per {{ formatWindowSeconds(bucket.windowSeconds) }}</span>
+                <span>{{ formatNumber(bucket.count) }} / {{ formatNumber(bucket.limit) }}</span>
+              </div>
+              <UProgress
+                :model-value="bucket.count"
+                :max="bucket.limit || 1"
+                :color="rateColor(bucket.count, bucket.limit)"
+                size="sm"
+              />
+            </div>
+            <span v-else class="text-sm text-muted">—</span>
+          </template>
+        </template>
+        <template #lastCalledAtUtc-cell="{ row }">
+          <div class="text-right text-sm text-muted">
+            {{ formatDateTime(row.original.lastCalledAtUtc) }}
+          </div>
+        </template>
+
+        <template #empty>
+          <div class="py-10 text-center text-sm text-muted">
+            No Riot API calls recorded in this window.
+          </div>
+        </template>
+      </UTable>
+    </UCard>
+  </template>
 </template>

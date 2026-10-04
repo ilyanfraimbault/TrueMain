@@ -26,33 +26,14 @@ const message = computed(() => {
 </script>
 
 <template>
-  <div class="flex items-center gap-2.5">
-    <template v-if="state === 'ready' && top">
-      <GameTooltipItemIcon :item="statics[top.itemId] ?? null" :width="36" :height="36" class="size-9 shrink-0 rounded-md ring-1 ring-primary/60" />
-      <div class="min-w-0 flex-1">
-        <p class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
-          <AppMark class="size-2.5" />
-          Next item
-        </p>
-        <p class="truncate text-[13px] font-semibold leading-tight text-highlighted">{{ name(top.itemId) }}</p>
-        <p v-if="missing === 0" class="flex items-center gap-1 text-[11px] font-medium text-stat-gold">
-          <UIcon name="i-lucide-circle-check" class="size-3" />
-          Can buy now
-        </p>
-        <p v-else class="text-[11px] tabular-nums text-muted">
-          <span class="text-stat-gold">{{ missing }}</span> gold to go
-        </p>
-      </div>
-    </template>
-
-    <template v-else>
-      <USkeleton v-if="!message" class="size-9 shrink-0 rounded-md" />
-      <AppMark v-else class="size-4 shrink-0" />
-      <div class="min-w-0 flex-1">
-        <p class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">Next item</p>
-        <USkeleton v-if="!message" class="mt-1 h-3 w-28" />
-        <p v-else class="text-[11px] text-muted">{{ message }}</p>
-      </div>
-    </template>
+  <OverlayNextItemCard v-if="state === 'ready' && top" :item="statics[top.itemId] ?? null" :name="name(top.itemId)" :missing="missing" />
+  <div v-else class="flex items-center gap-2.5">
+    <USkeleton v-if="!message" class="size-9 shrink-0 rounded-md" />
+    <AppMark v-else class="size-4 shrink-0" />
+    <div class="min-w-0 flex-1">
+      <p class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">Next item</p>
+      <USkeleton v-if="!message" class="mt-1 h-3 w-28" />
+      <p v-else class="text-[11px] text-muted">{{ message }}</p>
+    </div>
   </div>
 </template>

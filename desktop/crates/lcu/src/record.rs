@@ -55,6 +55,17 @@ impl RankedStats {
             .cloned()
             .collect()
     }
+
+    /// The one standing a player line shows: Solo/Duo when the player is
+    /// ranked there or playing their placements, else Flex when ranked there,
+    /// else none.
+    pub fn headline(&self) -> Option<RankedQueue> {
+        let queue = |kind: &str| self.queues.iter().find(|q| q.queue_type == kind);
+        queue(RANKED_QUEUES[0])
+            .filter(|solo| solo.is_ranked() || solo.wins + solo.losses > 0)
+            .or_else(|| queue(RANKED_QUEUES[1]).filter(|flex| flex.is_ranked()))
+            .cloned()
+    }
 }
 
 /// `GET /lol-summoner/v1/current-summoner/summoner-profile`: the skin the
@@ -541,5 +552,35 @@ mod tests {
         assert_eq!(queues.len(), 1);
         assert_eq!(queues[0].queue_type, "RANKED_SOLO_5x5");
         assert_eq!(queues[0].league_points, 41);
+    }
+
+    #[test]
+    fn the_headline_is_solo_duo_then_a_ranked_flex() {
+        let stats = |json: &str| -> RankedStats { serde_json::from_str(json).unwrap() };
+        let both = stats(
+            r#"{ "queues": [
+              { "queueType": "RANKED_FLEX_SR", "tier": "PLATINUM", "division": "I" },
+              { "queueType": "RANKED_SOLO_5x5", "tier": "GOLD", "division": "III", "leaguePoints": 12 }
+            ] }"#,
+        );
+        assert_eq!(both.headline().unwrap().tier, "GOLD");
+
+        let flex_only = stats(
+            r#"{ "queues": [
+              { "queueType": "RANKED_SOLO_5x5", "tier": "NONE" },
+              { "queueType": "RANKED_FLEX_SR", "tier": "SILVER", "division": "II" }
+            ] }"#,
+        );
+        assert_eq!(flex_only.headline().unwrap().queue_type, "RANKED_FLEX_SR");
+
+        let placements = stats(
+            r#"{ "queues": [
+              { "queueType": "RANKED_SOLO_5x5", "tier": "", "wins": 2, "losses": 1, "isProvisional": true },
+              { "queueType": "RANKED_FLEX_SR", "tier": "SILVER" }
+            ] }"#,
+        );
+        assert_eq!(placements.headline().unwrap().queue_type, "RANKED_SOLO_5x5");
+
+        assert_eq!(stats(r#"{ "queues": [] }"#).headline(), None);
     }
 }

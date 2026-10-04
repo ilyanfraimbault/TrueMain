@@ -13,9 +13,9 @@ import { clickSelectableRow, wantsNewTab } from '#common/utils/table-rows'
 
 // The /truemains leaderboard as a `UTable` (#1734). The page already holds one
 // page of rows in the order the API ranked them; the table draws them and
-// turns a header click into a new order. Two columns sort — Rank (LP) and
-// Score (Truemain score), the leaderboard's two server orders, both
-// descending — and a click only emits the new order: the page writes it to
+// turns a header click into a new order. Five columns sort — Rank (LP), Score
+// (Truemain score), Games, KDA and WR (#1737), the leaderboard's server orders,
+// all descending — and a click only emits the new order: the page writes it to
 // `?sort=`, which refetches page 1 from the API (manual sorting: the table
 // never reorders rows itself).
 //
@@ -50,9 +50,9 @@ const columns: TableColumn<Row>[] = [
   { id: 'main', header: 'Main', meta: { class: { th: 'text-center' } } },
   { id: 'dedication', accessorFn: row => row.dedication?.score ?? null, enableSorting: true, meta: { class: { th: 'text-right', td: 'text-right' } } },
   { id: 'rank', accessorFn: row => row.ranked?.score ?? null, enableSorting: true, meta: { class: { th: 'text-center' } } },
-  { id: 'games', header: 'Games', meta: { class: { th: `${FROM_XL} text-right`, td: `${FROM_XL} text-right` } } },
-  { id: 'kda', header: 'KDA', meta: { class: { th: `${FROM_XL} text-right`, td: `${FROM_XL} text-right` } } },
-  { id: 'winRate', header: 'WR', meta: { class: { th: `${FROM_XL} text-right`, td: `${FROM_XL} text-right` } } },
+  { id: 'games', accessorFn: row => row.stats.games, enableSorting: true, meta: { class: { th: `${FROM_XL} text-right`, td: `${FROM_XL} text-right` } } },
+  { id: 'kda', accessorFn: row => row.stats.kda, enableSorting: true, meta: { class: { th: `${FROM_XL} text-right`, td: `${FROM_XL} text-right` } } },
+  { id: 'winRate', accessorFn: row => row.stats.winRate, enableSorting: true, meta: { class: { th: `${FROM_XL} text-right`, td: `${FROM_XL} text-right` } } },
   { id: 'follow', header: '', meta: { class: { th: 'w-7', td: 'w-7' } } },
 ]
 
@@ -118,6 +118,15 @@ const TOOLTIP_UI = { content: 'p-0 h-auto max-w-none bg-transparent ring-0 shado
     </template>
     <template #rank-header="{ column }">
       <TableSortHeader :column="column" label="Rank" title="rank (LP)" align="center" @sort="column.toggleSorting(true)" />
+    </template>
+    <template #games-header="{ column }">
+      <TableSortHeader :column="column" label="Games" title="games on main champions" align="end" @sort="column.toggleSorting(true)" />
+    </template>
+    <template #kda-header="{ column }">
+      <TableSortHeader :column="column" label="KDA" title="KDA on main champions" align="end" @sort="column.toggleSorting(true)" />
+    </template>
+    <template #winRate-header="{ column }">
+      <TableSortHeader :column="column" label="WR" title="ranked win rate" align="end" @sort="column.toggleSorting(true)" />
     </template>
 
     <template #place-cell="{ row }">

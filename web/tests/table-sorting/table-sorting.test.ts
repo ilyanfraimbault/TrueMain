@@ -14,11 +14,14 @@ describe('leaderboard sorting', () => {
     expect(leaderboardSortToSorting('dedication')).toEqual([{ id: 'dedication', desc: true }])
   })
 
-  it('reads the score column as dedication and anything else as rank', () => {
+  it('reads each sortable column as its server order and anything else as rank', () => {
     expect(sortingToLeaderboardSort([{ id: 'dedication', desc: true }])).toBe('dedication')
     // The board has no ascending order: a direction never changes the answer.
     expect(sortingToLeaderboardSort([{ id: 'dedication', desc: false }])).toBe('dedication')
-    expect(sortingToLeaderboardSort([{ id: 'games', desc: true }])).toBe('rank')
+    expect(sortingToLeaderboardSort([{ id: 'games', desc: true }])).toBe('games')
+    expect(sortingToLeaderboardSort([{ id: 'kda', desc: true }])).toBe('kda')
+    expect(sortingToLeaderboardSort([{ id: 'winRate', desc: true }])).toBe('winRate')
+    expect(sortingToLeaderboardSort([{ id: 'main', desc: true }])).toBe('rank')
     expect(sortingToLeaderboardSort([])).toBe('rank')
     expect(sortingToLeaderboardSort(undefined)).toBe('rank')
   })

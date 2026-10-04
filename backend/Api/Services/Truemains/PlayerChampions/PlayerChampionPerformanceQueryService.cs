@@ -6,6 +6,7 @@ using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
 using TrueMain.Services.Truemains.Identity;
 
@@ -43,7 +44,8 @@ public interface IPlayerChampionPerformanceQueryService
 /// its kill positions, and Postgres runs these single-threaded
 /// (<c>max_parallel_workers_per_gather = 0</c>).</para>
 ///
-/// <para><b>Honest about thin samples.</b> Below <see cref="MinGames"/> graded
+/// <para><b>Honest about thin samples.</b> Below
+/// <see cref="ChampionsListOptions.MinPlayerBuildGames"/> graded
 /// games every average is suppressed rather than published with a caveat, and
 /// each component reports the number of games it was actually available in — a
 /// game with no timeline coverage is left out of the laning average instead of
@@ -53,6 +55,7 @@ public sealed class PlayerChampionPerformanceQueryService(
     TrueMainDbContext db,
     TruemainAccountResolver resolver,
     IOptions<MainAnalysisOptions> options,
+    IOptions<ChampionsListOptions> championsOptions,
     IMemoryCache cache)
     : IPlayerChampionPerformanceQueryService
 {
@@ -64,12 +67,12 @@ public sealed class PlayerChampionPerformanceQueryService(
     public const int Window = 20;
 
     /// <summary>
-    /// Graded games below which the averages are suppressed. Matches
-    /// <see cref="PlayerChampionBuildsQueryService.MinPlayerGames"/> — the same
-    /// page should not call five games enough to name a build but too few to
-    /// grade a performance.
+    /// Graded games below which the averages are suppressed — the same
+    /// <see cref="ChampionsListOptions.MinPlayerBuildGames"/> floor the player's
+    /// builds read prefers, so the page never calls a sample enough to name a
+    /// build but too few to grade a performance.
     /// </summary>
-    public const int MinGames = PlayerChampionBuildsQueryService.MinPlayerGames;
+    private int MinGames => championsOptions.Value.MinPlayerBuildGames;
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
 
@@ -229,7 +232,7 @@ public sealed class PlayerChampionPerformanceQueryService(
                                 row.ParticipantId, row.IntervalMinute, row.Cs, row.TotalGold, row.Xp);
                         }));
 
-        var accumulator = new ScoreAccumulator();
+        var accumulator = new ScoreAccumulator(MinGames);
 
         foreach (var group in participants.GroupBy(p => p.MatchId))
         {
@@ -276,7 +279,7 @@ public sealed class PlayerChampionPerformanceQueryService(
         return cache.Store(cacheKey, response, CacheTtl);
     }
 
-    private static PlayerChampionPerformanceResponse Empty(int championId, string? position, string? patch)
+    private PlayerChampionPerformanceResponse Empty(int championId, string? position, string? patch)
         => new()
         {
             ChampionId = championId,
@@ -291,7 +294,7 @@ public sealed class PlayerChampionPerformanceQueryService(
     /// Running totals over the window. Each component keeps its own denominator
     /// so a dropped component lowers its sample rather than its average.
     /// </summary>
-    private sealed class ScoreAccumulator
+    private sealed class ScoreAccumulator(int minGames)
     {
         private static readonly PerformanceComponentKind[] Kinds = Enum.GetValues<PerformanceComponentKind>();
 
@@ -334,7 +337,7 @@ public sealed class PlayerChampionPerformanceQueryService(
 
         public PlayerChampionPerformanceResponse ToResponse(int championId, string? position, string? patch)
         {
-            if (_games < MinGames)
+            if (_games < minGames)
             {
                 return new PlayerChampionPerformanceResponse
                 {
@@ -342,7 +345,7 @@ public sealed class PlayerChampionPerformanceQueryService(
                     Position = position,
                     Patch = patch,
                     Games = _games,
-                    MinGames = MinGames,
+                    MinGames = minGames,
                     Window = Window,
                 };
             }
@@ -367,7 +370,7 @@ public sealed class PlayerChampionPerformanceQueryService(
                 Position = position,
                 Patch = patch,
                 Games = _games,
-                MinGames = MinGames,
+                MinGames = minGames,
                 Window = Window,
                 AverageScore = (double)_scoreTotal / _games,
                 BestScore = _best,

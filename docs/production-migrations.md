@@ -15,7 +15,8 @@
 
 This doc covers issue #246. It documents the production path; the startup
 behaviour itself is already gated by `DatabaseOptions.ApplyMigrationsOnStartup`
-(see `backend/Data/DatabaseMigrator.cs`).
+(see `backend/Data/DatabaseMigrator.cs`, run at host startup by
+`DatabaseMigrationHostedService`).
 
 ## Why not migrate at startup in production
 

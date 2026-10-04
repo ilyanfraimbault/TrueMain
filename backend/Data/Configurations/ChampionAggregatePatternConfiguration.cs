@@ -49,6 +49,7 @@ public sealed class ChampionAggregatePatternConfiguration : IEntityTypeConfigura
         entity.HasOne(e => e.Scope)
             .WithMany()
             .HasForeignKey(e => e.ScopeId)
+            .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
 
         // Dim references are restrict: a dim row cannot be deleted while
@@ -58,22 +59,27 @@ public sealed class ChampionAggregatePatternConfiguration : IEntityTypeConfigura
         entity.HasOne(e => e.Build)
             .WithMany()
             .HasForeignKey(e => e.BuildId)
+            .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(e => e.RunePage)
             .WithMany()
             .HasForeignKey(e => e.RunePageId)
+            .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(e => e.SkillOrder)
             .WithMany()
             .HasForeignKey(e => e.SkillOrderId)
+            .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(e => e.SpellPair)
             .WithMany()
             .HasForeignKey(e => e.SpellPairId)
+            .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(e => e.StarterItems)
             .WithMany()
             .HasForeignKey(e => e.StarterItemsId)
+            .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -1167,7 +1167,7 @@ agrégé uniquement sur les games de ce joueur.
 **`404`** si `nameTag` est malformé, si le compte est inconnu, ou s'il n'existe
 **aucune tranche agrégée** pour ce joueur sur ce champion.
 
-Un échantillon mince n'est **pas** un `404` : le plancher `MinPlayerGames` sert à
+Un échantillon mince n'est **pas** un `404` : le plancher `ChampionsList:MinPlayerBuildGames` (défaut 5) sert à
 *choisir* le patch, pas à barrer la route. Quand aucun patch ne le franchit, le
 service retombe sur le patch le plus récent ayant des parties et rend la tranche mince
 telle quelle, avec `minSampleMet: false` — la page dit elle-même que c'est peu, ce

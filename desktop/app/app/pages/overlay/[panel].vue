@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { OverlayPanel } from '~/types/overlay'
 import { OVERLAY_PANELS } from '~/types/overlay'
+import { PANEL_WIDTHS } from '~/utils/overlay-layout'
 
 /**
  * One panel of the in-game overlay (#1795) — `next-item`, `win-probability`
@@ -11,7 +12,9 @@ import { OVERLAY_PANELS } from '~/types/overlay'
  * is interactive: they are read at a glance over the game. Each measures
  * itself and the shell sizes its window to it, so a panel covers no more of
  * the game than its content. In the settings' preview each can be dragged
- * into place, and says so.
+ * into place, and says so; with no game to read, each then shows a sample
+ * (`utils/overlay-sample.ts`) so it is placed at the size it will have over
+ * the game — a panel flush against an edge stays flush against it.
  *
  * In a browser-only `npm run dev`, `?scenario=<id>` plays a dev scenario's
  * game here (`useDevScenarios`) and `?preview` shows the preview's state.
@@ -22,13 +25,6 @@ const panel = computed<OverlayPanel>(() => {
   return (OVERLAY_PANELS as string[]).includes(slug) ? slug as OverlayPanel : 'next-item'
 })
 
-const WIDTHS: Record<OverlayPanel, string> = {
-  'next-item': 'w-[232px]',
-  'win-probability': 'w-[160px]',
-  'item-value': 'w-[300px]',
-  'stats': 'w-[176px]',
-  'loading': 'w-[440px]',
-}
 const PLACEHOLDERS: Record<OverlayPanel, string> = {
   'next-item': 'Your next item shows here during a game.',
   'win-probability': 'The win probability shows here during a game.',
@@ -47,6 +43,8 @@ const scale = computed(() => settings.value?.scale ?? 1)
 // The next item and the pace are ours; the other panels read a spectated game too.
 const OURS: OverlayPanel[] = ['next-item', 'stats']
 const playing = computed(() => (!OURS.includes(panel.value) || game.value?.myTeam ? game.value : null))
+// A real game always wins over the sample.
+const isSample = computed(() => (panel.value === 'loading' ? !loading.value.players.length : !playing.value))
 
 const devPreview = ref(false)
 onMounted(async () => {
@@ -85,7 +83,7 @@ useHead({
 
 <template>
   <div class="origin-top-left" :style="{ transform: `scale(${scale})` }">
-    <div ref="content" class="relative px-3 py-2.5 text-default" :class="WIDTHS[panel]">
+    <div ref="content" class="relative px-3 py-2.5 text-default" :style="{ width: `${PANEL_WIDTHS[panel]}px` }">
       <LoadingBoard v-if="panel === 'loading' && loading.players.length" :players="loading.players" />
       <template v-else-if="playing && panel !== 'loading'">
         <OverlayNextItem v-if="panel === 'next-item'" :game="playing" />
@@ -93,18 +91,23 @@ useHead({
         <OverlayStats v-else-if="panel === 'stats'" :game="playing" />
         <OverlayItemValue v-else :game="playing" />
       </template>
+      <OverlayPanelSample v-else-if="preview" :panel="panel" />
       <div v-else class="flex items-center gap-2.5">
         <AppMark class="size-4 shrink-0" />
         <p class="text-[11px] leading-snug text-muted">{{ PLACEHOLDERS[panel] }}</p>
       </div>
 
-      <div v-if="preview" class="mt-2 flex items-center gap-1.5 border-t border-default pt-1.5 text-[11px] text-primary">
-        <UIcon name="i-lucide-move" class="size-3" />
-        Drag to place it
+      <!--
+        Over everything in the preview, so a drag starts wherever it is grabbed;
+        drawn over the panel rather than under it, so the panel keeps the size
+        it has over the game. The badge steps aside once the panel is grabbed.
+      -->
+      <div v-if="preview" data-tauri-drag-region class="group absolute inset-0 cursor-grab ring-2 ring-inset ring-primary/70">
+        <span class="pointer-events-none absolute right-1 bottom-1 flex transition-opacity group-hover:opacity-0 items-center gap-1 rounded bg-primary px-1 py-0.5 text-[10px] font-semibold text-inverted">
+          <UIcon name="i-lucide-move" class="size-2.5" />
+          {{ isSample ? 'Sample · drag' : 'Drag' }}
+        </span>
       </div>
-
-      <!-- Over everything in the preview, so a drag starts wherever it is grabbed. -->
-      <div v-if="preview" data-tauri-drag-region class="absolute inset-0 cursor-grab" />
     </div>
   </div>
 </template>

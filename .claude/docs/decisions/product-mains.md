@@ -30,6 +30,15 @@ Retention deletes participants past 2 patches, which collapsed real players to "
 counts cover main champions only, and KDA is understated on pre-migration frozen scopes that cannot be
 backfilled — #719.
 
+**The Games / KDA / WR sorts rank a cached in-memory read of the whole board, not denormalised columns.**
+`?sort=games|kda|winRate` reads every eligible account's figures in one scan (mains-only aggregate scopes +
+latest rank snapshot — the same sources the row prints, so a rank never disagrees with its cell), cached
+30 s per filter shape and shared by the three sorts, then ordered in C# (desc, a missing figure last, ties
+on the LP score). Columns on `riot_accounts` were rejected: they would need every scope writer and the
+snapshot writer to keep them in step, for a board measured at ~1.3 s warm per scan on preprod (the default
+rank sort is untouched). Revisit with materialised columns if the eligible population outgrows the cache
+cap (~32k accounts) — #1737.
+
 **Inactive mains are retired via champion-mastery `lastPlayTime`; intake favours depth over breadth.**
 Dead mains sat at rank #1 with 0 games while burning match-v5 calls. Mastery-v4 is one call per account
 versus pulling match history. Past a minimum coverage per champion, more games from real mains beats more

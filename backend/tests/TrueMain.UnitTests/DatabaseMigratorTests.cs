@@ -40,6 +40,38 @@ public sealed class DatabaseMigratorTests
         await act.Should().ThrowAsync<MigratorReachedException>();
     }
 
+    [Fact]
+    public async Task Hosted_service_runs_the_migrator_on_start()
+    {
+        var hostedService = new DatabaseMigrationHostedService(BuildServiceProvider(applyOnStartup: true));
+
+        // StartAsync must delegate to the migrator: the sentinel proves it reached the
+        // context resolution, and a throw here is what fails the host's start.
+        var act = async () => await hostedService.StartAsync(CancellationToken.None);
+
+        await act.Should().ThrowAsync<MigratorReachedException>();
+    }
+
+    [Fact]
+    public async Task Hosted_service_skips_when_flag_disabled()
+    {
+        var hostedService = new DatabaseMigrationHostedService(BuildServiceProvider(applyOnStartup: false));
+
+        var act = async () => await hostedService.StartAsync(CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public void AddDatabaseMigrationsOnStartup_registers_the_hosted_service()
+    {
+        var services = new ServiceCollection().AddDatabaseMigrationsOnStartup();
+
+        services.Should().ContainSingle(descriptor =>
+            descriptor.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
+            && descriptor.ImplementationType == typeof(DatabaseMigrationHostedService));
+    }
+
     private static ServiceProvider BuildServiceProvider(bool applyOnStartup)
     {
         var services = new ServiceCollection();

@@ -8,6 +8,7 @@ import type {
 } from '#shared/types/static-data'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
+import { ordinal } from '#common/utils/ordinal'
 
 const props = defineProps<{
   participants: MatchDetailParticipant[]
@@ -89,18 +90,6 @@ function scoreClass(score: number) {
   if (score >= 65) return 'bg-primary/12 text-primary ring-primary/30'
   if (score >= 50) return 'bg-primary/8 text-primary ring-primary/25'
   return 'bg-default/50 text-muted ring-default'
-}
-
-// 1 → 1st, 2 → 2nd, 3 → 3rd, 11..13 → 11th..13th.
-function ordinal(placement: number) {
-  const mod100 = placement % 100
-  if (mod100 >= 11 && mod100 <= 13) return `${placement}th`
-  switch (placement % 10) {
-    case 1: return `${placement}st`
-    case 2: return `${placement}nd`
-    case 3: return `${placement}rd`
-    default: return `${placement}th`
-  }
 }
 </script>
 
