@@ -7,9 +7,9 @@ namespace Data.Metrics.Mongo;
 /// A per-minute rollup of Riot API requests, persisted in the
 /// <c>riot_api_call_rollups</c> collection. One document aggregates every HTTP
 /// attempt sharing the same <see cref="BucketStartUtc"/> (the call timestamp
-/// truncated to the minute), <see cref="Endpoint"/> and <see cref="StatusCode"/>,
-/// so thousands of calls/minute collapse to at most
-/// <c>endpoints × statusCodes</c> documents. Written by
+/// truncated to the minute), <see cref="Endpoint"/>, <see cref="StatusCode"/>,
+/// <see cref="CallerProcess"/> and <see cref="Route"/>, so thousands of calls/minute
+/// collapse to a few dozen documents. Written by
 /// <see cref="RiotApiMetricsSink"/> (which <c>$inc</c>-upserts a drained batch)
 /// and read back by <see cref="RiotApiUsageQuery"/> for the admin
 /// <c>/ops/riot-usage</c> panel (#93).
@@ -22,10 +22,11 @@ namespace Data.Metrics.Mongo;
 /// collection (and the panel's whole-window aggregations) scale with raw call
 /// volume, pegging Mongo's CPU. A native TTL index on <see cref="BucketStartUtc"/>
 /// (see <c>MongoLogContext</c>) bounds retention; a unique index on
-/// <c>(bucketStartUtc, endpoint, statusCode, callerProcess)</c> makes the upsert
+/// <c>(bucketStartUtc, endpoint, statusCode, callerProcess, route)</c> makes the upsert
 /// target exactly one document (#1035 — <see cref="CallerProcess"/> joined the key
 /// so the same minute/endpoint/status can be split by which pipeline process
-/// spent the budget).
+/// spent the budget; #1458 — <see cref="Route"/> joined it because Riot's app limit
+/// is enforced per routing host).
 /// </remarks>
 public sealed class RiotApiCallRollupDocument
 {
@@ -81,11 +82,23 @@ public sealed class RiotApiCallRollupDocument
 
     /// <summary>
     /// Routing value (regional host like <c>europe</c> or platform host like
-    /// <c>euw1</c>). Last-seen in the bucket. Optional.
+    /// <c>euw1</c>). Part of the rollup key since #1458, so each document counts
+    /// exactly one host's calls; rollups written before that carry the last-seen
+    /// route of their bucket. Optional.
     /// </summary>
     [BsonElement("route")]
     [BsonIgnoreIfNull]
     public string? Route { get; set; }
+
+    /// <summary>
+    /// True on rollups written since <see cref="Route"/> joined the key (#1458), set on
+    /// insert only. The per-host quota view counts these alone: an older rollup credits
+    /// its whole minute to the last route seen, which on prod piled several regional
+    /// hosts' match-v5 calls onto one and read as more than 100% of its limit.
+    /// </summary>
+    [BsonElement("routeKeyed")]
+    [BsonIgnoreIfDefault]
+    public bool RouteKeyed { get; set; }
 
     /// <summary>
     /// Riot <c>X-App-Rate-Limit</c> header (app limit definitions, e.g.
@@ -98,7 +111,8 @@ public sealed class RiotApiCallRollupDocument
 
     /// <summary>
     /// Riot <c>X-App-Rate-Limit-Count</c> header (current usage per app window,
-    /// e.g. <c>1:1,1:120</c>). Last-seen in the bucket. Optional.
+    /// e.g. <c>1:1,1:120</c>) — the count of <see cref="Route"/>'s host, since Riot
+    /// keeps one app budget per routing host. Last-seen in the bucket. Optional.
     /// </summary>
     [BsonElement("appRateLimitCount")]
     [BsonIgnoreIfNull]

@@ -16,7 +16,8 @@ public sealed class OpsStatsController(
     IMatchesOverTimeQueryService matchesOverTimeQueryService,
     IMatchesIngestedQueryService matchesIngestedQueryService,
     IAggregationStatsQueryService aggregationStatsQueryService,
-    IRiotApiUsageQueryService riotApiUsageQueryService) : OpsControllerBase
+    IRiotApiUsageQueryService riotApiUsageQueryService,
+    IRiotQuotaQueryService riotQuotaQueryService) : OpsControllerBase
 {
     [HttpGet("stats/champions")]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionStatRow>), StatusCodes.Status200OK)]
@@ -116,7 +117,7 @@ public sealed class OpsStatsController(
     /// status-code breakdown, a bucketed call-volume series and the latest
     /// rate-limit header snapshot, over a relative window.
     /// </summary>
-    /// <param name="window">Relative window: <c>1h</c>, <c>24h</c> (default) or <c>7d</c>.</param>
+    /// <param name="window">Relative window: <c>1h</c>, <c>24h</c> (default), <c>7d</c> or <c>30d</c>.</param>
     /// <param name="endpoint">Optional exact endpoint key (e.g. <c>match-v5.match</c>) to restrict to.</param>
     /// <param name="ct">Request cancellation token.</param>
     [HttpGet("riot-usage")]
@@ -130,4 +131,19 @@ public sealed class OpsStatsController(
         var readModel = await riotApiUsageQueryService.GetAsync(window, endpoint, ct);
         return Ok(readModel);
     }
+
+    /// <summary>
+    /// Riot quota utilisation per routing host (#1458): each host's measured call rate
+    /// against the app limit it advertised, its 429 rate and the caller × endpoint pairs
+    /// spending it, plus the duty cycle of each ingestor lane over the same window.
+    /// </summary>
+    /// <param name="window">Relative window: <c>1h</c>, <c>24h</c> (default), <c>7d</c> or <c>30d</c>.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("riot-quota")]
+    [ProducesResponseType(typeof(RiotQuotaReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<RiotQuotaReadModel>> GetRiotQuotaAsync(
+        [FromQuery] string? window,
+        CancellationToken ct = default)
+        => Ok(await riotQuotaQueryService.GetAsync(window, ct));
 }

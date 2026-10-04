@@ -371,13 +371,18 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
             rateLimit);
     }
 
-    private static (DateTime Since, string Unit, int BinSize) ResolveWindow(RiotUsageWindow window)
+    /// <summary>
+    /// The lower time bound and display bin of <paramref name="window"/>. Shared with
+    /// <see cref="RiotQuotaQuery"/> so both panels read exactly the same span.
+    /// </summary>
+    internal static (DateTime Since, string Unit, int BinSize) ResolveWindow(RiotUsageWindow window)
     {
         var now = DateTime.UtcNow;
         return window switch
         {
             RiotUsageWindow.LastHour => (now.AddHours(-1), "minute", 5),
             RiotUsageWindow.Last7Days => (now.AddDays(-7), "hour", 6),
+            RiotUsageWindow.Last30Days => (now.AddDays(-30), "day", 1),
             _ => (now.AddHours(-24), "hour", 1)
         };
     }

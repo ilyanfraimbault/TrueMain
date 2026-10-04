@@ -237,7 +237,7 @@ export function useCrashes(
 
 /**
  * `GET /api/ops/riot-usage` — Riot API usage metrics over a relative window
- * (`1h`/`24h`/`7d`): totals, per-endpoint breakdown, status-code histogram,
+ * (`1h`/`24h`/`7d`/`30d`): totals, per-endpoint breakdown, status-code histogram,
  * call-volume time-series and the latest rate-limit snapshot. Pass a reactive
  * getter so the panel re-fetches when the window or endpoint filter changes.
  */

@@ -188,6 +188,29 @@ avoidable. Those downloads were most of the production host's inbound traffic.
 
 Source: #1601.
 
+## Riot quota is read per routing host, from route-keyed rollups only, kept 30 days (2026-10-05)
+
+**The admin quota view (`GET /ops/riot-quota`, Riot API tab of `/processes`) reports utilisation per routing
+host — calls over the covered span against the binding window of the `X-App-Rate-Limit` that host returned —
+never one figure for the whole app.** Riot meters each routing value separately, so regional hosts (account-v1,
+match-v5) and platform hosts are independent budgets, shown apart and never added.
+
+- **`route` is part of the `riot_api_call_rollups` key** (with minute, endpoint, status and caller). Before,
+  a rollup credited its whole minute to the last route seen: with match-v5 running on three regional hosts at
+  once, the 24 h view put one regional host above 100 % of its limit with no 429 — an impossible reading.
+- **Only rollups written since the change (`routeKeyed`) are counted per host**; older ones keep feeding the
+  endpoint/caller panels and expire. The coverage starts at the oldest counted rollup and the panel says so,
+  so a window the cutover or the retention cut short never reads as a trend.
+- **Every attempt counts toward a host's utilisation, 429s included**, and a host with no parseable limit
+  header gets no ratio rather than a guessed one.
+- **Rollup retention went from 14 to 30 days**, and a `30d` window (daily bins) joined the tab: a ramp step
+  (#1459) has to be readable against the weeks before it, and 14 days constrained #1457's analysis. Cheap —
+  per-minute rollups are a few tens of MB a month.
+- **Lane duty cycle is the union of a lane's recorded runs clipped to the window**, never their sum, so it
+  cannot exceed 100 %; a run still marked Running ends at its last heartbeat.
+
+Source: #1458, #1457, #1460.
+
 ## A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04)
 
 `LadderSync:MaxRequestsPerRun` (#1313) and `MainActivity:BatchSize` (#900) bounded a *run*. Nothing bounded
