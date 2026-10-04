@@ -331,7 +331,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   before 10 1903), missing; and a
   banner when capture stopped working while recordings exist. `?game=<id>` narrows it to one game's clips.
 - **Recap** (`/recordings/:id`, #1777) — the full game's video with the app's controls (play, previous / next moment
-  with a 5 s lead-in, mute, full screen; Space, ← →, Shift+← →, M) over a timeline of the whole video: the player's
+  with a 5 s lead-in, mute, full screen; Space, ← →, Shift+← →, M, F) over a timeline of the whole video — full screen
+  (#1865) puts the window itself in full screen with the controls and the timeline floating over the video, faded out
+  while the mouse rests during playback: the player's
   kills, assists and deaths each on a lane of its own, named by a glyph beside it (#1804) — kills rose-gold chips,
   multi-kills labelled ×N and gold from a triple kill, assists neutral dots, deaths dark red chips with a skull —;
   objectives above the lanes in the side's colour (epic monsters as tinted badges, towers and inhibitors as bare

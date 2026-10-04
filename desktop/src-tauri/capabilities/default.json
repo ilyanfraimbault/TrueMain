@@ -1,13 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the webview is allowed to ask the shell for: read the state the supervisor publishes, and check for, install and restart into a signed update (the feed is `plugins.updater.endpoints`). Opening a page of the site is the shell's own `open_on_site` command, which builds the URL itself (`src/site.rs`).",
+  "description": "What the webview is allowed to ask the shell for: read the state the supervisor publishes, and check for, install and restart into a signed update (the feed is `plugins.updater.endpoints`), and put the window in full screen for a recording's player. Opening a page of the site is the shell's own `open_on_site` command, which builds the URL itself (`src/site.rs`).",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
     "updater:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "core:window:allow-set-fullscreen"
   ]
 }
