@@ -57,32 +57,14 @@ const {
   refresh: refreshFunnel,
 } = useCandidateFunnel(funnelGranularity, funnelWindowDays)
 
-// The funnel's LEVEL (#1403), drawn on the outcome chart below rather than in a
-// panel of its own. Flow and stock answer different questions and neither derives
-// from the other — a period that promotes everything it scores leaves the level
-// flat, and so does a pipeline that has stopped — but they share an x axis, so they
-// share the selectors above too: one granularity, one window, one grid.
-//
-// These curves come from the hourly snapshots the ingestor records, which is the only
-// way to have them: `main_candidates` has no `QueuedAtUtc` (Scored and Queued are
-// indistinguishable in the past) and pruning deletes rows, so the past level cannot be
-// reconstructed after the fact.
+// The funnel's LEVEL (#1403), drawn by <AccountsCandidateStock> under the flow charts.
+// Fetched here so the hub's refresh button and pending flag cover it too.
 const {
   data: stock,
   pending: stockPending,
   error: stockError,
   refresh: refreshStock,
 } = useCandidateStock(funnelGranularity, funnelWindowDays)
-
-// Keyed by bucket so the outcome chart can look a period up while iterating the
-// funnel's own buckets, which are contiguous (the backend zero-fills them from the
-// earliest run). A period the snapshot missed is simply absent from this map.
-const stockByBucket = computed(
-  () => new Map((stock.value?.buckets ?? []).map(bucket => [bucket.bucket, bucket])),
-)
-
-/** The most recent reading in the window, for the per-series figures under the chart. */
-const stockLatest = computed(() => stock.value?.buckets.at(-1) ?? null)
 
 const {
   data: latency,
@@ -95,7 +77,7 @@ const funnelBuckets = computed(() => funnel.value?.buckets ?? [])
 
 // All three throughput charts below draw BARS or a CUMULATIVE line, never a line
 // through per-period counts (#1218). Intake and progression are flows — how much
-// moved during the bucket — and bars are the mark for a flow. The outcome chart is
+// moved during the bucket — and bars are the mark for a flow. The state chart is
 // the running total, because "how many accounts have we validated" is a roster
 // size: a stock, which is what a line is for. Drawn as lines, the flat-looking
 // `validated` series read as a dead counter when it was moving ~350 a day.
@@ -120,7 +102,7 @@ const intakeChartCategories = {
 // Progression carries the competitive cut and nothing else: scored vs promoted,
 // GROUPED bars rather than stacked, because promoted is a subset of scored and
 // stacking them would draw a total that counts the same candidate twice.
-// `validated` used to be a third series here; it lost that seat to the outcome
+// `validated` used to be a third series here; it lost that seat to the state
 // chart below. On a shared linear axis 10.5k validated against 147k scored is
 // squashed onto the baseline whatever the mark — the series was unreadable, not
 // the chart type. That split also keeps the palette rule in `chart-palette.ts`,
@@ -140,62 +122,11 @@ const progressChartCategories = {
   promoted: { name: 'Promoted', color: CHART_SERIES[1] },
 }
 
-// Where the funnel STANDS, period by period: the five statuses as levels, plus the
-// demotion curve as the one outflow the pipeline actually produces. Lines, because
-// every series here is a stock — a level the system sat at, or a running total, which
-// is a level too. Bars would claim these were per-period flows; those are the two
-// charts above.
-//
-// The x grid is the funnel's own buckets, which the backend zero-fills contiguously
-// from the earliest run. That is deliberate: the snapshot series is sparse (a period
-// the ingestor did not run has no reading at all), and looking each period up rather
-// than plotting the readings back to back is what leaves a gap where an outage was.
-// `undefined`, never 0 — the level then was unmeasured, not empty (#924).
-//
-// The five statuses and `demoted` are not the same kind of number and the caption
-// says so: a status is an absolute level, while `demoted` accumulates from the left
-// edge of the selected window, so switching 7/30/90 days rescales that curve alone.
-// `validated` used to be a second cumulative curve here; it lost its seat to the
-// Validated *level*, which answers the same question ("how big is the roster") with
-// the real figure instead of a window-bound running total.
-const outcomeChartData = computed(() => {
-  const buckets = funnelBuckets.value
-  const demoted = runningTotal(buckets.map(bucket => bucket.demoted))
-  return buckets.map((bucket, index) => {
-    const level = stockByBucket.value.get(bucket.bucket)
-    return {
-      label: formatBucketLabel(bucket.bucket, funnelGranularity.value),
-      new: level?.new,
-      scored: level?.scored,
-      queued: level?.queued,
-      processing: level?.processing,
-      validated: level?.validated,
-      demoted: demoted[index] ?? undefined,
-    }
-  })
-})
-// No explicit colours: <ChartsAreaChart> assigns `CHART_SERIES` by declaration
-// index, so funnel order IS slot order and the two cannot drift apart. That
-// matters more here than on a three-series chart — past slot three the palette's
-// "legible whatever the order" property is gone (`chart-palette.ts`), so adjacency
-// is load-bearing again, and the values under the chart are what carry identity.
-const outcomeChartCategories = {
-  new: { name: 'New' },
-  scored: { name: 'Scored' },
-  queued: { name: 'Queued' },
-  processing: { name: 'Processing' },
-  validated: { name: 'Validated' },
-  demoted: { name: 'Demoted (cumulative)' },
-}
-
 const intakeXFormatter = computed(() =>
   indexLabelFormatter(intakeChartData.value, row => row.label),
 )
 const progressXFormatter = computed(() =>
   indexLabelFormatter(progressChartData.value, row => row.label),
-)
-const outcomeXFormatter = computed(() =>
-  indexLabelFormatter(outcomeChartData.value, row => row.label),
 )
 
 // Window totals, rendered as text under each chart. Not decoration: the series
@@ -465,64 +396,15 @@ const pipelineStages = computed(() =>
           </p>
         </div>
 
-        <div class="lg:col-span-2">
-          <PanelTitle
-            variant="label"
-            title="Candidates by state, over the window"
-            class="mb-1.5"
-          >
-            <template #info>
-              <p>
-                The five statuses are levels — the last reading of each period,
-                summed across platforms, never the sum of a period's readings. A
-                period the ingestor did not run has no reading and breaks the curve
-                rather than dropping it to zero. <em>Demoted</em> is the odd one
-                out: a running total that restarts at the left edge of the window,
-                so switching 7/30/90 days rescales that curve alone.
-              </p>
-              <p>
-                New and Processing sit at 0 whenever the pipeline is healthy —
-                scoring drains its whole backlog each run, and a claim lasts one
-                ingestion pass. Read them in the figures above rather than in the
-                fills: at the queue's scale they hug the baseline, and sustained
-                above zero they mean one of two things — scoring is behind, or
-                leases are not being reaped.
-              </p>
-              <p>
-                A level is measured going forward from the first snapshot and never
-                backfilled, because it cannot be reconstructed from the candidates
-                that survive today.
-              </p>
-            </template>
-          </PanelTitle>
-          <ChartsAreaChart
-            :data="outcomeChartData"
-            :height="240"
-            :categories="outcomeChartCategories"
-            :hide-area="true"
-            :x-num-ticks="Math.min(outcomeChartData.length, 8)"
-            :x-formatter="outcomeXFormatter"
-            :y-formatter="formatCount"
-          />
-          <FetchErrorAlert
-            v-if="stockError"
-            :error="stockError"
-            class="mt-3"
-            title="Failed to load the candidate levels"
-          />
-          <p v-else-if="stockLatest" class="mt-3 text-xs text-dimmed tabular-nums">
-            Latest reading:
-            {{ formatNumber(stockLatest.new) }} new ·
-            {{ formatNumber(stockLatest.scored) }} scored ·
-            {{ formatNumber(stockLatest.queued) }} queued ·
-            {{ formatNumber(stockLatest.processing) }} processing ·
-            {{ formatNumber(stockLatest.validated) }} validated ·
-            {{ formatNumber(funnelTotals.demoted) }} demoted over the window
-          </p>
-          <p v-else-if="!stockPending" class="mt-3 text-xs text-dimmed">
-            No candidate level on record in this window.
-          </p>
-        </div>
+        <AccountsCandidateStock
+          class="lg:col-span-2"
+          :funnel-buckets="funnelBuckets"
+          :granularity="funnelGranularity"
+          :stock="stock"
+          :pending="stockPending"
+          :error="stockError"
+          :demoted-total="funnelTotals.demoted"
+        />
       </div>
 
       <p class="mt-4 text-xs text-dimmed tabular-nums">

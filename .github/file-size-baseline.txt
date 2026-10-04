@@ -1,7 +1,7 @@
 # Files over the size limit, recorded so they can only shrink.
 # Regenerate with .github/scripts/check-file-size.sh --update
 # path<TAB>lines<TAB>limit
-admin/app/components/accounts/AccountsPipeline.vue	902	400
+admin/app/components/accounts/AccountsPipeline.vue	784	400
 admin/app/components/accounts/AccountsSeed.vue	1092	400
 admin/app/components/accounts/AccountsTrace.vue	892	400
 admin/app/components/CrashesPanel.vue	578	400
