@@ -32,6 +32,7 @@ export function applyGameChanges(game: GameState, changes: GameChange[]): GameSt
         player.kills = change.kills
         player.deaths = change.deaths
         player.assists = change.assists
+        player.creepScore = change.creepScore
         break
       case 'died':
         player.dead = true
