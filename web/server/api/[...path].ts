@@ -12,7 +12,11 @@ export default defineEventHandler(async (event) => {
     const body = event.method === 'POST'
       ? await readBody(event).catch(() => undefined)
       : undefined
-    const mock = await resolveDevApiMock(pathname, getQuery(event), body)
+    const query = getQuery(event)
+    if (devApiMockForcedFailure(pathname, query, body)) {
+      throw createError({ statusCode: 500, statusMessage: 'Forced failure (NUXT_DEV_MOCK_FAIL)' })
+    }
+    const mock = await resolveDevApiMock(pathname, query, body)
     if (mock !== undefined) return mock
   }
 

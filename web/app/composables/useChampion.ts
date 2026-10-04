@@ -1,5 +1,5 @@
 import type { ChampionResponse } from '~~/shared/types/champions'
-import { fetchErrorStatus } from '#common/utils/errors'
+import { describeStaleFetchError, fetchErrorStatus } from '#common/utils/errors'
 import { resolveGlobalChampion } from '~/utils/champion-fetch'
 
 type Filters = ReturnType<typeof useChampionFilters>['filters']
@@ -186,5 +186,15 @@ export function useChampion(
   // load resolves this at once and keeps its skeleton.
   const ready = result.then(() => undefined)
 
-  return { ...result, notEnoughData, ready }
+  // A failed filter change keeps the previous slice on screen and answers with
+  // a toast (#1668); only a failed first load is the page's inline alert.
+  // Scoped to the champion (and player): another champion's build is never
+  // drawn under this one's name.
+  const actionToast = useActionToast()
+  const { data, error, staleError } = useRefetchFallback(result, {
+    scope: () => `${nameTagRef.value ?? 'global'}-${championIdRef.value}`,
+    onStaleFailure: failure => actionToast.failure('Could not update this champion', describeStaleFetchError(failure)),
+  })
+
+  return { ...result, data, error, staleError, notEnoughData, ready }
 }

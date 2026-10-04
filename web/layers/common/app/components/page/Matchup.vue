@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // The matchup page, as the site and the desktop app both render it (#1732):
 // each app's route file wraps this with its own head tags and nothing else.
-import type { CompositionBuildRequest, CompositionSlotInput } from '#shared/types/composition'
+import type { CompositionBuildRequest, CompositionBuildResponse, CompositionSlotInput } from '#shared/types/composition'
+import { describeStaleFetchError } from '#common/utils/errors'
 import { POSITION_OPTIONS, POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '#common/utils/positions'
 
 const route = useRoute()
@@ -80,7 +81,47 @@ const roleLabel = computed(() =>
 
 // ─── Live recommendation ─────────────────────────────────────────────────────
 
-const { data: recommendation, isLoading, error, submit, clear } = useCompositionBuild()
+const { data: response, isLoading, error: responseError, submit, clear } = useCompositionBuild()
+
+// What a recommendation is *for*: an ally or enemy pick refines it, a new
+// champion, role or opponent makes it another recommendation altogether.
+const matchupScope = computed(() =>
+  `${playedChampionId.value}-${playedPosition.value}-${opponentChampionId.value}`)
+
+// The request the newest answer was fetched with, and the matchup it was for.
+const submitted = shallowRef<{ scope: string, request: CompositionBuildRequest } | null>(null)
+
+function submitDraft(championId: number, request: CompositionBuildRequest) {
+  submitted.value = { scope: matchupScope.value, request }
+  return submit(championId, request)
+}
+
+// An answer paired with its request — only while it is still for the matchup
+// on screen, so a late answer to a changed matchup is never kept as its own.
+const answer = computed<{ recommendation: CompositionBuildResponse, request: CompositionBuildRequest } | null>(() =>
+  response.value && submitted.value?.scope === matchupScope.value
+    ? { recommendation: response.value, request: submitted.value.request }
+    : null)
+
+// A failed draft edit keeps the previous recommendation on screen and answers
+// with a toast (#1668); a failure with nothing to keep is the inline alert.
+const actionToast = useActionToast()
+const { data: shownAnswer, error, staleError } = useRefetchFallback({
+  data: answer,
+  status: computed(() => (isLoading.value ? 'pending' : responseError.value ? 'error' : 'success')),
+  error: responseError,
+}, {
+  scope: matchupScope,
+  onStaleFailure: failure => actionToast.failure('Could not update the recommendation', describeStaleFetchError(failure)),
+})
+const recommendation = computed(() => shownAnswer.value?.recommendation ?? null)
+// The provenance drawer re-lists the games behind the recommendation *shown*.
+const shownDraftRequest = computed(() => shownAnswer.value?.request ?? currentDraftRequest.value)
+
+function retryDraft() {
+  const request = currentDraftRequest.value
+  if (playedChampionId.value !== null && request !== null) void submitDraft(playedChampionId.value, request)
+}
 
 // The provenance drawer's open state lives here because the two halves of it sit
 // in different components: the button is in the stat line above (#1111), the
@@ -143,7 +184,7 @@ watch(
     const request = currentDraftRequest.value
     if (request === null) return
     refetchTimer = setTimeout(() => {
-      void submit(championId, request)
+      void submitDraft(championId, request)
     }, REFETCH_DEBOUNCE_MS)
   },
   { deep: true, immediate: true },
@@ -256,6 +297,13 @@ const missingMatchupNotice = computed(() => {
       title="Failed to load the recommendation"
     />
 
+    <StaleContentNotice
+      v-if="isDraftReady && !isLoading"
+      :error="staleError"
+      subject="the previous recommendation"
+      :on-retry="retryDraft"
+    />
+
     <!-- Any fetch in flight, first or not (#1659 follow-up): the recommendation
          panel's own layout with nothing resolved in it, rather than the previous
          answer dimmed. A cold recommendation runs for tens of seconds, and over
@@ -313,7 +361,7 @@ const missingMatchupNotice = computed(() => {
         :champion-icon-url="playedChampion?.iconUrl ?? null"
         :opponent-name="opponentChampion?.name ?? null"
         :opponent-icon-url="opponentChampion?.iconUrl ?? null"
-        :draft-request="currentDraftRequest"
+        :draft-request="shownDraftRequest"
         :champions="champions"
         :games-drawer-open="gamesDrawerOpen"
         @update:games-drawer-open="gamesDrawerOpen = $event"

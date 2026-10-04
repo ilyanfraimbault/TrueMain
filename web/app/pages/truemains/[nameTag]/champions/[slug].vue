@@ -5,14 +5,11 @@ import { parseRouteParam } from '#common/utils/route-params'
 import { ELO_BRACKET_ALL } from '#common/utils/elo-brackets'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
-// Player-scoped mirror of pages/champions/[slug].vue. The static-data fetches,
-// loading bar and build tabs are intentionally identical so the page looks
-// exactly like the global champion page; the ONLY difference is that
-// useChampion is given the route's nameTag, which swaps the data source to
-// /api/truemains/{nameTag}/champions/{id} (every aggregate scoped to this
-// player's games). Keeping the static fetches aligned (same keys) with both
-// the global champion page and the profile page keeps Nuxt's patch-keyed
-// caches deduped across navigations.
+// Player-scoped mirror of pages/champions/[slug].vue: same static fetches,
+// loading bar and build tabs; the ONLY difference is that useChampion is given
+// the route's nameTag, swapping the source to /api/truemains/{nameTag}/champions/{id}.
+// Keeping the static fetch keys aligned with the global champion page and the
+// profile page keeps Nuxt's patch-keyed caches deduped across navigations.
 const route = useRoute()
 
 // Same slug scheme and the same guard as the global page (#1124) — the two are
@@ -38,22 +35,22 @@ const { filters, setFilter } = useChampionFilters({ defaultEloBracket: ELO_BRACK
 const {
   data: champion,
   error: championError,
+  staleError: championStaleError,
+  refresh: refreshChampion,
   status: championStatus,
   notEnoughData,
   ready: championReady,
 } = useChampion(championId, filters, { nameTag })
 
-// A 404 is the "not enough games" empty state below, never an error; anything
-// reaching championError is real, and reported inline only — no toast (#1661).
+// A 404 is the "not enough games" empty state below, never an error. A failed
+// first load is inline only (#1661); a failed filter change keeps the slice (#1668).
 
 // Identity for the breadcrumb / header fallback. Cheap and client-cached —
 // the profile page primes the same request, so this rarely hits the network.
 const { data: profile, ready: profileReady } = useTruemainProfile(nameTag)
 
-// The LP curve under the identity, same card as the profile page. It is about
-// the account, not the champion, so nothing here is scoped by championId —
-// which is the point: the rail answers "who am I reading, and how are they
-// doing" before the middle column answers "on this champion".
+// The LP curve under the identity, same card as the profile page: about the
+// account, not the champion, so nothing here is scoped by championId.
 const {
   data: rankHistory,
   isInitialLoading: rankHistoryLoading,
@@ -64,9 +61,8 @@ const playerLabel = computed(() => {
   if (!identity) return truemainSlugLabel(nameTag.value) // pre-fetch: from the route alone (#948)
   return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
 })
-// Same identity, without the tag line: used inline in copy ("Faker vs mains"),
-// where the full Riot ID would be noise. Derived from the slug while the
-// profile fetch is in flight, like `playerLabel`.
+// Same identity, without the tag line, for inline copy ("Faker vs mains").
+// Derived from the slug while the profile fetch is in flight, like `playerLabel`.
 const playerName = computed(() => profile.value?.identity?.gameName ?? parseTruemainNameTag(nameTag.value)?.gameName ?? nameTag.value)
 const profilePath = computed(() => truemainProfilePath(nameTag.value))
 
@@ -102,9 +98,7 @@ const {
 const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 
 // Truemains > {player} > {champion}, mirroring the schema.org breadcrumb below.
-// The champion crumb uses the SSR-safe `seoDisplayName` (client-only
-// `displayName` is null during SSR) so the server HTML shows the real name
-// rather than `Champion {id}`, matching the global champion page.
+// The champion crumb uses the SSR-safe `seoDisplayName`, as the global page does.
 const breadcrumbItems = computed(() => [
   { label: 'Truemains', to: '/truemains' },
   { label: playerLabel.value, to: profilePath.value },
@@ -324,6 +318,12 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
               @update:position="value => setFilter({ position: value })"
             />
           </header>
+
+          <StaleContentNotice
+            :error="championStaleError"
+            subject="the previous slice"
+            :on-retry="() => refreshChampion()"
+          />
 
           <ChampionPlayerBuildEmpty
             v-if="notEnoughData"

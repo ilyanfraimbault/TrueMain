@@ -29,6 +29,8 @@ const { filters, setFilter } = useChampionFilters()
 const {
   data: champion,
   error: championError,
+  staleError: championStaleError,
+  refresh: refreshChampion,
   status: championStatus,
   notEnoughData,
   ready: championReady,
@@ -41,23 +43,18 @@ const {
 // header keeps its values so the page doesn't jump under the cursor.
 const championLoading = computed(() => isLoadingStatus(championStatus.value))
 
-// Real load failures (429/500/network) surface as the inline alert below, and
-// only there — a page-load failure is never also a toast (#1661). A 404 (no
-// data for this champion) is not an error at all: useChampion swallows it into
-// notEnoughData and we render a dedicated empty state instead.
+// A failed first load is the inline alert below, never also a toast (#1661); a
+// failed filter change keeps the previous slice (#1668). A 404 is no error:
+// useChampion turns it into notEnoughData, a dedicated empty state.
 
 // Static-data plumbing shared with the player-scoped champion page: the
-// patch-pinned rune tree / items / summoner spells (keys shared with
-// /champions so the patch-keyed maps stay deduped across the
-// list→detail→list round-trip), the display name/icon fallbacks and the
-// patch/position selector state. `selectedPatch` binds to the API-returned
-// patch once available so the picker reflects what's actually being shown —
-// covers the 404 fallback in useChampion where the URL filter is dropped (no
-// data for the champion on that patch) and the API returns its default
-// patch. The URL-filter fallback only applies on the initial load
-// (champion.value still null); on later patch swaps champion.value holds the
-// previous (stale) data, so the selector keeps showing the old patch until
-// the refetch resolves — intentional, and identical to selectedPosition.
+// patch-pinned rune tree / items / summoner spells (keys shared with /champions
+// so the patch-keyed maps stay deduped), the display name/icon fallbacks and
+// the patch/position selector state. `selectedPatch` binds to the API-returned
+// patch once available so the picker reflects what's actually shown — covers
+// useChampion's 404 fallback, which drops the URL filter. On later patch swaps
+// it keeps the old patch until the refetch resolves (or while a failed one
+// leaves the previous slice up) — intentional, identical to selectedPosition.
 const {
   staticData,
   versions,
@@ -76,17 +73,13 @@ const {
 })
 
 // Full ddragon version for the truemains sidebar's profile-icon URLs — the
-// short activePatch ("15.13") isn't a ddragon CDN path segment. Mirrors what
-// /truemains passes to the same rows.
+// short activePatch ("15.13") isn't a ddragon CDN path segment.
 const latestVersion = computed(() => versions.value?.[0] ?? null)
 
-// Winrate/pickrate trend across the last five patches (issues #89, #112).
-// Follows the resolved lane so it tracks whatever slice the page is showing,
-// but is deliberately cross-patch: the composable forwards only the position,
-// never the pinned patch, so the active patch filter never scopes the chart
-// and the series always spans recent history. Gated on the champion fetch so
-// it fires once with the resolved lane instead of twice (an initial call with
-// a null lane, then a refetch the moment the champion's position lands).
+// Winrate/pickrate trend across the last five patches (#89, #112). Follows the
+// resolved lane but is deliberately cross-patch: only the position is sent,
+// never the pinned patch. Gated on the champion fetch so it fires once with the
+// resolved lane instead of twice (null lane first, then the real one).
 const trendReady = computed(() => champion.value !== null)
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
 // `pending` rather than `status`: while the gate is shut the composable
@@ -308,6 +301,13 @@ const {
           :description="shareDescription"
         />
       </header>
+
+      <!-- A failed filter change: the previous slice stays, marked stale (#1668). -->
+      <StaleContentNotice
+        :error="championStaleError"
+        subject="the previous slice"
+        :on-retry="() => refreshChampion()"
+      />
 
       <!--
         Two-column layout on wide screens: builds + charts on the left, the

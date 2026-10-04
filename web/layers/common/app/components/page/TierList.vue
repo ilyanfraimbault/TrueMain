@@ -5,6 +5,7 @@ import type { ChampionTierListResponse } from '#shared/types/champions'
 import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
 import { normalizeEloBracket } from '#common/utils/elo-brackets'
 import { isLoadingStatus } from '#common/utils/async-data'
+import { describeStaleFetchError } from '#common/utils/errors'
 
 const { pathFor } = useChampionSlugs()
 
@@ -49,7 +50,13 @@ const tierListFetch = useAsyncData<ChampionTierListResponse>(
     default: () => ({ patchVersion: '', position: null, tiers: [] }),
   },
 )
-const { data: tierList, error: tierListError, status: tierListStatus } = tierListFetch
+const { status: tierListStatus, refresh: refreshTierList } = tierListFetch
+// A failed filter click keeps the previous tiers on screen and answers with a
+// toast (#1668); only a failed first load is the inline alert.
+const actionToast = useActionToast()
+const { data: tierList, error: tierListError, staleError: tierListStaleError } = useRefetchFallback(tierListFetch, {
+  onStaleFailure: failure => actionToast.failure('Could not update the tier list', describeStaleFetchError(failure)),
+})
 
 // Static champion list (names + icons) — shared composable so navigating between
 // /champions and the tier list pays the fetch once (same key + options).
@@ -195,6 +202,12 @@ await tierListFetch
       <TierlistSkeleton v-else-if="isPending" />
 
       <template v-else>
+        <StaleContentNotice
+          :error="tierListStaleError"
+          subject="the previous tiers"
+          :on-retry="() => refreshTierList()"
+        />
+
         <div class="space-y-3">
           <SectionCard
             v-for="group in tierGroups"
