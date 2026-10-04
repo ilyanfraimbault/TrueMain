@@ -1,5 +1,5 @@
 import type { GamePlayer, GameState, GameTeam } from '~/types/game'
-import type { LoadingView, RecentGame } from '~/types/loading'
+import type { LoadingPlayer, LoadingView, RecentGame } from '~/types/loading'
 
 /**
  * What the overlay's panels show while they are placed (the settings'
@@ -26,6 +26,7 @@ const player = (champion: string, team: GameTeam, position: string, items: numbe
   kills: 0,
   deaths: 0,
   assists: 0,
+  creepScore: 0,
   dead: false,
   respawnAt: null,
 })
@@ -80,15 +81,29 @@ export function sampleLoadingView(): LoadingView {
       assists: (index * 7 + 3) % 13,
       playedAt: now - (index + 1) * 5 * 3_600_000,
     }))
-  const at = (riotId: string, championId: number, team: GameTeam, position: string, championGames: number, championWins: number, results: string) => ({
+  const at = (riotId: string, championId: number, team: GameTeam, position: string, championGames: number, championWins: number, results: string): LoadingPlayer => ({
     riotId,
     championId,
     team,
     position,
     isMe: false,
     anonymous: false,
-    form: { games: 20, championGames, championWins, recent: recent(championId, position, results) },
+    form: {
+      games: 20,
+      championGames,
+      championWins,
+      championKills: championGames * 6,
+      championDeaths: championGames * 4,
+      championAssists: championGames * 7,
+      positions: [{ position, games: 15 }],
+      streak: 0,
+      recent: recent(championId, position, results),
+    },
     failed: false,
+    rank: null,
+    rankRead: false,
+    rankFailed: false,
+    laning: null,
   })
   return {
     players: [

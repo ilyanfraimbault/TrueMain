@@ -52,6 +52,7 @@ function player(overrides: Partial<GamePlayer> = {}): GamePlayer {
     kills: 0,
     deaths: 0,
     assists: 0,
+    creepScore: 0,
     dead: false,
     respawnAt: null,
     ...overrides,
