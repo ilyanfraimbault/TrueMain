@@ -63,13 +63,11 @@ public static class RegionBalanceCalculator
         }
 
         var platformsValue = FindValue(ingestor, "MatchIngestion", "Platforms");
-        IReadOnlyList<string>? claimPlatforms = platformsValue is null
-            ? null
-            : platformsValue
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(Normalize)
-                .Distinct(StringComparer.Ordinal)
-                .ToList();
+        IReadOnlyList<string>? claimPlatforms = platformsValue?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Normalize)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 
         var targetValue = FindValue(ingestor, "Coverage", "TargetMainsPerChampion");
         int? target = int.TryParse(targetValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
