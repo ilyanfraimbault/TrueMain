@@ -3,6 +3,7 @@ using Data;
 using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
@@ -327,7 +328,12 @@ builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
-builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
+// The cockpit is re-asked every 30 s by every open admin tab (#1411): callers get the cached,
+// single-flighted payload, and only the decorator reaches the evaluation itself (#1427).
+builder.Services.AddScoped<PipelineHealthQueryService>();
+builder.Services.AddScoped<IPipelineHealthQueryService>(services => new CachedPipelineHealthQueryService(
+    services.GetRequiredService<PipelineHealthQueryService>(),
+    services.GetRequiredService<IMemoryCache>()));
 builder.Services.AddScoped<IRegionBalanceQueryService, RegionBalanceQueryService>();
 builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
 builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();

@@ -4,6 +4,7 @@ using Data;
 using Data.Entities;
 using Data.Ops.Mongo;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
@@ -42,8 +43,19 @@ public sealed class PipelineHealthQueryService(
     IOptions<StorageHistoryOptions> storageHistoryOptions,
     TimeProvider timeProvider,
     IHostEnvironment environment,
+    IMemoryCache cache,
     ILogger<PipelineHealthQueryService> logger) : IPipelineHealthQueryService
 {
+    /// <summary>
+    /// The raw-corpus totals are the most expensive read of the whole evaluation (#1427): the
+    /// participant count walks every participant row of the queue, which took tens of seconds
+    /// on a busy host — more than every detector together. They are informational (no signal
+    /// is judged from them) and grow on an ingestion cadence, so they are measured on their
+    /// own, longer clock than the 30-second payload; same bound as the operator champion stats,
+    /// which scan the same join.
+    /// </summary>
+    internal static readonly TimeSpan RawCorpusCountsTtl = TimeSpan.FromMinutes(10);
+
     private static readonly string[] ProcessNames =
     [
         "Discovery",
@@ -225,8 +237,33 @@ public sealed class PipelineHealthQueryService(
             })
             .ToList();
 
-        var rawMatchCount = await queueScopedMatches.CountAsync(ct);
-        var rawParticipantCount = await db.MatchParticipants
+        var counts = await GetRawCorpusCountsAsync(queueId, queueScopedMatches, ct);
+
+        return new RawDataFreshnessReadModel
+        {
+            QueueId = queueId,
+            RawMatchCount = counts.Matches,
+            RawParticipantCount = counts.Participants,
+            Platforms = platformFreshness
+        };
+    }
+
+    private async Task<RawCorpusCounts> GetRawCorpusCountsAsync(
+        int queueId,
+        IQueryable<Match> queueScopedMatches,
+        CancellationToken ct)
+    {
+        // Keyed by queue: the queue is configuration, and a count of one queue's corpus must
+        // never be read back as another's. No coalescer of its own — the only caller is the
+        // payload pass, which CachedPipelineHealthQueryService already single-flights.
+        var cacheKey = $"ops:pipeline-health:raw-corpus:{queueId}";
+        if (cache.TryGetValue(cacheKey, out RawCorpusCounts? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        var matches = await queueScopedMatches.CountAsync(ct);
+        var participants = await db.MatchParticipants
             .AsNoTracking()
             .Join(
                 queueScopedMatches,
@@ -235,13 +272,7 @@ public sealed class PipelineHealthQueryService(
                 (participant, _) => participant.Id)
             .CountAsync(ct);
 
-        return new RawDataFreshnessReadModel
-        {
-            QueueId = queueId,
-            RawMatchCount = rawMatchCount,
-            RawParticipantCount = rawParticipantCount,
-            Platforms = platformFreshness
-        };
+        return cache.Store(cacheKey, new RawCorpusCounts(matches, participants), RawCorpusCountsTtl);
     }
 
     private async Task<PipelineGapReadModel> BuildGapsAsync(
@@ -418,4 +449,6 @@ public sealed class PipelineHealthQueryService(
         // operators reach for logs/tracing for the real cause.
         return "internal error";
     }
+
+    private sealed record RawCorpusCounts(int Matches, int Participants);
 }
