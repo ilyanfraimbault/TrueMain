@@ -13,6 +13,9 @@ updates:
       - dependencies
       - dotnet
     groups:
+      ef-core:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
       minor-and-patch:
         patterns:
           - "*"
