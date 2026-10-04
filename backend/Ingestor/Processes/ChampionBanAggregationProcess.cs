@@ -4,10 +4,10 @@ using Core.Options;
 using Data;
 using Data.Entities;
 using Ingestor.Options;
+using Ingestor.Processes.Components.IncrementalFolds;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Npgsql;
 
 namespace Ingestor.Processes;
 
@@ -56,6 +56,19 @@ public sealed class ChampionBanAggregationProcess(
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     TimeProvider timeProvider) : IIngestorProcess
 {
+    private static readonly AdditiveUpsert<KeyValuePair<BanKey, int>> BanStatsUpsert =
+        new AdditiveUpsert<KeyValuePair<BanKey, int>>("champion_ban_stats")
+            .Key("ChampionId", "integer", r => r.Key.ChampionId)
+            .Key("Patch", "text", r => r.Key.Patch)
+            .Key("elo_bracket", "text", r => r.Key.EloBracket)
+            .Sum("Bans", "integer", r => r.Value);
+
+    private static readonly AdditiveUpsert<KeyValuePair<ScopeKey, int>> ScopeTotalsUpsert =
+        new AdditiveUpsert<KeyValuePair<ScopeKey, int>>("ban_scope_totals")
+            .Key("Patch", "text", r => r.Key.Patch)
+            .Key("elo_bracket", "text", r => r.Key.EloBracket)
+            .Sum("Matches", "integer", r => r.Value);
+
     public string Name => "ChampionBanAggregation";
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
@@ -65,47 +78,25 @@ public sealed class ChampionBanAggregationProcess(
         var maxPerRun = options.Value.MaxMatchesPerRun;
         var aggregatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
 
-        var processedMatches = 0;
-        var batches = 0;
         var banRows = 0;
         var scopeRows = 0;
 
-        while (maxPerRun == 0 || processedMatches < maxPerRun)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var take = maxPerRun == 0 ? batchSize : Math.Min(batchSize, maxPerRun - processedMatches);
-
-            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-
-            // IX_matches_bans_pending keeps this an index scan. It starts empty (the
-            // flag is backfilled to true) and only ever holds the tail ingested since
-            // the previous run.
-            var matchIds = await db.Matches
-                .AsNoTracking()
-                .Where(m => m.QueueId == queueId && !m.BansAggregated)
-                .OrderBy(m => m.Id)
-                .Take(take)
-                .Select(m => m.Id)
-                .ToListAsync(ct);
-
-            if (matchIds.Count == 0)
+        // IX_matches_bans_pending keeps the selection an index scan. It starts empty (the
+        // flag is backfilled to true) and only ever holds the tail ingested since the
+        // previous run.
+        var (processedMatches, batches) = await IncrementalMatchFold.RunAsync(
+            dbContextFactory,
+            queueId,
+            m => !m.BansAggregated,
+            batchSize,
+            maxPerRun,
+            async (db, matchIds, token) =>
             {
-                break;
-            }
-
-            var written = await ProcessBatchAsync(db, matchIds, aggregatedAtUtc, ct);
-
-            processedMatches += matchIds.Count;
-            banRows += written.BanRows;
-            scopeRows += written.ScopeRows;
-            batches++;
-
-            if (matchIds.Count < take)
-            {
-                break;
-            }
-        }
+                var written = await ProcessBatchAsync(db, matchIds, aggregatedAtUtc, token);
+                banRows += written.BanRows;
+                scopeRows += written.ScopeRows;
+            },
+            ct);
 
         logger.LogInformation(
             "Champion ban aggregation summary: matches={Matches}, batches={Batches}, "
@@ -193,8 +184,8 @@ public sealed class ChampionBanAggregationProcess(
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        await UpsertBansAsync(db, bans, aggregatedAtUtc, ct);
-        await UpsertTotalsAsync(db, totals, aggregatedAtUtc, ct);
+        await BanStatsUpsert.ExecuteAsync(db, bans, aggregatedAtUtc, ct);
+        await ScopeTotalsUpsert.ExecuteAsync(db, totals, aggregatedAtUtc, ct);
 
         await db.Matches
             .Where(m => matchIds.Contains(m.Id))
@@ -203,75 +194,6 @@ public sealed class ChampionBanAggregationProcess(
         await transaction.CommitAsync(ct);
 
         return new WrittenRows(bans.Count, totals.Count);
-    }
-
-    private static async Task UpsertBansAsync(
-        TrueMainDbContext db,
-        IReadOnlyDictionary<BanKey, int> bans,
-        DateTime aggregatedAtUtc,
-        CancellationToken ct)
-    {
-        if (bans.Count == 0)
-        {
-            return;
-        }
-
-        var rows = bans.ToList();
-        const string sql = """
-            INSERT INTO champion_ban_stats
-                ("Id", "ChampionId", "Patch", "elo_bracket", "Bans", "AggregatedAtUtc")
-            SELECT gen_random_uuid(), t.champ, t.patch, t.elo, t.bans, @aggAt
-            FROM unnest(@champs::integer[], @patches::text[], @elos::text[], @bans::integer[])
-                AS t(champ, patch, elo, bans)
-            ON CONFLICT ("Patch", "elo_bracket", "ChampionId") DO UPDATE SET
-                "Bans" = champion_ban_stats."Bans" + EXCLUDED."Bans",
-                "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
-            """;
-
-        await db.Database.ExecuteSqlRawAsync(
-            sql,
-            [
-                new NpgsqlParameter("aggAt", aggregatedAtUtc),
-                new NpgsqlParameter("champs", rows.Select(r => r.Key.ChampionId).ToArray()),
-                new NpgsqlParameter("patches", rows.Select(r => r.Key.Patch).ToArray()),
-                new NpgsqlParameter("elos", rows.Select(r => r.Key.EloBracket).ToArray()),
-                new NpgsqlParameter("bans", rows.Select(r => r.Value).ToArray())
-            ],
-            ct);
-    }
-
-    private static async Task UpsertTotalsAsync(
-        TrueMainDbContext db,
-        IReadOnlyDictionary<ScopeKey, int> totals,
-        DateTime aggregatedAtUtc,
-        CancellationToken ct)
-    {
-        if (totals.Count == 0)
-        {
-            return;
-        }
-
-        var rows = totals.ToList();
-        const string sql = """
-            INSERT INTO ban_scope_totals
-                ("Id", "Patch", "elo_bracket", "Matches", "AggregatedAtUtc")
-            SELECT gen_random_uuid(), t.patch, t.elo, t.matches, @aggAt
-            FROM unnest(@patches::text[], @elos::text[], @matches::integer[])
-                AS t(patch, elo, matches)
-            ON CONFLICT ("Patch", "elo_bracket") DO UPDATE SET
-                "Matches" = ban_scope_totals."Matches" + EXCLUDED."Matches",
-                "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
-            """;
-
-        await db.Database.ExecuteSqlRawAsync(
-            sql,
-            [
-                new NpgsqlParameter("aggAt", aggregatedAtUtc),
-                new NpgsqlParameter("patches", rows.Select(r => r.Key.Patch).ToArray()),
-                new NpgsqlParameter("elos", rows.Select(r => r.Key.EloBracket).ToArray()),
-                new NpgsqlParameter("matches", rows.Select(r => r.Value).ToArray())
-            ],
-            ct);
     }
 
     private readonly record struct BanKey(int ChampionId, string Patch, string EloBracket);

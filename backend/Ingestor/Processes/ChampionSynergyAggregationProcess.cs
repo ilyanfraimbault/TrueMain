@@ -4,10 +4,10 @@ using Data;
 using Data.Aggregation;
 using Data.Entities;
 using Ingestor.Options;
+using Ingestor.Processes.Components.IncrementalFolds;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Npgsql;
 
 namespace Ingestor.Processes;
 
@@ -61,6 +61,27 @@ public sealed class ChampionSynergyAggregationProcess(
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     TimeProvider timeProvider) : IIngestorProcess
 {
+    private static readonly AdditiveUpsert<KeyValuePair<SynergyKey, Accumulator>> PairsUpsert =
+        new AdditiveUpsert<KeyValuePair<SynergyKey, Accumulator>>("champion_synergy_stats")
+            .Key("ChampionId", "integer", r => r.Key.ChampionId)
+            .Key("TeamPosition", "text", r => r.Key.TeamPosition)
+            .Key("PartnerChampionId", "integer", r => r.Key.PartnerChampionId)
+            .Key("PartnerPosition", "text", r => r.Key.PartnerPosition)
+            .Key("Patch", "text", r => r.Key.Patch)
+            .Key("elo_bracket", "text", r => r.Key.EloBracket)
+            .Sum("Games", "integer", r => r.Value.Games)
+            .Sum("Wins", "integer", r => r.Value.Wins);
+
+    private static readonly AdditiveUpsert<KeyValuePair<BaselineKey, Accumulator>> BaselinesUpsert =
+        new AdditiveUpsert<KeyValuePair<BaselineKey, Accumulator>>("champion_synergy_baseline_stats")
+            .Key("ChampionId", "integer", r => r.Key.ChampionId)
+            .Key("TeamPosition", "text", r => r.Key.TeamPosition)
+            .Key("Side", "text", r => r.Key.Side)
+            .Key("Patch", "text", r => r.Key.Patch)
+            .Key("elo_bracket", "text", r => r.Key.EloBracket)
+            .Sum("Games", "integer", r => r.Value.Games)
+            .Sum("Wins", "integer", r => r.Value.Wins);
+
     public string Name => "ChampionSynergyAggregation";
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
@@ -70,47 +91,25 @@ public sealed class ChampionSynergyAggregationProcess(
         var maxPerRun = options.Value.MaxMatchesPerRun;
         var aggregatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
 
-        var processedMatches = 0;
-        var batches = 0;
         var pairRows = 0;
         var baselineRows = 0;
 
-        while (maxPerRun == 0 || processedMatches < maxPerRun)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var take = maxPerRun == 0 ? batchSize : Math.Min(batchSize, maxPerRun - processedMatches);
-
-            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-
-            // IX_matches_synergy_pending keeps this selection an index scan. It
-            // covers the whole table on day one (the flag ships false everywhere)
-            // and shrinks to the pending tail as the backfill drains.
-            var matchIds = await db.Matches
-                .AsNoTracking()
-                .Where(m => m.QueueId == queueId && !m.SynergyAggregated)
-                .OrderBy(m => m.Id)
-                .Take(take)
-                .Select(m => m.Id)
-                .ToListAsync(ct);
-
-            if (matchIds.Count == 0)
+        // IX_matches_synergy_pending keeps the selection an index scan. It covered the
+        // whole table on day one (the flag shipped false everywhere) and shrinks to the
+        // pending tail as the backfill drains.
+        var (processedMatches, batches) = await IncrementalMatchFold.RunAsync(
+            dbContextFactory,
+            queueId,
+            m => !m.SynergyAggregated,
+            batchSize,
+            maxPerRun,
+            async (db, matchIds, token) =>
             {
-                break;
-            }
-
-            var written = await ProcessBatchAsync(db, matchIds, aggregatedAtUtc, ct);
-
-            processedMatches += matchIds.Count;
-            pairRows += written.PairRows;
-            baselineRows += written.BaselineRows;
-            batches++;
-
-            if (matchIds.Count < take)
-            {
-                break;
-            }
-        }
+                var written = await ProcessBatchAsync(db, matchIds, aggregatedAtUtc, token);
+                pairRows += written.PairRows;
+                baselineRows += written.BaselineRows;
+            },
+            ct);
 
         logger.LogInformation(
             "Champion synergy aggregation summary: matches={Matches}, batches={Batches}, "
@@ -225,8 +224,8 @@ public sealed class ChampionSynergyAggregationProcess(
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        await UpsertPairsAsync(db, pairs, aggregatedAtUtc, ct);
-        await UpsertBaselinesAsync(db, baselines, aggregatedAtUtc, ct);
+        await PairsUpsert.ExecuteAsync(db, pairs, aggregatedAtUtc, ct);
+        await BaselinesUpsert.ExecuteAsync(db, baselines, aggregatedAtUtc, ct);
 
         await db.Matches
             .Where(m => matchIds.Contains(m.Id))
@@ -251,88 +250,6 @@ public sealed class ChampionSynergyAggregationProcess(
         {
             accumulator.Wins++;
         }
-    }
-
-    private static async Task UpsertPairsAsync(
-        TrueMainDbContext db,
-        IReadOnlyDictionary<SynergyKey, Accumulator> pairs,
-        DateTime aggregatedAtUtc,
-        CancellationToken ct)
-    {
-        if (pairs.Count == 0)
-        {
-            return;
-        }
-
-        var rows = pairs.ToList();
-        const string sql = """
-            INSERT INTO champion_synergy_stats
-                ("Id", "ChampionId", "TeamPosition", "PartnerChampionId", "PartnerPosition",
-                 "Patch", "elo_bracket", "Games", "Wins", "AggregatedAtUtc")
-            SELECT gen_random_uuid(), t.champ, t.pos, t.partner, t.partner_pos, t.patch, t.elo, t.games, t.wins, @aggAt
-            FROM unnest(@champs::integer[], @positions::text[], @partners::integer[], @partnerPositions::text[],
-                        @patches::text[], @elos::text[], @games::integer[], @wins::integer[])
-                AS t(champ, pos, partner, partner_pos, patch, elo, games, wins)
-            ON CONFLICT ("ChampionId", "TeamPosition", "PartnerChampionId", "PartnerPosition", "Patch", "elo_bracket") DO UPDATE SET
-                "Games" = champion_synergy_stats."Games" + EXCLUDED."Games",
-                "Wins" = champion_synergy_stats."Wins" + EXCLUDED."Wins",
-                "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
-            """;
-
-        await db.Database.ExecuteSqlRawAsync(
-            sql,
-            [
-                new NpgsqlParameter("aggAt", aggregatedAtUtc),
-                new NpgsqlParameter("champs", rows.Select(r => r.Key.ChampionId).ToArray()),
-                new NpgsqlParameter("positions", rows.Select(r => r.Key.TeamPosition).ToArray()),
-                new NpgsqlParameter("partners", rows.Select(r => r.Key.PartnerChampionId).ToArray()),
-                new NpgsqlParameter("partnerPositions", rows.Select(r => r.Key.PartnerPosition).ToArray()),
-                new NpgsqlParameter("patches", rows.Select(r => r.Key.Patch).ToArray()),
-                new NpgsqlParameter("elos", rows.Select(r => r.Key.EloBracket).ToArray()),
-                new NpgsqlParameter("games", rows.Select(r => r.Value.Games).ToArray()),
-                new NpgsqlParameter("wins", rows.Select(r => r.Value.Wins).ToArray())
-            ],
-            ct);
-    }
-
-    private static async Task UpsertBaselinesAsync(
-        TrueMainDbContext db,
-        IReadOnlyDictionary<BaselineKey, Accumulator> baselines,
-        DateTime aggregatedAtUtc,
-        CancellationToken ct)
-    {
-        if (baselines.Count == 0)
-        {
-            return;
-        }
-
-        var rows = baselines.ToList();
-        const string sql = """
-            INSERT INTO champion_synergy_baseline_stats
-                ("Id", "ChampionId", "TeamPosition", "Side", "Patch", "elo_bracket", "Games", "Wins", "AggregatedAtUtc")
-            SELECT gen_random_uuid(), t.champ, t.pos, t.side, t.patch, t.elo, t.games, t.wins, @aggAt
-            FROM unnest(@champs::integer[], @positions::text[], @sides::text[], @patches::text[],
-                        @elos::text[], @games::integer[], @wins::integer[])
-                AS t(champ, pos, side, patch, elo, games, wins)
-            ON CONFLICT ("Side", "ChampionId", "TeamPosition", "Patch", "elo_bracket") DO UPDATE SET
-                "Games" = champion_synergy_baseline_stats."Games" + EXCLUDED."Games",
-                "Wins" = champion_synergy_baseline_stats."Wins" + EXCLUDED."Wins",
-                "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
-            """;
-
-        await db.Database.ExecuteSqlRawAsync(
-            sql,
-            [
-                new NpgsqlParameter("aggAt", aggregatedAtUtc),
-                new NpgsqlParameter("champs", rows.Select(r => r.Key.ChampionId).ToArray()),
-                new NpgsqlParameter("positions", rows.Select(r => r.Key.TeamPosition).ToArray()),
-                new NpgsqlParameter("sides", rows.Select(r => r.Key.Side).ToArray()),
-                new NpgsqlParameter("patches", rows.Select(r => r.Key.Patch).ToArray()),
-                new NpgsqlParameter("elos", rows.Select(r => r.Key.EloBracket).ToArray()),
-                new NpgsqlParameter("games", rows.Select(r => r.Value.Games).ToArray()),
-                new NpgsqlParameter("wins", rows.Select(r => r.Value.Wins).ToArray())
-            ],
-            ct);
     }
 
     private sealed record ParticipantRow(

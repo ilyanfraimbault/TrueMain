@@ -173,9 +173,8 @@ public sealed class MatchSnapshotWriter(
         var inserted = 0;
         var persistedIds = new List<string>(plan.TargetMatches.Count);
 
-        for (var i = 0; i < plan.TargetMatches.Count; i += batchSize)
+        foreach (var batch in plan.TargetMatches.Chunk(batchSize))
         {
-            var batch = plan.TargetMatches.Skip(i).Take(batchSize).ToList();
 
             // Pre-resolve perk catalog ids for the whole batch BEFORE we add any
             // match/participant entities to the change tracker. The catalog upsert

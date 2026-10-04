@@ -86,10 +86,9 @@ public sealed class TimelineIngestionService(
         var timelineUpdated = 0;
         var batchSize = Math.Max(1, saveBatchSize);
 
-        for (var i = 0; i < plan.Timelines.Count; i += batchSize)
+        foreach (var batch in plan.Timelines.Chunk(batchSize))
         {
-            var batch = plan.Timelines.Skip(i).Take(batchSize).ToList();
-            var appliedMatchIds = new List<string>(batch.Count);
+            var appliedMatchIds = new List<string>(batch.Length);
 
             foreach (var (matchId, timelineDto) in batch)
             {
