@@ -108,32 +108,8 @@ dotnet_diagnostic.CA2007.severity = none        # ConfigureAwait(false) — pas 
 dotnet_diagnostic.CA2016.severity = warning     # forwarder CancellationToken
 dotnet_diagnostic.CA2254.severity = warning     # ILogger message template constant
 
-# Sévérités — Microsoft.VisualStudio.Threading.Analyzers (#294)
-# Every VSTHRD rule stays at its shipped severity (warning → error in CI) unless listed
-# here. What stays on is what bites a server with no SynchronizationContext: sync-over-
-# async (VSTHRD002, thread-pool starvation), async void (VSTHRD100/101), unobserved
-# fire-and-forget tasks (VSTHRD110), null returned for a Task (VSTHRD114), the Async
-# suffix (VSTHRD200). The rules turned off below either guard JoinableTaskFactory /
-# UI-thread deadlocks that cannot happen here, or misfire on APIs whose async twin is
-# not the right call.
-dotnet_diagnostic.VSTHRD003.severity = none     # await d'une Task « étrangère » : deadlock JTF uniquement, pas de JTF ici
-dotnet_diagnostic.VSTHRD011.severity = none     # Lazy<Task<T>> : deadlock JTF uniquement ; les 3 caches évincent déjà les échecs
-dotnet_diagnostic.VSTHRD103.severity = suggestion # ~590/594 faux positifs : DbSet.Add/AddRange (AddAsync réservé aux générateurs HiLo) et Mongo Aggregate() (builder fluent, pas d'I/O)
-
-# Sévérités — Roslynator.Analyzers (#294)
-# Roslynator ships almost its whole catalog as info/hidden: those stay IDE hints and never
-# fail the build — promoting the stylistic ones would churn hundreds of files for no bug
-# caught. The handful it ships as warnings are kept (→ errors). On top of that, the rules
-# below catch real defects and are promoted to warning (→ error in CI).
-dotnet_diagnostic.RCS1044.severity = warning    # throw ex; perd la stack trace
-dotnet_diagnostic.RCS1059.severity = warning    # lock sur une instance publiquement accessible
-dotnet_diagnostic.RCS1075.severity = warning    # catch (Exception) vide
-dotnet_diagnostic.RCS1202.severity = warning    # (x as T).Member → NullReferenceException
-dotnet_diagnostic.RCS1210.severity = warning    # return null; pour une Task → NRE au await
-dotnet_diagnostic.RCS1215.severity = warning    # expression toujours vraie / fausse
-dotnet_diagnostic.RCS1229.severity = warning    # Task renvoyée depuis un using : ressource disposée avant la fin
-dotnet_diagnostic.RCS1234.severity = warning    # valeur d'enum dupliquée
-dotnet_diagnostic.RCS1261.severity = warning    # ressource IAsyncDisposable disposée en synchrone
+# VSTHRD / RCS severities (#294) live in backend/analyzers.globalconfig, not here: the
+# Docker images build from backend/ and never see this file.
 
 # Naming
 dotnet_naming_rule.interface_should_begin_with_i.severity = warning

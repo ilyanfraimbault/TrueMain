@@ -284,8 +284,10 @@ so a run straddling UTC midnight cannot seed one day and query the next (TEST-9)
 ## Analyzers: VS Threading and Roslynator on every project, tuned for bugs not style (2026-10-05)
 
 **`Microsoft.VisualStudio.Threading.Analyzers` and `Roslynator.Analyzers` are referenced once, from
-`backend/Directory.Build.props` (versions in `Directory.Packages.props`), and their severities live in the root
-`.editorconfig`.** With `TreatWarningsAsErrors`, anything at warning fails CI, so a severity is a decision about
+`backend/Directory.Build.props` (versions in `Directory.Packages.props`), and their severities live in
+`backend/analyzers.globalconfig`.** Not the root `.editorconfig`: the Docker images build from `backend/` and
+never see the repository root, so a severity kept there held in CI's solution build and not in the image build
+(only the test-path overrides stay in `.editorconfig`, since tests never go through Docker). With `TreatWarningsAsErrors`, anything at warning fails CI, so a severity is a decision about
 what blocks a merge (#294).
 
 - **VSTHRD: shipped severities kept** — sync-over-async (VSTHRD002), `async void` (VSTHRD100/101), unobserved
