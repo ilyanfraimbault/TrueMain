@@ -62,6 +62,8 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
 
         entity.Property(e => e.LastActivityCheckAtUtc);
 
+        entity.Property(e => e.LastSeenInMatchAtUtc);
+
         entity.Property(e => e.MatchIngestStatus)
             .IsRequired()
             .HasDefaultValue(MatchIngestStatus.Idle);

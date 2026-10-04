@@ -17,7 +17,10 @@ namespace Ingestor.Processes;
 /// the longevity half of the truemain score (#1701).
 /// </summary>
 /// <remarks>
-/// Activity is read from champion-mastery-v4 (<c>lastPlayTime</c>): one call per account,
+/// Match participation is the primary signal (#1475): match ingestion reactivates a main it
+/// sees played and stamps the account, and this process only asks mastery about the accounts no
+/// ingested match has shown recently. For those, activity is read from champion-mastery-v4
+/// (<c>lastPlayTime</c>): one call per account,
 /// covering every champion at once. Match history would answer the same question at the cost
 /// of a full match-v5 page per account — and the whole point is to stop spending that budget
 /// on players who no longer play, so it can go to the mains who do.
@@ -95,8 +98,13 @@ public sealed class MainActivityProcess(
             ? nowUtc.AddHours(-options.RecheckAfterHours)
             : DateTime.MinValue;
 
+        // Match ingestion stamps every main it watches play (#1475); within the activity
+        // window that is the answer this check would buy with a mastery call, so only the
+        // unseen tail — plus a once-per-window refresh of the mastery facts — is selected.
+        var observedSince = nowUtc.AddDays(-Math.Max(0, options.InactiveAfterDays));
+
         return await session.RiotAccounts
-            .GetAccountsForActivityCheckAsync(cutoff, Math.Max(1, options.BatchSize), ct);
+            .GetAccountsForActivityCheckAsync(cutoff, observedSince, Math.Max(1, options.BatchSize), ct);
     }
 
     private async Task<ActivitySummary> CheckAccountsAsync(

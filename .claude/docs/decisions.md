@@ -223,6 +223,7 @@ Last verified against `develop` on 2026-09-02.
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
 - Every outbound client asks for compressed responses (2026-09-16) — #1601
 - A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04) — #1474, #1460, #1313, #900
+- Match participation is the primary activity signal for mains; mastery answers for the unseen tail (2026-10-04) — #1475, #900, #1474
 - The claim's established-main share is per platform, from each platform's own coverage deficit (2026-10-04) — #1533
 - The coverage floor is 50 mains per champion per region, and the claim's split is centred on it (2026-09-08) — #1531, #1361, #1150, #900
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150

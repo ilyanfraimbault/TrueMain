@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.RiotAccount",
                 typeof(RiotAccount),
                 baseEntityType,
-                propertyCount: 23,
+                propertyCount: 24,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 5,
@@ -110,6 +110,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(RiotAccount).GetField("<LastRankSyncAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 nullable: true);
             lastRankSyncAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var lastSeenInMatchAtUtc = runtimeEntityType.AddProperty(
+                "LastSeenInMatchAtUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(RiotAccount).GetProperty("LastSeenInMatchAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(RiotAccount).GetField("<LastSeenInMatchAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            lastSeenInMatchAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var matchIngestClaimedAtUtc = runtimeEntityType.AddProperty(
                 "MatchIngestClaimedAtUtc",

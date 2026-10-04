@@ -282,16 +282,16 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             .ToListAsync(ct);
     }
 
-    public Task<List<AccountKey>> GetAccountsForActivityCheckAsync(DateTime cutoff, int batchSize, CancellationToken ct)
+    public Task<List<AccountKey>> GetAccountsForActivityCheckAsync(
+        DateTime cutoff, DateTime observedSince, int batchSize, CancellationToken ct)
     {
-        // Deliberately NOT filtered on IsActive: an already-deactivated main is excluded from
-        // match ingestion and from main analysis, so this mastery check is its only way back
-        // (#900). Dropping it here would make deactivation permanent.
-        var accounts = db.RiotAccounts
-            .AsNoTracking()
+        // Not on IsActive: the way back for a deactivated main (#900). Seen in a match and read since observedSince: skip (#1475).
+        var accounts = db.RiotAccounts.AsNoTracking()
             .Where(account => account.Status == RiotAccountStatus.Active
                               && db.MainChampionStats.Any(stat =>
-                                  stat.PlatformId == account.PlatformId && stat.Puuid == account.Puuid && stat.IsMain));
+                                  stat.PlatformId == account.PlatformId && stat.Puuid == account.Puuid && stat.IsMain)
+                              && (account.LastSeenInMatchAtUtc == null || account.LastSeenInMatchAtUtc < observedSince
+                                  || account.LastActivityCheckAtUtc == null || account.LastActivityCheckAtUtc < observedSince));
 
         if (cutoff > DateTime.MinValue)
         {

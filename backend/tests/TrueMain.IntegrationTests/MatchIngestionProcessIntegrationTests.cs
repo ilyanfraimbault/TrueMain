@@ -30,7 +30,7 @@ public sealed class MatchIngestionProcessIntegrationTests
             NullLogger<MatchIngestionProcess>.Instance,
             _fixture.CreateSessionFactory(),
             new FakeMatchClaimService(),
-            new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo })),
+            new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }), Microsoft.Extensions.Options.Options.Create(new MainActivityOptions())),
             new TimelineIngestionService(new FakeRiotMatchClient(), NullLogger<TimelineIngestionService>.Instance),
             validationService,
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions

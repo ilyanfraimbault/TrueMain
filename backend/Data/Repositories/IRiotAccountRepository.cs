@@ -31,9 +31,17 @@ public interface IRiotAccountRepository
     /// <summary>
     /// Accounts holding at least one <c>IsMain</c> stat whose champion-mastery activity
     /// check is due (never checked first, then oldest). Includes accounts already marked
-    /// inactive — that check is the only path back to active (#900).
+    /// inactive — that check is their way back to active when no ingested match brings
+    /// them back first (#900, #1475). An account seen in an ingested match at or after
+    /// <paramref name="observedSince"/> is left out unless its own mastery read is older
+    /// than that: the match already proved it plays, and the mastery facts the truemain
+    /// score reads are still refreshed once per window (#1475).
     /// </summary>
-    Task<List<AccountKey>> GetAccountsForActivityCheckAsync(DateTime cutoff, int batchSize, CancellationToken ct);
+    Task<List<AccountKey>> GetAccountsForActivityCheckAsync(
+        DateTime cutoff,
+        DateTime observedSince,
+        int batchSize,
+        CancellationToken ct);
 
     /// <summary>
     /// Atomically claims the next accounts to ingest matches for.

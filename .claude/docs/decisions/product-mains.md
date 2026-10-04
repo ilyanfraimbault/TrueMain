@@ -43,7 +43,8 @@ cap (~32k accounts) — #1737.
 Dead mains sat at rank #1 with 0 games while burning match-v5 calls. Mastery-v4 is one call per account
 versus pulling match history. Past a minimum coverage per champion, more games from real mains beats more
 distinct mains. Rows are deactivated (`IsActive=false`), **never deleted**, so a returning player is not
-rediscovered from scratch — #900.
+rediscovered from scratch — #900. Since #1475 an ingested match showing the player on the champion
+reactivates the row too, and mastery is only asked about mains no recent match has shown.
 
 **Candidate scoring is scarcity-weighted and the `IsMain` threshold is coverage-adaptive (0.20 → 0.12).**
 Games per champion spread 68× (Ezreal 2039 vs Amumu 30) and the binding constraint was retention, not
@@ -70,7 +71,8 @@ to know whether the Riot ID exists at Riot, only whether the pipeline has ever r
 
 **`MainActivity` deactivation carries no persisted reason, so the account explorer says so rather than guessing.**
 `MainActivityProcess` writes exactly two fields — `MainChampionStat.IsActive` and
-`RiotAccount.LastActivityCheckAtUtc` — collapsing two distinct causes (mastery `lastPlayTime` older than the
+`RiotAccount.LastActivityCheckAtUtc` (match ingestion can also set `IsActive` back to true since #1475, never
+to false) — collapsing two distinct causes (mastery `lastPlayTime` older than the
 inactivity window, or no mastery entry for the champion at all) into one boolean, with no `DeactivatedAtUtc`
 or reason column (#900). A failed mastery lookup leaves both fields untouched, so `IsActive = false` is only
 a *confirmed* retirement when `LastActivityCheckAtUtc` is recent — an older stamp means the last check that

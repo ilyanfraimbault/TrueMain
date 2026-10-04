@@ -68,10 +68,12 @@ public sealed record FetchedMatch(string MatchId, RiotMatchDto Dto);
 /// that store nothing, and with <c>queue</c> now sent on the ids call (#1358) the counter should
 /// sit at zero. It is split out rather than folded into <see cref="Skipped"/> precisely so a
 /// non-zero value is visible instead of hidden inside a number that is normally large.
+/// <see cref="MainsReactivated"/> counts inactive mains these matches showed played again (#1475).
 /// </summary>
 public sealed record SnapshotIngestionResult(
     IReadOnlyCollection<string> AllMatchIds,
     IReadOnlyCollection<string> NewMatchIds,
     int Inserted,
     int Skipped,
-    int SkippedWrongQueue);
+    int SkippedWrongQueue,
+    int MainsReactivated = 0);

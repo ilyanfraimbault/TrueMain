@@ -174,7 +174,8 @@ public sealed class ProcessRunSummaryJsonTests
                 new MatchIngestionPlatformSummary("EUW1", 5, 20, 3, 8, 4),
                 new MatchIngestionPlatformSummary("KR", 4, 10, 1, 4, 2)
             ],
-            3),
+            3,
+            2),
             new
             {
                 accountsProcessed = 9,
@@ -219,7 +220,9 @@ public sealed class ProcessRunSummaryJsonTests
                 // Appended by #1360, for the same reason as the two blocks above: a run
                 // recorded before the deploy has no key here, which reads as "not measured"
                 // rather than as a batch where every visit found new matches.
-                accountsWithoutNewMatches = 3
+                accountsWithoutNewMatches = 3,
+                // Appended by #1475: inactive mains a fresh match showed played again.
+                mainsReactivated = 2
             });
 
         yield return (
