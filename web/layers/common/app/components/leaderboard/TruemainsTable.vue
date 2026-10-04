@@ -53,7 +53,10 @@ const columns: TableColumn<Row>[] = [
   { id: 'games', accessorFn: row => row.stats.games, enableSorting: true, meta: { class: { th: `${FROM_XL} text-right`, td: `${FROM_XL} text-right` } } },
   { id: 'kda', accessorFn: row => row.stats.kda, enableSorting: true, meta: { class: { th: `${FROM_XL} text-right`, td: `${FROM_XL} text-right` } } },
   { id: 'winRate', accessorFn: row => row.stats.winRate, enableSorting: true, meta: { class: { th: `${FROM_XL} text-right`, td: `${FROM_XL} text-right` } } },
-  { id: 'follow', header: '', meta: { class: { th: 'w-7', td: 'w-7' } } },
+  // No `header: ''`: a column header rendering an empty string leaves no node in
+  // the server HTML, so its hydration swallows the slot's closing anchor and
+  // the page reports a mismatch (#1590). The `#follow-header` slot names it.
+  { id: 'follow', meta: { class: { th: 'w-7', td: 'w-7' } } },
 ]
 
 const sorting = computed(() => leaderboardSortToSorting(props.sort))
@@ -127,6 +130,9 @@ const TOOLTIP_UI = { content: 'p-0 h-auto max-w-none bg-transparent ring-0 shado
     </template>
     <template #winRate-header="{ column }">
       <TableSortHeader :column="column" label="WR" title="ranked win rate" align="end" @sort="column.toggleSorting(true)" />
+    </template>
+    <template #follow-header>
+      <span class="sr-only">Follow</span>
     </template>
 
     <template #place-cell="{ row }">
