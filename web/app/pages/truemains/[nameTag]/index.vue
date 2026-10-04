@@ -84,7 +84,7 @@ useSeoMeta({
 // The card resolves the profile itself through `/api/og/truemain/{nameTag}` at
 // render time; it is a public rendering of a public profile, so nothing
 // viewer-specific leaks into a shared image.
-defineOgImageComponent('Truemain', { nameTag })
+defineOgImage('Truemain', { nameTag })
 
 // `playerLabel` falls back to the raw slug while the profile is in flight, so
 // the share text is always something a human can read.

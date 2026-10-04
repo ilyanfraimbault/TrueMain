@@ -196,9 +196,9 @@ const shareDescription = computed(() =>
 // og:image URL is minted — there is not a single number available to pass. The
 // card therefore resolves its own slice through `/api/og/champion/{id}` when a
 // crawler renders it, which also keeps the extra query off the human page-view
-// path. The props are refs, so the meta tag follows client-side filter changes
-// too and a link copied after switching rank shares that rank's card.
-defineOgImageComponent('Champion', {
+// path. Props are resolved once (no client-side follow-up), but filters live in
+// the query string, so a crawler's SSR render of a copied link gets its card.
+defineOgImage('Champion', {
   championId,
   position: computed(() => filters.value.position ?? undefined),
   eloBracket: computed(() => filters.value.eloBracket ?? undefined),
