@@ -218,6 +218,26 @@ takes far longer than `InactiveAfterDays`, so `RecheckAfterHours` never binds an
 the state it maintains. That is #1475 — match participation as the primary activity signal — and the
 cadence here only bounds the damage until it lands.
 
+## The claim's established-main share is per platform (2026-10-04)
+
+**Each platform's quota is split between depth and breadth by its own coverage deficit, not by the batch's
+quota-weighted mean.** The platform quotas were already per platform (#1150); only their composition was global,
+and averaging was lossy in exactly the situation the signal exists for: observed on preprod right after #1531,
+deficits of 0% / 37% / 40% had all three platforms claiming at the same 0.689. `MatchClaimService` now hands
+the claim one `AdaptiveEstablishedMainShare(configured, swing, MeanDeficit(p))` per platform, and the claim
+applies `ceil(quota x share)` with that platform's value in its first pass.
+
+**Redistributed, not inflated.** The share is linear in the deficit, so short of the [0, 1] clamp the
+quota-weighted mean of the per-platform shares is exactly the scalar the batch used to get — the total
+depth/breadth split of a batch does not move, only where it is spent. The spill semantics are unchanged: the
+share is still a floor per class, and a class a platform cannot fill spills to the other within that platform.
+A neutral snapshot still means "no signal" and gives every platform the configured share.
+
+**Inspectable from the run log.** The claim-allocation line reports each platform's quota with the deficit and
+the share it produced, plus the quota-weighted share of the batch.
+
+Source: #1533 (follows #1531, #1361, #1150, #900).
+
 ## The coverage floor is 50 mains per champion per region, and the claim's split is centred on it (2026-09-08)
 
 **A scarcity signal every region satisfies has no dynamic range left to say "this region is thin".**
@@ -247,11 +267,11 @@ move together.
 
 **What follows for free, and what does not.** Everything `IntakeCapacity` derives — Scoring's promotion cap,
 Harvest's refresh budget — is expressed from the share, so it rescales with it; that is the whole point of
-sizing the intake from the claim. What does *not* follow: the share is still a single scalar applied to every
+sizing the intake from the claim. What did *not* follow: the share was still a single scalar applied to every
 platform's quota, computed from the quota-weighted mean deficit. With one saturated region and two below the
-floor, the saturated one keeps spending slots on breadth it does not need while the thin ones get less than
-their own deficit argues for. A per-platform share is the right shape and is tracked separately — it changes
-the claim's signature, and this change deliberately moved only numbers.
+floor, the saturated one kept spending slots on breadth it did not need while the thin ones got less than
+their own deficit argued for. A per-platform share was the right shape and was tracked separately — it changes
+the claim's signature, and this change deliberately moved only numbers. It landed with #1533 (below).
 
 ## The intake is sized by the claim, not by the ladder (2026-09-02)
 

@@ -132,7 +132,7 @@ public sealed class RiotAccountClaimPlatformQuotaIntegrationTests
         return await repo.ClaimAccountsForMatchIngestAtomicallyAsync(
             quotas,
             batchSize,
-            establishedMainShare: 0,
+            establishedMainShares: quotas.Keys.ToDictionary(platform => platform, _ => 0d),
             nowUtc,
             TimeSpan.FromMinutes(30),
             CancellationToken.None);
