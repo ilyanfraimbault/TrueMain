@@ -106,8 +106,9 @@ public sealed class TruemainsController(
     /// Player-scoped champion page: the same <see cref="ChampionResponse"/>
     /// contract as <c>GET /champions/{championId}</c>, but every aggregate is
     /// computed only from this player's games on the champion. 404 when the
-    /// account is unknown or the player has too few games on the champion to
-    /// draw a build (see <c>PlayerChampionBuildsQueryService.MinPlayerGames</c>).
+    /// account is unknown or the player has no aggregated games on the champion;
+    /// a thin sample still renders (<c>ChampionsListOptions.MinPlayerBuildGames</c>
+    /// only steers which patch is picked).
     /// </summary>
     [HttpGet("{nameTag}/champions/{championId:int}")]
     [ProducesResponseType(typeof(ChampionResponse), StatusCodes.Status200OK)]
