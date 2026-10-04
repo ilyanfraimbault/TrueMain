@@ -161,6 +161,33 @@ describe('resolveDevApiMock: /champions/{id}/mains-comparison', () => {
     expect(res.mains!.players).toBeGreaterThan(1)
   })
 
+  it('stages each insufficient-sample variant through the reserved Thin accounts (#868)', async () => {
+    const cases = [
+      { account: 'Thin#PLAYER', player: false, mains: true },
+      { account: 'Thin#MAINS', player: true, mains: false },
+      { account: 'Thin#BOTH', player: false, mains: false },
+    ]
+    for (const { account, player, mains } of cases) {
+      const res = await comparison({ account })
+      expect(res.status).toBe('INSUFFICIENT_SAMPLE')
+      expect(res.player!.identity?.gameName).toBe('Thin')
+      expect(res.player!.sampleMet).toBe(player)
+      expect(res.mains!.sampleMet).toBe(mains)
+      for (const side of [res.player!, res.mains!]) {
+        expect(side.games).toBeGreaterThan(0)
+        expect(side.sampleMet).toBe(side.games >= res.minGames)
+        expect(side.winRate).toBeCloseTo(side.wins / side.games, 2)
+      }
+    }
+    // A targeted main thins the same way as the pool.
+    const targeted = await comparison({ account: 'Thin#MAINS', main: 'Sheiden#1234' })
+    expect(targeted.status).toBe('INSUFFICIENT_SAMPLE')
+    expect(targeted.mains!.identity?.gameName).toBe('Sheiden')
+    expect(targeted.mains!.sampleMet).toBe(false)
+    // An unreserved tag on the same name is still an unknown account.
+    expect((await comparison({ account: 'Thin#EUW' })).status).toBe('UNKNOWN_ACCOUNT')
+  })
+
   it('echoes the normalised patch and position it was scoped to', async () => {
     const res = await comparison({ account: 'Sheiden#1234', position: 'MIDDLE', patch: '16.4.521.123' })
     expect(res.patch).toBe('16.4')
