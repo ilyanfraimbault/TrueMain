@@ -127,8 +127,8 @@ export interface CandidateFunnelBucket {
 
 /**
  * `GET /api/ops/candidates/stock` (#1403) — the candidate funnel's *level* per
- * period: how many rows sat in each status at the end of each period, from the hourly
- * snapshots the ingestor records.
+ * period: how many rows (and, since #1534, how many distinct accounts) sat in each
+ * status at the end of each period, from the hourly snapshots the ingestor records.
  *
  * The companion of `CandidateFunnel`, which measures the same funnel's *flow*. Neither
  * derives from the other: a period that scored 5,000 candidates and promoted 5,000 out
@@ -176,6 +176,26 @@ export interface CandidateStockBucket {
   rejected: number
   /** The exact instant this period's reading was taken, ISO-8601 UTC. */
   sampledAtUtc: string
+  /**
+   * The same reading in distinct accounts (#1534). The counts above are candidate
+   * *rows* — one per (account, champion) — so they move whenever rows per account do.
+   * `null`, never zeros, when the reading predates the accounts figure.
+   */
+  accounts: CandidateStockAccounts | null
+}
+
+/**
+ * One period's level in distinct accounts — `(platformId, puuid)` holding at least one
+ * candidate in the status. Not disjoint across statuses: an account with one champion
+ * Validated and another Queued counts in both, so never add these up into a total.
+ */
+export interface CandidateStockAccounts {
+  new: number
+  scored: number
+  queued: number
+  processing: number
+  validated: number
+  rejected: number
 }
 
 /**

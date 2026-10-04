@@ -33,6 +33,7 @@ public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mon
 
         history.Should().ContainSingle();
         history[0].Count.Should().Be(310, "the last run of the hour wins");
+        history[0].Accounts.Should().Be(155, "the accounts figure is refreshed with its rows");
         history[0].SnapshotHourUtc.Should().Be(new DateTime(2026, 8, 5, 9, 0, 0, DateTimeKind.Utc));
     }
 
@@ -76,7 +77,7 @@ public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mon
     }
 
     private static CandidateStockSample Sample(string platform, string status, long count)
-        => new(platform, status, count);
+        => new(platform, status, count, Accounts: count / 2);
 
     private MongoLogContext BuildContext()
         => new(Microsoft.Extensions.Options.Options.Create(new MongoLoggingOptions
