@@ -22,7 +22,7 @@ namespace TrueMain.IntegrationTests;
 /// when the requested draft matches nothing.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CompositionMatchQueryServiceIntegrationTests
+public sealed class CompositionMatchQueryServiceIntegrationTests : IAsyncLifetime
 {
     private const int Champion = 157; // Yone
     private const int RoleOpponent = 238; // Zed
@@ -38,11 +38,13 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task FindTopMatchesAsync_RanksByCompositionSimilarity()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Three games, from most to least similar to the requested draft
         // (vs Zed MIDDLE + Aatrox TOP, with Lee Sin JUNGLE):
         //   full-hit   — role opponent + enemy top + ally jungle = 10+4+2 = 16
@@ -81,8 +83,6 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     [Fact]
     public async Task FindTopMatchesAsync_PrefersGamesPilotedByAMain_ThenSimilarity()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // A less-similar game piloted by a main of the champion (role opponent
         // only = 10) versus a more-similar game by a non-main (full hit = 16).
         // The main's game must still lead: mains form the first tier, similarity
@@ -110,8 +110,6 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     [Fact]
     public async Task FindTopMatchesAsync_NoGameWithTheRequestedMatchup_ReturnsEmptyWithTheFlag()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await SeedGameAsync("COMP_OTHERMID", daysAgo: 1, win: true, enemyMid: OtherOpponent);
 
         await using var db = _fixture.CreateDbContext();
@@ -136,8 +134,6 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     [Fact]
     public async Task FindTopMatchesAsync_SearchesTheFullPool_HarvestedRowsIncluded()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Every seeded participant is untracked (RiotAccountId = null) — the
         // tracked-only partial index population would be empty here.
         await SeedGameAsync("COMP_HARVESTED", daysAgo: 1, win: true, enemyMid: RoleOpponent);
@@ -159,8 +155,6 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     [Fact]
     public async Task FindTopMatchesAsync_EmptyDraft_FallsBackToRecency()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await SeedGameAsync("COMP_OLDER", daysAgo: 5, win: true, enemyMid: RoleOpponent);
         await SeedGameAsync("COMP_NEWER", daysAgo: 1, win: false, enemyMid: OtherOpponent);
 
@@ -180,8 +174,6 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     [Fact]
     public async Task FindTopMatchesAsync_WithAPinnedMatchup_KeepsEveryGameOfIt()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Noise the hard filters must drop: same champion in another lane, and
         // a wrong-queue game.
         await SeedGameAsync("COMP_WRONGLANE", daysAgo: 1, win: true, enemyMid: RoleOpponent, candidatePosition: "TOP");
@@ -213,8 +205,6 @@ public sealed class CompositionMatchQueryServiceIntegrationTests
     [Fact]
     public async Task FindTopMatchesAsync_WithNoPinnedMatchup_CapsTheSelectionAtTopK()
     {
-        await _fixture.ResetDatabaseAsync();
-
         for (var i = 0; i < 3; i++)
         {
             await SeedGameAsync($"COMP_ANY_{i}", daysAgo: 2 + i, win: true, enemyMid: OtherOpponent);

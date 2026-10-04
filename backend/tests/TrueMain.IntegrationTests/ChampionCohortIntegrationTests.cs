@@ -20,7 +20,7 @@ namespace TrueMain.IntegrationTests;
 /// matching.
 /// </remarks>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionCohortIntegrationTests
+public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const int Yone = 157;
@@ -35,10 +35,13 @@ public sealed class ChampionCohortIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Returns_an_empty_set_when_no_matches_are_asked_for()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var db = _fixture.CreateDbContext();
 
         var cohort = await ChampionCohort.LoadAsync(db, [], CancellationToken.None);
@@ -49,8 +52,6 @@ public sealed class ChampionCohortIntegrationTests
     [Fact]
     public async Task Admits_a_tracked_participant_that_mains_the_champion_it_played()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var account = AddAccount(db, TrackedPuuid);
@@ -71,8 +72,6 @@ public sealed class ChampionCohortIntegrationTests
     [Fact]
     public async Task Excludes_an_untracked_participant_even_when_a_main_row_exists_for_its_puuid()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             // No RiotAccountId: somebody we happened to see in a game, not an account we
@@ -94,8 +93,6 @@ public sealed class ChampionCohortIntegrationTests
     [Fact]
     public async Task Excludes_a_tracked_participant_playing_a_champion_it_does_not_main()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var account = AddAccount(db, TrackedPuuid);
@@ -126,8 +123,6 @@ public sealed class ChampionCohortIntegrationTests
     [Fact]
     public async Task Excludes_a_participant_whose_main_row_was_computed_on_another_platform()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var account = AddAccount(db, "traveller-puuid");
@@ -150,8 +145,6 @@ public sealed class ChampionCohortIntegrationTests
     [Fact]
     public async Task Keeps_a_retired_main_because_IsActive_only_retires_future_ingestion()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var account = AddAccount(db, "retired-puuid");
@@ -174,8 +167,6 @@ public sealed class ChampionCohortIntegrationTests
     [Fact]
     public async Task Scopes_the_result_to_the_requested_matches_only()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var account = AddAccount(db, TrackedPuuid);
@@ -196,8 +187,6 @@ public sealed class ChampionCohortIntegrationTests
     [Fact]
     public async Task Keys_stay_per_match_because_a_participant_id_is_only_a_slot_number()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var account = AddAccount(db, TrackedPuuid);
@@ -226,8 +215,6 @@ public sealed class ChampionCohortIntegrationTests
     [Fact]
     public async Task Excludes_a_remade_game_because_a_remake_is_not_a_game()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var account = AddAccount(db, TrackedPuuid);
@@ -257,8 +244,6 @@ public sealed class ChampionCohortIntegrationTests
     [Fact]
     public async Task Excludes_a_participant_whose_position_is_not_canonical()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var account = AddAccount(db, TrackedPuuid);

@@ -15,7 +15,7 @@ namespace TrueMain.IntegrationTests;
 /// to the rows that carry both of its ends.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CandidateQueueLatencyApiIntegrationTests
+public sealed class CandidateQueueLatencyApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
 
@@ -26,11 +26,13 @@ public sealed class CandidateQueueLatencyApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetQueueLatency_MeasuresEachLegOverTheRowsThatCarryBothOfItsEnds()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         await using (var db = _fixture.CreateDbContext())
         {
@@ -72,8 +74,6 @@ public sealed class CandidateQueueLatencyApiIntegrationTests
     [Fact]
     public async Task GetQueueLatency_ReportsNoSamplesRatherThanZeroLatency_WhenNothingHasMoved()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new TrueMainWebApplicationFactory<Program>(_fixture);
         using var client = CreateClient(factory);
 
@@ -90,8 +90,6 @@ public sealed class CandidateQueueLatencyApiIntegrationTests
     [Fact]
     public async Task GetQueueLatency_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new TrueMainWebApplicationFactory<Program>(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

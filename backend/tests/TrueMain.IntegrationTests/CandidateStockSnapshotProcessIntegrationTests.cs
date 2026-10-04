@@ -16,14 +16,19 @@ namespace TrueMain.IntegrationTests;
 /// documents it produces are what the panel later reads.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixture postgres, MongoFixture mongo)
+public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixture postgres, MongoFixture mongo) : IAsyncLifetime
 {
-    [Fact]
-    public async Task RunCoreAsync_RecordsOneReadingPerPlatformAndStatus()
+    public async ValueTask InitializeAsync()
     {
         await postgres.ResetDatabaseAsync();
         await mongo.ResetAsync();
+    }
 
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task RunCoreAsync_RecordsOneReadingPerPlatformAndStatus()
+    {
         await using (var db = postgres.CreateDbContext())
         {
             db.MainCandidates.AddRange(
@@ -56,9 +61,6 @@ public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixtur
     [Fact]
     public async Task RunCoreAsync_CountsDistinctAccountsAlongsideRows()
     {
-        await postgres.ResetDatabaseAsync();
-        await mongo.ResetAsync();
-
         await using (var db = postgres.CreateDbContext())
         {
             // One account validated on three champions, another on one: four rows, two
@@ -89,9 +91,6 @@ public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixtur
     [Fact]
     public async Task RunCoreAsync_WritesNothingRatherThanAnEmptyReading_WhenThereAreNoCandidates()
     {
-        await postgres.ResetDatabaseAsync();
-        await mongo.ResetAsync();
-
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
         var summary = await BuildProcess(store).RunCoreAsync(CancellationToken.None);

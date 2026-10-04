@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchDataRetentionProcessIntegrationTests
+public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
     private readonly FakeProcessRunStore _processRunStore = new();
@@ -21,10 +21,13 @@ public sealed class MatchDataRetentionProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ShouldDeleteOutOfWindowRankedAndAllNonRankedMatches()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedRetentionDataAsync();
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 1);
@@ -49,8 +52,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldDrainNonRankedMatchesEvenWithNoRankedMatchesPresent()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         await using (var seedDb = _fixture.CreateDbContext())
         {
@@ -75,7 +76,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldDeleteAggregatesForStalePatchesWhenEnabled()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAggregateDataAsync();
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 2, aggregateRetainedPatchCount: 1);
@@ -95,7 +95,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldKeepAllAggregatesWhenAggregateRetentionDisabled()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAggregateDataAsync();
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 1);
@@ -112,8 +111,6 @@ public sealed class MatchDataRetentionProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldPruneTimelineSnapshotsToCanonicalMarksOnce()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         await using (var seedDb = _fixture.CreateDbContext())
         {

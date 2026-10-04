@@ -24,7 +24,7 @@ namespace TrueMain.IntegrationTests;
 /// dimension instead of failing the whole recommendation.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CompositionBuildQueryServiceIntegrationTests
+public sealed class CompositionBuildQueryServiceIntegrationTests : IAsyncLifetime
 {
     private const int Champion = 157; // Yone
     private const string Position = "MIDDLE";
@@ -38,11 +38,13 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task AggregateAsync_FoldsTopKIntoACoherentRecommendation()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Two wins on the same build (Hubris → Spear of Shojin) and one loss
         // on a different one — the win-weighted vote must elect the win build.
         await SeedGameAsync("COMPB_WIN1", win: true, buildOrder: [3031, 3153], withRunes: true);
@@ -91,8 +93,6 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
     [Fact]
     public async Task AggregateAsync_SparseGame_AbstainsPerDimensionWithoutThrowing()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // No timeline events, no rune selections, and a game version the
         // metadata source no longer serves: only the spell vote survives.
         await SeedGameAsync(
@@ -119,8 +119,6 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
     [Fact]
     public async Task AggregateAsync_ExactVoteTie_BreaksOnTheTopKRanking()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Two losses with different builds: every dimension ties on weight and
         // raw games, so the tie must fall to the top-K ranking — the better-
         // scored match wins — regardless of the database's row order.
@@ -148,8 +146,6 @@ public sealed class CompositionBuildQueryServiceIntegrationTests
     [Fact]
     public async Task AggregateAsync_EmptyTopK_ReturnsEmptyRecommendation()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var result = await CreateService().AggregateAsync(
             Champion, Position, [], maxPossibleScore: 0, CancellationToken.None);
 

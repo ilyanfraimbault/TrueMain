@@ -5,7 +5,7 @@ using AwesomeAssertions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class AccountRefreshFairMixTests
+public sealed class AccountRefreshFairMixTests : IAsyncLifetime
 {
     private const string Platform = "KR";
 
@@ -16,10 +16,13 @@ public sealed class AccountRefreshFairMixTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetAccountsForRefreshAsync_WithFullBuckets_Returns75PercentTruemains()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountsAsync(truemainCount: 200, otherCount: 200);
 
         await using var db = _fixture.CreateDbContext();
@@ -37,7 +40,6 @@ public sealed class AccountRefreshFairMixTests
     [Fact]
     public async Task GetAccountsForRefreshAsync_WithFewTruemains_RebalancesUnderflow()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountsAsync(truemainCount: 50, otherCount: 500);
 
         await using var db = _fixture.CreateDbContext();
@@ -56,7 +58,6 @@ public sealed class AccountRefreshFairMixTests
     [Fact]
     public async Task GetAccountsForRefreshAsync_WithOnlyTruemains_ReturnsThemAll()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountsAsync(truemainCount: 100, otherCount: 0);
 
         await using var db = _fixture.CreateDbContext();
@@ -72,7 +73,6 @@ public sealed class AccountRefreshFairMixTests
     [Fact]
     public async Task GetAccountsForRefreshAsync_WithNoTruemains_ReturnsOnlyOthers()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountsAsync(truemainCount: 0, otherCount: 300);
 
         await using var db = _fixture.CreateDbContext();
@@ -93,8 +93,6 @@ public sealed class AccountRefreshFairMixTests
         // the whole batch if their pool is large enough. Complete-identity
         // truemains and non-truemains do not get refreshed until every
         // incomplete truemain is in flight.
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var now = DateTime.UtcNow;
@@ -140,8 +138,6 @@ public sealed class AccountRefreshFairMixTests
         // follows the legacy 75/25 truemain / non-truemain fair-mix. With
         // 10 incomplete truemains and a batch of 100, we expect 10 P0 picks
         // + (75 % of 90) ≈ 68 complete truemains + (25 % of 90) ≈ 22 others.
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var now = DateTime.UtcNow;
@@ -185,8 +181,6 @@ public sealed class AccountRefreshFairMixTests
     [Fact]
     public async Task GetAccountsForRefreshAsync_PrioritizesIncompleteIdentityWithinBucket()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var now = DateTime.UtcNow;
@@ -222,8 +216,6 @@ public sealed class AccountRefreshFairMixTests
         // tiebreaker. With all three truemains sharing the same UpdatedAtUtc
         // and a complete identity, Challenger (highest score) must come back
         // first, Diamond next, and the unranked (null score) last.
-        await _fixture.ResetDatabaseAsync();
-
         // Same timestamp for all three so Score is the only discriminator.
         var sharedUpdatedAt = DateTime.UtcNow.AddDays(-1);
 
@@ -265,8 +257,6 @@ public sealed class AccountRefreshFairMixTests
         // An account whose PUUID no longer resolves is marked Invalid and must
         // never be re-selected — otherwise the refresh keeps burning a request
         // on the same dead PUUID every cycle.
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var now = DateTime.UtcNow;
@@ -299,8 +289,6 @@ public sealed class AccountRefreshFairMixTests
         // backlog never drained. They now get a dedicated priority-0.5 bucket
         // capped at half the remaining batch, on top of the identity-first
         // prefix of the P1 non-truemain bucket — so they land well above 25 %.
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var now = DateTime.UtcNow;
@@ -343,8 +331,6 @@ public sealed class AccountRefreshFairMixTests
         // Priority 0 (incomplete truemains) has no quota and runs before the
         // capped priority-0.5 (incomplete non-truemains): a truemain missing its
         // Riot ID is never starved by the non-truemain backfill backlog.
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             var now = DateTime.UtcNow;

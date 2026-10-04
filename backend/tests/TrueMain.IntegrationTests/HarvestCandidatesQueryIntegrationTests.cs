@@ -6,7 +6,7 @@ using Data.Repositories;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class HarvestCandidatesQueryIntegrationTests
+public sealed class HarvestCandidatesQueryIntegrationTests : IAsyncLifetime
 {
     private const int RankedSolo = 420;
     private const int Aram = 450;
@@ -18,10 +18,13 @@ public sealed class HarvestCandidatesQueryIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetHarvestCandidatesAsync_AggregatesOrphanRows_ApplyingQueueAndThresholdFilters()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
         await SeedAsync(now);
 
@@ -49,7 +52,6 @@ public sealed class HarvestCandidatesQueryIntegrationTests
     [Fact]
     public async Task GetHarvestCandidatesAsync_GroupsByChampion_ForSamePuuid()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
 
         await using (var db = _fixture.CreateDbContext())
@@ -76,7 +78,6 @@ public sealed class HarvestCandidatesQueryIntegrationTests
     [Fact]
     public async Task GetHarvestCandidatesAsync_ExcludesMatchesBeforeSinceUtc()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
 
         await using (var db = _fixture.CreateDbContext())
@@ -103,7 +104,6 @@ public sealed class HarvestCandidatesQueryIntegrationTests
     [Fact]
     public async Task GetHarvestCandidatesAsync_RespectsMaxRowsPerBucket_OrderedByObservedGamesDesc()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
 
         await using (var db = _fixture.CreateDbContext())
@@ -131,7 +131,6 @@ public sealed class HarvestCandidatesQueryIntegrationTests
     [Fact]
     public async Task GetHarvestCandidatesAsync_MergesAcrossPlatforms_CappingEachPlatformSlice()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
 
         await using (var db = _fixture.CreateDbContext())
@@ -170,7 +169,6 @@ public sealed class HarvestCandidatesQueryIntegrationTests
     [Fact]
     public async Task GetHarvestCandidatesAsync_ReturnsNewPairs_WhenKnownPairsAlreadyFillTheCap()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
 
         await using (var db = _fixture.CreateDbContext())
@@ -206,7 +204,6 @@ public sealed class HarvestCandidatesQueryIntegrationTests
     [Fact]
     public async Task GetHarvestCandidatesAsync_ExcludesPairsTheHarvestCannotAdvance()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
 
         await using (var db = _fixture.CreateDbContext())

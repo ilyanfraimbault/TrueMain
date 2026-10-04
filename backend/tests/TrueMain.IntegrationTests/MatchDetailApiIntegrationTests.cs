@@ -8,7 +8,7 @@ using TrueMain.ReadModels.Truemains;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchDetailApiIntegrationTests
+public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
 {
     private const string MatchId = "EUW1_MATCH_DETAIL_1";
     private static readonly Guid MainAccountId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -20,11 +20,13 @@ public sealed class MatchDetailApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetMatchDetail_returns_404_for_unknown_nameTag()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
@@ -36,7 +38,6 @@ public sealed class MatchDetailApiIntegrationTests
     [Fact]
     public async Task GetMatchDetail_returns_404_for_unknown_matchId()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedFullMatchAsync();
 
         await using var factory = CreateFactory();
@@ -50,7 +51,6 @@ public sealed class MatchDetailApiIntegrationTests
     [Fact]
     public async Task GetMatchDetail_returns_404_when_account_did_not_play_the_match()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedFullMatchAsync();
 
         // Add a second tracked account that is NOT a participant in the match.
@@ -81,7 +81,6 @@ public sealed class MatchDetailApiIntegrationTests
     [Fact]
     public async Task GetMatchDetail_returns_full_participant_build_timeline_shape()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedFullMatchAsync();
 
         await using var factory = CreateFactory();

@@ -11,7 +11,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionBuildsApiIntegrationTests
+public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -20,10 +20,13 @@ public sealed class ChampionBuildsApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetChampionAsync_ReturnsTabbedBuildsForTheLatestPatch()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionBuildsAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -99,8 +102,6 @@ public sealed class ChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetChampionAsync_ReturnsNotFoundForUnknownChampion()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -114,7 +115,6 @@ public sealed class ChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetChampionAsync_DefaultBracket_UnionsEveryTier()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMultiTierAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -141,7 +141,6 @@ public sealed class ChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetChampionAsync_TierOnly_ScopesToThatSingleTier()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMultiTierAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -163,7 +162,6 @@ public sealed class ChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetChampionAsync_TierPlus_IncludesThatTierAndEveryTierAbove()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMultiTierAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -186,7 +184,6 @@ public sealed class ChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetChampionAsync_TierWithNoGames_YieldsNotFound()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMultiTierAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -203,7 +200,6 @@ public sealed class ChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetChampionAsync_CountsOnlyTruemainsByDefault_AndWidensWhenAskedTo()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMixedPopulationAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -229,7 +225,6 @@ public sealed class ChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetChampionAsync_RejectsTheWidenedPopulationOnAMatchup()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMixedPopulationAggregatesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);

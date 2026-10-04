@@ -9,7 +9,7 @@ using MongoDB.Driver;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ProcessIterationsApiIntegrationTests
+public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -21,12 +21,17 @@ public sealed class ProcessIterationsApiIntegrationTests
         _mongo = mongo;
     }
 
-    [Fact]
-    public async Task GetProcessIterationsAsync_GroupsRunsByIteration_NewestFirstWithOrderedChain()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetDatabaseAsync();
         await _mongo.ResetAsync();
+    }
 
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task GetProcessIterationsAsync_GroupsRunsByIteration_NewestFirstWithOrderedChain()
+    {
         var now = DateTime.UtcNow;
         var olderIteration = Guid.NewGuid();
         var newerIteration = Guid.NewGuid();
@@ -81,9 +86,6 @@ public sealed class ProcessIterationsApiIntegrationTests
     [Fact]
     public async Task GetProcessIterationsAsync_FinishedOnly_ExcludesTheInFlightIteration()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         var now = DateTime.UtcNow;
         var finished = Guid.NewGuid();
         var running = Guid.NewGuid();
@@ -120,9 +122,6 @@ public sealed class ProcessIterationsApiIntegrationTests
     [Fact]
     public async Task GetProcessIterationsAsync_PagesIterations()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         var now = DateTime.UtcNow;
         // Three iterations, one minute apart.
         for (var i = 0; i < 3; i++)
@@ -148,9 +147,6 @@ public sealed class ProcessIterationsApiIntegrationTests
     [Fact]
     public async Task GetProcessIterationsAsync_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

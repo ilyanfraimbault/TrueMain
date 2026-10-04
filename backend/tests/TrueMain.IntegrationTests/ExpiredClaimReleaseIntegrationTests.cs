@@ -13,7 +13,7 @@ namespace TrueMain.IntegrationTests;
 /// production accumulated 386 permanently unreachable accounts over three months.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ExpiredClaimReleaseIntegrationTests
+public sealed class ExpiredClaimReleaseIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -22,10 +22,13 @@ public sealed class ExpiredClaimReleaseIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task ReleaseExpiredClaimsAsync_ShouldReleaseEveryCandidateRowOfAnExpiredClaim()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedAccountAsync("KR", "puuid-expired", MatchIngestStatus.Processing, now.AddHours(-2));
@@ -50,7 +53,6 @@ public sealed class ExpiredClaimReleaseIntegrationTests
     [Fact]
     public async Task ReleaseExpiredClaimsAsync_ShouldLeaveALiveClaimAlone()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedAccountAsync("KR", "puuid-live", MatchIngestStatus.Processing, now.AddMinutes(-5));
@@ -73,7 +75,6 @@ public sealed class ExpiredClaimReleaseIntegrationTests
         // Two shapes that an "expired claim" predicate would miss, both of which mean the
         // same thing — nothing is working on these rows: an account back at Idle whose
         // candidates were never settled, and a candidate whose account row is gone entirely.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedAccountAsync("KR", "puuid-idle", MatchIngestStatus.Idle, claimedAtUtc: null);
@@ -97,7 +98,6 @@ public sealed class ExpiredClaimReleaseIntegrationTests
     [Fact]
     public async Task ReleaseExpiredMatchIngestClaimsAsync_ShouldIdleExpiredAccountsAndKeepLiveOnes()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedAccountAsync("KR", "puuid-expired", MatchIngestStatus.Processing, now.AddHours(-2));
@@ -126,7 +126,6 @@ public sealed class ExpiredClaimReleaseIntegrationTests
         // membership predicate — no active main, no Queued candidate — so it is invisible to
         // the only mechanism that would have settled its rows, however long its lease has
         // been dead. This is the state 386 production accounts were stuck in.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedAccountAsync("KR", "puuid-sealed", MatchIngestStatus.Processing, now.AddHours(-2));
@@ -153,7 +152,6 @@ public sealed class ExpiredClaimReleaseIntegrationTests
         // process holding it is the one that just died. This is the shape the worker's
         // release relies on; the same cutoff at any other moment would free live work, which
         // is why only the startup path is allowed to use it.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedAccountAsync("KR", "puuid-fresh", MatchIngestStatus.Processing, now.AddSeconds(-20));

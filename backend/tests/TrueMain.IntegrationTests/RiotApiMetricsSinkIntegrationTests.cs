@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// Mongo rather than with mocked collections) (#93).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class RiotApiMetricsSinkIntegrationTests
+public sealed class RiotApiMetricsSinkIntegrationTests : IAsyncLifetime
 {
     private readonly MongoFixture _mongo;
 
@@ -26,11 +26,13 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Sink_FoldsRecordedCalls_IntoPerMinuteRollupsAndCreatesIndexes()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 
@@ -94,8 +96,6 @@ public sealed class RiotApiMetricsSinkIntegrationTests
     [Fact]
     public async Task Sink_LaterCallWithoutHeaders_KeepsEarlierStoredValues()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 
@@ -133,8 +133,6 @@ public sealed class RiotApiMetricsSinkIntegrationTests
     [Fact]
     public async Task Sink_TwoCallersInSameBucketEndpointStatus_FoldIntoTwoDocuments()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 
@@ -169,8 +167,6 @@ public sealed class RiotApiMetricsSinkIntegrationTests
     [Fact]
     public async Task Sink_SameCallerOnTwoRoutesInOneMinute_FoldsIntoOneDocumentPerRoute()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 

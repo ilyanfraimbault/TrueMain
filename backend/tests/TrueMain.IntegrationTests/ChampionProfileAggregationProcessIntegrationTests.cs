@@ -22,7 +22,7 @@ namespace TrueMain.IntegrationTests;
 /// come from the final inventory, and the ranged flag is a COALESCEd static attribute.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionProfileAggregationProcessIntegrationTests
+public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const string Version = "16.4.521.123";
@@ -40,10 +40,13 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_FoldsTheContextSums_LaneLeads_Archetypes_AndRangedFlag()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchAsync("m-1", durationSeconds: 1800, withContext: true, topWins: true,
             topItems: [CritItem, TankItem], snapshots: true);
         await SeedMatchAsync("m-2", durationSeconds: 2100, withContext: true, topWins: false,
@@ -95,7 +98,6 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_FlagsButDoesNotFold_MatchesWithoutContextFields_OrRemakes()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchAsync("legacy", durationSeconds: 1800, withContext: false, topWins: true, topItems: [], snapshots: true);
         await SeedMatchAsync("remake", durationSeconds: 200, withContext: true, topWins: true, topItems: [], snapshots: false);
 
@@ -110,7 +112,6 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_IsANoOpOnASecondRun_AndKeepsTheRangedFlagWhenStaticsAreDown()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchAsync("m-1", durationSeconds: 1800, withContext: true, topWins: true, topItems: [], snapshots: true);
         await CreateProcess().RunCoreAsync(CancellationToken.None);
 
@@ -130,7 +131,6 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_CountsALaneOnlyWhenBothSidesHaveTheSnapshot()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchAsync("short", durationSeconds: 700, withContext: true, topWins: true, topItems: [], snapshots: false);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);

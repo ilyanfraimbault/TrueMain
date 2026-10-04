@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class AccountValidationIntegrationTests
+public sealed class AccountValidationIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -15,10 +15,13 @@ public sealed class AccountValidationIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task AccountValidationService_ShouldHandleValidateAndRevertTransitions()
     {
-        await _fixture.ResetDatabaseAsync();
         var accountKey = new Data.Repositories.AccountKey("KR", "puuid-1");
 
         await SeedProcessingStateAsync(accountKey);
@@ -65,7 +68,6 @@ public sealed class AccountValidationIntegrationTests
         // The funnel counts validated *accounts* off this return value (#1024), so an
         // account whose candidates were already promoted — or reverted out from under
         // the claim — must not inflate the count on the way through.
-        await _fixture.ResetDatabaseAsync();
         var accountKey = new Data.Repositories.AccountKey("KR", "puuid-nothing-to-promote");
 
         await SeedProcessingStateAsync(accountKey);
@@ -100,7 +102,6 @@ public sealed class AccountValidationIntegrationTests
         // oldest-ingested-first, so leaving LastMatchIngestAtUtc null — which is exactly
         // what a revert does, on purpose, to retry a transient failure at once — hands
         // this permanently unusable row the head of every subsequent batch.
-        await _fixture.ResetDatabaseAsync();
         var accountKey = new Data.Repositories.AccountKey("XX9", "puuid-uningestable");
 
         await SeedProcessingStateAsync(accountKey);

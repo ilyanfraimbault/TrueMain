@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchIngestionProcessIntegrationTests
+public sealed class MatchIngestionProcessIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -21,10 +21,13 @@ public sealed class MatchIngestionProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ShouldPersistRawMatchesForClaimedAccounts()
     {
-        await _fixture.ResetDatabaseAsync();
         var validationService = new FakeAccountValidationService();
         var process = new MatchIngestionProcess(
             NullLogger<MatchIngestionProcess>.Instance,

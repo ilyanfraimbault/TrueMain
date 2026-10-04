@@ -14,7 +14,7 @@ namespace TrueMain.IntegrationTests;
 /// verdicts the fold wrote (#1450), projected — no statistics on this side.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionItemContextApiIntegrationTests
+public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
 {
     private const int Champion = 266;
     private const string Position = "TOP";
@@ -28,10 +28,13 @@ public sealed class ChampionItemContextApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetItemContext_ProjectsTheVerdictWithItsFindings()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         var response = await GetAsync($"/champions/{Champion}/item-context?position={Position}&patch={Patch}");
@@ -65,7 +68,6 @@ public sealed class ChampionItemContextApiIntegrationTests
     [Fact]
     public async Task GetItemContext_MarksTheInGameAxisAsSuch()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync(inGameAxis: true);
 
         var response = await GetAsync($"/champions/{Champion}/item-context?position={Position}&patch={Patch}");
@@ -78,7 +80,6 @@ public sealed class ChampionItemContextApiIntegrationTests
     [Fact]
     public async Task GetItemContext_ServesTheNewestPatch_WhenTheCallerSendsNone()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
         await SeedVerdictAsync(OlderPatch, 3065, ItemContextClass.Preference, games: 10, branchGames: 100, axes: []);
 
@@ -90,8 +91,6 @@ public sealed class ChampionItemContextApiIntegrationTests
     [Fact]
     public async Task GetItemContext_ReturnsAnEmptyListForASliceWithNoVerdicts()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var response = await GetAsync($"/champions/{Champion}/item-context?position={Position}");
 
         response.Items.Should().BeEmpty("nothing measured is a state, not an error");
@@ -101,8 +100,6 @@ public sealed class ChampionItemContextApiIntegrationTests
     [Fact]
     public async Task GetItemContext_RequiresAPosition()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 

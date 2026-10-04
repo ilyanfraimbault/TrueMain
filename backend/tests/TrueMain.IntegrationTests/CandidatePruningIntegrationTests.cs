@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class CandidatePruningIntegrationTests
+public sealed class CandidatePruningIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -19,10 +19,13 @@ public sealed class CandidatePruningIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_PrunesOnlyStaleNeverPromotedCandidates()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
         var stale = now.AddDays(-60);
         var fresh = now.AddDays(-1);
@@ -55,7 +58,6 @@ public sealed class CandidatePruningIntegrationTests
     [Fact]
     public async Task RunAsync_WhenPruningDisabled_KeepsStaleCandidates()
     {
-        await _fixture.ResetDatabaseAsync();
         var stale = DateTime.UtcNow.AddDays(-60);
 
         await using (var db = _fixture.CreateDbContext())
@@ -73,7 +75,6 @@ public sealed class CandidatePruningIntegrationTests
     [Fact]
     public async Task RunAsync_DemotesTheLowestScoredExcessOfAnOverDeepQueue()
     {
-        await _fixture.ResetDatabaseAsync();
         var fresh = DateTime.UtcNow.AddDays(-1);
 
         await using (var db = _fixture.CreateDbContext())

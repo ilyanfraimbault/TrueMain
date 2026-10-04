@@ -19,7 +19,7 @@ namespace TrueMain.IntegrationTests;
 /// a single match-v5 call.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MainActivityProcessIntegrationTests
+public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -28,10 +28,13 @@ public sealed class MainActivityProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ShouldDeactivateMain_WhenMasteryLastPlayIsStale()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMainAsync("puuid-idle-1", championId: 22, isActive: true, lastActivityCheckAtUtc: null);
 
         var process = BuildProcess(new FakeRiotPlatformClient(Mastery(22, daysAgo: 90)));
@@ -54,7 +57,6 @@ public sealed class MainActivityProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldReactivateMain_WhenThePlayerCameBack()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMainAsync("puuid-back-1", championId: 22, isActive: false, lastActivityCheckAtUtc: DateTime.UtcNow.AddDays(-10));
 
         var process = BuildProcess(new FakeRiotPlatformClient(Mastery(22, daysAgo: 1)));
@@ -71,7 +73,6 @@ public sealed class MainActivityProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldOnlyRetireTheChampionThatWasDropped()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMainAsync("puuid-mixed-1", championId: 22, isActive: true, lastActivityCheckAtUtc: null);
         await AddMainStatAsync("puuid-mixed-1", championId: 51);
 
@@ -93,7 +94,6 @@ public sealed class MainActivityProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldRecordMasteryPointsRankAndLastPlay()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMainAsync("puuid-mastery-1", championId: 22, isActive: true, lastActivityCheckAtUtc: null);
         await AddMainStatAsync("puuid-mastery-1", championId: 51);
         await AddMainStatAsync("puuid-mastery-1", championId: 99);
@@ -127,7 +127,6 @@ public sealed class MainActivityProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldCheckAccountsWithUnreadMasteryFirst()
     {
-        await _fixture.ResetDatabaseAsync();
         var longAgo = DateTime.UtcNow.AddDays(-10);
         var lessLongAgo = DateTime.UtcNow.AddDays(-5);
 
@@ -154,7 +153,6 @@ public sealed class MainActivityProcessIntegrationTests
     [Fact]
     public async Task Selection_ShouldSkipAccountsAnIngestedMatchShowedPlaying()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Seen in a match last week and mastery-read ten days ago: nothing left to ask (#1475).
@@ -183,7 +181,6 @@ public sealed class MainActivityProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldLeaveTheMainUntouched_WhenTheMasteryCallFails()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMainAsync("puuid-flaky-1", championId: 22, isActive: true, lastActivityCheckAtUtc: null);
 
         var process = BuildProcess(new ThrowingRiotPlatformClient());
@@ -204,7 +201,6 @@ public sealed class MainActivityProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldStampTheCheck_WhenThePlatformCannotBeParsed()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMainAsync(
             "puuid-corrupt-1", championId: 22, isActive: true, lastActivityCheckAtUtc: null, platformId: "XX9");
 

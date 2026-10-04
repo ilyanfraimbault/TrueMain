@@ -16,7 +16,7 @@ namespace TrueMain.IntegrationTests;
 /// the per-match flag that has to make a re-run a no-op.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionSynergyAggregationProcessIntegrationTests
+public sealed class ChampionSynergyAggregationProcessIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const int Champion = 157; // Yone, MIDDLE, the tracked side.
@@ -50,10 +50,13 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_FoldsOneRowPerTeammate_AndNoneForOpponents()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -81,7 +84,6 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_WritesSelfAndAllyBaselinesForTheSameGames()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -110,7 +112,6 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_DoesNotDoubleCountOnRerunWithNoNewMatches()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
@@ -129,7 +130,6 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_AccumulatesAcrossBatchesAsNewMatchesArrive()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
@@ -156,7 +156,6 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_FoldsMatchesWithoutAnIngestedTimeline()
     {
-        await _fixture.ResetDatabaseAsync();
         // Synergy needs participant rows only, so — unlike the matchup fold — no
         // timeline gate applies and these matches must still be counted.
         await SeedGamesAsync(games: 6, version: "16.4.521.123", wins: 3, timelineIngested: false);
@@ -170,7 +169,6 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_IgnoresMatchesWhereNoParticipantIsTracked()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 8, version: "16.4.521.123", wins: 4, tracked: false);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -186,7 +184,6 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_KeepsAggregatesForPatchesWhoseMatchesWerePurged()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();

@@ -19,15 +19,17 @@ namespace TrueMain.IntegrationTests;
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionDimensionIdentityIntegrationTests(PostgresFixture fixture)
+public sealed class ChampionDimensionIdentityIntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture = fixture;
+
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task RunePageDimension_RejectsAPageItAlreadyHolds()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var db = _fixture.CreateDbContext();
         db.ChampionDimRunePages.Add(BuildRunePage(secondary1: 8444, secondary2: 8451));
         await db.SaveChangesAsync();
@@ -40,8 +42,6 @@ public sealed class ChampionDimensionIdentityIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task RunePageDimension_RejectsThePermutationOfAPageItAlreadyHolds_EvenWithoutTheCheck()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var db = _fixture.CreateDbContext();
         db.ChampionDimRunePages.Add(BuildRunePage(secondary1: 8444, secondary2: 8451));
         await db.SaveChangesAsync();
@@ -78,8 +78,6 @@ public sealed class ChampionDimensionIdentityIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task RunePageDimension_RejectsAPageStoredInThePlayersOrder()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Nothing to collide with: this one is refused by the CHECK, so the state that
         // makes the reader mint a second row cannot be reached in the first place.
         var nonCanonical = await InsertRawRunePageAsync(secondary1: 8451, secondary2: 8444);
@@ -90,8 +88,6 @@ public sealed class ChampionDimensionIdentityIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task SpellPairDimension_RejectsBothTheSwapAndTheUnsortedRow()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var db = _fixture.CreateDbContext();
         db.ChampionDimSpellPairs.Add(new ChampionDimSpellPair { Spell1Id = 4, Spell2Id = 14 });
         await db.SaveChangesAsync();
@@ -108,8 +104,6 @@ public sealed class ChampionDimensionIdentityIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task StarterItemsDimension_RejectsTheSameBasketInAnotherOrder()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var db = _fixture.CreateDbContext();
         db.ChampionDimStarterItems.Add(new ChampionDimStarterItems { StarterItems = [1055, 2003, 2003] });
         await db.SaveChangesAsync();
@@ -127,8 +121,6 @@ public sealed class ChampionDimensionIdentityIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task StarterItemsDimension_KeepsMultiplicityAndKeepsTheEmptyBasketSingle()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var db = _fixture.CreateDbContext();
         db.ChampionDimStarterItems.Add(new ChampionDimStarterItems { StarterItems = [2003, 1055] });
         db.ChampionDimStarterItems.Add(new ChampionDimStarterItems { StarterItems = [2003, 2003, 1055] });
@@ -152,8 +144,6 @@ public sealed class ChampionDimensionIdentityIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task Resolver_ReturnsTheExistingRow_WhenAskedForItsPermutation()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var resolver = new ChampionDimensionResolver(new TestDbContextFactory(_fixture));
 
         var first = await resolver.ResolveAsync(

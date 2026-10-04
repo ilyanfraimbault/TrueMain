@@ -15,7 +15,7 @@ namespace TrueMain.IntegrationTests;
 /// paging, filters, the 400s and the lenient sort.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionDirectoryApiIntegrationTests
+public sealed class ChampionDirectoryApiIntegrationTests : IAsyncLifetime
 {
     private const int SeededLines = 60;
 
@@ -26,10 +26,13 @@ public sealed class ChampionDirectoryApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetDirectoryPageAsync_defaults_to_the_first_fifty_lines_by_pick_rate()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedLinesAsync();
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -47,7 +50,6 @@ public sealed class ChampionDirectoryApiIntegrationTests
     [Fact]
     public async Task GetDirectoryPageAsync_pages_through_every_line_once()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedLinesAsync();
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -67,7 +69,6 @@ public sealed class ChampionDirectoryApiIntegrationTests
     [Fact]
     public async Task GetDirectoryPageAsync_orders_by_the_requested_column_and_direction()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedLinesAsync();
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -81,7 +82,6 @@ public sealed class ChampionDirectoryApiIntegrationTests
     [Fact]
     public async Task GetDirectoryPageAsync_falls_back_to_the_default_order_on_an_unknown_sort()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedLinesAsync();
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -94,7 +94,6 @@ public sealed class ChampionDirectoryApiIntegrationTests
     [Fact]
     public async Task GetDirectoryPageAsync_narrows_to_a_lane_and_to_a_champion()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedLinesAsync();
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -117,7 +116,6 @@ public sealed class ChampionDirectoryApiIntegrationTests
     [InlineData("eloBracket=JUNK")]
     public async Task GetDirectoryPageAsync_rejects_an_invalid_parameter(string query)
     {
-        await _fixture.ResetDatabaseAsync();
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 

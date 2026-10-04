@@ -12,12 +12,15 @@ namespace TrueMain.IntegrationTests;
 /// visits while idle accounts consumed slots.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fixture)
+public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
+    public async ValueTask InitializeAsync() => await fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Claim_PrefersTheAccountThatPlayed_OverTheOneVisitedLongestAgo()
     {
-        await fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // The idle account was visited far longer ago and would win on age alone.
@@ -32,7 +35,6 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task Claim_OrdersByHowManyGamesWerePlayed()
     {
-        await fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedMainAsync("few", lastMatchIngestAtUtc: now.AddDays(-1), ladderGames: 505, ladderGamesAtLastIngest: 500);
@@ -47,7 +49,6 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task Claim_FallsBackToAgeForAccountsWithNoLadderReading()
     {
-        await fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Below the swept tiers, or unranked: no reading ever carried wins/losses, so the
@@ -64,7 +65,6 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task Claim_TreatsAnUnknownBaselineAsOwingNothing()
     {
-        await fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // The transitional state right after the deploy: the ladder sweep has filled in
@@ -84,7 +84,6 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task Claim_StillTakesNeverIngestedAccountsFirst()
     {
-        await fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedMainAsync("played-a-lot", lastMatchIngestAtUtc: now.AddDays(-1), ladderGames: 600, ladderGamesAtLastIngest: 500);
@@ -98,7 +97,6 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task Claim_TreatsASeasonResetAsNoGamesOwed_RatherThanAsNegative()
     {
-        await fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // A Riot season reset restarts wins/losses from the bottom, so the raw difference
@@ -116,7 +114,6 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
     [Fact]
     public async Task MarkingAnIngest_ResetsTheOwedBaselineInTheSameStatement()
     {
-        await fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedMainAsync("played", lastMatchIngestAtUtc: now.AddDays(-1), ladderGames: 560, ladderGamesAtLastIngest: 500);

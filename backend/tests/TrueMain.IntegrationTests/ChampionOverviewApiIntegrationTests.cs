@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// <c>ChampionOverviewQueryServiceTests</c> against a mocked summaries result.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionOverviewApiIntegrationTests
+public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -26,11 +26,13 @@ public sealed class ChampionOverviewApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetOverviewAsync_SumsEveryAggregatedGame_IncludingBelowFloorAndPositionLessRows()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         var accountId = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
@@ -101,8 +103,6 @@ public sealed class ChampionOverviewApiIntegrationTests
     [Fact]
     public async Task GetOverviewAsync_LimitQueryParamTruncatesTopRows()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         var accountId = Guid.Parse("66666666-6666-6666-6666-666666666666");
 
@@ -163,7 +163,6 @@ public sealed class ChampionOverviewApiIntegrationTests
         // not one of its lines clears the sample floor: serving it printed an empty
         // directory, an empty tier list and a two-digit "games analyzed" on the
         // homepage while 16.15 sat beside it with a full patch of data.
-        await _fixture.ResetDatabaseAsync();
         await SeedThinNewPatchAsync(Guid.Parse("77777777-7777-7777-7777-777777777777"), "overview-puuid-3");
 
         await using var factory = new ApiWebApplicationFactory(
@@ -195,8 +194,6 @@ public sealed class ChampionOverviewApiIntegrationTests
     {
         // The walk is not one step deep: with two thin patches stacked up, the served
         // patch is the third one down.
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         var accountId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
@@ -253,7 +250,6 @@ public sealed class ChampionOverviewApiIntegrationTests
     {
         // The documented off-switch: MinServablePatchLines = 0 restores the pre-#1109
         // rule, newest patch with any row at all.
-        await _fixture.ResetDatabaseAsync();
         await SeedThinNewPatchAsync(Guid.Parse("88888888-8888-8888-8888-888888888888"), "overview-puuid-4");
 
         await using var factory = new ApiWebApplicationFactory(

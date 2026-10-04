@@ -14,7 +14,7 @@ namespace TrueMain.IntegrationTests;
 /// Riot, so every case here is a database-only lookup.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionMainsComparisonApiIntegrationTests
+public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420; // Ranked Solo/Duo, matched by MainAnalysis:QueueId below.
     private const int Champion = 157; // Yone
@@ -35,10 +35,13 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetMainsComparisonAsync_ReturnsUnknownAccountForAnUntrackedRiotId()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -62,7 +65,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_ComparesAgainstThePoolOfMains()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -124,7 +126,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_WithoutAPatchSpansEveryStoredPatch()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -143,7 +144,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_WithMainTargetsThatSinglePlayer()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -168,7 +168,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_ReturnsUnknownTargetButKeepsThePlayerColumn()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -199,7 +198,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_TargetingYourselfYieldsTwoIdenticalColumns()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -236,7 +234,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_TargetsAnyTrackedAccountNotJustAMain()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -262,7 +259,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_AcceptsTheSlugFormAndIgnoresCase()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -283,7 +279,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_DoesNotTreatWildcardsInTheNameAsPatterns()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -300,7 +295,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_FlagsAThinPlayerSample()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedThinPlayerSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -322,8 +316,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_ReturnsBadRequestWithoutAnAccount()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -338,8 +330,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [InlineData("Two#Hash#es")]
     public async Task GetMainsComparisonAsync_ReturnsBadRequestForAMalformedAccount(string account)
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -354,8 +344,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_ReturnsBadRequestForAnOverlongAccount()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -370,7 +358,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_ReturnsBadRequestForAMalformedMain()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedComparisonSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -387,8 +374,6 @@ public sealed class ChampionMainsComparisonApiIntegrationTests
     [Fact]
     public async Task GetMainsComparisonAsync_ReturnsBadRequestForAnInvalidPosition()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 

@@ -15,7 +15,7 @@ namespace TrueMain.IntegrationTests;
 /// keeps working without a frontend change.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class LogsApiIntegrationTests
+public sealed class LogsApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _postgres;
@@ -27,10 +27,17 @@ public sealed class LogsApiIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync()
+    {
+        await _postgres.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetLogsAsync_ShouldReturnNewestFirstWithStableShape()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         await using var factory = CreateFactory();
@@ -73,7 +80,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldFilterByMinimumLevel()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         await using var factory = CreateFactory();
@@ -91,7 +97,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldSearchMessageAndExceptionCaseInsensitively()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         await using var factory = CreateFactory();
@@ -111,7 +116,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldFilterByCategoryPrefixCaseInsensitively()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         await using var factory = CreateFactory();
@@ -130,7 +134,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldFilterBySinceExcludingOlderEntries()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         await using var factory = CreateFactory();
@@ -159,7 +162,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldPageAndReportUnpagedTotal()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         await using var factory = CreateFactory();
@@ -186,7 +188,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldFilterByEventTypeAndExposeKnownEventTypes()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         // Two named domain events among the plain diagnostics (#444). The filter
@@ -236,7 +237,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldFilterByProcessCaseInsensitivelyAndExposeCatalog()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         await using var factory = CreateFactory();
@@ -261,7 +261,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldFilterToExceptionCarryingRows()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         await using var factory = CreateFactory();
@@ -281,7 +280,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldClampPageSizeToCeiling()
     {
-        await ResetAsync();
         await SeedLogsAsync();
 
         await using var factory = CreateFactory();
@@ -296,8 +294,6 @@ public sealed class LogsApiIntegrationTests
     [Fact]
     public async Task GetLogsAsync_ShouldRequireOpsApiKey()
     {
-        await ResetAsync();
-
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -306,12 +302,6 @@ public sealed class LogsApiIntegrationTests
 
         var response = await client.GetAsync("/ops/logs");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    private async Task ResetAsync()
-    {
-        await _postgres.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
     }
 
     private ApiWebApplicationFactory CreateFactory() => new(_postgres, _mongo);

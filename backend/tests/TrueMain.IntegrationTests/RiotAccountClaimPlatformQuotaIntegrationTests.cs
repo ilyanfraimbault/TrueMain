@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class RiotAccountClaimPlatformQuotaIntegrationTests
+public sealed class RiotAccountClaimPlatformQuotaIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -26,10 +26,13 @@ public sealed class RiotAccountClaimPlatformQuotaIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task ClaimAsync_RespectsPerPlatformQuotas_WhenOneRegionDominatesThePool()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // The prod shape, scaled down: EUW1 has 30 claimable accounts, KR and NA1 have 10.
@@ -54,7 +57,6 @@ public sealed class RiotAccountClaimPlatformQuotaIntegrationTests
     [Fact]
     public async Task ClaimAsync_SpillsAnUnfillableQuota_RatherThanShrinkingTheBatch()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // KR is allocated 6 but only has 2 claimable accounts. A quota is a floor, not a
@@ -82,7 +84,6 @@ public sealed class RiotAccountClaimPlatformQuotaIntegrationTests
     [Fact]
     public async Task ClaimAsync_KeepsNullsFirstWithinAPlatform()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Two KR accounts: one already ingested an hour ago, one never ingested. Scoping the
@@ -98,7 +99,6 @@ public sealed class RiotAccountClaimPlatformQuotaIntegrationTests
     [Fact]
     public async Task ClaimAsync_KeepsARaceReserve_WhenASinglePlatformTakesTheWholeBatch()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // The narrow case: one platform whose quota IS the batch. Scoping the fetch to the

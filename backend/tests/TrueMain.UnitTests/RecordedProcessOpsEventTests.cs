@@ -5,7 +5,6 @@ using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging;
-using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 

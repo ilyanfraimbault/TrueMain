@@ -8,7 +8,7 @@ using TrueMain.ReadModels.Truemains;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class TruemainsProfileApiIntegrationTests
+public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -17,11 +17,13 @@ public sealed class TruemainsProfileApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetProfile_returns_404_for_unknown_nameTag()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -39,8 +41,6 @@ public sealed class TruemainsProfileApiIntegrationTests
     [InlineData("TrailingHyphen-")]
     public async Task GetProfile_returns_404_for_malformed_nameTag(string nameTag)
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -55,7 +55,6 @@ public sealed class TruemainsProfileApiIntegrationTests
     [Fact]
     public async Task GetProfile_returns_identity_ranked_mains_and_aggregated_positions()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var accountId = Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -208,7 +207,6 @@ public sealed class TruemainsProfileApiIntegrationTests
         // the opposite of the truth. Pinned here with the two flags set differently, and
         // with MeasuredAtUtc checked against CalculatedAtUtc — the date is what lets the UI
         // say "as of 2 Jul" instead of presenting a dead count as current.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
         var measuredAt = now.AddDays(-23);
 
@@ -294,7 +292,6 @@ public sealed class TruemainsProfileApiIntegrationTests
     [Fact]
     public async Task GetProfile_picks_most_recently_active_platform_on_collision()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Same (gameName, tagLine), two platforms. The EUW1 row was last

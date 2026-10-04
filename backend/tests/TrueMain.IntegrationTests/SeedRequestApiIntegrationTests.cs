@@ -10,7 +10,7 @@ using MongoDB.Driver;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class SeedRequestApiIntegrationTests
+public sealed class SeedRequestApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -22,12 +22,17 @@ public sealed class SeedRequestApiIntegrationTests
         _mongo = mongo;
     }
 
-    [Fact]
-    public async Task PostSeed_ShouldRecordPendingRequestAndReturn202()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetDatabaseAsync();
         await _mongo.ResetAsync();
+    }
 
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task PostSeed_ShouldRecordPendingRequestAndReturn202()
+    {
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
@@ -55,9 +60,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task PostSeed_ShouldBeIdempotent_ForAnUnprocessedDuplicate()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
@@ -82,9 +84,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task PostSeed_ShouldReturn400_ForUnknownPlatform()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
@@ -100,9 +99,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task PostSeed_ShouldReturn400_ForMissingGameName()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
@@ -116,9 +112,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task GetSeedById_ShouldReturnStableShape()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         var id = Guid.NewGuid();
         await Requests().InsertOneAsync(new SeedRequestDocument
         {
@@ -155,9 +148,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task GetSeedById_ShouldReturn404_WhenUnknown()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
@@ -168,9 +158,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task GetSeedList_ShouldReturnNewestFirstAndFilterByStatus()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         var now = DateTime.UtcNow;
         await Requests().InsertManyAsync(
         [
@@ -201,9 +188,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task GetSeedList_ShouldPageWithoutRepeatingOrDroppingARow()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         // All five share one RequestedAtUtc — the shape a bulk seeder run produces, and
         // the one that makes paging unstable unless the sort breaks ties on id.
         var sameInstant = DateTime.UtcNow.AddMinutes(-5);
@@ -238,9 +222,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task GetSeedList_ShouldFindARowByItsFullRiotId()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         var now = DateTime.UtcNow;
         await Requests().InsertManyAsync(
         [
@@ -278,9 +259,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task GetSeedList_ShouldRejectAnUnknownRegionInsteadOfReturningNothing()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await Requests().InsertOneAsync(
             Build("Somebody", SeedRequestStatus.Pending, DateTime.UtcNow));
 
@@ -296,9 +274,6 @@ public sealed class SeedRequestApiIntegrationTests
     [Fact]
     public async Task SeedEndpoints_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

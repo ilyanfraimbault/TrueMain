@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ScoringProcessIntegrationTests
+public sealed class ScoringProcessIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -17,10 +17,13 @@ public sealed class ScoringProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ShouldScoreCandidatesAndQueueTopEntriesPerPlatform()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedCandidatesAsync();
 
         var process = new ScoringProcess(
@@ -60,7 +63,6 @@ public sealed class ScoringProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldQueueHighestScoreEvenAcrossMultipleScoringBatches()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedCandidatesAsync();
 
         var process = new ScoringProcess(

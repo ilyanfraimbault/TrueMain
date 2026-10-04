@@ -15,7 +15,7 @@ namespace TrueMain.IntegrationTests;
 /// wrong-but-plausible number this whole feature exists to stop showing.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MongoStorageStatsReaderIntegrationTests
+public sealed class MongoStorageStatsReaderIntegrationTests : IAsyncLifetime
 {
     private readonly MongoFixture _mongo;
 
@@ -24,10 +24,13 @@ public sealed class MongoStorageStatsReaderIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetAsync_ReportsRealPerCollectionAndDatabaseSizes()
     {
-        await _mongo.ResetAsync();
         await SeedAsync(MongoFixture.LogsCollection, documents: 500);
         await SeedAsync(MongoFixture.AuditCollection, documents: 50);
 
@@ -60,7 +63,6 @@ public sealed class MongoStorageStatsReaderIntegrationTests
     [Fact]
     public async Task GetAsync_SkipsViews()
     {
-        await _mongo.ResetAsync();
         await SeedAsync(MongoFixture.LogsCollection, documents: 10);
 
         // A view has no storage of its own, and asking one for storageStats is an

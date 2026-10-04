@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// path lets a secret out.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class EffectiveConfigurationApiIntegrationTests
+public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
 
@@ -30,11 +30,17 @@ public sealed class EffectiveConfigurationApiIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync()
+    {
+        await _postgres.ResetDatabaseAsync();
+        await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Requires_the_ops_api_key()
     {
-        await ResetAsync();
-
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -49,8 +55,6 @@ public sealed class EffectiveConfigurationApiIntegrationTests
     [Fact]
     public async Task Returns_the_api_snapshot_with_a_stable_shape_even_when_nothing_was_published()
     {
-        await ResetAsync();
-
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
@@ -89,8 +93,6 @@ public sealed class EffectiveConfigurationApiIntegrationTests
     [Fact]
     public async Task Never_exposes_a_secret_bearing_key_from_a_section_that_holds_one()
     {
-        await ResetAsync();
-
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
@@ -120,8 +122,6 @@ public sealed class EffectiveConfigurationApiIntegrationTests
     [Fact]
     public async Task Marks_a_value_the_container_really_overrides_and_clears_its_notice()
     {
-        await ResetAsync();
-
         await using var unset = CreateFactory();
         using var unsetClient = CreateClient(unset);
         var unsetPayload = await unsetClient.GetFromJsonAsync<ConfigurationTestContract>("/ops/configuration");
@@ -154,7 +154,6 @@ public sealed class EffectiveConfigurationApiIntegrationTests
     [Fact]
     public async Task Merges_the_published_ingestor_snapshot_beside_the_live_api_one()
     {
-        await ResetAsync();
         var publishedAt = DateTime.UtcNow.AddHours(-6);
         await PublishAsync("Ingestor", publishedAt, "9.9.9");
 
@@ -182,7 +181,6 @@ public sealed class EffectiveConfigurationApiIntegrationTests
     [Fact]
     public async Task Lets_the_live_api_snapshot_shadow_a_stale_one_some_past_build_published()
     {
-        await ResetAsync();
         // A document written by an older build of this same process. Serving it would tell
         // an operator the Api runs on settings it demonstrably does not.
         await PublishAsync("Api", DateTime.UtcNow.AddDays(-30), "0.0.1-stale");
@@ -241,12 +239,6 @@ public sealed class EffectiveConfigurationApiIntegrationTests
                 }
             ]
         });
-    }
-
-    private async Task ResetAsync()
-    {
-        await _postgres.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
     }
 
     private ApiWebApplicationFactory CreateFactory() => new(_postgres, _mongo);

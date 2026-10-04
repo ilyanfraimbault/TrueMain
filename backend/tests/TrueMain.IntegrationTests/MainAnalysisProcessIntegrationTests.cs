@@ -14,7 +14,7 @@ using Npgsql;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class MainAnalysisProcessIntegrationTests
+public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
 {
     // Raised by the trigger the rollback test installs on main_candidates, and
     // asserted on the exception it expects — one literal so the two cannot drift.
@@ -27,10 +27,13 @@ public sealed class MainAnalysisProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ShouldPersistReusableMainAndOtpClassification()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedValidatedAccountWithMatchesAsync();
 
         var process = new MainAnalysisProcess(
@@ -82,7 +85,6 @@ public sealed class MainAnalysisProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldFlagExtendedSample_ForUnderCoveredChampion()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedUnderCoveredScenarioAsync();
 
         var process = new MainAnalysisProcess(
@@ -130,7 +132,6 @@ public sealed class MainAnalysisProcessIntegrationTests
         // its displayed main freezes forever. Here the stale main (champ 100) has
         // no recent games and the account now plays champ 200 exclusively, so the
         // recompute must move the main to 200 and drop the stale 100.
-        await _fixture.ResetDatabaseAsync();
         await SeedEstablishedMainAsync(
             puuid: "puuid-stale-1",
             candidateStatus: MainCandidateStatus.Queued,
@@ -160,7 +161,6 @@ public sealed class MainAnalysisProcessIntegrationTests
         // leaderboard on a sample we deem insufficient, so the main must be left
         // intact — but the calc timestamp is still stamped so the account waits a
         // full cycle before we retry.
-        await _fixture.ResetDatabaseAsync();
         await SeedEstablishedMainAsync(
             puuid: "puuid-thin-1",
             candidateStatus: MainCandidateStatus.Queued,
@@ -194,7 +194,6 @@ public sealed class MainAnalysisProcessIntegrationTests
         // unflagged the guard above holds forever, leaving the row asserting a game count
         // nothing can corroborate. The row must survive (deleting it would drop the player
         // off the leaderboard the moment their matches expire) but be marked.
-        await _fixture.ResetDatabaseAsync();
         await SeedEstablishedMainAsync(
             puuid: "puuid-retired-1",
             candidateStatus: MainCandidateStatus.Queued,
@@ -220,7 +219,6 @@ public sealed class MainAnalysisProcessIntegrationTests
     {
         // The flag is self-clearing: an account that gets re-ingested must be trusted
         // again on the very cycle that sees real games, without waiting for anything else.
-        await _fixture.ResetDatabaseAsync();
         await SeedEstablishedMainAsync(
             puuid: "puuid-restored-1",
             candidateStatus: MainCandidateStatus.Queued,
@@ -250,7 +248,6 @@ public sealed class MainAnalysisProcessIntegrationTests
         // Clearing the flag there would put the untouched, weeks-old count back on the
         // profile as an undated current number: the original bug, on a narrower
         // threshold. Only a real recompute (UpsertChampionStats) may un-retire a row.
-        await _fixture.ResetDatabaseAsync();
         await SeedEstablishedMainAsync(
             puuid: "puuid-kept-1",
             candidateStatus: MainCandidateStatus.Queued,
@@ -280,7 +277,6 @@ public sealed class MainAnalysisProcessIntegrationTests
         // the LastMainCalcAtUtc stamp and the candidate demotion must still commit —
         // or roll back — as a single unit: a failing demotion may not leave the stat
         // writes committed on their own.
-        await _fixture.ResetDatabaseAsync();
         await SeedEstablishedMainAsync(
             puuid: "puuid-rollback-1",
             candidateStatus: MainCandidateStatus.Validated,

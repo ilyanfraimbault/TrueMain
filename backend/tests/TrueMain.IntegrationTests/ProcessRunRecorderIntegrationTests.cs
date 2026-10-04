@@ -15,7 +15,7 @@ namespace TrueMain.IntegrationTests;
 /// of the admin-portal data).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ProcessRunRecorderIntegrationTests
+public sealed class ProcessRunRecorderIntegrationTests : IAsyncLifetime
 {
     private readonly MongoFixture _mongo;
 
@@ -24,11 +24,13 @@ public sealed class ProcessRunRecorderIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RecordStartThenSuccess_StampsTheCurrentIteration_OnTheFinalisedRun()
     {
-        await _mongo.ResetAsync();
-
         var iterationContext = new IterationContext();
         using var context = BuildContext();
         var recorder = new ProcessRunRecorder(new ProcessRunStore(context), iterationContext);
@@ -66,8 +68,6 @@ public sealed class ProcessRunRecorderIntegrationTests
     [Fact]
     public async Task RecordAsync_PersistsTheSummaryWithItsCamelCaseKeys()
     {
-        await _mongo.ResetAsync();
-
         using var context = BuildContext();
         var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
         var startedAt = DateTime.UtcNow;
@@ -109,8 +109,6 @@ public sealed class ProcessRunRecorderIntegrationTests
     [Fact]
     public async Task RecordStart_OutsideAnyIteration_LeavesIterationNull()
     {
-        await _mongo.ResetAsync();
-
         using var context = BuildContext();
         var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
 
@@ -124,8 +122,6 @@ public sealed class ProcessRunRecorderIntegrationTests
     [Fact]
     public async Task ReconcileOrphanedRunsAsync_FlipsOnlyRunningRunsToAbandoned()
     {
-        await _mongo.ResetAsync();
-
         var startedAt = DateTime.UtcNow.AddMinutes(-10);
 
         // An orphaned in-flight run (its owning process died) and a settled
@@ -178,8 +174,6 @@ public sealed class ProcessRunRecorderIntegrationTests
     [Fact]
     public async Task ReconcileOrphanedRunsAsync_LeavesAnotherLanesRunningRunAlone()
     {
-        await _mongo.ResetAsync();
-
         var startedAt = DateTime.UtcNow.AddMinutes(-3);
         var ownId = Guid.NewGuid();
         var otherLaneId = Guid.NewGuid();
@@ -225,8 +219,6 @@ public sealed class ProcessRunRecorderIntegrationTests
     [Fact]
     public async Task ReconcileOrphanedRunsAsync_ReturnsZero_WhenNothingIsRunning()
     {
-        await _mongo.ResetAsync();
-
         var startedAt = DateTime.UtcNow.AddMinutes(-5);
         await Collection().InsertOneAsync(new ProcessRunDocument
         {

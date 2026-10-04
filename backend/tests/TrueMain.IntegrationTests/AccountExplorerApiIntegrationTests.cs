@@ -19,7 +19,7 @@ namespace TrueMain.IntegrationTests;
 /// deserve its own seed.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class AccountExplorerApiIntegrationTests
+public sealed class AccountExplorerApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -37,11 +37,17 @@ public sealed class AccountExplorerApiIntegrationTests
         _mongo = mongo;
     }
 
-    [Fact]
-    public async Task GetAccountExplorer_TrackedAccount_ReturnsTrackedStateWithActiveMain()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetDatabaseAsync();
         await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task GetAccountExplorer_TrackedAccount_ReturnsTrackedStateWithActiveMain()
+    {
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -86,8 +92,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_CandidateOnly_ReturnsCandidateOnlyState()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -128,8 +132,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_AllMainsDeactivated_ReturnsRetiredStateWithDeactivationNote()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -174,8 +176,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_InvalidAccount_ReturnsInvalidatedState()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -206,8 +206,6 @@ public sealed class AccountExplorerApiIntegrationTests
         // RiotAccountStatus.Active before either membership arm matters, so this
         // account is never actually selected for ingestion — tracking.isTracked
         // must agree with that, or the page contradicts its own state banner.
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
         const string puuid = "puuid-invalid-with-stale-main-euw";
 
@@ -253,8 +251,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_NoAccountButSeedRequestExists_ReturnsSeedRequestedOnlyState()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
 
         await _mongo.GetCollection<SeedRequestDocument>(MongoFixture.SeedRequestsCollection)
@@ -286,8 +282,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_AnalysedButNoMainCleared_ReturnsNotAMainState()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
         const string puuid = "puuid-not-a-main-euw";
 
@@ -326,8 +320,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_AccountWithNothingElse_ReturnsDiscoveredState()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -351,8 +343,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_SameRiotIdAcrossRegions_ListsOtherAccounts()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -386,9 +376,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_UnknownRiotId_Returns200WithNeverDiscoveredState()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
@@ -406,8 +393,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_AggregatesOutliveParticipants_ReportsPruned()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -488,9 +473,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_MalformedRiotId_Returns400()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
@@ -503,9 +485,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_UnknownRegion_Returns400()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
@@ -517,9 +496,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task AccountsSeedLiteralRoute_StillResolvesToSeedList_NotAccountExplorer()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
@@ -541,9 +517,6 @@ public sealed class AccountExplorerApiIntegrationTests
     [Fact]
     public async Task GetAccountExplorer_RequiresOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

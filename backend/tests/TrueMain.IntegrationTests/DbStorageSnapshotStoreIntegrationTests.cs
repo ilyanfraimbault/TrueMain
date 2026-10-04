@@ -13,7 +13,7 @@ namespace TrueMain.IntegrationTests;
 /// discriminator, and the fact that two engines genuinely share object names.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class DbStorageSnapshotStoreIntegrationTests
+public sealed class DbStorageSnapshotStoreIntegrationTests : IAsyncLifetime
 {
     private static readonly DateTime Day = new(2026, 8, 5, 9, 30, 0, DateTimeKind.Utc);
 
@@ -24,10 +24,13 @@ public sealed class DbStorageSnapshotStoreIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task UpsertDayAsync_KeepsBothEnginesForAnObjectNameTheyShare()
     {
-        await _mongo.ResetAsync();
         using var context = BuildContext();
         var store = new DbStorageSnapshotStore(context);
 
@@ -56,7 +59,6 @@ public sealed class DbStorageSnapshotStoreIntegrationTests
     [Fact]
     public async Task UpsertDayAsync_RefreshesTheDayInPlaceRatherThanAppending()
     {
-        await _mongo.ResetAsync();
         using var context = BuildContext();
         var store = new DbStorageSnapshotStore(context);
 
@@ -76,8 +78,6 @@ public sealed class DbStorageSnapshotStoreIntegrationTests
     [Fact]
     public async Task UpsertDayAsync_StampsPreExistingDocumentsAsPostgres()
     {
-        await _mongo.ResetAsync();
-
         // A document exactly as #925 wrote it: no engine field at all. Left unstamped,
         // the engine-filtered upsert would not match it and would insert a second
         // document for the same day and table — which the read sums, silently doubling
@@ -110,7 +110,6 @@ public sealed class DbStorageSnapshotStoreIntegrationTests
     [Fact]
     public async Task EnsureIndexes_ReplacesTheLegacyUniqueIndexWithTheEngineAwareOne()
     {
-        await _mongo.ResetAsync();
         var collection = _mongo.GetCollection<DbTableSizeSnapshotDocument>(
             MongoFixture.DbTableSizeSnapshotsCollection);
 

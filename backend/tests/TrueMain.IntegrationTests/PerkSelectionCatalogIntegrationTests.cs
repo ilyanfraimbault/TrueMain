@@ -9,7 +9,7 @@ using Npgsql;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class PerkSelectionCatalogIntegrationTests
+public sealed class PerkSelectionCatalogIntegrationTests : IAsyncLifetime
 {
     private const string PreNormalizationMigration = "20260209140655_AddMatchIngestLeaseAndTimelineIngested";
     private readonly PostgresFixture _fixture;
@@ -19,12 +19,19 @@ public sealed class PerkSelectionCatalogIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Migration_ShouldBackfillCatalogAndReferences()
     {
-        await using (var db = _fixture.CreateDbContext())
+        // Replaying the history from an intermediate migration happens on a database of
+        // its own, never on the shared one every other test runs against.
+        await using var scratch = _fixture.CreateScratchDatabase();
+
+        await using (var db = scratch.CreateDbContext())
         {
-            await db.Database.EnsureDeletedAsync();
             var migrator = db.Database.GetService<IMigrator>();
             await migrator.MigrateAsync(PreNormalizationMigration);
 
@@ -51,7 +58,7 @@ public sealed class PerkSelectionCatalogIntegrationTests
             await migrator.MigrateAsync();
         }
 
-        await using var verifyDb = _fixture.CreateDbContext();
+        await using var verifyDb = scratch.CreateDbContext();
         var links = await verifyDb.ParticipantPerkSelections.AsNoTracking().ToListAsync();
         var catalogById = await verifyDb.PerkSelectionCatalogs.AsNoTracking().ToDictionaryAsync(item => item.Id);
 
@@ -85,14 +92,12 @@ public sealed class PerkSelectionCatalogIntegrationTests
             StyleDescription = "primaryStyle"
         });
 
-        await AssertParticipantPerkSelectionsSchemaAsync();
+        await AssertParticipantPerkSelectionsSchemaAsync(scratch.ConnectionString);
     }
 
     [Fact]
     public async Task GetOrCreatePerkCatalogIdsAsync_ShouldNotCreateDuplicatesUnderConcurrency()
     {
-        await _fixture.ResetDatabaseAsync();
-
         PerkCatalogKey[] keys =
         [
             new(8000, 0, 8005, "primaryStyle"),
@@ -123,9 +128,9 @@ public sealed class PerkSelectionCatalogIntegrationTests
         return await repository.GetOrCreatePerkCatalogIdsAsync(keys, CancellationToken.None);
     }
 
-    private async Task AssertParticipantPerkSelectionsSchemaAsync()
+    private static async Task AssertParticipantPerkSelectionsSchemaAsync(string connectionString)
     {
-        await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
+        await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync();
 
         await using var command = new NpgsqlCommand(

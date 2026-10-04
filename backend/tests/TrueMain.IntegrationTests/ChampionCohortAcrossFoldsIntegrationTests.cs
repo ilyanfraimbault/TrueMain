@@ -32,7 +32,7 @@ namespace TrueMain.IntegrationTests;
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionCohortAcrossFoldsIntegrationTests
+public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const string Platform = "KR";
@@ -68,10 +68,13 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Every_panel_on_the_champion_page_counts_the_same_games()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedCorpusAsync();
 
         await RunEveryFoldAsync();
@@ -117,7 +120,6 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests
     [Fact]
     public async Task No_fold_counts_a_remake()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedCorpusAsync();
 
         await RunEveryFoldAsync();

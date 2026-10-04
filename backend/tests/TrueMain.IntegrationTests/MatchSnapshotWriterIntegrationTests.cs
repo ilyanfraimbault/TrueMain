@@ -11,7 +11,7 @@ using Ingestor.Riot.Dto;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchSnapshotWriterIntegrationTests
+public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -40,11 +40,13 @@ public sealed class MatchSnapshotWriterIntegrationTests
         return await service.WriteAsync(session, plan, platformId, puuid, saveBatchSize, ct);
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldPersistRawMatchParticipantsAndPerks()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
         var service = new MatchSnapshotWriter(
             new FakeRiotMatchClient(),
@@ -105,7 +107,6 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldSkipAlreadyPersistedMatches()
     {
-        await _fixture.ResetDatabaseAsync();
         var service = new MatchSnapshotWriter(
             new FakeRiotMatchClient(),
             TimeProvider.System,
@@ -151,7 +152,6 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldBackfillTrackedRiotAccountIdForExistingMatches()
     {
-        await _fixture.ResetDatabaseAsync();
         var service = new MatchSnapshotWriter(
             new FakeRiotMatchClient(),
             TimeProvider.System,
@@ -237,7 +237,6 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldAssignKnownRiotAccountIdsForAllKnownParticipantsInANewMatch()
     {
-        await _fixture.ResetDatabaseAsync();
         var service = new MatchSnapshotWriter(
             new FakeRiotMatchClient(),
             TimeProvider.System,
@@ -306,8 +305,6 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldSkipMatchesFromOtherQueues()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
         var service = new MatchSnapshotWriter(
             new FakeRiotMatchClient(queueId: (int)LolQueueId.RankedFlex),
@@ -346,8 +343,6 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldReactivateTheMainItSeesPlayed_AndStampMainAccounts()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // puuid-2 holds two inactive mains; the fake match shows it on 51 only. puuid-1 is a
         // known account with no main at all.
         await SeedAccountAsync("puuid-1");
@@ -381,7 +376,6 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldNotReactivateAMain_FromAGameOlderThanTheActivityWindow()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync("puuid-2");
         await SeedMainStatAsync("puuid-2", championId: 51);
 

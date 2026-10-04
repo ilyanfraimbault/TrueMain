@@ -5,7 +5,7 @@ using AwesomeAssertions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class RiotAccountClaimIntegrationTests
+public sealed class RiotAccountClaimIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -14,10 +14,13 @@ public sealed class RiotAccountClaimIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task ClaimAccountsForMatchIngestAtomicallyAsync_ShouldClaimDisjointAccountsAcrossParallelWorkers()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedClaimableAccountsAsync(4, MatchIngestStatus.Idle, null);
 
         var now = DateTime.UtcNow;
@@ -41,7 +44,6 @@ public sealed class RiotAccountClaimIntegrationTests
     [Fact]
     public async Task ClaimAccountsForMatchIngestAtomicallyAsync_ShouldReclaimExpiredProcessingAccounts()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedClaimableAccountsAsync(1, MatchIngestStatus.Processing, now.AddHours(-2));
@@ -67,7 +69,6 @@ public sealed class RiotAccountClaimIntegrationTests
         // #900: depth over breadth. Eight accounts compete for a batch of four — four are
         // active established mains, four are brand-new queued candidates. With a 0.75 share
         // three of the four slots must go to the mains, whatever their ingest recency.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedEstablishedMainsAsync(4, lastMatchIngestAtUtc: now.AddHours(-1));
@@ -94,7 +95,6 @@ public sealed class RiotAccountClaimIntegrationTests
         // #1533: a saturated platform spends on depth, a thin one on breadth. Both platforms
         // offer four established mains and four queued candidates for a quota of four; the
         // single scalar this replaced (their mean, 0.5) would have split both 2/2.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         foreach (var platform in new[] { "KR", "EUW1" })
@@ -126,7 +126,6 @@ public sealed class RiotAccountClaimIntegrationTests
     {
         // An inactive main must stop consuming match-v5 calls entirely (#900); with no
         // queued candidate to fall back on, the claim comes back empty.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await SeedEstablishedMainsAsync(2, lastMatchIngestAtUtc: now.AddDays(-5), isActive: false);
@@ -150,7 +149,6 @@ public sealed class RiotAccountClaimIntegrationTests
     {
         // The share is a floor, not a partition: with no established main to serve, the
         // whole batch still goes to queued candidates rather than staying idle.
-        await _fixture.ResetDatabaseAsync();
         await SeedClaimableAccountsAsync(3, MatchIngestStatus.Idle, null);
 
         await using var db = _fixture.CreateDbContext();

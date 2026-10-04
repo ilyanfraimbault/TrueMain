@@ -10,7 +10,6 @@ using Ingestor.Riot;
 using Ingestor.Riot.Dto;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
