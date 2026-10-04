@@ -51,6 +51,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private let writer: AVAssetWriter
     private let videoInput: AVAssetWriterInput
     private let audioInput: AVAssetWriterInput?
+    private let audioTrack: AudioTrack?
     private let queue = DispatchQueue(label: "lol.truemain.capture.samples")
     private var stream: SCStream?
     private var sessionStarted = false
@@ -112,6 +113,7 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         } else {
             audioInput = nil
         }
+        audioTrack = audioInput.map(AudioTrack.init(input:))
         super.init()
     }
 
@@ -184,11 +186,11 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 
     private func appendAudio(_ buffer: CMSampleBuffer) {
-        guard sessionStarted, let audioInput, audioInput.isReadyForMoreMediaData else { return }
+        guard sessionStarted, let audioTrack else { return }
         // Sound from before the first frame would start the file before video
         // time zero.
         guard CMTimeCompare(CMSampleBufferGetPresentationTimeStamp(buffer), firstPts) >= 0 else { return }
-        audioInput.append(buffer)
+        audioTrack.append(buffer)
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
@@ -211,8 +213,9 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
         queue.sync { stopping = true }
         try? await stream?.stopCapture()
 
-        let (sessionStarted, firstPts, lastPts, frames, dropped) = queue.sync {
-            (self.sessionStarted, self.firstPts, self.lastPts, self.frames, self.dropped)
+        let (sessionStarted, firstPts, lastPts, frames, dropped, silence, droppedAudio) = queue.sync {
+            (self.sessionStarted, self.firstPts, self.lastPts, self.frames, self.dropped,
+             self.audioTrack?.silenceSeconds ?? 0, self.audioTrack?.droppedBuffers ?? 0)
         }
         defer { onStopped?() }
         guard sessionStarted, frames > 0 else {
@@ -229,10 +232,15 @@ final class Recorder: NSObject, SCStreamOutput, SCStreamDelegate {
             emit("error", ["kind": "writer", "message": writer.error?.localizedDescription ?? "unknown"])
         }
         let duration = CMTimeGetSeconds(CMTimeSubtract(lastPts, firstPts))
+        if silence > 0 || droppedAudio > 0 {
+            log("sound kept in step: \(Int((silence * 1000).rounded())) ms of silence filled, \(droppedAudio) late buffers dropped")
+        }
         emit("stopped", [
             "durationMs": Int((duration * 1000).rounded()),
             "frames": frames,
             "dropped": dropped,
+            "audioSilenceMs": Int((silence * 1000).rounded()),
+            "audioDropped": droppedAudio,
         ])
     }
 
