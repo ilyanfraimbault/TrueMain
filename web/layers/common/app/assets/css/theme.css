@@ -131,7 +131,7 @@
    * say the same thing, and a second name for one hex is how the two drift
    * apart. Unlike the rest of this block it is text and small marks only — a
    * gold fill would out-shout the accent it is meant to cap. Consumers:
-   * `MatchRow.vue` (KDA ratio, performance score) and `MatchDetailScoreboard.vue`
+   * `MatchRowKda.vue` + `MatchRowPerformance.vue` (KDA ratio, performance score) and `MatchDetailScoreboard.vue`
    * (the crown itself).
    *
    * This replaces a cold→warm axis (teal good → amber bad) shipped by #1060.
