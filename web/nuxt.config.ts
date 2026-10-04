@@ -97,8 +97,12 @@ export default defineNuxtConfig({
   //   - rendering happens in the web container, which shares a small VPS with
   //     Postgres/Mongo/the ingestor, so every render is cached and the
   //     crawler-only traffic pattern keeps it cold in practice.
-  // Fonts come from @nuxt/fonts (Inter) — the module re-downloads them in a
-  // Satori-compatible static format at build time, so no runtime font fetch.
+  // Fonts: Satori can't read the variable WOFF2 @nuxt/fonts serves the site, so
+  // at build time the module downloads static Inter files into its build cache
+  // and serves them under `/_og-static-fonts/`; each render then loads them
+  // with an internal request to that path (nothing leaves the container). The
+  // `nitro:build:public-assets` hook below makes sure those files exist before
+  // Nitro packs the public dir (#1335).
   ogImage: {
     // 1 h, mirroring the app-wide cache TTL (utils/static-cache.ts and the
     // server `defineCachedEventHandler`s). Long enough that a burst of
@@ -198,6 +202,23 @@ export default defineNuxtConfig({
     // undici-based fetcher added ~1 MB to the server output (#1622, measured).
     'nitro:config'(config) {
       config.handlers = config.handlers?.filter(handler => handler?.route !== '/_scripts/p/**')
+    },
+    // nuxt-og-image downloads its static Satori fonts (`Inter-400-normal.ttf`,
+    // ...) lazily, the first time Nitro's bundler asks for the `#og-image/fonts`
+    // virtual module — which is *after* Nitro has copied the public assets and
+    // built the manifest the server serves them from. A clean build (the Docker
+    // image) therefore shipped a font list pointing at files the server 404s,
+    // and every cold render logged `Failed to load font Inter` before falling
+    // back to the module's bundled Inter (#1335; a local rebuild hides it, the
+    // files are already in the build cache by then). Resolving the virtual
+    // module here, before the module's own hook copies its cache into the
+    // output, puts the files in place in time. Our hooks run before module
+    // hooks, and the module guards its resolution, so this only moves it earlier.
+    async 'nitro:build:public-assets'(nitro) {
+      const resolveOgFonts = nitro.options.virtual['#og-image/fonts']
+      if (typeof resolveOgFonts === 'function') {
+        await resolveOgFonts()
+      }
     },
   },
   compatibilityDate: '2026-05-15',
