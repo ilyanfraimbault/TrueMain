@@ -1,9 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 public class MatchDataRetentionOptions
 {
     public const string SectionName = "MatchDataRetention";
 
+    [Range(1, int.MaxValue)]
     public int RetainedPatchCount { get; set; } = 2;
 
     /// <summary>
@@ -14,6 +17,7 @@ public class MatchDataRetentionOptions
     /// could re-fill a tight disk — the drain makes incremental, committed progress
     /// across batches (and across runs if interrupted).
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int NonRankedDeleteBatchSize { get; set; } = 500;
 
     /// <summary>
@@ -23,6 +27,7 @@ public class MatchDataRetentionOptions
     /// timeline snapshots / kill positions blow the command timeout on every run,
     /// and the rollback meant retention never made progress (#988).
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int ExpiredPatchDeleteBatchSize { get; set; } = 500;
 
     /// <summary>
@@ -34,6 +39,7 @@ public class MatchDataRetentionOptions
     /// matches are retired. Set to a positive value only on environments that
     /// must stay small (e.g. preprod), where history has no value.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int AggregateRetainedPatchCount { get; set; }
 
     /// <summary>

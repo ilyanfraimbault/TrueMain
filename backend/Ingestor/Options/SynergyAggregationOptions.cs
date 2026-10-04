@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -18,6 +20,7 @@ public class SynergyAggregationOptions
     /// by key before they leave the process, so a batch's array parameters stay
     /// bounded by the number of distinct keys it touched, not by the fold count.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int MatchBatchSize { get; set; } = 500;
 
     /// <summary>
@@ -26,5 +29,6 @@ public class SynergyAggregationOptions
     /// existing match — is spread across scheduled runs instead of blocking one
     /// pipeline pass for hours. 0 means no cap (drain every pending match in one run).
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxMatchesPerRun { get; set; } = 20000;
 }

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -12,9 +14,11 @@ public class ManualSeedOptions
     public const string SectionName = "ManualSeed";
 
     /// <summary>Maximum number of Pending seed requests claimed per run.</summary>
+    [Range(1, int.MaxValue)]
     public int BatchSize { get; set; } = 25;
 
     /// <summary>Top-N champions (by mastery points) considered as main candidates.</summary>
+    [Range(1, int.MaxValue)]
     public int TopChampionsPerAccount { get; set; } = 10;
 
     /// <summary>
@@ -22,5 +26,6 @@ public class ManualSeedOptions
     /// recency filter — useful for a manual seed where an operator may want the
     /// account in regardless of how stale its mastery is.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxLastPlayDays { get; set; }
 }

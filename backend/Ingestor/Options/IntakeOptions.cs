@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -30,6 +32,7 @@ public class IntakeOptions
     /// cycles of work, enough that a cycle is never starved by a platform whose scored pool
     /// happens to be short, and far from the ~40x over-supply it replaces.
     /// </summary>
+    [Range(0d, 100d, MinimumIsExclusive = true)]
     public double PromotionHeadroomFactor { get; set; } = 3;
 
     /// <summary>
@@ -39,6 +42,7 @@ public class IntakeOptions
     /// entirely rather than merely slow it. The floor never raises the cap above
     /// <c>Scoring:TopNPerPlatform</c>, which stays the hard ceiling.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int MinPromotionPerPlatform { get; set; } = 25;
 
     /// <summary>
@@ -48,6 +52,7 @@ public class IntakeOptions
     /// again, and the row is the only record that the player was ever seen).
     /// <c>0</c> disables the drain.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxQueuedPerPlatform { get; set; } = 5000;
 
     /// <summary>
@@ -55,6 +60,7 @@ public class IntakeOptions
     /// of a ~700 k-row backlog cannot blow the 300 s command timeout — the same
     /// incremental-progress reasoning as the retention delete batches (#988).
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int QueueDepthDemotionBatchSize { get; set; } = 5000;
 
     /// <summary>
@@ -62,6 +68,7 @@ public class IntakeOptions
     /// drains, so the drain is spread over cycles instead of monopolising a run:
     /// <c>QueueDepthDemotionBatchSize x this</c> rows per platform per run.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxDemotionBatchesPerRun { get; set; } = 4;
 
     /// <summary>
@@ -73,5 +80,6 @@ public class IntakeOptions
     /// one far below target shifts <em>down</em> by this much (breadth first — more of the
     /// batch goes to new candidates). <c>0</c> restores the fixed share.
     /// </summary>
+    [Range(0d, 1d)]
     public double EstablishedMainShareSwing { get; set; } = 0.2;
 }

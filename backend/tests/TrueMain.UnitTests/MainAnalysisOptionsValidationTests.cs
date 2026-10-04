@@ -27,7 +27,7 @@ public sealed class MainAnalysisOptionsValidationTests
         var validate = () => RunStartupValidation("MainAnalysis:PlayRateFloor", "1");
 
         validate.Should().Throw<OptionsValidationException>()
-            .WithMessage("*MainAnalysis:PlayRateFloor must be in [0, 1)*");
+            .WithMessage("*MainAnalysisOptions.PlayRateFloor must be between 0 and 1 exclusive*");
     }
 
     [Fact]

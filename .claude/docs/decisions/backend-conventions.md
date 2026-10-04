@@ -233,3 +233,16 @@ PerkSelectionCatalogId)`.
 A surrogate key still earns its place where rows have no stable natural identity, or where other tables
 reference the row and a wide composite FK would be copied into each of them. A leaf table nobody references
 is not that case.
+
+## Ingestor options: bounds are attributes checked by a generated validator, cross-field rules stay lambdas (2026-10-04)
+
+**A single-property bound (`[Range]`, `[Required]`) is declared on the options class and checked by an
+`[OptionsValidator]` source-generated validator (`Ingestor/Options/OptionsValidators.cs`); only what an
+attribute cannot express — cross-field invariants, conditional rules, custom parsing — stays a `Validate(...)`
+lambda in `OptionsConfigurationExtensions`.** Both run under `ValidateOnStart()`, so the boot fails on the same
+invalid configurations as before (#271).
+
+The generator substitutes its own `RangeAttribute` copy that ignores `ErrorMessage`, so the attributes carry
+none: the stock message names the class and property (`ScoringOptions.BatchSize must be between 1 and ...`),
+which is enough to find the key; what a bound means lives in the property docs. A new options class gets its
+validator line in `OptionsValidators.cs` and is registered through `AddOptionsWithValidator`.

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 public class MatchupLeadAggregationOptions
@@ -11,6 +13,7 @@ public class MatchupLeadAggregationOptions
     /// bounded; the run loops batches until the per-run cap or the pending backlog is
     /// exhausted.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int MatchBatchSize { get; set; } = 500;
 
     /// <summary>
@@ -18,5 +21,6 @@ public class MatchupLeadAggregationOptions
     /// whole history is spread across scheduled runs instead of blocking one pass for
     /// hours. 0 means no cap (drain every pending match in one run).
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxMatchesPerRun { get; set; } = 20000;
 }
