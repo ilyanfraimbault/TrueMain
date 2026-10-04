@@ -264,6 +264,13 @@ app gets the picture whether the game runs full screen or windowed, and still le
 Windows keeps the window: its helper's display source is the whole monitor, with no per-app filter (2026-10-03) —
 #1826.
 
+**Recordings reach the webview through the app's own `recording` scheme, not Tauri's asset protocol.** The asset
+protocol answers every range with at most 1000 KiB, and WebKit's MP4 reader asks for each box of the `moov` in one
+explicit range and drops the track when the answer comes back short. A video's sample table passes 1000 KiB at about
+36 minutes of 60 fps, so a 43-minute game played as a black screen with its sound. The shell's scheme
+(`recording/files.rs`) answers an explicit range in full, up to 64 MiB, cuts only open-ended ranges into chunks, and
+serves nothing outside the recordings folder; the asset protocol is off entirely (2026-10-04) — #1830.
+
 **The Windows capture helper is a Rust executable behind the same protocol, added to the installer at release time
 only.** `desktop/capture/windows` (`truemain-capture.exe`) speaks the macOS helper's commands and events exactly, so
 neither the shell, the runner, the spike nor the pages have a Windows branch. It captures the game's window with

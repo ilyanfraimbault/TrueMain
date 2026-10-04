@@ -22,11 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' https://ddragon.leagueoflegends.com https://raw.communitydragon.org asset: http://asset.localhost data:; media-src 'self' asset: http://asset.localhost; connect-src 'self' https://ddragon.leagueoflegends.com https://raw.communitydragon.org; style-src 'self' 'unsafe-inline'",
-      "assetProtocol": {
-        "enable": true,
-        "scope": []
-      }
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' https://ddragon.leagueoflegends.com https://raw.communitydragon.org recording: http://recording.localhost data:; media-src 'self' recording: http://recording.localhost; connect-src 'self' https://ddragon.leagueoflegends.com https://raw.communitydragon.org; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
