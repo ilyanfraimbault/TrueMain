@@ -149,6 +149,13 @@ impl LcuClient {
         .await
     }
 
+    /// Another player's ranked standing, read by the client like their
+    /// history (#1828).
+    pub async fn ranked_stats_of(&self, puuid: &str) -> Result<RankedStats> {
+        self.get_json(&format!("/lol-ranked/v1/ranked-stats/{puuid}"))
+            .await
+    }
+
     /// One game's full scoreboard — all ten participants, which the history
     /// list leaves out.
     pub async fn game(&self, game_id: i64) -> Result<HistoryGame> {

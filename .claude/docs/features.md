@@ -245,11 +245,19 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 - **Game** (`/game`, #1748) — while the phase is `InProgress` the shell polls the game's Live Client Data API
   (`127.0.0.1:2999/liveclientdata/allgamedata`, every 2 s, backing off to 5 s while the game loads; `crates/live-client`)
   and sends the webview a snapshot, then only changes (items, level, K/D/A, death with respawn time, respawn), numbered
-  so a missed one triggers a re-read. The page: the ten players lane by lane, ours left and theirs mirrored right —
-  portrait with level, summoner spells, Riot ID, K/D/A, six items + trinket (stack counts, a new item ringed for 4 s),
-  a dead player greyed under a respawn countdown — under a strip with the map, each side's kills and a running game
-  clock. A loading state until the game answers, a waiting state outside a game. What the API reveals about enemies is
-  documented in `desktop/README.md` and still to verify in a live game.
+  so a missed one triggers a re-read. The page: the ten players lane by lane, ours left (our own line tinted) and
+  theirs mirrored right — portrait with level, summoner spells, a dead player greyed under a respawn countdown, and
+  **who they are** (#1828, `game/GamePlayerIntel.vue`, `utils/player-intel.ts`) instead of the items and K/D/A the
+  game's scoreboard already shows: Riot ID, Solo/Duo crest + tier + LP (a ranked Flex standing tagged "Flex" when
+  there is none, "Placements", "Unranked"; season record in the tooltip), a role chip — "Main role" (≥ ½ of their
+  recent role-assigned games here), "Secondary role", or "Autofill · Jungle main" (< ¼) — a streak chip from three
+  games on, then their win rate, games and KDA on the champion among their last twenty ("First time" with none) over
+  their last ten games as the loading screen's bars — all from the loading screen's read (`useLoadingPlayers`, one more
+  client request per player for the standing), matched to the live player by Riot ID, an anonymous one by side and
+  champion; a standing still being read shows a placeholder, one the client could not read shows nothing — under a
+  strip with the map, each side's kills and a running game clock. A loading state until the game answers, a waiting
+  state outside a game. What the API reveals about enemies is documented in `desktop/README.md` and still to verify in
+  a live game.
   Over the board, when we are a player, **the next item** (#1751, `game/GameNextItem.vue`): the legendary the mains
   complete next from where our build stands in a game like this one (`POST /champions/{id}/next-item`, #1749 — asked on
   every item change of any of the ten, settled 600 ms, never on a timer), its share of the mains, the strongest situation
