@@ -10,9 +10,9 @@ public sealed class ParticipantPerkSelectionConfiguration : IEntityTypeConfigura
     {
         entity.ToTable("participant_perk_selections");
 
-        entity.HasKey(e => e.Id);
-        entity.Property(e => e.Id)
-            .ValueGeneratedOnAdd();
+        // One row per rune selection of a participant: the natural key is the primary key —
+        // the lookup key and the dedup guard for re-ingestion (#124).
+        entity.HasKey(e => new { e.MatchId, e.ParticipantId, e.PerkSelectionCatalogId });
 
         entity.Property(e => e.MatchId)
             .IsRequired()
@@ -31,15 +31,12 @@ public sealed class ParticipantPerkSelectionConfiguration : IEntityTypeConfigura
 
         // Hard FK to matches so a half-ingested match (mid-flow rollback)
         // cannot leave orphan perk selection rows that block re-ingestion
-        // via the (MatchId, ParticipantId, PerkSelectionCatalogId) unique
-        // index. Cascade so a Match delete also removes its perk rows.
+        // via the (MatchId, ParticipantId, PerkSelectionCatalogId) primary
+        // key. Cascade so a Match delete also removes its perk rows.
         entity.HasOne<Match>()
             .WithMany()
             .HasForeignKey(e => e.MatchId)
             .HasPrincipalKey(m => m.Id)
             .OnDelete(DeleteBehavior.Cascade);
-
-        entity.HasIndex(e => new { e.MatchId, e.ParticipantId, e.PerkSelectionCatalogId })
-            .IsUnique();
     }
 }

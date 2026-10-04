@@ -150,5 +150,7 @@ public sealed class PerkSelectionCatalogIntegrationTests
         columns.Should().NotContain("SelectionIndex");
         columns.Should().NotContain("PerkId");
         columns.Should().NotContain("StyleDescription");
+        // The natural key is the primary key; the surrogate Guid is gone (#124).
+        columns.Should().NotContain("Id");
     }
 }

@@ -444,7 +444,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
 
             db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
             {
-                Id = Guid.NewGuid(),
                 MatchId = matchId,
                 ParticipantId = 1,
                 Catalog = catalog,
