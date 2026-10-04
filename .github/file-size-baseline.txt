@@ -16,7 +16,6 @@ backend/Api/Services/Champions/Builds/ChampionBuildsQueryService.cs	547	500
 backend/Api/Services/Champions/Directory/ChampionSummariesQueryService.cs	697	500
 backend/Api/Services/Champions/Synergies/ChampionSynergyQueryService.cs	518	500
 backend/Api/Services/Ops/Coverage/PatchCoverageQueryService.cs	765	500
-backend/Api/Services/Ops/DataQuality/DataQualityQueryService.cs	695	500
 backend/Api/Services/Truemains/Matches/MatchDetailQueryService.cs	564	500
 backend/Data/Logging/Mongo/MongoLogContext.cs	527	500
 backend/Data/Ops/Mongo/ProcessRunStore.cs	508	500
