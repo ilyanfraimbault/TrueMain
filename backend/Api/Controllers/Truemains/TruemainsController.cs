@@ -65,9 +65,7 @@ public sealed class TruemainsController(
         // An unknown ?sort= falls back to the default ranking rather than a 400:
         // it is a presentation preference, and a stale bookmark should still
         // render the leaderboard.
-        var sort = string.Equals(query.Sort, "dedication", StringComparison.OrdinalIgnoreCase)
-            ? LeaderboardSort.Dedication
-            : LeaderboardSort.Rank;
+        var sort = query.ParsedSort;
 
         var response = await leaderboardQueryService.GetAsync(
             query.Page ?? 1,
@@ -330,9 +328,19 @@ public sealed record LeaderboardQuery
     public bool? OtpOnly { get; init; }
 
     /// <summary>
-    /// Ranking column: <c>dedication</c> ranks by TrueMain's dedication score,
-    /// anything else (including omitted) keeps the default ranked-standing
-    /// order.
+    /// Ranking column, always descending: <c>dedication</c> ranks by TrueMain's
+    /// dedication score, <c>games</c> / <c>kda</c> / <c>winRate</c> by the
+    /// row's Games / KDA / WR figure (case-insensitive); anything else
+    /// (including omitted) keeps the default ranked-standing order.
     /// </summary>
     public string? Sort { get; init; }
+
+    internal LeaderboardSort ParsedSort => Sort?.Trim() switch
+    {
+        { } value when value.Equals("dedication", StringComparison.OrdinalIgnoreCase) => LeaderboardSort.Dedication,
+        { } value when value.Equals("games", StringComparison.OrdinalIgnoreCase) => LeaderboardSort.Games,
+        { } value when value.Equals("kda", StringComparison.OrdinalIgnoreCase) => LeaderboardSort.Kda,
+        { } value when value.Equals("winRate", StringComparison.OrdinalIgnoreCase) => LeaderboardSort.WinRate,
+        _ => LeaderboardSort.Rank,
+    };
 }

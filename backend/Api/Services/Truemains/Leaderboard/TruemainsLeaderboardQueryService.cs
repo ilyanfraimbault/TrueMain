@@ -21,6 +21,15 @@ public enum LeaderboardSort
 
     /// <summary>TrueMain's dedication score for each row's signature champion, computed at read time.</summary>
     Dedication = 1,
+
+    /// <summary>Ranked games on the player's main champions (the row's Games cell).</summary>
+    Games = 2,
+
+    /// <summary>KDA on the player's main champions (the row's KDA cell).</summary>
+    Kda = 3,
+
+    /// <summary>Ranked win rate of the latest rank snapshot (the row's WR cell).</summary>
+    WinRate = 4,
 }
 
 public interface ITruemainsLeaderboardQueryService
@@ -83,7 +92,7 @@ public sealed class TruemainsLeaderboardQueryService(
     // Ranked solo queue. Matches the queue used by MainStatsCalculator
     // for main_champion_stats, so the "games" / KDA / winrate cell stays
     // consistent with the player's top-champions cell on the same row.
-    private const int RankedQueueId = (int)LolQueueId.RankedSoloDuo;
+    internal const int RankedQueueId =(int)LolQueueId.RankedSoloDuo;
 
     private readonly LeaderboardRanking ranking = new(db, dbFactory, mainAnalysisOptions, cache, logger);
 
@@ -164,13 +173,17 @@ public sealed class TruemainsLeaderboardQueryService(
             return justCached;
         }
 
-        // Ranking by dedication can't seek an index — the score is derived at
-        // read time — so that path scores the whole eligible population once and
-        // slices the page from it. The default rank ordering keeps the cheap
-        // Count + indexed OFFSET on riot_accounts."Score".
-        var (rankingResult, countMs) = await TimedAsync(() => sort == LeaderboardSort.Dedication
-            ? ranking.RankByDedicationAsync(filter, ResponseCacheTtl, ct)
-            : ranking.CountByRankAsync(filter, ct));
+        // Ranking by dedication or by a stat can't seek an index — the figure
+        // is derived at read time from other tables — so those paths read the
+        // whole eligible population once and slice the page from it. The
+        // default rank ordering keeps the cheap Count + indexed OFFSET on
+        // riot_accounts."Score".
+        var (rankingResult, countMs) = await TimedAsync(() => sort switch
+        {
+            LeaderboardSort.Dedication => ranking.RankByDedicationAsync(filter, ResponseCacheTtl, ct),
+            _ when LeaderboardStatLines.Serves(sort) => ranking.RankByStatAsync(filter, sort, RankedQueueId, ResponseCacheTtl, ct),
+            _ => ranking.CountByRankAsync(filter, ct),
+        });
 
         var total = rankingResult.Total;
         if (total == 0)

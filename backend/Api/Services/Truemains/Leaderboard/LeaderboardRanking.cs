@@ -9,7 +9,7 @@ namespace TrueMain.Services.Truemains.Leaderboard;
 
 /// <summary>
 /// The ranking phase of a leaderboard request: how many accounts the filter
-/// admits and, on the dedication sort, the order they rank in. The page is
+/// admits and, on the dedication and stat sorts, the order they rank in. The page is
 /// hydrated afterwards by the query service.
 /// </summary>
 /// <remarks>
@@ -27,6 +27,8 @@ internal sealed class LeaderboardRanking(
     // Static because the owning service is scoped: the whole point is to
     // coalesce across concurrent *requests*, which each get their own instance.
     private static readonly RequestCoalescer<Result> Coalescer = new();
+
+    private static readonly RequestCoalescer<List<LeaderboardStatLines.Line>> StatLinesCoalescer = new();
 
     // Safety valve on the dedication ranking: the score is a read-time
     // expression, so ordering by it means scoring every eligible account rather
@@ -52,6 +54,12 @@ internal sealed class LeaderboardRanking(
     // exceed it is already past the point where the score should be materialised
     // rather than derived per request.
     private const int MaxRankingCacheSize = 128;
+
+    // A stat line is a Guid, the score and six counters (~80 bytes with the
+    // record header), well under half a scored dedication candidate, so it is
+    // charged at 250 per unit. Under the same MaxRankingCacheSize cap that
+    // keeps populations up to ~32 000 accounts cached.
+    private const int StatLinesPerCacheUnit = 250;
 
     /// <summary>
     /// Rank-sorted path: only the eligible count is needed up front, the page
@@ -98,6 +106,70 @@ internal sealed class LeaderboardRanking(
             rankingCacheKey,
             () => ComputeAndCacheAsync(rankingCacheKey, filter, cacheTtl),
             ct);
+    }
+
+    /// <summary>
+    /// Games / KDA / win-rate sorted path (#1737): read every eligible
+    /// account's figures once, then order them in memory. Like the dedication
+    /// ranking, the figures are derived from other tables, so there is no
+    /// column to seek and the cost is one scan per sorted board.
+    /// </summary>
+    /// <remarks>
+    /// The scan is cached per filter shape and shared by the three stat sorts:
+    /// switching from Games to KDA on the same filters reorders cached lines
+    /// instead of rescanning. Ordering a few tens of thousands of lines takes
+    /// milliseconds, paid only on a response-cache miss.
+    /// </remarks>
+    public async Task<Result> RankByStatAsync(
+        LeaderboardFilter filter,
+        LeaderboardSort sort,
+        int queueId,
+        TimeSpan cacheTtl,
+        CancellationToken ct)
+    {
+        var cacheKey = $"truemains:stat-lines:{filter.Key}";
+        if (!cache.TryGetValue<List<LeaderboardStatLines.Line>>(cacheKey, out var lines) || lines is null)
+        {
+            lines = await StatLinesCoalescer.GetOrJoinAsync(
+                cacheKey,
+                () => FetchAndCacheStatLinesAsync(cacheKey, filter, queueId, cacheTtl),
+                ct);
+        }
+
+        return new Result(
+            Total: lines.Count,
+            OrderedAccountIds: LeaderboardStatLines.Order(lines, sort),
+            DedicationByAccount: null);
+    }
+
+    private async Task<List<LeaderboardStatLines.Line>> FetchAndCacheStatLinesAsync(
+        string cacheKey,
+        LeaderboardFilter filter,
+        int queueId,
+        TimeSpan cacheTtl)
+    {
+        // Detached from any single caller's token: the pass is shared (see
+        // RequestCoalescer).
+        var ct = CancellationToken.None;
+
+        // Re-check under the coalescer, as the dedication path does.
+        if (cache.TryGetValue<List<LeaderboardStatLines.Line>>(cacheKey, out var justCached) && justCached is not null)
+        {
+            return justCached;
+        }
+
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+        var lines = await LeaderboardStatLines.FetchAsync(ctx, filter, queueId, ct);
+
+        // Shared, read-only from here: Order projects a new list and never
+        // mutates the cached one.
+        var size = Math.Max(1, lines.Count / StatLinesPerCacheUnit);
+        if (size <= MaxRankingCacheSize)
+        {
+            cache.Set(cacheKey, lines, ApiCache.Entry(cacheTtl, size));
+        }
+
+        return lines;
     }
 
     private async Task<Result> ComputeAndCacheAsync(
@@ -185,8 +257,9 @@ internal sealed class LeaderboardRanking(
     /// <summary>
     /// What the ranking phase resolved before the page is hydrated.
     /// <see cref="OrderedAccountIds"/> and <see cref="DedicationByAccount"/> are
-    /// null on the rank-sorted path, where SQL does the ordering and the page's
-    /// dedication is fetched per slice.
+    /// null on the rank-sorted path, where SQL does the ordering;
+    /// <see cref="DedicationByAccount"/> is null on every path but the
+    /// dedication sort, and the page's dedication is then fetched per slice.
     /// </summary>
     public sealed record Result(
         int Total,
