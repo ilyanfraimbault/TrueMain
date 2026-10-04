@@ -232,3 +232,25 @@ and review caught it. `CONCURRENTLY` stays unavailable: the idempotent script wr
 `DO` block, where Postgres rejects it (#1227). What remains is the brief queue any ACCESS EXCLUSIVE acquisition
 causes behind reads already in flight, and a write stall for the length of the builds — longer in production
 (~11 GB) than the bench's 3.6 s — #1663.
+
+## The payload is inlined on first load and extracted for client navigation only (2026-10-04)
+
+**Decision:** the web app sets `experimental.payloadExtraction: 'client'` (Nuxt 5's default; Nuxt 4.5 defaults
+to `true`) — #1618.
+
+- **What it actually touches.** At runtime Nuxt extracts a `_payload.json` only for routes with a `cache`/`isr`
+  rule or prerendered ones. Here that is `/about`, `/privacy` and `/terms` (their `swr` rule is a `cache` rule);
+  nothing is prerendered. The homepage, `/champions` and the champion pages always inline their payload under
+  any setting — the premise that they paid an extra request on first load did not hold.
+- **Measured** on two local production builds (same commit, only this option differing), served on one worker
+  and proxying to the preprod API, read from the browser's resource timings:
+  - first load of `/about` — before: HTML 44,054 B plus a `/about/_payload.json` fetch (356 B transferred,
+    56 B body: the text pages fetch nothing of their own); after: HTML 43,902 B, no payload request. Same on
+    `/privacy` (45,004 → 44,848 B) and `/terms` (43,516 → 43,364 B), whose HTML no longer points at a payload file;
+  - first load of `/`, `/champions`, `/champions/ahri` — identical HTML sizes, no `_payload.json` either way;
+  - client navigation to `/about`, `/privacy`, `/terms` still fetches their `_payload.json` (one request,
+    300–356 B) before and after; navigating to the SSR pages fetches none in either build.
+- **Why enable it.** A smaller HTML and one round trip fewer on the text pages' first load, for no cost: the
+  argument for `true` is CDN caching of the payload file, and there is no CDN — the request went back to the
+  same container. The gain is small (one tiny request on three low-traffic pages); it is taken because it is
+  free and aligns with the next major's default, not because it moves the main pages.
