@@ -83,12 +83,13 @@ pub struct GameflowPlayer {
 
 impl GameflowPlayer {
     /// The client keeps this player's identity from us: it leaves out the
-    /// name or the puuid it would be looked up by. Their history is then
-    /// never read (#1753). The session's `nameVisibilityType` is no signal:
-    /// it keeps the champion select's `HIDDEN` for every ranked player while
-    /// sending their name and puuid at the loading screen.
+    /// puuid they would be looked up by. Their history is then never read
+    /// (#1753). Neither the session's `nameVisibilityType` nor a missing name
+    /// is a signal: ranked keeps the champion select's `HIDDEN` on every
+    /// player, and the session may list a player without `gameName`/`tagLine`
+    /// — the name is then read by puuid (`LcuClient::summoner_by_puuid`).
     pub fn is_anonymous(&self) -> bool {
-        self.puuid.trim().is_empty() || self.riot_id().trim().is_empty()
+        self.puuid.trim().is_empty()
     }
 
     /// `Name#TAG` when the session carries it, else the summoner name.
@@ -305,6 +306,7 @@ impl ChampSelectSession {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CurrentSummoner {
+    pub puuid: String,
     pub game_name: String,
     pub tag_line: String,
     pub summoner_level: i64,
@@ -550,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    fn only_a_player_without_a_puuid_or_a_name_is_anonymous() {
+    fn only_a_player_without_a_puuid_is_anonymous() {
         let named = serde_json::json!({ "puuid": "p-1", "gameName": "Lumen", "tagLine": "EUW", "championId": 254 });
         assert!(!gameflow_player(named.clone()).is_anonymous());
 
@@ -564,8 +566,10 @@ mod tests {
         no_puuid["puuid"] = "".into();
         assert!(gameflow_player(no_puuid).is_anonymous());
 
-        assert!(
-            gameflow_player(serde_json::json!({ "puuid": "p-2", "championId": 81 })).is_anonymous()
-        );
+        // A puuid without a name: the name is read by it.
+        assert!(!gameflow_player(
+            serde_json::json!({ "puuid": "p-2", "championId": 81, "summonerName": "" })
+        )
+        .is_anonymous());
     }
 }

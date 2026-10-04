@@ -30,11 +30,9 @@ const PLACEHOLDERS: Record<OverlayPanel, string> = {
   'win-probability': 'The win probability shows here during a game.',
   'item-value': 'Each team\'s item gold shows here while TAB is held.',
   'stats': 'Your CS and gold per minute show here during a game.',
-  'loading': 'Each player\'s form shows here on the loading screen.',
 }
 
 const { game, syncedAt } = useLiveGame()
-const { view: loading } = useLoadingPlayers()
 const { view, fit } = useGameOverlay()
 
 const settings = computed(() => view.value?.settings ?? null)
@@ -44,7 +42,7 @@ const scale = computed(() => settings.value?.scale ?? 1)
 const OURS: OverlayPanel[] = ['next-item', 'stats']
 const playing = computed(() => (!OURS.includes(panel.value) || game.value?.myTeam ? game.value : null))
 // A real game always wins over the sample.
-const isSample = computed(() => (panel.value === 'loading' ? !loading.value.players.length : !playing.value))
+const isSample = computed(() => !playing.value)
 
 const devPreview = ref(false)
 onMounted(async () => {
@@ -84,8 +82,7 @@ useHead({
 <template>
   <div class="origin-top-left" :style="{ transform: `scale(${scale})` }">
     <div ref="content" class="relative px-3 py-2.5 text-default" :style="{ width: `${PANEL_WIDTHS[panel]}px` }">
-      <LoadingBoard v-if="panel === 'loading' && loading.players.length" :players="loading.players" />
-      <template v-else-if="playing && panel !== 'loading'">
+      <template v-if="playing">
         <OverlayNextItem v-if="panel === 'next-item'" :game="playing" />
         <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="playing" :synced-at="syncedAt" />
         <OverlayStats v-else-if="panel === 'stats'" :game="playing" />

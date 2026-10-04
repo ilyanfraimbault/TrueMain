@@ -54,7 +54,7 @@ export interface LaningForm {
 
 /** Mirrors `LoadingPlayer` in `src-tauri/src/loading.rs`. */
 export interface LoadingPlayer {
-  /** Empty for an anonymous player. */
+  /** Empty for an anonymous player, and until the name is read. */
   riotId: string
   championId: number
   team: GameTeam

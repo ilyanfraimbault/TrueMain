@@ -160,6 +160,13 @@ impl LcuClient {
         .await
     }
 
+    /// Any player's Riot ID, by puuid: the gameflow session lists the game's
+    /// players without their names.
+    pub async fn summoner_by_puuid(&self, puuid: &str) -> Result<CurrentSummoner> {
+        self.get_json(&format!("/lol-summoner/v2/summoners/puuid/{puuid}"))
+            .await
+    }
+
     /// Another player's ranked standing, read by the client like their
     /// history (#1828).
     pub async fn ranked_stats_of(&self, puuid: &str) -> Result<RankedStats> {

@@ -5,7 +5,6 @@ import type { OverlayPanel } from '~/types/overlay'
 defineProps<{ panel: OverlayPanel }>()
 
 const ICONS: Record<OverlayPanel, string> = {
-  'loading': 'i-lucide-users',
   'next-item': 'i-lucide-shopping-bag',
   'win-probability': 'i-lucide-scale',
   'stats': 'i-lucide-activity',

@@ -4,9 +4,7 @@
 //! The overlay is a few independent panels, each its own window placed on its
 //! own (#1671's choice over one HUD): the next item, the win probability, the
 //! player's own pace, the item value, which shows only while the scoreboard
-//! (TAB) is held, and the loading screen's roster, which shows only before the
-//! game has loaded. The
-//! windows are the shell's (`src-tauri/src/overlay`), macOS-only and
+//! (TAB) is held. The windows are the shell's (`src-tauri/src/overlay`), macOS-only and
 //! impossible to build on the Linux CI box; the decisions they apply live here
 //! so they are tested anywhere. The settings file is read the way the
 //! recording settings are: a value this build does not know, or one out of
@@ -48,18 +46,14 @@ pub enum OverlayPanel {
     ItemValue,
     /// Our CS per minute, with its curve, and gold per minute.
     Stats,
-    /// The ten players' form on their champion and latest games, on the loading
-    /// screen.
-    Loading,
 }
 
 impl OverlayPanel {
-    pub const ALL: [OverlayPanel; 5] = [
+    pub const ALL: [OverlayPanel; 4] = [
         OverlayPanel::NextItem,
         OverlayPanel::WinProbability,
         OverlayPanel::ItemValue,
         OverlayPanel::Stats,
-        OverlayPanel::Loading,
     ];
 
     /// The panel's name in a window label and a route.
@@ -69,7 +63,6 @@ impl OverlayPanel {
             OverlayPanel::WinProbability => "win-probability",
             OverlayPanel::ItemValue => "item-value",
             OverlayPanel::Stats => "stats",
-            OverlayPanel::Loading => "loading",
         }
     }
 
@@ -136,7 +129,6 @@ pub struct OverlaySettings {
     pub win_probability: PanelSettings,
     pub item_value: PanelSettings,
     pub stats: PanelSettings,
-    pub loading: PanelSettings,
 }
 
 impl Default for OverlaySettings {
@@ -155,7 +147,6 @@ impl Default for OverlaySettings {
             win_probability: at(OverlayAnchor::TopLeft),
             item_value: at(OverlayAnchor::TopCenter),
             stats: at(OverlayAnchor::CenterLeft),
-            loading: at(OverlayAnchor::TopCenter),
         }
     }
 }
@@ -176,8 +167,6 @@ pub struct OverlayInputs {
     pub hidden_by_player: bool,
     /// TAB is held: the game's scoreboard is open.
     pub scoreboard: bool,
-    /// A game is in progress but not read yet: the loading screen.
-    pub loading_screen: bool,
 }
 
 /// A rectangle in points, origin top left.
@@ -196,7 +185,6 @@ impl OverlaySettings {
             OverlayPanel::WinProbability => &self.win_probability,
             OverlayPanel::ItemValue => &self.item_value,
             OverlayPanel::Stats => &self.stats,
-            OverlayPanel::Loading => &self.loading,
         }
     }
 
@@ -206,7 +194,6 @@ impl OverlaySettings {
             OverlayPanel::WinProbability => &mut self.win_probability,
             OverlayPanel::ItemValue => &mut self.item_value,
             OverlayPanel::Stats => &mut self.stats,
-            OverlayPanel::Loading => &mut self.loading,
         }
     }
 
@@ -220,8 +207,7 @@ impl OverlaySettings {
         if inputs.preview {
             return true;
         }
-        // The loading screen comes before the game is read; every other panel
-        // needs the game.
+        // Every panel needs the game read: never over its loading screen.
         let moment = match panel {
             OverlayPanel::NextItem => {
                 inputs.in_game
@@ -232,7 +218,6 @@ impl OverlaySettings {
             }
             OverlayPanel::WinProbability | OverlayPanel::Stats => inputs.in_game,
             OverlayPanel::ItemValue => inputs.in_game && inputs.scoreboard,
-            OverlayPanel::Loading => inputs.loading_screen && !inputs.in_game,
         };
         self.enabled && inputs.game_frontmost && !inputs.hidden_by_player && moment
     }
@@ -328,7 +313,6 @@ impl OverlaySettings {
             win_probability: panel("winProbability", defaults.win_probability),
             item_value: panel("itemValue", defaults.item_value),
             stats: panel("stats", defaults.stats),
-            loading: panel("loading", defaults.loading),
         }
     }
 
@@ -406,32 +390,6 @@ mod tests {
             &OverlayInputs {
                 scoreboard: true,
                 ..in_game()
-            }
-        ));
-    }
-
-    #[test]
-    fn the_loading_screen_panel_goes_once_the_game_is_read() {
-        let settings = OverlaySettings::default();
-        let loading = OverlayInputs {
-            game_frontmost: true,
-            loading_screen: true,
-            ..OverlayInputs::default()
-        };
-        assert!(settings.shows(Loading, &loading));
-        assert!(!settings.shows(NextItem, &loading));
-        assert!(!settings.shows(
-            Loading,
-            &OverlayInputs {
-                in_game: true,
-                ..loading
-            }
-        ));
-        assert!(!settings.shows(
-            Loading,
-            &OverlayInputs {
-                game_frontmost: false,
-                ..loading
             }
         ));
     }

@@ -20,7 +20,6 @@ export const PANEL_WIDTHS: Record<OverlayPanel, number> = {
   'win-probability': 160,
   'item-value': 300,
   'stats': 176,
-  'loading': 440,
 }
 
 /**
@@ -33,7 +32,6 @@ const HEIGHTS: Record<OverlayPanel, number> = {
   'win-probability': 48,
   'item-value': 200,
   'stats': 84,
-  'loading': 260,
 }
 
 /** The screen a browser-only `npm run dev` lays the panels on. */

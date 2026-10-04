@@ -79,7 +79,7 @@ const rate = (player: LoadingPlayer) => {
               <p class="text-[11px] text-dimmed">Anonymous</p>
             </template>
             <template v-else>
-              <p class="truncate text-xs font-medium text-highlighted">{{ name(player.riotId) }}</p>
+              <p class="truncate text-xs font-medium text-highlighted">{{ name(player.riotId) || nameOf(player.championId) }}</p>
               <p v-if="player.form && player.form.championGames > 0" class="text-[11px] tabular-nums text-muted">
                 {{ player.form.championGames }} · <span :class="rate(player) >= 50 ? 'text-data-good' : 'text-data-bad'">{{ rate(player) }}%</span>
               </p>

@@ -261,7 +261,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   pulled towards even under ~30 games), moved by each player's last ten games on their champion (win rate, and gold /
   CS / XP leads over that game's lane opponent at 15 min, from the client's timelines; weights per role), the figures
   themselves not shown. The same arrows sit between the two columns of the waiting state's loading board. A loading
-  state until the game answers, a waiting state outside a game. What the API reveals about enemies is documented in `desktop/README.md` and still to verify in
+  state until the game has started (`GameStart`), with the loading screen board (#1753, `loading/LoadingBoard.vue`:
+  form on the champion and last ten games as bars, names and histories read by puuid through the client — #1869), a
+  waiting state outside a game. What the API reveals about enemies is documented in `desktop/README.md` and still to verify in
   a live game.
   Over the board, when we are a player, **the next item** (#1751, `game/GameNextItem.vue`): the legendary the mains
   complete next from where our build stands in a game like this one (`POST /champions/{id}/next-item`, #1749 — asked on
@@ -272,12 +274,12 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   50-gold steps (`GOLD_STEP`), the only gold the API exposes. Its data comes from `useNextItemPanel`, shared with the
   overlay. A layers button by the clock (and a status line's "Customize" in the waiting state) opens the Overlay page.
 - **In-game overlay** (#1795 on macOS, window layer from the #1673 spike, `docs/desktop-overlay-spike.md`; #1798 on
-  Windows) — five panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
+  Windows) — four panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
   `CGShieldingWindowLevel` (League's Full Screen captures the display), on Windows a topmost `WS_EX_NOACTIVATE` layered
   window over a Borderless or Windowed game (the settings say so: Windows draws nothing over exclusive Full Screen) —
   never focused, click-through, sized to its content, its page on `#/overlay/<panel>`
   (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
-  read — never over the client or another app; ⌥⇧O (Alt+Shift+O on Windows) hides them until the game ends. **Next item** (232 pt,
+  read — from its `GameStart` event, never over the loading screen, the client or another app; ⌥⇧O (Alt+Shift+O on Windows) hides them until the game ends. **Next item** (232 pt,
   `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
   components, runners-up or boots; whole game or only while dead. **Win probability** (160 pt,
   `OverlayWinProbability.vue`): both sides' percentages and a bar in the sides' colours, no labels, the whole game —
@@ -289,14 +291,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`utils/item-value.ts`, #1864). **Your pace** (176 pt, `OverlayStats.vue`): CS per
   minute with a sparkline of it from minute 3, and gold per minute (inventory cost plus gold in hand — the API has no
   gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
-  (`live_client::pace`). **Loading screen** (440 pt, `loading/LoadingBoard.vue`, #1753), only before the game is read:
-  the ten players lane against lane, each with their games on their champion among their last twenty
-  Summoner's Rift games and win rate on it ("1st" when none), and their last ten Rift games as bars, oldest to newest (blue a win, red a loss), each with a tooltip — champion,
-  role, KDA, date — in the game page's copy (the overlay is click-through, so it shows the bars alone) — roster from
-  the client's gameflow session, histories by puuid through the client (`src-tauri/src/loading.rs`,
-  `lcu::PlayerForm`), three at a time, ours and our lane opponent's first, never on TrueMain's key; the same board sits
-  under the game page's loading state. A player who hides their name (Streamer Mode) shows as their champion and
-  "Anonymous", their history never requested. No true-main mark yet. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
+  (`live_client::pace`). **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
   the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). TAB and ⌥⇧O are read
   from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Set up on
@@ -402,7 +397,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   Data", checked by default, in the macOS app menu / Windows tray menu turns it off for good; a debug build never
   sends (`TRUEMAIN_TELEMETRY_DEV` overrides). Read back on the admin's `/desktop`.
 - **Not present**: win probability in the draft (by design), summoner spell import, the
-  gold standing in the companion window (it is in the overlay, on TAB) and the loading screen (#1753), TrueMain's
+  gold standing in the companion window (it is in the overlay, on TAB), a loading-screen panel in the overlay (dropped
+  2026-10-04, #1869: the game page's loading state shows the board), TrueMain's
   performance score and participants' ranks in the dashboard's history, LP history from before the app was installed
   (#1682), automatic clips (#1766) and instant replay (#1767), changing the recordings folder from the app.
 

@@ -1,5 +1,4 @@
 import type { GamePlayer, GameState, GameTeam } from '~/types/game'
-import type { LoadingPlayer, LoadingView, RecentGame } from '~/types/loading'
 
 /**
  * What the overlay's panels show while they are placed (the settings'
@@ -26,7 +25,7 @@ const player = (champion: string, team: GameTeam, position: string, items: numbe
   kills: 0,
   deaths: 0,
   assists: 0,
-  creepScore: 0,
+  creepScore: position === 'UTILITY' ? 30 : position === 'JUNGLE' ? 150 : 200,
   dead: false,
   respawnAt: null,
 })
@@ -66,57 +65,5 @@ export function sampleGame(): GameState {
         { minute: 26, cs: 204, gold: 11433 },
       ],
     },
-  }
-}
-
-export function sampleLoadingView(): LoadingView {
-  const now = Date.now()
-  const recent = (championId: number, position: string, results: string): RecentGame[] =>
-    [...results].map((result, index) => ({
-      championId,
-      position,
-      win: result === 'W',
-      kills: (index * 3 + 4) % 11,
-      deaths: (index * 5 + 2) % 8,
-      assists: (index * 7 + 3) % 13,
-      playedAt: now - (index + 1) * 5 * 3_600_000,
-    }))
-  const at = (riotId: string, championId: number, team: GameTeam, position: string, championGames: number, championWins: number, results: string): LoadingPlayer => ({
-    riotId,
-    championId,
-    team,
-    position,
-    isMe: false,
-    anonymous: false,
-    form: {
-      games: 20,
-      championGames,
-      championWins,
-      championKills: championGames * 6,
-      championDeaths: championGames * 4,
-      championAssists: championGames * 7,
-      positions: [{ position, games: 15 }],
-      streak: 0,
-      recent: recent(championId, position, results),
-    },
-    failed: false,
-    rank: null,
-    rankRead: false,
-    rankFailed: false,
-    laning: null,
-  })
-  return {
-    players: [
-      at('Harrowgate#0001', 266, 'ORDER', 'TOP', 11, 7, 'WLWWLWLWWL'),
-      at('Lumen#0001', 254, 'ORDER', 'JUNGLE', 6, 3, 'LWLWWLLWLW'),
-      { ...at('You#TRUE', 103, 'ORDER', 'MIDDLE', 14, 9, 'WWWLWLLWWL'), isMe: true },
-      at('Orrin#EUW', 222, 'ORDER', 'BOTTOM', 9, 5, 'WLLWWLWLWW'),
-      at('Nyrox#LOL', 412, 'ORDER', 'UTILITY', 17, 11, 'WWWWWLLWLW'),
-      at('Solenne#0001', 54, 'CHAOS', 'TOP', 4, 2, 'WWLWLLWLWL'),
-      at('Quillfire#0001', 234, 'CHAOS', 'JUNGLE', 8, 4, 'LWWLWLWLLW'),
-      at('Wrenfield#FR1', 61, 'CHAOS', 'MIDDLE', 2, 0, 'LLLLWWLWLW'),
-      at('Brambleheart#FR1', 81, 'CHAOS', 'BOTTOM', 12, 6, 'WLWLWWLLWL'),
-      at('Ashvale#LOL', 111, 'CHAOS', 'UTILITY', 8, 6, 'LLWWLWWWLW'),
-    ],
   }
 }

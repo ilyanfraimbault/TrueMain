@@ -345,10 +345,10 @@ $env:RUST_LOG = "truemain_desktop_lib=debug,lcu=info"
 $script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app.log") -RedirectStandardError (Join-Path $Out "app.err.log")
 $standIns = @()
 try {
-    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 4; $i++) { Start-Sleep -Milliseconds 500 }
     [Desk]::Of([uint32]$script:shell.Id) | ForEach-Object { [ordered]@{ title = $_.Title; class = [Desk]::ClassOf($_.Handle); visible = $_.Visible; exStyle = ('0x{0:X8}' -f $_.ExStyle) } } |
         ConvertTo-Json | Set-Content (Join-Path $Out "0-windows.json")
-    Expect ((Panels).Count -eq 5) "the app builds its five panels' windows"
+    Expect ((Panels).Count -eq 4) "the app builds its four panels' windows"
     # The replay has opened the game and every page has measured itself.
     Start-Sleep -Seconds 8
     Expect ((Shown) -eq "") "nothing shows while the app, not the game, is in front"
@@ -403,7 +403,7 @@ try {
     Expect (Press "Place on screen") "the settings start the preview"
     Start-Sleep -Seconds 2
     $state = Report "6-preview"
-    Expect ((Shown) -eq "item-value,loading,next-item,stats,win-probability") "the preview shows every panel ($(Shown))"
+    Expect ((Shown) -eq "item-value,next-item,stats,win-probability") "the preview shows every panel ($(Shown))"
     foreach ($panel in @(Panels | Where-Object Visible)) {
         Expect (($panel.Styles -band $WS_EX_TRANSPARENT) -eq 0) "$($panel.Slug) takes the mouse in the preview ($($panel.ExStyle))"
     }
@@ -433,24 +433,30 @@ try {
     Expect ([Math]::Abs($placed.Left - $wantX) -le 2 -and [Math]::Abs($placed.Top - $wantY) -le 2) "the dragged panel sits where it was put ($($placed.Left),$($placed.Top), wanted $wantX,$wantY)"
     Expect (($placed.Styles -band $WS_EX_TRANSPARENT) -ne 0) "out of the preview, clicks go through again ($($placed.ExStyle))"
 
-    # The loading screen: the game in progress, its API not answering yet —
-    # the same tape without its game readings, in a new run of the app.
+    # The loading screen: the game in progress, its API already listing the
+    # ten players but the game not started yet (no GameStart, clock at zero) —
+    # the tape's first reading made into one, in a new run of the app.
     Stop-Process -Id $script:shell.Id -Force
     $script:shell.WaitForExit(5000) | Out-Null
     $loadingTape = Join-Path $Out "loading.jsonl"
-    Get-Content $Tape | Where-Object { $_ -notmatch '"kind":"game"' } | Set-Content $loadingTape
+    $firstGame = $true
+    Get-Content $Tape | ForEach-Object {
+        if ($_ -notmatch '"kind":"game"') { return $_ }
+        if (-not $firstGame) { return }
+        $firstGame = $false
+        $line = $_ | ConvertFrom-Json -Depth 100
+        $line.data.events.Events = @()
+        $line.data.gameData.gameTime = 0.0
+        $line | ConvertTo-Json -Depth 100 -Compress
+    } | Set-Content $loadingTape
     $env:TRUEMAIN_LCU_REPLAY = $loadingTape
     $script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app-loading.log") -RedirectStandardError (Join-Path $Out "app-loading.err.log")
-    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 4; $i++) { Start-Sleep -Milliseconds 500 }
     Start-Sleep -Seconds 5
     $standIns += StartStandIn $gameExe "RiotWindowClass" "League of Legends (TM) Client" $GameColorRef
     Start-Sleep -Seconds 3
-    $state = Report "9-loading-screen"
-    Expect ((Shown) -eq "loading") "on the loading screen, the loading panel alone shows ($(Shown))"
-    $loading = $state.panels | Where-Object { $_.slug -eq "loading" -and $_.visible }
-    if ($loading) {
-        Expect ($loading.hit -eq "RiotWindowClass" -and $loading.gameShare -lt 0.5 -and $loading.colors -ge 6) "the loading panel is drawn and click-through (game colour $([Math]::Round($loading.gameShare * 100))%, $($loading.colors) colours, hit $($loading.hit))"
-    }
+    Report "9-loading-screen" | Out-Null
+    Expect ((Shown) -eq "") "on the loading screen, no panel shows ($(Shown))"
 }
 catch {
     Write-Host "FAIL - $_`n$($_.ScriptStackTrace)"

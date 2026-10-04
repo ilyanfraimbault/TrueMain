@@ -380,16 +380,18 @@ process is frontmost, so it never covers the client or another app (the product 
 and ignores the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its
 shortcut and TAB are read from the keyboard's state, because over a captured display no hotkey reaches the app — which
 also settles #1752's macOS question: TAB is detected without an event tap, so without the Input Monitoring permission.
-The overlay is five independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
+The overlay is four independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
 default and set up on its own Overlay page since #1819 (2026-10-03; the game page's slideover before) — each on/off and
 where, by dragging it on a copy of the screen, taking it off with its ×, and dragging it back from a column of the
 hidden panels, or by dragging it in an on-screen preview, the only time the panels take the mouse — plus size and
-opacity for all. The five fixed spots stay each panel's default place, no longer a picker:
+opacity for all. Five fixed spots stay each panel's default place, no longer a picker:
 
 - **Next item**: **one item** — the next one, and the gold still to earn for it or that it can be bought now — and
   nothing else: no components (which one to buy first is not measured yet, so the overlay does not pretend to know),
   no runners-up, no boots; the game page keeps the full panel, from the same `useNextItemPanel`. Whole game or only
   while dead.
+- **Every panel waits for the game to start**: the Live Client API answers on the loading screen already, with the
+  ten players and a zero clock; a reading counts as a game only once its feed holds `GameStart` (2026-10-04).
 - **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
 - **Your pace**: CS per minute with its curve (from minute 3, so the minion-less start does not read as a climb), and
   gold per minute, from one sample per whole minute the feed keeps (`live_client::pace`) — a change a minute, not one
@@ -401,13 +403,15 @@ opacity for all. The five fixed spots stay each panel's default place, no longer
   and their last ten of those games as bars, blue a win and red a loss, oldest to newest, each naming its champion,
   role, KDA and date on hover (#1803: the ranked streak chip it replaces, "W3"/"L4", read as nothing), lane against lane. Read through the player's own
   client (gameflow session for the roster, match history by puuid), three requests at a time, ours and our lane
-  opponent's first, never on TrueMain's Riot key. Counts only, no score made of them. Also on the companion window's
-  loading state. The true-main mark the issue asks for needs a batch lookup by Riot ID on the API and is left for later.
-  A player whose identity the client keeps from us (the session leaves out their puuid or name) stays anonymous:
-  their champion and lane show with "Anonymous", never a name even if the client sent one, and their history is not
-  requested. Our own line is read whatever the others are shown. The session's `nameVisibilityType` is no signal: in
-  ranked it keeps the champion select's `HIDDEN` on every player while sending their names and puuids, which made the
-  whole board anonymous (#1812's first cut).
+  opponent's first, never on TrueMain's Riot key. Counts only, no score made of them. On the companion window's
+  loading state only: the overlay panel it also had was dropped (2026-10-04, #1869) — it duplicated the app, and
+  nothing of the overlay draws over the loading screen. The true-main mark the issue asks for needs a batch lookup by
+  Riot ID on the API and is left for later. A player whose identity the client keeps from us (the session leaves out
+  their puuid) stays anonymous: their champion and lane show with "Anonymous", never a name even if the client sent
+  one, and their history is not requested. Our own line is found by puuid and always read. Neither the session's
+  `nameVisibilityType` nor a missing name is a signal: in ranked it keeps the champion select's `HIDDEN` on every
+  player while sending their names and puuids, which made the whole board anonymous (#1812's first cut); a player
+  listed without `gameName`/`tagLine` has their name read by puuid (`/lol-summoner/v2/summoners/puuid/{puuid}`, #1869).
 - **Item value**: only while TAB is held — each team's item gold, a chevron toward the side ahead with the gap, then
   each lane's — in its own panel rather than pinned to Riot's scoreboard rows, which move with resolution and HUD scale.
   Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's rule).
