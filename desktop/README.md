@@ -186,23 +186,25 @@ hardware encoder).
 
 ## Sharing with the site
 
-The app is its own Nuxt project, so the site's components reach it as **twin
-copies** — the repo's rule for a file two apps need (`decisions/web-frontend-rules.md`):
-each copied file says so in a header naming its twin, and stays identical to it
-except for lines marked app-specific. The shared types and utilities sit under
-`app/shared/` at the same paths as `web/shared/`, so the copies keep their
-`~~/shared/...` imports unchanged. What the app does differently lives beside
-them, not inside them:
+The pages the app renders exactly like the site — champions, tier list, matchup,
+truemains, favorites — and everything they are built from (components,
+composables, the design system, the Nuxt UI theme, the site's `shared/` types)
+come from the Nuxt layer `web/layers/common`, which the app lists in `extends`
+(#1732). Its `README.md` is the contract: the imports a shared file may use and
+what each app provides (`useApiFetch`, `useChampionSlugs`, `useCanonicalIcon`,
+`SkeletonImage`, `RankIcon`). The app's side lives beside its own code:
 
-- `composables/useSiteShims.ts` answers the site composables the copies call
-  (`useChampionSlugs`, `useBuildResolvers`, `useCanonicalIcon`) for an app with
-  no image server and no player pages;
+- `composables/useSiteShims.ts` answers the site composables for an app with no
+  image server and no player pages;
 - `utils/static-data.ts` builds the site's static-data shapes from Data Dragon
-  and Community Dragon in the webview, where the site does it in Nitro;
-- `SkeletonImage`, `RankIcon`, `FavoriteToggle` and `LeaderboardRow` carry the
-  app-specific differences, each stated in its header.
+  and Community Dragon in the webview, where the site does it in Nitro.
 
-A Nuxt layer would replace the copies; that is #1687.
+The app's own pages (dashboard, draft, game, champion page) are not in the
+layer. Where one of them still needs a site component the layer does not hold,
+it takes a **twin copy** — the repo's rule for a file two apps need
+(`decisions/web-frontend-rules.md`): a header names its twin, and it stays
+identical to it except for lines marked app-specific. A component that moves
+into the layer loses its twin.
 
 ## Reaching the API
 

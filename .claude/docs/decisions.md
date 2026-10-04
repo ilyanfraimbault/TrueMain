@@ -149,7 +149,7 @@ Last verified against `develop` on 2026-09-02.
 - `SkeletonImage` serves WebP; `RankIcon` deliberately does not
 - Every icon URL is built by one helper, so one asset is one cache entry — #1000
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
-- `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26); a local Nuxt layer was rejected for now (2026-09-17) and a CI drift check is planned — #1226, #947, #966, #1623, #1625
+- `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26); a root-level web↔admin Nuxt layer was rejected (2026-09-17); the site and the desktop app share `web/layers/common` since #1732, the admin does not extend it (2026-10-01); a CI drift check is planned — #1226, #947, #966, #1623, #1732, #1684, #1625
 - SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14) — #1557, #1546
 - A public section card is its title and its content — no explanatory subtitle, no method footnote; definitions go in a hover (2026-09-25) — #1699
 - Static game data is cached by the browser for the hour the server caches it (2026-09-15) — #1584
