@@ -268,10 +268,12 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
   components, runners-up or boots; whole game or only while dead. **Win probability** (160 pt,
   `OverlayWinProbability.vue`): both sides' percentages and a bar in the sides' colours, no labels, the whole game —
-  a logistic of the item-gold lead relative to the teams' average item gold and of the map — turrets, enemy
-  inhibitors down, drakes and the soul, the Baron's and the Elder's buffs while they last — read off the game's event
-  feed into the game state (`live_client::objectives`, sent as a change only when an objective falls); the product
-  owner's formula, not a measured model (`utils/item-value.ts`). **Your pace** (176 pt, `OverlayStats.vue`): CS per
+  a logistic of each lane's creep-score, level and kill lead over the opposite lane, weighted by a regression fitted
+  on our ranked games (interpolated between 5, 10, 15, 20 and 30 minutes; the support's lead weighs little; creep
+  scores sent in steps of 10), and of the map — turrets, enemy inhibitors down, drakes and the soul, the Baron's and
+  the Elder's buffs while they last — read off the game's event feed into the game state (`live_client::objectives`,
+  sent as a change only when an objective falls); the map's weights are the product owner's, not measured
+  (`utils/item-value.ts`, #1864). **Your pace** (176 pt, `OverlayStats.vue`): CS per
   minute with a sparkline of it from minute 3, and gold per minute (inventory cost plus gold in hand — the API has no
   gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
   (`live_client::pace`). **Loading screen** (440 pt, `loading/LoadingBoard.vue`, #1753), only before the game is read:

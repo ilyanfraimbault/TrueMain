@@ -407,15 +407,24 @@ Alt+Shift+O, read with TAB from the keyboard's state as on macOS (no hook, no re
 Windows tester: CI drives it on a Windows desktop over a stand-in game (#1806), but a real game has not been played
 under it yet — #1798.
 
-**The overlay shows a win probability, from the item-gold gap and the map (2026-10-02).** The product owner's call,
-reversing for the in-game overlay the "no win probability" line of #1671 and #1747, and knowingly a formula rather than
-a measured model (`utils/item-value.ts`): a logistic over, in log-odds, the item-gold lead relative to the gold the two
-teams hold on average (×6, so the same gap weighs more early than late — a tenth of that average alone reads about
-65 %), and what each side holds on the map — turrets destroyed (0.12 each), enemy inhibitors down right now (0.5 each,
-standing again five minutes after they fall), elemental drakes (0.15 each, +0.6 for the soul at four), the Baron's
-buff (0.9) and the Elder's (1.1) while they last (three minutes, two and a half — counted from the kill, since the feed
-does not say when a holder dies). The map is read off the game's event feed (`live_client::objectives`), which every
-player sees announced. The draft keeps no win probability (2026-10-02) — #1795.
+**The overlay shows a win probability, from each lane's lead and the map (2026-10-02, refitted 2026-10-04).** The
+product owner's call, reversing for the in-game overlay the "no win probability" line of #1671 and #1747. The first
+version (#1795) was a hand-set formula over the item-gold lead relative to the teams' average item gold, and it read
+backwards in play. Item gold lags behind the side ahead, since the side behind shops on every death. Early, one
+completed component moved the bar by tens of points. And the support's gold counted like a carry's. It is now a
+logistic regression fitted on our ranked games (`match_participant_timeline_snapshots`, about a million games per
+minute mark), in `utils/item-value.ts`. The inputs are each lane's creep-score, level and kill lead over the opposite
+lane at 5, 10, 15, 20 and 30 minutes, with the weights interpolated between the marks. These are the only leads the
+game's API shows for all ten players, since it gives nobody's gold but ours. On held-out games they predict the result
+as well as the true per-lane gold does (AUC 0.764 at 10 minutes, 0.829 at 15), calibrated within a couple of points.
+Gold per thousand measured at about a third for the support of what it is for the other lanes. The support's kills
+weigh about half a carry's and its creep score nothing, so the support's lead weighs little. Creep scores reach the
+frontend in steps of 10 (`CS_STEP`), so a poll is not a change. The map adds hand-set weights, since the stored
+timelines keep no objectives: turrets destroyed (0.12 each), enemy inhibitors down right now (0.5 each, standing again
+five minutes after they fall), elemental drakes (0.15 each, +0.6 for the soul at four), and the Baron's buff (0.9) and
+the Elder's (1.1) while they last. The buffs last three minutes and two and a half, counted from the kill, since the
+feed does not say when a holder dies. The map is read off the game's event feed (`live_client::objectives`), which
+every player sees announced. The draft keeps no win probability (2026-10-02) — #1795, #1864.
 
 **The player's own account is never highlighted (2026-10-02).** No tint, ring or bolder name on our row — not on the
 loading screen, the game page's scoreboard, a dashboard match row's team strip, nor the opened match's scoreboard and
