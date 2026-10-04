@@ -11,6 +11,48 @@ using TrueMain.Services.Truemains.Identity;
 
 namespace TrueMain.Services.Truemains.Leaderboard;
 
+/// <summary>
+/// The column the leaderboard is ranked on.
+/// </summary>
+public enum LeaderboardSort
+{
+    /// <summary>Current ranked standing (the materialised <c>riot_accounts."Score"</c>). The default.</summary>
+    Rank = 0,
+
+    /// <summary>TrueMain's dedication score for each row's signature champion, computed at read time.</summary>
+    Dedication = 1,
+}
+
+public interface ITruemainsLeaderboardQueryService
+{
+    /// <summary>
+    /// Returns a paged slice of the truemains leaderboard. The list is
+    /// restricted to accounts on the regions the leaderboard exposes
+    /// (<c>europe</c> / <c>americas</c> / <c>korea</c>) and to those that
+    /// have at least one rank snapshot — unranked accounts are out of scope
+    /// for V1. Optional filters narrow by region, dominant role of a main
+    /// champion, a specific champion id, and/or (<paramref name="otpOnly"/>)
+    /// one-trick-pony status on a main champion. <paramref name="sort"/> picks
+    /// the ranking column.
+    /// </summary>
+    Task<LeaderboardResponse> GetAsync(
+        int page,
+        int pageSize,
+        string? region,
+        string? position,
+        int? championId,
+        bool otpOnly,
+        LeaderboardSort sort,
+        CancellationToken ct);
+}
+
+/// <summary>
+/// Orchestrates one leaderboard request: response cache and coalescing, the
+/// ranking phase (<see cref="LeaderboardRanking"/>, over the eligibility SQL in
+/// <see cref="LeaderboardEligibility"/>), then the concurrent hydration of the
+/// page slice (<see cref="LeaderboardPageHydration"/> and the shared
+/// per-row reads) and the per-phase timing log.
+/// </summary>
 public sealed class TruemainsLeaderboardQueryService(
     TrueMainDbContext db,
     IDbContextFactory<TrueMainDbContext> dbFactory,
@@ -19,10 +61,10 @@ public sealed class TruemainsLeaderboardQueryService(
     IMemoryCache cache,
     ILogger<TruemainsLeaderboardQueryService> logger) : ITruemainsLeaderboardQueryService
 {
+    internal const string Surface = "truemain-leaderboard";
+
     private const int DefaultPageSize = 25;
     private const int MaxPageSize = 50;
-    private const int TopChampionsPerRow = 3;
-    private const string Surface = "truemain-leaderboard";
 
     // The leaderboard is dominated by page-1 traffic with no filters, and the
     // four SQL queries that make a fresh response (Count + FetchPage +
@@ -36,7 +78,6 @@ public sealed class TruemainsLeaderboardQueryService(
 
     // Static because the service is scoped: the whole point is to coalesce across
     // concurrent *requests*, which each get their own instance.
-    private static readonly RequestCoalescer<Ranking> RankingCoalescer = new();
     private static readonly RequestCoalescer<LeaderboardResponse> ResponseCoalescer = new();
 
     // Ranked solo queue. Matches the queue used by MainStatsCalculator
@@ -44,22 +85,7 @@ public sealed class TruemainsLeaderboardQueryService(
     // consistent with the player's top-champions cell on the same row.
     private const int RankedQueueId = (int)LolQueueId.RankedSoloDuo;
 
-    // A position filter surfaces every player who plays that position on a
-    // main champion at least this share of the time, not just players whose
-    // single most-played position matches. The bar is low (20%) on purpose:
-    // any meaningful flex into the lane should make the player visible there,
-    // and only one-off cameos (<20% of a champion's games) stay filtered out.
-    // Shared with the primary/secondary derivation in MainPositions so the
-    // filter bar and the "secondary lane" bar can't drift apart.
-    private const double MinPositionShare = MainPositions.MinShare;
-
-    // Safety valve on the dedication ranking: the score is a read-time
-    // expression, so ordering by it means scoring every eligible account rather
-    // than seeking an index. The cap bounds that scan if the tracked population
-    // ever grows by orders of magnitude; below it the ranking is exact. Rows
-    // beyond the cap are the lowest play rates in the population (see
-    // MainDedication.FetchCandidatesAsync), i.e. the least committed players.
-    private const int MaxDedicationCandidates = 50_000;
+    private readonly LeaderboardRanking ranking = new(db, dbFactory, mainAnalysisOptions, cache, logger);
 
     public async Task<LeaderboardResponse> GetAsync(
         int page,
@@ -93,6 +119,7 @@ public sealed class TruemainsLeaderboardQueryService(
         }
 
         var minGames = Math.Max(0, options.Value.MinRankedGames);
+        var filter = new LeaderboardFilter(platforms, championFilter, normalizedPosition, minGames, otpOnly);
 
         // Page-1-no-filter is the dominant shape of /truemains traffic; the
         // four SQL queries that compose a fresh response cost far more than
@@ -101,7 +128,7 @@ public sealed class TruemainsLeaderboardQueryService(
         // moves on a multi-minute cadence (RankSnapshotIngestion + match
         // ingest), so the TTL trades a few seconds of staleness for a large
         // drop in DB load. Mirrors ChampionSummariesQueryService's TTL.
-        var cacheKey = BuildCacheKey(platforms, championFilter, normalizedPosition, minGames, otpOnly, sort, clampedPage, clampedPageSize);
+        var cacheKey = $"truemains:leaderboard:{filter.Key}:{sort}:{clampedPage}:{clampedPageSize}";
         if (cache.TryGetValue<LeaderboardResponse>(cacheKey, out var cached) && cached is not null)
         {
             totalSw.Stop();
@@ -118,13 +145,14 @@ public sealed class TruemainsLeaderboardQueryService(
         // every view, and under load those misses arrived together. The owner
         // waits for the pass even if its visitor leaves, since Count and Page run
         // on its request-scoped context (see RequestCoalescer).
-        var shape = new ResponseShape(cacheKey, platforms, championFilter, normalizedPosition, minGames, otpOnly, sort, clampedPage, clampedPageSize, offset, region);
+        var shape = new ResponseShape(cacheKey, filter, sort, clampedPage, clampedPageSize, offset, region);
         return await ResponseCoalescer.GetOrJoinAsync(cacheKey, () => ComputeResponseAsync(shape), ct, ownerAwaitsToCompletion: true);
     }
 
     private async Task<LeaderboardResponse> ComputeResponseAsync(ResponseShape shape)
     {
-        var (cacheKey, platforms, championFilter, normalizedPosition, minGames, otpOnly, sort, clampedPage, clampedPageSize, offset, region) = shape;
+        var (cacheKey, filter, sort, clampedPage, clampedPageSize, offset, region) = shape;
+        var (platforms, championFilter, normalizedPosition, minGames, otpOnly) = filter;
         // Detached from any single caller's token: the pass is shared.
         var ct = CancellationToken.None;
         var totalSw = Stopwatch.StartNew();
@@ -140,11 +168,11 @@ public sealed class TruemainsLeaderboardQueryService(
         // read time — so that path scores the whole eligible population once and
         // slices the page from it. The default rank ordering keeps the cheap
         // Count + indexed OFFSET on riot_accounts."Score".
-        var (ranking, countMs) = await TimedAsync(() => sort == LeaderboardSort.Dedication
-            ? RankByDedicationAsync(platforms, championFilter, normalizedPosition, minGames, otpOnly, ct)
-            : CountByRankAsync(platforms, championFilter, normalizedPosition, minGames, otpOnly, ct));
+        var (rankingResult, countMs) = await TimedAsync(() => sort == LeaderboardSort.Dedication
+            ? ranking.RankByDedicationAsync(filter, ResponseCacheTtl, ct)
+            : ranking.CountByRankAsync(filter, ct));
 
-        var total = ranking.Total;
+        var total = rankingResult.Total;
         if (total == 0)
         {
             var empty = Empty(clampedPage, clampedPageSize);
@@ -163,9 +191,9 @@ public sealed class TruemainsLeaderboardQueryService(
             return empty;
         }
 
-        var (pageRows, pageMs) = await TimedAsync(() => ranking.OrderedAccountIds is { } orderedIds
-            ? FetchPageByAccountIdsAsync(orderedIds.Skip(offset).Take(clampedPageSize).ToArray(), ct)
-            : FetchPageAsync(platforms, championFilter, normalizedPosition, minGames, otpOnly, offset, clampedPageSize, ct));
+        var (pageRows, pageMs) = await TimedAsync(() => rankingResult.OrderedAccountIds is { } orderedIds
+            ? LeaderboardEligibility.FetchPageByAccountIdsAsync(db, orderedIds.Skip(offset).Take(clampedPageSize).ToArray(), ct)
+            : LeaderboardEligibility.FetchPageAsync(db, filter, offset, clampedPageSize, ct));
         if (pageRows.Count == 0)
         {
             // The caller asked for a page past the end. Return an empty slice
@@ -187,19 +215,19 @@ public sealed class TruemainsLeaderboardQueryService(
             return pastEnd;
         }
 
-        // Hydrate the page slice with derived data. Four batched queries — the
+        // Hydrate the page slice with derived data. Batched queries — the
         // top-3 champions (main_champion_stats) and Games / KDA / W-L
         // (champion_aggregate_scopes) keyed by account, the latest rank cells
-        // (tier/div/LP) keyed by account id,
-        // and the dominant build per (account, champion) from the aggregate
-        // schema. The heavy ordering + pagination already happened on
-        // riot_accounts."Score", so these only touch the ~25 rows on the page.
+        // (tier/div/LP) keyed by account id, the lanes, the dedication, and
+        // the dominant build per (account, champion) from the aggregate
+        // schema. The heavy ordering + pagination already happened, so these
+        // only touch the ~25 rows on the page.
         //
         // stats / ranks depend only on the page's puuid / id arrays, so they
         // fire immediately. The build fetch needs the actual champion ids the
         // top-3 query selects, so it chains off topChampions — but that chained
         // pair still overlaps stats / ranks, so the wall-clock hydration cost is
-        // unchanged. A single DbContext is not thread-safe, so each Fetch creates
+        // unchanged. A single DbContext is not thread-safe, so each fetch runs on
         // its own short-lived context from the factory (mirrors
         // ProfileQueryService). Each task still times its own body via TimedAsync
         // so the cache-miss log keeps the per-phase breakdown; under concurrency
@@ -216,16 +244,23 @@ public sealed class TruemainsLeaderboardQueryService(
         // Id is the PK and puuid is unique per account, so this stays 1:1.
         var puuidByAccountId = accountIdByPuuid.ToDictionary(kv => kv.Value, kv => kv.Key);
 
-        var statsTask = TimedAsync(() => FetchStatsAsync(accountIds, puuidByAccountId, ct));
-        var ranksTask = TimedAsync(() => FetchLatestRanksAsync(accountIds, ct));
-        var positionsTask = TimedAsync(() => FetchPositionsAsync(platforms, puuids, ct));
+        var statsTask = TimedAsync(() => WithContextAsync(
+            ctx => LeaderboardPageHydration.FetchStatsAsync(ctx, RankedQueueId, accountIds, puuidByAccountId, ct), ct));
+        var ranksTask = TimedAsync(() => WithContextAsync(
+            ctx => LatestRankSnapshots.FetchAsync(ctx, accountIds, ct), ct));
+        // The lane derivation itself lives in MainPositions, shared with search.
+        var positionsTask = TimedAsync(() => WithContextAsync(
+            ctx => MainPositions.FetchAsync(ctx, platforms, puuids, ct), ct));
 
         // The dedication-sorted path already scored every candidate to rank
         // them, so the page's scores are in hand — only the rank-sorted path
         // pays a query, and only for the page's ~25 accounts.
-        var dedicationTask = TimedAsync(() => ranking.DedicationByAccount is { } scored
+        var dedicationTask = TimedAsync(() => rankingResult.DedicationByAccount is { } scored
             ? Task.FromResult(scored)
-            : FetchDedicationAsync(accountIds, championFilter, ct));
+            : WithContextAsync(
+                ctx => MainDedication.FetchAsync(
+                    ctx, accountIds, championFilter, DateTime.UtcNow, mainAnalysisOptions.Value.PlayRateFloor, ct),
+                ct));
 
         // Chain the build fetch off the top-3 result: it resolves the page's
         // (account, champion) pairs from the selected champions, and still runs
@@ -233,11 +268,13 @@ public sealed class TruemainsLeaderboardQueryService(
         // because TimedAsync wraps the whole continuation — the wait on
         // topChampionsTask *plus* the build round trips — so it is an upper
         // bound, not the build query in isolation.
-        var topChampionsTask = TimedAsync(() => FetchTopChampionsAsync(platforms, puuids, ct));
+        var topChampionsTask = TimedAsync(() => WithContextAsync(
+            ctx => LeaderboardPageHydration.FetchTopChampionsAsync(ctx, platforms, puuids, ct), ct));
         var buildsTask = TimedAsync(async () =>
         {
             var (topChampions, _) = await topChampionsTask;
-            return await FetchTopChampionBuildsAsync(topChampions, accountIdByPuuid, ct);
+            return await WithContextAsync(
+                ctx => LeaderboardTopBuilds.FetchAsync(ctx, RankedQueueId, topChampions, accountIdByPuuid, ct), ct);
         });
 
         await Task.WhenAll(topChampionsTask, statsTask, ranksTask, buildsTask, positionsTask, dedicationTask);
@@ -249,76 +286,17 @@ public sealed class TruemainsLeaderboardQueryService(
         var (positionsByPuuid, positionsMs) = await positionsTask;
         var (dedicationByAccount, dedicationMs) = await dedicationTask;
 
-        var rank = offset + 1;
-        var rows = new List<LeaderboardRowReadModel>(pageRows.Count);
-        foreach (var row in pageRows)
-        {
-            var topChamps = topChampionsByPuuid.GetValueOrDefault(row.Puuid)
-                            ?? new List<LeaderboardTopChampionReadModel>();
-            // Enrich each top champion with the player's dominant build. The
-            // build is absent for champions the aggregate pipeline hasn't
-            // produced a pattern for yet — the three ids stay null then, never
-            // throwing (GetValueOrDefault returns the struct's default).
-            topChamps = topChamps
-                .Select(champion =>
-                {
-                    var build = buildsByPuuidChampion.GetValueOrDefault((row.Puuid, champion.ChampionId));
-                    return champion with
-                    {
-                        PrimaryKeystoneId = build.PrimaryKeystoneId,
-                        SecondaryStyleId = build.SecondaryStyleId,
-                        FirstItemId = build.FirstItemId,
-                    };
-                })
-                .ToList();
-            var stats = statsByPuuid.GetValueOrDefault(row.Puuid);
-            var latestRank = ranksByAccount.GetValueOrDefault(row.Id);
-
-            // platformId → region slug. RouteToSlug can return null for
-            // platforms we don't expose (JP1/SEA); the platforms filter
-            // already excluded them, so this is just a defensive default.
-            var regionSlug = RegionFilterParser.RouteToSlug(row.PlatformId) ?? string.Empty;
-
-            rows.Add(new LeaderboardRowReadModel
-            {
-                Rank = rank++,
-                Identity = new ProfileIdentityReadModel
-                {
-                    GameName = row.GameName,
-                    TagLine = row.TagLine,
-                    PlatformId = row.PlatformId,
-                    ProfileIconId = row.ProfileIconId,
-                    SummonerLevel = row.SummonerLevel,
-                },
-                Region = regionSlug,
-                Ranked = new LeaderboardRankedReadModel
-                {
-                    Tier = latestRank?.Tier ?? string.Empty,
-                    Division = latestRank?.Division ?? string.Empty,
-                    LeaguePoints = latestRank?.LeaguePoints ?? 0,
-                    Score = row.Score,
-                },
-                Stats = new LeaderboardStatsReadModel
-                {
-                    Games = stats?.Games ?? 0,
-                    // WR / W-L are the player's overall ranked split totals from the
-                    // latest rank snapshot (League-V4 Wins/Losses), not the
-                    // main-champion aggregate. A main whose tracked-champion games
-                    // have aged out of champion_aggregate_scopes (or whose displayed
-                    // main is a stale snapshot they no longer play) still has a live
-                    // ranked W-L on their snapshot, so the WR cell stays populated
-                    // instead of vanishing. Games / KDA remain the main-champion
-                    // aggregate (games on tracked mains), so games and W+L can differ.
-                    Wins = latestRank?.Wins,
-                    Losses = latestRank?.Losses,
-                    WinRate = RateMath.WinRate(latestRank?.Wins, latestRank?.Losses),
-                    Kda = stats?.Kda,
-                },
-                TopChampions = topChamps,
-                Positions = positionsByPuuid.GetValueOrDefault(row.Puuid),
-                Dedication = dedicationByAccount.GetValueOrDefault(row.Id),
-            });
-        }
+        var rows = pageRows
+            .Select((row, index) => LeaderboardPageHydration.BuildRow(
+                rank: offset + 1 + index,
+                row,
+                topChampionsByPuuid.GetValueOrDefault(row.Puuid),
+                buildsByPuuidChampion,
+                statsByPuuid.GetValueOrDefault(row.Puuid),
+                ranksByAccount.GetValueOrDefault(row.Id),
+                positionsByPuuid.GetValueOrDefault(row.Puuid),
+                dedicationByAccount.GetValueOrDefault(row.Id)))
+            .ToList();
 
         var response = new LeaderboardResponse
         {
@@ -338,228 +316,13 @@ public sealed class TruemainsLeaderboardQueryService(
         return response;
     }
 
-    /// <summary>
-    /// Rank-sorted path: only the eligible count is needed up front, the page
-    /// itself is an indexed OFFSET on <c>riot_accounts."Score"</c>.
-    /// </summary>
-    private async Task<Ranking> CountByRankAsync(
-        string[] platforms,
-        int? championFilter,
-        string? position,
-        int minGames,
-        bool otpOnly,
-        CancellationToken ct)
+    // Runs one hydration fetch on its own short-lived context: the page's
+    // fetches run concurrently, and a single DbContext is not thread-safe.
+    private async Task<T> WithContextAsync<T>(Func<TrueMainDbContext, Task<T>> fetch, CancellationToken ct)
     {
-        var total = await CountAsync(platforms, championFilter, position, minGames, otpOnly, ct);
-        return new Ranking(total, OrderedAccountIds: null, DedicationByAccount: null);
-    }
-
-    /// <summary>
-    /// Dedication-sorted path: score every eligible account, keep the ordering
-    /// and the scores so the page slice needs neither a second scoring pass nor
-    /// a separate count.
-    /// </summary>
-    /// <remarks>
-    /// The result is cached per filter shape, without the page — paging is the
-    /// normal way people use a leaderboard, and the per-page response cache
-    /// alone would make every page change repeat the full scan and scoring pass.
-    /// The read-time design is defensible because that cost is paid once per
-    /// sorted board, not once per page.
-    /// </remarks>
-    private async Task<Ranking> RankByDedicationAsync(
-        string[] platforms,
-        int? championFilter,
-        string? position,
-        int minGames,
-        bool otpOnly,
-        CancellationToken ct)
-    {
-        var rankingCacheKey = BuildRankingCacheKey(platforms, championFilter, position, minGames, otpOnly);
-        if (cache.TryGetValue<Ranking>(rankingCacheKey, out var cachedRanking) && cachedRanking is not null)
-        {
-            // Shared instance, read-only from here: GetAsync only slices
-            // OrderedAccountIds and looks up DedicationByAccount. Neither is ever
-            // mutated, so handing the same object to concurrent requests is safe
-            // — keep it that way if this grows.
-            return cachedRanking;
-        }
-
-        // Miss. Everyone who missed together shares one scoring pass instead of each
-        // running their own over the eligible population (#870) — the reason this path
-        // needs it more than the others is that the dedication sort replaced an indexed
-        // count with a scored scan of up to MaxDedicationCandidates accounts.
-        return await RankingCoalescer.GetOrJoinAsync(
-            rankingCacheKey,
-            () => ComputeAndCacheRankingAsync(
-                rankingCacheKey, platforms, championFilter, position, minGames, otpOnly),
-            ct);
-    }
-
-    private async Task<Ranking> ComputeAndCacheRankingAsync(
-        string rankingCacheKey,
-        string[] platforms,
-        int? championFilter,
-        string? position,
-        int minGames,
-        bool otpOnly)
-    {
-        // Detached from any single caller's token: the pass is shared, so one request
-        // walking away must not cancel it for the others (see RequestCoalescer). It is
-        // bounded by the candidate cap and its own TTL.
-        var ct = CancellationToken.None;
-
-        // Re-check under the coalescer: while this caller was queueing behind another
-        // pass for the same key, that pass may have finished and cached its result.
-        if (cache.TryGetValue<Ranking>(rankingCacheKey, out var justCached) && justCached is not null)
-        {
-            return justCached;
-        }
-
-        // Own short-lived context: consistent with the other fetches, and this
-        // one can be a long-running scan.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-        var (candidates, truncated) = await MainDedication.FetchCandidatesAsync(
-            ctx, platforms, championFilter, position, minGames, otpOnly, MinPositionShare,
-            DateTime.UtcNow, mainAnalysisOptions.Value.PlayRateFloor, MaxDedicationCandidates, ct);
-
-        if (truncated)
-        {
-            // Not an error: the ranking is still exact for every row above the
-            // cap. It does mean the deep tail is unreachable, which is the
-            // signal that the score should move to a materialised column. The
-            // flag comes from a probe row past the cap, so this fires only when
-            // eligible accounts were genuinely left out — never when the
-            // population happens to land exactly on the cap.
-            logger.LogWarning(
-                "{Surface} dedication ranking hit the candidate cap ({Cap}); the tail of the ranking is truncated.",
-                Surface, MaxDedicationCandidates);
-        }
-
-        // `total` is a count of eligible *players*, not of reachable rows, and
-        // the homepage renders it as a "truemains tracked" figure — so a
-        // truncated candidate set must not silently under-report it. On the
-        // truncated path pay one extra Count to keep the number true; the
-        // consequence is that the unreachable tail pages come back empty (the
-        // past-end branch already returns an empty slice with the real total),
-        // which is the honest failure mode: a page that can't be filled beats a
-        // population figure that is quietly wrong. Otherwise — i.e. always, in
-        // practice — the candidate count *is* the count, no extra query.
-        var total = truncated
-            ? await CountAsync(platforms, championFilter, position, minGames, otpOnly, ct)
-            : candidates.Count;
-
-        var ranking = new Ranking(
-            Total: total,
-            OrderedAccountIds: candidates.Select(candidate => candidate.AccountId).ToList(),
-            DedicationByAccount: candidates.ToDictionary(
-                candidate => candidate.AccountId,
-                candidate => candidate.Dedication));
-
-        // Caching the whole Ranking (not just the ids) is what keeps Truncated's
-        // consequences correct across pages: Total already folds in the extra
-        // CountAsync, and the migrate-to-a-materialised-column warning above sits
-        // on this miss path, so it fires once per ranking rather than once per
-        // page — and is never lost, since a cache hit means the same truncation
-        // verdict still applies.
-        var size = Math.Max(1, candidates.Count / CandidatesPerCacheUnit);
-        if (size <= MaxRankingCacheSize)
-        {
-            cache.Set(rankingCacheKey, ranking, ApiCache.Entry(ResponseCacheTtl, size));
-        }
-
-        return ranking;
+        return await fetch(ctx);
     }
-
-    private async Task<Dictionary<Guid, DedicationReadModel>> FetchDedicationAsync(
-        Guid[] accountIds,
-        int? championFilter,
-        CancellationToken ct)
-    {
-        if (accountIds.Length == 0)
-        {
-            return new Dictionary<Guid, DedicationReadModel>();
-        }
-
-        // Own short-lived context: this runs concurrently with the other page
-        // hydration fetches, and a single DbContext is not thread-safe.
-        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-        return await MainDedication.FetchAsync(
-            ctx,
-            accountIds,
-            championFilter,
-            DateTime.UtcNow,
-            mainAnalysisOptions.Value.PlayRateFloor,
-            ct);
-    }
-
-    /// <summary>
-    /// Every input that decides <em>which accounts</em> the leaderboard shows and
-    /// in what order they rank. Both cache keys are built on this, so the
-    /// per-page response cache and the ranking cache can never disagree about
-    /// what a "filter shape" is — adding a filter here covers both by
-    /// construction.
-    /// </summary>
-    private static string BuildFilterKey(
-        string[] platforms,
-        int? championFilter,
-        string? position,
-        int minGames,
-        bool otpOnly)
-    {
-        // Caller-stable: platforms are normalised upstream (RegionFilterParser
-        // returns a deterministic iteration), but sorting defends against
-        // future drift if another caller passes them in a different order.
-        // The "_" sentinel keeps nullable values distinct from any literal
-        // filter value that could collide on the key (no champion uses "_"
-        // as an ID, no position is "_").
-        var platformPart = string.Join(",", platforms.OrderBy(p => p, StringComparer.Ordinal));
-        var championPart = championFilter?.ToString() ?? "_";
-        var positionPart = position ?? "_";
-        var otpPart = otpOnly ? "otp" : "_";
-        return $"{platformPart}:{championPart}:{positionPart}:{minGames}:{otpPart}";
-    }
-
-    private static string BuildCacheKey(
-        string[] platforms,
-        int? championFilter,
-        string? position,
-        int minGames,
-        bool otpOnly,
-        LeaderboardSort sort,
-        int page,
-        int pageSize)
-        => $"truemains:leaderboard:{BuildFilterKey(platforms, championFilter, position, minGames, otpOnly)}:{sort}:{page}:{pageSize}";
-
-    /// <summary>
-    /// Key for the dedication ranking. Deliberately carries no page, page size
-    /// or sort: the ranking is a property of the filter shape alone, so paging
-    /// through one sorted board reuses a single scan instead of rescoring the
-    /// whole population per page.
-    /// </summary>
-    private static string BuildRankingCacheKey(
-        string[] platforms,
-        int? championFilter,
-        string? position,
-        int minGames,
-        bool otpOnly)
-        => $"truemains:dedication-ranking:{BuildFilterKey(platforms, championFilter, position, minGames, otpOnly)}";
-
-    // A ranking entry is not one response — it holds the whole scored
-    // population, so charging it 1 unit would let it evict the rest of the cache
-    // for free. One unit is roughly a page response (~25 hydrated rows, tens of
-    // KB); a scored candidate is ~200 bytes across the id list, the dictionary
-    // and the read model, so ~125 candidates cost about what one response does.
-    // Round to 100 per unit to charge slightly over the odds rather than under.
-    private const int CandidatesPerCacheUnit = 100;
-
-    // Cap one ranking at an eighth of the total budget. Beyond that the entry
-    // would distort eviction for every other surface sharing this cache, so the
-    // ranking simply is not cached and each page rescans — the same behaviour as
-    // before this cache existed. At the current ratio this covers populations up
-    // to ~12 800 accounts, comfortably above real scale; a board big enough to
-    // exceed it is already past the point where the score should be materialised
-    // rather than derived per request.
-    private const int MaxRankingCacheSize = 128;
 
     // Times a single sub-query so the cache-miss log line can carry a per-phase
     // latency breakdown (countMs/pageMs/topChampMs/statsMs/ranksMs). The whole
@@ -573,349 +336,6 @@ public sealed class TruemainsLeaderboardQueryService(
         var result = await query();
         sw.Stop();
         return (result, sw.Elapsed.TotalMilliseconds);
-    }
-
-    private async Task<int> CountAsync(
-        string[] platforms,
-        int? championFilter,
-        string? position,
-        int minGames,
-        bool otpOnly,
-        CancellationToken ct)
-    {
-        // The /truemains leaderboard is, by definition, the list of truemains
-        // — so the `IsMain = true` EXISTS is unconditional. Accounts that
-        // haven't been through main analysis yet (fresh ingests) are out of
-        // scope until they do. The `championFilter` / `position` / `otpOnly`
-        // parameters degrade to "any champion / any position / any main" so they
-        // compose inside the same EXISTS clause without an outer toggle. When
-        // `otpOnly` is set with a champion filter, both land on the same
-        // main_champion_stats row, so it means "OTP of that champion".
-        //
-        // The ranked-games floor reads main_champion_stats."TotalMatches"
-        // rather than a correlated COUNT(*) over match_participants: that
-        // subquery ran once per candidate account and dominated the whole
-        // query, yet filtered nothing — main analysis only sets IsMain when
-        // TotalMatches >= MinMatchesToEvaluate (20), so every row the EXISTS
-        // already admits clears the same bar. TotalMatches saturates at
-        // MainAnalysis.MatchesToConsider (50), so minGames must stay <= 50 to
-        // remain meaningful.
-        FormattableString sql = $"""
-            SELECT COUNT(*)::int AS "Value"
-            FROM riot_accounts a
-            WHERE a."PlatformId" = ANY ({platforms})
-              AND a."Score" IS NOT NULL
-              AND EXISTS (
-                  SELECT 1 FROM main_champion_stats m
-                  WHERE m."PlatformId" = a."PlatformId"
-                    AND m."Puuid" = a."Puuid"
-                    AND m."IsMain" = true
-                    AND m."IsActive" = true
-                    AND m."TotalMatches" >= {minGames}
-                    AND ({otpOnly}::bool = false OR m."IsOtp" = true)
-                    AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
-                    AND ({position}::text IS NULL OR EXISTS (
-                        SELECT 1
-                        FROM jsonb_array_elements(m."PositionBreakdown") AS pos
-                        WHERE pos->>'Position' = {position}
-                          AND (pos->>'Rate')::float8 >= {MinPositionShare}
-                    ))
-              )
-            """;
-
-        // SqlQuery wraps this as a subquery; the COUNT always yields exactly one
-        // row, so SingleAsync states that invariant — and avoids EF's spurious
-        // "First/FirstOrDefault without OrderBy" warning (event 10103) that the
-        // wrapper query otherwise triggers.
-        return await db.Database.SqlQuery<int>(sql).SingleAsync(ct);
-    }
-
-    private async Task<List<PageRow>> FetchPageAsync(
-        string[] platforms,
-        int? championFilter,
-        string? position,
-        int minGames,
-        bool otpOnly,
-        int offset,
-        int pageSize,
-        CancellationToken ct)
-    {
-        // Order + paginate directly on the denormalised riot_accounts."Score"
-        // (maintained by RankSnapshotWriter) — no DISTINCT ON, no inline score
-        // CASE. "Score IS NOT NULL" is the is-ranked gate and must stay in
-        // lock-step with CountAsync or pagination drifts from the total. The
-        // tier/div/LP display cells are hydrated per page in GetAsync.
-        FormattableString sql = $"""
-            SELECT
-                a."Id" AS "Id",
-                a."Puuid" AS "Puuid",
-                a."GameName" AS "GameName",
-                a."TagLine" AS "TagLine",
-                a."PlatformId" AS "PlatformId",
-                a."ProfileIconId" AS "ProfileIconId",
-                a."SummonerLevel" AS "SummonerLevel",
-                a."Score" AS "Score"
-            FROM riot_accounts a
-            WHERE a."PlatformId" = ANY ({platforms})
-              AND a."Score" IS NOT NULL
-              AND EXISTS (
-                  SELECT 1 FROM main_champion_stats m
-                  WHERE m."PlatformId" = a."PlatformId"
-                    AND m."Puuid" = a."Puuid"
-                    AND m."IsMain" = true
-                    AND m."IsActive" = true
-                    AND m."TotalMatches" >= {minGames}
-                    AND ({otpOnly}::bool = false OR m."IsOtp" = true)
-                    AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
-                    AND ({position}::text IS NULL OR EXISTS (
-                        SELECT 1
-                        FROM jsonb_array_elements(m."PositionBreakdown") AS pos
-                        WHERE pos->>'Position' = {position}
-                          AND (pos->>'Rate')::float8 >= {MinPositionShare}
-                    ))
-              )
-            ORDER BY a."Score" DESC, a."Id"
-            LIMIT {pageSize} OFFSET {offset}
-            """;
-
-        return await db.Database.SqlQuery<PageRow>(sql).ToListAsync(ct);
-    }
-
-    /// <summary>
-    /// Identity cells for an already-ordered slice of accounts. Used by the
-    /// dedication ranking, whose ordering lives in memory (the score is derived
-    /// at read time, so there is no column to page on): SQL fetches the ~25 rows
-    /// by primary key and C# restores the caller's order.
-    /// </summary>
-    private async Task<List<PageRow>> FetchPageByAccountIdsAsync(Guid[] accountIds, CancellationToken ct)
-    {
-        if (accountIds.Length == 0)
-        {
-            return [];
-        }
-
-        // `Score IS NOT NULL` is re-asserted even though the candidate scan
-        // already vetted these ids: that scan was a separate round trip, and an
-        // account whose rank snapshot is cleared in between would materialise a
-        // SQL NULL into PageRow's non-nullable int and throw. Re-stating the
-        // predicate turns that race into a dropped row, which the reordering
-        // below already tolerates — same reason FetchPageAsync carries it.
-        FormattableString sql = $"""
-            SELECT
-                a."Id" AS "Id",
-                a."Puuid" AS "Puuid",
-                a."GameName" AS "GameName",
-                a."TagLine" AS "TagLine",
-                a."PlatformId" AS "PlatformId",
-                a."ProfileIconId" AS "ProfileIconId",
-                a."SummonerLevel" AS "SummonerLevel",
-                a."Score" AS "Score"
-            FROM riot_accounts a
-            WHERE a."Id" = ANY ({accountIds})
-              AND a."Score" IS NOT NULL
-            """;
-
-        var rows = await db.Database.SqlQuery<PageRow>(sql).ToListAsync(ct);
-        var byId = rows.ToDictionary(row => row.Id);
-
-        // Preserve the ranking order; an id that vanished between the candidate
-        // scan and this fetch (account deleted or unranked mid-request) is
-        // simply dropped.
-        return accountIds
-            .Select(id => byId.GetValueOrDefault(id))
-            .Where(row => row is not null)
-            .Select(row => row!)
-            .ToList();
-    }
-
-    private async Task<Dictionary<Guid, RankRow>> FetchLatestRanksAsync(Guid[] accountIds, CancellationToken ct)
-    {
-        if (accountIds.Length == 0)
-        {
-            return new Dictionary<Guid, RankRow>();
-        }
-
-        // Own short-lived context: this runs concurrently with FetchTopChampions
-        // and FetchStats, and a single DbContext is not thread-safe.
-        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-
-        // Latest rank per page account for the display cells (tier/div/LP).
-        // Only the page's ~25 accounts — the heavy ordering + pagination already
-        // happened on riot_accounts."Score" — so this DISTINCT ON is cheap.
-        FormattableString sql = $"""
-            SELECT DISTINCT ON (rs."RiotAccountId")
-                rs."RiotAccountId" AS "AccountId",
-                rs."Tier" AS "Tier",
-                rs."Division" AS "Division",
-                rs."LeaguePoints" AS "LeaguePoints",
-                rs."Wins" AS "Wins",
-                rs."Losses" AS "Losses"
-            FROM rank_snapshots rs
-            WHERE rs."RiotAccountId" = ANY ({accountIds})
-            ORDER BY rs."RiotAccountId", rs."CapturedAtUtc" DESC
-            """;
-
-        var rows = await ctx.Database.SqlQuery<RankRow>(sql).ToListAsync(ct);
-        return rows.ToDictionary(r => r.AccountId);
-    }
-
-    private async Task<Dictionary<string, List<LeaderboardTopChampionReadModel>>> FetchTopChampionsAsync(
-        string[] platforms,
-        string[] puuids,
-        CancellationToken ct)
-    {
-        if (puuids.Length == 0)
-        {
-            return new Dictionary<string, List<LeaderboardTopChampionReadModel>>();
-        }
-
-        // Own short-lived context: this runs concurrently with FetchStats and
-        // FetchLatestRanks, and a single DbContext is not thread-safe.
-        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-
-        var take = TopChampionsPerRow;
-        // ROW_NUMBER per puuid keeps the top-3 cap inside the database so we
-        // don't fetch every main row only to throw most away in C#. The platform
-        // filter adds nothing to the result (a puuid is global) but lets the
-        // (PlatformId, Puuid, ChampionId) index seek: on Puuid alone Postgres
-        // walks the whole index, 300 ms instead of 1.5 ms for a page (#1570). PlayRate
-        // ties tend to coincide with championMatches ties, so the secondary
-        // sort matches ProfileQueryService for consistency.
-        FormattableString sql = $"""
-            WITH ranked AS (
-                SELECT
-                    m."Puuid" AS "Puuid",
-                    m."ChampionId" AS "ChampionId",
-                    m."ChampionMatches" AS "Games",
-                    m."PlayRate" AS "PlayRate",
-                    m."IsOtp" AS "IsOtp",
-                    ROW_NUMBER() OVER (
-                        PARTITION BY m."Puuid"
-                        ORDER BY m."PlayRate" DESC, m."ChampionMatches" DESC
-                    ) AS rn
-                FROM main_champion_stats m
-                WHERE m."PlatformId" = ANY ({platforms})
-                  AND m."Puuid" = ANY ({puuids})
-                  AND m."IsMain" = true
-                  AND m."IsActive" = true
-            )
-            SELECT "Puuid", "ChampionId", "Games", "PlayRate", "IsOtp"
-            FROM ranked
-            WHERE rn <= {take}
-            ORDER BY "Puuid", rn
-            """;
-
-        var rows = await ctx.Database.SqlQuery<TopChampionRow>(sql).ToListAsync(ct);
-
-        // PlayRate is stored 0..1 by main analysis (MainStatsCalculator computes
-        // championMatches / totalMatches), matching the JSON contract — passed
-        // through without rescaling.
-        return rows
-            .GroupBy(r => r.Puuid)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Select(r => new LeaderboardTopChampionReadModel
-                {
-                    ChampionId = r.ChampionId,
-                    Games = r.Games,
-                    PlayRate = r.PlayRate,
-                    IsOtp = r.IsOtp,
-                }).ToList());
-    }
-
-    private async Task<Dictionary<(string Puuid, int ChampionId), LeaderboardTopBuilds.ChampionBuild>> FetchTopChampionBuildsAsync(
-        Dictionary<string, List<LeaderboardTopChampionReadModel>> topChampionsByPuuid,
-        Dictionary<string, Guid> accountIdByPuuid,
-        CancellationToken ct)
-    {
-        // Own short-lived context: this runs concurrently with FetchStats and
-        // FetchLatestRanks, and a single DbContext is not thread-safe.
-        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-        return await LeaderboardTopBuilds.FetchAsync(ctx, RankedQueueId, topChampionsByPuuid, accountIdByPuuid, ct);
-    }
-
-    private async Task<Dictionary<string, StatsRow>> FetchStatsAsync(
-        Guid[] accountIds,
-        IReadOnlyDictionary<Guid, string> puuidByAccountId,
-        CancellationToken ct)
-    {
-        if (accountIds.Length == 0)
-        {
-            return new Dictionary<string, StatsRow>();
-        }
-
-        // Own short-lived context: this runs concurrently with FetchTopChampions
-        // and FetchLatestRanks, and a single DbContext is not thread-safe.
-        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-
-        var queue = RankedQueueId;
-        // Games / W-L / KDA summed from the frozen per-champion aggregate scopes
-        // (champion_aggregate_scopes), not live match_participants. Retention
-        // hard-deletes participants beyond the last couple of patches, which
-        // zeroed this cell for players whose recent ranked games have aged out
-        // (a #1-LP main could read "0 games"); scopes persist because old
-        // patches are frozen, so the numbers stay stable — and one indexed SUM
-        // is cheaper than the old join over participants.
-        //
-        // Each scope row is already one (champion, patch, position, elo bracket)
-        // slice and every match maps to exactly one row, so a straight SUM never
-        // double-counts. The synthetic ALL bracket is a read-time union that is
-        // never stored, so summing every persisted row for the account is its
-        // total. This covers the player's main champions only (the aggregation
-        // source is gated on IsMain) — off-champion ranked games are out of
-        // scope by design, matching the mains-centric top-champions cell.
-        var rows = await ctx.ChampionAggregateScopes
-            .AsNoTracking()
-            .Where(scope => scope.QueueId == queue && accountIds.Contains(scope.RiotAccountId))
-            // Mains only — see #1346. The comment above already says this total is
-            // "gated on IsMain"; that used to be true of the source rows, and is
-            // now true because the read says so.
-            .Where(scope => scope.IsMain)
-            .GroupBy(scope => scope.RiotAccountId)
-            .Select(group => new
-            {
-                RiotAccountId = group.Key,
-                Games = group.Sum(scope => scope.Games),
-                Wins = group.Sum(scope => scope.Wins),
-                Kills = group.Sum(scope => scope.Kills),
-                Deaths = group.Sum(scope => scope.Deaths),
-                Assists = group.Sum(scope => scope.Assists),
-            })
-            .ToListAsync(ct);
-
-        var result = new Dictionary<string, StatsRow>(rows.Count);
-        foreach (var row in rows)
-        {
-            if (!puuidByAccountId.TryGetValue(row.RiotAccountId, out var puuid))
-            {
-                continue;
-            }
-
-            result[puuid] = new StatsRow(
-                Games: row.Games,
-                Wins: row.Wins,
-                Losses: row.Games - row.Wins,
-                Kda: RateMath.Kda(row.Kills, row.Deaths, row.Assists, row.Games));
-        }
-
-        return result;
-    }
-
-    private async Task<Dictionary<string, LeaderboardPositionsReadModel>> FetchPositionsAsync(
-        string[] platforms,
-        string[] puuids,
-        CancellationToken ct)
-    {
-        if (puuids.Length == 0)
-        {
-            return new Dictionary<string, LeaderboardPositionsReadModel>();
-        }
-
-        // Own short-lived context: this runs concurrently with the other page
-        // hydration fetches, and a single DbContext is not thread-safe. The
-        // derivation itself lives in MainPositions, shared with search.
-        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-        return await MainPositions.FetchAsync(ctx, platforms, puuids, ct);
     }
 
     private static string? NormalizePosition(string? position)
@@ -941,43 +361,12 @@ public sealed class TruemainsLeaderboardQueryService(
         Total = 0,
     };
 
-    /// <summary>
-    /// What the ranking phase resolved before the page is hydrated.
-    /// <see cref="OrderedAccountIds"/> and <see cref="DedicationByAccount"/> are
-    /// null on the rank-sorted path, where SQL does the ordering and the page's
-    /// dedication is fetched per slice.
-    /// </summary>
-    private sealed record Ranking(
-        int Total,
-        IReadOnlyList<Guid>? OrderedAccountIds,
-        Dictionary<Guid, DedicationReadModel>? DedicationByAccount);
-
     private sealed record ResponseShape(
         string CacheKey,
-        string[] Platforms,
-        int? ChampionFilter,
-        string? Position,
-        int MinGames,
-        bool OtpOnly,
+        LeaderboardFilter Filter,
         LeaderboardSort Sort,
         int Page,
         int PageSize,
         int Offset,
         string? Region);
-
-    private sealed record PageRow(
-        Guid Id,
-        string Puuid,
-        string GameName,
-        string? TagLine,
-        string PlatformId,
-        int ProfileIconId,
-        int SummonerLevel,
-        int Score);
-
-    private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints, int? Wins, int? Losses);
-
-    private sealed record TopChampionRow(string Puuid, int ChampionId, int Games, double PlayRate, bool IsOtp);
-
-    private sealed record StatsRow(int Games, int Wins, int Losses, double Kda);
 }

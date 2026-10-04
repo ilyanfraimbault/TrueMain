@@ -14,7 +14,7 @@ internal static class MainChampionsPolicy
     /// this many champions <c>IsMain</c> when coverage is thin
     /// (CriticalPlayRateThreshold drops to 0.1), so both the profile
     /// (ProfileQueryService.FetchMainsAsync) and the leaderboard
-    /// (TruemainsLeaderboardQueryService.FetchPositionsAsync) cap to this slice.
+    /// (MainPositions.FetchAsync) cap to this slice.
     /// </summary>
     public const int Cap = 6;
 }
