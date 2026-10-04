@@ -39,6 +39,19 @@ export interface RecentGame {
   playedAt: number
 }
 
+/** Mirrors `LaningForm` in `crates/lcu/src/laning.rs`. */
+export interface LaningForm {
+  /** Games on the champion weighed, at most ten. */
+  games: number
+  wins: number
+  /** Of those, the ones whose fifteen-minute gaps were read. */
+  measured: number
+  /** Average leads over the lane opponent at fifteen minutes; null with none measured. */
+  goldDiff15: number | null
+  csDiff15: number | null
+  xpDiff15: number | null
+}
+
 /** Mirrors `LoadingPlayer` in `src-tauri/src/loading.rs`. */
 export interface LoadingPlayer {
   /** Empty for an anonymous player. */
@@ -58,6 +71,8 @@ export interface LoadingPlayer {
   rankRead: boolean
   /** The client could not read the standing. */
   rankFailed: boolean
+  /** Their form on the champion (#1863); null until read, and when their history could not be. */
+  laning: LaningForm | null
 }
 
 export interface LoadingView {

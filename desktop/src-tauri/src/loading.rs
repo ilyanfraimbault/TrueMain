@@ -13,13 +13,23 @@
 //! opponent's next, so the most useful line is never the last to fill. Each
 //! line is sent as it lands.
 //!
+//! Once a player's history lands, their games on the champion they are on are
+//! looked for further back if need be, and each one's timeline read for the
+//! fifteen-minute gaps against its lane opponent (#1863) — queued behind every
+//! history and standing, one timeline per permit.
+//!
 //! A player who hides their name (Streamer Mode) stays anonymous: their
 //! champion and lane show, never their name, and their history is not read.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use lcu::{GameflowPhase, GameflowPlayer, LcuClient, PlayerForm, RankedQueue, FORM_GAMES};
+use lcu::laning::LaneGaps;
+use lcu::record::MatchHistory;
+use lcu::{
+    gaps_at_fifteen, laning_games, GameflowPhase, GameflowPlayer, LaningForm, LcuClient,
+    PlayerForm, RankedQueue, FORM_GAMES, LANING_DEPTH, LANING_GAMES,
+};
 use serde::Serialize;
 use shell_state::AppState;
 use tauri::async_runtime::JoinHandle;
@@ -60,6 +70,9 @@ pub struct LoadingPlayer {
     pub rank_read: bool,
     /// The client could not read the standing.
     pub rank_failed: bool,
+    /// How they fare on the champion they are on (#1863); absent until read,
+    /// and for good when their history could not be.
+    pub laning: Option<LaningForm>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -151,7 +164,7 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
             let history = client.match_history_of(&puuid, FORM_GAMES).await;
             (
                 index,
-                Read::Form(history.map(|history| PlayerForm::from_history(&history, champion))),
+                Read::Form(history.map(|history| (history, puuid, champion))),
             )
         });
     }
@@ -163,12 +176,22 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
         });
     }
     while let Some(Ok((index, read))) = reads.join_next().await {
+        if let Read::Form(Ok((history, puuid, champion))) = &read {
+            let (gate, client) = (gate.clone(), client.clone());
+            let (history, puuid, champion) = (history.clone(), puuid.clone(), *champion);
+            reads.spawn(async move {
+                let form = laning(&gate, &client, &puuid, history, champion).await;
+                (index, Read::Laning(form))
+            });
+        }
         publish(app, loading, |view| {
             let Some(player) = view.players.get_mut(index) else {
                 return;
             };
             match read {
-                Read::Form(Ok(form)) => player.form = Some(form),
+                Read::Form(Ok((history, _, champion))) => {
+                    player.form = Some(PlayerForm::from_history(&history, champion));
+                }
                 Read::Form(Err(error)) => {
                     tracing::debug!(%error, "a player's history could not be read");
                     player.failed = true;
@@ -181,6 +204,7 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
                     tracing::debug!(%error, "a player's rank could not be read");
                     player.rank_failed = true;
                 }
+                Read::Laning(form) => player.laning = Some(form),
             }
         });
     }
@@ -188,8 +212,57 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
 
 /// One client answer about one player.
 enum Read {
-    Form(lcu::Result<PlayerForm>),
+    /// The history, with the puuid and champion it was read for.
+    Form(lcu::Result<(MatchHistory, String, i64)>),
     Rank(lcu::Result<lcu::record::RankedStats>),
+    Laning(LaningForm),
+}
+
+/// The player's form on `champion`: their games on it in `history`, looked for
+/// deeper while fewer than `LANING_GAMES` turn up, and each one's gaps at
+/// fifteen minutes. A page or a timeline the client does not serve only
+/// narrows what is weighed.
+async fn laning(
+    gate: &Semaphore,
+    client: &LcuClient,
+    puuid: &str,
+    mut history: MatchHistory,
+    champion: i64,
+) -> LaningForm {
+    let mut read = history.games.games.len();
+    while laning_games(&history, champion).len() < LANING_GAMES
+        && (FORM_GAMES..LANING_DEPTH).contains(&read)
+    {
+        let page = {
+            let _permit = gate.acquire().await;
+            client.match_history_page_of(puuid, read, FORM_GAMES).await
+        };
+        let Ok(page) = page else { break };
+        let more = page.games.games.len();
+        history.games.games.extend(page.games.games);
+        read += more;
+        if more < FORM_GAMES {
+            break;
+        }
+    }
+    let games = laning_games(&history, champion);
+    let mut gaps: Vec<Option<LaneGaps>> = Vec::with_capacity(games.len());
+    for game in &games {
+        let Some((me, opponent)) = game.slots else {
+            gaps.push(None);
+            continue;
+        };
+        let timeline = {
+            let _permit = gate.acquire().await;
+            client.game_timeline(game.game_id).await
+        };
+        gaps.push(
+            timeline
+                .ok()
+                .and_then(|timeline| gaps_at_fifteen(&timeline, me, opponent)),
+        );
+    }
+    LaningForm::new(&games, &gaps)
 }
 
 /// The ten players, ours first and our lane opponent next, with their puuids
@@ -239,6 +312,7 @@ fn ordered(
                     rank: None,
                     rank_read: false,
                     rank_failed: false,
+                    laning: None,
                 },
                 (!anonymous).then(|| player.puuid.clone()),
             )

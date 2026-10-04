@@ -156,7 +156,11 @@ fn readable(path: &str) -> bool {
     }
     if let Some(rest) = path.strip_prefix("/champions/") {
         let segments: Vec<&str> = rest.split('/').collect();
-        return matches!(segments.as_slice(), [champion_id, "item-context"] if is_id(champion_id));
+        // A lane's matchup, for the Game page's lane chance (#1863).
+        return matches!(
+            segments.as_slice(),
+            [champion_id, "item-context" | "matchups"] if is_id(champion_id)
+        );
     }
     let Some(rest) = path.strip_prefix("/truemains/") else {
         return false;
@@ -388,6 +392,7 @@ mod tests {
         assert!(readable("/truemains/Faker-KR1/matches"));
         assert!(readable("/truemains/Faker-KR1/matches/KR_7123456789"));
         assert!(readable("/champions/103/item-context"));
+        assert!(readable("/champions/234/matchups"));
     }
 
     #[test]
@@ -407,6 +412,8 @@ mod tests {
     fn refuses_anything_else() {
         assert!(!readable("/champions/8"));
         assert!(!readable("/champions/x/item-context"));
+        assert!(!readable("/champions/x/matchups"));
+        assert!(!readable("/champions/234/matchups/1"));
         assert!(!readable("/champions/8/item-context/1"));
         assert!(!readable("/truemains/Faker-KR1/activity"));
         assert!(!readable("/truemains/Faker-KR1/matches/KR_1/timeline"));
