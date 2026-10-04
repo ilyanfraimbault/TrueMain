@@ -4,6 +4,7 @@ using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
 using Data.Repositories;
+using Ingestor.Options;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;
 using NSubstitute;
@@ -126,7 +127,8 @@ public sealed class MatchSnapshotWriterQueryTests
         var writer = new MatchSnapshotWriter(
             matchClient,
             new FixedTimeProvider(NowUtc),
-            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions()));
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions()),
+            Microsoft.Extensions.Options.Options.Create(new MainActivityOptions()));
 
         return (writer, matchClient);
     }

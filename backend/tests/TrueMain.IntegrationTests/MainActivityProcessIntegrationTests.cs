@@ -146,9 +146,38 @@ public sealed class MainActivityProcessIntegrationTests
 
         await using var selection = _fixture.CreateDbContext();
         var due = await new RiotAccountRepository(selection)
-            .GetAccountsForActivityCheckAsync(DateTime.UtcNow.AddHours(-24), batchSize: 1, CancellationToken.None);
+            .GetAccountsForActivityCheckAsync(DateTime.UtcNow.AddHours(-24), DateTime.UtcNow.AddDays(-30), batchSize: 1, CancellationToken.None);
 
         due.Should().ContainSingle().Which.Puuid.Should().Be("puuid-unread-1");
+    }
+
+    [Fact]
+    public async Task Selection_ShouldSkipAccountsAnIngestedMatchShowedPlaying()
+    {
+        await _fixture.ResetDatabaseAsync();
+        var now = DateTime.UtcNow;
+
+        // Seen in a match last week and mastery-read ten days ago: nothing left to ask (#1475).
+        await SeedMainAsync("puuid-seen-1", championId: 22, isActive: true, lastActivityCheckAtUtc: now.AddDays(-10));
+        await SetLastSeenInMatchAsync("puuid-seen-1", now.AddDays(-7));
+
+        // Seen recently, but its mastery facts are older than the window: refreshed once.
+        await SeedMainAsync("puuid-stale-1", championId: 22, isActive: true, lastActivityCheckAtUtc: now.AddDays(-40));
+        await SetLastSeenInMatchAsync("puuid-stale-1", now.AddDays(-2));
+
+        // Last seen before the window: the unseen tail, which mastery still answers for.
+        await SeedMainAsync("puuid-gone-1", championId: 22, isActive: true, lastActivityCheckAtUtc: now.AddDays(-10));
+        await SetLastSeenInMatchAsync("puuid-gone-1", now.AddDays(-45));
+
+        // Never seen in a match.
+        await SeedMainAsync("puuid-unseen-1", championId: 22, isActive: true, lastActivityCheckAtUtc: now.AddDays(-10));
+
+        await using var selection = _fixture.CreateDbContext();
+        var due = await new RiotAccountRepository(selection)
+            .GetAccountsForActivityCheckAsync(now.AddHours(-24), now.AddDays(-30), batchSize: 50, CancellationToken.None);
+
+        due.Select(account => account.Puuid).Should()
+            .BeEquivalentTo(["puuid-stale-1", "puuid-gone-1", "puuid-unseen-1"]);
     }
 
     [Fact]
@@ -237,6 +266,13 @@ public sealed class MainActivityProcessIntegrationTests
         });
 
         db.MainChampionStats.Add(NewStat(puuid, championId, isActive, platformId));
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SetLastSeenInMatchAsync(string puuid, DateTime lastSeenUtc)
+    {
+        await using var db = _fixture.CreateDbContext();
+        db.RiotAccounts.Single(a => a.Puuid == puuid).LastSeenInMatchAtUtc = lastSeenUtc;
         await db.SaveChangesAsync();
     }
 

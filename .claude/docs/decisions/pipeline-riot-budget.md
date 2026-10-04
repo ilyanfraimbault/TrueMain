@@ -216,7 +216,36 @@ The rule this settles: **a process with a per-run budget also carries a cadence*
 What this does **not** do: fix `MainActivity`'s pool. At its batch size a full cycle over every active main
 takes far longer than `InactiveAfterDays`, so `RecheckAfterHours` never binds and the process cannot reach
 the state it maintains. That is #1475 — match participation as the primary activity signal — and the
-cadence here only bounds the damage until it lands.
+cadence here only bounds the damage until it lands. (It landed: see the next entry.)
+
+## Match participation is the primary activity signal for mains (2026-10-04)
+
+**A main the pipeline has just watched play needs no mastery call to prove it.** Every ingested match names
+ten accounts and the champion each one played, at zero Riot cost. `MainActivity` (#900) was nonetheless
+spending one champion-mastery-v4 call per main on a pool far larger than a day of batches, so a full cycle
+took longer than `InactiveAfterDays` and the state it maintained could not converge (#1474).
+
+- **Recorded on the match write path**, inside the account's write transaction: accounts holding a main get
+  `riot_accounts.LastSeenInMatchAtUtc` = the game's start time, and an inactive `IsMain` row whose champion
+  was played within `MainActivity:InactiveAfterDays` is set back to `IsActive`. Two set-based `UPDATE ... FROM
+  unnest(...)` statements per account visit, deduplicated in memory first and conditional on the stamp moving
+  forward, so a re-observation rewrites no row. A column on the account, not a new table.
+- **A match only ever adds evidence.** It reactivates, it never deactivates; a game older than the window (a
+  first ingestion lists weeks of history) stamps the account but does not reactivate. Retiring a main stays
+  mastery's call, unchanged.
+- **`MainActivity` selects the unseen tail.** An account seen in a match within the window is skipped —
+  unless its own mastery read is older than that window too. That exception is deliberate: the account stamp
+  is per account, not per champion, so a player who still plays main A but dropped main B would otherwise keep
+  B active forever; and the mastery points/rank the truemain score reads (#1701) would freeze for exactly the
+  players who play most. One mastery read per window per observed account keeps both honest, at roughly
+  `observed / InactiveAfterDays` calls a day.
+- **Same window everywhere.** Reactivation, the selection and the mastery verdict all use
+  `InactiveAfterDays`, so a game that would keep a main active under mastery is the one that brings it back
+  here. No new option.
+- No backfill: the stamp fills as matches are ingested, so the selection narrows progressively over the first
+  window after deploy rather than in one heavy migration.
+
+Source: #1475 (follows #900, #1474; epic #1460).
 
 ## The claim's established-main share is per platform (2026-10-04)
 
