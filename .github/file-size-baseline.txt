@@ -18,7 +18,6 @@ backend/Api/Services/Champions/Directory/ChampionSummariesQueryService.cs	697	50
 backend/Api/Services/Champions/Synergies/ChampionSynergyQueryService.cs	518	500
 backend/Api/Services/Ops/Accounts/AccountExplorerQueryService.cs	630	500
 backend/Api/Services/Ops/Coverage/PatchCoverageQueryService.cs	765	500
-backend/Api/Services/Ops/DataQuality/DataQualityDetectorsQueryService.cs	994	500
 backend/Api/Services/Ops/DataQuality/DataQualityQueryService.cs	695	500
 backend/Api/Services/Truemains/Leaderboard/TruemainsLeaderboardQueryService.cs	983	500
 backend/Api/Services/Truemains/Matches/MatchDetailQueryService.cs	564	500
