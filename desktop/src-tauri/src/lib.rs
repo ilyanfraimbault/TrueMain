@@ -295,10 +295,16 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol(
             recording::files::SCHEME,
             |context, request, responder| {
-                let folder = context
+                // The recorder is managed in `setup`; a request before then
+                // gets an answer, not a panic.
+                let Some(recorder) = context
                     .app_handle()
-                    .state::<recording::SharedRecorder>()
-                    .folder();
+                    .try_state::<recording::SharedRecorder>()
+                else {
+                    responder.respond(recording::files::unavailable());
+                    return;
+                };
+                let folder = recorder.folder();
                 tauri::async_runtime::spawn_blocking(move || {
                     responder.respond(recording::files::serve(&request, &folder));
                 });

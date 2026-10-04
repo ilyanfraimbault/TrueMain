@@ -110,6 +110,11 @@ fn status(code: StatusCode) -> Response<Vec<u8>> {
     response
 }
 
+/// The answer while the recorder is not set up yet.
+pub fn unavailable() -> Response<Vec<u8>> {
+    status(StatusCode::SERVICE_UNAVAILABLE)
+}
+
 /// Answer one request for a file of `folder`.
 pub fn serve(request: &Request<Vec<u8>>, folder: &Path) -> Response<Vec<u8>> {
     let Some(path) = resolve(request.uri().path(), folder) else {
