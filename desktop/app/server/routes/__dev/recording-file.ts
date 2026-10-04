@@ -3,9 +3,9 @@ import { createReadStream, statSync } from 'node:fs'
 
 /**
  * The dev fixtures' video and thumbnails, in `npm run dev` only (#1755). The
- * packaged app loads a recording's files through Tauri's asset protocol
- * (`convertFileSrc`); a browser has no such thing, so `useRecordings().fileSrc`
- * points here instead with the fixture's path.
+ * packaged app loads a recording's files through its `recording` scheme
+ * (`convertFileSrc(path, 'recording')`); a browser has no such thing, so
+ * `useRecordings().fileSrc` points here instead with the fixture's path.
  *
  * Every video path answers with the one local file named by
  * `TRUEMAIN_DEV_RECORDING` (any MP4 — never commit one), honouring HTTP Range

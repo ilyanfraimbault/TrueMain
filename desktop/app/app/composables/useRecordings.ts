@@ -26,7 +26,7 @@ export async function recordingCall<T>(command: string, args?: Record<string, un
 }
 
 /** The shell's `convertFileSrc`, loaded once: a file on disk as a URL the webview may load. */
-let convertFileSrc: ((path: string) => string) | null = null
+let convertFileSrc: ((path: string, protocol?: string) => string) | null = null
 
 /** Settings writes, one after the other, and the latest one asked for. */
 let settingsWrites: Promise<void> = Promise.resolve()
@@ -129,10 +129,14 @@ export function useRecordings() {
     await load()
   }
 
-  /** A file of the library as a URL: the shell's asset protocol, or the dev server's stand-in. */
+  /**
+   * A file of the library as a URL: the shell's `recording` scheme — not Tauri's
+   * asset protocol, whose short range answers lose a long game's picture (#1830) —
+   * or the dev server's stand-in.
+   */
   function fileSrc(path: string | null): string | null {
     if (!path) return null
-    if (fileApiReady.value && convertFileSrc) return convertFileSrc(path)
+    if (fileApiReady.value && convertFileSrc) return convertFileSrc(path, 'recording')
     if (import.meta.dev && !insideTauri()) return `/__dev/recording-file?path=${encodeURIComponent(path)}`
     return null
   }

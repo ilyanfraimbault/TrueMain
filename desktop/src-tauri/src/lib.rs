@@ -292,6 +292,18 @@ pub fn run() {
         .manage(GameCache::default())
         .manage(SharedGame::default())
         .manage(loading::SharedLoading::default())
+        .register_asynchronous_uri_scheme_protocol(
+            recording::files::SCHEME,
+            |context, request, responder| {
+                let folder = context
+                    .app_handle()
+                    .state::<recording::SharedRecorder>()
+                    .folder();
+                tauri::async_runtime::spawn_blocking(move || {
+                    responder.respond(recording::files::serve(&request, &folder));
+                });
+            },
+        )
         .invoke_handler(tauri::generate_handler![
             current_state,
             current_screen,
