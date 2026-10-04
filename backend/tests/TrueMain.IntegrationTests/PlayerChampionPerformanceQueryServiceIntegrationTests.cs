@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Core.Options;
 using Data.Entities;
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Options;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
 using TrueMain.Services.Truemains.Matches;
@@ -23,6 +24,10 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     private const string NameTag = "PerfSummoner-KR1";
     private const string Puuid = "puuid-player-champion-performance";
     private const int ChampionId = 157;
+
+    // The service reads ChampionsList:MinPlayerBuildGames; the test builds it with
+    // the option's default, so the thin-sample case seeds one game under that.
+    private static readonly int MinGames = new ChampionsListOptions().MinPlayerBuildGames;
 
     private readonly PostgresFixture _fixture;
 
@@ -55,15 +60,15 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
     {
         await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
-        await SeedGamesAsync(count: PlayerChampionPerformanceQueryService.MinGames - 1);
+        await SeedGamesAsync(count: MinGames - 1);
 
         await using var db = _fixture.CreateDbContext();
         var response = await CreateService(db).GetAsync(
             NameTag, ChampionId, patch: null, position: null, CancellationToken.None);
 
         response.Should().NotBeNull();
-        response!.Games.Should().Be(PlayerChampionPerformanceQueryService.MinGames - 1);
-        response.MinGames.Should().Be(PlayerChampionPerformanceQueryService.MinGames);
+        response!.Games.Should().Be(MinGames - 1);
+        response.MinGames.Should().Be(MinGames);
         response.AverageScore.Should().BeNull("a thin sample is reported as counts, never as a confident average");
         response.Components.Should().BeEmpty();
     }
@@ -218,6 +223,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IDis
             db,
             new TruemainAccountResolver(db),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions()),
+            Microsoft.Extensions.Options.Options.Create(new ChampionsListOptions()),
             _cache);
 
     private async Task SeedAccountAsync()
