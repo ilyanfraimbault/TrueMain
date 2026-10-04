@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { OverlayPanel, OverlaySettings } from '~/types/overlay'
-import type { Point } from '~/utils/overlay-layout'
+import type { Point, Size } from '~/utils/overlay-layout'
 import { OVERLAY_PANEL_INFO, OVERLAY_PANELS, PANEL_KEY } from '~/types/overlay'
 import { currentScreen, customAt, panelBox, panelSize } from '~/utils/overlay-layout'
 
@@ -34,25 +34,25 @@ const ratio = computed(() => canvasWidth.value / screen.width)
 const shown = computed(() => OVERLAY_PANELS.filter(panel => props.settings[PANEL_KEY[panel]].enabled))
 const hidden = computed(() => OVERLAY_PANELS.filter(panel => !props.settings[PANEL_KEY[panel]].enabled))
 
-const sizeOf = (panel: OverlayPanel) => panelSize(panel, props.settings.scale)
+/** Each panel's size as drawn with its sample, before the overlay's scale: what it takes in game. */
+const measured = reactive<Partial<Record<OverlayPanel, Size>>>({})
+function measure(panel: OverlayPanel, size: Size) {
+  if (size.width > 0 && size.height > 0) measured[panel] = size
+}
+const sizeOf = (panel: OverlayPanel) => panelSize(panel, props.settings.scale, measured[panel])
 
-/**
- * A panel's box on the canvas. At the screen's scale the small panels are a
- * few pixels high, so each is drawn at least `MIN` around its true centre, and
- * kept on the canvas: the centre is what the shell stores.
- */
-const MIN = { width: 108, height: 24 }
+/** How much a panel is shrunk to be drawn on the canvas: the screen's ratio and the overlay's scale. */
+const zoom = computed(() => ratio.value * props.settings.scale)
+
+/** A panel's box on the canvas: its box on the screen, at the canvas's scale — nothing enlarged, so its edges are its edges. */
 function drawnSize(panel: OverlayPanel) {
   const size = sizeOf(panel)
-  return { width: Math.max(size.width * ratio.value, MIN.width), height: Math.max(size.height * ratio.value, MIN.height) }
+  return { width: size.width * ratio.value, height: size.height * ratio.value }
 }
 function boxStyle(panel: OverlayPanel) {
   const box = panelBox(props.settings[PANEL_KEY[panel]], sizeOf(panel), screen)
   const r = ratio.value
-  const { width, height } = drawnSize(panel)
-  const left = Math.min(Math.max((box.x + box.width / 2) * r - width / 2, 0), screen.width * r - width)
-  const top = Math.min(Math.max((box.y + box.height / 2) * r - height / 2, 0), screen.height * r - height)
-  return { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` }
+  return { left: `${box.x * r}px`, top: `${box.y * r}px`, width: `${box.width * r}px`, height: `${box.height * r}px` }
 }
 
 // The drag, by pointer events so it works the same from the screen and from the side.
@@ -103,15 +103,13 @@ function end() {
     return
   }
   if (inside(canvas.value, current.pointer)) {
-    // Where the drawn box's centre lands is where the panel's centre goes.
+    // Where the drawn box's corner lands is where the panel's corner goes.
     const rect = canvas.value!.getBoundingClientRect()
-    const drawn = drawnSize(current.panel)
-    const size = sizeOf(current.panel)
     const origin = {
-      x: (current.pointer.x - current.grab.x + drawn.width / 2 - rect.left) / ratio.value - size.width / 2,
-      y: (current.pointer.y - current.grab.y + drawn.height / 2 - rect.top) / ratio.value - size.height / 2,
+      x: (current.pointer.x - current.grab.x - rect.left) / ratio.value,
+      y: (current.pointer.y - current.grab.y - rect.top) / ratio.value,
     }
-    emit('place', current.panel, customAt(origin, size, screen))
+    emit('place', current.panel, customAt(origin, sizeOf(current.panel), screen))
   }
   else if (current.from === 'screen' && inside(tray.value, current.pointer)) {
     emit('hide', current.panel)
@@ -173,7 +171,7 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
         <div
           v-for="panel in shown"
           :key="panel"
-          class="group absolute cursor-grab touch-none rounded-md outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-primary"
+          class="group absolute cursor-grab touch-none rounded-sm outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-primary"
           :class="drag?.panel === panel && drag.moved ? 'opacity-25' : 'hover:ring-1 hover:ring-primary/60'"
           :style="boxStyle(panel)"
           tabindex="0"
@@ -182,7 +180,7 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
           @pointerdown="begin(panel, 'screen', $event)"
           @keydown="nudge(panel, $event)"
         >
-          <OverlayPanelMock :panel="panel" removable @remove="emit('hide', panel)" />
+          <OverlayPanelMock :panel="panel" :zoom="zoom" removable @remove="emit('hide', panel)" @measure="measure(panel, $event)" />
         </div>
 
         <p v-if="!shown.length" class="absolute inset-0 flex items-center justify-center text-sm text-muted">
@@ -190,7 +188,7 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
         </p>
       </div>
       <p class="text-xs text-dimmed">
-        Your screen, {{ screen.width }} × {{ screen.height }}. Each panel sizes itself to what it shows in game, and the small ones are drawn larger here to stay readable: the centre is where it goes.
+        Your screen, {{ screen.width }} × {{ screen.height }}. Each panel is drawn as it shows in game, with sample values, at the size it takes on this screen.
       </p>
     </div>
 
@@ -226,8 +224,8 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
     </aside>
 
     <Teleport to="body">
-      <div v-if="ghost" class="pointer-events-none fixed z-50 rounded-md shadow-lg ring-1 ring-primary" :class="ghost.dropping && 'opacity-60'" :style="ghost.style">
-        <OverlayPanelMock :panel="ghost.panel" />
+      <div v-if="ghost" class="pointer-events-none fixed z-50 rounded-sm shadow-lg ring-1 ring-primary" :class="ghost.dropping && 'opacity-60'" :style="ghost.style">
+        <OverlayPanelMock :panel="ghost.panel" :zoom="zoom" @measure="measure(ghost.panel, $event)" />
       </div>
     </Teleport>
   </div>

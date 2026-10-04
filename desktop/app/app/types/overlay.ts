@@ -18,7 +18,7 @@ export type OverlayAnchor = 'top-left' | 'top-center' | 'top-right' | 'center-le
 export interface OverlayPanelSettings {
   enabled: boolean
   anchor: OverlayAnchor
-  /** Where the panel was dragged, as its centre in fractions of the screen; wins over `anchor`. */
+  /** Where the panel was dragged, as a fraction of the room the screen leaves around it (0 against the left/top edge, 1 against the right/bottom); wins over `anchor`. */
   custom: { x: number, y: number } | null
 }
 
