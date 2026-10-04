@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
@@ -55,18 +56,7 @@ public sealed class MatchSummariesQueryService(
         // as upper-case Riot strings (TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY);
         // any other value clamps to null so a bogus query param doesn't
         // wedge the comparison.
-        var normalizedPosition = string.IsNullOrWhiteSpace(position)
-            ? null
-            : position.Trim().ToUpperInvariant();
-        if (normalizedPosition is not null
-            && normalizedPosition != "TOP"
-            && normalizedPosition != "JUNGLE"
-            && normalizedPosition != "MIDDLE"
-            && normalizedPosition != "BOTTOM"
-            && normalizedPosition != "UTILITY")
-        {
-            normalizedPosition = null;
-        }
+        var normalizedPosition = LanePositions.Normalize(position);
 
         var championFilter = championId is > 0 ? championId : null;
 

@@ -25,12 +25,13 @@ internal static class PositionParameter
 
     /// <summary>
     /// Normalises a team position to the canonical Riot upper-case form (<c>TOP</c> /
-    /// <c>JUNGLE</c> / <c>MIDDLE</c> / <c>BOTTOM</c> / <c>UTILITY</c>). Returns <c>null</c>
+    /// <c>JUNGLE</c> / <c>MIDDLE</c> / <c>BOTTOM</c> / <c>UTILITY</c>, <c>MID</c>/<c>BOT</c>
+    /// accepted as aliases). Returns <c>null</c>
     /// for null / whitespace input or for any value that doesn't map to a recognised
     /// position — the caller decides which of the two is an error.
     /// </summary>
     public static string? Normalize(string? raw)
-        => LolPositionExtensions.Parse(raw).ToRiotString();
+        => LanePositions.Normalize(raw);
 
     /// <summary>
     /// Canonicalises a required <c>position</c>; a missing or unrecognised value yields a

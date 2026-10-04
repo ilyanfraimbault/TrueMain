@@ -15,7 +15,7 @@ admin/app/pages/processes.vue	1187	400
 backend/Data/Logging/Mongo/MongoLogContext.cs	527	500
 backend/Data/Ops/Mongo/ProcessRunStore.cs	508	500
 backend/Data/Repositories/RiotAccountRepository.cs	627	500
-backend/Tools/DevSeed/SeedGenerator.cs	579	500
+backend/Tools/DevSeed/SeedGenerator.cs	578	500
 web/app/components/AppBackdrop.vue	426	400
 web/app/components/leaderboard/LeaderboardRow.vue	448	400
 web/app/pages/champions/[slug].vue	428	400

@@ -162,7 +162,7 @@ internal static class RiotMatchMapper
         foreach (var team in participants.GroupBy(p => p.TeamId))
         {
             var members = team.ToList();
-            if (members.Count != QueueDataQualityProfile.LanePositions.Count)
+            if (members.Count != LanePositions.All.Count)
             {
                 continue;
             }

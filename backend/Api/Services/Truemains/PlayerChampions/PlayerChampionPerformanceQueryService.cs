@@ -105,7 +105,7 @@ public sealed class PlayerChampionPerformanceQueryService(
         // panel for somebody who does not exist.
         var normalizedPosition = string.IsNullOrWhiteSpace(position)
             ? null
-            : LolPositionExtensions.Parse(position).ToRiotString();
+            : LanePositions.Normalize(position);
         var unhonourablePosition = !string.IsNullOrWhiteSpace(position) && normalizedPosition is null;
 
         var account = await resolver.ResolveAsync(nameTag, ct);
