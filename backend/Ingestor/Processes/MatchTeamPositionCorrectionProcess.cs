@@ -33,7 +33,7 @@ public sealed class MatchTeamPositionCorrectionProcess(
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
         // Empty TeamPosition is the only "unresolved" signal Riot's data carries
-        // (mirrors DataQualityQueryService's own check), so this is a small,
+        // (mirrors MatchDataQualityRules' own check), so this is a small,
         // selective subset of an otherwise huge table.
         var candidateTeams = await db.MatchParticipants
             .AsNoTracking()

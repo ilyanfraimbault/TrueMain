@@ -12,9 +12,12 @@ client's first, hydration render always starts in the loading state. Vue reconci
 rendered content, hit `insertBefore: node is not a child of this node`, then crashed on a null component in
 the patch loop, and `/truemains/{nameTag}` sat in its skeletons **permanently** on any full page load
 (client-side navigation was fine — it hydrates nothing). The initial run is now `onMounted`, which cannot run
-on the server. Consequences worth knowing: the SSR markup for a profile is *always* the skeleton branch, and
-the SSR `<title>` is the raw `Name-TAG` slug rather than `Name#TAG` — both are the price of the
-no-cross-viewer-SSR rule, not oversights, and "fixing" either by SSR-ing the profile reintroduces the hang.
+on the server. Consequence worth knowing: the SSR markup for a profile is *always* the skeleton branch — the
+price of the no-cross-viewer-SSR rule, not an oversight, and "fixing" it by SSR-ing the profile reintroduces
+the hang. The SSR `<title>` used to pay the same price (the raw `Name-TAG` slug); since #948 the pre-fetch
+label is derived from the route slug alone (`truemainSlugLabel`, last-`-` split mirroring `NameTagParser`), so
+SSR emits `Name#TAG` and the client's first render computes the identical value — the fetched identity takes
+over once it lands. Anything pre-fetch that consults fetched data instead would reopen the mismatch.
 Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
 the route is a primary, indexable one — #862.
 

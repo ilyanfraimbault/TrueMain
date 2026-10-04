@@ -28,12 +28,19 @@ public interface ICandidateStockSnapshotStore
     Task<IReadOnlyList<CandidateStockSnapshotPoint>> GetHistoryAsync(DateTime sinceUtc, CancellationToken ct);
 }
 
-/// <summary>One (platform, status) count as measured, before persisting.</summary>
-public sealed record CandidateStockSample(string PlatformId, string Status, long Count);
+/// <summary>
+/// One (platform, status) reading as measured, before persisting: <paramref name="Count"/>
+/// candidate rows, held by <paramref name="Accounts"/> distinct accounts (#1534).
+/// </summary>
+public sealed record CandidateStockSample(string PlatformId, string Status, long Count, long Accounts);
 
-/// <summary>One persisted point of the history.</summary>
+/// <summary>
+/// One persisted point of the history. <paramref name="Accounts"/> is null on a snapshot
+/// recorded before the accounts figure was (#1534).
+/// </summary>
 public sealed record CandidateStockSnapshotPoint(
     DateTime SnapshotHourUtc,
     string PlatformId,
     string Status,
-    long Count);
+    long Count,
+    long? Accounts = null);

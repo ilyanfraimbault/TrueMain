@@ -52,6 +52,7 @@ internal sealed class CandidateStockSnapshotStore(MongoLogContext context) : ICa
             // from the filter on insert, so setting them here too would conflict.
             var update = Builders<CandidateStockSnapshotDocument>.Update
                 .Set(doc => doc.Count, sample.Count)
+                .Set(doc => doc.Accounts, sample.Accounts)
                 .Set(doc => doc.CapturedAtUtc, capturedAtUtc);
 
             writes.Add(new UpdateOneModel<CandidateStockSnapshotDocument>(filter, update) { IsUpsert = true });
@@ -86,7 +87,8 @@ internal sealed class CandidateStockSnapshotStore(MongoLogContext context) : ICa
                 DateTime.SpecifyKind(doc.SnapshotHourUtc, DateTimeKind.Utc),
                 doc.PlatformId,
                 doc.Status,
-                doc.Count))
+                doc.Count,
+                doc.Accounts))
             .ToList();
     }
 

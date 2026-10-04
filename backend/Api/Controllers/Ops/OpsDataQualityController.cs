@@ -10,8 +10,9 @@ namespace TrueMain.Controllers.Ops;
 /// because a detector firing is only actionable next to the row it fired on.
 /// </summary>
 public sealed class OpsDataQualityController(
-    IDataQualityQueryService dataQualityQueryService,
-    IDataQualityDetectorsQueryService dataQualityDetectorsQueryService) : OpsControllerBase
+    IDataQualityDetectorsQueryService dataQualityDetectorsQueryService,
+    IIncompleteMatchesQueryService incompleteMatchesQueryService,
+    IMatchDataQualityDetailQueryService matchDataQualityDetailQueryService) : OpsControllerBase
 {
     /// <summary>
     /// The automated anomaly detectors (#924): one card per detector with its
@@ -71,7 +72,7 @@ public sealed class OpsDataQualityController(
         [FromQuery] int? pageSize,
         CancellationToken ct = default)
     {
-        var readModel = await dataQualityQueryService.GetIncompleteMatchesAsync(
+        var readModel = await incompleteMatchesQueryService.GetIncompleteMatchesAsync(
             issue, queue, minAgeHours, page, pageSize, ct);
         return Ok(readModel);
     }
@@ -88,7 +89,7 @@ public sealed class OpsDataQualityController(
         string id,
         CancellationToken ct = default)
     {
-        var readModel = await dataQualityQueryService.GetMatchDetailAsync(id, ct);
+        var readModel = await matchDataQualityDetailQueryService.GetMatchDetailAsync(id, ct);
         return readModel is null ? NotFound() : Ok(readModel);
     }
 }

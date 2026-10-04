@@ -134,6 +134,18 @@ candidates would report 838,000 of them. Within one reading the per-platform cou
 are disjoint populations at a single instant. The two reductions are not interchangeable, which is why the
 query service does them in that order and the tests pin it — #1403.
 
+**The candidate level is charted in rows or accounts, with the unit stated; accounts are snapshotted, not derived at read time.**
+A candidate row is one (platform, PUUID, champion), so a row count moves whenever rows per account do: when the
+queue cap (#1361) started demoting all but each account's best champion, Validated rows fell ~4x overnight while
+accounts validated per day did not move, and the chart read as if intake had stopped. The state chart therefore
+offers both units, names the selected one in its title and latest-reading line, and prints rows per account
+under it — that ratio is what tells a throughput change from a change in rows per account. The accounts figure
+(distinct `(PlatformId, Puuid)` per status and platform) is written into the same hourly snapshot document
+rather than computed at read time, for the same reason the level itself is snapshotted: a past reading cannot be
+recomputed from the rows that survive today. Summed across platforms (disjoint), never across statuses (an
+account can hold candidates in several). Snapshots recorded before the field read as unmeasured, not 0, and an
+hour where any platform lacks it reports no accounts at all rather than a sum missing a region — #1534.
+
 **Daily storage snapshots go to Mongo and are keyed on the day, not the run.**
 Storage history is append-only, time-ordered, ops-only telemetry with no relational joins — the exact
 criteria that put logs and metrics in Mongo below — and a native TTL index prunes it for free instead of

@@ -63,7 +63,7 @@ public sealed class CandidateStockQueryService(
         //   2. per bucket, keep the LAST hour — a level is sampled, never accumulated.
         // Doing it the other way (sum the buckets, then pick a platform) would report a
         // day of hourly readings as a level twenty-four times too high.
-        var hourly = new SortedDictionary<DateTime, Dictionary<MainCandidateStatus, long>>();
+        var hourly = new SortedDictionary<DateTime, HourReading>();
         foreach (var point in points)
         {
             ct.ThrowIfCancellationRequested();
@@ -75,13 +75,13 @@ public sealed class CandidateStockQueryService(
                 continue;
             }
 
-            if (!hourly.TryGetValue(point.SnapshotHourUtc, out var byStatus))
+            if (!hourly.TryGetValue(point.SnapshotHourUtc, out var reading))
             {
-                byStatus = [];
-                hourly[point.SnapshotHourUtc] = byStatus;
+                reading = new HourReading();
+                hourly[point.SnapshotHourUtc] = reading;
             }
 
-            byStatus[status] = byStatus.GetValueOrDefault(status) + point.Count;
+            reading.Add(status, point.Count, point.Accounts);
         }
 
         if (hourly.Count == 0)
@@ -91,10 +91,10 @@ public sealed class CandidateStockQueryService(
 
         // The last hour of each bucket wins. Iterating the sorted hours forward means a
         // later hour simply overwrites the bucket's entry.
-        var buckets = new SortedDictionary<DateTime, (DateTime SampledAt, Dictionary<MainCandidateStatus, long> Counts)>();
-        foreach (var (hour, counts) in hourly)
+        var buckets = new SortedDictionary<DateTime, (DateTime SampledAt, HourReading Reading)>();
+        foreach (var (hour, reading) in hourly)
         {
-            buckets[RunTimeBuckets.Truncate(hour, granularity)] = (hour, counts);
+            buckets[RunTimeBuckets.Truncate(hour, granularity)] = (hour, reading);
         }
 
         // No zero-fill between buckets, deliberately: a gap means the ingestor was not
@@ -104,15 +104,54 @@ public sealed class CandidateStockQueryService(
         {
             Buckets = [.. buckets.Select(entry => new CandidateStockBucket(
                 RunTimeBuckets.Format(entry.Key),
-                entry.Value.Counts.GetValueOrDefault(MainCandidateStatus.New),
-                entry.Value.Counts.GetValueOrDefault(MainCandidateStatus.Scored),
-                entry.Value.Counts.GetValueOrDefault(MainCandidateStatus.Queued),
-                entry.Value.Counts.GetValueOrDefault(MainCandidateStatus.Processing),
-                entry.Value.Counts.GetValueOrDefault(MainCandidateStatus.Validated),
-                entry.Value.Counts.GetValueOrDefault(MainCandidateStatus.Rejected),
-                entry.Value.SampledAt))],
+                entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.New),
+                entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.Scored),
+                entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.Queued),
+                entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.Processing),
+                entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.Validated),
+                entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.Rejected),
+                entry.Value.SampledAt,
+                entry.Value.Reading.ToAccounts()))],
             EarliestSnapshotAtUtc = hourly.Keys.First(),
             LatestSnapshotAtUtc = hourly.Keys.Last(),
         };
+    }
+
+    /// <summary>
+    /// One hour's reading summed across platforms, in both units (#1534). The accounts
+    /// figure is distinct per platform, and platforms are disjoint, so it sums like the
+    /// rows do. It is all-or-nothing: an hour where any platform's document predates the
+    /// field reports no accounts at all rather than a sum that silently misses a region.
+    /// </summary>
+    private sealed class HourReading
+    {
+        private readonly Dictionary<MainCandidateStatus, long> _accounts = [];
+        private bool _accountsComplete = true;
+
+        public Dictionary<MainCandidateStatus, long> Rows { get; } = [];
+
+        public void Add(MainCandidateStatus status, long count, long? accounts)
+        {
+            Rows[status] = Rows.GetValueOrDefault(status) + count;
+            if (accounts is { } value)
+            {
+                _accounts[status] = _accounts.GetValueOrDefault(status) + value;
+            }
+            else
+            {
+                _accountsComplete = false;
+            }
+        }
+
+        public CandidateStockAccounts? ToAccounts()
+            => _accountsComplete
+                ? new CandidateStockAccounts(
+                    _accounts.GetValueOrDefault(MainCandidateStatus.New),
+                    _accounts.GetValueOrDefault(MainCandidateStatus.Scored),
+                    _accounts.GetValueOrDefault(MainCandidateStatus.Queued),
+                    _accounts.GetValueOrDefault(MainCandidateStatus.Processing),
+                    _accounts.GetValueOrDefault(MainCandidateStatus.Validated),
+                    _accounts.GetValueOrDefault(MainCandidateStatus.Rejected))
+                : null;
     }
 }

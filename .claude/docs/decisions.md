@@ -125,6 +125,7 @@ Last verified against `develop` on 2026-09-02.
 - The champion link graph was server-rendered, then removed — the pages are back to zero internal champion links — #1123, #1209, #147
 - A platform-dependent `UKbd` cannot be server-rendered — #1209
 - OG image rendering is on, pinned to Satori + resvg, and deliberately reaches exactly two pages — #551, #926, #600
+- A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04) — #1545
 - OG image URLs are signed with a secret regenerated at every build, and that is left as the default — #926
 - The sitemap advertises champions, not players (2026-09-01) — #862, #1337, #551
 
@@ -286,6 +287,7 @@ Last verified against `develop` on 2026-09-02.
 - The candidate stock is snapshotted hourly, because it cannot be reconstructed afterwards — #1403
 - A recorded zero is a measurement; an unmeasured period is absent — #1403, #924
 - A stock is sampled across time and summed across platforms — never the other way round — #1403
+- The candidate level is charted in rows or accounts, with the unit stated; accounts are snapshotted, not derived at read time — #1534
 - Daily storage snapshots go to Mongo and are keyed on the day, not the run — #925
 - The disk forecast is absent rather than approximate when the data can't support it — #680, #925
 - Logs and metrics live in MongoDB, not Postgres, with two different guarantees — #416
