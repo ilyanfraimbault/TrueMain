@@ -387,6 +387,10 @@ builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryS
 // same call, the scoped TrueMainDbContext for the common request-scoped
 // injection. Both share the one NpgsqlDataSource built inside the extension.
 builder.Services.AddTrueMainData(builder.Configuration);
+// Startup migrations run as a hosted service (#258); the web server only starts listening
+// once every hosted service has started, so no request reaches a stale schema. Gated on
+// Database:ApplyMigrationsOnStartup, which prod and preprod keep disabled.
+builder.Services.AddDatabaseMigrationsOnStartup();
 
 // Persist Warning+ logs to MongoDB (see Data/Logging/Mongo) so the /ops/logs
 // admin endpoint can serve them, and expose the lossless operator-action audit
@@ -478,7 +482,6 @@ app.MapControllers();
 var crashReporter = app.Services.GetRequiredService<ICrashReporter>();
 try
 {
-    await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
     app.Run();
 }
 catch (Microsoft.Extensions.Hosting.HostAbortedException)
