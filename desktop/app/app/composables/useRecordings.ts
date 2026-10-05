@@ -5,6 +5,7 @@ import type {
   RecordingSettings,
   RecordingSettingsView,
   RecordingStatus,
+  RecordingWinProbability,
 } from '~/types/recordings'
 
 /**
@@ -158,6 +159,9 @@ export function useRecordings() {
   }
 
   const getRecording = (id: string) => recordingCall<GameRecording>('recording_get', { id })
+  /** The recap's curve data; `null` when the game has none (or it does not read — the recap stands without it). */
+  const getWinProbability = (id: string) =>
+    recordingCall<RecordingWinProbability | null>('recording_win_probability', { id }).catch(() => null)
   const setKept = (id: string, kept: boolean) =>
     mutate<GameRecording>('recording_set_kept', { id, kept }, kept ? 'The game could not be kept' : 'The game could not be released')
   const deleteRecording = async (id: string) =>
@@ -229,6 +233,7 @@ export function useRecordings() {
     refreshLibrary,
     fileSrc,
     getRecording,
+    getWinProbability,
     setKept,
     deleteRecording,
     saveClip,

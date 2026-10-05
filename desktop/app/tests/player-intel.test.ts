@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { GamePlayer } from '~/types/game'
 import type { LoadingPlayer, PlayerForm } from '~/types/loading'
 import type { RankedQueue } from '~/types/record'
-import { MIN_STREAK, championRecord, loadingLineOf, recentWinRate, roleFit, seasonWinRate, streakOf } from '~/utils/player-intel'
+import type { TruemainMark } from '~/utils/player-intel'
+import { MIN_STREAK, championRecord, loadingLineOf, lookupPlayers, markFigures, markOf, recentWinRate, roleFit, seasonWinRate, streakOf } from '~/utils/player-intel'
 
 function form(overrides: Partial<PlayerForm> = {}): PlayerForm {
   return {
@@ -137,5 +138,50 @@ describe('win rates', () => {
     const rank = (wins: number, losses: number) => ({ wins, losses }) as RankedQueue
     expect(seasonWinRate(rank(0, 0))).toBeNull()
     expect(seasonWinRate(rank(30, 10))).toBe(75)
+  })
+})
+
+describe('true-main mark', () => {
+  const mark = (overrides: Partial<TruemainMark> = {}): TruemainMark => ({
+    riotId: 'AhriMain#EUW',
+    nameTag: 'AhriMain-EUW',
+    championId: 103,
+    championMatches: 38,
+    totalMatches: 50,
+    playRate: 0.76,
+    isOtp: false,
+    masteryPoints: null,
+    dedication: 86.6,
+    ...overrides,
+  })
+
+  it('asks about the named players on a champion, never an anonymous one', () => {
+    const players = lookupPlayers([
+      line({ riotId: 'Zed#KR1', championId: 238 }),
+      line({ riotId: 'AhriMain#EUW', championId: 103 }),
+      line({ riotId: '', championId: 81, anonymous: true }),
+      line({ riotId: 'Hidden#EUW', championId: 54, anonymous: true }),
+      line({ riotId: '', championId: 61 }),
+      line({ riotId: 'NoChampion#EUW', championId: 0 }),
+    ])
+    expect(players).toEqual(['AhriMain#EUW:103', 'Zed#KR1:238'])
+  })
+
+  it('marks the player on the champion they main, whatever the casing', () => {
+    expect(markOf([mark()], line({ riotId: 'ahrimain#euw', championId: 103 }))).toEqual(mark())
+  })
+
+  it('leaves a true main of another champion unmarked', () => {
+    expect(markOf([mark()], line({ riotId: 'AhriMain#EUW', championId: 7 }))).toBeNull()
+  })
+
+  it('never marks an anonymous line or a missing one', () => {
+    expect(markOf([mark()], line({ riotId: 'AhriMain#EUW', championId: 103, anonymous: true }))).toBeNull()
+    expect(markOf([mark()], null)).toBeNull()
+  })
+
+  it('explains the mark with the figures returned only', () => {
+    expect(markFigures(mark())).toEqual(['38 of their last 50 ranked games', 'Truemain score 87'])
+    expect(markFigures(mark({ isOtp: true, totalMatches: 0 }))).toEqual(['One-trick', 'Truemain score 87'])
   })
 })

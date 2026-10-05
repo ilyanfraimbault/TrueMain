@@ -11,7 +11,13 @@ const updater = vi.hoisted(() => ({ check: vi.fn() }))
 const proc = vi.hoisted(() => ({ relaunch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-updater', () => updater)
 vi.mock('@tauri-apps/plugin-process', () => proc)
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }))
+const shellEvents = vi.hoisted(() => new Map<string, () => void>())
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(async (name: string, handler: () => void) => {
+    shellEvents.set(name, handler)
+    return () => {}
+  }),
+}))
 
 interface ToastMessage { id?: string, title: string, actions?: { label: string, onClick: () => void }[] }
 
@@ -45,7 +51,11 @@ beforeEach(() => {
   states = new Map()
   screen = ref('lobby')
   proc.relaunch.mockReset().mockReturnValue(new Promise(() => {}))
-  vi.stubGlobal('useToast', () => ({ add: (toast: ToastMessage) => toasts.push(toast), remove: vi.fn() }))
+  shellEvents.clear()
+  vi.stubGlobal('useToast', () => ({
+    add: (toast: ToastMessage) => toasts.push(toast),
+    remove: (id: string) => (toasts = toasts.filter(toast => toast.id !== id)),
+  }))
   vi.stubGlobal('useState', (key: string, init: () => unknown) => {
     if (!states.has(key)) states.set(key, ref(init()))
     return states.get(key)
@@ -86,7 +96,7 @@ describe('useAppUpdate install deadline', () => {
     screen.value = 'draft'
     const update = fakeUpdate(() => new Promise(() => {}))
     const app = await launch(update)
-    expect(current()?.title).toBe('TrueMain 0.2.1 is ready')
+    expect(app.readyVersion.value).toBe('0.2.1')
 
     void app.restart()
     await vi.advanceTimersByTimeAsync(30_000)
@@ -128,5 +138,80 @@ describe('useAppUpdate install deadline', () => {
     await app.restart()
     expect(current()?.title).toBe('TrueMain could not restart')
     expect(app.installing.value).toBe(true)
+  })
+})
+
+describe('useAppUpdate during champion select and games', () => {
+  it('offers a build found during champion select in the sidebar only, and in a toast once it is over', async () => {
+    screen.value = 'draft'
+    const update = fakeUpdate(() => new Promise(() => {}))
+    const app = await launch(update)
+    expect(app.readyVersion.value).toBe('0.2.1')
+    expect(current()).toBeUndefined()
+
+    screen.value = 'in-game'
+    await vi.advanceTimersByTimeAsync(0)
+    expect(current()).toBeUndefined()
+
+    screen.value = 'home'
+    await vi.advanceTimersByTimeAsync(0)
+    expect(current()?.title).toBe('TrueMain 0.2.1 is ready')
+    expect(update.install).not.toHaveBeenCalled()
+  })
+
+  it('takes an offer already on screen away for the phase and brings it back after', async () => {
+    const update = fakeUpdate(() => new Promise(() => {}))
+    updater.check.mockResolvedValue(null)
+    const { useAppUpdate } = await import('~/composables/useAppUpdate')
+    const app = useAppUpdate()
+    await app.start()
+    await vi.advanceTimersByTimeAsync(0)
+
+    // Found by the timer, out of any phase.
+    updater.check.mockResolvedValue(update)
+    await vi.advanceTimersByTimeAsync(15 * 60 * 1000)
+    expect(current()?.title).toBe('TrueMain 0.2.1 is ready')
+
+    screen.value = 'draft'
+    await vi.advanceTimersByTimeAsync(0)
+    expect(current()).toBeUndefined()
+    expect(app.readyVersion.value).toBe('0.2.1')
+
+    screen.value = 'home'
+    await vi.advanceTimersByTimeAsync(0)
+    expect(current()?.title).toBe('TrueMain 0.2.1 is ready')
+  })
+
+  it('answers "Check for Updates…" at once, even during champion select', async () => {
+    screen.value = 'draft'
+    await launch(fakeUpdate(() => new Promise(() => {})))
+    expect(current()).toBeUndefined()
+
+    shellEvents.get('app://check-for-updates')!()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(current()?.title).toBe('TrueMain 0.2.1 is ready')
+  })
+})
+
+describe('useAppUpdate timer', () => {
+  it('skips its check during a game and resumes after it', async () => {
+    updater.check.mockReset()
+    const update = fakeUpdate(() => new Promise(() => {}))
+    updater.check.mockResolvedValue(null)
+    const { useAppUpdate } = await import('~/composables/useAppUpdate')
+    await useAppUpdate().start()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(updater.check).toHaveBeenCalledTimes(1)
+
+    updater.check.mockResolvedValue(update)
+    screen.value = 'in-game'
+    await vi.advanceTimersByTimeAsync(15 * 60 * 1000)
+    expect(updater.check).toHaveBeenCalledTimes(1)
+    expect(update.download).not.toHaveBeenCalled()
+
+    screen.value = 'lobby'
+    await vi.advanceTimersByTimeAsync(15 * 60 * 1000)
+    expect(updater.check).toHaveBeenCalledTimes(2)
+    expect(update.download).toHaveBeenCalled()
   })
 })

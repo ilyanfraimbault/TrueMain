@@ -34,6 +34,9 @@
     <Content Include="..\..\Ingestor\appsettings.json" CopyToOutputDirectory="PreserveNewest">
       <Link>ingestor.appsettings.json</Link>
     </Content>
+    <!-- The win-probability fixture the web tests also read (#1911): WinProbabilityParityTests
+         holds the C# port (Core/Lol/WinProbability) to the TS builder's output. -->
+    <Content Include="..\..\..\web\shared\fixtures\win-probability-timeline.json" Link="Fixtures\win-probability-timeline.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

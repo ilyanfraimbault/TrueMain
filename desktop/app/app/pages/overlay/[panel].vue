@@ -28,12 +28,14 @@ const panel = computed<OverlayPanel>(() => {
 const PLACEHOLDERS: Record<OverlayPanel, string> = {
   'next-item': 'Your next item shows here during a game.',
   'win-probability': 'The win probability shows here during a game.',
-  'item-value': 'Each team\'s item gold shows here while TAB is held.',
+  'item-value': 'Each team\'s item gold shows here during a game.',
   'stats': 'Your CS and gold per minute show here during a game.',
 }
 
 const { game, syncedAt } = useLiveGame()
 const { view, fit } = useGameOverlay()
+/** The chord that brings this panel up in game, marked in the preview (#1915). */
+const chord = computed(() => view.value?.chords[panel.value]?.label ?? null)
 
 const settings = computed(() => view.value?.settings ?? null)
 const preview = computed(() => (view.value?.preview ?? false) || devPreview.value)
@@ -103,7 +105,7 @@ useHead({
       <div v-if="preview" data-tauri-drag-region class="group absolute inset-0 cursor-grab ring-2 ring-inset ring-primary/70">
         <span class="pointer-events-none absolute right-1 bottom-1 flex transition-opacity group-hover:opacity-0 items-center gap-1 rounded bg-primary px-1 py-0.5 text-[10px] font-semibold text-inverted">
           <UIcon name="i-lucide-move" class="size-2.5" />
-          {{ isSample ? 'Sample · drag' : 'Drag' }}
+          {{ isSample ? 'Sample · drag' : 'Drag' }}<template v-if="chord"> · {{ chord }}</template>
         </span>
       </div>
     </div>

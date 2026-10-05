@@ -8,13 +8,26 @@
  */
 import { answerStaticEndpoint } from '~/utils/static-endpoints'
 
-type Query = Record<string, string | number | boolean | null | undefined>
+type QueryValue = string | number | boolean | null | undefined
+/** A list repeats its key, one pair per entry (`?player=a&player=b`). */
+type Query = Record<string, QueryValue | readonly QueryValue[]>
 
 /** The query as `[key, value]` pairs, empty values left out rather than sent blank. */
 function pairs(query: Query): [string, string][] {
   return Object.entries(query)
+    .flatMap(([key, value]) => (Array.isArray(value) ? value : [value]).map(entry => [key, entry] as const))
     .filter(([, value]) => value !== null && value !== undefined && value !== '')
     .map(([key, value]) => [key, String(value)])
+}
+
+/** The pairs as `$fetch` takes them: a key met twice becomes a list. */
+function fetchQuery(query: Query): Record<string, string | string[]> {
+  const result: Record<string, string | string[]> = {}
+  for (const [key, value] of pairs(query)) {
+    const known = result[key]
+    result[key] = known === undefined ? value : [...(Array.isArray(known) ? known : [known]), value]
+  }
+  return result
 }
 
 /** How a read is sent: a signal, and whether the window's loading bar ignores it. */
@@ -43,7 +56,7 @@ export function apiGet<T>(path: string, query: Query = {}, options: ReadOptions 
       const { invoke } = await import('@tauri-apps/api/core')
       return await invoke<T>('api_get', { path, query: pairs(query) })
     }
-    return await $fetch<T>(`/api${path}`, { query: Object.fromEntries(pairs(query)), signal: options.signal })
+    return await $fetch<T>(`/api${path}`, { query: fetchQuery(query), signal: options.signal })
   })(), options)
 }
 
@@ -57,7 +70,7 @@ export function apiPost<T>(path: string, body: unknown, query: Query = {}, optio
       const { invoke } = await import('@tauri-apps/api/core')
       return await invoke<T>('api_post', { path, query: pairs(query), request: body })
     }
-    return await $fetch<T>(`/api${path}`, { method: 'POST', body: body as Record<string, unknown>, query: Object.fromEntries(pairs(query)), signal: options.signal })
+    return await $fetch<T>(`/api${path}`, { method: 'POST', body: body as Record<string, unknown>, query: fetchQuery(query), signal: options.signal })
   })(), options)
 }
 

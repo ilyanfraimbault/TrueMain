@@ -1,5 +1,16 @@
-import type { OverlayPanel, OverlaySettings, OverlayView } from '~/types/overlay'
-import { DEV_OVERLAY_VIEW } from '~/types/overlay'
+import type { ChordView, OverlayPanel, OverlaySettings, OverlayView, PanelTrigger, TriggerCheck } from '~/types/overlay'
+import { DEV_OVERLAY_VIEW, OVERLAY_PANELS, PANEL_KEY } from '~/types/overlay'
+import { chordLabel, chordOfTrigger } from '~/utils/overlay-keys'
+
+/** A browser-only `npm run dev`'s stand-in for the shell's chord labels: no game binds to warn about. */
+function devChords(settings: OverlaySettings): OverlayView['chords'] {
+  const chords: OverlayView['chords'] = {}
+  for (const panel of OVERLAY_PANELS) {
+    const chord = chordOfTrigger(settings[PANEL_KEY[panel]].trigger)
+    if (chord) chords[panel] = { label: chordLabel(chord, true), warning: null }
+  }
+  return chords
+}
 
 /**
  * The in-game overlay's settings and preview, as the shell holds them
@@ -20,7 +31,10 @@ export function useGameOverlay() {
       return await invoke<OverlayView>(command, args)
     }
     const current = view.value ?? DEV_OVERLAY_VIEW
-    if (command === 'set_overlay_settings') return { ...current, settings: args!.settings as OverlaySettings }
+    if (command === 'set_overlay_settings') {
+      const settings = args!.settings as OverlaySettings
+      return { ...current, settings, chords: devChords(settings) }
+    }
     if (command === 'overlay_preview') return { ...current, preview: args!.on as boolean }
     return current
   }
@@ -48,6 +62,23 @@ export function useGameOverlay() {
     view.value = await call('overlay_preview', { on })
   }
 
+  /** Whether `trigger` can be `panel`'s, and how its chord reads, before it is saved. */
+  async function check(panel: OverlayPanel, trigger: PanelTrigger): Promise<TriggerCheck> {
+    if (insideTauri()) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      return await invoke<TriggerCheck>('overlay_check_trigger', { panel, trigger })
+    }
+    const chord = chordOfTrigger(trigger)
+    const view: ChordView | null = chord ? { label: chordLabel(chord, true), warning: null } : null
+    return { refusal: null, chord: view }
+  }
+
+  /** Read the player's League keybindings, for the chords' warnings. */
+  async function readBinds() {
+    if (!insideTauri()) return
+    view.value = await call('overlay_read_binds')
+  }
+
   /** A panel page's measured size, for its window to take. */
   async function fit(panel: OverlayPanel, width: number, height: number) {
     if (!insideTauri()) return
@@ -55,5 +86,5 @@ export function useGameOverlay() {
     await invoke('overlay_fit', { panel, width, height })
   }
 
-  return { view, save, preview, fit }
+  return { view, save, preview, fit, check, readBinds }
 }

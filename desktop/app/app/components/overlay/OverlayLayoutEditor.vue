@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { OverlayPanel, OverlaySettings } from '~/types/overlay'
+import type { OverlayPanel, OverlaySettings, OverlayView } from '~/types/overlay'
 import type { Point, Size } from '~/utils/overlay-layout'
 import { OVERLAY_PANEL_INFO, OVERLAY_PANELS, PANEL_KEY } from '~/types/overlay'
 import { currentScreen, customAt, panelBox, panelSize } from '~/utils/overlay-layout'
@@ -14,7 +14,7 @@ import { currentScreen, customAt, panelBox, panelSize } from '~/utils/overlay-la
  * goes off too. Arrow keys nudge a focused panel, Delete takes it off. Each
  * drop is one change for the page to save.
  */
-const props = defineProps<{ settings: OverlaySettings }>()
+const props = defineProps<{ settings: OverlaySettings, chords?: OverlayView['chords'] }>()
 const emit = defineEmits<{ place: [panel: OverlayPanel, custom: Point], show: [panel: OverlayPanel], hide: [panel: OverlayPanel] }>()
 
 const screen = currentScreen()
@@ -180,7 +180,7 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
           @pointerdown="begin(panel, 'screen', $event)"
           @keydown="nudge(panel, $event)"
         >
-          <OverlayPanelMock :panel="panel" :zoom="zoom" removable @remove="emit('hide', panel)" @measure="measure(panel, $event)" />
+          <OverlayPanelMock :panel="panel" :zoom="zoom" :chord="chords?.[panel]?.label" removable @remove="emit('hide', panel)" @measure="measure(panel, $event)" />
         </div>
 
         <p v-if="!shown.length" class="absolute inset-0 flex items-center justify-center text-sm text-muted">

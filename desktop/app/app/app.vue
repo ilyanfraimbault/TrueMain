@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { screen, ready } = useLcuState()
+const narrowWindow = useNarrowWindow()
 const router = useRouter()
 const route = useRoute()
 
@@ -72,7 +73,7 @@ watch(screen, (next, previous) => {
     <NuxtPage v-if="standalone" />
     <div v-else class="flex h-screen overflow-hidden bg-default text-default">
       <AppLoadingBar />
-      <AppSidebar class="w-[200px] shrink-0" />
+      <AppSidebar class="shrink-0" :class="narrowWindow ? 'w-16' : 'w-[200px]'" />
 
       <div class="flex min-w-0 flex-1 flex-col">
         <AppTopbar class="h-12 shrink-0" />

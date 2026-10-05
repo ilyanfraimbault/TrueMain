@@ -83,10 +83,21 @@ Tracking issue: **#1671**.
   once the game has started (its `GameStart` event), never over its loading screen —
   only while the game is the frontmost app, never over the client or anything
   else. Click-through and never focused, so the game keeps every click and key;
-  ⌥⇧O hides them for the rest of the game. Set up from the game page (each panel
-  on/off and where — five spots, or anywhere by dragging it in a preview — the
-  next item's moment, size, opacity).
+  ⌥⇧O hides them for the rest of the game. Set up on the Overlay page (each panel
+  on/off and where — five spots, or anywhere by dragging it — the next item's
+  moment, size, opacity), with each panel shown always, while a chord is held
+  or toggled by one (#1915): the chord is recorded by key position, so it
+  holds on any layout, and the page warns when its key also does something in
+  game (the overlay reads keys, the game still gets them).
   The window layer is the #1673 spike's verdict, `docs/desktop-overlay-spike.md`.
+  The panels go on the monitor the game runs on, read from the game's window
+  while it is in front (#1914), the primary monitor before any game.
+- **A window you can size** (#1914): resizable down to 960 × 640, opening
+  where it was left — on a monitor still plugged in, else centred on the
+  primary one, never larger than the monitor. Below 1100 px wide the sidebar
+  folds into a rail of icons. Nothing pops up by itself during champion select
+  or a game: an update found then waits in the sidebar, its toast after the
+  phase.
 
 ## What it does not do yet
 
@@ -103,11 +114,17 @@ Tracking issue: **#1671**.
 - **The Windows overlay has not met a League game yet** (#1798). CI runs it
   on a Windows desktop over a stand-in game window
   (`tools/overlay-smoke-windows.ps1`, #1806). The panels are drawn, never take
-  the foreground, let clicks through, and follow TAB, Alt+Shift+O and the window
-  in front. They are placed by a drag in the preview. What only a player can
+  the foreground, let clicks through, and follow TAB, a held and a toggled
+  chord, Alt+Shift+O and the window in front. They are placed by a drag in the preview. What only a player can
   check: a real game in Borderless, under its anti-cheat. Over League in
   exclusive Full Screen Windows draws nothing, so the settings ask for
   Borderless.
+- **No compact mode docked beside the client, no second-monitor setting yet**
+  (#1914). The window sizes and remembers its monitor, and the overlay follows
+  the game's monitor; docking to the client's edge, compact draft and game
+  layouts, and opening on a chosen monitor during a phase are still to come.
+  The game's monitor is matched from its window's frame on both platforms, but
+  only CI's single-monitor runner has run it so far.
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.

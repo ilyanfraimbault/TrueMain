@@ -14,6 +14,7 @@ public sealed class DataSession : IDataSession
         Matches = new MatchRepository(_db);
         MatchParticipants = new MatchParticipantRepository(_db);
         MatchParticipantTimelineSnapshots = new MatchParticipantTimelineSnapshotRepository(_db);
+        MatchWinProbabilities = new MatchWinProbabilityRepository(_db);
         MatchBans = new MatchBanRepository(_db);
         RankSnapshots = new RankSnapshotRepository(_db);
         DiscoveryCursors = new DiscoveryCursorRepository(_db);
@@ -27,6 +28,7 @@ public sealed class DataSession : IDataSession
     public IMatchRepository Matches { get; }
     public IMatchParticipantRepository MatchParticipants { get; }
     public IMatchParticipantTimelineSnapshotRepository MatchParticipantTimelineSnapshots { get; }
+    public IMatchWinProbabilityRepository MatchWinProbabilities { get; }
     public IMatchBanRepository MatchBans { get; }
     public IRankSnapshotRepository RankSnapshots { get; }
     public IDiscoveryCursorRepository DiscoveryCursors { get; }

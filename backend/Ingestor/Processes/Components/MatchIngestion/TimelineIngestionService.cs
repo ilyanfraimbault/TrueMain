@@ -89,10 +89,12 @@ public sealed class TimelineIngestionService(
         foreach (var batch in plan.Timelines.Chunk(batchSize))
         {
             var applied = new List<AppliedTimeline>(batch.Length);
+            var durations = await session.Matches.GetGameDurationSecondsAsync(
+                batch.Select(timeline => timeline.MatchId).ToList(), ct);
 
             foreach (var (matchId, timelineDto) in batch)
             {
-                var participants = await ApplyTimelineAsync(session, matchId, timelineDto, ct);
+                var participants = await ApplyTimelineAsync(session, matchId, durations.GetValueOrDefault(matchId), timelineDto, ct);
                 if (participants is not null)
                 {
                     applied.Add(new AppliedTimeline(matchId, timelineDto, participants));
@@ -114,7 +116,10 @@ public sealed class TimelineIngestionService(
             // per match used to. MatchIngestionProcess wraps this in a transaction, so the
             // deletes and the reinserts commit together (or roll back together on failure) —
             // no window where a match is left without snapshots.
+            // The win-probability rows (#1911) are replaced the same way: one delete for
+            // the batch, the fresh rows staged by ApplyTimelineAsync.
             await session.MatchParticipantTimelineSnapshots.DeleteByMatchIdsAsync(appliedMatchIds, ct);
+            await session.MatchWinProbabilities.DeleteByMatchIdsAsync(appliedMatchIds, ct);
 
             await session.Matches.SetTimelineIngestedAsync(appliedMatchIds, true, ct);
             await FoldPaceBenchmarkAsync(session, applied, ct);
@@ -184,6 +189,7 @@ public sealed class TimelineIngestionService(
     private static async Task<List<MatchParticipant>?> ApplyTimelineAsync(
         IDataSession session,
         string matchId,
+        int gameDurationSeconds,
         MatchTimelineDto timeline,
         CancellationToken ct)
     {
@@ -221,6 +227,12 @@ public sealed class TimelineIngestionService(
         // Staged, not flushed: WriteAsync issues the batch's delete before the
         // SaveChanges that inserts these, so the unique-index slots are free by then.
         session.MatchParticipantTimelineSnapshots.AddRange(TimelineSnapshotBuilder.Build(matchId, timeline));
+
+        // No row when the game gets no curve (under fifteen minutes, lanes not paired).
+        if (WinProbabilityIngestion.Build(matchId, gameDurationSeconds, participants, timeline) is { } winProbability)
+        {
+            session.MatchWinProbabilities.Add(winProbability);
+        }
 
         return participants;
     }
