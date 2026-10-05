@@ -80,18 +80,20 @@ impl GameflowGameData {
     /// whose line is read whatever the client hides.
     pub fn teams(&self, keep: &str) -> (Vec<GameflowPlayer>, Vec<GameflowPlayer>) {
         let (mut blue, mut red) = (self.team_one.clone(), self.team_two.clone());
-        let listed = |puuid: &str| {
-            !puuid.is_empty()
-                && self
-                    .team_one
-                    .iter()
-                    .chain(&self.team_two)
-                    .any(|player| player.puuid == puuid)
+        // A player listed without a puuid (a bot) is known by their champion.
+        let listed = |selection: &GameflowChampionSelection| {
+            self.team_one.iter().chain(&self.team_two).any(|player| {
+                if player.puuid.is_empty() {
+                    player.champion_id == selection.champion_id
+                } else {
+                    player.puuid == selection.puuid
+                }
+            })
         };
         let unlisted: Vec<&GameflowChampionSelection> = self
             .player_champion_selections
             .iter()
-            .filter(|selection| selection.champion_id > 0 && !listed(&selection.puuid))
+            .filter(|selection| selection.champion_id > 0 && !listed(selection))
             .collect();
         let size = (blue.len() + red.len() + unlisted.len()).div_ceil(2);
         for selection in unlisted {
@@ -773,5 +775,20 @@ mod tests {
         let (blue, red) = data.teams("");
         assert_eq!((blue.len(), red.len()), (5, 5));
         assert!(blue.iter().chain(&red).all(|p| !p.is_anonymous()));
+    }
+
+    #[test]
+    fn a_bot_listed_without_a_puuid_is_not_put_back_twice() {
+        let data: GameflowGameData = serde_json::from_value(serde_json::json!({
+            "teamOne": [{ "puuid": "me", "championId": 1 }],
+            "teamTwo": [{ "puuid": "", "championId": 22 }],
+            "playerChampionSelections": [
+                { "puuid": "me", "championId": 1 },
+                { "puuid": "", "championId": 22 },
+            ],
+        }))
+        .expect("a gameflow session");
+        let (blue, red) = data.teams("");
+        assert_eq!((blue.len(), red.len()), (1, 1));
     }
 }
