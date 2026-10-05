@@ -253,6 +253,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that
   main's own build on the champion — and the site's core blocks (runes beside summoners/skills/starter/boots, no build
   path) over the site's build tree drawn smaller.
+- **Damage mix** (#1907) — under each team a thin physical / magic / true bar (locked picks, plus our pick being
+  weighed drawn hatched with a tick at the mix without it), the dominant type as its only figure (`64% AD`), the
+  pick-by-pick split on hover (unmeasured picks listed without a split, flex champions tagged AD/AP). From
+  `GET /champions/damage-profiles` (#1905), weighted by damage per game like the item-context axes. A ranked pick that
+  answers a one-sided team carries a "+ Magic damage" / "+ Physical damage" chip (order unchanged). Over the draft's
+  build: the boots and the first legendary this draft moves the mains toward, with the situation that does ("against
+  a magic-damage team"), from `POST /champions/{id}/next-item` asked with an empty inventory.
 - **Rune import** (#1678) — a small ghost icon in the runes' top-right corner, on every build the build view shows
   (draft, lane builds, a true main's, and the app's champion page), there whenever the client is connected; its label
   is its tooltip. A click pushes the page on screen into the client as `TrueMain: <champion>` and selects it

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DraftReason } from '~/types/draft'
 import type { TierEntry } from '~/composables/useTierList'
+import type { DamageNote } from '~/utils/draft-damage'
 
 /**
  * One suggested pick or ban, poster-sized: the champion's loading art, its
@@ -12,6 +13,8 @@ import type { TierEntry } from '~/composables/useTierList'
  *
  * The default slot covers the card (the click that previews its build); the
  * `action` slot sits over the art's corner, above it (the hover or ban control).
+ * A pick that answers a one-sided team's damage mix carries a note (#1907) —
+ * said, never scored.
  */
 const props = defineProps<{
   championId: number
@@ -25,6 +28,8 @@ const props = defineProps<{
   focused: boolean
   /** Height of the card in the podium, 0..1 of the row. */
   height: number
+  /** What the pick does to our team's damage mix, when it answers it. */
+  note?: DamageNote | null
 }>()
 
 const { nameOf } = useChampionStatics()
@@ -40,10 +45,12 @@ const tone = computed(() => {
 
 /** Every reason, one per line — the hover says what the line under the name only starts. */
 const why = computed(() => {
+  const note = props.note?.text ?? null
   if (!texts.value.length) {
-    return props.entry ? `Win rate on this lane: ${percent(props.entry.winRate)} over ${props.entry.games.toLocaleString('en-US')} games` : undefined
+    const lane = props.entry ? `Win rate on this lane: ${percent(props.entry.winRate)} over ${props.entry.games.toLocaleString('en-US')} games` : null
+    return [lane, note].filter(Boolean).join('\n') || undefined
   }
-  return [...texts.value.map(text => text.full), props.thin ? 'Few games behind these figures' : null].filter(Boolean).join('\n')
+  return [...texts.value.map(text => text.full), props.thin ? 'Few games behind these figures' : null, note].filter(Boolean).join('\n')
 })
 
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`
@@ -78,6 +85,13 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
           </div>
         </div>
         <UBadge v-if="lead && thin" color="neutral" variant="soft" size="sm" class="self-start">Few games</UBadge>
+        <span
+          v-if="note"
+          class="flex w-fit items-center gap-1 self-start whitespace-nowrap rounded bg-ink-950/70 px-1.5 py-0.5 text-[10px] font-medium leading-none ring-1 ring-white/10"
+          :class="note.adds === 'magic' ? 'text-stat-mr' : 'text-stat-ad'"
+        >
+          <UIcon name="i-lucide-plus" class="size-2.5" />{{ note.adds === 'magic' ? 'Magic damage' : 'Physical damage' }}
+        </span>
       </div>
       <TierMark v-if="entry" :tier="entry.tier" class="absolute left-2 top-2 scale-75 origin-top-left" />
       <div v-if="$slots.action" class="absolute right-1.5 top-1.5 z-10">

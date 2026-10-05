@@ -1,0 +1,168 @@
+{
+  "_comment": "Shared by DraftAxisEvaluator's tests (C#) and the desktop draft's team damage bar (TS, #1907): both must read a team exactly the same way.",
+  "cases": [
+    {
+      "name": "the carry outweighs four magic supports",
+      "missing": 0,
+      "picks": [
+        {
+          "physicalShare": 1,
+          "magicShare": 0,
+          "damagePerGame": 30000
+        },
+        {
+          "physicalShare": 0,
+          "magicShare": 1,
+          "damagePerGame": 2000
+        },
+        {
+          "physicalShare": 0,
+          "magicShare": 1,
+          "damagePerGame": 2000
+        },
+        {
+          "physicalShare": 0,
+          "magicShare": 1,
+          "damagePerGame": 2000
+        },
+        {
+          "physicalShare": 0,
+          "magicShare": 1,
+          "damagePerGame": 2000
+        }
+      ],
+      "expected": {
+        "physicalShare": 0.7894736842,
+        "magicShare": 0.2105263158,
+        "trueShare": 0.0,
+        "enemyMagicDamage": "Low",
+        "enemyPhysicalDamage": "High",
+        "allyMagicDamage": "Low"
+      }
+    },
+    {
+      "name": "a mixed team lands in the middle",
+      "missing": 0,
+      "picks": [
+        {
+          "physicalShare": 0.85,
+          "magicShare": 0.1,
+          "damagePerGame": 24000
+        },
+        {
+          "physicalShare": 0.15,
+          "magicShare": 0.8,
+          "damagePerGame": 21000
+        },
+        {
+          "physicalShare": 0.55,
+          "magicShare": 0.35,
+          "damagePerGame": 18000
+        },
+        {
+          "physicalShare": 0.3,
+          "magicShare": 0.6,
+          "damagePerGame": 9000
+        },
+        {
+          "physicalShare": 0.7,
+          "magicShare": 0.05,
+          "damagePerGame": 15000
+        }
+      ],
+      "expected": {
+        "physicalShare": 0.5362068966,
+        "magicShare": 0.3637931034,
+        "trueShare": 0.1,
+        "enemyMagicDamage": "Mid",
+        "enemyPhysicalDamage": "Mid",
+        "allyMagicDamage": "Mid"
+      }
+    },
+    {
+      "name": "a magic-heavy team",
+      "missing": 1,
+      "picks": [
+        {
+          "physicalShare": 0.1,
+          "magicShare": 0.85,
+          "damagePerGame": 26000
+        },
+        {
+          "physicalShare": 0.05,
+          "magicShare": 0.9,
+          "damagePerGame": 22000
+        },
+        {
+          "physicalShare": 0.6,
+          "magicShare": 0.3,
+          "damagePerGame": 16000
+        },
+        {
+          "physicalShare": 0.2,
+          "magicShare": 0.7,
+          "damagePerGame": 8000
+        }
+      ],
+      "expected": {
+        "physicalShare": 0.2069444444,
+        "magicShare": 0.7263888889,
+        "trueShare": 0.0666666667,
+        "enemyMagicDamage": "High",
+        "enemyPhysicalDamage": "Low",
+        "allyMagicDamage": "High"
+      }
+    },
+    {
+      "name": "true damage is the remainder",
+      "missing": 0,
+      "picks": [
+        {
+          "physicalShare": 0.45,
+          "magicShare": 0.2,
+          "damagePerGame": 20000
+        },
+        {
+          "physicalShare": 0.5,
+          "magicShare": 0.25,
+          "damagePerGame": 19000
+        },
+        {
+          "physicalShare": 0.4,
+          "magicShare": 0.3,
+          "damagePerGame": 17000
+        }
+      ],
+      "expected": {
+        "physicalShare": 0.4517857143,
+        "magicShare": 0.2473214286,
+        "trueShare": 0.3008928571,
+        "enemyMagicDamage": "Low",
+        "enemyPhysicalDamage": "Mid",
+        "allyMagicDamage": "Low"
+      }
+    },
+    {
+      "name": "two unknown picks carry no axis",
+      "missing": 2,
+      "picks": [
+        {
+          "physicalShare": 0.9,
+          "magicShare": 0.1,
+          "damagePerGame": 25000
+        },
+        {
+          "physicalShare": 0.2,
+          "magicShare": 0.8,
+          "damagePerGame": 20000
+        },
+        {
+          "physicalShare": 0.6,
+          "magicShare": 0.3,
+          "damagePerGame": 15000
+        }
+      ],
+      "expected": null
+    }
+  ]
+}

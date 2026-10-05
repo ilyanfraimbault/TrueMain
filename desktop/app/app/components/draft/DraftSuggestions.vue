@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DraftSuggestionItem } from '~/types/draft'
+import { damageNote } from '~/utils/draft-damage'
 
 /**
  * "Your pick" or "Your ban": what the draft endpoints ranked for our lane,
@@ -25,6 +26,8 @@ const props = defineProps<{
   pending: boolean
   position: string
   error: string | null
+  /** Our locked allies, ourselves excluded — what a pick's damage note is read against (#1907). */
+  allies: { championId: number, position: string | null }[]
 }>()
 
 const myPool = defineModel<boolean>('myPool', { default: true })
@@ -33,6 +36,17 @@ const emit = defineEmits<{ preview: [championId: number] }>()
 const { nameOf, champions } = useChampionStatics()
 const { writable } = useChampSelectActions()
 const { entryOf, status: tierListStatus } = useTierList()
+const { profileOf } = useDamageProfiles()
+
+/** What each pick does to our damage mix, when it answers a one-sided team (#1907). Never part of the order, never on a ban. */
+const notes = computed(() => {
+  if (props.mode !== 'pick') return new Map()
+  const allies = props.allies.map(ally => profileOf(ally.championId, ally.position))
+  return new Map(props.suggestions.map(item => [
+    item.championId,
+    damageNote(allies, profileOf(item.championId, props.position)),
+  ]))
+})
 
 const search = ref('')
 const hovered = ref<number | null>(null)
@@ -129,6 +143,7 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
           :entry="entryOf(item.championId, position)"
           :focused="focused === item.championId"
           :height="heightOf(index)"
+          :note="notes.get(item.championId) ?? null"
         >
           <!-- The card's click previews the build; the write is the control over its corner, a separate target. -->
           <button

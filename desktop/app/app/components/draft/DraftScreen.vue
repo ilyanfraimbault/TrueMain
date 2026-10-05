@@ -202,6 +202,33 @@ function back() {
   showBuild.value = false
 }
 
+// ─── The damage mix (#1907) ─────────────────────────────────────────────────
+
+/**
+ * Our side's picks for the damage bar: the locked ones, and our own pick being
+ * weighed — hovered in the client, or a suggestion opened here — as a preview.
+ * Other allies' hovers are not counted: they are not picks yet.
+ */
+const allyDamagePicks = computed(() => {
+  const picks: { championId: number, position: string | null, preview?: boolean }[] = allyRows.value
+    .filter(row => row.championId !== null && row.locked && !(row.me && previewed.value !== null))
+    .map(row => ({ championId: row.championId!, position: row.lane }))
+  const mine = allyRows.value.find(row => row.me)
+  const weighed = previewed.value ?? (mine && !mine.locked ? mine.championId : null)
+  if (weighed !== null) picks.push({ championId: weighed, position: mine?.lane ?? (props.draft.myPosition || null), preview: true })
+  return picks
+})
+
+/** Theirs, on the lanes the guesser (and the player's corrections) put them. */
+const enemyDamagePicks = computed(() => enemyRows.value
+  .filter(row => row.championId !== null)
+  .map(row => ({ championId: row.championId!, position: row.lane })))
+
+/** Our locked allies, ourselves excluded: what a suggested pick's damage note is read against. */
+const lockedAllies = computed(() => allyRows.value
+  .filter(row => row.championId !== null && row.locked && !row.me)
+  .map(row => ({ championId: row.championId!, position: row.lane })))
+
 const suggested = computed(() => (recommendation.value?.candidates ?? []).filter(candidate => !candidate.thinSample).map(candidate => candidate.championId))
 </script>
 
@@ -214,14 +241,17 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
     </DraftTopStrip>
 
     <div class="grid grid-cols-[minmax(0,1fr)_8.5rem_minmax(0,1fr)] gap-3">
-      <DraftTeam
-        team="ally"
-        :rows="allyRows"
-        :selected-cell="selectedCell.ally"
-        :opponent-cell="opponentCell.ally"
-        :suggested="suggested"
-        @view="view('ally', $event)"
-      />
+      <div class="flex flex-col gap-1.5">
+        <DraftTeam
+          team="ally"
+          :rows="allyRows"
+          :selected-cell="selectedCell.ally"
+          :opponent-cell="opponentCell.ally"
+          :suggested="suggested"
+          @view="view('ally', $event)"
+        />
+        <DraftDamageBar team="ally" :picks="allyDamagePicks" />
+      </div>
 
       <DraftLaneDuel
         :champion-id="duel.championId"
@@ -232,26 +262,29 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         class="pb-6"
       />
 
-      <div class="relative">
-        <DraftTeam
-          team="enemy"
-          :rows="enemyRows"
-          :selected-cell="selectedCell.enemy"
-          :opponent-cell="opponentCell.enemy"
-          :correctable="recommendation !== null"
-          @view="view('enemy', $event)"
-          @swap="swap"
-        />
-        <UButton
-          v-if="hasCorrections"
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-rotate-ccw"
-          label="Reset lanes"
-          class="absolute -bottom-1.5 right-0"
-          @click="reset"
-        />
+      <div class="flex flex-col gap-1.5">
+        <div class="relative">
+          <DraftTeam
+            team="enemy"
+            :rows="enemyRows"
+            :selected-cell="selectedCell.enemy"
+            :opponent-cell="opponentCell.enemy"
+            :correctable="recommendation !== null"
+            @view="view('enemy', $event)"
+            @swap="swap"
+          />
+          <UButton
+            v-if="hasCorrections"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-rotate-ccw"
+            label="Reset lanes"
+            class="absolute -bottom-1.5 right-0"
+            @click="reset"
+          />
+        </div>
+        <DraftDamageBar team="enemy" :picks="enemyDamagePicks" />
       </div>
     </div>
 
@@ -266,6 +299,7 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         :pending="mode === 'ban' ? banPending : ranking"
         :error="mode === 'ban' ? banError : rankError"
         :position="draft.myPosition"
+        :allies="lockedAllies"
         @preview="previewed = $event"
       />
 
@@ -275,6 +309,9 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         :position="subject.request.position"
         :draft="{ build, pending: buildPending, error: buildError, opponentId: duel.opponentId, label: 'This draft' }"
       >
+        <template #advice>
+          <DraftItemAdvice :subject="subject" />
+        </template>
         <template #header>
           <div class="flex items-center gap-2.5">
             <ChampionPortrait :champion-id="subject.championId" size="sm" class="size-10! rounded-lg!" />
