@@ -48,6 +48,10 @@ pub fn restore(app: &AppHandle) {
             let _ = window.maximize();
         }
         *LAST.lock().expect("window state poisoned") = Some(saved);
+    } else {
+        // Nothing saved yet: noted as it opens, so a window maximised before
+        // it ever moves still has a size and place to un-maximise to.
+        note(&window);
     }
     let _ = window.show();
     let followed = window.clone();
