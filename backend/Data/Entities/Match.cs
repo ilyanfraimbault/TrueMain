@@ -77,6 +77,15 @@ public class Match
     public bool SynergyAggregated { get; set; }
 
     /// <summary>
+    /// Set once this match has been folded into the opposing-pair aggregates (#1713),
+    /// the same one-fold-per-match gate as <see cref="SynergyAggregated"/> and shipped
+    /// <c>false</c> for the same reason: the tables are created empty, so every retained
+    /// match is folded once. Its own flag rather than the synergy one, so the backlog
+    /// drains without refolding — and double-counting — the synergies.
+    /// </summary>
+    public bool OpponentAggregated { get; set; }
+
+    /// <summary>
     /// Set once this match has been folded into the champion ban aggregates (#920),
     /// the same one-fold-per-match gate as <see cref="SynergyAggregated"/>. Its
     /// migration backfills every existing row to <see langword="true"/> — and here

@@ -237,6 +237,16 @@ public sealed record SynergyAggregationSummary(
     int BaselineRows) : IProcessRunSummary;
 
 /// <summary>
+/// Champion opposing-pair aggregation outcome (#1713), the synergy summary's shape:
+/// matches and batches, plus the two upsert counts.
+/// </summary>
+public sealed record OpponentAggregationSummary(
+    int Matches,
+    int Batches,
+    int PairRows,
+    int BaselineRows) : IProcessRunSummary;
+
+/// <summary>
 /// Champion ban aggregation outcome (#920). <see cref="ScopeRows"/> counts the
 /// (patch, elo band) denominators touched and <see cref="BanRows"/> the champion
 /// counts, so a run whose matches all folded into the ALL band alone — every

@@ -44,6 +44,13 @@ public sealed record DraftScoringWeights
     public double Synergy { get; init; } = 0.25d;
 
     /// <summary>
+    /// Weight of the enemy-team term (#1713): the mean pairing with the enemies on
+    /// the board beyond our lane. Zero until the back-test has data to set it — the
+    /// opposing-pair aggregate starts empty and drains the retained matches first.
+    /// </summary>
+    public double Enemy { get; init; } = 0d;
+
+    /// <summary>
     /// The <c>k</c> of <see cref="DraftComponent.Shrunk"/>: the games at which a
     /// delta keeps half its value.
     /// </summary>
@@ -58,6 +65,13 @@ public sealed record DraftScoringWeights
 
 /// <summary>An ally on the board, as the synergy term sees it.</summary>
 public readonly record struct DraftAllyPairing(DraftComponent Pairing, bool Hovered);
+
+/// <summary>
+/// An enemy on the board, as the enemy-team term sees it: the candidate's measured
+/// pairing against it, and how much it counts — the chance it is <em>not</em> our lane
+/// opponent, whose matchup the lane term already carries.
+/// </summary>
+public readonly record struct DraftEnemyPairing(DraftComponent Pairing, double Weight);
 
 /// <summary>
 /// The candidate's expected matchup over the lane opponents still available,
@@ -248,9 +262,42 @@ public static class DraftScoring
     }
 
     /// <summary>
+    /// The enemy-team term (#1713): the weighted mean shrunk pairing over the enemies
+    /// on the board, each weighted by the chance it plays elsewhere than our lane —
+    /// an unmeasured pairing counts as no effect, as in <see cref="Synergy"/>.
+    /// </summary>
+    public static (DraftComponent Measured, double Shrunk) Enemy(
+        IReadOnlyList<DraftEnemyPairing> enemies,
+        double shrinkGames)
+    {
+        double total = 0d, shrunk = 0d, measuredWeight = 0d, measured = 0d;
+        var games = 0;
+        foreach (var enemy in enemies)
+        {
+            if (enemy.Weight <= 0d)
+            {
+                continue;
+            }
+
+            total += enemy.Weight;
+            shrunk += enemy.Weight * enemy.Pairing.Shrunk(shrinkGames);
+            if (enemy.Pairing.Games > 0)
+            {
+                measuredWeight += enemy.Weight;
+                measured += enemy.Weight * enemy.Pairing.Delta;
+                games += enemy.Pairing.Games;
+            }
+        }
+
+        return (
+            measuredWeight > 0d ? new DraftComponent(measured / measuredWeight, games) : DraftComponent.None,
+            total > 0d ? shrunk / total : 0d);
+    }
+
+    /// <summary>
     /// The ranking key: the lane term — the resolved opponent where the board
     /// shows one, the blind expectation for the share of the lane still unknown —
-    /// then the champion's own strength at the lane, then the ally term.
+    /// then the champion's own strength at the lane, the enemy team, and the allies.
     /// </summary>
     public static double Score(
         double laneShrunk,
@@ -258,11 +305,15 @@ public static class DraftScoring
         double blindShrunk,
         double strengthShrunk,
         double synergyShrunk,
-        DraftScoringWeights weights)
+        DraftScoringWeights weights,
+        double enemyShrunk = 0d)
     {
         var occupied = Math.Clamp(laneOccupied, 0d, 1d);
         var lane = (occupied * laneShrunk) + ((1d - occupied) * blindShrunk);
-        return (weights.Lane * lane) + (weights.Strength * strengthShrunk) + (weights.Synergy * synergyShrunk);
+        return (weights.Lane * lane)
+            + (weights.Strength * strengthShrunk)
+            + (weights.Enemy * enemyShrunk)
+            + (weights.Synergy * synergyShrunk);
     }
 
     /// <summary>

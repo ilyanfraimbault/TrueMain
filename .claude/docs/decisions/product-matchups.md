@@ -311,6 +311,17 @@ allies outweigh the lane, and bet the matchup on the solver's top placement even
   term). Still missing: the enemy team beyond our lane (#1713) and the damage mix (#1905, #1907).
 `DraftCandidateScorer`, `Core/Lol/Draft/DraftScoring.cs` — #1906.
 
+**The enemy team is measured on its own opposing-pair aggregate, folded behind its own flag, and enters the score
+only once a back-test sets its weight.** `champion_opponent_stats` pairs a tracked seat with each enemy, and the
+draft term is observed minus expected — the synergy formula (`SynergyMath`) with the enemy's rate as faced by
+tracked players in place of an ally's — so a champion everybody loses to is not held against any one pick. The lane
+opponent stays the matchup table's; every other enemy counts whatever lane the guess gives it, weighted by the
+chance it is *not* our lane opponent. A separate process and `Match.OpponentAggregated` rather than four more lines
+in the synergy fold: the synergy flag is already set on every retained match, so only a new gate drains the
+retained history without double-counting synergies. The term ships with weight 0 — the table starts empty, and the
+back-test (`Tools/DraftEvaluation`, now reading `champion_opponent_*`) needs the backfilled patches to measure it.
+`ChampionOpponentAggregationProcess`, `DraftEnemyReader` — #1713, #1906.
+
 **Draft ban suggestions protect something.** `POST /champions/draft/bans`, its own endpoint because bans are asked
 on the ban turn and picks on the pick turn. With a declared pick (the player's planning-phase hover) the threat of
 enemy E is how far the pick is behind into E, shrunk, times E's share of the lane's games — a champion it loses to

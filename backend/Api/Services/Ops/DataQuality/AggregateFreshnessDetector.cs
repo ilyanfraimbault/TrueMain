@@ -25,7 +25,7 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
         "ChampionPatternAggregation",
         "ChampionMatchupLeadAggregation",
         "ChampionBanAggregation",
-        "ChampionSynergyAggregation", "ChampionProfileAggregation", "ChampionItemContextAggregation"
+        "ChampionSynergyAggregation", "ChampionOpponentAggregation", "ChampionProfileAggregation", "ChampionItemContextAggregation"
     ];
 
     public async Task<DataQualityDetectorReadModel> BuildAsync(

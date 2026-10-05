@@ -20,10 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 19,
+                propertyCount: 20,
                 navigationCount: 1,
                 unnamedIndexCount: 5,
-                namedIndexCount: 6,
+                namedIndexCount: 7,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -122,6 +122,16 @@ namespace Data.CompiledModels
                 sentinel: false);
             matchupLeadAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             matchupLeadAggregated.AddAnnotation("Relational:DefaultValue", false);
+
+            var opponentAggregated = runtimeEntityType.AddProperty(
+                "OpponentAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("OpponentAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<OpponentAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            opponentAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            opponentAggregated.AddAnnotation("Relational:DefaultValue", false);
 
             var paceBenchmarkAggregated = runtimeEntityType.AddProperty(
                 "PaceBenchmarkAggregated",
@@ -240,6 +250,11 @@ namespace Data.CompiledModels
                 new[] { queueId },
                 name: "IX_matches_matchup_lead_pending");
             iX_matches_matchup_lead_pending.AddAnnotation("Relational:Filter", "\"MatchupLeadAggregated\" = false");
+
+            var iX_matches_opponent_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_opponent_pending");
+            iX_matches_opponent_pending.AddAnnotation("Relational:Filter", "\"OpponentAggregated\" = false");
 
             var iX_matches_profile_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

@@ -7,6 +7,12 @@ namespace TrueMain.Services.Champions.Draft;
 public sealed record DraftAllyInput(int ChampionId, string Position, bool Hovered, DraftComponent Pairing);
 
 /// <summary>
+/// An enemy on the board, the candidate's measured pairing against it (#1713), and
+/// its weight — the chance it plays elsewhere than our lane.
+/// </summary>
+public sealed record DraftEnemyInput(int ChampionId, double Weight, DraftComponent Pairing);
+
+/// <summary>
 /// Turns one candidate's measured readings into its components, its ranking key
 /// and the reasons that carry it (#1906). Pure: the query service reads, this
 /// decides — and the tests pin the decisions without a database.
@@ -39,15 +45,20 @@ public static class DraftCandidateScorer
         IReadOnlyDictionary<int, double> availableShares,
         double laneAverageRate,
         IReadOnlyList<DraftAllyInput> allies,
-        DraftScoringWeights weights)
+        DraftScoringWeights weights,
+        IReadOnlyList<DraftEnemyInput>? enemies = null)
     {
+        enemies ??= [];
         var k = weights.ShrinkGames;
         var strength = DraftScoring.Strength(record.Games, record.Wins, laneAverageRate);
         var (lane, laneShrunk, occupied) = DraftScoring.Lane(record.Versus, occupancy, k);
         var blind = DraftScoring.Blind(record.Versus, availableShares, k);
         var (synergy, synergyShrunk) = DraftScoring.Synergy(
             allies.Select(ally => new DraftAllyPairing(ally.Pairing, ally.Hovered)).ToList(), weights);
-        var score = DraftScoring.Score(laneShrunk, occupied, blind.Shrunk, strength.Shrunk(k), synergyShrunk, weights);
+        var (enemy, enemyShrunk) = DraftScoring.Enemy(
+            enemies.Select(input => new DraftEnemyPairing(input.Pairing, input.Weight)).ToList(), k);
+        var score = DraftScoring.Score(
+            laneShrunk, occupied, blind.Shrunk, strength.Shrunk(k), synergyShrunk, weights, enemyShrunk);
 
         var laneGamesInPlay = occupied >= 0.5d ? lane.Games : blind.Games;
 
@@ -65,11 +76,13 @@ public static class DraftCandidateScorer
             },
             StrengthDelta = strength.Delta,
             StrengthGames = strength.Games,
+            EnemyDelta = enemy.Delta,
+            EnemyGames = enemy.Games,
             SynergyDelta = synergy.Delta,
             SynergyGames = synergy.Games,
             Score = score,
             ThinSample = laneGamesInPlay < MinGames && synergy.Games < MinGames,
-            Reasons = Reasons(record, occupancy, occupied, blind, strength, allies, weights),
+            Reasons = Reasons(record, occupancy, occupied, blind, strength, allies, enemies, weights),
             Patch = record.Patch,
         };
     }
@@ -87,6 +100,7 @@ public static class DraftCandidateScorer
         BlindSafety blind,
         DraftComponent strength,
         IReadOnlyList<DraftAllyInput> allies,
+        IReadOnlyList<DraftEnemyInput> enemies,
         DraftScoringWeights weights)
     {
         var k = weights.ShrinkGames;
@@ -133,6 +147,22 @@ public static class DraftCandidateScorer
                 Delta = strength.Delta,
                 Games = strength.Games,
             }));
+        }
+
+        var enemyWeight = enemies.Sum(input => Math.Max(0d, input.Weight));
+        if (weights.Enemy > 0d && enemyWeight > 0d)
+        {
+            foreach (var input in enemies.Where(input => input.Weight > 0d && input.Pairing.Games > 0))
+            {
+                parts.Add((weights.Enemy * input.Weight / enemyWeight * input.Pairing.Shrunk(k), new DraftReasonReadModel
+                {
+                    Kind = DraftReasonKinds.EnemyTeam,
+                    ChampionId = input.ChampionId,
+                    Delta = input.Pairing.Delta,
+                    Games = input.Pairing.Games,
+                    Probability = input.Weight,
+                }));
+            }
         }
 
         var allyWeight = allies.Sum(ally => ally.Hovered ? weights.HoveredAlly : 1d);
