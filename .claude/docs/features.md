@@ -224,7 +224,14 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   frame. A game's role is its participant slot on a queue that assigns roles, none elsewhere (#1768). The LP history is noted on this machine each
   time the record is read (`utils/lp-history.ts`), so the curve and per-game LP start empty and grow. A queue filter
   (All / Solo / Flex / Normal / ARAM) scopes everything but the ranked card; remakes are not listed. Read again after
-  each game. With no client: a waiting banner over the patch's best picks by lane.
+  each game. A **goals card** above the champions card (#1913): up to 3 active goals on one of the eight metrics
+  ("CS / min ≥ 7.0 over the next 5 Solo games", "Deaths ≤ 5 in each of the next 5 Solo games"), set in a modal (metric,
+  at least / at most, threshold prefilled with the player's own average in that scope, N 1–20, average or K of N
+  games, queue, optional champion and lane), shown as N slots filling up game by game; a goal the latest game decided
+  stays with its outcome until the next game, then moves under "Past goals" (latest 20 kept). With none running, up
+  to 3 suggestions on the metrics furthest below the player's average, set at that average (no CS for a mostly-support
+  player, vision first). Measured from the client's games (`utils/goals.ts`), kept on this machine per Riot ID
+  (`utils/goal-store.ts`), never sent. With no client: a waiting banner over the patch's best picks by lane.
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
   guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
   ten most-mastered champions on the lane, or every champion on the lane). Once locked, or on a click on any placed
