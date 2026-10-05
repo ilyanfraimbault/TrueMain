@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { GameflowPhase } from '~/types/lcu'
 import type { QueueFilter } from '~/utils/player-form'
+import type { GoalDraft } from '~/utils/goals'
 import { METRICS, QUEUE_FILTERS, championLines, counted, gamesIn, laneLines, readMetric } from '~/utils/player-form'
 import { toProfileRanked } from '~/utils/match-summary'
 
@@ -31,6 +32,14 @@ const ranked = computed(() => toProfileRanked(record.value?.ranked.find(queue =>
 const nameTag = computed(() => state.value.riotId?.replace('#', '-') ?? '')
 const historyGames = computed(() => gamesIn(loadedGames.value, filter.value))
 const filterLabel = computed(() => QUEUE_FILTERS.find(option => option.value === filter.value)?.label ?? 'All')
+
+const { goals, evaluations, canAdd, create, abandon, suggestions } = useGoals()
+const editing = ref(false)
+const editingFrom = ref<GoalDraft | null>(null)
+function editGoal(draft: GoalDraft | null) {
+  editingFrom.value = draft
+  editing.value = true
+}
 
 onMounted(() => refresh())
 watch(() => state.value.riotId, () => refresh())
@@ -114,11 +123,22 @@ watch(() => state.value.phase, (next, previous) => {
             <USkeleton class="h-40 rounded-lg" />
           </template>
           <template v-else>
+            <DashboardGoalsCard
+              :goals="goals"
+              :evaluations="evaluations"
+              :suggestions="suggestions(filter)"
+              :can-add="canAdd"
+              :latest-game-id="latest[0]?.gameId ?? null"
+              @edit="editGoal"
+              @abandon="abandon"
+            />
             <DashboardChampionsCard :champions="championLines(games)" />
             <DashboardRolesCard :lanes="laneLines(games)" />
           </template>
         </aside>
       </div>
+
+      <DashboardGoalEditor v-model:open="editing" :games="loadedGames" :initial="editingFrom" @save="create" />
     </template>
 
     <template v-else>

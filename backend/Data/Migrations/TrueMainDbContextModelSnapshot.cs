@@ -1601,6 +1601,29 @@ namespace Data.Migrations
                     b.ToTable("match_participant_timeline_snapshots", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.MatchWinProbability", b =>
+                {
+                    b.Property<string>("MatchId")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<List<MatchWinProbabilityObjective>>("Objectives")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<List<MatchWinProbabilityPoint>>("Points")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<List<MatchWinProbabilitySwing>>("Swings")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("MatchId");
+
+                    b.ToTable("match_win_probability", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.ParticipantPerkSelection", b =>
                 {
                     b.Property<string>("MatchId")
@@ -2016,6 +2039,15 @@ namespace Data.Migrations
                 });
 
             modelBuilder.Entity("Data.Entities.MatchParticipantTimelineSnapshot", b =>
+                {
+                    b.HasOne("Data.Entities.Match", null)
+                        .WithMany()
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Data.Entities.MatchWinProbability", b =>
                 {
                     b.HasOne("Data.Entities.Match", null)
                         .WithMany()

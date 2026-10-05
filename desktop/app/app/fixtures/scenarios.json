@@ -70,6 +70,13 @@
       {"capturedAtUtc": "2026-09-29T17:31:17.000Z", "tier": "EMERALD", "division": "II", "leaguePoints": 21},
       {"capturedAtUtc": "2026-09-29T18:01:17.000Z", "tier": "EMERALD", "division": "II", "leaguePoints": 42},
       {"capturedAtUtc": "2026-09-29T19:05:59.000Z", "tier": "EMERALD", "division": "II", "leaguePoints": 64}
+    ],
+    "goals": [
+      {"id": "dev-vision", "riotId": "Synthetic#TAPE", "metric": "vision", "comparator": "atLeast", "threshold": 0.8, "games": 2, "mode": "average", "hitsNeeded": 2, "scope": {"queue": "flex"}, "createdAt": 1790500000000, "status": "active", "results": []},
+      {"id": "dev-deaths-run", "riotId": "Synthetic#TAPE", "metric": "deaths", "comparator": "atMost", "threshold": 5, "games": 5, "mode": "eachGame", "hitsNeeded": 5, "scope": {"queue": "solo"}, "createdAt": 1790577000000, "status": "active", "results": []},
+      {"id": "dev-cs", "riotId": "Synthetic#TAPE", "metric": "cs", "comparator": "atLeast", "threshold": 7.5, "games": 5, "mode": "average", "hitsNeeded": 5, "scope": {"queue": "solo"}, "createdAt": 1790697000000, "status": "active", "results": []},
+      {"id": "dev-kp", "riotId": "Synthetic#TAPE", "metric": "kp", "comparator": "atLeast", "threshold": 0.5, "games": 5, "mode": "eachGame", "hitsNeeded": 3, "scope": {"queue": "solo", "championId": 103, "position": "MIDDLE"}, "createdAt": 1790697000000, "status": "active", "results": []},
+      {"id": "dev-deaths", "riotId": "Synthetic#TAPE", "metric": "deaths", "comparator": "atMost", "threshold": 4, "games": 3, "mode": "eachGame", "hitsNeeded": 3, "scope": {"queue": "solo"}, "createdAt": 1790699000000, "status": "active", "results": []}
     ]
   },
   {

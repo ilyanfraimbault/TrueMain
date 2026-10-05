@@ -6,6 +6,9 @@
   (2026-09-30): no recessed well, no card inside the card, rows a third of the
   site's height. The payload is TrueMain's copy of the game when it has one,
   the client's scoreboard otherwise (`usePlayerGameDetail`, `useSiteShims.ts`).
+  A fourth view, the Timeline, shows the win-probability curve (#1911) for
+  the player's side when the game has one: TrueMain's own, else the one built
+  from the client's timeline (`resolveWinProbability`).
 -->
 <script setup lang="ts">
 import type {
@@ -14,6 +17,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '#shared/types/static-data'
+import { resolveWinProbability } from '#common/utils/win-probability-swing'
 
 const props = defineProps<{
   nameTag: string
@@ -39,12 +43,16 @@ const sides = computed(() => {
   })).filter(side => side.players.length)
 })
 
-const VIEWS = [
+const winProbability = computed(() => (detail.value ? resolveWinProbability(detail.value) : null))
+
+type View = 'scoreboard' | 'build' | 'runes' | 'timeline'
+const views = computed<{ value: View, label: string }[]>(() => [
   { value: 'scoreboard', label: 'Scoreboard' },
   { value: 'build', label: 'Build' },
   { value: 'runes', label: 'Runes' },
-] as const
-const view = ref<(typeof VIEWS)[number]['value']>('scoreboard')
+  ...(winProbability.value ? [{ value: 'timeline' as const, label: 'Timeline' }] : []),
+])
+const view = ref<View>('scoreboard')
 </script>
 
 <template>
@@ -62,7 +70,7 @@ const view = ref<(typeof VIEWS)[number]['value']>('scoreboard')
       <!-- The site's link tabs, across the whole row. -->
       <div class="-mx-3 mb-2.5 flex border-b border-default/60" role="tablist">
         <button
-          v-for="option in VIEWS"
+          v-for="option in views"
           :key="option.value"
           type="button"
           role="tab"
@@ -103,6 +111,14 @@ const view = ref<(typeof VIEWS)[number]['value']>('scoreboard')
         :sides="sides"
         :champions="champions"
         :rune-tree="runeTree"
+      />
+
+      <MatchDetailWinProbability
+        v-if="view === 'timeline' && winProbability"
+        :win-probability="winProbability"
+        :perspective-team-id="selfTeamId"
+        :participants="participants"
+        :champions="champions"
       />
     </template>
   </div>

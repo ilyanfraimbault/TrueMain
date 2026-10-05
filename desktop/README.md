@@ -83,9 +83,12 @@ Tracking issue: **#1671**.
   once the game has started (its `GameStart` event), never over its loading screen —
   only while the game is the frontmost app, never over the client or anything
   else. Click-through and never focused, so the game keeps every click and key;
-  ⌥⇧O hides them for the rest of the game. Set up from the game page (each panel
-  on/off and where — five spots, or anywhere by dragging it in a preview — the
-  next item's moment, size, opacity).
+  ⌥⇧O hides them for the rest of the game. Set up on the Overlay page (each panel
+  on/off and where — five spots, or anywhere by dragging it — the next item's
+  moment, size, opacity), with each panel shown always, while a chord is held
+  or toggled by one (#1915): the chord is recorded by key position, so it
+  holds on any layout, and the page warns when its key also does something in
+  game (the overlay reads keys, the game still gets them).
   The window layer is the #1673 spike's verdict, `docs/desktop-overlay-spike.md`.
 
 ## What it does not do yet
@@ -103,8 +106,8 @@ Tracking issue: **#1671**.
 - **The Windows overlay has not met a League game yet** (#1798). CI runs it
   on a Windows desktop over a stand-in game window
   (`tools/overlay-smoke-windows.ps1`, #1806). The panels are drawn, never take
-  the foreground, let clicks through, and follow TAB, Alt+Shift+O and the window
-  in front. They are placed by a drag in the preview. What only a player can
+  the foreground, let clicks through, and follow TAB, a held and a toggled
+  chord, Alt+Shift+O and the window in front. They are placed by a drag in the preview. What only a player can
   check: a real game in Borderless, under its anti-cheat. Over League in
   exclusive Full Screen Windows draws nothing, so the settings ask for
   Borderless.

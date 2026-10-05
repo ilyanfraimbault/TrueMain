@@ -185,3 +185,21 @@ filters and offers to clear them.
 
 This is the same class of defect as the thin-sample rule in `product-mains.md` (#762): the page degrades, it
 does not dead-end.
+
+## The match detail's Timeline tab is computed at ingest and stored, one row per match (2026-10-05)
+
+**Decision.** The site's match detail shows the game's win-probability curve and its turning points in a "Timeline"
+tab, read from the profile owner's side (the stored figures read for blue side; the UI turns them). They are computed
+by the ingestor while it holds the full Riot timeline (`TimelineIngestionService`, C# port of the shared model in
+`Core/Lol/WinProbability`) and stored as one compact row per match in `match_win_probability` (the curve a point a
+minute, the ten largest swings, the epic monsters), which retention removes with the match. Only matches ingested
+after the change have one, with no backfill. A game under fifteen minutes or without the five lanes paired gets
+none, and a match with no curve shows no tab rather than an empty chart.
+
+**Why.** The site has no client to read a timeline from, and TrueMain keeps no events: the per-minute grids were
+pruned on purpose (#694, #772, #1599) and must not come back as a raw table, while a derived row per match is a few
+kilobytes. Fetching the timeline when a detail opens was rejected: it would spend our Riot key on visitor traffic
+and expose the page to 429s. A backfill would mean fetching every old timeline again on the same key.
+
+**Source.** #1911.
+

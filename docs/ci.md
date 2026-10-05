@@ -37,12 +37,19 @@ which downstream jobs are worth a runner:
 
 | Output | Paths | Gates |
 | ------ | ----- | ----- |
-| `backend` | `backend/**`, `global.json` | backend build + unit + integration tests, API and Ingestor image builds |
+| `backend` | `backend/**`, `global.json`, the win-probability fixture and TS model (see below) | backend build + unit + integration tests, API and Ingestor image builds |
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` / `admin` | `web/**` / `admin/**` | the frontend job for that app, its image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
 | `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt` | deploy-script tests, file sizes |
 | `ci` | `ci.yml`, `.github/actions/**` | everything |
+
+The `backend` filter also lists `web/shared/fixtures/win-probability-timeline.json` and
+`web/layers/common/app/utils/win-probability*.ts` (#1911): the backend's
+`WinProbabilityParityTests` hold the C# port in `backend/Core/Lol/WinProbability` to that
+fixture, whose `expected` is the TS builder's output, so a web-only change to either must still run the
+backend tests. The reverse needs nothing: a C# change that drifts from the fixture fails the
+backend job on its own.
 
 Pushes to `develop`/`master` and manual runs are always exhaustive: the push to
 `develop` is the commit the preprod deploy builds, and the `develop→master`
