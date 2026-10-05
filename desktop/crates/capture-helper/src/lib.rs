@@ -155,11 +155,12 @@ impl HelperCapture {
 
     /// Ask the helper which window it would record, and its size in pixels.
     pub fn probe(&self) -> Result<Value, CaptureError> {
-        let output = command(&self.binary)
+        let mut probe = command(&self.binary);
+        probe
             .arg("probe")
             .args(self.window_args())
-            .stderr(Stdio::inherit())
-            .output()
+            .stderr(Stdio::inherit());
+        let output = retry_busy(|| probe.output())
             .map_err(|e| CaptureError(format!("could not run {}: {e}", self.binary.display())))?;
         let last = parse_events(&output.stdout).pop();
         match last {
@@ -262,11 +263,11 @@ impl Capture for HelperCapture {
         if !self.audio {
             command.arg("--no-audio");
         }
-        let mut child = command
+        command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
+            .stderr(Stdio::inherit());
+        let mut child = retry_busy(|| command.spawn())
             .map_err(|e| CaptureError(format!("could not run {}: {e}", self.binary.display())))?;
 
         let stdout = child.stdout.take().expect("stdout is piped");
@@ -381,6 +382,28 @@ pub(crate) fn command(binary: &Path) -> Command {
         command.creation_flags(CREATE_NO_WINDOW);
     }
     command
+}
+
+/// Run `launch` again while the system answers that the helper binary is busy
+/// (`ETXTBSY`): a file that was just written can stay open for a moment in a
+/// process forked meanwhile — another thread spawning a child, typically in the
+/// test suite — and the exec is refused until that child execs or exits. The
+/// window is milliseconds, so a few short retries cover it; any other error is
+/// returned at once.
+pub(crate) fn retry_busy<T>(mut launch: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
+    const ATTEMPTS: u32 = 10;
+    let mut attempt = 1;
+    loop {
+        match launch() {
+            Err(error)
+                if error.kind() == std::io::ErrorKind::ExecutableFileBusy && attempt < ATTEMPTS =>
+            {
+                attempt += 1;
+                thread::sleep(Duration::from_millis(20));
+            }
+            result => return result,
+        }
+    }
 }
 
 pub(crate) fn parse_events(stdout: &[u8]) -> Vec<Value> {
