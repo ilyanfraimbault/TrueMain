@@ -1,13 +1,6 @@
 # Files over the size limit, recorded so they can only shrink.
 # Regenerate with .github/scripts/check-file-size.sh --update
 # path<TAB>lines<TAB>limit
-admin/app/components/CrashesPanel.vue	578	400
-admin/app/components/processes/ProcessesRiotApi.vue	482	400
-admin/app/composables/useOps.ts	443	300
-admin/app/pages/database.vue	512	400
-admin/app/pages/data-quality.vue	601	400
-admin/app/pages/index.vue	572	400
-admin/app/pages/logs.vue	486	400
 backend/Data/Logging/Mongo/MongoLogContext.cs	525	500
 backend/Data/Ops/Mongo/ProcessRunStore.cs	508	500
 backend/Data/Repositories/RiotAccountRepository.cs	624	500
