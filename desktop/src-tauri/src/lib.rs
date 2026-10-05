@@ -140,6 +140,8 @@ async fn champion_build(
 const READABLE_PATHS: &[&str] = &[
     "/champions/tierlist",
     "/champions/directory",
+    // Every champion's damage profile, for the draft's team damage bars (#1905).
+    "/champions/damage-profiles",
     "/truemains",
     "/truemains/search",
 ];
@@ -386,6 +388,7 @@ mod tests {
         assert!(readable("/truemains"));
         assert!(readable("/champions/tierlist"));
         assert!(readable("/champions/directory"));
+        assert!(readable("/champions/damage-profiles"));
         assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
         assert!(readable("/truemains/Faker-KR1/champions/7"));
         assert!(readable("/truemains/Faker-KR1/profile"));
