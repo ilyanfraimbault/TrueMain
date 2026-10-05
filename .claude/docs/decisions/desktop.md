@@ -405,8 +405,17 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
   client (gameflow session for the roster, match history by puuid), three requests at a time, ours and our lane
   opponent's first, never on TrueMain's Riot key. Counts only, no score made of them. On the companion window's
   loading state only: the overlay panel it also had was dropped (2026-10-04, #1869) — it duplicated the app, and
-  nothing of the overlay draws over the loading screen. The true-main mark the issue asks for needs a batch lookup by
-  Riot ID on the API and is left for later. A player whose identity the client keeps from us (the session leaves out
+  nothing of the overlay draws over the loading screen. A player TrueMain tracks as a true main of the champion they
+  are on carries **the TrueMain mark** after their name, here and on the Game page's player line (2026-10-05, #1910):
+  the M-check logo alone, no "True main" text — unclear tag names are the common complaint about other companions'
+  loading screens — with "True main of <Champion>" and figures from the answer only (their games on it out of the
+  last ranked ones, "One-trick", the Truemain score on that champion) in its tooltip. One `GET /truemains/lookup`
+  per game (up to ten `Name#TAG:championId` pairs and the game's platform, read from the first history the client
+  returns), asked again only when the roster names a new player; same population as the leaderboard (ranked, exposed
+  platform, `IsMain AND IsActive`, the ranked-games floor), matched by Riot ID on that platform the resolver's way.
+  An anonymous player is never sent. A failed lookup shows nothing. Our own line gets the mark like anyone else's —
+  a fact about the player, not a "this is you" highlight (#1803). No leaderboard position in the tooltip: ranking a
+  champion's whole population per game is not worth it yet. Hover only: the loading screen is not interactive. A player whose identity the client keeps from us (the session leaves out
   their puuid) stays anonymous: their champion and lane show with "Anonymous", never a name even if the client sent
   one, and their history is not requested. Our own line is found by puuid and always read. Neither the session's
   `nameVisibilityType` nor a missing name is a signal: in ranked it keeps the champion select's `HIDDEN` on every

@@ -1,5 +1,6 @@
 import type { LaningForm, LoadingView, PlayerForm, PositionGames, RecentGame } from '~/types/loading'
 import type { RankedQueue } from '~/types/record'
+import type { TruemainMark } from '~/utils/player-intel'
 
 /**
  * The loading screen for a browser-only `npm run dev`: the late-game
@@ -65,5 +66,21 @@ export function devLoadingView(): LoadingView {
       { riotId: 'Brambleheart#FR1', championId: 81, team: 'CHAOS', position: 'BOTTOM', isMe: false, anonymous: false, form: null, failed: true, rank: null, rankRead: false, rankFailed: true, laning: null },
       { riotId: 'Ashvale#LOL', championId: 111, team: 'CHAOS', position: 'UTILITY', isMe: false, anonymous: false, form: form(20, 8, 6, recent(111, 'UTILITY', 'LLLWLWWWLW'), roles(['UTILITY', 8], ['BOTTOM', 5])), failed: false, rank: rank('EMERALD', 'IV', 37), rankRead: true, rankFailed: false, laning: laning(8, 6, -150, -1, 90) },
     ],
+    platformId: 'EUW1',
   }
+}
+
+/**
+ * `GET /truemains/lookup`'s answer for the scenario above (#1910): two true
+ * mains of the champion they are on, one of them a one-trick. Wrenfield is
+ * listed too, on another champion, to show that such a player gets no mark.
+ */
+export function devTruemainMarks(): TruemainMark[] {
+  const mark = (riotId: string, championId: number, championMatches: number, isOtp: boolean, dedication: number): TruemainMark =>
+    ({ riotId, nameTag: riotId.replace('#', '-'), championId, championMatches, totalMatches: 50, playRate: championMatches / 50, isOtp, masteryPoints: null, dedication })
+  return [
+    mark('Nyrox#LOL', 412, 44, true, 91.4),
+    mark('Ashvale#LOL', 111, 23, false, 64.2),
+    mark('Wrenfield#FR1', 64, 30, false, 70.1),
+  ]
 }

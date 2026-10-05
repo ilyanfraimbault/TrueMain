@@ -249,7 +249,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   so a missed one triggers a re-read. The page: the ten players lane by lane, ours left (our own line tinted) and
   theirs mirrored right — portrait with level, summoner spells, a dead player greyed under a respawn countdown, and
   **who they are** (#1828, `game/GamePlayerIntel.vue`, `utils/player-intel.ts`) instead of the items and K/D/A the
-  game's scoreboard already shows: Riot ID, Solo/Duo crest + tier + LP (a ranked Flex standing tagged "Flex" when
+  game's scoreboard already shows: Riot ID (with **the TrueMain mark** for a true main of the champion they are on —
+  #1910, `TruemainMark.vue`, `useTruemainMarks`: the logo alone, "True main of <Champion>", their games on it out of
+  their last ranked ones, "One-trick" and the Truemain score in its tooltip; one `GET /truemains/lookup` per game,
+  shared with the loading board, never for an anonymous player), Solo/Duo crest + tier + LP (a ranked Flex standing tagged "Flex" when
   there is none, "Placements", "Unranked"; season record in the tooltip), a role chip — "Main role" (≥ ½ of their
   recent role-assigned games here), "Secondary role", or "Autofill · Jungle main" (< ¼) — a streak chip from three
   games on, then their win rate, games and KDA on the champion among their last twenty ("First time" with none) over
@@ -263,7 +266,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   CS / XP leads over that game's lane opponent at 15 min, from the client's timelines; weights per role), the figures
   themselves not shown. The same arrows sit between the two columns of the waiting state's loading board. A loading
   state until the game has started (`GameStart`), with the loading screen board (#1753, `loading/LoadingBoard.vue`:
-  form on the champion and last ten games as bars, names and histories read by puuid through the client — #1869), a
+  form on the champion and last ten games as bars, names and histories read by puuid through the client — #1869 —
+  and the same true-main mark after a name), a
   waiting state outside a game. What the API reveals about enemies is documented in `desktop/README.md` and still to verify in
   a live game.
   Over the board, when we are a player, **the next item** (#1751, `game/GameNextItem.vue`): the legendary the mains

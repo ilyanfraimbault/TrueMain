@@ -142,6 +142,7 @@ const READABLE_PATHS: &[&str] = &[
     "/champions/directory",
     "/truemains",
     "/truemains/search",
+    "/truemains/lookup",
 ];
 
 /// A path the app may read: one of `READABLE_PATHS`, or one true main's
@@ -384,6 +385,7 @@ mod tests {
     #[test]
     fn reads_the_listed_paths_and_a_true_mains_build() {
         assert!(readable("/truemains"));
+        assert!(readable("/truemains/lookup"));
         assert!(readable("/champions/tierlist"));
         assert!(readable("/champions/directory"));
         assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
@@ -416,6 +418,7 @@ mod tests {
         assert!(!readable("/champions/234/matchups/1"));
         assert!(!readable("/champions/8/item-context/1"));
         assert!(!readable("/truemains/Faker-KR1/activity"));
+        assert!(!readable("/truemains/lookup/1"));
         assert!(!readable("/truemains/Faker-KR1/matches/KR_1/timeline"));
         assert!(!readable("/truemains/Faker-KR1/matches/KR-1"));
         assert!(!readable("/truemains/Faker-KR1/matches/"));

@@ -15,6 +15,8 @@ const { game, syncedAt } = useLiveGame()
 const { view: loading } = useLoadingPlayers()
 /** Each lane's edge (#1863), drawn on the board while the game loads. */
 const edges = useLaneEdges(() => loading.value.players)
+/** Which players are true mains of their champion (#1910), for the board and the Game page. */
+useTruemainMarks(loading)
 const { view: overlay } = useGameOverlay()
 
 const overlayStatus = computed(() => {

@@ -75,6 +75,9 @@ export interface LoadingPlayer {
   laning: LaningForm | null
 }
 
+/** Mirrors `LoadingView` in `src-tauri/src/loading.rs`. */
 export interface LoadingView {
   players: LoadingPlayer[]
+  /** The shard the game is played on, e.g. `EUW1`; empty until the first history is read. */
+  platformId: string
 }
