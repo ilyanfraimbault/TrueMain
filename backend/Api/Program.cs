@@ -302,6 +302,9 @@ builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRe
 // distribution at all, exactly on the rare picks a guess is most needed for.
 builder.Services.AddScoped<ILanePriorQueryService, LanePriorQueryService>();
 builder.Services.AddScoped<IDraftRecommendationQueryService, DraftRecommendationQueryService>();
+builder.Services.AddScoped<IDraftPatchScopeResolver, DraftPatchScopeResolver>();
+builder.Services.AddScoped<IDraftLaneReader, DraftLaneReader>();
+builder.Services.AddScoped<IDraftBanQueryService, DraftBanQueryService>();
 // The in-game next-item panel (#1749): a lookup in the model the item-context fold
 // derives, combined with the game's situation; reuses the draft's lane priors.
 builder.Services.AddScoped<INextItemQueryService, NextItemQueryService>();

@@ -96,7 +96,9 @@ Last verified against `develop` on 2026-09-02.
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - The draft assistant's lane guess is an assignment solved by exact enumeration — not per-champion arg-maxes, not Hungarian — #1674, #1706
 - Lane priors read the ally synergy baselines, not the scope table, and decay over four patches rather than switching — #1674, #1706
-- Draft candidates are ranked by two measured deltas kept separate, never a fabricated win probability — #1675, #1706
+- Draft candidates are ranked by measured deltas kept separate — lane (probability-weighted), blind safety, mean synergy — shrunk by their games and weighed lane first, never a fabricated win probability or a grade — #1675, #1706, #1906
+- Draft ban suggestions protect the declared pick (else the mastery pool) from the lane opponents it is behind into, weighted by how often they are played; never an ally's champion — #1906
+- Draft reads use the current patch with the previous one as a per-champion fallback, not every stored patch — #1906
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
 - The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent — #939
 - The recommendation shows no situational-items row — #921, #939
@@ -347,7 +349,7 @@ Last verified against `develop` on 2026-09-02.
 - Every app change merged to develop builds a `X.Y.Z-beta.N` preprod build; a bump's production build goes out by itself once the site release in production contains it or matches it on `web/` + `backend/{Api,Core,Data}` (2026-10-02) — #1799
 - Each app version is built twice — production flavour (`truemain.*`) and preprod flavour (`truemain-<version>.*`, *TrueMain Beta*) — and each site serves, and updates, only the build that reads it (2026-10-01) — #1779
 - The app polls its own site's feed every 15 min, downloads in the background, installs itself at launch outside champion select/game and otherwise offers "Restart now"; "Check for Updates…" in the macOS app menu / a Windows tray menu (2026-10-01) — #1789
-- Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; enemy-team component is #1713 — #1675
+- Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; comfort (mastery, recent games) chooses the pool and is a shown reason, never a score term; enemy-team component is #1713 — #1675, #1906
 - The app draws the site's components as labelled twin copies, with app behaviour in shims beside them; superseded page by page by the shared layer — #1687, #1732
 - The pages the app shares with the site (champions, tier list, matchup, truemains, favorites) are one implementation in `web/layers/common`, which both apps extend (2026-10-01) — #1732
 - A tab changes on click (the app's own `<Suspense>` over the shared page's await, header + skeleton); a bar across the window's top edge runs on every page load, not only navigations — the site keeps #1689 (2026-10-01) — #1788
