@@ -13,6 +13,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use shell_state::keys::KeysDown;
 use shell_state::overlay::{OverlayInputs, OverlayPanel, OverlaySettings, Rect};
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, WindowEvent,
@@ -217,7 +218,13 @@ fn watch(app: &AppHandle) {
             apply(app);
         }
         held = down;
-        if overlay.set_scoreboard(front && platform::keys::tab_down()) {
+        // Only the keys the panels' chords name: a few reads per tick.
+        let keys = if front {
+            platform::keys::read(&overlay.settings().chord_keys())
+        } else {
+            KeysDown::default()
+        };
+        if overlay.read_keys(&keys) {
             apply(app);
         }
         std::thread::sleep(KEYS_EVERY);

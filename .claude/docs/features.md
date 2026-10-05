@@ -294,8 +294,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
   (`live_client::pace`). **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
-  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). TAB and ⌥⇧O are read
-  from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Set up on
+  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). Each panel shows **always**,
+  **while a chord is held** or **toggled** by one (#1915; defaults: item value held with TAB, the others always;
+  a toggle starts each game shown or hidden as set, ⌥⇧O still hides everything). The chords and ⌥⇧O are read
+  from the keyboard's state, only over the game (no hotkey reaches the app over a captured display; no hook, no Input
+  Monitoring needed). Set up on
   the **Overlay page** (`/overlay`, sidebar, any time — #1819): a copy of the screen at its aspect ratio (the window's
   screen, 1920 × 1080 in a browser) with the game's minimap and ability bar outlined, each panel that is on drawn where
   it sits (its anchor spot, or where it was dragged — the shell's rule mirrored in `utils/overlay-layout.ts`) as itself:
@@ -306,7 +309,12 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   it 1 % (Shift 5 %). The **Hidden panels** column on the right lists the panels that are off — drag one onto the
   screen, or click it to bring it back where it was. Beside them: "Place on screen" (the panels themselves, dragged over
   the real screen — each with the sample when no game runs, its "drag" marker drawn over it so it keeps its in-game size), "Reset positions" (every panel back to its spot), overlay on/off (default on), the next item's
-  moment, size 80–140 %, opacity 50–100 %, the shortcut (`OverlayLayoutEditor.vue`, `OverlayPanelMock.vue`). Rules and settings in `shell-state::overlay` (tested on CI),
+  moment, each shown panel's trigger ("In game, shown": Always / While held / Toggle, a field that records the chord by
+  key position — `KeyboardEvent.code`, so AZERTY works — with the refusal under it: modifiers or TAB alone, Esc/Enter,
+  ⌥⇧O, ⌘/Win, Alt+Tab/F4, another panel's chord; a warning naming what the key does in game, from the player's League
+  keybindings via the client or Riot's defaults; Alt+Shift+digit suggested; the chord marked on each panel's mock and
+  on its "drag" marker; `OverlayTriggerPicker.vue`, `utils/overlay-keys.ts`, settings file v3), size 80–140 %,
+  opacity 50–100 %, the hide shortcut (`OverlayLayoutEditor.vue`, `OverlayPanelMock.vue`). Rules and settings in `shell-state::overlay` (tested on CI),
   windows in `src-tauri/src/overlay/` (`panels.rs` drives them, `macos.rs` / `windows.rs` are the window layers). On
   Windows the game is known by its window class (`RiotWindowClass`) or its process name; CI drives the whole overlay
   over a stand-in game on a Windows desktop (`desktop/tools/overlay-smoke-windows.ps1`, #1806).

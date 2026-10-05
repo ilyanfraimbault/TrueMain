@@ -341,6 +341,8 @@ pub fn run() {
             recording::reveal_recording_file,
             overlay::overlay_view,
             overlay::set_overlay_settings,
+            overlay::overlay_check_trigger,
+            overlay::overlay_read_binds,
             overlay::overlay_preview,
             overlay::overlay_fit,
             loading::loading_players,

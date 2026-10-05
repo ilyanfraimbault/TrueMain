@@ -1,6 +1,7 @@
 //! The in-game overlay: panels drawn over the game itself — the next item to
 //! buy, the win probability, and the item value while TAB is held (#1795) —
-//! configured from the app.
+//! configured from the app, each panel shown always, while a chord is held or
+//! toggled by one (#1915).
 //!
 //! One window per panel, driven the same way on both platforms
 //! (`panels.rs`): never focused, click-through outside the preview, shown
@@ -25,16 +26,20 @@ mod platform;
 #[path = "windows.rs"]
 mod platform;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use shell_state::overlay::{OverlayInputs, OverlayPanel, OverlayPoint, OverlaySettings};
+use shell_state::keys::{GameBinds, KeysDown};
+use shell_state::overlay::{
+    OverlayInputs, OverlayPanel, OverlayPoint, OverlaySettings, PanelKeys, PanelTrigger,
+};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::game::SharedGame;
+use crate::record::SharedClient;
 
 /// A panel's window, and the route its webview loads.
 pub fn label(panel: OverlayPanel) -> String {
@@ -52,6 +57,9 @@ const SETTINGS_FILE: &str = "overlay-settings.json";
 pub const SHORTCUT: &str = "⌥⇧O";
 #[cfg(not(target_os = "macos"))]
 pub const SHORTCUT: &str = "Alt+Shift+O";
+
+/// Chords are named the way the platform's keyboards are labelled.
+const MAC_KEYS: bool = cfg!(target_os = "macos");
 
 /// What the settings page says about where the overlay can show.
 #[cfg(windows)]
@@ -73,8 +81,10 @@ pub struct Overlay {
     hidden_by_player: AtomicBool,
     /// The game's process is the frontmost application, as last measured.
     game_frontmost: AtomicBool,
-    /// TAB is held over the game: its scoreboard is open.
-    scoreboard: AtomicBool,
+    /// The panels' chords as last read over the game, and the toggles' state.
+    keys: Mutex<PanelKeys>,
+    /// The player's League keybindings, Riot's defaults until the client is read.
+    binds: Mutex<GameBinds>,
     /// Each page's measured size, in points, scale included.
     sizes: Mutex<HashMap<OverlayPanel, (f64, f64)>>,
 }
@@ -92,6 +102,28 @@ pub struct OverlayView {
     pub shortcut: &'static str,
     /// A condition the platform puts on the overlay, for the settings to show.
     pub notice: Option<&'static str>,
+    /// Each panel's chord, by slug, as the player presses it and what it also
+    /// does in game.
+    pub chords: BTreeMap<&'static str, ChordView>,
+    /// The warnings come from the player's own keybindings, not Riot's defaults.
+    pub own_binds: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChordView {
+    pub label: String,
+    /// What the chord's key also does in game.
+    pub warning: Option<String>,
+}
+
+/// The settings page's question about a trigger before it saves it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TriggerCheck {
+    /// Why the trigger cannot be the panel's, if it cannot.
+    pub refusal: Option<String>,
+    pub chord: Option<ChordView>,
 }
 
 impl Overlay {
@@ -108,7 +140,8 @@ impl Overlay {
             preview: AtomicBool::new(false),
             hidden_by_player: AtomicBool::new(false),
             game_frontmost: AtomicBool::new(false),
-            scoreboard: AtomicBool::new(false),
+            keys: Mutex::new(PanelKeys::default()),
+            binds: Mutex::new(GameBinds::defaults()),
             sizes: Mutex::new(HashMap::new()),
         })
     }
@@ -124,12 +157,23 @@ impl Overlay {
     }
 
     pub fn view(&self) -> OverlayView {
+        let settings = self.settings();
+        let binds = self.binds.lock().expect("overlay binds poisoned");
+        let chords = OverlayPanel::ALL
+            .into_iter()
+            .filter_map(|panel| {
+                let chord = settings.panel(panel).trigger.chord()?;
+                Some((panel.slug(), chord_view(&binds, &chord)))
+            })
+            .collect();
         OverlayView {
-            settings: self.settings(),
+            settings,
             supported: cfg!(any(target_os = "macos", windows)),
             preview: self.preview.load(Ordering::SeqCst),
             shortcut: SHORTCUT,
             notice: NOTICE,
+            chords,
+            own_binds: binds.own,
         }
     }
 
@@ -158,9 +202,12 @@ impl Overlay {
                 None => (false, false),
             }
         };
+        let settings = self.settings();
+        let mut keys = self.keys.lock().expect("overlay keys poisoned");
         if !in_game {
-            // A hide lasts for the game it was asked in.
+            // A hide, and each toggle, lasts for the game it was pressed in.
             self.hidden_by_player.store(false, Ordering::SeqCst);
+            keys.reset_toggles();
         }
         OverlayInputs {
             preview: self.preview.load(Ordering::SeqCst),
@@ -168,7 +215,8 @@ impl Overlay {
             in_game,
             dead,
             hidden_by_player: self.hidden_by_player.load(Ordering::SeqCst),
-            scoreboard: self.scoreboard.load(Ordering::SeqCst),
+            held: keys.held(),
+            toggled: keys.toggled(&settings),
         }
     }
 
@@ -181,8 +229,14 @@ impl Overlay {
         self.game_frontmost.swap(front, Ordering::SeqCst) != front
     }
 
-    pub fn set_scoreboard(&self, open: bool) -> bool {
-        self.scoreboard.swap(open, Ordering::SeqCst) != open
+    /// One read of the keyboard over the game; true when a panel's chord
+    /// changed what shows.
+    pub fn read_keys(&self, keys: &KeysDown) -> bool {
+        let settings = self.settings();
+        self.keys
+            .lock()
+            .expect("overlay keys poisoned")
+            .read(&settings, keys)
     }
 
     /// Where the player dragged a panel in the preview, kept in memory and
@@ -203,6 +257,13 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(any(target_os = "macos", windows))]
     panels::setup(app)?;
     Ok(())
+}
+
+fn chord_view(binds: &GameBinds, chord: &shell_state::keys::Chord) -> ChordView {
+    ChordView {
+        label: chord.label(MAC_KEYS),
+        warning: binds.conflict(chord),
+    }
 }
 
 /// Bring the panels in line with the settings and the game. Cheap when nothing
@@ -238,6 +299,46 @@ pub fn set_overlay_settings(
     overlay
         .replace_settings(settings)
         .map_err(|error| error.to_string())?;
+    Ok(publish(&app, &overlay))
+}
+
+/// Whether `trigger` can be `panel`'s, and how its chord reads, before the
+/// page saves it: the page shows the refusal by the field that recorded it.
+#[tauri::command]
+pub fn overlay_check_trigger(
+    overlay: State<'_, SharedOverlay>,
+    panel: String,
+    trigger: serde_json::Value,
+) -> Result<TriggerCheck, String> {
+    let panel = OverlayPanel::from_slug(&panel).ok_or("no such panel")?;
+    let trigger: PanelTrigger =
+        serde_json::from_value(trigger).map_err(|_| "a key this app does not know".to_string())?;
+    let binds = overlay.binds.lock().expect("overlay binds poisoned");
+    Ok(TriggerCheck {
+        refusal: overlay.settings().refusal(panel, &trigger),
+        chord: trigger.chord().map(|chord| chord_view(&binds, &chord)),
+    })
+}
+
+/// Read the player's League keybindings from the client, for the chords'
+/// warnings. Without a client, or with an answer this build cannot read,
+/// Riot's defaults stay.
+#[tauri::command]
+pub async fn overlay_read_binds(
+    app: AppHandle,
+    overlay: State<'_, SharedOverlay>,
+    client: State<'_, SharedClient>,
+) -> Result<OverlayView, String> {
+    let client = client.read().expect("client lock poisoned").clone();
+    if let Some(client) = client {
+        match client.input_settings().await {
+            Ok(body) => match GameBinds::from_input_settings(&body) {
+                Some(binds) => *overlay.binds.lock().expect("overlay binds poisoned") = binds,
+                None => tracing::warn!("the client's input settings are not in a known shape"),
+            },
+            Err(error) => tracing::debug!(%error, "no input settings from the client"),
+        }
+    }
     Ok(publish(&app, &overlay))
 }
 
