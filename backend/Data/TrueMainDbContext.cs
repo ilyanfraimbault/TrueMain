@@ -68,6 +68,9 @@ public class TrueMainDbContext : DbContext
     // ingestion by TimelineIngestionService — never a per-minute participant grid.
     public DbSet<PaceBenchmarkStat> PaceBenchmarkStats => Set<PaceBenchmarkStat>();
 
+    // The low-tier pace sampler's ledger (#1912): matches it folded without storing them.
+    public DbSet<PaceSampledMatch> PaceSampledMatches => Set<PaceSampledMatch>();
+
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 
     // Junction-table aggregate + globally-deduplicated dimension tables: the

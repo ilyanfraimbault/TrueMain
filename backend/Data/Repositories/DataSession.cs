@@ -20,6 +20,7 @@ public sealed class DataSession : IDataSession
         DiscoveryCursors = new DiscoveryCursorRepository(_db);
         LadderSyncCursors = new LadderSyncCursorRepository(_db);
         PaceBenchmarkStats = new PaceBenchmarkStatRepository(_db);
+        PaceSampledMatches = new PaceSampledMatchRepository(_db);
     }
 
     public IMainCandidateRepository MainCandidates { get; }
@@ -34,6 +35,7 @@ public sealed class DataSession : IDataSession
     public IDiscoveryCursorRepository DiscoveryCursors { get; }
     public ILadderSyncCursorRepository LadderSyncCursors { get; }
     public IPaceBenchmarkStatRepository PaceBenchmarkStats { get; }
+    public IPaceSampledMatchRepository PaceSampledMatches { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken ct)
         => _db.SaveChangesAsync(ct);

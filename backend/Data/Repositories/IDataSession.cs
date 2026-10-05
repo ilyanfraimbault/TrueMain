@@ -14,6 +14,7 @@ public interface IDataSession : IAsyncDisposable
     IDiscoveryCursorRepository DiscoveryCursors { get; }
     ILadderSyncCursorRepository LadderSyncCursors { get; }
     IPaceBenchmarkStatRepository PaceBenchmarkStats { get; }
+    IPaceSampledMatchRepository PaceSampledMatches { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
     Task<IDataTransaction> BeginTransactionAsync(CancellationToken ct);
