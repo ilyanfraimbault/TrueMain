@@ -1253,6 +1253,11 @@ namespace Data.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("PaceBenchmarkAggregated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Patch")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(32)
@@ -1622,6 +1627,74 @@ namespace Data.Migrations
                     b.HasKey("MatchId");
 
                     b.ToTable("match_win_probability", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.PaceBenchmarkStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Bucket")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Metric")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Minute")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Position", "Patch", "Tier", "Minute", "Metric", "Bucket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_pace_benchmark_stats_grain");
+
+                    b.ToTable("pace_benchmark_stats", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.PaceSampledMatch", b =>
+                {
+                    b.Property<string>("MatchId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("SampledAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("MatchId");
+
+                    b.HasIndex("SampledAtUtc");
+
+                    b.ToTable("pace_sampled_matches", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ParticipantPerkSelection", b =>

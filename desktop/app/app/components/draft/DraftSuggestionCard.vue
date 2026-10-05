@@ -10,6 +10,9 @@ import type { DamageNote } from '~/utils/draft-damage'
  * (matchup against the lane opponent, synergy with the locked allies), in win
  * rate points; the tooltip says which half carries it. A pick that answers a
  * one-sided team's damage mix carries a note (#1907) — said, never scored.
+ *
+ * The default slot covers the card (the click that previews its build); the
+ * `action` slot sits over the art's corner, above it (the hover or ban control).
  */
 const props = defineProps<{
   candidate: DraftCandidate
@@ -52,7 +55,7 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
 </script>
 
 <template>
-  <div class="flex h-full w-[112px] shrink-0 flex-col justify-end gap-1.5" :title="why">
+  <div class="relative flex h-full w-[112px] shrink-0 flex-col justify-end gap-1.5" :title="why">
     <p class="text-center font-bold tabular-nums leading-none tracking-tight" :class="[tone, focused ? 'text-[26px]' : 'text-[22px]']">
       <template v-if="measured">{{ points(candidate.score) }}<span class="text-xs">%</span></template>
       <template v-else-if="entry">{{ (entry.winRate * 100).toFixed(1) }}<span class="text-xs">% WR</span></template>
@@ -88,6 +91,10 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
         </span>
       </div>
       <TierMark v-if="entry" :tier="entry.tier" class="absolute left-2 top-2 scale-75 origin-top-left" />
+      <div v-if="$slots.action" class="absolute right-1.5 top-1.5 z-10">
+        <slot name="action" />
+      </div>
     </div>
+    <slot />
   </div>
 </template>

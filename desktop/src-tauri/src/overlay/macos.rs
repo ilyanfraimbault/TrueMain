@@ -18,6 +18,12 @@
 #![allow(clippy::unused_unit)]
 
 use objc2_app_kit::NSWorkspace;
+use objc2_core_foundation::{CFArray, CFDictionary, CFNumber, CFString, CFType, CGRect};
+use objc2_core_graphics::{
+    kCGNullWindowID, kCGWindowBounds, kCGWindowOwnerPID, CGRectMakeWithDictionaryRepresentation,
+    CGWindowListCopyWindowInfo, CGWindowListOption,
+};
+use shell_state::overlay::Rect;
 use tauri::{AppHandle, LogicalSize, Size, WebviewUrl};
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
@@ -41,8 +47,42 @@ tauri_panel! {
     })
 }
 
-/// One panel's window, hidden, its page on `url`.
-pub fn build(
+/// One panel's window, hidden, its page on `url`. Never on the main thread:
+/// the panel is made there (AppKit), and this waits for it.
+pub fn build(app: &AppHandle, label: &str, url: &str, opacity: f64) -> Result<(), String> {
+    let (done, built) = std::sync::mpsc::channel();
+    let (handle, label, url) = (app.clone(), label.to_string(), url.to_string());
+    app.run_on_main_thread(move || {
+        let _ = done.send(build_now(&handle, &label, &url, opacity).map_err(|e| e.to_string()));
+    })
+    .map_err(|error| error.to_string())?;
+    built.recv().map_err(|error| error.to_string())?
+}
+
+/// Close a panel's window for good. Never on the main thread, like `build`:
+/// this waits for AppKit to have run it.
+pub fn destroy(app: &AppHandle, label: &str) {
+    let (done, closed) = std::sync::mpsc::channel();
+    let (handle, label) = (app.clone(), label.to_string());
+    let queued = app.run_on_main_thread(move || {
+        // Back to a plain window first, as tauri-nspanel asks: the panel's
+        // class would otherwise be released twice.
+        if let Some(window) = handle
+            .get_webview_panel(&label)
+            .ok()
+            .and_then(|panel| panel.to_window())
+        {
+            let _ = window.destroy();
+        }
+        let _ = done.send(());
+    });
+    if queued.is_ok() {
+        let _ = closed.recv();
+    }
+}
+
+/// Main thread only.
+fn build_now(
     app: &AppHandle,
     label: &str,
     url: &str,
@@ -108,10 +148,60 @@ pub fn set_interactive(app: &AppHandle, label: &str, interactive: bool) {
 }
 
 pub fn game_frontmost() -> bool {
+    game_pid().is_some()
+}
+
+/// The game's process id while it is the frontmost application.
+fn game_pid() -> Option<i32> {
     NSWorkspace::sharedWorkspace()
         .frontmostApplication()
-        .and_then(|front| front.bundleIdentifier())
-        .is_some_and(|id| id.to_string() == GAME_BUNDLE_ID)
+        .filter(|front| {
+            front
+                .bundleIdentifier()
+                .is_some_and(|id| id.to_string() == GAME_BUNDLE_ID)
+        })
+        .map(|front| front.processIdentifier())
+}
+
+/// `game_frame` is in points, the space the displays' frames are in too.
+pub const FRAME_IN_POINTS: bool = true;
+
+/// The frame of the game's largest on-screen window, from the window list.
+/// Its owner and bounds are readable without the Screen Recording permission
+/// (only window titles need it), so this asks for nothing.
+pub fn game_frame() -> Option<Rect> {
+    let pid = game_pid()?;
+    let windows = CGWindowListCopyWindowInfo(
+        CGWindowListOption::OptionOnScreenOnly | CGWindowListOption::ExcludeDesktopElements,
+        kCGNullWindowID,
+    )?;
+    // SAFETY: the window list is documented as an array of dictionaries keyed by strings.
+    let windows: &CFArray<CFDictionary<CFString, CFType>> = unsafe { windows.cast_unchecked() };
+    // SAFETY: the keys are constants CoreGraphics defines for the window list.
+    let (owner_key, bounds_key) = unsafe { (kCGWindowOwnerPID, kCGWindowBounds) };
+    windows
+        .iter()
+        .filter(|window| {
+            window
+                .get(owner_key)
+                .and_then(|owner| owner.downcast::<CFNumber>().ok())
+                .and_then(|owner| owner.as_i32())
+                == Some(pid)
+        })
+        .filter_map(|window| {
+            let bounds = window.get(bounds_key)?.downcast::<CFDictionary>().ok()?;
+            let mut frame = CGRect::default();
+            // SAFETY: `frame` is a valid place to write the rectangle to.
+            unsafe { CGRectMakeWithDictionaryRepresentation(Some(&bounds), &mut frame) }
+                .then_some(frame)
+        })
+        .max_by(|a, b| (a.size.width * a.size.height).total_cmp(&(b.size.width * b.size.height)))
+        .map(|frame| Rect {
+            x: frame.origin.x,
+            y: frame.origin.y,
+            width: frame.size.width,
+            height: frame.size.height,
+        })
 }
 
 /// The keyboard's state, read rather than delivered: with the display

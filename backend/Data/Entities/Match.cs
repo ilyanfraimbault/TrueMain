@@ -111,5 +111,15 @@ public class Match
     /// </summary>
     public bool ItemContextAggregated { get; set; }
 
+    /// <summary>
+    /// Whether this match's timeline has been folded into <c>pace_benchmark_stats</c> (#1912).
+    /// Unlike its siblings this fold has no backlog to drain: it reads the timeline in memory
+    /// while ingesting it, so a match whose timeline was ingested before the fold shipped is
+    /// never folded — its per-minute values are gone. The flag is flipped by a conditional
+    /// update in the same transaction as the fold, so two accounts ingesting the same match
+    /// cannot both count it.
+    /// </summary>
+    public bool PaceBenchmarkAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

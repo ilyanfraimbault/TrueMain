@@ -34,6 +34,9 @@ const props = withDefaults(defineProps<{
 }>(), { mirrored: false })
 
 const { nameOf } = useChampionStatics()
+/** The true-main mark (#1910), from the lookup the page asked. */
+const markOf = useTruemainMarkOf()
+const mark = computed(() => markOf(props.line))
 
 const name = computed(() => props.riotId.split('#')[0] ?? '')
 const tag = computed(() => props.riotId.split('#')[1] ?? '')
@@ -99,6 +102,7 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
         </template>
         <template v-else>
           <span class="truncate font-medium text-highlighted">{{ name }}<span v-if="tag" class="font-normal text-dimmed">#{{ tag }}</span></span>
+          <TruemainMark v-if="mark" :mark="mark" />
         </template>
       </p>
 
@@ -137,7 +141,7 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
           :title="streak.wins ? `Won their last ${streak.games} games` : `Lost their last ${streak.games} games`"
         >
           <UIcon :name="streak.wins ? 'i-lucide-flame' : 'i-lucide-trending-down'" class="size-3" />
-          {{ streak.games }}{{ streak.wins ? 'W' : 'L' }} streak
+          {{ streak.wins ? 'Won' : 'Lost' }} {{ streak.games }} in a row
         </span>
       </div>
     </div>

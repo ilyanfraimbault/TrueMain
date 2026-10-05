@@ -12,6 +12,7 @@ using TrueMain.LogIngest;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
 using TrueMain.RequestLogging;
+using TrueMain.Services.Benchmarks;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Directory;
@@ -36,6 +37,7 @@ using TrueMain.Services.Ops.Processes;
 using TrueMain.Services.Ops.Stats;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Lookup;
 using TrueMain.Services.Truemains.Matches;
 using TrueMain.Services.Truemains.PlayerChampions;
 using TrueMain.Services.Truemains.Profile;
@@ -287,6 +289,7 @@ builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryS
 builder.Services.AddScoped<IChampionDirectoryQueryService, ChampionDirectoryQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
+builder.Services.AddScoped<IPaceBenchmarkQueryService, PaceBenchmarkQueryService>();
 builder.Services.AddScoped<IChampionItemContextQueryService, ChampionItemContextQueryService>();
 builder.Services.AddScoped<IChampionSynergyQueryService, ChampionSynergyQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
@@ -340,6 +343,7 @@ builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
+builder.Services.AddScoped<ITruemainLookupQueryService, TruemainLookupQueryService>();
 // The cockpit is re-asked every 30 s by every open admin tab (#1411): callers get the cached,
 // single-flighted payload, and only the decorator reaches the evaluation itself (#1427).
 builder.Services.AddScoped<PipelineHealthQueryService>();

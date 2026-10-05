@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("f1840863-8dfd-428b-afca-5562762a2503"), entityTypeCount: 34)
+            : base(skipDetectChanges: false, modelId: new Guid("aa0baaed-bbe1-40dc-8f60-d91a5640f69c"), entityTypeCount: 36)
         {
         }
 
@@ -45,6 +45,8 @@ namespace Data.CompiledModels
             var matchParticipant = MatchParticipantEntityType.Create(this);
             var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
             var matchWinProbability = MatchWinProbabilityEntityType.Create(this);
+            var paceBenchmarkStat = PaceBenchmarkStatEntityType.Create(this);
+            var paceSampledMatch = PaceSampledMatchEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
             var persona = PersonaEntityType.Create(this);
@@ -97,6 +99,8 @@ namespace Data.CompiledModels
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
             MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);
             MatchWinProbabilityEntityType.CreateAnnotations(matchWinProbability);
+            PaceBenchmarkStatEntityType.CreateAnnotations(paceBenchmarkStat);
+            PaceSampledMatchEntityType.CreateAnnotations(paceSampledMatch);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
             PersonaEntityType.CreateAnnotations(persona);

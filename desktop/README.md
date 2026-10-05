@@ -90,6 +90,14 @@ Tracking issue: **#1671**.
   holds on any layout, and the page warns when its key also does something in
   game (the overlay reads keys, the game still gets them).
   The window layer is the #1673 spike's verdict, `docs/desktop-overlay-spike.md`.
+  The panels go on the monitor the game runs on, read from the game's window
+  while it is in front (#1914), the primary monitor before any game.
+- **A window you can size** (#1914): resizable down to 960 × 640, opening
+  where it was left — on a monitor still plugged in, else centred on the
+  primary one, never larger than the monitor. Below 1100 px wide the sidebar
+  folds into a rail of icons. Nothing pops up by itself during champion select
+  or a game: an update found then waits in the sidebar, its toast after the
+  phase.
 
 ## What it does not do yet
 
@@ -111,6 +119,12 @@ Tracking issue: **#1671**.
   check: a real game in Borderless, under its anti-cheat. Over League in
   exclusive Full Screen Windows draws nothing, so the settings ask for
   Borderless.
+- **No compact mode docked beside the client, no second-monitor setting yet**
+  (#1914). The window sizes and remembers its monitor, and the overlay follows
+  the game's monitor; docking to the client's edge, compact draft and game
+  layouts, and opening on a chosen monitor during a phase are still to come.
+  The game's monitor is matched from its window's frame on both platforms, but
+  only CI's single-monitor runner has run it so far.
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.
@@ -485,6 +499,14 @@ champion select (a synthetic `Simulated#DEV` player, with a mastery list of each
 lane's most played champions for "My pool"); **Game starts** and **Dodge** end it
 the way the client does, **Clear** empties the board. The app answers every
 click live — suggestions, lanes, builds.
+
+**Our turn** (*Not ours* / *Our ban* / *Our pick*) opens our ban or our pick
+as the client would, so the app's own **Hover**, **Ban** and **Lock in**
+controls (#1909) can be tried: the shell sends each request it would make to
+the client — the session, the pickable and bannable lists, the hover, the
+completion — through the same relay the other way (`op: 'request'`), the page
+answers it and applies it to the board, and refuses a write to an action that
+is not open. The page has to stay open for the app's writes to be answered.
 
 The page sends what the client would — gameflow phase, summoner, mastery, and
 `/lol-champ-select/v1/session` in the client's shape — as tape readings to a

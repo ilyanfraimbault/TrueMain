@@ -6,6 +6,7 @@
 //! belongs to which phase — in one place.
 
 mod api;
+mod champselect;
 mod game;
 mod itemsets;
 mod loading;
@@ -19,12 +20,13 @@ mod sim;
 mod site;
 mod supervisor;
 mod telemetry;
+mod window_state;
 
 use std::sync::{Arc, Mutex};
 
 use tauri::Manager;
 
-use api::ApiClient;
+use api::{ApiClient, SharedReads};
 use game::SharedGame;
 use record::{GameCache, SharedClient};
 use shell_state::{AppState, Screen};
@@ -145,6 +147,10 @@ const READABLE_PATHS: &[&str] = &[
     "/champions/damage-profiles",
     "/truemains",
     "/truemains/search",
+    "/truemains/lookup",
+    // The overlay's pace reference (#1912): every tier of one position, so the
+    // tier is picked here and never sent.
+    "/benchmarks/pace",
 ];
 
 /// A path the app may read: one of `READABLE_PATHS`, or one true main's
@@ -218,9 +224,11 @@ fn postable(path: &str) -> bool {
 
 /// One POST read of a `postable` path. The composition build is the slowest
 /// query the API runs, hence its deadline rather than the client-wide one.
+/// Asked identically by two webviews at once, it is sent once (`SharedReads`).
 #[tauri::command]
 async fn api_post(
     client: tauri::State<'_, ApiClient>,
+    reads: tauri::State<'_, SharedReads>,
     path: String,
     query: Vec<(String, String)>,
     request: serde_json::Value,
@@ -228,8 +236,11 @@ async fn api_post(
     if !postable(&path) {
         return Err(format!("{path} is not readable from the app"));
     }
-    client
-        .post_query_within(&path, &query, &request, COMPOSITION_TIMEOUT)
+    let key = format!("POST {path} {query:?} {request}");
+    reads
+        .read(key, || {
+            client.post_query_within(&path, &query, &request, COMPOSITION_TIMEOUT)
+        })
         .await
 }
 
@@ -239,19 +250,27 @@ async fn api_post(
 const TIER_LIST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// One read-only GET of a `readable` path, with its query as key/value pairs.
+/// Shared like `api_post`'s.
 #[tauri::command]
 async fn api_get(
     client: tauri::State<'_, ApiClient>,
+    reads: tauri::State<'_, SharedReads>,
     path: String,
     query: Vec<(String, String)>,
 ) -> Result<serde_json::Value, String> {
     if !readable(&path) {
         return Err(format!("{path} is not readable from the app"));
     }
-    if path == "/champions/tierlist" {
-        return client.get_within(&path, &query, TIER_LIST_TIMEOUT).await;
-    }
-    client.get(&path, &query).await
+    let key = format!("GET {path} {query:?}");
+    reads
+        .read(key, || async {
+            if path == "/champions/tierlist" {
+                client.get_within(&path, &query, TIER_LIST_TIMEOUT).await
+            } else {
+                client.get(&path, &query).await
+            }
+        })
+        .await
 }
 
 /// Open one of the site's pages in the player's browser — the site this build
@@ -294,8 +313,10 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(shared.clone())
         .manage(ApiClient::new())
+        .manage(SharedReads::default())
         .manage(BuildInFlight::default())
         .manage(client.clone())
+        .manage(champselect::ChampSelectWriter::new(client.clone()))
         .manage(GameCache::default())
         .manage(SharedGame::default())
         .manage(loading::SharedLoading::default())
@@ -352,6 +373,9 @@ pub fn run() {
             loading::loading_players,
             runes::import_runes,
             itemsets::import_item_set,
+            champselect::champ_select_hover,
+            champselect::champ_select_lock,
+            champselect::champ_select_choices,
             telemetry::telemetry_page
         ])
         // The overlay's panel is a window too: without this, closing the
@@ -372,6 +396,7 @@ pub fn run() {
             app.manage(recorder.clone());
             recording::start(&handle, recorder, phases);
             overlay::setup(&handle)?;
+            window_state::restore(&handle);
             tauri::async_runtime::spawn(supervisor::run(handle, shared, client));
             Ok(())
         })
@@ -379,6 +404,7 @@ pub fn run() {
         .expect("failed to start the TrueMain companion app")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                window_state::save(app);
                 telemetry::send_at_exit(app);
             }
         });
@@ -391,9 +417,11 @@ mod tests {
     #[test]
     fn reads_the_listed_paths_and_a_true_mains_build() {
         assert!(readable("/truemains"));
+        assert!(readable("/truemains/lookup"));
         assert!(readable("/champions/tierlist"));
         assert!(readable("/champions/directory"));
         assert!(readable("/champions/damage-profiles"));
+        assert!(readable("/benchmarks/pace"));
         assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
         assert!(readable("/truemains/Faker-KR1/champions/7"));
         assert!(readable("/truemains/Faker-KR1/profile"));
@@ -424,6 +452,7 @@ mod tests {
         assert!(!readable("/champions/234/matchups/1"));
         assert!(!readable("/champions/8/item-context/1"));
         assert!(!readable("/truemains/Faker-KR1/activity"));
+        assert!(!readable("/truemains/lookup/1"));
         assert!(!readable("/truemains/Faker-KR1/matches/KR_1/timeline"));
         assert!(!readable("/truemains/Faker-KR1/matches/KR-1"));
         assert!(!readable("/truemains/Faker-KR1/matches/"));

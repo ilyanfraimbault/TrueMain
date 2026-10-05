@@ -73,5 +73,12 @@ public enum JobMode
     /// Infers the role-bound slot of bot-lane rows ingested before it was recorded
     /// (#1612). Appended for the same reason as the values above.
     /// </summary>
-    RoleBoundItemBackfillOnly = 26
+    RoleBoundItemBackfillOnly = 26,
+
+    /// <summary>
+    /// Samples games of the tiers TrueMain does not ingest into the pace benchmark (#1912),
+    /// under its own request caps. Last in the fetch lane, so it only spends what the
+    /// ingestion left.
+    /// </summary>
+    PaceSamplingOnly = 27
 }

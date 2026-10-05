@@ -29,6 +29,9 @@ internal sealed partial class DiscoveryOptionsValidator : IValidateOptions<Disco
 internal sealed partial class LadderSyncOptionsValidator : IValidateOptions<LadderSyncOptions>;
 
 [OptionsValidator]
+internal sealed partial class PaceSamplingOptionsValidator : IValidateOptions<PaceSamplingOptions>;
+
+[OptionsValidator]
 internal sealed partial class ManualSeedOptionsValidator : IValidateOptions<ManualSeedOptions>;
 
 [OptionsValidator]

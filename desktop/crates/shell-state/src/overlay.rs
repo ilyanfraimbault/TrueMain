@@ -235,6 +235,8 @@ pub struct OverlayInputs {
     pub preview: bool,
     /// The game's own process (not the client) is the frontmost application.
     pub game_frontmost: bool,
+    /// The phase says a game runs, from its loading screen on.
+    pub game_running: bool,
     /// The app is reading a running game.
     pub in_game: bool,
     /// The player's champion is dead.
@@ -342,6 +344,15 @@ impl OverlaySettings {
             }
         }
         flags
+    }
+
+    /// Whether `panel` has a window at all (#1916). Each one is a webview
+    /// running the whole app bundle, so only the panels switched on get one,
+    /// and only while it can be shown: for the preview, or from the game's
+    /// loading screen — which leaves the page time to load before the panel
+    /// is due — to its end.
+    pub fn needs_window(&self, panel: OverlayPanel, inputs: &OverlayInputs) -> bool {
+        self.panel(panel).enabled && (inputs.preview || (self.enabled && inputs.game_running))
     }
 
     /// `panel`'s top-left corner on `screen` for a window of `size`, kept
@@ -569,6 +580,35 @@ mod tests {
             game_frontmost: true,
             ..OverlayInputs::default()
         }
+    }
+
+    #[test]
+    fn builds_a_window_only_for_a_panel_that_can_show() {
+        let mut settings = OverlaySettings::default();
+        let running = OverlayInputs {
+            game_running: true,
+            ..OverlayInputs::default()
+        };
+        // No game, no preview: no window, whatever the settings.
+        assert!(OverlayPanel::ALL
+            .iter()
+            .all(|p| !settings.needs_window(*p, &OverlayInputs::default())));
+        // From the loading screen on, before the game is read.
+        assert!(OverlayPanel::ALL
+            .iter()
+            .all(|p| settings.needs_window(*p, &running)));
+        settings.stats.enabled = false;
+        assert!(!settings.needs_window(Stats, &running));
+        assert!(settings.needs_window(NextItem, &running));
+        // The whole overlay off: nothing over a game, the preview still places the panels.
+        settings.enabled = false;
+        assert!(!settings.needs_window(NextItem, &running));
+        let preview = OverlayInputs {
+            preview: true,
+            ..OverlayInputs::default()
+        };
+        assert!(settings.needs_window(NextItem, &preview));
+        assert!(!settings.needs_window(Stats, &preview));
     }
 
     #[test]

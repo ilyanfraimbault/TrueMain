@@ -13,13 +13,18 @@
 //! it plays recorded `allgamedata` readings through the same relay, which the
 //! shell hands to the game feed as the live poll would.
 //!
+//! The relay also carries the app's champion select writes the other way
+//! (#1909): `SimClient` sends each request the shell would make to the client —
+//! the session, the pickable and bannable lists, a hover, a lock — and the page
+//! answers it as the client would, then sends the session it changed.
+//!
 //! Debug builds only. Like a tape, it stays above the transport: a fake client
 //! would need a TLS hole in a binary that ships (see `lcu::tape`), and this is
 //! not compiled into one.
 
 use std::time::Duration;
 
-use lcu::{ChampionMastery, LcuEvent, Reading};
+use lcu::{ActionKind, ChampSelectSession, ChampionMastery, LcuEvent, Reading};
 use serde::Deserialize;
 use shell_state::AppState;
 use tauri::AppHandle;
@@ -106,6 +111,98 @@ async fn fetch(
         .error_for_status()?
         .json()
         .await
+}
+
+/// The relay's answer to one request: what the page, standing in for the
+/// client, replied.
+#[derive(Debug, Deserialize)]
+struct Answer {
+    status: u16,
+    #[serde(default)]
+    body: serde_json::Value,
+}
+
+/// The client's REST API, as the simulator page plays it: each request goes
+/// through the relay to the page, which answers it.
+#[derive(Clone)]
+pub struct SimClient {
+    http: reqwest::Client,
+    url: String,
+}
+
+impl SimClient {
+    pub fn new(url: String) -> Self {
+        Self {
+            http: reqwest::Client::new(),
+            url,
+        }
+    }
+
+    async fn request(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<serde_json::Value>,
+    ) -> lcu::Result<serde_json::Value> {
+        let answer: Answer = self
+            .http
+            .post(&self.url)
+            .json(&serde_json::json!({ "op": "request", "method": method, "path": path, "body": body }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        if !(200..300).contains(&answer.status) {
+            return Err(lcu::Error::UnexpectedStatus {
+                status: answer.status,
+                path: path.to_string(),
+            });
+        }
+        Ok(answer.body)
+    }
+
+    pub async fn champ_select_session(&self) -> lcu::Result<Option<ChampSelectSession>> {
+        match self
+            .request("GET", lcu::uri::CHAMP_SELECT_SESSION, None)
+            .await
+        {
+            Ok(body) => serde_json::from_value(body)
+                .map(Some)
+                .map_err(|error| lcu::Error::Decode(error.to_string())),
+            Err(lcu::Error::UnexpectedStatus { status: 404, .. }) => Ok(None),
+            Err(other) => Err(other),
+        }
+    }
+
+    pub async fn allowed(&self, kind: ActionKind) -> lcu::Result<Vec<i64>> {
+        let path = match kind {
+            ActionKind::Pick => "/lol-champ-select/v1/pickable-champion-ids",
+            ActionKind::Ban => "/lol-champ-select/v1/bannable-champion-ids",
+        };
+        let body = self.request("GET", path, None).await?;
+        serde_json::from_value(body).map_err(|error| lcu::Error::Decode(error.to_string()))
+    }
+
+    pub async fn hover_champion(&self, action_id: i64, champion_id: i64) -> lcu::Result<()> {
+        self.request(
+            "PATCH",
+            &format!("/lol-champ-select/v1/session/actions/{action_id}"),
+            Some(serde_json::json!({ "championId": champion_id })),
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn complete_action(&self, action_id: i64) -> lcu::Result<()> {
+        self.request(
+            "POST",
+            &format!("/lol-champ-select/v1/session/actions/{action_id}/complete"),
+            None,
+        )
+        .await?;
+        Ok(())
+    }
 }
 
 /// One reading, through the path a live session's events take. Returns whether
