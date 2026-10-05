@@ -64,7 +64,10 @@ export function useDraftBans(
   async function fetchBans() {
     const body = request.value
     if (!active.value || !body) {
+      // Supersede any request still in flight: its answer belongs to a ban turn that is over.
+      latestRequest++
       bans.value = null
+      pending.value = false
       return
     }
 
