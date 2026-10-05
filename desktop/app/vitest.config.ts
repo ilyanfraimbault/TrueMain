@@ -12,7 +12,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '~': fileURLToPath(new URL('./app', import.meta.url)),
-      // The shared layer's alias (`web/layers/common/nuxt.config.ts`).
+      // The shared layer's aliases (`web/layers/common/nuxt.config.ts`).
+      '#common': fileURLToPath(new URL('../../web/layers/common/app', import.meta.url)),
       '#shared': fileURLToPath(new URL('../../web/shared', import.meta.url)),
     },
   },

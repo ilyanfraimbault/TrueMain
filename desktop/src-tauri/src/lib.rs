@@ -334,6 +334,7 @@ pub fn run() {
             recording::request_capture_permission,
             recording::recording_library,
             recording::recording_get,
+            recording::recording_win_probability,
             recording::recording_set_kept,
             recording::recording_delete,
             recording::clip_save,

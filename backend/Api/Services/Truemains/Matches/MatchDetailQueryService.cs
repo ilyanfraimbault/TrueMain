@@ -218,6 +218,13 @@ public sealed class MatchDetailQueryService(
                 .Select(a => new { a.Id, a.GameName, a.TagLine })
                 .ToDictionaryAsync(a => a.Id, a => (a.GameName, a.TagLine), ct);
 
+        // The win-probability curve (#1911): one row per match, computed at ingest, absent
+        // for a game that gets none or was ingested before it existed.
+        var winProbability = await db.MatchWinProbabilities
+            .AsNoTracking()
+            .Where(w => w.MatchId == matchId)
+            .FirstOrDefaultAsync(ct);
+
         var participantModels = MatchDetailHydrator.HydrateParticipants(
             participants,
             match.GameDurationSeconds,
@@ -235,6 +242,7 @@ public sealed class MatchDetailQueryService(
             GameDurationSeconds = match.GameDurationSeconds,
             GameVersion = match.GameVersion,
             Participants = participantModels,
+            WinProbability = MatchDetailHydrator.HydrateWinProbability(winProbability),
         };
     }
 

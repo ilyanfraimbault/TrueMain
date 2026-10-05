@@ -1,18 +1,22 @@
 <script setup lang="ts">
 import type { DraftClip } from '~/composables/useRecapDrafts'
-import type { GameRecording, Moment } from '~/types/recordings'
+import type { GameRecording, Moment, RecordingWinProbability } from '~/types/recordings'
+import { recapWinProbability } from '~/utils/recording-win-probability'
 
 /**
  * The recap of a recorded game (#1777): the video, the game's timeline under
  * it with the player's kills, deaths and assists and the objectives, and the
  * clips cut from it by hand — several ranges, each named and saved as its own
- * video — beside it; then the call on the full game, kept or deleted. The end
+ * video — beside it; then the call on the full game, kept or deleted. A game
+ * finalised from its timeline also gets its win-probability curve under the
+ * moments and its turning points beside them (#1911). The end
  * of a recorded game opens it (`recording://recap`, `useRecordings`); the
  * Recordings page and the dashboard's "Watch" open it later.
  */
 const route = useRoute()
 const router = useRouter()
-const { library, loadState, fileSrc, getRecording, deleteRecording } = useRecordings()
+const { library, loadState, fileSrc, getRecording, getWinProbability, deleteRecording } = useRecordings()
+const { nameOf } = useChampionStatics()
 
 const id = computed(() => String(route.params.id))
 const fetched = ref<GameRecording | null>(null)
@@ -33,11 +37,21 @@ watch([id, () => library.value, loadState], async () => {
   }
 }, { immediate: true })
 
+// Read once the game is final: a recording still waiting for the match history has none yet.
+const curveData = ref<RecordingWinProbability | null>(null)
+watch(() => [id.value, recording.value?.status] as const, async ([current, status]) => {
+  curveData.value = null
+  if (status !== 'ready') return
+  const data = await getWinProbability(current)
+  if (current === id.value) curveData.value = data
+}, { immediate: true })
+const winProbability = computed(() => (curveData.value ? recapWinProbability(curveData.value, nameOf) : null))
+
 const length = computed(() => recording.value?.durationMs ?? 0)
 const saved = computed(() => (library.value?.clips.filter(clip => clip.recordingId === id.value) ?? []).sort((a, b) => a.startMs - b.startMs))
 const savedRanges = computed(() => saved.value.map(clip => ({ id: clip.id, startMs: clip.startMs, endMs: clip.endMs, title: clip.title })))
 
-const player = ref<{ seek: (ms: number) => void, playRange: (start: number, end: number) => void, jumpTo: (moment: Moment) => void, currentMs: number } | null>(null)
+const player = ref<{ seek: (ms: number) => void, playRange: (start: number, end: number) => void, jumpTo: (moment: Pick<Moment, 'videoMs'>) => void, currentMs: number } | null>(null)
 const playerLength = computed(() => length.value)
 const { drafts, selected, pendingIn, add, resize, rename, remove, setIn, setOut, save, saveAll } = useRecapDrafts(recording, playerLength)
 const currentMs = computed(() => player.value?.currentMs ?? 0)
@@ -92,6 +106,7 @@ const note = computed(() => {
         :selected="selected"
         :saved="savedRanges"
         :pending-in="pendingIn"
+        :win-probability="winProbability"
         @create="add"
         @resize="resize"
         @select="key => (selected = key)"
@@ -104,6 +119,7 @@ const note = computed(() => {
         :saved="saved"
         :moments="recording.moments"
         :current-ms="currentMs"
+        :turning-points="winProbability?.turningPoints"
         @select="key => { selected = key; player?.seek(drafts.find(draft => draft.key === key)?.startMs ?? currentMs) }"
         @rename="rename"
         @preview="preview"

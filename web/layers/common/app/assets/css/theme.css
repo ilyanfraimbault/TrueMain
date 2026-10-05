@@ -315,6 +315,17 @@ html {
 }
 
 /*
+ * ─── The two sides of a game ───────────────────────────────────────────────
+ * The client's own convention: blue is us, red is them — the desktop's draft
+ * and overlay, and the post-game win-probability curve on both apps (#1911).
+ * Tints and hairlines only — never a fill behind text.
+ */
+@theme static {
+  --color-ally: #4f8fff;
+  --color-enemy: #ff4d5e;
+}
+
+/*
  * Routed through Tailwind's own `--tw-inset-shadow` slot rather than a bare
  * `box-shadow`, so it composes with `ring-*` and `shadow-*` on the same element:
  * a subtle button's inset ring and a focus-visible ring both keep drawing. A

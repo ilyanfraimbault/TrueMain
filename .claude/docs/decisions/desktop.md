@@ -438,7 +438,8 @@ version (#1795) was a hand-set formula over the item-gold lead relative to the t
 backwards in play. Item gold lags behind the side ahead, since the side behind shops on every death. Early, one
 completed component moved the bar by tens of points. And the support's gold counted like a carry's. It is now a
 logistic regression fitted on our ranked games (`match_participant_timeline_snapshots`, about a million games per
-minute mark), in `utils/item-value.ts`. The inputs are each lane's creep-score, level and kill lead over the opposite
+minute mark), in `web/layers/common/app/utils/win-probability.ts` since #1911 (`utils/item-value.ts` adapts the live
+game onto it). The inputs are each lane's creep-score, level and kill lead over the opposite
 lane at 5, 10, 15, 20 and 30 minutes, with the weights interpolated between the marks. These are the only leads the
 game's API shows for all ten players, since it gives nobody's gold but ours. On held-out games they predict the result
 as well as the true per-lane gold does (AUC 0.764 at 10 minutes, 0.829 at 15), calibrated within a couple of points.
@@ -450,6 +451,21 @@ five minutes after they fall), elemental drakes (0.15 each, +0.6 for the soul at
 the Elder's (1.1) while they last. The buffs last three minutes and two and a half, counted from the kill, since the
 feed does not say when a holder dies. The map is read off the game's event feed (`live_client::objectives`), which
 every player sees announced. The draft keeps no win probability (2026-10-02) — #1795, #1864.
+
+**After the game, the same model draws the whole game's curve and its turning points — computed on the client
+from the client's timeline (2026-10-05).** The recording recap and the dashboard's opened match read the game's
+timeline from the client (`GET /lol-match-history/v1/game-timelines/{gameId}`), reduced by the shell to what the model
+reads (`lcu::win_probability`), and build the curve in the webview with the shared builder
+(`web/layers/common/app/utils/win-probability-timeline.ts`): it works for every game in the client's history, not only
+those TrueMain ingested, and costs nothing on our Riot key. A game TrueMain holds uses TrueMain's stored curve instead.
+The recap keeps the reduced timeline in the recording's metadata at finalisation, so it still draws once the game has
+left the client's history; a live-feed-only recording has no curve. One model, two runtimes: the ingestor runs a C#
+port (`Core/Lol/WinProbability`), and a shared fixture (`web/shared/fixtures/win-probability-timeline.json`) fails
+either side's tests when a weight or a step drifts. A turning point is a kill, a turret, an inhibitor, a drake, the
+Elder or the Baron, weighed at its own time with only that event changing (creep score and level interpolated between
+frames, so the delta is exact under the model); the five largest are listed. The Rift Herald, Voidgrubs and Atakhan
+are shown with no figure, never "0 pts". The "slow drift" share (farm and levels building up) was left out. Post-game
+only: this changes nothing about the in-game panel, whose compliance question stays open on its own — #1911.
 
 **The player's own account is never highlighted (2026-10-02).** No tint, ring or bolder name on our row — not on the
 loading screen, the game page's scoreboard, a dashboard match row's team strip, nor the opened match's scoreboard and

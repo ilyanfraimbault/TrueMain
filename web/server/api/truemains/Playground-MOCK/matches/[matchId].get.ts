@@ -1,5 +1,6 @@
 import type { MatchDetailParticipant, MatchDetailResponse } from '~~/shared/types/match-detail'
 import { createError, defineEventHandler, getRouterParam } from 'h3'
+import { mockWinProbability } from '~~/server/utils/dev-api-mock'
 
 // Dev fixture backing the `/dev/match-row` playground so the MatchRow accordion
 // can be exercised against a realistic 10-player detail payload without a live
@@ -153,6 +154,9 @@ export default defineEventHandler((event): MatchDetailResponse => {
 
   const matchId = getRouterParam(event, 'matchId') ?? 'PLAYGROUND_MOCK'
   const gameDurationSeconds = 1876
+  const participants = rankFixture(
+    ROSTER.map((entry, i) => buildParticipant(entry, i, gameDurationSeconds)),
+  )
 
   return {
     matchId,
@@ -161,8 +165,7 @@ export default defineEventHandler((event): MatchDetailResponse => {
     gameStartTimeUtc: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
     gameDurationSeconds,
     gameVersion: '15.1.1',
-    participants: rankFixture(
-      ROSTER.map((entry, i) => buildParticipant(entry, i, gameDurationSeconds)),
-    ),
+    participants,
+    winProbability: mockWinProbability(participants, gameDurationSeconds * 1000),
   }
 })

@@ -71,4 +71,29 @@ public sealed record MatchTimelineEventDto
     public int? PositionX { get; init; }
 
     public int? PositionY { get; init; }
+
+    // Objective and kill details read by the win-probability curve (#1911); null on
+    // every event type that does not carry them.
+
+    public string? MonsterType { get; init; }
+
+    public string? MonsterSubType { get; init; }
+
+    public string? BuildingType { get; init; }
+
+    public string? LaneType { get; init; }
+
+    public string? TowerType { get; init; }
+
+    /// <summary>BUILDING_KILL: the side that owned (and lost) the building.</summary>
+    public int? TeamId { get; init; }
+
+    /// <summary>ELITE_MONSTER_KILL: the side that took the monster.</summary>
+    public int? KillerTeamId { get; init; }
+
+    /// <summary>CHAMPION_KILL: the kill's bounty, shutdown excluded.</summary>
+    public int? Bounty { get; init; }
+
+    /// <summary>CHAMPION_KILL: the shutdown gold the victim carried.</summary>
+    public int? ShutdownBounty { get; init; }
 }
