@@ -302,7 +302,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   window over a Borderless or Windowed game (the settings say so: Windows draws nothing over exclusive Full Screen) —
   placed on the monitor the game runs on (#1914: the frontmost game window's frame, matched to the monitor holding
   most of it, `shell_state::screens`; the primary monitor before any game) —
-  never focused, click-through, sized to its content, its page on `#/overlay/<panel>`
+  never focused, click-through, sized to its content, its page on `#/overlay/<panel>`; a panel has a window (a whole
+  webview) only while switched on and a game runs, from its loading screen to its end, or in the preview (#1916),
   (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
   read — from its `GameStart` event, never over the loading screen, the client or another app; ⌥⇧O (Alt+Shift+O on Windows) hides them until the game ends. **Next item** (232 pt,
   `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
@@ -318,8 +319,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
   (`live_client::pace`). **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
-  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). TAB and ⌥⇧O are read
-  from the keyboard's state (no hotkey reaches the app over a captured display; no Input Monitoring needed). Set up on
+  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). Each panel shows **always**,
+  **while a chord is held** or **toggled** by one (#1915; defaults: item value held with TAB, the others always;
+  a toggle starts each game shown or hidden as set, ⌥⇧O still hides everything). The chords and ⌥⇧O are read
+  from the keyboard's state, only over the game (no hotkey reaches the app over a captured display; no hook, no Input
+  Monitoring needed). Set up on
   the **Overlay page** (`/overlay`, sidebar, any time — #1819): a copy of the screen at its aspect ratio (the window's
   screen, 1920 × 1080 in a browser) with the game's minimap and ability bar outlined, each panel that is on drawn where
   it sits (its anchor spot, or where it was dragged — the shell's rule mirrored in `utils/overlay-layout.ts`) as itself:
@@ -330,7 +334,12 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   it 1 % (Shift 5 %). The **Hidden panels** column on the right lists the panels that are off — drag one onto the
   screen, or click it to bring it back where it was. Beside them: "Place on screen" (the panels themselves, dragged over
   the real screen — each with the sample when no game runs, its "drag" marker drawn over it so it keeps its in-game size), "Reset positions" (every panel back to its spot), overlay on/off (default on), the next item's
-  moment, size 80–140 %, opacity 50–100 %, the shortcut (`OverlayLayoutEditor.vue`, `OverlayPanelMock.vue`). Rules and settings in `shell-state::overlay` (tested on CI),
+  moment, each shown panel's trigger ("In game, shown": Always / While held / Toggle, a field that records the chord by
+  key position — `KeyboardEvent.code`, so AZERTY works — with the refusal under it: modifiers or TAB alone, Esc/Enter,
+  ⌥⇧O, ⌘/Win, Alt+Tab/F4, another panel's chord; a warning naming what the key does in game, from the player's League
+  keybindings via the client or Riot's defaults; Alt+Shift+digit suggested; the chord marked on each panel's mock and
+  on its "drag" marker; `OverlayTriggerPicker.vue`, `utils/overlay-keys.ts`, settings file v3), size 80–140 %,
+  opacity 50–100 %, the hide shortcut (`OverlayLayoutEditor.vue`, `OverlayPanelMock.vue`). Rules and settings in `shell-state::overlay` (tested on CI),
   windows in `src-tauri/src/overlay/` (`panels.rs` drives them, `macos.rs` / `windows.rs` are the window layers). On
   Windows the game is known by its window class (`RiotWindowClass`) or its process name; CI drives the whole overlay
   over a stand-in game on a Windows desktop (`desktop/tools/overlay-smoke-windows.ps1`, #1806).
@@ -407,7 +416,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   app reads (`.github/scripts/desktop-held.sh`, run after the build and after each site release); `Desktop promote`
   serves a version by hand, for rollbacks. Each flavour has its own signed update manifest. Preprod's `/download`
   offers its newest beta at once, truemain.lol's the production build once it is served. The installed app checks its own site's feed (Tauri updater) at
-  launch and every 15 minutes, downloads a newer build in the background and installs it itself at launch when no
+  launch and every 15 minutes (the timer skips its ticks during a game, #1916), downloads a newer build in the background and installs it itself at launch when no
   champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
   No toast during champion select or a game (#1914): a build found then is offered in the sidebar only, its toast
   waits for the phase to end, and an offer already on screen steps aside for the phase and comes back after it.
@@ -415,6 +424,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   second install over the running one, #1793).
   "Check for Updates…" runs the check on demand: in the app menu on macOS, in the tray icon's menu on Windows.
   Unsigned by Apple and Microsoft for the beta.
+- **Footprint** (#1916): identical API reads asked at once by two webviews (the next item, from the game page and
+  the overlay) go out as one request (`SharedReads`, `src-tauri/src/api.rs`). Memory and CPU of the whole process
+  tree are measured with `desktop/tools/measure-footprint.{sh,ps1}`, method and results in `docs/desktop-footprint.md`
+  (no run recorded yet, so `/download` shows no figure).
 - **Usage counts** (#1805, `src-tauri/src/telemetry.rs`): a random install id drawn on the first launch
   (`telemetry.json` in the app's config folder) and, under it, launches, minutes open, page views (`plugins/telemetry.ts`,
   keys in `utils/telemetry.ts`; a filter change is not a view) and features counted by the shell — a champion select

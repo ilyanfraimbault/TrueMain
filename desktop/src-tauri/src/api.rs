@@ -10,7 +10,10 @@
 //! the app's content-security policy open to a remote host. From Rust neither
 //! applies, and the CSP stays closed.
 
-use std::time::Duration;
+use std::collections::HashMap;
+use std::future::Future;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -160,5 +163,94 @@ impl ApiClient {
 impl Default for ApiClient {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// How long an answer stays good for a read asked again, identical.
+const REUSE_FOR: Duration = Duration::from_secs(2);
+
+type Answer = Result<serde_json::Value, String>;
+/// When the read was first asked, and its answer once it has one.
+type Read = (Instant, Arc<tokio::sync::OnceCell<Answer>>);
+
+/// Identical reads asked at the same moment, answered by one request
+/// (#1916). The game page and the overlay's panel both ask for the next item
+/// on the same reading of the game, each from its own webview: the shell
+/// sends one request and hands both the answer. A failure is never kept, so
+/// the next ask tries again.
+#[derive(Default)]
+pub struct SharedReads {
+    reads: Mutex<HashMap<String, Read>>,
+}
+
+impl SharedReads {
+    /// `fetch`'s answer, or the one an identical read (`key`) got or is
+    /// getting.
+    pub async fn read<F, Fut>(&self, key: String, fetch: F) -> Answer
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Answer>,
+    {
+        let cell = {
+            let mut reads = self.reads.lock().expect("reads mutex poisoned");
+            let now = Instant::now();
+            reads.retain(|_, (at, _)| now.duration_since(*at) < REUSE_FOR);
+            reads
+                .entry(key.clone())
+                .or_insert_with(|| (now, Arc::default()))
+                .1
+                .clone()
+        };
+        let answer = cell.get_or_init(fetch).await.clone();
+        if answer.is_err() {
+            let mut reads = self.reads.lock().expect("reads mutex poisoned");
+            if reads
+                .get(&key)
+                .is_some_and(|(_, kept)| Arc::ptr_eq(kept, &cell))
+            {
+                reads.remove(&key);
+            }
+        }
+        answer
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    async fn counted(sent: &AtomicU32, answer: Answer) -> Answer {
+        sent.fetch_add(1, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        answer
+    }
+
+    #[tokio::test]
+    async fn identical_reads_at_once_send_one_request() {
+        let reads = SharedReads::default();
+        let sent = AtomicU32::new(0);
+        let ok = || counted(&sent, Ok(serde_json::json!({ "itemId": 3157 })));
+        let (a, b) = tokio::join!(reads.read("next".into(), ok), reads.read("next".into(), ok));
+        assert_eq!(a, b);
+        assert_eq!(sent.load(Ordering::SeqCst), 1);
+        // Another question is its own request.
+        let _ = reads.read("other".into(), ok).await;
+        assert_eq!(sent.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn a_failure_is_asked_again() {
+        let reads = SharedReads::default();
+        let sent = AtomicU32::new(0);
+        let failed = reads
+            .read("next".into(), || counted(&sent, Err("offline".into())))
+            .await;
+        assert!(failed.is_err());
+        let answered = reads
+            .read("next".into(), || counted(&sent, Ok(serde_json::json!(1))))
+            .await;
+        assert!(answered.is_ok());
+        assert_eq!(sent.load(Ordering::SeqCst), 2);
     }
 }

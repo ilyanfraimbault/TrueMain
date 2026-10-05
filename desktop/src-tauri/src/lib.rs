@@ -25,7 +25,7 @@ use std::sync::{Arc, Mutex};
 
 use tauri::Manager;
 
-use api::ApiClient;
+use api::{ApiClient, SharedReads};
 use game::SharedGame;
 use record::{GameCache, SharedClient};
 use shell_state::{AppState, Screen};
@@ -217,9 +217,11 @@ fn postable(path: &str) -> bool {
 
 /// One POST read of a `postable` path. The composition build is the slowest
 /// query the API runs, hence its deadline rather than the client-wide one.
+/// Asked identically by two webviews at once, it is sent once (`SharedReads`).
 #[tauri::command]
 async fn api_post(
     client: tauri::State<'_, ApiClient>,
+    reads: tauri::State<'_, SharedReads>,
     path: String,
     query: Vec<(String, String)>,
     request: serde_json::Value,
@@ -227,8 +229,11 @@ async fn api_post(
     if !postable(&path) {
         return Err(format!("{path} is not readable from the app"));
     }
-    client
-        .post_query_within(&path, &query, &request, COMPOSITION_TIMEOUT)
+    let key = format!("POST {path} {query:?} {request}");
+    reads
+        .read(key, || {
+            client.post_query_within(&path, &query, &request, COMPOSITION_TIMEOUT)
+        })
         .await
 }
 
@@ -238,19 +243,27 @@ async fn api_post(
 const TIER_LIST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// One read-only GET of a `readable` path, with its query as key/value pairs.
+/// Shared like `api_post`'s.
 #[tauri::command]
 async fn api_get(
     client: tauri::State<'_, ApiClient>,
+    reads: tauri::State<'_, SharedReads>,
     path: String,
     query: Vec<(String, String)>,
 ) -> Result<serde_json::Value, String> {
     if !readable(&path) {
         return Err(format!("{path} is not readable from the app"));
     }
-    if path == "/champions/tierlist" {
-        return client.get_within(&path, &query, TIER_LIST_TIMEOUT).await;
-    }
-    client.get(&path, &query).await
+    let key = format!("GET {path} {query:?}");
+    reads
+        .read(key, || async {
+            if path == "/champions/tierlist" {
+                client.get_within(&path, &query, TIER_LIST_TIMEOUT).await
+            } else {
+                client.get(&path, &query).await
+            }
+        })
+        .await
 }
 
 /// Open one of the site's pages in the player's browser — the site this build
@@ -293,6 +306,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(shared.clone())
         .manage(ApiClient::new())
+        .manage(SharedReads::default())
         .manage(BuildInFlight::default())
         .manage(client.clone())
         .manage(GameCache::default())
@@ -344,6 +358,8 @@ pub fn run() {
             recording::reveal_recording_file,
             overlay::overlay_view,
             overlay::set_overlay_settings,
+            overlay::overlay_check_trigger,
+            overlay::overlay_read_binds,
             overlay::overlay_preview,
             overlay::overlay_fit,
             loading::loading_players,

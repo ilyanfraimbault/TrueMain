@@ -1,4 +1,5 @@
-//! The overlay's panels, whatever the window layer: one window per panel,
+//! The overlay's panels, whatever the window layer: one window per panel
+//! switched on, built when a game starts and closed when it ends (#1916),
 //! sized to its page and placed by the settings, shown or hidden by
 //! `shell_state::overlay`'s rule, dragged into place in the preview — and the
 //! watch that feeds the rule the game's frontmost state and the keys held.
@@ -13,6 +14,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use shell_state::keys::KeysDown;
 use shell_state::overlay::{OverlayInputs, OverlayPanel, OverlaySettings, Rect};
 use shell_state::screens::{self, Monitor};
 use tauri::{
@@ -51,23 +53,83 @@ static APPLIED: Mutex<Option<HashMap<OverlayPanel, Applied>>> = Mutex::new(None)
 /// The monitor the game was last seen on (#1914).
 static GAME_SCREEN: Mutex<Option<Screen>> = Mutex::new(None);
 
-pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let opacity = app.state::<SharedOverlay>().settings().opacity;
-    for panel in OverlayPanel::ALL {
-        let label = label(panel);
-        platform::build(app, &label, &format!("#/overlay/{}", panel.slug()), opacity)?;
-        if let Some(window) = app.get_webview_window(&label) {
-            let handle = app.clone();
-            window.on_window_event(move |event| {
-                if let WindowEvent::Moved(position) = event {
-                    dragged(&handle, panel, *position);
-                }
-            });
-        }
-    }
+/// Serialises `rebuild`: two of them interleaved could build a panel twice.
+static REBUILDING: Mutex<()> = Mutex::new(());
+
+pub fn setup(app: &AppHandle) {
     let watcher = app.clone();
     std::thread::spawn(move || watch(&watcher));
-    Ok(())
+}
+
+/// Build the windows the panels now need and destroy the others
+/// (`OverlaySettings::needs_window`), then bring them in line. Called when
+/// the game starts or ends and when the settings or the preview change.
+///
+/// Off the main thread: on Windows a webview built inside a command's
+/// handler deadlocks (wry#583), and the settings arrive through commands.
+pub fn rebuild(app: &AppHandle) {
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        let _rebuilding = REBUILDING.lock().expect("overlay rebuild poisoned");
+        let overlay = handle.state::<SharedOverlay>().inner().clone();
+        let settings = overlay.settings();
+        let inputs = overlay.inputs(&handle);
+        for panel in OverlayPanel::ALL {
+            let label = label(panel);
+            let exists = handle.get_webview_window(&label).is_some();
+            match (settings.needs_window(panel, &inputs), exists) {
+                (true, false) => build(&handle, panel, settings.opacity),
+                (false, true) => {
+                    platform::destroy(&handle, &label);
+                    // Gone from the app once its event loop has closed it:
+                    // the next rebuild must not find it still there.
+                    for _ in 0..50 {
+                        if handle.get_webview_window(&label).is_none() {
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    forget(panel);
+                    tracing::info!(panel = panel.slug(), "overlay window closed");
+                }
+                _ => {}
+            }
+        }
+        apply(&handle);
+    });
+}
+
+/// Not on the main thread (`rebuild`).
+fn build(app: &AppHandle, panel: OverlayPanel, opacity: f64) {
+    let label = label(panel);
+    let started = std::time::Instant::now();
+    if let Err(error) =
+        platform::build(app, &label, &format!("#/overlay/{}", panel.slug()), opacity)
+    {
+        tracing::error!(panel = panel.slug(), %error, "cannot build an overlay window");
+        return;
+    }
+    // A new window starts from nothing: `apply` sets all of it.
+    forget(panel);
+    if let Some(window) = app.get_webview_window(&label) {
+        let handle = app.clone();
+        window.on_window_event(move |event| {
+            if let WindowEvent::Moved(position) = event {
+                dragged(&handle, panel, *position);
+            }
+        });
+    }
+    tracing::info!(
+        panel = panel.slug(),
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "overlay window built"
+    );
+}
+
+fn forget(panel: OverlayPanel) {
+    if let Some(applied) = APPLIED.lock().expect("overlay state poisoned").as_mut() {
+        applied.remove(&panel);
+    }
 }
 
 /// The screen the panels go on, in points: the monitor the game was last seen
@@ -318,7 +380,13 @@ fn watch(app: &AppHandle) {
             apply(app);
         }
         held = down;
-        if overlay.set_scoreboard(front && platform::keys::tab_down()) {
+        // Only the keys the panels' chords name: a few reads per tick.
+        let keys = if front {
+            platform::keys::read(&overlay.settings().chord_keys())
+        } else {
+            KeysDown::default()
+        };
+        if overlay.read_keys(&keys) {
             apply(app);
         }
         std::thread::sleep(KEYS_EVERY);

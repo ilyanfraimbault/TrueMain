@@ -9,8 +9,8 @@
 //!   game keeps the keyboard; it ignores the mouse outside the preview, so the
 //!   game keeps every click.
 //! - With the display captured no hotkey reaches the app, so the shortcut —
-//!   and TAB, which opens the game's scoreboard and with it the item value —
-//!   are read from the keyboard's state instead, no permission involved.
+//!   and the panels' chords, TAB for the item value by default — are read
+//!   from the keyboard's state instead, no permission involved.
 //! - `PanelBuilder::no_activate` stays off: it flips the activation policy and
 //!   left the app with none of its windows on screen.
 
@@ -47,8 +47,42 @@ tauri_panel! {
     })
 }
 
-/// One panel's window, hidden, its page on `url`.
-pub fn build(
+/// One panel's window, hidden, its page on `url`. Never on the main thread:
+/// the panel is made there (AppKit), and this waits for it.
+pub fn build(app: &AppHandle, label: &str, url: &str, opacity: f64) -> Result<(), String> {
+    let (done, built) = std::sync::mpsc::channel();
+    let (handle, label, url) = (app.clone(), label.to_string(), url.to_string());
+    app.run_on_main_thread(move || {
+        let _ = done.send(build_now(&handle, &label, &url, opacity).map_err(|e| e.to_string()));
+    })
+    .map_err(|error| error.to_string())?;
+    built.recv().map_err(|error| error.to_string())?
+}
+
+/// Close a panel's window for good. Never on the main thread, like `build`:
+/// this waits for AppKit to have run it.
+pub fn destroy(app: &AppHandle, label: &str) {
+    let (done, closed) = std::sync::mpsc::channel();
+    let (handle, label) = (app.clone(), label.to_string());
+    let queued = app.run_on_main_thread(move || {
+        // Back to a plain window first, as tauri-nspanel asks: the panel's
+        // class would otherwise be released twice.
+        if let Some(window) = handle
+            .get_webview_panel(&label)
+            .ok()
+            .and_then(|panel| panel.to_window())
+        {
+            let _ = window.destroy();
+        }
+        let _ = done.send(());
+    });
+    if queued.is_ok() {
+        let _ = closed.recv();
+    }
+}
+
+/// Main thread only.
+fn build_now(
     app: &AppHandle,
     label: &str,
     url: &str,
@@ -173,6 +207,8 @@ pub fn game_frame() -> Option<Rect> {
 /// The keyboard's state, read rather than delivered: with the display
 /// captured, the window server routes no hotkey to the app.
 pub mod keys {
+    use shell_state::keys::{KeyCode, KeysDown};
+
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
         fn CGEventSourceKeyState(state: i32, key: u16) -> bool;
@@ -183,16 +219,32 @@ pub mod keys {
     /// app the events go to.
     const HID_SYSTEM_STATE: i32 = 1;
     const FLAG_SHIFT: u64 = 0x0002_0000;
+    const FLAG_CONTROL: u64 = 0x0004_0000;
     const FLAG_OPTION: u64 = 0x0008_0000;
+    const FLAG_COMMAND: u64 = 0x0010_0000;
     /// `kVK_ANSI_O`: a key position, so it holds on any keyboard layout.
     const KEY_O: u16 = 0x1F;
-    /// `kVK_Tab`, the game's scoreboard key.
+    /// `kVK_Tab`, the game's scoreboard key, part of a chord rather than its key.
     const KEY_TAB: u16 = 0x30;
 
-    /// Whether TAB is held — the game's scoreboard is open while it is.
-    pub fn tab_down() -> bool {
+    fn down(key: u16) -> bool {
         // SAFETY: a plain C call on value arguments.
-        unsafe { CGEventSourceKeyState(HID_SYSTEM_STATE, KEY_TAB) }
+        unsafe { CGEventSourceKeyState(HID_SYSTEM_STATE, key) }
+    }
+
+    /// The modifiers, TAB, and which of `keys` are held — by position
+    /// (`KeyCode::mac`), so a chord holds on any layout.
+    pub fn read(keys: &[KeyCode]) -> KeysDown {
+        // SAFETY: a plain C call on a value argument.
+        let flags = unsafe { CGEventSourceFlagsState(HID_SYSTEM_STATE) };
+        KeysDown {
+            alt: flags & FLAG_OPTION != 0,
+            shift: flags & FLAG_SHIFT != 0,
+            ctrl: flags & FLAG_CONTROL != 0,
+            meta: flags & FLAG_COMMAND != 0,
+            tab: down(KEY_TAB),
+            keys: keys.iter().copied().filter(|key| down(key.mac())).collect(),
+        }
     }
 
     /// Whether ⌥⇧O is held.

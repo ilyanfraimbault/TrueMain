@@ -12,8 +12,8 @@
 //! A game in exclusive Full Screen owns the display and nothing is drawn over
 //! it — the settings say to play in Borderless, as other League companions
 //! do. The panel shows only while the game owns the foreground window, and
-//! the shortcut and TAB are read from the keyboard's state, as on macOS: no
-//! hook, no hotkey registration, nothing the game could miss.
+//! the shortcut and the panels' chords are read from the keyboard's state, as
+//! on macOS: no hook, no hotkey registration, nothing the game could miss.
 //!
 //! `desktop/tools/overlay-smoke-windows.ps1` drives all of this on a Windows
 //! desktop in CI, a stand-in window in the game's place.
@@ -59,8 +59,20 @@ fn set_styles(hwnd: HWND, add: u32, remove: u32) {
     }
 }
 
-/// One panel's window, hidden, its page on `url`.
-pub fn build(
+/// One panel's window, hidden, its page on `url`. Never on the main thread,
+/// where a webview built inside a command's handler deadlocks (wry#583).
+pub fn build(app: &AppHandle, label: &str, url: &str, opacity: f64) -> Result<(), String> {
+    build_now(app, label, url, opacity).map_err(|error| error.to_string())
+}
+
+/// Close a panel's window for good.
+pub fn destroy(app: &AppHandle, label: &str) {
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.destroy();
+    }
+}
+
+fn build_now(
     app: &AppHandle,
     label: &str,
     url: &str,
@@ -218,18 +230,43 @@ fn process_is_game(window: HWND) -> bool {
 /// The keyboard's state, read rather than delivered, whichever window has
 /// the focus.
 pub mod keys {
+    use shell_state::keys::{KeyCode, KeysDown};
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        GetAsyncKeyState, VIRTUAL_KEY, VK_MENU, VK_O, VK_SHIFT, VK_TAB,
+        GetAsyncKeyState, GetKeyboardLayout, MapVirtualKeyExW, MAPVK_VSC_TO_VK_EX, VIRTUAL_KEY,
+        VK_CONTROL, VK_LWIN, VK_MENU, VK_O, VK_RWIN, VK_SHIFT, VK_TAB,
     };
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 
     fn down(key: VIRTUAL_KEY) -> bool {
         // SAFETY: a plain call on a value argument.
         unsafe { GetAsyncKeyState(i32::from(key.0)) as u16 & 0x8000 != 0 }
     }
 
-    /// Whether TAB is held — the game's scoreboard is open while it is.
-    pub fn tab_down() -> bool {
-        down(VK_TAB)
+    /// The modifiers, TAB, and which of `keys` are held. Each key is a
+    /// position (`KeyCode::scan_code`), turned into the virtual key the game's
+    /// keyboard layout gives it, so a chord holds on any layout.
+    pub fn read(keys: &[KeyCode]) -> KeysDown {
+        // SAFETY: plain queries; a thread without a layout answers a null
+        // one, which `MapVirtualKeyExW` takes as the current thread's.
+        let layout = unsafe {
+            let thread = GetWindowThreadProcessId(GetForegroundWindow(), None);
+            GetKeyboardLayout(thread)
+        };
+        let held = |key: &KeyCode| {
+            // SAFETY: a plain call on value arguments.
+            let virtual_key = unsafe {
+                MapVirtualKeyExW(u32::from(key.scan_code()), MAPVK_VSC_TO_VK_EX, Some(layout))
+            };
+            u16::try_from(virtual_key).is_ok_and(|vk| vk != 0 && down(VIRTUAL_KEY(vk)))
+        };
+        KeysDown {
+            alt: down(VK_MENU),
+            shift: down(VK_SHIFT),
+            ctrl: down(VK_CONTROL),
+            meta: down(VK_LWIN) || down(VK_RWIN),
+            tab: down(VK_TAB),
+            keys: keys.iter().copied().filter(held).collect(),
+        }
     }
 
     /// Whether Alt+Shift+O is held.
