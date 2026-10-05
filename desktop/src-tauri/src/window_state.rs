@@ -36,14 +36,20 @@ pub fn restore(app: &AppHandle) {
     };
     if let Some(saved) = WindowPlacement::load(&path(app)) {
         let restore = saved.restore(&displays(app));
-        let _ = window.set_size(Size::Logical(LogicalSize::new(
-            restore.size.0,
-            restore.size.1,
-        )));
-        let _ = match restore.position {
-            Some((x, y)) => window.set_position(Position::Physical(PhysicalPosition::new(x, y))),
-            None => window.center(),
-        };
+        let size = Size::Logical(LogicalSize::new(restore.size.0, restore.size.1));
+        match restore.position {
+            // Moved first, so the size in points is read at the scale of the
+            // monitor the window lands on rather than the one it left.
+            Some((x, y)) => {
+                let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+                let _ = window.set_size(size);
+            }
+            // Centred once sized, the centre depending on the size.
+            None => {
+                let _ = window.set_size(size);
+                let _ = window.center();
+            }
+        }
         if restore.maximized {
             let _ = window.maximize();
         }
