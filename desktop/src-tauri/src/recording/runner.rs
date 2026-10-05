@@ -163,13 +163,14 @@ async fn record_game(
     thumbnail(helper, &dir).await;
     emit_library(app);
 
-    let (history, timeline) = wait_for_history(&client, game.game_id, phases).await;
+    let (history, timeline, scoreboard) = wait_for_history(&client, game.game_id, phases).await;
     let budget = recorder.games_budget();
     let finalised = tokio::task::spawn_blocking(move || {
         lock(&session).finalise(
             GameOutcome {
                 game: history.as_ref(),
                 timeline: timeline.as_ref(),
+                scoreboard: scoreboard.as_ref(),
             },
             budget,
             &root,
@@ -297,14 +298,18 @@ async fn follow(
     }
 }
 
-/// The game's line in the player's history and its timeline, once the
-/// history lists the game — or nothing, if it never does or the next game
-/// starts first.
+/// The game's line in the player's history, its timeline and its full
+/// scoreboard, once the history lists the game — or nothing, if it never does
+/// or the next game starts first.
 async fn wait_for_history(
     client: &LcuClient,
     game_id: i64,
     phases: &watch::Receiver<GameflowPhase>,
-) -> (Option<HistoryGame>, Option<GameTimeline>) {
+) -> (
+    Option<HistoryGame>,
+    Option<GameTimeline>,
+    Option<HistoryGame>,
+) {
     let deadline = tokio::time::Instant::now() + HISTORY_WAIT;
     while tokio::time::Instant::now() < deadline && !in_game(*phases.borrow()) {
         if let Ok(history) = client.match_history(0, 5).await {
@@ -315,12 +320,15 @@ async fn wait_for_history(
                 .find(|g| g.game_id == game_id)
             {
                 let timeline = client.game_timeline(game_id).await.ok();
-                return (Some(game), timeline);
+                // All ten, for the recap's win-probability curve: the history
+                // list carries the player alone.
+                let scoreboard = client.game(game_id).await.ok();
+                return (Some(game), timeline, scoreboard);
             }
         }
         tokio::time::sleep(HISTORY_RETRY).await;
     }
-    (None, None)
+    (None, None, None)
 }
 
 /// The recording's card image: the player's first kill if there is one, else

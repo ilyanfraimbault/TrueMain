@@ -3,6 +3,7 @@ import type { GameState } from '~/types/game'
 import type { AppState } from '~/types/lcu'
 import type { PlayerRecord } from '~/types/record'
 import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { Goal } from '~/utils/goals'
 import { EMPTY_STATE } from '~/types/lcu'
 
 export interface Scenario {
@@ -15,6 +16,8 @@ export interface Scenario {
   record?: PlayerRecord
   /** The Solo/Duo snapshots the app would have noted on this machine. */
   rankHistory?: RankHistoryEntry[]
+  /** The goals the player would have set on this machine; `evaluate` decides them against `record`. */
+  goals?: Goal[]
   /**
    * The game Rust would have derived, when the scenario is in one. Checked
    * against the committed game tape by a test in `crates/live-client`, so it
@@ -46,6 +49,7 @@ export function useDevScenarios() {
   const recommendation = useState<DraftRecommendation | null>('dev-recommendation', () => null)
   const record = useState<PlayerRecord | null>('dev-record', () => null)
   const rankHistory = useState<RankHistoryEntry[]>('dev-rank-history', () => [])
+  const goals = useState<Goal[]>('dev-goals', () => [])
   // `useLiveGame`'s own state, set directly as `lcu-state` is above.
   const game = useState<GameState | null>('live-game', () => null)
   const gameSyncedAt = useState<number>('live-game-synced-at', () => Date.now())
@@ -68,6 +72,7 @@ export function useDevScenarios() {
     recommendation.value = found?.recommendation ? JSON.parse(JSON.stringify(found.recommendation)) : null
     record.value = found?.record ? JSON.parse(JSON.stringify(found.record)) : null
     rankHistory.value = found?.rankHistory ? JSON.parse(JSON.stringify(found.rankHistory)) : []
+    goals.value = found?.goals ? JSON.parse(JSON.stringify(found.goals)) : []
     game.value = found?.game ? JSON.parse(JSON.stringify(found.game)) : null
     gameSyncedAt.value = Date.now()
     current.value = found?.id ?? ''
@@ -82,5 +87,5 @@ export function useDevScenarios() {
     }
   }
 
-  return { scenarios, current, recommendation, record, rankHistory, load, select }
+  return { scenarios, current, recommendation, record, rankHistory, goals, load, select }
 }

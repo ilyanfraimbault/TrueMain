@@ -5,6 +5,7 @@ use serde::de::DeserializeOwned;
 use crate::credentials::Credentials;
 use crate::detail::GameTimeline;
 use crate::error::{Error, Result};
+use crate::item_sets::{decode_item_sets, plan_item_set_import, players_set_uids, ItemSetDraft};
 use crate::model::{
     ChampSelectSession, ChampionMastery, CurrentSummoner, GameflowPhase, GameflowSession,
 };
@@ -188,7 +189,7 @@ impl LcuClient {
     }
 }
 
-/// The write path: pushing a rune page into the client.
+/// The write path: pushing a rune page or an item set into the client.
 impl LcuClient {
     /// How many pages the client lets a player keep. Read from the client when
     /// it answers, since Riot has raised this before and a hard-coded ceiling
@@ -213,10 +214,10 @@ impl LcuClient {
 
     /// Push a rune page and select it.
     ///
-    /// Call this from an explicit user action only. It is the single place this
-    /// app writes to the client, and the distance between doing it on a click
-    /// and doing it on a pick is the distance between a tool and a policy
-    /// violation.
+    /// Call this from an explicit user action only. It is one of the two places
+    /// this app writes to the client (the item set is the other), and the
+    /// distance between doing it on a click and doing it on a pick is the
+    /// distance between a tool and a policy violation.
     ///
     /// Reuses the page this app owns when one exists, so a player does not end
     /// a session with one TrueMain page per game. When the list is full and
@@ -237,6 +238,72 @@ impl LcuClient {
         self.put_json("/lol-perks/v1/currentpage", &created.id)
             .await?;
         Ok(created.id)
+    }
+
+    /// The account's item-set document and its list of sets, read raw. Any
+    /// failure — the request or the decoding — is
+    /// [`Error::ItemSetsUnreadable`], so no caller can mistake it for an empty
+    /// list and write that back.
+    pub async fn item_sets(
+        &self,
+        summoner_id: i64,
+    ) -> Result<(serde_json::Value, Vec<serde_json::Value>)> {
+        self.get_raw(&item_sets_path(summoner_id))
+            .await
+            .and_then(|body| decode_item_sets(&body))
+            .map_err(|error| Error::ItemSetsUnreadable(error.to_string()))
+    }
+
+    /// Write `draft` as the one item set this app owns.
+    ///
+    /// Call this from an explicit user action only, like
+    /// [`Self::import_rune_page`]: an import on click is a tool, an import on a
+    /// pick is an automation acting on the player's behalf.
+    ///
+    /// The client only takes the account's whole list, so this reads it right
+    /// before writing, rewrites our set in place (`plan_item_set_import`), and
+    /// reads it again after: a list whose player sets no longer match is
+    /// [`Error::PlayerItemSetsChanged`]. A list that could not be read is
+    /// [`Error::ItemSetsUnreadable`], and nothing is written.
+    pub async fn import_item_set(&self, draft: &ItemSetDraft) -> Result<()> {
+        // Narrow on purpose: the summoner id is read here, at import time, and
+        // kept out of `CurrentSummoner`, whose readings tapes record.
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Summoner {
+            summoner_id: i64,
+        }
+
+        let summoner_id = self
+            .get_json::<Summoner>("/lol-summoner/v1/current-summoner")
+            .await
+            .map_err(|error| Error::ItemSetsUnreadable(error.to_string()))?
+            .summoner_id;
+        let (mut document, existing) = self.item_sets(summoner_id).await?;
+
+        let planned = plan_item_set_import(&existing, draft, &uuid::Uuid::new_v4().to_string());
+        let expected = players_set_uids(&existing);
+        document["itemSets"] = serde_json::Value::Array(planned);
+        self.put_json(&item_sets_path(summoner_id), &document)
+            .await?;
+
+        match self.item_sets(summoner_id).await {
+            Ok((_, written)) if players_set_uids(&written) != expected => {
+                tracing::warn!(
+                    before = expected.len(),
+                    after = players_set_uids(&written).len(),
+                    "the player's item sets changed across an import"
+                );
+                Err(Error::PlayerItemSetsChanged)
+            }
+            Ok(_) => Ok(()),
+            // The write went through; a re-read that fails proves nothing
+            // either way, so it is logged rather than reported as a loss.
+            Err(error) => {
+                tracing::warn!(%error, "could not re-read the item sets after an import");
+                Ok(())
+            }
+        }
     }
 
     async fn send<B: serde::Serialize>(
@@ -289,4 +356,8 @@ impl LcuClient {
         self.send::<()>(reqwest::Method::DELETE, path, None).await?;
         Ok(())
     }
+}
+
+fn item_sets_path(summoner_id: i64) -> String {
+    format!("/lol-item-sets/v1/item-sets/{summoner_id}/sets")
 }

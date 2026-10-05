@@ -1,5 +1,6 @@
 import type { CaptureAvailability, Clip, GameRecording, RecordingLibrary, RecordingSettings, RecordingSettingsView, RecordingStatus } from '~/types/recordings'
 import { cutClip, devLibrary, devSettings, devStatus } from '~/fixtures/recordings'
+import { devWinProbability } from '~/fixtures/recording-win-probability'
 
 /**
  * The recording commands, answered in memory for `npm run dev` in a browser —
@@ -75,6 +76,10 @@ export async function devRecordingCall(command: string, args: Record<string, unk
       return copy(current.status)
     case 'recording_library': return copy(libraryOf(current))
     case 'recording_get': return copy(game(current, String(args.id)))
+    case 'recording_win_probability': {
+      const found = game(current, String(args.id))
+      return found.status === 'ready' ? copy(devWinProbability(found.gameId, found.durationMs)) : null
+    }
     case 'recording_set_kept': {
       const found = game(current, String(args.id))
       found.kept = Boolean(args.kept)

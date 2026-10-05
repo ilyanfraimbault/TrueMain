@@ -118,6 +118,7 @@ Last verified against `develop` on 2026-09-02.
 - A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
 - The "{player} vs mains" card is gone — one page, one definition of a core build (2026-09-03) — #529
 - An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
+- The match detail's Timeline tab (win-probability curve + turning points) is computed at ingest and stored one row per match; no backfill, no tab without a curve, no Riot call at request time (2026-10-05) — #1911
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
 
@@ -361,8 +362,11 @@ Last verified against `develop` on 2026-09-02.
 - The overlay goes on the monitor holding the game's window (read while it is frontmost, no permission, no handle on the game), the primary one before any game (2026-10-05) — #1914
 - The overlay is set up on its own sidebar page, out of game: a copy of the screen to drag panels on, × to hide one, a column of hidden panels to drag back (2026-10-03) — #1819
 - Win probability in the overlay: each lane's CS/level/kill lead weighted by a regression fitted on our ranked games (no item gold; the support weighs little), plus the map (turrets, inhibitors down, drakes/soul, Baron, Elder) with hand-set weights — the product owner's call, reversing #1671's line for in game; the draft keeps none (2026-10-02, refitted 2026-10-04) — #1795, #1864
+- After the game, the same model (now in `web/layers/common`) draws the whole game's curve and its five largest turning points, built on the client from the client's timeline in the recap and the dashboard; a C# port runs at ingest, held to the TS by a shared fixture (2026-10-05) — #1911
 - Runes are imported on a click only, from a discreet corner icon; the app reuses its one `TrueMain: ` page and never deletes a page of the player's; no spell import (2026-10-03) — #1678
+- Items are imported on a click too, as one `TrueMain: ` item set replaced in place; the whole-list write round-trips the player's sets raw and writes nothing after a failed read (2026-10-05) — #1908
 - The player's own account is never highlighted — loading screen, game page, match rows, scoreboard, runes; ours only orders the sides (2026-10-02) — #1803
+- Measurable goals on the dashboard are local (per Riot ID, `localStorage`), measured from the client's games with each counted game frozen into the goal; suggested thresholds are the player's own average, never a benchmark; ≤ 3 active, no toast, nothing in the overlay; default 5 games on Solo, "All" allowed but never suggested, no per-champion default (2026-10-05) — #1913
 - Desktop usage is measured by the app itself (anonymous install id, counters folded per install and UTC day in Mongo, 13-month TTL, opt-out in the native menu), downloads by the site's redirect; nothing read from the League client is sent (2026-10-02) — #1805
 - Game recording: two quality choices (resolution, 30/60 fps), everything else derived; highlights from the timeline, live feed as fallback; disk budget drops the oldest unpinned; unsigned beta and a GPL capture library both accepted (2026-10-01) — #1744, #1754
 - Screen capture runs in a native helper process per platform (Swift + ScreenCaptureKit + VideoToolbox on macOS), driven over JSON lines; encoder settings still computed in Rust; shipped inside the app bundle, also cutting clips and taking thumbnails (2026-10-01) — #1745, #1744

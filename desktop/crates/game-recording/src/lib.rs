@@ -15,6 +15,8 @@
 //! - [`store`]: the recordings on disk and the disk budget.
 //! - [`clips`]: the clips the player cut from a recording, each its own file.
 //! - [`session`]: one game's recording, driven by the gameflow phase.
+//! - [`win_probability`]: what the recap's win-probability curve is drawn
+//!   from, kept beside the video.
 
 pub mod anchor;
 pub mod clips;
@@ -23,6 +25,7 @@ pub mod moments;
 pub mod session;
 pub mod settings;
 pub mod store;
+pub mod win_probability;
 
 pub use anchor::{Anchor, ClockSample};
 pub use clips::{ClipDir, ClipMeta, ClipStore, StoredClip};
@@ -31,3 +34,4 @@ pub use moments::{Moment, MomentKind, Objective, ObjectiveKind};
 pub use session::{Capture, CaptureError, Change, GameInfo, GameOutcome, Session, SessionError};
 pub use settings::{FrameRate, OutputSpec, Quality, Queues, RecordingSettings, Resolution};
 pub use store::{RecordingDir, RecordingMeta, RecordingStatus, Store, StoredRecording};
+pub use win_probability::{ParticipantChampion, RecordedWinProbability};

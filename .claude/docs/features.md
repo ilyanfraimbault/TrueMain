@@ -116,6 +116,7 @@ Component playgrounds (`charts`, `match-row`, `profile`, `build-skeleton`) plus 
 - **Page transitions** (#1621, #1689, #1714) — `app.pageTransition` (`<Transition name="page">` around the page `<Suspense>`): once the destination has resolved, the outgoing content leaves at once and the new page fades in over 180 ms with a 6 px rise — never two pages on screen, and a navigation started mid-transition cannot leave a blank page; the header and footer never move. None on query-only navigations (champion filters, pagers), none under `prefers-reduced-motion: reduce`. Motion lives at the end of `main.css`.
 - **Failed refetch keeps the content** (#1668) — on `/champions`, the tier list, the champion page (both variants), `/truemains` and `/matchup`, a filter / sort / pager / draft click whose request fails leaves the previous rows on screen (`useRefetchFallback`, `web/layers/common`), answers once with an action toast and marks the content with a muted "Couldn't update — showing the previous results" notice with Retry. Never across scope (another champion's build is never kept under this one's name). A failed *first* load is unchanged: the inline `FetchErrorAlert`, no toast. The dev mock reproduces it with `NUXT_DEV_MOCK_FAIL=<regex>` (e.g. `page=2`).
 - **No i18n** — all copy is hardcoded English; numbers use an explicit `en-US` locale to avoid hydration mismatches.
+- **Match detail Timeline tab** (#1911) — the expanded match row's detail (`MatchDetailPanel`, shared with the app) gains a "Timeline" tab when the game has a win-probability curve: the curve read for the row owner's side (ahead tinted ally, behind enemy, a hover crosshair), the five largest turning points as ticks on the time axis and a list (clock, what happened, the kill's gold, signed points; hovering a row lights its tick), and the other epic monsters as neutral ticks with no figure. Computed at ingest from the Riot timeline (`Core/Lol/WinProbability`, table `match_win_probability`); matches ingested before #1911, games under 15 min and games without the five lanes have no tab. The dev mock serves a curve on two games out of three.
 - **Not present**: no gold/XP timeline chart in match detail, no auth/accounts. Share cards exist only for `/champions/:slug` and `/truemains/:nameTag` — the tier list, the builder and the leaderboard have none.
 
 ---
@@ -226,12 +227,19 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   an accordion onto a compact, same-surface version of the site's match detail (Scoreboard with each build as on the
   row, Build — laning @15, per-minute figures, build and skill order for any of the ten — and Runes as small tiles), read
   from TrueMain's copy of the game when it has one, else from the client's scoreboard and timeline (which list no
-  purchases or skill points: the build and skill order sections are then left out, #1768); the site's ranked card with
+  purchases or skill points: the build and skill order sections are then left out, #1768); a **Timeline** view (#1911) with the site's win-probability panel from the player's side — TrueMain's stored curve when it has one, else built from the client's timeline; the site's ranked card with
   its LP curve; a champions card (games, KDA, win rate) and a roles card (share bar, win rate) in the ranked card's
   frame. A game's role is its participant slot on a queue that assigns roles, none elsewhere (#1768). The LP history is noted on this machine each
   time the record is read (`utils/lp-history.ts`), so the curve and per-game LP start empty and grow. A queue filter
   (All / Solo / Flex / Normal / ARAM) scopes everything but the ranked card; remakes are not listed. Read again after
-  each game. With no client: a waiting banner over the patch's best picks by lane.
+  each game. A **goals card** above the champions card (#1913): up to 3 active goals on one of the eight metrics
+  ("CS / min ≥ 7.0 over the next 5 Solo games", "Deaths ≤ 5 in each of the next 5 Solo games"), set in a modal (metric,
+  at least / at most, threshold prefilled with the player's own average in that scope, N 1–20, average or K of N
+  games, queue, optional champion and lane), shown as N slots filling up game by game; a goal the latest game decided
+  stays with its outcome until the next game, then moves under "Past goals" (latest 20 kept). With none running, up
+  to 3 suggestions on the metrics furthest below the player's average, set at that average (no CS for a mostly-support
+  player, vision first). Measured from the client's games (`utils/goals.ts`), kept on this machine per Riot ID
+  (`utils/goal-store.ts`), never sent. With no client: a waiting banner over the patch's best picks by lane.
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
   guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
   ten most-mastered champions on the lane, or every champion on the lane). Once locked, or on a click on any placed
@@ -246,6 +254,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   never one per game; with every slot taken and none of them ours, a toast asks the player to free one — no page of
   theirs is ever deleted. An incomplete page (an empty slot) is refused. Every outcome is a toast. Nothing is written
   without the click.
+- **Item set import** (#1908) — the rune button's twin, in the build tree's top-right corner, on every build the
+  build view shows. A click writes the build on screen into the client as one item set `TrueMain: <champion>`
+  (Starter, Boots, Core, Situational — the item context's situational verdicts, else the tree's other branches),
+  offered on that champion on Summoner's Rift (`itemsets::import_item_set` → `LcuClient::import_item_set`). One set,
+  replaced in place, moved to the next champion imported. The player's own sets are written back exactly as read; a
+  list that cannot be read writes nothing, and a player set missing after the write is reported. Every outcome is a
+  toast. Nothing is written without the click.
 - **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a champion select filled by clicking
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
   payloads through a dev-server relay, so the app runs its real champion select live without a game.
@@ -357,7 +372,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   kills, assists and deaths each on a lane of its own, named by a glyph beside it (#1804) — kills rose-gold chips,
   multi-kills labelled ×N and gold from a triple kill, assists neutral dots, deaths dark red chips with a skull —;
   objectives above the lanes in the side's colour (epic monsters as tinted badges, towers and inhibitors as bare
-  glyphs), minute gridlines, the playhead, saved clips as gold bars. Clips are cut by hand: drag across the
+  glyphs), minute gridlines, the playhead, saved clips as gold bars. Under the lanes, a **win-probability lane** (#1911): the whole game's curve from the player's side (ahead tinted ally, behind enemy), mapped onto the video through the recording's anchor, its five largest turning points as dots that seek 5 s before them; a "Swings" side-panel tab lists them (clock, what happened, signed points). Built in the webview from the client's timeline, kept beside the video as `win-probability.json` at finalisation; recordings made before #1911 and live-feed-only ones have none. Clips are cut by hand: drag across the
   track, or I / O at the playhead (I/O move the selected range's ends), handles to adjust, as many ranges as wanted,
   each named from what it holds ("Triple kill on Ahri", "Kill + Dragon", editable), previewed, saved alone or all at
   once (`clip_save`), then listed under "Saved clips"; unsaved ranges survive leaving the page for the session. A
