@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AwesomeAssertions;
 using Data.Entities;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -94,6 +95,8 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
 
         // ── Header ──────────────────────────────────────────────────────────
         detail!.MatchId.Should().Be(MatchId);
+        // No match_win_probability row seeded: the curve is absent, not empty (#1911).
+        detail.WinProbability.Should().BeNull();
         detail.QueueId.Should().Be(420);
         detail.GameDurationSeconds.Should().Be(1800);
         detail.GameVersion.Should().Be("15.12.1");
@@ -194,6 +197,85 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
             .BeGreaterThan(detail.Participants.Where(p => p.ParticipantId != 1).Max(p => p.PerformanceScore));
     }
 
+
+    [Fact]
+    public async Task GetMatchDetail_returns_the_stored_win_probability_in_the_web_shape()
+    {
+        await SeedFullMatchAsync();
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.MatchWinProbabilities.Add(new MatchWinProbability
+            {
+                MatchId = MatchId,
+                Points =
+                [
+                    new MatchWinProbabilityPoint { Ms = 0, P = 0.5 },
+                    new MatchWinProbabilityPoint { Ms = 1_800_000, P = 0.75 },
+                ],
+                Swings =
+                [
+                    new MatchWinProbabilitySwing
+                    {
+                        Ms = 600_000, Kind = "kill", TeamId = 100, Delta = 0.04, KillerId = 1, VictimId = 6,
+                        Assists = 2, Bounty = 450,
+                    },
+                    new MatchWinProbabilitySwing
+                    {
+                        Ms = 900_000, Kind = "turret", TeamId = 200, Delta = -0.03, Lane = "MID_LANE",
+                        TowerType = "OUTER_TURRET",
+                    },
+                ],
+                Objectives =
+                [
+                    new MatchWinProbabilityObjective { Ms = 360_000, MonsterType = "HORDE", TeamId = 100, Delta = null },
+                    new MatchWinProbabilityObjective
+                    {
+                        Ms = 420_000, MonsterType = "DRAGON", MonsterSubType = "FIRE_DRAGON", TeamId = 200, Delta = -0.02,
+                    },
+                ],
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync($"/truemains/Phantasm-EUW1/matches/{MatchId}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Read as raw JSON: the field names are the contract with web/shared/types/win-probability.ts.
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var winProbability = json.RootElement.GetProperty("winProbability");
+
+        var points = winProbability.GetProperty("points");
+        points.GetArrayLength().Should().Be(2);
+        points[1].GetProperty("ms").GetInt32().Should().Be(1_800_000);
+        points[1].GetProperty("p").GetDouble().Should().Be(0.75);
+
+        var kill = winProbability.GetProperty("swings")[0];
+        kill.GetProperty("kind").GetString().Should().Be("kill");
+        kill.GetProperty("teamId").GetInt32().Should().Be(100);
+        kill.GetProperty("delta").GetDouble().Should().Be(0.04);
+        kill.GetProperty("killerId").GetInt32().Should().Be(1);
+        kill.GetProperty("victimId").GetInt32().Should().Be(6);
+        kill.GetProperty("assists").GetInt32().Should().Be(2);
+        kill.GetProperty("bounty").GetInt32().Should().Be(450);
+        kill.GetProperty("lane").ValueKind.Should().Be(JsonValueKind.Null);
+
+        var turret = winProbability.GetProperty("swings")[1];
+        turret.GetProperty("lane").GetString().Should().Be("MID_LANE");
+        turret.GetProperty("towerType").GetString().Should().Be("OUTER_TURRET");
+        turret.GetProperty("bounty").ValueKind.Should().Be(JsonValueKind.Null);
+        turret.GetProperty("monsterSubType").ValueKind.Should().Be(JsonValueKind.Null);
+
+        var objectives = winProbability.GetProperty("objectives");
+        objectives[0].GetProperty("monsterType").GetString().Should().Be("HORDE");
+        objectives[0].GetProperty("monsterSubType").ValueKind.Should().Be(JsonValueKind.Null);
+        objectives[0].GetProperty("delta").ValueKind.Should().Be(JsonValueKind.Null);
+        objectives[1].GetProperty("monsterSubType").GetString().Should().Be("FIRE_DRAGON");
+        objectives[1].GetProperty("teamId").GetInt32().Should().Be(200);
+        objectives[1].GetProperty("delta").GetDouble().Should().Be(-0.02);
+    }
 
     private async Task SeedFullMatchAsync()
     {
