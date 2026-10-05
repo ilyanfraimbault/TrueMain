@@ -38,12 +38,6 @@ public sealed class NextItemQueryService(
     ILanePriorQueryService lanePriors,
     IChampionReadCache cache) : INextItemQueryService
 {
-    /// <summary>The fold's <c>ProfileLookbackPatches</c>: profiles fill over a patch, so the snapshot reaches back.</summary>
-    private const int ProfileLookbackPatches = 2;
-
-    /// <summary>The fold's <c>MinProfileGames</c>: below it a champion is not classified at all.</summary>
-    private const int MinProfileGames = 100;
-
     /// <summary>Reasons returned per candidate — what a panel line can carry.</summary>
     private const int MaxReasons = 3;
 
@@ -69,7 +63,7 @@ public sealed class NextItemQueryService(
 
         var profiles = await cache.GetOrComputeAsync(
             $"champions:next-item:profiles:{patch}",
-            token => ChampionProfileSnapshot.LoadAsync(db, patch, ProfileLookbackPatches, MinProfileGames, token),
+            token => ChampionProfileSnapshotRules.LoadAsync(db, patch, token),
             ct,
             size: 8);
 

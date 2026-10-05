@@ -49,6 +49,11 @@ public class TrueMainDbContext : DbContext
     // situational item fold (#1450) to qualify a draft.
     public DbSet<ChampionProfileStat> ChampionProfileStats => Set<ChampionProfileStat>();
 
+    // Damage profile per build archetype (#1905): the same damage sums as the profile,
+    // split by the archetype the final inventory leaned on, so a champion that goes both
+    // ways (AD/AP Kai'Sa) can be told from a 50/50 one. Folded in the profile's pass.
+    public DbSet<ChampionDamageProfileStat> ChampionDamageProfileStats => Set<ChampionDamageProfileStat>();
+
     // Situational item context (#1450): how often a champion builds each item in games
     // sitting at one end of a draft axis (stats), how many games each bucket held
     // (totals), and the precomputed Core / Situational / Preference verdict the page

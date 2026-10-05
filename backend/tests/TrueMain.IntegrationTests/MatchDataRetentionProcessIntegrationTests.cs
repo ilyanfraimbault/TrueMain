@@ -90,6 +90,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
         // the safety net for a destructive operation on a format surprise.
         (await db.ChampionMatchupStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
             .Should().BeEquivalentTo(["16.5", "unknown"]);
+        (await db.ChampionDamageProfileStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.5"]);
     }
 
     [Fact]
@@ -106,6 +108,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
             .Should().BeEquivalentTo(["16.4", "16.5"]);
         (await db.ChampionAggregatePatterns.AsNoTracking().CountAsync()).Should().Be(2);
         (await db.ChampionMatchupStats.AsNoTracking().CountAsync()).Should().Be(3);
+        (await db.ChampionDamageProfileStats.AsNoTracking().CountAsync()).Should().Be(2);
     }
 
     [Fact]
@@ -188,6 +191,16 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
                 EloBracket = "GOLD",
                 Games = 5,
                 Wins = 3,
+                AggregatedAtUtc = aggregatedAt
+            });
+
+            db.ChampionDamageProfileStats.Add(new ChampionDamageProfileStat
+            {
+                ChampionId = 22,
+                Position = "BOTTOM",
+                Patch = patch,
+                Archetype = Data.BuildFacts.ItemArchetype.Crit,
+                Games = 5,
                 AggregatedAtUtc = aggregatedAt
             });
         }

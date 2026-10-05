@@ -3,6 +3,7 @@ using Data;
 using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
+using Data.Statics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
@@ -21,6 +22,7 @@ using TrueMain.Services.Champions.Progression;
 using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Draft;
 using TrueMain.Services.Champions.NextItem;
+using TrueMain.Services.Champions.Profiles;
 using TrueMain.Services.Champions.Synergies;
 using TrueMain.Services.Desktop;
 using TrueMain.Services.Ops.Accounts;
@@ -308,6 +310,13 @@ builder.Services.AddScoped<IDraftRecommendationQueryService, DraftRecommendation
 // The in-game next-item panel (#1749): a lookup in the model the item-context fold
 // derives, combined with the game's situation; reuses the draft's lane priors.
 builder.Services.AddScoped<INextItemQueryService, NextItemQueryService>();
+// The champion damage profiles (#1905) behind the desktop draft's team damage bars:
+// the item-context fold's profile snapshot, plus a Data Dragon class for the champions
+// it does not resolve. The statics provider caches per patch inside the instance, and
+// the whole answer sits in the champion read cache, so Data Dragon is asked once per
+// aggregation cycle at most.
+builder.Services.AddScoped<IChampionDamageProfileQueryService, ChampionDamageProfileQueryService>();
+builder.Services.AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
 // identically. Patch-cached inside the provider, which clocks how long a

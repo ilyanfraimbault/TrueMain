@@ -46,6 +46,8 @@ public static class AggregateRetention
             .AsNoTracking().Select(total => total.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionProfileStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionDamageProfileStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionItemContextStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.PaceBenchmarkStats
@@ -120,6 +122,8 @@ public static class AggregateRetention
                 // recomputed, and the counters without their totals are not rates.
                 result.DeletedContextStats + await db.ChampionProfileStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
+                    + await db.ChampionDamageProfileStats
+                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionItemContextStats
                         .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionItemContextTotals

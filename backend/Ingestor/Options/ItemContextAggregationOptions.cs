@@ -38,7 +38,7 @@ public class ItemContextAggregationOptions
     /// floor's real job is excluding the three-game line, not sharpening a mean.
     /// </remarks>
     [Range(1, int.MaxValue)]
-    public int MinProfileGames { get; set; } = 100;
+    public int MinProfileGames { get; set; } = ChampionProfileSnapshotRules.MinGames;
 
     /// <summary>
     /// How many patches back the profile snapshot may reach for a champion the served
@@ -46,7 +46,7 @@ public class ItemContextAggregationOptions
     /// would otherwise be unqualifiable.
     /// </summary>
     [Range(0, int.MaxValue)]
-    public int ProfileLookbackPatches { get; set; } = 2;
+    public int ProfileLookbackPatches { get; set; } = ChampionProfileSnapshotRules.LookbackPatches;
 
     /// <summary>
     /// Share of its branch at or above which an item is <c>Core</c>: taken whatever the

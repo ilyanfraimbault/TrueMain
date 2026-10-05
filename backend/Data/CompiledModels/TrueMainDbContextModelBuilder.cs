@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("d7db5344-679a-4458-821a-c19096c98dde"), entityTypeCount: 35)
+            : base(skipDetectChanges: false, modelId: new Guid("aa0baaed-bbe1-40dc-8f60-d91a5640f69c"), entityTypeCount: 36)
         {
         }
 
@@ -22,6 +22,7 @@ namespace Data.CompiledModels
             var championAggregatePattern = ChampionAggregatePatternEntityType.Create(this);
             var championAggregateScope = ChampionAggregateScopeEntityType.Create(this);
             var championBanStat = ChampionBanStatEntityType.Create(this);
+            var championDamageProfileStat = ChampionDamageProfileStatEntityType.Create(this);
             var championDimBuild = ChampionDimBuildEntityType.Create(this);
             var championDimRunePage = ChampionDimRunePageEntityType.Create(this);
             var championDimSkillOrder = ChampionDimSkillOrderEntityType.Create(this);
@@ -75,6 +76,7 @@ namespace Data.CompiledModels
             ChampionAggregatePatternEntityType.CreateAnnotations(championAggregatePattern);
             ChampionAggregateScopeEntityType.CreateAnnotations(championAggregateScope);
             ChampionBanStatEntityType.CreateAnnotations(championBanStat);
+            ChampionDamageProfileStatEntityType.CreateAnnotations(championDamageProfileStat);
             ChampionDimBuildEntityType.CreateAnnotations(championDimBuild);
             ChampionDimRunePageEntityType.CreateAnnotations(championDimRunePage);
             ChampionDimSkillOrderEntityType.CreateAnnotations(championDimSkillOrder);
