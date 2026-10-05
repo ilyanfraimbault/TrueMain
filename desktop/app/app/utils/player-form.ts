@@ -29,7 +29,7 @@ export const counted = (games: PlayerGame[]) => games.filter(game => !game.remak
 export const RECENT_GAMES = 5
 
 /** Below this many counted games a recent-vs-average delta compares a sample with itself. */
-const MIN_GAMES_FOR_DELTA = RECENT_GAMES + 3
+export const MIN_GAMES_FOR_DELTA = RECENT_GAMES + 3
 
 const minutes = (game: PlayerGame) => Math.max(game.durationSeconds, 1) / 60
 

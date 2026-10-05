@@ -496,3 +496,22 @@ struct that would drop a field); the list is re-read right before the write and 
 nothing; the list is read again after, and a player set missing from it is reported to the player. The Situational
 block is the slice's `Situational` verdicts (item context, #1450) by pick rate, else the build tree's other branches
 along the core path — never padded. The skill order is not written into a block title — #1908.
+
+**Measurable goals live on this machine, are measured from the client's games, and take their suggested targets from
+the player's own average (2026-10-05).** A goal is a target on one of the dashboard's eight metrics over the player's
+next N games — the metric's own ratio of sums over them (`average`), or the threshold met in K of them (`eachGame`) —
+optionally on one queue, champion and lane. It is kept in `localStorage` per Riot ID, like the LP history, and read
+against the games `usePlayerRecord` lists, so it moves after each game and counts the ones played while the app was
+closed; nothing about it is sent, the same rule as #1805. Only games started after it was set count, remakes and games
+the metric cannot read (an unread scoreboard for KP or damage share) are skipped and extend the run. Each counted game
+is frozen into the goal with the parts of its ratio, so a goal stays decided once its games leave the client's bounded
+history, and older pages are read only while a run needs them. A verdict reads the value at the precision the player
+sees (6.96 CS/min shows 7.0 and meets 7). Suggestions take the tiles where recent form is furthest below the player's
+own average and set the target at that average — a figure measured from their games, never a "players at your rank"
+benchmark we do not have (#1912 may add the tier's median later); none below the sample the tiles need for a delta,
+no CS/min for a mostly-support player, vision first for one. Guardrails: at most 3 active goals and 3 suggestions, a
+plain sentence (no badges), no toast — the outcome waits on the post-game dashboard — and nothing in the in-game
+overlay, which would be a separate decision under Riot's decision-support rule. The issue's open questions, settled:
+5 games by default (the tiles' recent window); "All" queues allowed but never the default nor suggested, since it
+mixes ARAM with the Rift; no per-champion default for a one-trick, the player picks the champion when they want one.
+No usage counter was added for goals — #1913.
