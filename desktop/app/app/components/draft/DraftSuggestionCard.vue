@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import type { DraftCandidate } from '~/types/draft'
 import type { TierEntry } from '~/composables/useTierList'
+import type { DamageNote } from '~/utils/draft-damage'
 
 /**
  * One candidate pick, poster-sized: its score over the card, the champion's
  * loading art, and — on the card in focus — its lane numbers from the tier
  * list. The score is the draft endpoint's own sum of two measured deltas
  * (matchup against the lane opponent, synergy with the locked allies), in win
- * rate points; the tooltip says which half carries it.
+ * rate points; the tooltip says which half carries it. A pick that answers a
+ * one-sided team's damage mix carries a note (#1907) — said, never scored.
  *
  * The default slot covers the card (the click that previews its build); the
  * `action` slot sits over the art's corner, above it (the hover or ban control).
@@ -20,6 +22,8 @@ const props = defineProps<{
   height: number
   /** The score measures something; otherwise the card leads with the lane win rate. */
   measured: boolean
+  /** What the pick does to our team's damage mix, when it answers it. */
+  note?: DamageNote | null
 }>()
 
 const { nameOf } = useChampionStatics()
@@ -33,12 +37,16 @@ const tone = computed(() => {
 })
 
 const why = computed(() => {
-  if (!props.measured) return props.entry ? `Win rate on this lane: ${percent(props.entry.winRate)} over ${props.entry.games.toLocaleString('en-US')} games` : undefined
+  if (!props.measured) {
+    const lane = props.entry ? `Win rate on this lane: ${percent(props.entry.winRate)} over ${props.entry.games.toLocaleString('en-US')} games` : null
+    return [lane, props.note?.text ?? null].filter(Boolean).join(' · ') || undefined
+  }
   const { matchupDelta, matchupGames, synergyDelta, synergyGames, thinSample } = props.candidate
   const parts = [
     matchupGames > 0 ? `Matchup ${points(matchupDelta)}% over ${matchupGames.toLocaleString('en-US')} games` : 'No matchup games yet',
     synergyGames > 0 ? `Synergy ${points(synergyDelta)}% over ${synergyGames.toLocaleString('en-US')} games` : null,
     thinSample ? 'Few games behind this score' : null,
+    props.note?.text ?? null,
   ]
   return parts.filter(Boolean).join(' · ')
 })
@@ -74,6 +82,13 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
           </div>
         </div>
         <UBadge v-if="measured && candidate.thinSample" color="neutral" variant="soft" size="sm" class="self-start">Few games</UBadge>
+        <span
+          v-if="note"
+          class="flex w-fit items-center gap-1 self-start whitespace-nowrap rounded bg-ink-950/70 px-1.5 py-0.5 text-[10px] font-medium leading-none ring-1 ring-white/10"
+          :class="note.adds === 'magic' ? 'text-stat-mr' : 'text-stat-ad'"
+        >
+          <UIcon name="i-lucide-plus" class="size-2.5" />{{ note.adds === 'magic' ? 'Magic damage' : 'Physical damage' }}
+        </span>
       </div>
       <TierMark v-if="entry" :tier="entry.tier" class="absolute left-2 top-2 scale-75 origin-top-left" />
       <div v-if="$slots.action" class="absolute right-1.5 top-1.5 z-10">
