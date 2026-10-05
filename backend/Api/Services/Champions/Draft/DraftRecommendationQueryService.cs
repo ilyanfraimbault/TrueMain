@@ -164,6 +164,7 @@ public sealed class DraftRecommendationQueryService(
         var available = shares
             .Where(entry => !unavailable.Contains(entry.Key))
             .ToDictionary(entry => entry.Key, entry => entry.Value);
+        var laneAverage = await lanes.ReadLaneAverageAsync(position, scope, criteria.EloBracket, ct);
         var allies = await ReadAlliesAsync(candidates, position, criteria, scope, ct);
         var weights = DraftScoringWeights.Default;
 
@@ -175,6 +176,7 @@ public sealed class DraftRecommendationQueryService(
                 // A champion is never its own opponent: the same champion cannot
                 // be picked on both sides.
                 available.Where(entry => entry.Key != championId).ToDictionary(e => e.Key, e => e.Value),
+                laneAverage,
                 allies.GetValueOrDefault(championId, []),
                 weights))
             .OrderByDescending(c => c.Score)

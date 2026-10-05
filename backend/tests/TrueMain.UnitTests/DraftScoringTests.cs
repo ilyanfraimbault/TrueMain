@@ -83,7 +83,7 @@ public class DraftScoringTests
     [Fact]
     public void AnEmptyLaneLeavesTheWholeLaneTermToTheBlindExpectation()
     {
-        var score = DraftScoring.Score(laneShrunk: 0.05, laneOccupied: 0d, blindShrunk: 0.01, synergyShrunk: 0d, Weights);
+        var score = DraftScoring.Score(laneShrunk: 0.05, laneOccupied: 0d, blindShrunk: 0.01, strengthShrunk: 0d, synergyShrunk: 0d, Weights);
 
         Assert.Equal(0.01, score, 9);
     }
@@ -123,8 +123,8 @@ public class DraftScoringTests
         // #1713's acceptance: with the lane resolved, a +4 matchup against a
         // neutral one must hold against the best synergy the other pick can have
         // with every ally.
-        var lane = DraftScoring.Score(0.04, 1d, 0d, 0d, Weights);
-        var synergy = DraftScoring.Score(0d, 1d, 0d, 0.04, Weights);
+        var lane = DraftScoring.Score(0.04, 1d, 0d, 0d, 0d, Weights);
+        var synergy = DraftScoring.Score(0d, 1d, 0d, 0d, 0.04, Weights);
 
         Assert.True(lane > synergy);
     }

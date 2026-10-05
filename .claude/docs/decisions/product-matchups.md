@@ -290,10 +290,16 @@ allies outweigh the lane, and bet the matchup on the solver's top placement even
   into (shrunk delta ≤ −2 pts). This replaces "before the enemy picks: pool order";
 - **synergy** — the **mean** over the allies on the board, locked at weight 1 and hovered at 0.5 (flagged
   tentative), an unmeasured pairing counting as no effect: four allies weigh what one does;
-- **ranking** — `Lane × [P(occupied) × lane + (1 − P) × blind] + Synergy × synergy`, lane 1 and synergy 0.5,
-  each delta shrunk towards zero by its games (`delta × n / (n + k)`, k = 100) instead of the binary 30-game floor
-  as the ordering device. The weights and k are the ones `backend/Tools/DraftEvaluation` (AUC of the score
-  against the result on a held-out patch, old vs new) is run against; a back-test result moves them, not taste.
+- **ranking** — `Lane × [P(occupied) × lane + (1 − P) × blind] + Strength × strength + Synergy × synergy`, each
+  delta shrunk towards zero by its games (`delta × n / (n + k)`) instead of the binary 30-game floor as the
+  ordering device; *strength* is the champion's own win rate at the lane minus the lane's average (the matchup and
+  blind terms are deltas against that rate, so without it a champion that wins everywhere scores like one that
+  loses everywhere). The values come from `backend/Tools/DraftEvaluation` (AUC of the score against the result,
+  training on earlier patches, testing on a later one), never from taste. First preprod run (test 16.19, training
+  16.18, 39,659 main picks): lane known, old 0.5071 against new 0.5096–0.5110, rising with k up to the grid's edge
+  (400), synergy weight 0 to 0.25 indistinguishable at k = 400 and worse beyond; blind, the delta-only blind
+  safety (0.5031 at best) stayed under the plain lane win rate (0.5046) — which is what the strength term adds.
+  Hence k = 400 and synergy 0.25 for now, strength pending a second run over a wider grid.
   The total is a ranking key, never displayed, and there are **no letter grades** (product owner, 2026-10-05: a
   grade binned from these deltas would still be a derived number);
 - **reasons** — the 2–3 parts of the score that move it most, either way, as text-free data the client words

@@ -11,6 +11,7 @@ public class DraftSuggestionScorerTests
     private static DraftLaneRecord Record(params (int Opponent, double Delta, int Games)[] versus)
         => new(
             versus.Sum(v => v.Games),
+            versus.Sum(v => v.Games) / 2,
             versus.ToDictionary(v => v.Opponent, v => new DraftComponent(v.Delta, v.Games)),
             versus.ToDictionary(v => v.Opponent, v => (Wins: v.Games / 2, Losses: v.Games / 4)),
             "16.19");
@@ -23,7 +24,7 @@ public class DraftSuggestionScorerTests
         var record = Record((10, 0.03, 4_000), (11, 0.01, 3_000));
         var shares = new Dictionary<int, double> { [10] = 600, [11] = 400 };
 
-        var candidate = DraftCandidateScorer.Score(1, record, NoOccupancy, shares, [], Weights);
+        var candidate = DraftCandidateScorer.Score(1, record, NoOccupancy, shares, 0.5, [], Weights);
 
         var reason = Assert.Single(candidate.Reasons);
         Assert.Equal(DraftReasonKinds.BlindSafety, reason.Kind);
@@ -40,7 +41,7 @@ public class DraftSuggestionScorerTests
         var occupancy = new Dictionary<int, double> { [10] = 1d };
         var allies = new List<DraftAllyInput> { new(30, "UTILITY", Hovered: false, new DraftComponent(0.01, 500)) };
 
-        var candidate = DraftCandidateScorer.Score(1, record, occupancy, NoOccupancy, allies, Weights);
+        var candidate = DraftCandidateScorer.Score(1, record, occupancy, NoOccupancy, 0.5, allies, Weights);
 
         Assert.Equal(DraftReasonKinds.LaneMatchup, candidate.Reasons[0].Kind);
         Assert.Equal(10, candidate.Reasons[0].ChampionId);
@@ -56,7 +57,7 @@ public class DraftSuggestionScorerTests
     {
         var allies = new List<DraftAllyInput> { new(30, "UTILITY", Hovered: true, new DraftComponent(0.04, 5_000)) };
 
-        var candidate = DraftCandidateScorer.Score(1, DraftLaneRecord.Empty, NoOccupancy, NoOccupancy, allies, Weights);
+        var candidate = DraftCandidateScorer.Score(1, DraftLaneRecord.Empty, NoOccupancy, NoOccupancy, 0.5, allies, Weights);
 
         var reason = Assert.Single(candidate.Reasons);
         Assert.True(reason.Tentative);
@@ -66,7 +67,7 @@ public class DraftSuggestionScorerTests
     [Fact]
     public void ACandidateWithNoDataIsThinAndCarriesNoReason()
     {
-        var candidate = DraftCandidateScorer.Score(1, DraftLaneRecord.Empty, NoOccupancy, NoOccupancy, [], Weights);
+        var candidate = DraftCandidateScorer.Score(1, DraftLaneRecord.Empty, NoOccupancy, NoOccupancy, 0.5, [], Weights);
 
         Assert.True(candidate.ThinSample);
         Assert.Empty(candidate.Reasons);

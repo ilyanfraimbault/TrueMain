@@ -8,7 +8,8 @@ using Core.Lol.Synergy;
 // the AUC of the score against the result — the probability that a won pick was scored
 // above a lost one (0.5 = no signal). "A higher-ranked pick wins more often than a lower
 // one", measured, for the old scoring (#1675: raw matchup + summed synergy) and the new one
-// (#1906: shrunk lane term + mean synergy), over a grid of shrinkage k and synergy weight.
+// (#1906: shrunk lane term + the champion's strength at the lane + mean synergy), over a
+// grid of shrinkage k, strength weight and synergy weight.
 //
 // Two moments of the draft are replayed:
 //   - lane known: the whole board is visible (the real lane opponent, the four allies);
@@ -44,6 +45,12 @@ double OldScore(Sample sample)
     return matchup + synergy;
 }
 
+DraftComponent StrengthOf(Sample sample)
+{
+    var (games, wins) = data.Lane(sample.ChampionId, sample.Position);
+    return DraftScoring.Strength(games, wins, data.LaneAverage(sample.Position));
+}
+
 double NewLaneKnownScore(Sample sample, DraftScoringWeights weights)
 {
     var record = data.Record(sample.ChampionId, sample.Position);
@@ -56,36 +63,48 @@ double NewLaneKnownScore(Sample sample, DraftScoringWeights weights)
             data.Synergy(sample.ChampionId, sample.Position, ally.ChampionId, ally.Position), Hovered: false))
         .ToList();
     var (_, synergyShrunk) = DraftScoring.Synergy(allies, weights);
-    return DraftScoring.Score(laneShrunk, occupied, 0d, synergyShrunk, weights);
+    return DraftScoring.Score(
+        laneShrunk, occupied, 0d, StrengthOf(sample).Shrunk(weights.ShrinkGames), synergyShrunk, weights);
 }
 
-double NewBlindScore(Sample sample, double k)
+double NewBlindScore(Sample sample, DraftScoringWeights weights)
 {
     var shares = data.LaneShares(sample.Position)
         .Where(entry => entry.Key != sample.ChampionId)
         .ToDictionary(entry => entry.Key, entry => entry.Value);
-    return DraftScoring.Blind(data.Record(sample.ChampionId, sample.Position), shares, k).Shrunk;
+    var blind = DraftScoring.Blind(data.Record(sample.ChampionId, sample.Position), shares, weights.ShrinkGames);
+    return DraftScoring.Score(
+        0d, 0d, blind.Shrunk, StrengthOf(sample).Shrunk(weights.ShrinkGames), 0d, weights);
 }
+
+string F(double value) => value.ToString("F4", CultureInfo.InvariantCulture);
+
+double[] shrinkGrid = [100d, 200d, 400d, 800d, 1600d, 3200d];
+double[] strengthGrid = [0d, 0.5d, 1d];
+double[] synergyGrid = [0d, 0.25d, 0.5d];
 
 var known = samples.Where(sample => sample.OpponentChampionId is not null).ToList();
 Console.WriteLine();
 Console.WriteLine("Lane known — AUC of the score against the result");
-Console.WriteLine($"  old (raw matchup + summed synergy) : {Auc.Of(known, OldScore):F4}");
-foreach (var k in new[] { 0d, 25d, 50d, 100d, 200d, 400d })
+Console.WriteLine($"  old (raw matchup + summed synergy)            : {F(Auc.Of(known, OldScore))}");
+foreach (var k in shrinkGrid)
 {
-    var row = new[] { 0d, 0.25d, 0.5d, 1d }
-        .Select(synergy => Auc.Of(known, sample => NewLaneKnownScore(
-            sample, DraftScoringWeights.Default with { ShrinkGames = k, Synergy = synergy })))
-        .Select(auc => auc.ToString("F4", CultureInfo.InvariantCulture));
-    Console.WriteLine($"  new k={k,4} synergy 0 / .25 / .5 / 1 : {string.Join("  ", row)}");
+    foreach (var strength in strengthGrid)
+    {
+        var row = synergyGrid.Select(synergy => F(Auc.Of(known, sample => NewLaneKnownScore(
+            sample, DraftScoringWeights.Default with { ShrinkGames = k, Strength = strength, Synergy = synergy }))));
+        Console.WriteLine($"  new k={k,5} strength {strength,3} synergy 0/.25/.5 : {string.Join("  ", row)}");
+    }
 }
 
 Console.WriteLine();
 Console.WriteLine("Blind — AUC of the score against the result");
-Console.WriteLine($"  lane win rate (reference)          : {Auc.Of(samples, sample => data.LaneWinRate(sample.ChampionId, sample.Position)):F4}");
-foreach (var k in new[] { 0d, 25d, 50d, 100d, 200d, 400d })
+Console.WriteLine($"  lane win rate (reference)                     : {F(Auc.Of(samples, sample => data.LaneWinRate(sample.ChampionId, sample.Position)))}");
+foreach (var k in shrinkGrid)
 {
-    Console.WriteLine($"  blind safety k={k,4}                : {Auc.Of(samples, sample => NewBlindScore(sample, k)):F4}");
+    var row = strengthGrid.Select(strength => F(Auc.Of(samples, sample => NewBlindScore(
+        sample, DraftScoringWeights.Default with { ShrinkGames = k, Strength = strength }))));
+    Console.WriteLine($"  blind safety k={k,5} strength 0/.5/1           : {string.Join("  ", row)}");
 }
 
 /// <summary>The training aggregates, folded to what the scoring reads.</summary>
@@ -100,6 +119,7 @@ internal sealed class EvaluationData
     private readonly Dictionary<(int, string), (int Games, int Wins)> _ally = [];
     private readonly Dictionary<(int, string, int, string), (int Games, int Wins)> _pairs = [];
     private readonly Dictionary<string, Dictionary<int, double>> _laneShares = [];
+    private readonly Dictionary<string, (long Games, long Wins)> _laneAverage = [];
     private double _cohortRate;
 
     public static EvaluationData Load(string matchups, string baselines, string synergy)
@@ -128,6 +148,8 @@ internal sealed class EvaluationData
             if (r[0] == "SELF")
             {
                 data._self[key] = value;
+                var lane = data._laneAverage.GetValueOrDefault(r[2]);
+                data._laneAverage[r[2]] = (lane.Games + value.Item1, lane.Wins + value.Item2);
                 cohortGames += value.Item1;
                 cohortWins += value.Item2;
             }
@@ -163,6 +185,12 @@ internal sealed class EvaluationData
         => _lane.TryGetValue((championId, position), out var lane) && lane.Games > 0
             ? (double)lane.Wins / lane.Games
             : 0.5;
+
+    public (int Games, int Wins) Lane(int championId, string position) => _lane.GetValueOrDefault((championId, position));
+
+    /// <summary>The tracked players' average win rate at the lane (SELF baselines), as the API reads it.</summary>
+    public double LaneAverage(string position)
+        => _laneAverage.TryGetValue(position, out var lane) && lane.Games > 0 ? (double)lane.Wins / lane.Games : 0.5;
 
     public int SelfGames(int championId, string position) => _self.GetValueOrDefault((championId, position)).Games;
 

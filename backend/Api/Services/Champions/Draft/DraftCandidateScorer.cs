@@ -37,15 +37,17 @@ public static class DraftCandidateScorer
         DraftLaneRecord record,
         IReadOnlyDictionary<int, double> occupancy,
         IReadOnlyDictionary<int, double> availableShares,
+        double laneAverageRate,
         IReadOnlyList<DraftAllyInput> allies,
         DraftScoringWeights weights)
     {
         var k = weights.ShrinkGames;
+        var strength = DraftScoring.Strength(record.Games, record.Wins, laneAverageRate);
         var (lane, laneShrunk, occupied) = DraftScoring.Lane(record.Versus, occupancy, k);
         var blind = DraftScoring.Blind(record.Versus, availableShares, k);
         var (synergy, synergyShrunk) = DraftScoring.Synergy(
             allies.Select(ally => new DraftAllyPairing(ally.Pairing, ally.Hovered)).ToList(), weights);
-        var score = DraftScoring.Score(laneShrunk, occupied, blind.Shrunk, synergyShrunk, weights);
+        var score = DraftScoring.Score(laneShrunk, occupied, blind.Shrunk, strength.Shrunk(k), synergyShrunk, weights);
 
         var laneGamesInPlay = occupied >= 0.5d ? lane.Games : blind.Games;
 
@@ -61,11 +63,13 @@ public static class DraftCandidateScorer
                 LosingInto = blind.LosingInto,
                 LikelyOpponents = blind.LikelyOpponents,
             },
+            StrengthDelta = strength.Delta,
+            StrengthGames = strength.Games,
             SynergyDelta = synergy.Delta,
             SynergyGames = synergy.Games,
             Score = score,
             ThinSample = laneGamesInPlay < MinGames && synergy.Games < MinGames,
-            Reasons = Reasons(record, occupancy, occupied, blind, allies, weights),
+            Reasons = Reasons(record, occupancy, occupied, blind, strength, allies, weights),
             Patch = record.Patch,
         };
     }
@@ -81,6 +85,7 @@ public static class DraftCandidateScorer
         IReadOnlyDictionary<int, double> occupancy,
         double occupied,
         BlindSafety blind,
+        DraftComponent strength,
         IReadOnlyList<DraftAllyInput> allies,
         DraftScoringWeights weights)
     {
@@ -117,6 +122,16 @@ public static class DraftCandidateScorer
                 Games = blind.Games,
                 Count = blind.LosingInto,
                 Of = blind.LikelyOpponents,
+            }));
+        }
+
+        if (strength.Games > 0 && weights.Strength > 0d)
+        {
+            parts.Add((weights.Strength * strength.Shrunk(k), new DraftReasonReadModel
+            {
+                Kind = DraftReasonKinds.LaneStrength,
+                Delta = strength.Delta,
+                Games = strength.Games,
             }));
         }
 

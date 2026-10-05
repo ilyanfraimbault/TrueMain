@@ -9,6 +9,7 @@ namespace TrueMain.Services.Champions.Draft;
 
 /// <summary>One champion's record at a lane, against every opponent it met there.</summary>
 /// <param name="Games">The champion's games at the lane, every opponent included.</param>
+/// <param name="Wins">Of <paramref name="Games"/>, those won.</param>
 /// <param name="Versus">
 /// Per opponent: win rate into it minus the champion's win rate at the lane, and
 /// the games behind it.
@@ -17,12 +18,13 @@ namespace TrueMain.Services.Champions.Draft;
 /// <param name="Patch">The patch the record was read from, or the two-patch window it fell back to.</param>
 public sealed record DraftLaneRecord(
     int Games,
+    int Wins,
     IReadOnlyDictionary<int, DraftComponent> Versus,
     IReadOnlyDictionary<int, (int Wins, int Losses)> LanePhase,
     string? Patch)
 {
     public static readonly DraftLaneRecord Empty = new(
-        0, new Dictionary<int, DraftComponent>(), new Dictionary<int, (int, int)>(), null);
+        0, 0, new Dictionary<int, DraftComponent>(), new Dictionary<int, (int, int)>(), null);
 }
 
 public interface IDraftLaneReader
@@ -40,6 +42,16 @@ public interface IDraftLaneReader
     /// the weight of each possible lane opponent.
     /// </summary>
     Task<IReadOnlyDictionary<int, double>> ReadLaneSharesAsync(
+        string position,
+        DraftPatchScope scope,
+        string? eloBracket,
+        CancellationToken ct);
+
+    /// <summary>
+    /// The average win rate of the tracked players at <paramref name="position"/> —
+    /// what a champion's own win rate there is measured against.
+    /// </summary>
+    Task<double> ReadLaneAverageAsync(
         string position,
         DraftPatchScope scope,
         string? eloBracket,
@@ -105,6 +117,52 @@ public sealed class DraftLaneReader(TrueMainDbContext db, IChampionReadCache cac
             token => ComputeLaneSharesAsync(position, scope, eloBracket, token),
             ct);
 
+    public Task<double> ReadLaneAverageAsync(
+        string position,
+        DraftPatchScope scope,
+        string? eloBracket,
+        CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"champions:draft:lane-average:{position}:{scope.Token}:{EloBracket.ResolveToken(eloBracket)}",
+            token => ComputeLaneAverageAsync(position, scope, eloBracket, token),
+            ct);
+
+    /// <summary>
+    /// From the <c>SELF</c> synergy baselines — the tracked players' own games at
+    /// the lane, the same population <c>champion_matchup_stats</c> counts — over
+    /// the whole window: an average over every champion is never thin. 0.5 when
+    /// nothing is stored.
+    /// </summary>
+    private async Task<double> ComputeLaneAverageAsync(
+        string position,
+        DraftPatchScope scope,
+        string? eloBracket,
+        CancellationToken ct)
+    {
+        var query = db.ChampionSynergyBaselineStats
+            .AsNoTracking()
+            .Where(b => b.Side == SynergyBaselineSide.Self && b.TeamPosition == position);
+
+        var window = scope.Window;
+        if (window is not null)
+        {
+            query = query.Where(b => window.Contains(b.Patch));
+        }
+
+        var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
+        if (bands is not null)
+        {
+            query = query.Where(b => bands.Contains(b.EloBracket));
+        }
+
+        var totals = await query
+            .GroupBy(_ => 1)
+            .Select(g => new { Games = g.Sum(b => (long)b.Games), Wins = g.Sum(b => (long)b.Wins) })
+            .FirstOrDefaultAsync(ct);
+
+        return totals is null || totals.Games == 0 ? 0.5d : (double)totals.Wins / totals.Games;
+    }
+
     private async Task<IReadOnlyDictionary<int, DraftLaneRecord>> ComputeRecordsAsync(
         IReadOnlyList<int> pool,
         string position,
@@ -166,7 +224,8 @@ public sealed class DraftLaneReader(TrueMainDbContext db, IChampionReadCache cac
             return DraftLaneRecord.Empty;
         }
 
-        var overallRate = (double)used.Sum(row => row.Wins) / games;
+        var wins = used.Sum(row => row.Wins);
+        var overallRate = (double)wins / games;
         var versus = new Dictionary<int, DraftComponent>();
         var lanePhase = new Dictionary<int, (int Wins, int Losses)>();
         foreach (var opponent in used.GroupBy(row => row.OpponentChampionId))
@@ -186,7 +245,7 @@ public sealed class DraftLaneReader(TrueMainDbContext db, IChampionReadCache cac
         var patch = scope.Current is null
             ? null
             : fallBack ? $"{scope.Current}+{scope.Previous}" : scope.Current;
-        return new DraftLaneRecord(games, versus, lanePhase, patch);
+        return new DraftLaneRecord(games, wins, versus, lanePhase, patch);
     }
 
     private async Task<IReadOnlyDictionary<int, double>> ComputeLaneSharesAsync(

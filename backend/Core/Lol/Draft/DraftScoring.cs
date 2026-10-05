@@ -32,14 +32,22 @@ public sealed record DraftScoringWeights
     /// <summary>Weight of the lane term (resolved opponent, or the blind expectation).</summary>
     public double Lane { get; init; } = 1d;
 
+    /// <summary>
+    /// Weight of the champion's own strength at the lane — its win rate there minus
+    /// the lane's average. The matchup and blind terms are deltas against the
+    /// champion's own rate, so without this a champion that wins everywhere scores
+    /// like one that loses everywhere.
+    /// </summary>
+    public double Strength { get; init; } = 0d;
+
     /// <summary>Weight of the ally synergy term, an average over the allies on the board.</summary>
-    public double Synergy { get; init; } = 0.5d;
+    public double Synergy { get; init; } = 0.25d;
 
     /// <summary>
     /// The <c>k</c> of <see cref="DraftComponent.Shrunk"/>: the games at which a
     /// delta keeps half its value.
     /// </summary>
-    public double ShrinkGames { get; init; } = 100d;
+    public double ShrinkGames { get; init; } = 400d;
 
     /// <summary>
     /// Weight of an ally who is only hovering a champion, against 1 for a locked
@@ -242,19 +250,27 @@ public static class DraftScoring
     /// <summary>
     /// The ranking key: the lane term — the resolved opponent where the board
     /// shows one, the blind expectation for the share of the lane still unknown —
-    /// then the ally term.
+    /// then the champion's own strength at the lane, then the ally term.
     /// </summary>
     public static double Score(
         double laneShrunk,
         double laneOccupied,
         double blindShrunk,
+        double strengthShrunk,
         double synergyShrunk,
         DraftScoringWeights weights)
     {
         var occupied = Math.Clamp(laneOccupied, 0d, 1d);
         var lane = (occupied * laneShrunk) + ((1d - occupied) * blindShrunk);
-        return (weights.Lane * lane) + (weights.Synergy * synergyShrunk);
+        return (weights.Lane * lane) + (weights.Strength * strengthShrunk) + (weights.Synergy * synergyShrunk);
     }
+
+    /// <summary>
+    /// The champion's strength at the lane: its win rate there minus the lane's
+    /// average win rate, over its games at the lane.
+    /// </summary>
+    public static DraftComponent Strength(int games, int wins, double laneAverageRate)
+        => games <= 0 ? DraftComponent.None : new DraftComponent(((double)wins / games) - laneAverageRate, games);
 
     /// <summary>
     /// How much the enemy champion threatens our pick: how far behind the pick is

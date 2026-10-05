@@ -52,6 +52,15 @@ public sealed record DraftCandidateReadModel
     public DraftBlindReadModel Blind { get; init; } = new();
 
     /// <summary>
+    /// The champion's win rate at the lane minus the lane's average win rate —
+    /// how strong the pick is on its own, before any matchup.
+    /// </summary>
+    public double StrengthDelta { get; init; }
+
+    /// <summary>Games the strength rests on: the champion's games at the lane.</summary>
+    public int StrengthGames { get; init; }
+
+    /// <summary>
     /// Mean observed-minus-expected win rate with the allies on the board (locked,
     /// and hovered at half weight), straight from the site's synergy figures —
     /// a mean since #1906, so four allies do not outweigh one lane.
@@ -63,7 +72,8 @@ public sealed record DraftCandidateReadModel
 
     /// <summary>
     /// The ranking key: the lane term (the opponent where the board shows one,
-    /// the blind expectation for the rest), then the ally term, each delta shrunk
+    /// the blind expectation for the rest), the champion's strength at the lane,
+    /// then the ally term, each delta shrunk
     /// towards zero by its games. Deliberately not called a win probability, and
     /// not meant to be displayed.
     /// </summary>
@@ -115,6 +125,9 @@ public static class DraftReasonKinds
 
     /// <summary>Blind safety: <c>delta</c>, <c>games</c>, behind into <c>count</c> of the <c>of</c> most-played opponents.</summary>
     public const string BlindSafety = "blindSafety";
+
+    /// <summary>The champion's own record at the lane: <c>delta</c> against the lane's average, over <c>games</c>.</summary>
+    public const string LaneStrength = "laneStrength";
 
     /// <summary>The pairing with one ally: <c>championId</c>, <c>position</c>, <c>delta</c>, <c>games</c>, <c>tentative</c> when only hovered.</summary>
     public const string Synergy = "synergy";
