@@ -14,8 +14,10 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use shell_state::overlay::{OverlayInputs, OverlayPanel, OverlaySettings, Rect};
+use shell_state::screens::{self, Monitor};
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, WindowEvent,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, Position, Size,
+    WindowEvent,
 };
 
 use super::platform;
@@ -32,11 +34,22 @@ struct Applied {
     visible: bool,
     interactive: bool,
     origin: (f64, f64),
+    /// The scale of the monitor `origin` is on.
+    scale: f64,
     size: (f64, f64),
     opacity: f64,
 }
 
+/// A monitor's frame in points, and its scale.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Screen {
+    area: Rect,
+    scale: f64,
+}
+
 static APPLIED: Mutex<Option<HashMap<OverlayPanel, Applied>>> = Mutex::new(None);
+/// The monitor the game was last seen on (#1914).
+static GAME_SCREEN: Mutex<Option<Screen>> = Mutex::new(None);
 
 pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let opacity = app.state::<SharedOverlay>().settings().opacity;
@@ -57,18 +70,89 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// The primary screen, in points: where the game runs.
-fn screen(app: &AppHandle) -> Option<Rect> {
-    let monitor = app.primary_monitor().ok().flatten()?;
+/// The screen the panels go on, in points: the monitor the game was last seen
+/// on while it still exists, else the primary one — before any game, and in
+/// the settings' preview on a desk that has changed since.
+fn screen(app: &AppHandle) -> Option<Screen> {
+    let monitors = app.available_monitors().unwrap_or_default();
+    let seen = *GAME_SCREEN.lock().expect("overlay screen poisoned");
+    if let Some(seen) = seen.filter(|seen| monitors.iter().any(|monitor| of(monitor) == *seen)) {
+        return Some(seen);
+    }
+    app.primary_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| monitors.into_iter().next())
+        .map(|monitor| of(&monitor))
+}
+
+fn of(monitor: &tauri::Monitor) -> Screen {
+    Screen {
+        area: area(monitor),
+        scale: monitor.scale_factor(),
+    }
+}
+
+/// A monitor's frame in points.
+fn area(monitor: &tauri::Monitor) -> Rect {
     let scale = monitor.scale_factor();
     let position = monitor.position().to_logical::<f64>(scale);
     let size = monitor.size().to_logical::<f64>(scale);
-    Some(Rect {
+    Rect {
         x: position.x,
         y: position.y,
         width: size.width,
         height: size.height,
-    })
+    }
+}
+
+/// A monitor's frame in pixels.
+fn pixels(monitor: &tauri::Monitor) -> Rect {
+    let position = monitor.position();
+    let size = monitor.size();
+    Rect {
+        x: f64::from(position.x),
+        y: f64::from(position.y),
+        width: f64::from(size.width),
+        height: f64::from(size.height),
+    }
+}
+
+/// Note which monitor the game's window is on. Main thread, and only while
+/// the game is frontmost: its window is the one the platform measures.
+fn locate_game(app: &AppHandle) {
+    let Some(frame) = platform::game_frame() else {
+        return;
+    };
+    let available = app.available_monitors().unwrap_or_default();
+    let monitors: Vec<Monitor> = available
+        .iter()
+        .map(|monitor| Monitor {
+            bounds: if platform::FRAME_IN_POINTS {
+                area(monitor)
+            } else {
+                pixels(monitor)
+            },
+            area: area(monitor),
+        })
+        .collect();
+    let Some(held) = screens::holding(&monitors, frame) else {
+        return;
+    };
+    let Some(screen) = available
+        .iter()
+        .map(of)
+        .find(|screen| screen.area == held.area)
+    else {
+        return;
+    };
+    let previous = GAME_SCREEN
+        .lock()
+        .expect("overlay screen poisoned")
+        .replace(screen);
+    if previous != Some(screen) {
+        tracing::info!(x = screen.area.x, y = screen.area.y, "the game's monitor");
+    }
 }
 
 /// Where a panel's window should be and look, now.
@@ -76,14 +160,15 @@ fn wanted(
     overlay: &SharedOverlay,
     settings: &OverlaySettings,
     inputs: &OverlayInputs,
-    screen: Rect,
+    screen: Screen,
     panel: OverlayPanel,
 ) -> Applied {
     let size = overlay.size(panel);
     Applied {
         visible: settings.shows(panel, inputs),
         interactive: inputs.preview,
-        origin: settings.origin(panel, screen, size),
+        origin: settings.origin(panel, screen.area, size),
+        scale: screen.scale,
         size,
         opacity: settings.opacity,
     }
@@ -130,11 +215,8 @@ fn apply_panel(app: &AppHandle, which: OverlayPanel, next: Applied) {
     }
     // AppKit resizes a window about its bottom edge: the top moves with any
     // change of height, so the position is set again after every resize.
-    if resized || previous.map(|p| p.origin) != Some(next.origin) {
-        let _ = window.set_position(Position::Logical(LogicalPosition::new(
-            next.origin.0,
-            next.origin.1,
-        )));
+    if resized || previous.map(|p| (p.origin, p.scale)) != Some((next.origin, next.scale)) {
+        let _ = window.set_position(place(next.origin, next.scale));
     }
     if previous.map(|p| p.opacity) != Some(next.opacity) {
         platform::set_opacity(app, &label, next.opacity);
@@ -150,6 +232,22 @@ fn apply_panel(app: &AppHandle, which: OverlayPanel, next: Applied) {
             crate::telemetry::feature(app, crate::telemetry::Feature::OverlayShown);
         }
         tracing::info!(panel = which.slug(), visible = next.visible, "overlay");
+    }
+}
+
+/// Where to put a window whose top-left corner is `origin`, in the points of a
+/// monitor of `scale`. On macOS points are one space across every display. On
+/// Windows a logical position is scaled by the monitor the window is on now,
+/// not the one it is going to: on a desk with two scales, a panel crossing
+/// over would land elsewhere, so it is placed in pixels instead.
+fn place(origin: (f64, f64), scale: f64) -> Position {
+    if cfg!(windows) {
+        Position::Physical(PhysicalPosition::new(
+            (origin.0 * scale).round() as i32,
+            (origin.1 * scale).round() as i32,
+        ))
+    } else {
+        Position::Logical(LogicalPosition::new(origin.0, origin.1))
     }
 }
 
@@ -182,7 +280,7 @@ fn dragged(app: &AppHandle, which: OverlayPanel, position: tauri::PhysicalPositi
     };
     overlay.place(
         which,
-        OverlaySettings::point_at(screen, origin, applied.size),
+        OverlaySettings::point_at(screen.area, origin, applied.size),
     );
     let _ = app.emit(VIEW_EVENT, overlay.view());
     apply(app);
@@ -201,6 +299,9 @@ fn watch(app: &AppHandle) {
                 let overlay = handle.state::<SharedOverlay>().inner().clone();
                 if overlay.set_game_frontmost(front) {
                     tracing::info!(front, "the game's frontmost state changed");
+                }
+                if front {
+                    locate_game(&handle);
                 }
                 // Also picks up a death, a respawn and the game's end.
                 apply_now(&handle);

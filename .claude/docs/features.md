@@ -204,6 +204,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   recording), player card (Riot ID, level, client status), top bar with a ⌘K champion search (no
   back/forward, no patch label). Hash routing; the gameflow phase opens `/draft` on its own, and `/game` from home or
   the draft (never from a page opened by hand); leaving either phase goes home only from its page.
+- **Window** (#1914) — resizable down to 960 × 640 and maximisable, 1180 × 760 by default. Below 1100 px wide the
+  sidebar folds into a rail of icons (`useNarrowWindow`): names in tooltips, "Live" / "Rec" as dots on their icons
+  with the words in the tooltip, the player card as its icon and status dot. Size, place and maximised state are kept
+  in `window-state.json` (`src-tauri/src/window_state.rs`): the place in pixels, the size in points, so a window
+  restored on a monitor of another scale keeps its apparent size, never larger than the monitor; a place on a monitor
+  since unplugged (less than 120 × 24 px of title bar on any monitor) opens centred on the primary one instead
+  (`shell_state::window`).
 - **Loading** (#1788) — a sidebar click changes the page at once: the shared pages' setup await is caught by the app's
   own `<Suspense>` (`SharedPage.vue`), which draws the page's header over a skeleton until it resolves. A 2 px primary
   bar across the window's top edge (`AppLoadingBar.vue`, over the champion search) runs while anything is loading — a
@@ -251,7 +258,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   **who they are** (#1828, `game/GamePlayerIntel.vue`, `utils/player-intel.ts`) instead of the items and K/D/A the
   game's scoreboard already shows: Riot ID, Solo/Duo crest + tier + LP (a ranked Flex standing tagged "Flex" when
   there is none, "Placements", "Unranked"; season record in the tooltip), a role chip — "Main role" (≥ ½ of their
-  recent role-assigned games here), "Secondary role", or "Autofill · Jungle main" (< ¼) — a streak chip from three
+  recent role-assigned games here), "Secondary role", or "Autofill · Jungle main" (< ¼) — a streak chip ("Won 4 in a row", "Lost 3 in a row") from three
   games on, then their win rate, games and KDA on the champion among their last twenty ("First time" with none) over
   their last ten games as the loading screen's bars — all from the loading screen's read (`useLoadingPlayers`, one more
   client request per player for the standing), matched to the live player by Riot ID, an anonymous one by side and
@@ -278,6 +285,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   Windows) — four panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
   `CGShieldingWindowLevel` (League's Full Screen captures the display), on Windows a topmost `WS_EX_NOACTIVATE` layered
   window over a Borderless or Windowed game (the settings say so: Windows draws nothing over exclusive Full Screen) —
+  placed on the monitor the game runs on (#1914: the frontmost game window's frame, matched to the monitor holding
+  most of it, `shell_state::screens`; the primary monitor before any game) —
   never focused, click-through, sized to its content, its page on `#/overlay/<panel>`
   (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
   read — from its `GameStart` event, never over the loading screen, the client or another app; ⌥⇧O (Alt+Shift+O on Windows) hides them until the game ends. **Next item** (232 pt,
@@ -385,6 +394,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   offers its newest beta at once, truemain.lol's the production build once it is served. The installed app checks its own site's feed (Tauri updater) at
   launch and every 15 minutes, downloads a newer build in the background and installs it itself at launch when no
   champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
+  No toast during champion select or a game (#1914): a build found then is offered in the sidebar only, its toast
+  waits for the phase to end, and an offer already on screen steps aside for the phase and comes back after it.
   An install that has not restarted the app 30 s in swaps its progress toast for "Restart now" (a plain relaunch, never a
   second install over the running one, #1793).
   "Check for Updates…" runs the check on demand: in the app menu on macOS, in the tray icon's menu on Windows.

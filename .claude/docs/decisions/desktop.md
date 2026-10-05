@@ -58,7 +58,7 @@ twin rule (`web-frontend-rules.md`): a header names the twin, differences are ma
 behaviour sits in shims beside them (`useSiteShims.ts`, `utils/static-data.ts`) so the copies stay verbatim. The
 shared types and utils live under `desktop/app/shared/` at the site's paths so `~~/shared` imports resolve
 unchanged. A verbatim copy over the size limit (`LeaderboardRow.vue`) is recorded in the size baseline beside its
-twin rather than split away from it. The app's window is fixed and narrower than the site's pages, so where a site
+twin rather than split away from it. The app's window is narrower than the site's pages, so where a site
 row does not fit, the twin carries marked width adjustments (the leaderboard row gives the Riot ID its content width
 and reserves the sub-mains column only where it shows) and the build view's narrow column uses the site's compact
 home-page row instead, with the tag under the name — a truncated name was the first thing reported. The layer that would end the copies was #1687
@@ -483,3 +483,28 @@ in its tooltip (the product owner asked for it discreet but always there), on ev
 only the draft's: a lane build or a true main's page is as much a choice to take as the draft's. Summoner spells are
 not imported — the issue asked for them only if as safe, and the client's spell slots are part of champion select's
 own state, not a page the app can own and reuse — #1678.
+
+**The app's window is resizable down to 960 × 640, keeps its place across launches, and folds its sidebar into a
+rail below 1100 px (2026-10-05).** First step of #1914 (compact mode beside the client, second-monitor mode). The
+1180 × 760 default and its layout are unchanged, so the `/download` capture still matches. The minimum is where the
+draft's two rows of five pick cards still fit next to the rail: pages keep about the width they have at the default
+size (≈ 900 px of content) down to it, and the compact layouts of #1914 will lower it. The size and place are the
+shell's own small file (`window-state.json`, `shell_state::window`), not `tauri-plugin-window-state`, which restores
+the size in pixels — a window saved on a 4K monitor at 200 % would reopen twice as large on a 1080p one — and keeps
+a place as soon as one corner touches a monitor; here the size is kept in points, capped to the monitor, and a place
+is kept only while enough of the title bar to grab it is on a monitor, else the window opens centred on the primary
+one — #1914.
+
+**The overlay goes on the monitor the game runs on, not the primary one (2026-10-05).** While the game is frontmost
+the shell reads its window's frame — on Windows the foreground window's DWM frame, without opening the game's
+process; on macOS the game's largest window in the window list, whose owner and bounds need no Screen Recording
+permission — and the panels go on the monitor holding most of it (`shell_state::screens`). The last one seen is kept
+for the settings' preview while it is still plugged in; before any game, the primary monitor — #1914.
+
+**Nothing pops up by itself during champion select or a game (2026-10-05).** A pop-up there costs attention the
+player does not have, the most-cited complaint about companion apps. The update offer is the one toast the app raised
+on its own: a build found during a phase is offered in the sidebar only, its toast waits for the phase to end, and an
+offer already on screen steps aside and comes back after it. "Check for Updates…" still answers at once, and toasts
+that answer a click (rune import, recordings) stay. Badges and chips read as plain words: the game page's streak chip
+says "Won 4 in a row" rather than "4W streak"; the sidebar's "Rec" stays, the recording sign everyone reads, since
+"Recording" truncates the entry's own name — #1914.

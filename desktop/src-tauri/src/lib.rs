@@ -18,6 +18,7 @@ mod sim;
 mod site;
 mod supervisor;
 mod telemetry;
+mod window_state;
 
 use std::sync::{Arc, Mutex};
 
@@ -365,6 +366,7 @@ pub fn run() {
             app.manage(recorder.clone());
             recording::start(&handle, recorder, phases);
             overlay::setup(&handle)?;
+            window_state::restore(&handle);
             tauri::async_runtime::spawn(supervisor::run(handle, shared, client));
             Ok(())
         })
@@ -372,6 +374,7 @@ pub fn run() {
         .expect("failed to start the TrueMain companion app")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                window_state::save(app);
                 telemetry::send_at_exit(app);
             }
         });

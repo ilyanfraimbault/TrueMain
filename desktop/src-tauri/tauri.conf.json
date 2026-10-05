@@ -15,8 +15,11 @@
         "title": "TrueMain",
         "width": 1180,
         "height": 760,
-        "resizable": false,
-        "maximizable": false,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "maximizable": true,
+        "visible": false,
         "decorations": true,
         "dragDropEnabled": false
       }

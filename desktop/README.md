@@ -87,6 +87,14 @@ Tracking issue: **#1671**.
   on/off and where — five spots, or anywhere by dragging it in a preview — the
   next item's moment, size, opacity).
   The window layer is the #1673 spike's verdict, `docs/desktop-overlay-spike.md`.
+  The panels go on the monitor the game runs on, read from the game's window
+  while it is in front (#1914), the primary monitor before any game.
+- **A window you can size** (#1914): resizable down to 960 × 640, opening
+  where it was left — on a monitor still plugged in, else centred on the
+  primary one, never larger than the monitor. Below 1100 px wide the sidebar
+  folds into a rail of icons. Nothing pops up by itself during champion select
+  or a game: an update found then waits in the sidebar, its toast after the
+  phase.
 
 ## What it does not do yet
 
@@ -108,6 +116,12 @@ Tracking issue: **#1671**.
   check: a real game in Borderless, under its anti-cheat. Over League in
   exclusive Full Screen Windows draws nothing, so the settings ask for
   Borderless.
+- **No compact mode docked beside the client, no second-monitor setting yet**
+  (#1914). The window sizes and remembers its monitor, and the overlay follows
+  the game's monitor; docking to the client's edge, compact draft and game
+  layouts, and opening on a chosen monitor during a phase are still to come.
+  The game's monitor is matched from its window's frame on both platforms, but
+  only CI's single-monitor runner has run it so far.
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.
