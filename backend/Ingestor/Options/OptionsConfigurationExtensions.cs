@@ -32,6 +32,7 @@ public static class OptionsConfigurationExtensions
         services.AddSingleton<IValidateOptions<PlatformScopeOptions>>(platformScopeValidator);
         services.AddSingleton<IValidateOptions<DiscoveryOptions>>(platformScopeValidator);
         services.AddSingleton<IValidateOptions<LadderSyncOptions>>(platformScopeValidator);
+        services.AddSingleton<IValidateOptions<PaceSamplingOptions>>(platformScopeValidator);
         services.AddSingleton<IValidateOptions<MatchIngestionOptions>>(platformScopeValidator);
         services.AddSingleton<IValidateOptions<HarvestOptions>>(platformScopeValidator);
 
@@ -80,6 +81,11 @@ public static class OptionsConfigurationExtensions
             .PostConfigure(options => options.Platforms = platformScope.Resolve(options.Platforms))
             .Validate(options => HasNonEmptyItems(options.TierScope), "LadderSync:TierScope must contain at least one value.")
             .Validate(options => HasOnlyKnownLadderTiers(options.TierScope), KnownLadderTierScopeMessage)
+            .ValidateOnStart();
+
+        services.AddOptionsWithValidator<PaceSamplingOptions, PaceSamplingOptionsValidator>(configuration, PaceSamplingOptions.SectionName)
+            .PostConfigure(options => options.Platforms = platformScope.Resolve(options.Platforms))
+            .Validate(options => HasOnlyPagedTiers(options.TierScope), PagedTierScopeMessage)
             .ValidateOnStart();
 
         services.AddOptionsWithValidator<ManualSeedOptions, ManualSeedOptionsValidator>(configuration, ManualSeedOptions.SectionName)
@@ -205,6 +211,23 @@ public static class OptionsConfigurationExtensions
     private const string KnownLadderTierScopeMessage =
         "LadderSync:TierScope must contain only Riot ranked tiers (Iron..Challenger), with GM "
         + "accepted as shorthand for Grandmaster.";
+
+    // The sampler reads the paginated per-division ladder only, which the apex tiers do not have.
+    private const string PagedTierScopeMessage =
+        "PaceSampling:TierScope must contain only Iron..Diamond — the tiers league-v4 pages by division.";
+
+    private static readonly string[] PagedTiers =
+    [
+        EloBracket.Iron, EloBracket.Bronze, EloBracket.Silver, EloBracket.Gold,
+        EloBracket.Platinum, EloBracket.Emerald, EloBracket.Diamond,
+    ];
+
+    private static bool HasOnlyPagedTiers(IEnumerable<string> values)
+    {
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .All(value => PagedTiers.Contains(value.Trim().ToUpperInvariant(), StringComparer.Ordinal));
+    }
 
     private static bool HasOnlyKnownLadderTiers(IEnumerable<string> values)
     {

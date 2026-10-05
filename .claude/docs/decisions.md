@@ -234,6 +234,7 @@ Last verified against `develop` on 2026-09-02.
 - The coverage floor is 50 mains per champion per region, and the claim's split is centred on it (2026-09-08) — #1531, #1361, #1150, #900
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150
 - Region balance is a target, not a quota: coverage deficit allocates every budget (2026-08-19) — #1149, #495, #900
+- Iron → Platinum are sampled into the pace benchmark by `PaceSampling` under a hard per-day call cap (every call counted), the games never stored — only a ledger of ids and the bins (2026-10-05) — #1912
 
 ## Ingestion pipeline — processes, leases and resilience — [`decisions/pipeline-ingestion.md`](decisions/pipeline-ingestion.md)
 

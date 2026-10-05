@@ -37,6 +37,7 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'ChampionSynergyAggregation',
   'ChampionBanAggregation',
   'AccountRefresh',
+  'PaceSampling',
   'MatchDataRetention',
   'CandidateStockSnapshot',
   'StorageSnapshot',
@@ -85,6 +86,7 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'MainActivity',
       'MatchIngestion',
       'AccountRefresh',
+      'PaceSampling',
     ],
   },
   {
@@ -225,6 +227,11 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Account Refresh',
     description:
       'Refreshes Riot ID and rank one account at a time, and recovers or invalidates accounts whose PUUID stopped resolving. The fallback behind Ladder Sync.',
+  },
+  PaceSampling: {
+    label: 'Pace Sampling',
+    description:
+      'Reads a few games of the tiers TrueMain does not ingest (Iron to Platinum) into the desktop overlay\'s pace benchmark, under its own daily call cap, and keeps none of them — only the counters and the ids already read.',
   },
   MatchDataRetention: {
     label: 'Retention',

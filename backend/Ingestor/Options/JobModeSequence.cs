@@ -78,6 +78,9 @@ public static class JobModeSequence
         // stamped lands in the ALL band only, and the fold is one-shot.
         JobMode.BanAggregationOnly,
         JobMode.AccountRefreshOnly,
+        // Reads low-tier games into the pace benchmark (#1912) under its own caps. After
+        // everything else that spends the Riot budget, so it only uses what they left.
+        JobMode.PaceSamplingOnly,
         JobMode.MatchDataRetentionOnly,
         // Reads the candidate stock per status (#1403) after retention, for the same
         // reason the storage snapshot follows it: retention prunes stale candidates and
@@ -113,7 +116,8 @@ public static class JobModeSequence
         JobMode.ScoringOnly,
         JobMode.MainActivityOnly,
         JobMode.MatchIngestionOnly,
-        JobMode.AccountRefreshOnly
+        JobMode.AccountRefreshOnly,
+        JobMode.PaceSamplingOnly
     ]);
 
     private static readonly ReadOnlyCollection<JobMode> AggregateLanePipeline = Array.AsReadOnly<JobMode>(
