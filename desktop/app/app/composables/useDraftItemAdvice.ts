@@ -45,10 +45,11 @@ export function useDraftItemAdvice(subject: Ref<BuildSubject | null>) {
 
   watch(() => (subject.value ? JSON.stringify(subject.value) : ''), (key) => {
     clearTimeout(settle)
+    // A new draft outdates any answer still out for the previous one, settle window included.
+    ++generation
     const current = subject.value
     // With nobody else on the board there is no situation to read.
     if (!key || !current || current.request.enemies.length + current.request.allies.length === 0) {
-      ++generation
       pushes.value = []
       pending.value = false
       return
