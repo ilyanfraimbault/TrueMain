@@ -1,7 +1,8 @@
 //! Pushing a rune page into the client.
 //!
-//! One of the two places this app **writes** to the client (the item set,
-//! `item_sets`, is the other), so it carries its own boundaries:
+//! One of the places this app **writes** to the client (with the item set,
+//! `item_sets`, and champion select, `champ_select`), so it carries its own
+//! boundaries:
 //!
 //! * it runs on an explicit user click, never on a pick or a phase change.
 //!   Riot's player-facing policy forbids an application "taking actions on your

@@ -4,7 +4,10 @@ import type { DraftCandidate } from '~/types/draft'
 /**
  * "Your pick": the candidates the draft endpoint ranked for our lane, best
  * first, as a podium of posters. A click on one opens its build against this
- * draft — the app never picks; the player does, in the client.
+ * draft. The app never picks on its own: each card carries a separate
+ * "Hover" (or, on our ban, "Ban") control the player clicks (#1909), and the
+ * search reaches every other champion the same way — the lock itself is the
+ * strip's button, away from the cards.
  *
  * "My pool" ranks the player's own champions (their most-mastered on the
  * lane); off, every champion played on the lane. Either way the ranking is the
@@ -25,7 +28,8 @@ const props = defineProps<{
 const myPool = defineModel<boolean>('myPool', { default: true })
 const emit = defineEmits<{ preview: [championId: number] }>()
 
-const { nameOf } = useChampionStatics()
+const { nameOf, champions } = useChampionStatics()
+const { writable } = useChampSelectActions()
 const { entryOf, status: tierListStatus } = useTierList()
 
 const search = ref('')
@@ -48,6 +52,20 @@ const ranked = computed(() => {
 const shown = computed(() => {
   const query = search.value.trim().toLowerCase()
   return query ? ranked.value.filter(candidate => nameOf(candidate.championId).toLowerCase().includes(query)) : ranked.value
+})
+
+/**
+ * Champions the search names that the podium does not rank — so any champion
+ * can be hovered or banned from here, not only the lane's candidates.
+ */
+const others = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  if (!query || !writable.value) return []
+  const ranked = new Set(props.candidates.map(candidate => candidate.championId))
+  return [...champions.value.values()]
+    .filter(champion => !ranked.has(champion.id) && champion.name.toLowerCase().includes(query))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 12)
 })
 
 /** The card in focus: the hovered one, else the best. */
@@ -98,16 +116,12 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
 
     <!-- A scroller clips what is drawn outside its box, the focused card's ring included: the padding is that ring's
          room, the negative margin keeps the cards aligned with the header. -->
-    <div v-if="shown.length" class="-mx-1 flex min-h-0 flex-1 items-end gap-2.5 overflow-x-auto px-1 pb-1 pt-1" @mouseleave="hovered = null">
-      <button
+    <div v-if="shown.length || others.length" class="-mx-1 flex min-h-0 flex-1 items-end gap-2.5 overflow-x-auto px-1 pb-1 pt-1" @mouseleave="hovered = null">
+      <div
         v-for="(candidate, index) in shown"
         :key="candidate.championId"
-        type="button"
-        class="h-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        :aria-label="`Build for ${nameOf(candidate.championId)}`"
+        class="h-full shrink-0"
         @mouseenter="hovered = candidate.championId"
-        @focus="hovered = candidate.championId"
-        @click="emit('preview', candidate.championId)"
       >
         <DraftSuggestionCard
           :candidate="candidate"
@@ -115,8 +129,31 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
           :focused="focused === candidate.championId"
           :height="heightOf(index)"
           :measured="measured"
-        />
-      </button>
+        >
+          <!-- The card's click previews the build; the write is the control over its corner, a separate target. -->
+          <button
+            type="button"
+            class="absolute inset-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            :aria-label="`Build for ${nameOf(candidate.championId)}`"
+            @focus="hovered = candidate.championId"
+            @click="emit('preview', candidate.championId)"
+          />
+          <template #action>
+            <DraftChampionAction :champion-id="candidate.championId" />
+          </template>
+        </DraftSuggestionCard>
+      </div>
+
+      <div v-if="others.length" class="flex h-full shrink-0 flex-col justify-end gap-1.5">
+        <span class="stat-label px-1">Not ranked for this draft</span>
+        <div class="grid grid-flow-col grid-rows-3 gap-1.5">
+          <div v-for="champion in others" :key="champion.id" class="flex w-44 items-center gap-2 rounded-lg bg-elevated p-1.5 ring-1 ring-default">
+            <ChampionPortrait :champion-id="champion.id" size="sm" class="size-8! rounded-md!" />
+            <span class="min-w-0 flex-1 truncate text-xs font-semibold text-highlighted">{{ champion.name }}</span>
+            <DraftChampionAction :champion-id="champion.id" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-else class="flex flex-1 flex-col items-center justify-center gap-2 text-center">

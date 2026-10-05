@@ -6,6 +6,7 @@
 //! belongs to which phase — in one place.
 
 mod api;
+mod champselect;
 mod game;
 mod itemsets;
 mod loading;
@@ -313,6 +314,7 @@ pub fn run() {
         .manage(SharedReads::default())
         .manage(BuildInFlight::default())
         .manage(client.clone())
+        .manage(champselect::ChampSelectWriter::new(client.clone()))
         .manage(GameCache::default())
         .manage(SharedGame::default())
         .manage(loading::SharedLoading::default())
@@ -369,6 +371,9 @@ pub fn run() {
             loading::loading_players,
             runes::import_runes,
             itemsets::import_item_set,
+            champselect::champ_select_hover,
+            champselect::champ_select_lock,
+            champselect::champ_select_choices,
             telemetry::telemetry_page
         ])
         // The overlay's panel is a window too: without this, closing the

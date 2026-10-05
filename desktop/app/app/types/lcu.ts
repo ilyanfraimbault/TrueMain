@@ -12,6 +12,23 @@ export interface DraftState {
   allyBans: number[]
   enemyBans: number[]
   secondsLeft: number
+  /** The client's timer phase: `PLANNING`, `BAN_PICK`, `FINALIZATION`. */
+  timerPhase: string
+  /** Our action open right now — the ban or pick a click may write to. */
+  myAction: DraftAction | null
+  /** Our first action still to come, and how many turns away it is. */
+  myNextAction: DraftAction | null
+  turnsUntilMyAction: number | null
+}
+
+/** Mirrors `DraftAction` in `crates/lcu/src/champ_select.rs`. */
+export interface DraftAction {
+  id: number
+  kind: 'pick' | 'ban' | string
+  /** Hovered while in progress, committed once completed. */
+  championId: number | null
+  inProgress: boolean
+  completed: boolean
 }
 
 /** Mirrors `TeamSlot` in `crates/lcu/src/model.rs`. */

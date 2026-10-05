@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::champ_select::DraftAction;
+
 /// Where the player is in the client, and what the app should therefore show.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GameflowPhase {
@@ -160,12 +162,17 @@ pub struct ChampSelectBans {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampSelectAction {
+    /// What a write to this action is addressed by
+    /// (`/lol-champ-select/v1/session/actions/{id}`).
+    pub id: i64,
     pub actor_cell_id: i64,
     /// Zero until the actor commits, or when a ban turn is skipped.
     pub champion_id: i64,
     pub completed: bool,
     pub is_ally_action: bool,
-    /// `"ban"` or `"pick"`.
+    /// The turn is open: the actor can hover and lock now.
+    pub is_in_progress: bool,
+    /// `"ban"` or `"pick"` — or a step that is neither (`ten_bans_reveal`).
     #[serde(rename = "type")]
     pub kind: String,
 }
@@ -203,6 +210,13 @@ pub struct DraftState {
     pub ally_bans: Vec<i64>,
     pub enemy_bans: Vec<i64>,
     pub seconds_left: i64,
+    /// The client's timer phase (`PLANNING`, `BAN_PICK`, `FINALIZATION`).
+    pub timer_phase: String,
+    /// Our action open right now — the ban or pick a click may write to.
+    pub my_action: Option<DraftAction>,
+    /// Our first action still to come, and how many turns away it is.
+    pub my_next_action: Option<DraftAction>,
+    pub turns_until_my_action: Option<i64>,
 }
 
 /// One cell of our side of champion select.
@@ -262,6 +276,7 @@ impl ChampSelectSession {
 
     pub fn draft_state(&self) -> DraftState {
         let me = self.local_player();
+        let turn = self.turn();
 
         let ally_champions = self
             .my_team
@@ -299,6 +314,10 @@ impl ChampSelectSession {
             ally_bans: self.bans(true),
             enemy_bans: self.bans(false),
             seconds_left: self.timer.adjusted_time_left_in_phase / 1000,
+            timer_phase: self.timer.phase.clone(),
+            my_action: turn.current,
+            my_next_action: turn.next,
+            turns_until_my_action: turn.turns_until_next,
         }
     }
 }
