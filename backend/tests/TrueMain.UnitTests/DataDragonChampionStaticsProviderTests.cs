@@ -22,7 +22,7 @@ public sealed class DataDragonChampionStaticsProviderTests
           "version": "16.17.1",
           "data": {
             "Aatrox": { "id": "Aatrox", "key": "266", "stats": { "attackrange": 175, "hp": 650 } },
-            "Caitlyn": { "id": "Caitlyn", "key": "51", "stats": { "attackrange": 650, "hp": 580 } },
+            "Caitlyn": { "id": "Caitlyn", "key": "51", "info": { "attack": 8, "defense": 2, "magic": 2, "difficulty": 6 }, "stats": { "attackrange": 650, "hp": 580 } },
             "Gnar": { "id": "Gnar", "key": "150", "stats": { "attackrange": 400, "hp": 540 } },
             "Broken": { "id": "Broken", "key": "not-a-number", "stats": { "attackrange": 100 } }
           }
@@ -30,7 +30,7 @@ public sealed class DataDragonChampionStaticsProviderTests
         """;
 
     [Fact]
-    public async Task GetChampionsAsync_MapsThePatchOntoItsPublishedVersion_AndReadsKeyAndRange()
+    public async Task GetChampionsAsync_MapsThePatchOntoItsPublishedVersion_AndReadsKeyRangeAndRatings()
     {
         using var handler = new FakeHandler();
         using var client = new HttpClient(handler);
@@ -41,6 +41,9 @@ public sealed class DataDragonChampionStaticsProviderTests
         champions.Should().HaveCount(3, "a champion whose key does not parse is skipped");
         champions[266].Should().Be(new ChampionStatics(266, "Aatrox", 175));
         champions[51].AttackRange.Should().Be(650);
+        champions[51].AttackRating.Should().Be(8);
+        champions[51].MagicRating.Should().Be(2);
+        champions[266].AttackRating.Should().BeNull("a champion without an info block has no rating, not a zero one");
         champions[150].AttackRange.Should().Be(400);
         handler.Requested.Should().Contain(url => url.Contains("/cdn/16.16.1/", StringComparison.Ordinal));
     }

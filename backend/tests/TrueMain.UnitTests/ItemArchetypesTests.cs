@@ -7,7 +7,8 @@ namespace TrueMain.UnitTests;
 /// <summary>
 /// Pins the category rules behind <see cref="ItemArchetypes"/> (#1449): which
 /// CommunityDragon categories make an item crit / armour-pen / on-hit / AP / tank, and
-/// which items are not classified at all because they are not a build choice.
+/// which items are not classified at all because they are not a build choice — and the
+/// single archetype a whole inventory leans on (#1905).
 /// </summary>
 public sealed class ItemArchetypesTests
 {
@@ -75,6 +76,30 @@ public sealed class ItemArchetypesTests
         var archetypes = ItemArchetypes.ClassifyInventory([3031, 0, 3068, 4242, 0, 0], metadata);
 
         archetypes.Should().Be(ItemArchetype.Crit | ItemArchetype.Tank);
+    }
+
+    [Fact]
+    public void Dominant_CountsItems_SoOneHybridItemDoesNotFlipAnAdBuild()
+    {
+        var metadata = new Dictionary<int, ItemMetadata>
+        {
+            [6672] = Item(6672, isFinal: true, categories: ["Damage", "AttackSpeed", "OnHit"]),
+            [3153] = Item(3153, isFinal: true, categories: ["Damage", "AttackSpeed", "OnHit"]),
+            [3124] = Item(3124, isFinal: true, categories: ["Damage", "SpellDamage", "AttackSpeed", "OnHit"]),
+            [3115] = Item(3115, isFinal: true, categories: ["SpellDamage", "AttackSpeed", "OnHit"]),
+            [3089] = Item(3089, isFinal: true, categories: ["SpellDamage"]),
+            [3031] = Item(3031, isFinal: true, categories: ["Damage", "CriticalStrike"]),
+            [3068] = Item(3068, isFinal: true, categories: ["Health", "Armor"]),
+        };
+
+        // AD Kai'Sa with one hybrid item: the union holds AP, the count does not lean on it.
+        ItemArchetypes.Dominant([6672, 3153, 3124, 0, 0, 0, 0], metadata).Should().Be(ItemArchetype.OnHit);
+        // AP Kai'Sa: AP on three items, on-hit on two.
+        ItemArchetypes.Dominant([3115, 3089, 3124, 0, 0, 0, 0], metadata).Should().Be(ItemArchetype.AbilityPower);
+        // A tie goes by precedence: crit before tank.
+        ItemArchetypes.Dominant([3068, 3031, 0, 0, 0, 0, 0], metadata).Should().Be(ItemArchetype.Crit);
+        // Nothing classified — empty slots and unknown ids — is its own bucket.
+        ItemArchetypes.Dominant([0, 4242, 0, 0, 0, 0, 0], metadata).Should().Be(ItemArchetype.None);
     }
 
     private static ItemArchetype Final(int id, params string[] categories)

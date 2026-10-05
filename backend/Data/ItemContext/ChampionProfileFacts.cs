@@ -20,6 +20,9 @@ public sealed record ChampionProfileFacts
 
     public required string Position { get; init; }
 
+    /// <summary>The patch the profile row was folded on — older than the one asked for when the snapshot reached back.</summary>
+    public string Patch { get; init; } = string.Empty;
+
     /// <summary>Games the profile was folded from — the caller's floor is applied on this.</summary>
     public required int Games { get; init; }
 
@@ -74,6 +77,7 @@ public sealed record ChampionProfileFacts
         {
             ChampionId = stat.ChampionId,
             Position = stat.Position,
+            Patch = stat.Patch,
             Games = stat.Games,
             DamagePerGame = damage / games,
             MagicShare = damage > 0 ? stat.MagicDamageToChampionsSum / damage : 0d,

@@ -19,7 +19,8 @@ namespace TrueMain.IntegrationTests;
 /// thirty-column upsert, the per-match flag that makes a re-run a no-op, and the rules
 /// that are specific to profiles — only participants carrying the #1448 context fields
 /// count, remakes fold to nothing, lane leads need both sides' snapshots, archetypes
-/// come from the final inventory, and the ranged flag is a COALESCEd static attribute.
+/// come from the final inventory, and the ranged flag is a COALESCEd static attribute —
+/// plus the per-archetype damage sums folded in the same pass (#1905).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLifetime
@@ -105,8 +106,47 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLi
 
         await using var db = _fixture.CreateDbContext();
         (await db.ChampionProfileStats.CountAsync()).Should().Be(0, "a pre-#1448 row and a remake both fold to nothing");
+        (await db.ChampionDamageProfileStats.CountAsync()).Should().Be(0, "nor do they reach the per-archetype damage sums");
         (await db.Matches.CountAsync(m => m.ProfileAggregated)).Should().Be(2, "both are still flagged as done");
         summary.Should().BeEquivalentTo(new { Matches = 2, Participants = 0, Rows = 0 }, o => o.ExcludingMissingMembers());
+    }
+
+    [Fact]
+    public async Task RunAsync_SplitsTheDamageByTheArchetypeTheBuildLeanedOn()
+    {
+        await SeedMatchAsync("crit", durationSeconds: 1800, withContext: true, topWins: true,
+            topItems: [CritItem, TankItem], snapshots: true);
+        await SeedMatchAsync("ap", durationSeconds: 1800, withContext: true, topWins: true,
+            topItems: [ApItem, ApItem], snapshots: true);
+        await SeedMatchAsync("empty", durationSeconds: 1800, withContext: true, topWins: true,
+            topItems: [], snapshots: true);
+        await SeedMatchAsync("legacy", durationSeconds: 1800, withContext: false, topWins: true,
+            topItems: [ApItem], snapshots: true);
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        // Same gate as the profile: a second run folds nothing twice.
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        var rows = await db.ChampionDamageProfileStats.AsNoTracking()
+            .Where(row => row.ChampionId == Aatrox && row.Position == "TOP")
+            .ToListAsync();
+
+        // Crit and tank tie at one item each: the precedence files the game under crit.
+        rows.Select(row => (row.Archetype, row.Games)).Should().BeEquivalentTo(new[]
+        {
+            (ItemArchetype.Crit, 1),
+            (ItemArchetype.AbilityPower, 1),
+            (ItemArchetype.None, 1),
+        }, "the pre-#1448 game contributes nothing");
+        rows.Should().OnlyContain(row => row.Patch == Patch
+            && row.PhysicalDamageToChampionsSum == 18_000
+            && row.MagicDamageToChampionsSum == 2_000
+            && row.TrueDamageToChampionsSum == 500);
+
+        var profile = await db.ChampionProfileStats.AsNoTracking()
+            .SingleAsync(p => p.ChampionId == Aatrox && p.Position == "TOP");
+        rows.Sum(row => row.Games).Should().Be(profile.Games, "both tables fold exactly the same participants");
     }
 
     [Fact]

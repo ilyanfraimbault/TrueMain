@@ -126,4 +126,59 @@ public static class ItemArchetypes
 
         return result;
     }
+
+    /// <summary>
+    /// Tie-break order of <see cref="Dominant"/>: ability power first, because a
+    /// <c>SpellDamage</c> item is the one archetype that flips the champion's damage type;
+    /// then the AD archetypes from the most to the least specific; tank last.
+    /// </summary>
+    private static readonly ItemArchetype[] DominancePrecedence =
+    [
+        ItemArchetype.AbilityPower,
+        ItemArchetype.Crit,
+        ItemArchetype.ArmorPenetration,
+        ItemArchetype.OnHit,
+        ItemArchetype.Tank,
+    ];
+
+    /// <summary>
+    /// The one archetype a final inventory leans on (#1905): the archetype the most of its
+    /// classified items carry, ties broken by <see cref="DominancePrecedence"/>, or
+    /// <see cref="ItemArchetype.None"/> when no item is classified. Counted per item rather
+    /// than read off the union, because the union of an AD Kai'Sa holding one hybrid item
+    /// already contains <see cref="ItemArchetype.AbilityPower"/>.
+    /// </summary>
+    public static ItemArchetype Dominant(
+        ReadOnlySpan<int> itemIds,
+        IReadOnlyDictionary<int, ItemMetadata> metadata)
+    {
+        Span<int> counts = stackalloc int[DominancePrecedence.Length];
+        foreach (var itemId in itemIds)
+        {
+            if (itemId <= 0 || !metadata.TryGetValue(itemId, out var item))
+            {
+                continue;
+            }
+
+            var archetypes = Classify(item);
+            for (var i = 0; i < DominancePrecedence.Length; i++)
+            {
+                if (archetypes.HasFlag(DominancePrecedence[i]))
+                {
+                    counts[i]++;
+                }
+            }
+        }
+
+        var best = -1;
+        for (var i = 0; i < counts.Length; i++)
+        {
+            if (counts[i] > 0 && (best < 0 || counts[i] > counts[best]))
+            {
+                best = i;
+            }
+        }
+
+        return best < 0 ? ItemArchetype.None : DominancePrecedence[best];
+    }
 }

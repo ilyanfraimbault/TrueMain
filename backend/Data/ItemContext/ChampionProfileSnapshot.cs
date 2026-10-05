@@ -46,6 +46,15 @@ public sealed class ChampionProfileSnapshot
     /// <summary>How many (champion, position) profiles the snapshot resolved, for logging.</summary>
     public int Count => _byPosition.Count;
 
+    /// <summary>Every <c>(champion, position)</c> profile the snapshot resolved.</summary>
+    public IEnumerable<ChampionProfileFacts> ByPosition => _byPosition.Values;
+
+    /// <summary>
+    /// Each champion's best-covered profile — what <see cref="Find"/> answers for a position
+    /// the champion has no profile at.
+    /// </summary>
+    public IEnumerable<ChampionProfileFacts> ByChampion => _byChampion.Values;
+
     /// <summary>
     /// The profile for this champion at this position, its best-covered position as a
     /// fallback, or <see langword="null"/> when the champion has no usable profile at all.
