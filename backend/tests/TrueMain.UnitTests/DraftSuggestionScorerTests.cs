@@ -53,6 +53,22 @@ public class DraftSuggestionScorerTests
     }
 
     [Fact]
+    public void AChampionStrongOnItsLaneSaysSoAndOutranksAWeakOne()
+    {
+        var strong = new DraftLaneRecord(10_000, 5_600, new Dictionary<int, DraftComponent>(), new Dictionary<int, (int, int)>(), "16.19");
+        var weak = strong with { Wins = 4_600 };
+
+        var strongCandidate = DraftCandidateScorer.Score(1, strong, NoOccupancy, NoOccupancy, 0.52, [], Weights);
+        var weakCandidate = DraftCandidateScorer.Score(2, weak, NoOccupancy, NoOccupancy, 0.52, [], Weights);
+
+        var reason = Assert.Single(strongCandidate.Reasons);
+        Assert.Equal(DraftReasonKinds.LaneStrength, reason.Kind);
+        Assert.Equal(0.04, reason.Delta!.Value, 9);
+        Assert.Equal(0.04, strongCandidate.StrengthDelta, 9);
+        Assert.True(strongCandidate.Score > weakCandidate.Score);
+    }
+
+    [Fact]
     public void AHoveredAllyIsSaidToBeTentative()
     {
         var allies = new List<DraftAllyInput> { new(30, "UTILITY", Hovered: true, new DraftComponent(0.04, 5_000)) };

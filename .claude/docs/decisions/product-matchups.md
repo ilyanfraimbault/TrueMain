@@ -299,7 +299,11 @@ allies outweigh the lane, and bet the matchup on the solver's top placement even
   16.18, 39,659 main picks): lane known, old 0.5071 against new 0.5096–0.5110, rising with k up to the grid's edge
   (400), synergy weight 0 to 0.25 indistinguishable at k = 400 and worse beyond; blind, the delta-only blind
   safety (0.5031 at best) stayed under the plain lane win rate (0.5046) — which is what the strength term adds.
-  Hence k = 400 and synergy 0.25 for now, strength pending a second run over a wider grid.
+  Second run, same data, wider grid with the strength term: lane known peaks at 0.5123 (k = 400 or 800, strength
+  0.5, synergy 0–0.25), strength 1 and k ≥ 1600 both lose; blind with strength 0.5 reaches 0.5058 (k 400–1600),
+  above the lane win rate's 0.5046. **Settled: k = 400, strength 0.5, synergy 0.25** (0.5122, within 0.0001 of
+  the best, keeping the ally term the reasons need). Every gap here is small — a few thousandths of AUC on
+  ~40k picks — so these are the best measured values, not a large effect, and the next back-test may move them.
   The total is a ranking key, never displayed, and there are **no letter grades** (product owner, 2026-10-05: a
   grade binned from these deltas would still be a derived number);
 - **reasons** — the 2–3 parts of the score that move it most, either way, as text-free data the client words

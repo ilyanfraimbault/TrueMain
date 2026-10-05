@@ -38,7 +38,7 @@ public sealed record DraftScoringWeights
     /// champion's own rate, so without this a champion that wins everywhere scores
     /// like one that loses everywhere.
     /// </summary>
-    public double Strength { get; init; } = 0d;
+    public double Strength { get; init; } = 0.5d;
 
     /// <summary>Weight of the ally synergy term, an average over the allies on the board.</summary>
     public double Synergy { get; init; } = 0.25d;
