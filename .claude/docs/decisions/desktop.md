@@ -483,3 +483,16 @@ in its tooltip (the product owner asked for it discreet but always there), on ev
 only the draft's: a lane build or a true main's page is as much a choice to take as the draft's. Summoner spells are
 not imported — the issue asked for them only if as safe, and the client's spell slots are part of champion select's
 own state, not a page the app can own and reuse — #1678.
+
+**Items are imported the same way, as one `TrueMain: ` item set replaced in place (2026-10-05).** The rune page is no
+longer the only write: a second icon, in the corner of the build tree, writes the build on screen as one item set
+titled `TrueMain: <champion>` (Starter, Boots, Core, Situational — each only when it has items, duplicate starters
+folded into a count), offered on that champion and Summoner's Rift. The app owns **one** set: importing another
+champion's build moves it there rather than adding a set per champion or per game; recognised by the same name prefix,
+and further sets carrying it are collapsed into one. Same click-only rule as the runes. The client only accepts the
+account's whole list (`PUT /lol-item-sets/v1/item-sets/{summonerId}/sets`), so the import is a read-modify-write and
+carries its own guards: every set that is not ours goes back as the raw JSON it was read as, in its position (no typed
+struct that would drop a field); the list is re-read right before the write and a failed or undecodable read writes
+nothing; the list is read again after, and a player set missing from it is reported to the player. The Situational
+block is the slice's `Situational` verdicts (item context, #1450) by pick rate, else the build tree's other branches
+along the core path — never padded. The skill order is not written into a block title — #1908.

@@ -7,6 +7,7 @@
 
 mod api;
 mod game;
+mod itemsets;
 mod loading;
 mod menu;
 mod overlay;
@@ -345,6 +346,7 @@ pub fn run() {
             overlay::overlay_fit,
             loading::loading_players,
             runes::import_runes,
+            itemsets::import_item_set,
             telemetry::telemetry_page
         ])
         // The overlay's panel is a window too: without this, closing the
