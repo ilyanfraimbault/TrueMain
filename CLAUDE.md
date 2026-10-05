@@ -23,6 +23,9 @@ TrueMain is a League of Legends analytics site: champion/player stats computed f
   area. The full entries (decision — why — source) live in `.claude/docs/decisions/<area>.md`. Scan the index
   to know whether a call already exists, then open only the area file you need — never load them all.
 
+- `.claude/docs/glossary.md` — **the project's language**: what each League and TrueMain term means and which
+  word to use. Use its terms in code, issues and PRs; settle a new or ambiguous one with the `domain-modeling` skill.
+
 Any PR that ships a user-facing feature, removes one, or reverses a decision **updates these files in the same
 PR**: the entry in its area file *and* its line in the index. Stale entries are worse than missing ones.
 
@@ -94,3 +97,5 @@ Every issue goes on GitHub Project #2 ("TrueMain"). No milestones. Three fields,
 ## Skills
 
 Prefer the project skills for lifecycle steps — they encode all of the above: `start-issue`, `ship` (verify → PR → babysit → autonomous merge), `new-issue`, `release` (site → prod), `desktop-release` (app bump → preprod beta → promotion to prod), `cleanup-branches`, `setup-worktree`.
+
+Disciplines, adapted from mattpocock/skills (`.claude/skills/THIRD-PARTY.md`): `diagnosing-bugs` (a red feedback loop before any hypothesis), `grilling` (round-based interview before open-ended work), `domain-modeling` (glossary and decision log), `writing-for-agents` (editing skills and steering files). User-invoked: `/grill-with-docs`, `/retro` (improve the agent environment after a session).

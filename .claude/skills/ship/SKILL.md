@@ -18,6 +18,8 @@ Look at `git diff --name-only origin/develop...HEAD` and run only the relevant c
 
 Fix failures before pushing — never push a commit you haven't built.
 
+**Spec check** — reread the issue (`gh issue view <n>`): every `Scope` bullet and `Acceptance` line is met by the diff, or the PR body says why not. Behaviour the issue did not ask for is either cut or named in the body.
+
 CI itself only runs the jobs the diff can break (`changes` job in `ci.yml`, see `docs/ci.md`): a docs-only PR shows no CI check at all, only the Claude review — that is expected, not a hung run.
 
 ## 2. Branch & commits
@@ -28,7 +30,7 @@ CI itself only runs the jobs the diff can break (`changes` job in `ci.yml`, see 
 ## 3. Open the PR
 
 - Base `develop` — always (release PRs are the `release` skill's job).
-- Body includes `Closes #<issue>` when an issue exists.
+- Body follows [`PR-BODY.md`](PR-BODY.md): Summary as the smallest visual, before/after Evidence, Merge danger (one-way or two-way door, blast radius), and `Closes #<issue>` when an issue exists.
 - Title in conventional-commit style: it becomes the squash commit on develop.
 
 ## 4. Babysit — a bounded loop, not an infinite one
