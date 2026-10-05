@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Lane, TeamRow } from '~/types/draft'
+import type { DraftSuggestionItem, Lane, TeamRow } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 import type { ViewedPick } from '~/composables/useDraftSubject'
 import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
@@ -37,13 +37,20 @@ const hasPool = computed(() => championPool.value.length > 0)
 /** Rank the player's own champions, or every champion played on the lane. On by default when there is a pool. */
 const myPool = ref(true)
 
-/** Champions nobody can pick any more: banned, or locked on either side. */
+/** Champions nobody can pick any more: banned, picked by the enemy, or locked or hovered by an ally. */
 const unavailable = computed(() => new Set([
   ...props.draft.allyBans,
   ...props.draft.enemyBans,
   ...props.draft.enemyChampions,
-  ...props.draft.myTeam.filter(slot => slot.locked && !slot.isMe && slot.championId !== null).map(slot => slot.championId!),
+  ...props.draft.myTeam.filter(slot => !slot.isMe && slot.championId !== null).map(slot => slot.championId!),
 ]))
+
+/** The player's most-mastered champions played on our lane and still available, the first ten. */
+const lanePool = computed(() => {
+  const position = props.draft.myPosition
+  if (!position) return []
+  return championPool.value.filter(id => !unavailable.value.has(id) && entryOf(id, position) !== null).slice(0, POOL_SIZE)
+})
 
 /**
  * What the endpoint ranks. Our pool: the player's most-mastered champions that
@@ -54,16 +61,35 @@ const unavailable = computed(() => new Set([
 const candidates = computed(() => {
   const position = props.draft.myPosition
   if (!position) return []
-  if (myPool.value && hasPool.value) {
-    return championPool.value
-      .filter(id => !unavailable.value.has(id) && entryOf(id, position) !== null)
-      .slice(0, POOL_SIZE)
-  }
+  if (myPool.value && hasPool.value) return lanePool.value
   return laneEntries(position).filter(entry => !unavailable.value.has(entry.championId)).map(entry => entry.championId)
 })
 
 const pinnedLanes = ref<Record<number, string>>({})
 const { recommendation, pending: ranking, error: rankError } = useDraftRecommendation(draft, pinnedLanes, candidates)
+
+/**
+ * Bans are the question on our ban turn, and in the planning phase once the
+ * player has declared a pick — the one the bans then protect (#1906).
+ */
+const banTime = computed(() => {
+  const action = props.draft.myAction
+  if (action?.kind === 'ban' && action.inProgress) return true
+  return props.draft.timerPhase === 'PLANNING' && props.draft.myChampion !== null && !props.draft.myChampionLocked
+})
+const { bans, pending: banPending, error: banError } = useDraftBans(draft, lanePool, banTime)
+
+const pickSuggestions = computed<DraftSuggestionItem[]>(() => (recommendation.value?.candidates ?? []).map(candidate => ({
+  championId: candidate.championId,
+  reasons: candidate.reasons ?? [],
+  thin: candidate.thinSample,
+})))
+
+const banSuggestions = computed<DraftSuggestionItem[]>(() => (bans.value?.candidates ?? []).map(candidate => ({
+  championId: candidate.championId,
+  reasons: candidate.reasons,
+  thin: false,
+})))
 
 const enemyLanes = computed(() => recommendation.value?.enemyLanes ?? [])
 const { slots, pinned, hasCorrections, swap, reset } = useLaneAssignment(enemyLanes)
@@ -139,10 +165,12 @@ watch(() => [props.draft.myChampion, props.draft.myChampionLocked].join(':'), ()
   previewed.value = null
 })
 
-/** Picks while ours is open and there is a lane to rank for; the build otherwise. */
-const mode = computed<'pick' | 'build'>(() => {
+/** Bans on our ban turn, picks while ours is open, with a lane to rank for; the build otherwise. */
+const mode = computed<'pick' | 'ban' | 'build'>(() => {
   if (shownView.value || previewed.value !== null || showBuild.value) return 'build'
-  return !props.draft.myChampionLocked && byLane.value ? 'pick' : 'build'
+  if (!byLane.value) return 'build'
+  if (banTime.value) return 'ban'
+  return !props.draft.myChampionLocked ? 'pick' : 'build'
 })
 
 const canGoBack = computed(() => shownView.value !== null || previewed.value !== null || showBuild.value)
@@ -262,13 +290,14 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
 
     <div class="min-h-0 flex-1">
       <DraftSuggestions
-        v-if="mode === 'pick'"
+        v-if="mode === 'pick' || mode === 'ban'"
         v-model:my-pool="myPool"
+        :mode="mode"
         :has-pool="hasPool"
-        :pool="candidates"
-        :candidates="recommendation?.candidates ?? []"
-        :pending="ranking"
-        :error="rankError"
+        :suggestions="mode === 'ban' ? banSuggestions : pickSuggestions"
+        :target="mode === 'ban' && bans ? { kind: bans.target, championIds: bans.targetChampionIds } : null"
+        :pending="mode === 'ban' ? banPending : ranking"
+        :error="mode === 'ban' ? banError : rankError"
         :position="draft.myPosition"
         :allies="lockedAllies"
         @preview="previewed = $event"
