@@ -41,9 +41,31 @@ internal static class PaceBenchmarkBuilder
             .Where(participant => ChampionCohort.IsCanonicalPosition(participant.TeamPosition))
             .ToDictionary(participant => participant.ParticipantId, participant => participant.TeamPosition);
 
+        return BuildAtTier(match.Patch, match.GameDurationSeconds, tier, positionByParticipant, timeline);
+    }
+
+    /// <summary>
+    /// The bins one match adds once its tier is known — the low-tier sampler's entry point,
+    /// whose lobby takes the seed player's tier. Only participants in
+    /// <paramref name="positionByParticipant"/> (canonical lanes) are counted; a remake adds
+    /// nothing.
+    /// </summary>
+    public static List<PaceBenchmarkKey> BuildAtTier(
+        string patch,
+        int gameDurationSeconds,
+        string tier,
+        IReadOnlyDictionary<int, string> positionByParticipant,
+        MatchTimelineDto timeline)
+    {
+        var keys = new List<PaceBenchmarkKey>();
+        if (ChampionCohort.IsRemake(gameDurationSeconds))
+        {
+            return keys;
+        }
+
         // A minute counts only if the game reached it: the last frame sits at the game's end,
         // and the frame tolerance would otherwise read it as the next whole minute.
-        var lastMinute = Math.Min(PaceHistogram.MaxMinute, match.GameDurationSeconds / 60);
+        var lastMinute = Math.Min(PaceHistogram.MaxMinute, gameDurationSeconds / 60);
         for (var minute = 1; minute <= lastMinute; minute++)
         {
             var frame = TimelineSnapshotBuilder.SelectFrame(timeline.Frames, minute * 60_000);
@@ -60,8 +82,8 @@ internal static class PaceBenchmarkBuilder
                 }
 
                 var cs = participantFrame.MinionsKilled + participantFrame.JungleMinionsKilled;
-                keys.Add(Key(match.Patch, tier, position, minute, PaceMetric.Cs, cs));
-                keys.Add(Key(match.Patch, tier, position, minute, PaceMetric.GoldEarned, participantFrame.TotalGold));
+                keys.Add(Key(patch, tier, position, minute, PaceMetric.Cs, cs));
+                keys.Add(Key(patch, tier, position, minute, PaceMetric.GoldEarned, participantFrame.TotalGold));
             }
         }
 
