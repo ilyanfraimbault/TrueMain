@@ -415,3 +415,29 @@ share follows the signal the pipeline already computes for champions:
 Observability is deliberately not part of this: the per-platform balance is visible in the claim's allocation
 log line and the `HarvestBudgetExhausted` event, but the admin portal has no region-balance panel yet
 (tracked separately). Until it does, a drift like this still has to be inferred from run summaries.
+
+## Low tiers are sampled for the pace benchmark, under a hard daily cap, and never stored (2026-10-05)
+
+**The overlay's pace benchmark needs Iron → Platinum, which no other process reads, so `PaceSampling` reads a
+few of their games per run and keeps only the counters.** Per (platform, tier) — the three active platforms,
+per the product owner — one random page of the division ladder, a few random players of it as seeds, each one's
+latest ranked game, then its match and timeline, folded in memory at the seed's tier (the lobby rule the
+ingestion fold uses for the high tiers). Per tier only, not per division: that is the product owner's ask, and it
+keeps the buckets full.
+
+**It writes no `matches` or `match_participants`.** Stored, those rows would feed the full-pool profile fold
+(#1449), the harvest (#485) would turn low-tier players into main candidates, and every champion page would
+silently gain low-elo games. Only `pace_sampled_matches` — the ids already counted, pruned once older than the
+lookback, since a seed's games are listed no further back — and the benchmark bins are written, which is what
+keeps it on the right side of "a Riot call that stores nothing is a bug" (#1358): every call ends in an aggregate
+row or a ledger row.
+
+**Every call counts, and the cap is per day** (the rule above): ladder page, id list, match, timeline, failed or
+not, against `PaceSampling:MaxRequestsPerRun` (150) and `MaxRequestsPerDay` (3 000, read back from the run
+summaries' `riotCalls`), with a 30-minute `MinRunInterval`. At three regional calls a game that is ~1 000 games a
+day across the three platforms — under 2 % of one routing value's documented `100:120` daily ceiling (72 000), an
+arithmetic bound, not a measurement. It runs last in the fetch lane, so it only spends what ingestion left. The
+sample a (tier, role, minute) needs before the read's 50-sample floor is met, and whether resolving each
+participant's own tier (`league-v4/entries/by-puuid`, up to nine platform calls a game) beats the lobby rule, are
+to be measured on preprod rather than assumed; a production key (#1363) only raises the cap — #1912.
+

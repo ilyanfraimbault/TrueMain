@@ -612,5 +612,5 @@ comparison**: an unranked or Flex-only player sees their pace alone rather than 
 "Games of Diamond players", not "players ranked Diamond": a lobby is counted at its tracked account's tier, matchmaking
 keeping the ten near one MMR. The panel's gold reads a little under gold earned (consumables and sell-back losses are
 invisible to the Live Client API), so the gold arrow leans low, never high; the panel's description says so, since a
-click-through panel has no tooltip. Iron → Platinum, which TrueMain does not ingest, come from a separate capped
-sampler (#1912, second part); until then those tiers show no comparison — #1912.
+click-through panel has no tooltip. Iron → Platinum, which TrueMain does not ingest, come from the capped `PaceSampling`
+process (see `pipeline-riot-budget.md`) — #1912.
