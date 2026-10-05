@@ -3,10 +3,12 @@
 
 use std::path::PathBuf;
 
+use game_recording::anchor::Segment;
 use game_recording::{
-    ClipStore, FrameRate, Moment, Quality, RecordingSettings, RecordingStatus, Resolution,
-    StoredClip, StoredRecording,
+    ClipStore, FrameRate, Moment, ParticipantChampion, Quality, RecordedWinProbability,
+    RecordingSettings, RecordingStatus, Resolution, StoredClip, StoredRecording,
 };
+use lcu::WinProbabilityTimeline;
 use serde::Serialize;
 
 use super::Activity;
@@ -122,6 +124,40 @@ impl GameView {
             moments: meta.moments(),
             highlights_source: meta.highlights_source,
         }
+    }
+}
+
+/// What the recap draws its win-probability curve from (#1911): the game's
+/// reduced timeline, read for the player's side, and the anchor's segments
+/// that place its game time on the video the way the moments are placed
+/// (`Anchor::video_ms`, clamped to the video's length).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WinProbabilityView {
+    team_id: i64,
+    champions: Vec<ParticipantChampion>,
+    timeline: WinProbabilityTimeline,
+    clock: Vec<Segment>,
+    duration_ms: Option<u64>,
+}
+
+impl WinProbabilityView {
+    /// `None` without the kept timeline, or without an anchor: a curve placed
+    /// on the wrong second of the video is worse than none, as for moments.
+    pub fn new(recording: &StoredRecording) -> Option<Self> {
+        let anchor = recording.meta.anchor.as_ref()?;
+        let RecordedWinProbability {
+            team_id,
+            champions,
+            timeline,
+        } = recording.dir.read_win_probability()?;
+        Some(Self {
+            team_id,
+            champions,
+            timeline,
+            clock: anchor.segments.clone(),
+            duration_ms: recording.meta.duration_ms,
+        })
     }
 }
 

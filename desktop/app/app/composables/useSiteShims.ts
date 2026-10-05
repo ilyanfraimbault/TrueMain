@@ -1,5 +1,6 @@
 import type { MatchDetailResponse } from '#shared/types/match-detail'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
+import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 
 /**
  * The app's side of the composables the twinned site components call, so the
@@ -60,7 +61,11 @@ async function readClientDetail(matchId: string): Promise<MatchDetailResponse | 
   }
   if (import.meta.dev) {
     const fixtures = await import('~/fixtures/match-details.json')
-    return (fixtures.default as unknown as Record<string, MatchDetailResponse>)[matchId] ?? null
+    const detail = (fixtures.default as unknown as Record<string, MatchDetailResponse>)[matchId]
+    if (!detail) return null
+    // The shared model's fixture game stands in for every game's timeline, so the curve shows in dev.
+    const { default: winProbability } = await import('#shared/fixtures/win-probability-timeline.json')
+    return { ...detail, winProbabilityTimeline: winProbability.timeline as WinProbabilityTimeline }
   }
   return null
 }
@@ -73,6 +78,11 @@ async function readClientDetail(matchId: string): Promise<MatchDetailResponse | 
  * has not ingested falls back to the client's read (`player_game`): the
  * scoreboard, the roles and the lane at fifteen, without those two. In
  * `npm run dev` the dev fixtures stand in for the client.
+ *
+ * The win-probability curve (#1911) is TrueMain's own (`winProbability`) when
+ * its copy has one; a copy without — a game ingested before the curve existed —
+ * borrows the client's timeline (`winProbabilityTimeline`) once the panel is
+ * shown, so the Timeline tab appears in either case when the game allows it.
  */
 export function usePlayerGameDetail(nameTag: MaybeRefOrGetter<string>, matchId: MaybeRefOrGetter<string>) {
   const { record } = usePlayerRecord()
@@ -95,6 +105,12 @@ export function usePlayerGameDetail(nameTag: MaybeRefOrGetter<string>, matchId: 
     }
     notFound.value = !data.value
     isLoading.value = false
+    if (data.value && !data.value.winProbability && !data.value.winProbabilityTimeline && insideTauri()) {
+      const client = await readClientDetail(id).catch(() => null)
+      if (client?.winProbabilityTimeline && toValue(matchId) === id && data.value) {
+        data.value = { ...data.value, winProbabilityTimeline: client.winProbabilityTimeline }
+      }
+    }
   }, { immediate: true })
 
   return { data, isLoading, notFound }

@@ -7,6 +7,7 @@
 
 mod api;
 mod game;
+mod itemsets;
 mod loading;
 mod menu;
 mod overlay;
@@ -347,6 +348,7 @@ pub fn run() {
             recording::request_capture_permission,
             recording::recording_library,
             recording::recording_get,
+            recording::recording_win_probability,
             recording::recording_set_kept,
             recording::recording_delete,
             recording::clip_save,
@@ -355,10 +357,13 @@ pub fn run() {
             recording::reveal_recording_file,
             overlay::overlay_view,
             overlay::set_overlay_settings,
+            overlay::overlay_check_trigger,
+            overlay::overlay_read_binds,
             overlay::overlay_preview,
             overlay::overlay_fit,
             loading::loading_players,
             runes::import_runes,
+            itemsets::import_item_set,
             telemetry::telemetry_page
         ])
         // The overlay's panel is a window too: without this, closing the

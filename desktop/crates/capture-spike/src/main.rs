@@ -350,6 +350,8 @@ async fn run(options: Options) -> Result<(), String> {
             GameOutcome {
                 game: history_game.as_ref(),
                 timeline: timeline.as_ref(),
+                // The spike reports on the highlights, not the recap's curve.
+                scoreboard: None,
             },
             u64::MAX,
             &out,

@@ -28,6 +28,13 @@ public sealed record MatchDetailReadModel
 
     public IReadOnlyList<MatchDetailParticipantReadModel> Participants { get; init; }
         = Array.Empty<MatchDetailParticipantReadModel>();
+
+    /// <summary>
+    /// The game's win-probability curve and turning points (#1911), computed at ingest.
+    /// Null for a game ingested before it existed, under fifteen minutes, or without the
+    /// five lanes paired across sides.
+    /// </summary>
+    public MatchWinProbabilityReadModel? WinProbability { get; init; }
 }
 
 /// <summary>
