@@ -49,6 +49,7 @@ pub type SharedState = Arc<Mutex<AppState>>;
 pub(crate) fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
     let in_game = in_game(&next);
     crate::recording::follow(app, next.phase);
+    crate::overlay::follow(app, in_game);
     // Hold the lock only to swap; emitting under it would let a slow listener
     // block the LCU stream.
     let previous = {

@@ -278,7 +278,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   Windows) — four panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
   `CGShieldingWindowLevel` (League's Full Screen captures the display), on Windows a topmost `WS_EX_NOACTIVATE` layered
   window over a Borderless or Windowed game (the settings say so: Windows draws nothing over exclusive Full Screen) —
-  never focused, click-through, sized to its content, its page on `#/overlay/<panel>`
+  never focused, click-through, sized to its content, its page on `#/overlay/<panel>`; a panel has a window (a whole
+  webview) only while switched on and a game runs, from its loading screen to its end, or in the preview (#1916),
   (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
   read — from its `GameStart` event, never over the loading screen, the client or another app; ⌥⇧O (Alt+Shift+O on Windows) hides them until the game ends. **Next item** (232 pt,
   `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
@@ -383,12 +384,16 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   app reads (`.github/scripts/desktop-held.sh`, run after the build and after each site release); `Desktop promote`
   serves a version by hand, for rollbacks. Each flavour has its own signed update manifest. Preprod's `/download`
   offers its newest beta at once, truemain.lol's the production build once it is served. The installed app checks its own site's feed (Tauri updater) at
-  launch and every 15 minutes, downloads a newer build in the background and installs it itself at launch when no
+  launch and every 15 minutes (the timer skips its ticks during a game, #1916), downloads a newer build in the background and installs it itself at launch when no
   champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
   An install that has not restarted the app 30 s in swaps its progress toast for "Restart now" (a plain relaunch, never a
   second install over the running one, #1793).
   "Check for Updates…" runs the check on demand: in the app menu on macOS, in the tray icon's menu on Windows.
   Unsigned by Apple and Microsoft for the beta.
+- **Footprint** (#1916): identical API reads asked at once by two webviews (the next item, from the game page and
+  the overlay) go out as one request (`SharedReads`, `src-tauri/src/api.rs`). Memory and CPU of the whole process
+  tree are measured with `desktop/tools/measure-footprint.{sh,ps1}`, method and results in `docs/desktop-footprint.md`
+  (no run recorded yet, so `/download` shows no figure).
 - **Usage counts** (#1805, `src-tauri/src/telemetry.rs`): a random install id drawn on the first launch
   (`telemetry.json` in the app's config folder) and, under it, launches, minutes open, page views (`plugins/telemetry.ts`,
   keys in `utils/telemetry.ts`; a filter change is not a view) and features counted by the shell — a champion select

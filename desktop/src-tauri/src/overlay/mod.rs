@@ -71,6 +71,8 @@ pub struct Overlay {
     preview: AtomicBool,
     /// The player hid the overlay with the shortcut; cleared when the game ends.
     hidden_by_player: AtomicBool,
+    /// The phase says a game runs (`follow`): the panels switched on get their window.
+    game_running: AtomicBool,
     /// The game's process is the frontmost application, as last measured.
     game_frontmost: AtomicBool,
     /// TAB is held over the game: its scoreboard is open.
@@ -107,6 +109,7 @@ impl Overlay {
             settings: Mutex::new(settings),
             preview: AtomicBool::new(false),
             hidden_by_player: AtomicBool::new(false),
+            game_running: AtomicBool::new(false),
             game_frontmost: AtomicBool::new(false),
             scoreboard: AtomicBool::new(false),
             sizes: Mutex::new(HashMap::new()),
@@ -164,6 +167,7 @@ impl Overlay {
         }
         OverlayInputs {
             preview: self.preview.load(Ordering::SeqCst),
+            game_running: self.game_running.load(Ordering::SeqCst),
             game_frontmost: self.game_frontmost.load(Ordering::SeqCst),
             in_game,
             dead,
@@ -196,13 +200,23 @@ impl Overlay {
     }
 }
 
-/// Build the panels, hidden, and start following the game. Called from `setup`.
+/// Start following the game. Called from `setup`; the panels' windows are
+/// built when a game starts (`follow`), not here.
 pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let overlay = Overlay::new(app);
     app.manage(overlay);
     #[cfg(any(target_os = "macos", windows))]
-    panels::setup(app)?;
+    panels::setup(app);
     Ok(())
+}
+
+/// Build or close the panels' windows as the game and the settings now call
+/// for, then `apply`. Safe from any thread.
+fn rebuild(app: &AppHandle) {
+    #[cfg(any(target_os = "macos", windows))]
+    panels::rebuild(app);
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let _ = app;
 }
 
 /// Bring the panels in line with the settings and the game. Cheap when nothing
@@ -214,10 +228,20 @@ pub fn apply(app: &AppHandle) {
     let _ = app;
 }
 
+/// The phase says whether a game runs. Called with every state the app
+/// publishes (`supervisor::publish`): the panels switched on get their window
+/// from the loading screen on, and lose it when the game ends.
+pub fn follow(app: &AppHandle, running: bool) {
+    let overlay = app.state::<SharedOverlay>();
+    if overlay.game_running.swap(running, Ordering::SeqCst) != running {
+        rebuild(app);
+    }
+}
+
 fn publish(app: &AppHandle, overlay: &Overlay) -> OverlayView {
     let view = overlay.view();
     let _ = app.emit(VIEW_EVENT, &view);
-    apply(app);
+    rebuild(app);
     view
 }
 

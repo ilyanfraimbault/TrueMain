@@ -153,6 +153,8 @@ export function useAppUpdate() {
   async function check(trigger: 'launch' | 'timer' | 'manual') {
     const manual = trigger === 'manual'
     if (installing.value) return
+    // Nothing installs during a game, so the timer leaves it alone (#1916): the next tick after it checks.
+    if (trigger === 'timer' && screen.value === 'in-game') return
     // Once a build waits for a restart, a newer one is picked up by the next launch's check.
     if (downloaded) {
       if (manual) offer(downloaded)

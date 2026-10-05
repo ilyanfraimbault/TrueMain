@@ -130,3 +130,26 @@ describe('useAppUpdate install deadline', () => {
     expect(app.installing.value).toBe(true)
   })
 })
+
+describe('useAppUpdate timer', () => {
+  it('skips its check during a game and resumes after it', async () => {
+    updater.check.mockReset()
+    const update = fakeUpdate(() => new Promise(() => {}))
+    updater.check.mockResolvedValue(null)
+    const { useAppUpdate } = await import('~/composables/useAppUpdate')
+    await useAppUpdate().start()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(updater.check).toHaveBeenCalledTimes(1)
+
+    updater.check.mockResolvedValue(update)
+    screen.value = 'in-game'
+    await vi.advanceTimersByTimeAsync(15 * 60 * 1000)
+    expect(updater.check).toHaveBeenCalledTimes(1)
+    expect(update.download).not.toHaveBeenCalled()
+
+    screen.value = 'lobby'
+    await vi.advanceTimersByTimeAsync(15 * 60 * 1000)
+    expect(updater.check).toHaveBeenCalledTimes(2)
+    expect(update.download).toHaveBeenCalled()
+  })
+})
