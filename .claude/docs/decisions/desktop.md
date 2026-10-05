@@ -52,6 +52,24 @@ order — each candidate's score depends on it alone, so the merge is exact. Bef
 there is nothing to measure, so the podium shows win rates on the lane in the pool's order rather than "+0.0%". The
 ranking itself is the endpoint's; the enemy-team component and a lane-first weighting are #1713 (2026-09-27) — #1675.
 
+**The draft shows each team's damage mix, notes a pick that answers it, and names the items the draft moves —
+measured, never scored by hand (2026-10-05).** Under each team a thin physical / magic / true bar, in the damage
+colours of the item-context wording (physical = AD orange, magic = MR cyan, true = white: a damage-type bar is that
+vocabulary, the one place those colours fill a shape), the type the team deals most of as the only figure, the
+pick-by-pick split on hover. Locked picks only, plus our own pick being weighed (hovered in the client or opened from
+the suggestions) drawn hatched, with a tick where the mix stood without it; other allies' hovers and enemy hovers are
+not counted. Each pick weighs by the damage it deals per game, exactly `DraftAxisEvaluator.DamageWeightedShare`,
+held to it by a fixture both test suites read (`backend/tests/TrueMain.UnitTests/Fixtures/team-damage-share.json`).
+A fallback (#1905) or unprofiled champion is listed as unmeasured, never given a split; two of them on a side leave
+the bar without a figure — `DraftSide.IsUsable`. A flex champion counts as its blended expectation, tagged AD/AP in
+the hover. The pick ranking gains **no** damage bonus (#1675's measured-deltas rule): a candidate whose damage answers
+a one-sided team (ally magic-damage axis Low and the candidate High, or the reverse, with at least two measured allies)
+carries a "+ Magic damage" / "+ Physical damage" chip that leaves the order untouched; a measured `damageMixDelta`
+component waits for #1906. Build advice reuses the in-game next-item read (#1749) with an empty inventory and the
+draft as the game: the boots and the first legendary a situation of this draft moves up most, with that situation in
+the site's wording — no new endpoint, the same model and axes as in game. Runes: nothing shipped; the measured route
+recommended for a follow-up is a composition-build vote weighted by damage-band similarity, not a rule — #1907.
+
 **The app draws the site's components, as labelled twin copies, not look-alikes** — superseded page by page by the shared layer above (#1732): a component that moves into the layer loses its twin. Hand-ported versions (a skill
 order with plain letters, icons without tooltips) were rejected as "not the site". The copies follow the web↔admin
 twin rule (`web-frontend-rules.md`): a header names the twin, differences are marked app-specific, and the app's

@@ -169,6 +169,9 @@ const emptyMessage = computed(() => {
         />
       </div>
 
+      <!-- What the page around the view adds above the build: the draft's item advice (#1907). -->
+      <slot name="advice" />
+
       <BuildCore
         :summoner-spells="shown.core.summonerSpells"
         :starter-items="shown.core.starterItems"

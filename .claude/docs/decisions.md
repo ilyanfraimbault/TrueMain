@@ -338,6 +338,7 @@ Last verified against `develop` on 2026-09-02.
 - The app follows the reference client's layout — a sidebar to every site section; the gameflow phase still opens the draft — #1671
 - No win probability: the draft strip carries the clock, the middle the lane duel (lane win rate only) — #1671
 - One selected card on the draft board, ringed in the primary colour: the player's by default, any placed champion on click (build + lane duel); its lane opponent faintly ringed (2026-09-28) — #1671
+- The draft shows each team's damage mix (weighted like `DraftAxisEvaluator`, no figure with two unmeasured picks), a non-scoring chip on a pick that answers a one-sided team, and the boots / first item the draft moves (next-item read at draft time); runes not yet (2026-10-05) — #1907
 - Champion select is the live draft only; a draft played by hand is a dev tool (`/dev/draft-sim`) feeding the shell the client's payloads (2026-09-28) — #1671
 - An enemy's lane is corrected from its lane icon (a menu of lanes); guessed lanes carry no "?"; build header = icon, name, lane icon (2026-09-29) — #1671
 - No browser chrome in the app: no back/forward arrows, no patch label (2026-09-28) — #1671
