@@ -54,6 +54,17 @@ order — each candidate's score depends on it alone, so the merge is exact. The
 shown as a reason; it never enters the score or breaks ties — no composite player score, #1671/#1683 (2026-10-05)
 — #1906.
 
+**A suggestion card leads with its strongest reason, never with the score.** The score is a ranking key built from
+shrunk deltas and weights; printed as "+2.1%" it reads as a chance to win, which the draft never shows. The card's
+figure is its first reason's own measured figure (a delta in points, a lane-phase or ban rate), the reason sits in one
+line under the name, every reason in the hover — no pop-up, no extra panel. The words live in one util
+(`utils/draft-reasons.ts`) so every number on a card is a field of the answer (2026-10-05) — #1906.
+
+**Bans are suggested on our ban turn, and in ranked planning once we have declared a pick.** Before we hover, the
+planning phase is for choosing that pick, so the strip keeps ranking picks; once we hover one, it protects that pick.
+The pool the bans protect without a declared pick is the "My pool" one, weighted by its mastery order (the client
+hands the app the order, not the points). Same strip, a `mode` prop — not a second component (2026-10-05) — #1906.
+
 **The app draws the site's components, as labelled twin copies, not look-alikes** — superseded page by page by the shared layer above (#1732): a component that moves into the layer loses its twin. Hand-ported versions (a skill
 order with plain letters, icons without tooltips) were rejected as "not the site". The copies follow the web↔admin
 twin rule (`web-frontend-rules.md`): a header names the twin, differences are marked app-specific, and the app's

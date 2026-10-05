@@ -356,6 +356,8 @@ Last verified against `develop` on 2026-09-02.
 - Each app version is built twice — production flavour (`truemain.*`) and preprod flavour (`truemain-<version>.*`, *TrueMain Beta*) — and each site serves, and updates, only the build that reads it (2026-10-01) — #1779
 - The app polls its own site's feed every 15 min, downloads in the background, installs itself at launch outside champion select/game and otherwise offers "Restart now"; "Check for Updates…" in the macOS app menu / a Windows tray menu (2026-10-01) — #1789
 - Picks are ranked from the player's mastery pool or the whole lane, never a "meta" slice; comfort (mastery, recent games) chooses the pool and is a shown reason, never a score term; enemy-team component is #1713 — #1675, #1906
+- A draft suggestion card leads with its strongest reason's measured figure, never the ranking score; reasons are worded in one util — #1906
+- Bans are suggested on our ban turn and, in ranked planning, once we have hovered a pick (which they then protect) — same strip, a `mode` prop — #1906
 - The app draws the site's components as labelled twin copies, with app behaviour in shims beside them; superseded page by page by the shared layer — #1687, #1732
 - The pages the app shares with the site (champions, tier list, matchup, truemains, favorites) are one implementation in `web/layers/common`, which both apps extend (2026-10-01) — #1732
 - A tab changes on click (the app's own `<Suspense>` over the shared page's await, header + skeleton); a bar across the window's top edge runs on every page load, not only navigations — the site keeps #1689 (2026-10-01) — #1788

@@ -242,7 +242,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`utils/goal-store.ts`), never sent. With no client: a waiting banner over the patch's best picks by lane.
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
   guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
-  ten most-mastered champions on the lane, or every champion on the lane). Once locked, or on a click on any placed
+  ten most-mastered champions on the lane, or every champion on the lane), in the endpoint's order — blind safety before
+  our lane opponent shows — each card leading with its strongest reason's figure (a delta in points or a rate, never the
+  score) and that reason in one line under the name ("Safe blind", "vs Zed (likely)", "With Lulu (hover)"), every reason
+  on hover (#1906, worded in `utils/draft-reasons.ts`). On our ban turn, and in ranked planning once we hover a pick, the
+  same strip is "Your ban" (`POST champions/draft/bans` through the shell's `draft_bans`): the threats to our hovered
+  pick, else to our pool, with what they protect beside the heading; an ally's hover or lock is never suggested.
+  Allies' hovers are sent apart from their locks and counted at half weight. Once locked, or on a click on any placed
   champion (one selected card, its lane opponent faintly ringed): the build view — the draft's composition build and the
   lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that
   main's own build on the champion — and the site's core blocks (runes beside summoners/skills/starter/boots, no build

@@ -62,6 +62,16 @@ async fn draft_recommendation(
     client.post("/champions/draft", &request).await
 }
 
+/// Ask TrueMain which champions to ban in one champion-select state (#1906):
+/// the threats to the player's declared pick, or to their pool.
+#[tauri::command]
+async fn draft_bans(
+    client: tauri::State<'_, ApiClient>,
+    request: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    client.post("/champions/draft/bans", &request).await
+}
+
 /// The composition build request currently in flight, if any.
 #[derive(Default)]
 struct BuildInFlight(Mutex<Option<tokio::task::AbortHandle>>);
@@ -343,6 +353,7 @@ pub fn run() {
             current_screen,
             game::current_game,
             draft_recommendation,
+            draft_bans,
             champion_build,
             composition_build,
             api_get,
