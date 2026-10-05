@@ -432,6 +432,27 @@ Alt+Shift+O, read with TAB from the keyboard's state as on macOS (no hook, no re
 Windows tester: CI drives it on a Windows desktop over a stand-in game (#1806), but a real game has not been played
 under it yet — #1798.
 
+**Each overlay panel shows always, while a chord is held, or toggled by one; keys are read, never taken (2026-10-05).**
+The product owner's call (UI/UX point 13), after Mobalytics' per-panel hotkeys and players' complaints about overlays
+that are always there. Each panel has its own trigger, set on the Overlay page: **Always**, **While held** (a chord) or
+**Toggle** (each press flips it; shown or hidden at game start is a setting, and every game starts from it — a toggle
+lasts one game, like the ⌥⇧O hide, which still wins over everything). The next item's moment combines with it: a
+toggled-on next item in "while dead" still waits for a death. Defaults are today's behaviour exactly — the item value
+held with TAB, the others always — so a settings file from before (v2) migrates with no visible change (v3).
+- **A chord is a physical key** plus the modifiers and TAB, recorded from `KeyboardEvent.code` and read by position
+  (`kVK_*` on macOS; the scan code turned into the game's layout's virtual key on Windows), so it holds on AZERTY.
+- **Read, never hooked.** The keys come from the keyboard's state every 30 ms, only those the chords name and only while
+  the game is frontmost — no event tap, no hook, no `RegisterHotKey`, so no Input Monitoring prompt and nothing an
+  anti-cheat looks for. The consequence is accepted: the game gets every key of a chord too (Tab+Q casts Q). The app
+  cannot swallow it and does not try; it **warns** instead, naming what the key does in game, from the player's own
+  League keybindings (`/lol-game-settings/v1/input-settings`) or Riot's defaults without a client — a warning, never
+  a refusal.
+- **Refused**, with the reason shown: modifiers alone, TAB alone (except the item value's held default), Esc and Enter
+  (menu, chat), the hide shortcut, the system's chords (⌘/Win, Alt+Tab, Alt+F4) and a chord another panel has. The
+  rule is `shell-state`'s and is applied again to every file and save: a refused trigger falls back to the panel's default.
+- **Suggested** when a panel is first put on a chord: Alt+Shift and a digit per panel, away from Riot's default binds
+  (items are on the bare digits). No Tab+Q/W/E/R default. #1915.
+
 **The overlay shows a win probability, from each lane's lead and the map (2026-10-02, refitted 2026-10-04).** The
 product owner's call, reversing for the in-game overlay the "no win probability" line of #1671 and #1747. The first
 version (#1795) was a hand-set formula over the item-gold lead relative to the teams' average item gold, and it read

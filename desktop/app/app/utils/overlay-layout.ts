@@ -55,7 +55,7 @@ function clampInto(value: number, length: number, extent: number) {
 }
 
 /** A panel's box on `screen`: where it was dragged, or its anchor's spot. */
-export function panelBox(settings: OverlayPanelSettings, size: Size, screen: Size): Box {
+export function panelBox(settings: Pick<OverlayPanelSettings, 'anchor' | 'custom'>, size: Size, screen: Size): Box {
   let x: number
   let y: number
   if (settings.custom) {
