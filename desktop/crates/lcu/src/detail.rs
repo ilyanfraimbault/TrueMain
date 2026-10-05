@@ -20,6 +20,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::record::{HistoryGame, HistoryParticipant};
+use crate::win_probability::WinProbabilityTimeline;
 
 /// `GET /lol-match-history/v1/game-timelines/{gameId}`: one frame a minute.
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -44,6 +45,7 @@ pub struct ParticipantFrame {
     pub xp: i64,
     pub minions_killed: i64,
     pub jungle_minions_killed: i64,
+    pub level: i64,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -71,6 +73,15 @@ pub struct TimelineEvent {
     pub building_type: String,
     /// `BUILDING_KILL`: the team that *lost* the building.
     pub team_id: i64,
+    /// `BUILDING_KILL`: `TOP_LANE`, `MID_LANE` or `BOT_LANE`.
+    pub lane_type: String,
+    /// `BUILDING_KILL` of a turret: `OUTER_TURRET`, `INNER_TURRET`,
+    /// `BASE_TURRET` or `NEXUS_TURRET`.
+    pub tower_type: String,
+    /// `CHAMPION_KILL`: the gold the kill gave, and the shutdown on top. Zero
+    /// when the client's payload does not carry them.
+    pub bounty: i64,
+    pub shutdown_bounty: i64,
     /// `ELITE_MONSTER_KILL`, when the timeline names the team rather than (or
     /// as well as) the killer.
     pub killer_team_id: i64,
@@ -91,6 +102,9 @@ pub struct GameDetail {
     pub game_duration_seconds: i64,
     pub game_version: String,
     pub participants: Vec<DetailParticipant>,
+    /// What the shared win-probability model reads (#1911); the app draws the
+    /// curve from it. `None` without the timeline.
+    pub win_probability_timeline: Option<WinProbabilityTimeline>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
@@ -281,6 +295,8 @@ impl GameDetail {
             game_duration_seconds: game.duration_seconds(),
             game_version: game.game_version.clone(),
             participants,
+            win_probability_timeline: timeline
+                .map(|timeline| WinProbabilityTimeline::from_game(game, timeline)),
         }
     }
 }
@@ -483,6 +499,10 @@ mod tests {
         );
         assert_eq!(me.first_to_level_two, Some(true));
         assert_eq!(detail.participants[1].laning15, None);
+        let reduced = detail.win_probability_timeline.unwrap();
+        assert_eq!(reduced.participants.len(), 4);
+        assert_eq!(reduced.frames.len(), 3);
+        assert!(reduced.events.is_empty());
     }
 
     #[test]
@@ -491,5 +511,6 @@ mod tests {
         assert!(detail.participants[0].item_events.is_empty());
         assert_eq!(detail.participants[0].laning15, None);
         assert_eq!(detail.participants[0].first_to_level_two, None);
+        assert_eq!(detail.win_probability_timeline, None);
     }
 }

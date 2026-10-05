@@ -21,6 +21,7 @@ pub mod record;
 pub mod runes;
 pub mod tape;
 pub mod tls;
+pub mod win_probability;
 
 pub use client::LcuClient;
 pub use credentials::Credentials;
@@ -39,6 +40,7 @@ pub use model::{
 pub use record::{GameParticipant, PlayerGame, PlayerRecord, RankedQueue, Scoreboard};
 pub use runes::{plan_import, RuneImportPlan, RunePage, RunePageDraft};
 pub use tape::{Played, Reading, Recorder, Tape};
+pub use win_probability::WinProbabilityTimeline;
 
 /// Endpoints the app subscribes to, named once so the Rust and the shell agree.
 pub mod uri {
