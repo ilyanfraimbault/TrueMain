@@ -5,7 +5,12 @@ import type { GameflowPhase } from '~/types/lcu'
  * The player, at the foot of the sidebar: who the client is logged in as, and
  * where it is in the gameflow. With no client it says it is waiting for one —
  * the rest of the app works without it.
+ *
+ * `compact`, in the sidebar's rail: the icon and the status dot alone, the
+ * words in a tooltip.
  */
+defineProps<{ compact?: boolean }>()
+
 const { state } = useLcuState()
 const { profileIconOf } = useChampionStatics()
 
@@ -29,10 +34,22 @@ const status = computed(() => {
   if (!state.value.connected) return { label: 'Client not running', live: false }
   return STATUS[state.value.phase] ?? { label: 'Online' }
 })
+const title = computed(() => (state.value.connected ? (state.value.riotId ?? 'Logging in…') : 'League client'))
 </script>
 
 <template>
-  <div class="surface flex items-center gap-3 rounded-xl p-2.5">
+  <UTooltip v-if="compact" :text="`${title} · ${status.label}`">
+    <div class="relative size-10 shrink-0">
+      <div class="size-full overflow-hidden rounded-lg bg-ink-800 ring-1 ring-default">
+        <img v-if="icon && state.connected" :src="icon" alt="" class="size-full object-cover">
+        <div v-else class="flex size-full items-center justify-center">
+          <UIcon name="i-lucide-user-round" class="size-5 text-dimmed" />
+        </div>
+      </div>
+      <span class="absolute -bottom-0.5 -right-0.5 flex size-2.5 rounded-full border-2 border-default" :class="!state.connected ? 'bg-ink-400' : status.live ? 'bg-primary' : 'bg-success'" />
+    </div>
+  </UTooltip>
+  <div v-else class="surface flex items-center gap-3 rounded-xl p-2.5">
     <div class="relative shrink-0">
       <div class="size-10 overflow-hidden rounded-lg bg-ink-800 ring-1 ring-default">
         <img v-if="icon && state.connected" :src="icon" alt="" class="size-full object-cover">

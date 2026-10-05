@@ -17,6 +17,12 @@ import type { Screen } from '~/types/lcu'
  *   they never click. A restart in the middle of champion select would cost
  *   them the draft, so the app never restarts under a running phase.
  *
+ * Nothing pops up by itself during champion select or a game (#1914): a build
+ * found then is offered in the sidebar at once, and its toast waits until the
+ * phase is over; an offer already on screen when one starts steps aside and
+ * comes back after it. "Check for Updates…" still answers at once — the
+ * player asked.
+ *
  * An install that has not restarted the app after `INSTALL_DEADLINE_MS` —
  * seen once on macOS, the bundle untouched and the process still running
  * (#1793) — drops the progress toast for a "Restart now". The shell's install
@@ -40,6 +46,8 @@ export const INSTALL_DEADLINE_MS = 30 * 1000
 // The downloaded build waiting for a restart. Not reactive state: it is a
 // handle on the shell's side, and the app has a single window for its life.
 let downloaded: Update | null = null
+// The watch holding back the offer's toast until the phase is over.
+let stopDeferring: (() => void) | null = null
 
 export function useAppUpdate() {
   const toast = useToast()
@@ -134,8 +142,22 @@ export function useAppUpdate() {
     })
   }
 
-  function offer(update: Update) {
+  /**
+   * Offer the downloaded build: in the sidebar at once, and in a toast — held
+   * back while champion select or a game runs, unless the player asked.
+   */
+  function offer(update: Update, asked = false) {
     readyVersion.value = update.version
+    if (!asked && BUSY_SCREENS.includes(screen.value)) {
+      stopDeferring ??= watch(screen, (next) => {
+        if (BUSY_SCREENS.includes(next)) return
+        stopDeferring?.()
+        stopDeferring = null
+        // Restarted from the sidebar in the meantime: nothing left to offer.
+        if (!installing.value) offer(update)
+      })
+      return
+    }
     say({
       title: `TrueMain ${update.version} is ready`,
       description: 'Restart to update now, or it installs at the next launch. Your settings and favorites stay.',
@@ -153,9 +175,11 @@ export function useAppUpdate() {
   async function check(trigger: 'launch' | 'timer' | 'manual') {
     const manual = trigger === 'manual'
     if (installing.value) return
+    // Nothing installs during a game, so the timer leaves it alone (#1916): the next tick after it checks.
+    if (trigger === 'timer' && screen.value === 'in-game') return
     // Once a build waits for a restart, a newer one is picked up by the next launch's check.
     if (downloaded) {
-      if (manual) offer(downloaded)
+      if (manual) offer(downloaded, true)
       return
     }
     if (checking) return
@@ -179,7 +203,7 @@ export function useAppUpdate() {
         return
       }
       downloaded = update
-      offer(update)
+      offer(update, manual)
     }
     catch {
       // Offline, the feed down, no release yet: the app runs as it is — and says so only when asked.
@@ -199,6 +223,12 @@ export function useAppUpdate() {
     // `npm run dev` has no shell to update, and a dev build is not a release.
     if (started.value || !insideTauri() || import.meta.dev) return
     started.value = true
+    // An offer already on screen steps aside for the phase, and comes back after it.
+    watch(screen, (next) => {
+      if (!BUSY_SCREENS.includes(next) || !downloaded || installing.value) return
+      toast.remove('app-update')
+      offer(downloaded)
+    })
     const timer = setInterval(() => void check('timer'), POLL_INTERVAL_MS)
     // Registered before the first await, which would leave the component's scope behind.
     let stopListening: (() => void) | undefined

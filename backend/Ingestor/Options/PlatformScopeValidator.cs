@@ -35,6 +35,7 @@ internal sealed class PlatformScopeValidator(
     IValidateOptions<PlatformScopeOptions>,
     IValidateOptions<DiscoveryOptions>,
     IValidateOptions<LadderSyncOptions>,
+    IValidateOptions<PaceSamplingOptions>,
     IValidateOptions<MatchIngestionOptions>,
     IValidateOptions<HarvestOptions>
 {
@@ -69,6 +70,11 @@ internal sealed class PlatformScopeValidator(
     public ValidateOptionsResult Validate(string? name, LadderSyncOptions options)
     {
         return ValidateSectionScope(name, LadderSyncOptions.SectionName, options.Platforms);
+    }
+
+    public ValidateOptionsResult Validate(string? name, PaceSamplingOptions options)
+    {
+        return ValidateSectionScope(name, PaceSamplingOptions.SectionName, options.Platforms);
     }
 
     public ValidateOptionsResult Validate(string? name, MatchIngestionOptions options)

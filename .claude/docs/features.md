@@ -205,6 +205,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   recording), player card (Riot ID, level, client status), top bar with a ⌘K champion search (no
   back/forward, no patch label). Hash routing; the gameflow phase opens `/draft` on its own, and `/game` from home or
   the draft (never from a page opened by hand); leaving either phase goes home only from its page.
+- **Window** (#1914) — resizable down to 960 × 640 and maximisable, 1180 × 760 by default. Below 1100 px wide the
+  sidebar folds into a rail of icons (`useNarrowWindow`): names in tooltips, "Live" / "Rec" as dots on their icons
+  with the words in the tooltip, the player card as its icon and status dot. Size, place and maximised state are kept
+  in `window-state.json` (`src-tauri/src/window_state.rs`): the place in pixels, the size in points, so a window
+  restored on a monitor of another scale keeps its apparent size, never larger than the monitor; a place on a monitor
+  since unplugged (less than 120 × 24 px of title bar on any monitor) opens centred on the primary one instead
+  (`shell_state::window`).
 - **Loading** (#1788) — a sidebar click changes the page at once: the shared pages' setup await is caught by the app's
   own `<Suspense>` (`SharedPage.vue`), which draws the page's header over a skeleton until it resolves. A 2 px primary
   bar across the window's top edge (`AppLoadingBar.vue`, over the champion search) runs while anything is loading — a
@@ -254,9 +261,21 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   replaced in place, moved to the next champion imported. The player's own sets are written back exactly as read; a
   list that cannot be read writes nothing, and a player set missing after the write is reported. Every outcome is a
   toast. Nothing is written without the click.
+- **Hover, lock and ban from the app** (#1909) — the strip over the draft says whose turn it is ("Your ban", "Your
+  pick", "Declare your pick" in ranked planning, "Your pick in N turns"). Each pick card carries a "Hover" control
+  ("Ban" during our ban) in its corner, separate from the card's own click (which still previews the build); typing
+  in the pick search also lists every other champion it names, with the same control. A ban always asks first
+  ("Ban Fizz?"); a hover, ban or lock of a champion an ally is hovering asks too, naming the ally's lane. "Lock in
+  <Champion>" sits in the strip beside the clock, enabled during our pick once the client shows our hover, and locks
+  only that hovered champion. Disabled controls say why in their tooltip (not your turn, banned, already picked, not
+  owned or disabled). The shell re-reads the session and the client's pickable/bannable lists before every write,
+  resolves our open action itself, and refuses with a reason toast (`champselect.rs`, `lcu::champ_select`). Nothing
+  is ever written without the click: no auto-lock, no auto-ban, no auto-accept. Hidden on a tape replay.
 - **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a champion select filled by clicking
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
-  payloads through a dev-server relay, so the app runs its real champion select live without a game.
+  payloads through a dev-server relay, so the app runs its real champion select live without a game. "Our turn"
+  (not ours / our ban / our pick) opens our action, and the page answers the app's hovers, locks and bans through the
+  same relay as the client would — refused when that action is not open (#1909).
   Outside a live champion select the product's `/draft` page only waits for the next one.
 - **Game** (`/game`, #1748) — while the phase is `InProgress` the shell polls the game's Live Client Data API
   (`127.0.0.1:2999/liveclientdata/allgamedata`, every 2 s, backing off to 5 s while the game loads; `crates/live-client`)
@@ -264,9 +283,12 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   so a missed one triggers a re-read. The page: the ten players lane by lane, ours left (our own line tinted) and
   theirs mirrored right — portrait with level, summoner spells, a dead player greyed under a respawn countdown, and
   **who they are** (#1828, `game/GamePlayerIntel.vue`, `utils/player-intel.ts`) instead of the items and K/D/A the
-  game's scoreboard already shows: Riot ID, Solo/Duo crest + tier + LP (a ranked Flex standing tagged "Flex" when
+  game's scoreboard already shows: Riot ID (with **the TrueMain mark** for a true main of the champion they are on —
+  #1910, `TruemainMark.vue`, `useTruemainMarks`: the logo alone, "True main of <Champion>", their games on it out of
+  their last ranked ones, "One-trick" and the Truemain score in its tooltip; one `GET /truemains/lookup` per game,
+  shared with the loading board, never for an anonymous player), Solo/Duo crest + tier + LP (a ranked Flex standing tagged "Flex" when
   there is none, "Placements", "Unranked"; season record in the tooltip), a role chip — "Main role" (≥ ½ of their
-  recent role-assigned games here), "Secondary role", or "Autofill · Jungle main" (< ¼) — a streak chip from three
+  recent role-assigned games here), "Secondary role", or "Autofill · Jungle main" (< ¼) — a streak chip ("Won 4 in a row", "Lost 3 in a row") from three
   games on, then their win rate, games and KDA on the champion among their last twenty ("First time" with none) over
   their last ten games as the loading screen's bars — all from the loading screen's read (`useLoadingPlayers`, one more
   client request per player for the standing), matched to the live player by Riot ID, an anonymous one by side and
@@ -278,7 +300,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   CS / XP leads over that game's lane opponent at 15 min, from the client's timelines; weights per role), the figures
   themselves not shown. The same arrows sit between the two columns of the waiting state's loading board. A loading
   state until the game has started (`GameStart`), with the loading screen board (#1753, `loading/LoadingBoard.vue`:
-  form on the champion and last ten games as bars, names and histories read by puuid through the client — #1869), a
+  form on the champion and last ten games as bars, names and histories read by puuid through the client — #1869 —
+  and the same true-main mark after a name), a
   waiting state outside a game. What the API reveals about enemies is documented in `desktop/README.md` and still to verify in
   a live game.
   Over the board, when we are a player, **the next item** (#1751, `game/GameNextItem.vue`): the legendary the mains
@@ -293,7 +316,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   Windows) — four panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
   `CGShieldingWindowLevel` (League's Full Screen captures the display), on Windows a topmost `WS_EX_NOACTIVATE` layered
   window over a Borderless or Windowed game (the settings say so: Windows draws nothing over exclusive Full Screen) —
-  never focused, click-through, sized to its content, its page on `#/overlay/<panel>`
+  placed on the monitor the game runs on (#1914: the frontmost game window's frame, matched to the monitor holding
+  most of it, `shell_state::screens`; the primary monitor before any game) —
+  never focused, click-through, sized to its content, its page on `#/overlay/<panel>`; a panel has a window (a whole
+  webview) only while switched on and a game runs, from its loading screen to its end, or in the preview (#1916),
   (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
   read — from its `GameStart` event, never over the loading screen, the client or another app; ⌥⇧O (Alt+Shift+O on Windows) hides them until the game ends. **Next item** (232 pt,
   `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
@@ -307,7 +333,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`utils/item-value.ts`, #1864). **Your pace** (176 pt, `OverlayStats.vue`): CS per
   minute with a sparkline of it from minute 3, and gold per minute (inventory cost plus gold in hand — the API has no
   gold earned, nor any damage total, so no damage per minute), from one sample per whole minute the feed keeps
-  (`live_client::pace`). **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
+  (`live_client::pace`). Under each figure, the **median of games at the player's Solo/Duo tier** at that minute and an
+  arrow in the data colours for where the player stands against that tier's quartiles (under the first, between, over
+  the third), and on the sparkline a faint dashed line of the tier's median (#1912, `usePaceBenchmark`,
+  `utils/pace-benchmark.ts`). The benchmark is `GET /benchmarks/pace?position=` — every tier of the lane — and the
+  tier is the last Solo/Duo standing this machine wrote down (`utils/lp-history`), picked locally so no rank is sent;
+  unranked or Flex-only, or a tier/minute under the sample floor, shows the player's pace alone. Emerald →
+  Challenger fill from the regular ingestion, Iron → Platinum from the capped `PaceSampling` process. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
   the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). Each panel shows **always**,
   **while a chord is held** or **toggled** by one (#1915; defaults: item value held with TAB, the others always;
@@ -406,16 +438,23 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   app reads (`.github/scripts/desktop-held.sh`, run after the build and after each site release); `Desktop promote`
   serves a version by hand, for rollbacks. Each flavour has its own signed update manifest. Preprod's `/download`
   offers its newest beta at once, truemain.lol's the production build once it is served. The installed app checks its own site's feed (Tauri updater) at
-  launch and every 15 minutes, downloads a newer build in the background and installs it itself at launch when no
+  launch and every 15 minutes (the timer skips its ticks during a game, #1916), downloads a newer build in the background and installs it itself at launch when no
   champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
+  No toast during champion select or a game (#1914): a build found then is offered in the sidebar only, its toast
+  waits for the phase to end, and an offer already on screen steps aside for the phase and comes back after it.
   An install that has not restarted the app 30 s in swaps its progress toast for "Restart now" (a plain relaunch, never a
   second install over the running one, #1793).
   "Check for Updates…" runs the check on demand: in the app menu on macOS, in the tray icon's menu on Windows.
   Unsigned by Apple and Microsoft for the beta.
+- **Footprint** (#1916): identical API reads asked at once by two webviews (the next item, from the game page and
+  the overlay) go out as one request (`SharedReads`, `src-tauri/src/api.rs`). Memory and CPU of the whole process
+  tree are measured with `desktop/tools/measure-footprint.{sh,ps1}`, method and results in `docs/desktop-footprint.md`
+  (no run recorded yet, so `/download` shows no figure).
 - **Usage counts** (#1805, `src-tauri/src/telemetry.rs`): a random install id drawn on the first launch
   (`telemetry.json` in the app's config folder) and, under it, launches, minutes open, page views (`plugins/telemetry.ts`,
   keys in `utils/telemetry.ts`; a filter change is not a view) and features counted by the shell — a champion select
-  or a game followed, a game with the overlay drawn (once per game), a game recorded, a site page opened — with the
+  or a game followed, a game with the overlay drawn (once per game), a game recorded, a site page opened, a pick
+  hovered, locked or a ban made from the draft (#1909) — with the
   app's version and OS. Sent to `POST /api/desktop/telemetry` a minute after launch, every 5 minutes and at exit; a
   failed send keeps its counts for the next. Nothing read from the League client is sent. "Share Anonymous Usage
   Data", checked by default, in the macOS app menu / Windows tray menu turns it off for good; a debug build never
@@ -449,6 +488,8 @@ Cross-cutting: memory cache (`SizeLimit = 1024`, no Redis), global per-**visitor
 
 **A player's matchup search reports a real share (#1224).** The player-scoped `?opponent=` lookup used to force its denominator to zero, so `playRate` came back as 0 — "a matchup this player never plays", out of a head-to-head they asked for by name — while the aggregate path had been fixed in #1098. Both paths now count the whole field they are a share of: for a player, every lane-opponent game on that champion and lane, before the opponent narrowing and before the per-player games floor.
 
+**The pace benchmark (#1912)** — `GET /benchmarks/pace?position=` (`Api/Services/Benchmarks/PaceBenchmarkQueryService.cs`), read by the desktop overlay only: per tier and whole minute (1–30) of a lane, the sample and the p25 / median / p75 of a laner's cumulative CS (minions + monsters) and gold earned, read off `pace_benchmark_stats` histograms pooled over the newest three patches. A minute under 50 samples carries its count without quartiles. Every tier is returned so the app picks the player's own locally. One cache entry per lane, one hour.
+
 > Reads live in `Api/Services/<area>` as purpose-built query services injecting `TrueMainDbContext` and projecting read-models with `AsNoTracking` — no generic repository. That is the rule as decided in #865, not a divergence from it; see [decisions.md](decisions.md#where-api-reads-live).
 
 ### Ingestor
@@ -469,7 +510,7 @@ sequence is the source of truth; renumber this table from it, never the other wa
 | 4 | Harvest | Generates candidates from orphan `match_participants` — zero Riot calls (#485). Its **refresh** half (re-reading the observed stats of pairs already known) is budgeted from the claim's capacity rather than from the flat `Harvest:MaxCandidatesPerRun`, and skips pairs already `Queued`, which are past scoring (#1361); the **discovery** half (unseen pairs) keeps its full configured share | Before Scoring, so harvested candidates compete in the same per-platform top-N as ladder and manual ones |
 | 5 | Scoring | Weighted blend (recency, rank, mastery, champion scarcity) → top-N promoted to `Queued`, capped per platform at `claim capacity x Intake:PromotionHeadroomFactor / platforms` (#1361 — `Scoring:TopNPerPlatform` stays the explicit ceiling above it; the effective cap is logged and carried in the run summary) | Needs all three candidate sources above |
 | 6 | MainActivity | Retires/reactivates mains via champion-mastery `lastPlayTime` (1 call/account); flags rows, never deletes. The same call records mastery points / rank / last-play on every `main_champion_stats` row — the Truemain score's longevity input — and accounts with a never-read main go first (#1701). Runs no more often than `MainActivity:MinRunInterval` (#1474): `RecheckAfterHours` throttles one account, not the process, and with a pool far larger than a day of batches every account is always due. **Match participation is the primary signal** (#1475): an account seen in an ingested match within `InactiveAfterDays` is skipped unless its own mastery read is older than that window — so mastery answers for the unseen tail, plus one refresh per window of the mastery facts the score reads | **Before** the claim (#900), so the batch spends its match-v5 budget on players who still play rather than on accounts that come back empty |
-| 7 | MatchIngestion | Lease-claims accounts **ordered by games played since the last visit** (#1360 — `LadderGames` minus `LadderGamesAtLastIngest`, both kept current for free by the ladder sweep; never-ingested first, no ladder reading falls back to oldest-first), splitting each batch between established mains and new candidates around `MatchIngestion:EstablishedMainShare` — **adaptive** since #1361 and **per platform** since #1533: each platform's own coverage deficit (the one the platform allocator already computes) swings its share by up to `Intake:EstablishedMainShareSwing` towards new candidates when that platform is far below target, and towards established mains when it is met; the claim log line reports each platform's deficit and share. Then fans out **one worker per platform** (#1359 — Riot meters per routing value, so a serial loop used one region's allowance and idled the rest), each sequential over its own accounts: fetches match-v5 + timeline, writes matches/participants/snapshots/kill positions/perks/bans. The id call sends `type=ranked` **and** `queue=<MainAnalysis:QueueId>` plus a `startTime` of the account's last ingest − 1 h (#1358) and a `count` widened to the games the ladder says are owed, capped at Riot's 100 with `MatchesPerAccount` as the floor (#1360), so flex ids are neither fetched nor re-listed on every later claim; `matchesSkipped` now means "already stored" only, with the off-queue discards counted separately as `matchesSkippedWrongQueue` and the visits that stored nothing as `accountsWithoutNewMatches` (#1360). **Every fresh match is also an activity observation** (#1475): in the same transaction, accounts holding a main get `LastSeenInMatchAtUtc` stamped with the game's start (forward-only, one set-based update per account visit), and an inactive main whose champion was played within `MainActivity:InactiveAfterDays` is reactivated with no mastery call — reported as `mainsReactivated` in the run summary. It never deactivates anything | Produces the raw rows every aggregation below reads |
+| 7 | MatchIngestion | Lease-claims accounts **ordered by games played since the last visit** (#1360 — `LadderGames` minus `LadderGamesAtLastIngest`, both kept current for free by the ladder sweep; never-ingested first, no ladder reading falls back to oldest-first), splitting each batch between established mains and new candidates around `MatchIngestion:EstablishedMainShare` — **adaptive** since #1361 and **per platform** since #1533: each platform's own coverage deficit (the one the platform allocator already computes) swings its share by up to `Intake:EstablishedMainShareSwing` towards new candidates when that platform is far below target, and towards established mains when it is met; the claim log line reports each platform's deficit and share. Then fans out **one worker per platform** (#1359 — Riot meters per routing value, so a serial loop used one region's allowance and idled the rest), each sequential over its own accounts: fetches match-v5 + timeline, writes matches/participants/snapshots/kill positions/perks/bans, and folds the timeline's per-minute CS and gold earned into the pace benchmark (`pace_benchmark_stats`, #1912) while it is in memory — once per match, gated by `matches.PaceBenchmarkAggregated`, the whole lobby counted at the tier of its tracked account(s) at game time. The id call sends `type=ranked` **and** `queue=<MainAnalysis:QueueId>` plus a `startTime` of the account's last ingest − 1 h (#1358) and a `count` widened to the games the ladder says are owed, capped at Riot's 100 with `MatchesPerAccount` as the floor (#1360), so flex ids are neither fetched nor re-listed on every later claim; `matchesSkipped` now means "already stored" only, with the off-queue discards counted separately as `matchesSkippedWrongQueue` and the visits that stored nothing as `accountsWithoutNewMatches` (#1360). **Every fresh match is also an activity observation** (#1475): in the same transaction, accounts holding a main get `LastSeenInMatchAtUtc` stamped with the game's start (forward-only, one set-based update per account visit), and an inactive main whose champion was played within `MainActivity:InactiveAfterDays` is reactivated with no mastery call — reported as `mainsReactivated` in the run summary. It never deactivates anything | Produces the raw rows every aggregation below reads |
 | 8 | MatchTeamPositionCorrection | Backfills `team_position` for the unambiguous single-gap case | Before the aggregations read `TeamPosition`. `RiotMatchMapper` self-heals newly-ingested matches, so steady-state this only drains the pre-existing backlog |
 | 9 | MatchRoleBoundItemBackfill | Recovers Riot's role-bound slot for bot-lane rows ingested before it was recorded (#1612): a bot laner's boots always live there, so `RoleBoundBootsInference` takes the last pair bought from the stored item timeline (the last pair seen when none was bought, e.g. a rune's boots). Drains a partial index, up to 25 × 2000 rows a run. Other roles' legacy rows stay `NULL` and read as empty | After the lane fix, since it selects on `TeamPosition`. New rows carry Riot's value, so steady state is an empty index read |
 | 10 | MainAnalysis | Computes `main_champion_stats` (play rate, mains/OTP) with adaptive thresholds + demotion policy | Needs the freshly ingested matches; defines the main cohort the matchup fold reads |
@@ -481,9 +522,10 @@ sequence is the source of truth; renumber this table from it, never the other wa
 | 16 | ChampionSynergyAggregation | Folds each match once into `champion_synergy_stats` + `champion_synergy_baseline_stats` (same-team pairs and their SELF/ALLY marginals, #922). Queried side = the shared champion cohort (#1365); the partner side stays whoever shared the game | Independent of step 12 (own pending flag), so the order between them is arbitrary; kept adjacent because they read the same slice of `match_participants` and benefit from a warm cache |
 | 17 | ChampionBanAggregation | Folds each match once into `champion_ban_stats` + `ban_scope_totals` (ban counts and the match totals they divide by, #920) | Must run **after** elo enrichment: the fold is one-shot and decides there which bands a match counts in — a match folded before its participants are stamped lands in the ALL band only |
 | 18 | AccountRefresh | Refreshes identity + soloQ rank; recovers or invalidates dead PUUIDs. Its rank half is now the fallback behind LadderSync: `AccountRefresh:RankSyncFreshness` (12 h) skips the per-account call for anything the sweep already saw, which is also how an account that *left* the swept range gets picked up. Its profile half has the mirror gate, `AccountRefresh:ProfileSyncFreshness` (7 d, #1358) — reaching the head of the queue is not on its own a reason to spend account-v1 — except for identity-incomplete rows, which that call is the only writer for; reported as `profileSkippedFresh` | No ordering constraint |
-| 19 | MatchDataRetention | Prunes stale candidates, **demotes the lowest-scored excess of any platform holding more than `Intake:MaxQueuedPerPlatform` candidates in `Queued` back to `Scored`** (#1361 — bounded batches, never a delete, counted in the run summary), non-tracked-queue matches, out-of-window matches, the legacy intermediate-minute timeline snapshots of timeline-ingested matches (ingestion writes the 5/10/15/20/30 marks only since #1599) | After every fold that reads raw match data |
-| 20 | CandidateStockSnapshot | Records how many candidates sit in each status, per platform, into `candidate_stock_snapshots` — one hour-keyed upsert per (platform, status), zeros included (#1403), carrying both the row count and the distinct accounts holding them (#1534) | After retention, for the same reason the storage snapshot is: retention prunes candidates and demotes an over-full queue, so a level read before it is a peak the pipeline never sits at |
-| 21 | StorageSnapshot | Records the day's `pg_catalog` sizes + measured `pg_database_size` into `db_table_size_snapshots` (#925) | Deliberately **last**: it must measure the steady-state size after retention's deletions, not the peak before them, or the forecast would predict an exhaustion retention is already preventing |
+| 19 | PaceSampling | Reads games of the tiers TrueMain does not ingest (`PaceSampling:TierScope`, Iron → Platinum) into the overlay's pace benchmark (#1912): per (platform, tier) in a shuffled round-robin, one random page of the division ladder, `SeedsPerPage` random players of it, each one's latest `MatchesPerSeed` ranked games within `MatchLookback`, then the match and its timeline — folded in memory at the seed's tier (`PaceBenchmarkBuilder.BuildAtTier`, the lobby rule) and discarded. **Never writes `matches` / `match_participants`**; a ledger (`pace_sampled_matches`, pruned past the lookback) and the regular ingestion's `matches` keep a game from being counted twice. Every call — page, id list, match, timeline, failed or not — counts against `MaxRequestsPerRun` and the day's `MaxRequestsPerDay` (read back from its run summaries); 5 failures in a row end the run. A remake or off-queue game costs no timeline call | Last in the fetch lane: it spends only what the other Riot steps left |
+| 20 | MatchDataRetention | Prunes stale candidates, **demotes the lowest-scored excess of any platform holding more than `Intake:MaxQueuedPerPlatform` candidates in `Queued` back to `Scored`** (#1361 — bounded batches, never a delete, counted in the run summary), non-tracked-queue matches, out-of-window matches, the legacy intermediate-minute timeline snapshots of timeline-ingested matches (ingestion writes the 5/10/15/20/30 marks only since #1599) | After every fold that reads raw match data |
+| 21 | CandidateStockSnapshot | Records how many candidates sit in each status, per platform, into `candidate_stock_snapshots` — one hour-keyed upsert per (platform, status), zeros included (#1403), carrying both the row count and the distinct accounts holding them (#1534) | After retention, for the same reason the storage snapshot is: retention prunes candidates and demotes an over-full queue, so a level read before it is a peak the pipeline never sits at |
+| 22 | StorageSnapshot | Records the day's `pg_catalog` sizes + measured `pg_database_size` into `db_table_size_snapshots` (#925) | Deliberately **last**: it must measure the steady-state size after retention's deletions, not the peak before them, or the forecast would predict an exhaustion retention is already preventing |
 
 **Riot client layer** — typed clients (match / platform / account), each wrapped in three handlers, outermost first: the standard **resilience** handler (total timeout, retry honouring `Retry-After`, circuit breaker, per-attempt timeout — its "rate limiter" strategy is a concurrency bulkhead and paces nothing), then the **rate-limit observer** (#1359), then the **metrics** handler, with the **rate limiter** itself wrapped around all three. The limiter holds one budget per Riot routing value (`europe`/`americas`/`asia`, `euw1`/`kr`/`na1`) because that is the grain Riot meters, learns its limits from `X-App-Rate-Limit` / `X-Method-Rate-Limit` (so a production key needs no redeploy), reconciles against the `-Count` headers, and freezes the right bucket on a 429. Configured under `RiotRateLimit:*`, shown on the admin configuration page. The wait sits **outside** the resilience handler and the header feedback **inside** it: inside, a permit wait would be charged to the 10-second per-attempt timeout and fail the call (it did, on preprod, within an hour of the first deploy); outside, the observer would never see the 429s the retry strategy absorbs. Metrics stay innermost, so a permit wait is not recorded as Riot latency and every physical attempt including retried 429s is still recorded to Mongo.
 

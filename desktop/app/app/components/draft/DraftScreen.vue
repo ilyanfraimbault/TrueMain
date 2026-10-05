@@ -22,6 +22,9 @@ const { state: lcu } = useLcuState()
 
 const draft = toRef(props, 'draft')
 
+// Hover, lock and ban, on the player's click (#1909): one instance for every control under this screen.
+const { turnLabel } = provideChampSelectActions(draft)
+
 // ─── The pool, and the answer for it ────────────────────────────────────────
 
 /** How many of the player's own champions are ranked: their ten most played on the lane. */
@@ -176,7 +179,11 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
 
 <template>
   <div class="flex h-full flex-col gap-3 px-4 pb-4 pt-3">
-    <DraftTopStrip :ally-bans="draft.allyBans" :enemy-bans="draft.enemyBans" :seconds-left="draft.secondsLeft" :label="label" />
+    <DraftTopStrip :ally-bans="draft.allyBans" :enemy-bans="draft.enemyBans" :seconds-left="draft.secondsLeft" :label="turnLabel ?? label">
+      <template #action>
+        <DraftLockButton />
+      </template>
+    </DraftTopStrip>
 
     <div class="grid grid-cols-[minmax(0,1fr)_8.5rem_minmax(0,1fr)] gap-3">
       <DraftTeam
