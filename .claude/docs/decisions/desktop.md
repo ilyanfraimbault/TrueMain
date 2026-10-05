@@ -450,13 +450,35 @@ Alt+Shift+O, read with TAB from the keyboard's state as on macOS (no hook, no re
 Windows tester: CI drives it on a Windows desktop over a stand-in game (#1806), but a real game has not been played
 under it yet — #1798.
 
+**Each overlay panel shows always, while a chord is held, or toggled by one; keys are read, never taken (2026-10-05).**
+The product owner's call (UI/UX point 13), after Mobalytics' per-panel hotkeys and players' complaints about overlays
+that are always there. Each panel has its own trigger, set on the Overlay page: **Always**, **While held** (a chord) or
+**Toggle** (each press flips it; shown or hidden at game start is a setting, and every game starts from it — a toggle
+lasts one game, like the ⌥⇧O hide, which still wins over everything). The next item's moment combines with it: a
+toggled-on next item in "while dead" still waits for a death. Defaults are today's behaviour exactly — the item value
+held with TAB, the others always — so a settings file from before (v2) migrates with no visible change (v3).
+- **A chord is a physical key** plus the modifiers and TAB, recorded from `KeyboardEvent.code` and read by position
+  (`kVK_*` on macOS; the scan code turned into the game's layout's virtual key on Windows), so it holds on AZERTY.
+- **Read, never hooked.** The keys come from the keyboard's state every 30 ms, only those the chords name and only while
+  the game is frontmost — no event tap, no hook, no `RegisterHotKey`, so no Input Monitoring prompt and nothing an
+  anti-cheat looks for. The consequence is accepted: the game gets every key of a chord too (Tab+Q casts Q). The app
+  cannot swallow it and does not try; it **warns** instead, naming what the key does in game, from the player's own
+  League keybindings (`/lol-game-settings/v1/input-settings`) or Riot's defaults without a client — a warning, never
+  a refusal.
+- **Refused**, with the reason shown: modifiers alone, TAB alone (except the item value's held default), Esc and Enter
+  (menu, chat), the hide shortcut, the system's chords (⌘/Win, Alt+Tab, Alt+F4) and a chord another panel has. The
+  rule is `shell-state`'s and is applied again to every file and save: a refused trigger falls back to the panel's default.
+- **Suggested** when a panel is first put on a chord: Alt+Shift and a digit per panel, away from Riot's default binds
+  (items are on the bare digits). No Tab+Q/W/E/R default. #1915.
+
 **The overlay shows a win probability, from each lane's lead and the map (2026-10-02, refitted 2026-10-04).** The
 product owner's call, reversing for the in-game overlay the "no win probability" line of #1671 and #1747. The first
 version (#1795) was a hand-set formula over the item-gold lead relative to the teams' average item gold, and it read
 backwards in play. Item gold lags behind the side ahead, since the side behind shops on every death. Early, one
 completed component moved the bar by tens of points. And the support's gold counted like a carry's. It is now a
 logistic regression fitted on our ranked games (`match_participant_timeline_snapshots`, about a million games per
-minute mark), in `utils/item-value.ts`. The inputs are each lane's creep-score, level and kill lead over the opposite
+minute mark), in `web/layers/common/app/utils/win-probability.ts` since #1911 (`utils/item-value.ts` adapts the live
+game onto it). The inputs are each lane's creep-score, level and kill lead over the opposite
 lane at 5, 10, 15, 20 and 30 minutes, with the weights interpolated between the marks. These are the only leads the
 game's API shows for all ten players, since it gives nobody's gold but ours. On held-out games they predict the result
 as well as the true per-lane gold does (AUC 0.764 at 10 minutes, 0.829 at 15), calibrated within a couple of points.
@@ -468,6 +490,21 @@ five minutes after they fall), elemental drakes (0.15 each, +0.6 for the soul at
 the Elder's (1.1) while they last. The buffs last three minutes and two and a half, counted from the kill, since the
 feed does not say when a holder dies. The map is read off the game's event feed (`live_client::objectives`), which
 every player sees announced. The draft keeps no win probability (2026-10-02) — #1795, #1864.
+
+**After the game, the same model draws the whole game's curve and its turning points — computed on the client
+from the client's timeline (2026-10-05).** The recording recap and the dashboard's opened match read the game's
+timeline from the client (`GET /lol-match-history/v1/game-timelines/{gameId}`), reduced by the shell to what the model
+reads (`lcu::win_probability`), and build the curve in the webview with the shared builder
+(`web/layers/common/app/utils/win-probability-timeline.ts`): it works for every game in the client's history, not only
+those TrueMain ingested, and costs nothing on our Riot key. A game TrueMain holds uses TrueMain's stored curve instead.
+The recap keeps the reduced timeline in the recording's metadata at finalisation, so it still draws once the game has
+left the client's history; a live-feed-only recording has no curve. One model, two runtimes: the ingestor runs a C#
+port (`Core/Lol/WinProbability`), and a shared fixture (`web/shared/fixtures/win-probability-timeline.json`) fails
+either side's tests when a weight or a step drifts. A turning point is a kill, a turret, an inhibitor, a drake, the
+Elder or the Baron, weighed at its own time with only that event changing (creep score and level interpolated between
+frames, so the delta is exact under the model); the five largest are listed. The Rift Herald, Voidgrubs and Atakhan
+are shown with no figure, never "0 pts". The "slow drift" share (farm and levels building up) was left out. Post-game
+only: this changes nothing about the in-game panel, whose compliance question stays open on its own — #1911.
 
 **The player's own account is never highlighted (2026-10-02).** No tint, ring or bolder name on our row — not on the
 loading screen, the game page's scoreboard, a dashboard match row's team strip, nor the opened match's scoreboard and
@@ -501,3 +538,35 @@ in its tooltip (the product owner asked for it discreet but always there), on ev
 only the draft's: a lane build or a true main's page is as much a choice to take as the draft's. Summoner spells are
 not imported — the issue asked for them only if as safe, and the client's spell slots are part of champion select's
 own state, not a page the app can own and reuse — #1678.
+
+**Items are imported the same way, as one `TrueMain: ` item set replaced in place (2026-10-05).** The rune page is no
+longer the only write: a second icon, in the corner of the build tree, writes the build on screen as one item set
+titled `TrueMain: <champion>` (Starter, Boots, Core, Situational — each only when it has items, duplicate starters
+folded into a count), offered on that champion and Summoner's Rift. The app owns **one** set: importing another
+champion's build moves it there rather than adding a set per champion or per game; recognised by the same name prefix,
+and further sets carrying it are collapsed into one. Same click-only rule as the runes. The client only accepts the
+account's whole list (`PUT /lol-item-sets/v1/item-sets/{summonerId}/sets`), so the import is a read-modify-write and
+carries its own guards: every set that is not ours goes back as the raw JSON it was read as, in its position (no typed
+struct that would drop a field); the list is re-read right before the write and a failed or undecodable read writes
+nothing; the list is read again after, and a player set missing from it is reported to the player. The Situational
+block is the slice's `Situational` verdicts (item context, #1450) by pick rate, else the build tree's other branches
+along the core path — never padded. The skill order is not written into a block title — #1908.
+
+**Measurable goals live on this machine, are measured from the client's games, and take their suggested targets from
+the player's own average (2026-10-05).** A goal is a target on one of the dashboard's eight metrics over the player's
+next N games — the metric's own ratio of sums over them (`average`), or the threshold met in K of them (`eachGame`) —
+optionally on one queue, champion and lane. It is kept in `localStorage` per Riot ID, like the LP history, and read
+against the games `usePlayerRecord` lists, so it moves after each game and counts the ones played while the app was
+closed; nothing about it is sent, the same rule as #1805. Only games started after it was set count, remakes and games
+the metric cannot read (an unread scoreboard for KP or damage share) are skipped and extend the run. Each counted game
+is frozen into the goal with the parts of its ratio, so a goal stays decided once its games leave the client's bounded
+history, and older pages are read only while a run needs them. A verdict reads the value at the precision the player
+sees (6.96 CS/min shows 7.0 and meets 7). Suggestions take the tiles where recent form is furthest below the player's
+own average and set the target at that average — a figure measured from their games, never a "players at your rank"
+benchmark we do not have (#1912 may add the tier's median later); none below the sample the tiles need for a delta,
+no CS/min for a mostly-support player, vision first for one. Guardrails: at most 3 active goals and 3 suggestions, a
+plain sentence (no badges), no toast — the outcome waits on the post-game dashboard — and nothing in the in-game
+overlay, which would be a separate decision under Riot's decision-support rule. The issue's open questions, settled:
+5 games by default (the tiles' recent window); "All" queues allowed but never the default nor suggested, since it
+mixes ARAM with the Rift; no per-champion default for a one-trick, the player picks the champion when they want one.
+No usage counter was added for goals — #1913.

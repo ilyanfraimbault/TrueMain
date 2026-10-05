@@ -16,6 +16,7 @@ use crate::anchor::Anchor;
 use crate::highlights::{Highlight, HighlightSource};
 use crate::moments::{self, Moment, Objective};
 use crate::settings::Quality;
+use crate::win_probability::{WIN_PROBABILITY_FILE, WIN_PROBABILITY_TEMPORARY};
 
 pub const VIDEO_FILE: &str = "video.mp4";
 pub const METADATA_FILE: &str = "recording.json";
@@ -161,11 +162,16 @@ impl RecordingDir {
 
     /// The space the recording's own files take.
     pub fn size_bytes(&self) -> u64 {
-        [VIDEO_FILE, METADATA_FILE, THUMBNAIL_FILE]
-            .iter()
-            .filter_map(|name| fs::metadata(self.path.join(name)).ok())
-            .map(|metadata| metadata.len())
-            .sum()
+        [
+            VIDEO_FILE,
+            METADATA_FILE,
+            THUMBNAIL_FILE,
+            WIN_PROBABILITY_FILE,
+        ]
+        .iter()
+        .filter_map(|name| fs::metadata(self.path.join(name)).ok())
+        .map(|metadata| metadata.len())
+        .sum()
     }
 
     /// Delete the recording's own files, then its folder if nothing else is
@@ -176,6 +182,8 @@ impl RecordingDir {
             METADATA_FILE,
             METADATA_TEMPORARY,
             THUMBNAIL_FILE,
+            WIN_PROBABILITY_FILE,
+            WIN_PROBABILITY_TEMPORARY,
         ] {
             match fs::remove_file(self.path.join(name)) {
                 Ok(()) => {}

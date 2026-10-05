@@ -9,13 +9,6 @@
   color-scheme: dark;
 }
 
-@theme static {
-  /* The two sides of a draft, in the client's own convention: blue is us, red
-     is them. Tints and hairlines only — never a fill behind text. */
-  --color-ally: #4f8fff;
-  --color-enemy: #ff4d5e;
-}
-
 /*
  * Champion art is the material the draft is made of, and it needs a scrim to
  * carry text.

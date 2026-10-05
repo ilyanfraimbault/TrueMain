@@ -52,6 +52,9 @@ import type {
   MatchDetailResponse,
   MatchDetailSkillEvent,
 } from '~~/shared/types/match-detail'
+import type { MatchWinProbability, WinProbabilityTimeline } from '~~/shared/types/win-probability'
+import winProbabilityFixture from '~~/shared/fixtures/win-probability-timeline.json'
+import { buildWinProbability } from '~~/layers/common/app/utils/win-probability-timeline'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
 import type {
   PerformanceComponentKind,
@@ -1777,7 +1780,42 @@ async function mockMatchDetail(player: MockPlayer, matchId: string): Promise<Mat
     gameDurationSeconds: summary.gameDurationSeconds,
     gameVersion: `${await latestShortPatch()}.1`,
     participants,
+    // Every third game reads as ingested before the curve existed: no Timeline tab.
+    winProbability: index % 3 === 2 ? null : mockWinProbability(participants, summary.gameDurationSeconds * 1000),
   }
+}
+
+/**
+ * The shared fixture's game (`shared/fixtures/win-probability-timeline.json`)
+ * replayed onto this roster — each fixture player becomes the participant on
+ * the same side and lane — and stretched to this game's length, then run
+ * through the real builder, so the Timeline tab draws what the API would send.
+ */
+export function mockWinProbability(participants: MatchDetailParticipant[], durationMs: number): MatchWinProbability | null {
+  const source = winProbabilityFixture.timeline as WinProbabilityTimeline
+  const ids = new Map<number, number>()
+  for (const p of source.participants) {
+    const match = participants.find(candidate => candidate.teamId === p.teamId && candidate.teamPosition === p.position)
+    if (!match) return null
+    ids.set(p.participantId, match.participantId)
+  }
+  const id = (participantId: number | undefined) => ids.get(participantId ?? 0) ?? 0
+  const scale = (ms: number) => Math.round(ms * durationMs / source.durationMs)
+  return buildWinProbability({
+    durationMs,
+    participants: source.participants.map(p => ({ ...p, participantId: id(p.participantId) })),
+    frames: source.frames.map(frame => ({
+      ms: scale(frame.ms),
+      players: frame.players.map(player => ({ ...player, participantId: id(player.participantId) })),
+    })),
+    events: source.events.map(event => ({
+      ...event,
+      ms: scale(event.ms),
+      killerId: id(event.killerId),
+      victimId: id(event.victimId),
+      assistIds: (event.assistIds ?? []).map(id),
+    })),
+  })
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────

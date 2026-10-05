@@ -1,19 +1,20 @@
 <script setup lang="ts">
-import type { OverlayPanel, OverlayPanelSettings, OverlaySettings, OverlayShow } from '~/types/overlay'
+import type { OverlayPanel, OverlayPanelSettings, OverlaySettings, OverlayShow, PanelTrigger } from '~/types/overlay'
 import type { Point } from '~/utils/overlay-layout'
 import { OVERLAY_OPACITY, OVERLAY_PANELS, OVERLAY_SCALE, PANEL_KEY } from '~/types/overlay'
 
 /**
  * The in-game overlay (#1795), set up out of game (#1819): which panels show
  * and where, laid out on a small copy of the screen (`OverlayLayoutEditor`),
- * then what goes for every panel — the next item's moment, size, opacity, the
- * shortcut. Each change is saved as it is made; the shell's answer is what
+ * then what brings each panel up in game (always, a chord held or toggled,
+ * #1915), and what goes for every panel — the next item's moment, size,
+ * opacity, the hide shortcut. Each change is saved as it is made; the shell's answer is what
  * then shows.
  *
  * Not `/overlay/<panel>`: those are the panels' own windows (`[panel].vue`),
  * drawn outside the app's shell.
  */
-const { view, save, preview } = useGameOverlay()
+const { view, save, preview, readBinds } = useGameOverlay()
 const current = computed(() => view.value?.settings ?? null)
 
 const SHOWS: { value: OverlayShow, label: string }[] = [{ value: 'always', label: 'Whole game' }, { value: 'whileDead', label: 'While dead' }]
@@ -29,6 +30,11 @@ function applyPanel(panel: OverlayPanel, change: Partial<OverlayPanelSettings>) 
 const place = (panel: OverlayPanel, custom: Point) => applyPanel(panel, { enabled: true, custom })
 const show = (panel: OverlayPanel) => applyPanel(panel, { enabled: true })
 const hide = (panel: OverlayPanel) => applyPanel(panel, { enabled: false })
+const setTrigger = (panel: OverlayPanel, trigger: PanelTrigger) => applyPanel(panel, { trigger })
+
+const shownPanels = computed(() => OVERLAY_PANELS.filter(panel => current.value?.[PANEL_KEY[panel]].enabled))
+// The chords' warnings read the player's own League keybindings when the client is there.
+onMounted(() => void readBinds())
 
 /** Every panel back on its own spot. */
 const moved = computed(() => OVERLAY_PANELS.some(panel => current.value?.[PANEL_KEY[panel]].custom))
@@ -86,6 +92,7 @@ onBeforeUnmount(() => void preview(false))
     <OverlayLayoutEditor
       v-else
       :settings="current"
+      :chords="view?.chords"
       :class="!current.enabled && 'opacity-60'"
       @place="place"
       @show="show"
@@ -113,6 +120,22 @@ onBeforeUnmount(() => void preview(false))
       <section v-if="current.nextItem.enabled" class="flex flex-col gap-2">
         <h3 class="stat-label">Next item shows</h3>
         <RecordingsSegmented :model-value="current.show" :items="SHOWS" @update:model-value="apply({ show: $event })" />
+      </section>
+
+      <section v-if="shownPanels.length" class="flex flex-col gap-3">
+        <h3 class="stat-label">In game, shown</h3>
+        <OverlayTriggerPicker
+          v-for="panel in shownPanels"
+          :key="panel"
+          :panel="panel"
+          :trigger="current[PANEL_KEY[panel]].trigger"
+          :chord="view?.chords[panel] ?? null"
+          @change="setTrigger(panel, $event)"
+        />
+        <p class="text-xs text-dimmed">
+          The game gets the keys too: a shortcut never stops what they do in game.
+          {{ view?.ownBinds ? 'Checked against your League keybindings.' : 'Checked against League\'s default keybindings.' }}
+        </p>
       </section>
 
       <section class="flex flex-col gap-2">

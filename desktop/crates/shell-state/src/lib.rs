@@ -5,6 +5,7 @@
 //! needs a platform webview). Here, the navigation rule is covered by tests
 //! that run anywhere.
 
+pub mod keys;
 pub mod overlay;
 
 use lcu::{
