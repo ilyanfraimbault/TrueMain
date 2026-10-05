@@ -53,4 +53,25 @@ public sealed class MatchRepository(TrueMainDbContext db) : IMatchRepository
 
     public void Add(Match match)
         => db.Matches.Add(match);
+
+    public async Task<List<PaceBenchmarkFoldClaim>> ClaimPaceBenchmarkFoldAsync(
+        IReadOnlyCollection<string> matchIds,
+        CancellationToken ct)
+    {
+        if (matchIds.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = matchIds.Distinct(StringComparer.Ordinal).ToArray();
+
+        return await db.Database.SqlQuery<PaceBenchmarkFoldClaim>(
+                $"""
+                 UPDATE matches
+                 SET "PaceBenchmarkAggregated" = true
+                 WHERE "Id" = ANY({ids}) AND NOT "PaceBenchmarkAggregated"
+                 RETURNING "Id", "Patch", "GameStartTimeUtc", "GameDurationSeconds"
+                 """)
+            .ToListAsync(ct);
+    }
 }

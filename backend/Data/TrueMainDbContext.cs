@@ -62,6 +62,11 @@ public class TrueMainDbContext : DbContext
     // verdicts, read by the desktop app's in-game panel through POST champions/{id}/next-item.
     public DbSet<ChampionNextItemTerm> ChampionNextItemTerms => Set<ChampionNextItemTerm>();
 
+    // The desktop overlay's pace benchmark (#1912): per-minute CS and gold-earned
+    // histograms per (patch, tier, position), folded from each timeline in memory at
+    // ingestion by TimelineIngestionService — never a per-minute participant grid.
+    public DbSet<PaceBenchmarkStat> PaceBenchmarkStats => Set<PaceBenchmarkStat>();
+
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 
     // Junction-table aggregate + globally-deduplicated dimension tables: the
