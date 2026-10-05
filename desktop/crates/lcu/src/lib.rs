@@ -4,10 +4,12 @@
 //! platform, including the Linux CI box, while the app shell it serves only
 //! builds on macOS and Windows.
 //!
-//! Read-only by design. Nothing here injects, reads process memory, or takes an
-//! action on the player's behalf — the app talks to the same local HTTP API the
-//! client serves to its own web UI.
+//! Read-mostly by design. Nothing here injects, reads process memory, or takes
+//! an action on the player's behalf — the app talks to the same local HTTP API
+//! the client serves to its own web UI, and its few writes (a rune page, a
+//! champion select hover, lock or ban) are made on the player's click only.
 
+pub mod champ_select;
 pub mod client;
 pub mod credentials;
 pub mod detail;
@@ -24,6 +26,7 @@ pub mod tape;
 pub mod tls;
 pub mod win_probability;
 
+pub use champ_select::{ActionKind, DraftAction, Refusal};
 pub use client::LcuClient;
 pub use credentials::Credentials;
 pub use detail::GameDetail;

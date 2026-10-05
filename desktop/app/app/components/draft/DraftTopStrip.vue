@@ -3,6 +3,8 @@
  * The strip over the draft: each side's bans at its own edge, and between them
  * where the draft stands and the phase timer running down.
  *
+ * Beside the clock, the `action` slot: the draft screen's "Lock in" button.
+ *
  * The reference apps put a win probability here. We do not have a model that
  * produces one, and a number that comes from neither an endpoint nor a
  * measurement is not one this app shows (#1671) — so the middle is the clock.
@@ -35,7 +37,7 @@ const urgent = computed(() => props.secondsLeft > 0 && props.secondsLeft <= 10)
 </script>
 
 <template>
-  <div class="grid grid-cols-[1fr_minmax(0,18rem)_1fr] items-center gap-4">
+  <div class="grid grid-cols-[1fr_minmax(0,24rem)_1fr] items-center gap-4">
     <div v-for="(side, sideIndex) in [pad(allyBans), pad(enemyBans)]" :key="sideIndex" class="flex items-center gap-1" :class="sideIndex === 1 && 'order-3 flex-row-reverse'">
       <template v-for="(champion, index) in side" :key="index">
         <img
@@ -51,22 +53,25 @@ const urgent = computed(() => props.secondsLeft > 0 && props.secondsLeft <= 10)
       </template>
     </div>
 
-    <div class="order-2 flex flex-col gap-1.5">
-      <div class="flex items-baseline justify-between">
-        <span class="stat-label">{{ label }}</span>
-        <span
-          v-if="secondsLeft > 0"
-          class="stat-value text-xl leading-none transition-colors"
-          :class="urgent && 'text-primary! drop-shadow-[0_0_10px_var(--color-rosegold-500)]'"
-        >{{ secondsLeft }}</span>
+    <div class="order-2 flex items-center gap-3">
+      <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div class="flex items-baseline justify-between">
+          <span class="stat-label">{{ label }}</span>
+          <span
+            v-if="secondsLeft > 0"
+            class="stat-value text-xl leading-none transition-colors"
+            :class="urgent && 'text-primary! drop-shadow-[0_0_10px_var(--color-rosegold-500)]'"
+          >{{ secondsLeft }}</span>
+        </div>
+        <div class="h-1 overflow-hidden rounded-full bg-accented">
+          <div
+            class="h-full rounded-full transition-[width] duration-1000 ease-linear"
+            :class="urgent ? 'bg-primary' : 'bg-ink-300'"
+            :style="{ width: `${progress * 100}%` }"
+          />
+        </div>
       </div>
-      <div class="h-1 overflow-hidden rounded-full bg-accented">
-        <div
-          class="h-full rounded-full transition-[width] duration-1000 ease-linear"
-          :class="urgent ? 'bg-primary' : 'bg-ink-300'"
-          :style="{ width: `${progress * 100}%` }"
-        />
-      </div>
+      <slot name="action" />
     </div>
   </div>
 </template>

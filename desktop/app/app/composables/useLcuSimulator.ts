@@ -12,6 +12,11 @@ import { LANES } from '~/types/draft'
  * The enemy's five cells (5-9) carry no lane, as in the client — the app
  * guesses them. Our own pick is hovered first (`championPickIntent`) and
  * locked by hand; every other placed champion is locked.
+ *
+ * It also answers the app's champion select requests as the client would
+ * (#1909, `answer`): the session, the pickable and bannable lists, a hover and
+ * a lock on our own ban or pick — refused unless the "our turn" control has
+ * that action open, like a client whose turn is elsewhere.
  */
 
 interface Pick {
@@ -19,8 +24,14 @@ interface Pick {
   locked: boolean
 }
 
+/** Which of our actions the client has open: none, our ban, or our pick. */
+export type SimTurn = 'none' | 'ban' | 'pick'
+
 interface Board {
   myLane: Lane
+  turn: SimTurn
+  /** Our ban hovered and not yet completed. Our ban is the ally ban at our cell's index. */
+  myBanHover: number | null
   allies: Record<Lane, Pick>
   enemies: (number | null)[]
   allyBans: (number | null)[]
@@ -37,11 +48,25 @@ export type SimSlot =
 
 const PHASE_SECONDS = 30
 
+/** Action ids as the session lists them: bans by cell (1-10), our pick after them. */
+const banActionId = (cell: number) => cell + 1
+const pickActionId = (cell: number) => 100 + cell
+
+/** One request of the app's shell, relayed by the dev server (`server/routes/__sim/lcu.ts`). */
+export interface SimRequest {
+  id: number
+  method: string
+  path: string
+  body: { championId?: number } | null
+}
+
 const empty = (): Pick => ({ championId: null, locked: false })
 
 function fresh(myLane: Lane = 'MIDDLE'): Board {
   return {
     myLane,
+    turn: 'pick',
+    myBanHover: null,
     allies: Object.fromEntries(LANES.map(lane => [lane, empty()])) as Record<Lane, Pick>,
     enemies: Array(5).fill(null),
     allyBans: Array(5).fill(null),
@@ -93,7 +118,63 @@ export function useLcuSimulator() {
 
   /** Our position moves; a champion on the old lane stays there, as an ally's. */
   function setMyLane(lane: Lane) {
-    board.value = { ...board.value, myLane: lane }
+    board.value = { ...board.value, myLane: lane, myBanHover: null }
+  }
+
+  function setTurn(turn: SimTurn) {
+    board.value = { ...board.value, turn, secondsLeft: PHASE_SECONDS }
+  }
+
+  /**
+   * The client's answer to one request of the app, applied to the board as the
+   * client would apply it. `champions` is every champion id there is: the
+   * pickable and bannable lists are those not taken.
+   */
+  function answer(request: SimRequest, champions: number[], inChampSelect: boolean): { status: number, body: unknown } {
+    const state = board.value
+    const myCell = LANES.indexOf(state.myLane)
+    const mine = state.allies[state.myLane]
+    const refused = (status: number, message: string) => ({ status, body: { message } })
+    if (!inChampSelect) return refused(404, 'No active delegate')
+
+    if (request.method === 'GET') {
+      if (request.path === '/lol-champ-select/v1/session') return { status: 200, body: session.value }
+      if (request.path.endsWith('/pickable-champion-ids') || request.path.endsWith('/bannable-champion-ids')) {
+        return { status: 200, body: champions.filter(id => !taken.value.has(id)) }
+      }
+      return refused(404, `Nothing at ${request.path}`)
+    }
+
+    const match = request.path.match(/^\/lol-champ-select\/v1\/session\/actions\/(\d+)(\/complete)?$/)
+    if (!match) return refused(404, `Nothing at ${request.path}`)
+    const id = Number(match[1])
+    const complete = match[2] !== undefined
+    const banOpen = state.turn === 'ban' && state.allyBans[myCell] === null
+    const pickOpen = state.turn === 'pick' && !mine.locked
+
+    if (id === banActionId(myCell) && banOpen) {
+      if (!complete && request.method === 'PATCH') {
+        board.value = { ...state, myBanHover: request.body?.championId ?? null }
+        return { status: 204, body: null }
+      }
+      if (complete && request.method === 'POST' && state.myBanHover !== null) {
+        const allyBans = [...state.allyBans]
+        allyBans[myCell] = state.myBanHover
+        board.value = { ...state, allyBans, myBanHover: null, secondsLeft: PHASE_SECONDS }
+        return { status: 204, body: null }
+      }
+    }
+    if (id === pickActionId(myCell) && pickOpen) {
+      if (!complete && request.method === 'PATCH') {
+        place({ kind: 'ally', lane: state.myLane }, request.body?.championId ?? null)
+        return { status: 204, body: null }
+      }
+      if (complete && request.method === 'POST' && mine.championId !== null) {
+        lockMine()
+        return { status: 204, body: null }
+      }
+    }
+    return refused(500, 'This action is not in progress')
   }
 
   function clear() {
@@ -109,14 +190,19 @@ export function useLcuSimulator() {
     const myCell = LANES.indexOf(state.myLane)
     const mine = state.allies[state.myLane]
     const bansOf = (team: 'ally' | 'enemy') => (team === 'ally' ? state.allyBans : state.enemyBans)
-    const banActions = (['ally', 'enemy'] as const).flatMap(team => bansOf(team).map((championId, index) => ({
-      actorCellId: (team === 'ally' ? 0 : 5) + index,
-      championId: championId ?? 0,
-      completed: championId !== null,
-      isAllyAction: team === 'ally',
-      isInProgress: false,
-      type: 'ban',
-    })))
+    const banActions = (['ally', 'enemy'] as const).flatMap(team => bansOf(team).map((championId, index) => {
+      const cell = (team === 'ally' ? 0 : 5) + index
+      const ours = cell === myCell
+      return {
+        id: banActionId(cell),
+        actorCellId: cell,
+        championId: championId ?? (ours ? state.myBanHover ?? 0 : 0),
+        completed: championId !== null,
+        isAllyAction: team === 'ally',
+        isInProgress: ours && championId === null && state.turn === 'ban',
+        type: 'ban',
+      }
+    }))
     return {
       localPlayerCellId: myCell,
       myTeam: LANES.map((lane, cell) => ({
@@ -132,11 +218,11 @@ export function useLcuSimulator() {
       },
       actions: [
         ...banActions.map(action => [action]),
-        [{ actorCellId: myCell, championId: mine.championId ?? 0, completed: mine.locked, isAllyAction: true, isInProgress: !mine.locked, type: 'pick' }],
+        [{ id: pickActionId(myCell), actorCellId: myCell, championId: mine.championId ?? 0, completed: mine.locked, isAllyAction: true, isInProgress: !mine.locked && state.turn === 'pick', type: 'pick' }],
       ],
       timer: { adjustedTimeLeftInPhase: state.secondsLeft * 1000, phase: 'BAN_PICK' },
     }
   })
 
-  return { board, taken, championAt, place, lockMine, setMyLane, clear, tick, session }
+  return { board, taken, championAt, place, lockMine, setMyLane, setTurn, clear, tick, session, answer }
 }

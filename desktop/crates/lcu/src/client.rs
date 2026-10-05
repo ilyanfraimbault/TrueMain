@@ -220,10 +220,10 @@ impl LcuClient {
 
     /// Push a rune page and select it.
     ///
-    /// Call this from an explicit user action only. It is one of the two places
-    /// this app writes to the client (the item set is the other), and the
-    /// distance between doing it on a click and doing it on a pick is the
-    /// distance between a tool and a policy violation.
+    /// Call this from an explicit user action only. Like the item set and the
+    /// champion select writes, the distance between doing it on a click and
+    /// doing it on a pick is the distance between a tool and a policy
+    /// violation.
     ///
     /// Reuses the page this app owns when one exists, so a player does not end
     /// a session with one TrueMain page per game. When the list is full and
@@ -245,7 +245,10 @@ impl LcuClient {
             .await?;
         Ok(created.id)
     }
+}
 
+/// The write path, continued: the item set (#1908).
+impl LcuClient {
     /// The account's item-set document and its list of sets, read raw. Any
     /// failure — the request or the decoding — is
     /// [`Error::ItemSetsUnreadable`], so no caller can mistake it for an empty
@@ -311,7 +314,58 @@ impl LcuClient {
             }
         }
     }
+}
 
+/// The write path into champion select (#1909): hover, lock, ban — each on the
+/// player's click only, like the rune import above.
+impl LcuClient {
+    /// Champions the client lets the player pick right now: owned or free,
+    /// enabled, not taken. Read before writing, so the client's rule is the
+    /// app's rule.
+    pub async fn pickable_champions(&self) -> Result<Vec<i64>> {
+        self.get_json("/lol-champ-select/v1/pickable-champion-ids")
+            .await
+    }
+
+    /// Champions the client lets the player ban right now.
+    pub async fn bannable_champions(&self) -> Result<Vec<i64>> {
+        self.get_json("/lol-champ-select/v1/bannable-champion-ids")
+            .await
+    }
+
+    /// Set the champion on one of the player's actions without completing it:
+    /// a hovered pick (what the allies see as the intent) or a hovered ban.
+    ///
+    /// Call this from an explicit user action only — never on a timer, a phase
+    /// change or a suggestion's rank. The app supports the player's decision;
+    /// it never makes it.
+    pub async fn hover_champion(&self, action_id: i64, champion_id: i64) -> Result<()> {
+        self.send(
+            reqwest::Method::PATCH,
+            &format!("/lol-champ-select/v1/session/actions/{action_id}"),
+            Some(&serde_json::json!({ "championId": champion_id })),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Lock in (or ban) the champion the action already carries. Completing
+    /// rather than patching `completed: true` with a champion means a lock only
+    /// ever commits what the client shows hovered.
+    ///
+    /// Call this from an explicit user action only, like `hover_champion`.
+    pub async fn complete_action(&self, action_id: i64) -> Result<()> {
+        self.send::<()>(
+            reqwest::Method::POST,
+            &format!("/lol-champ-select/v1/session/actions/{action_id}/complete"),
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+}
+
+impl LcuClient {
     async fn send<B: serde::Serialize>(
         &self,
         method: reqwest::Method,

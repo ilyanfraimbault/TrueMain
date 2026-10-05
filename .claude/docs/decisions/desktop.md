@@ -520,8 +520,9 @@ cannot be forged through the public proxy; crawlers and link previews are skippe
 to check — an installed app cannot keep one — so a forged batch is bounded by the per-address rate limit and the
 per-batch caps, a risk taken knowingly for a beta's numbers — #1805.
 
-**Runes are imported on a click only, from a discreet icon in the runes' corner (2026-10-03).** The one place the app
-writes to the client, so it never fires on a pick, a lock or a phase change: Riot's player-facing policy forbids an
+**Runes are imported on a click only, from a discreet icon in the runes' corner (2026-10-03).** One of the places
+the app writes to the client (with the item set, #1908, and champion select, #1909), so it never fires on a pick, a lock or a phase
+change: Riot's player-facing policy forbids an
 application acting on the player's behalf, and an import on click is a tool where an import on lock is an automation.
 The app owns one page, recognised by its `TrueMain: ` name prefix, and replaces it in place on every import rather than
 adding a page per game. With every slot taken and no page of ours, it tells the player to free one and touches nothing
@@ -614,3 +615,19 @@ keeping the ten near one MMR. The panel's gold reads a little under gold earned 
 invisible to the Live Client API), so the gold arrow leans low, never high; the panel's description says so, since a
 click-through panel has no tooltip. Iron → Platinum, which TrueMain does not ingest, come from the capped `PaceSampling`
 process (see `pipeline-riot-budget.md`) — #1912.
+
+**The app hovers, locks and bans in champion select — on the player's click only (2026-10-05).** The product owner
+asked for picking and banning without switching to the client. Riot allows decision support, not decision-making, and
+forbids an application acting on the player's behalf, so every write is a click: no code path writes on a timer, a
+phase change or a suggestion's rank ("lock the best pick"), and the queue pop is never auto-accepted (reportedly not
+allowed; out of scope for good). A lock completes the action (`POST …/actions/{id}/complete`) rather than patching a
+champion in with `completed: true`, so it only ever commits what the client already shows hovered; "Lock in
+<Champion>" is one button in the strip by the clock, away from the cards, so a misclick on a card can never lock, and
+it has no keyboard shortcut. A ban always asks first (irreversible, it costs the team one); hovering, banning or
+locking a champion an ally is hovering asks too, naming the ally's lane. The frontend never names an action id: the
+shell re-reads the session, resolves the player's open action of that kind, and re-reads the client's pickable or
+bannable list before writing, refusing with a reason the player sees. In ranked planning, a hover declares the pick
+intent on our future pick action (unverified on a live client at the time of writing). What the client does with a
+hovered champion when the timer runs out is the client's rule; the app says so and never acts at expiry. Summoner
+spells, skins, swaps and trades are not written. Nothing about the enemy that champion select hides is read for
+this — #1909.
