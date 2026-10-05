@@ -201,6 +201,7 @@ Last verified against `develop` on 2026-09-02.
 - Pattern aggregates use a junction model (`champion_aggregate_patterns` + globally deduplicated `champion_dim_*`)
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
 - A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
+- The pace benchmark is a per-minute CS / gold-earned histogram per (patch, tier, position), folded from the timeline in memory at ingestion, once per match, the lobby at its tracked account's tier — never a per-minute grid (2026-10-05) — #1912
 
 ## Backend code conventions — [`decisions/backend-conventions.md`](decisions/backend-conventions.md)
 
@@ -373,6 +374,7 @@ Last verified against `develop` on 2026-09-02.
 - The Game page's player lines show standing, role fit (main ≥ ½ of recent role games, autofill < ¼), champion record, streak and recent games instead of items and K/D/A (reverses #1748's scoreboard copy); all via the client, plus one ranked request per player (2026-10-04) — #1828
 - Each Game-page lane shows an arrow + chance towards the favoured side: TrueMain's champion head-to-head (shrunk to 50 %) moved by each player's last 10 games on the champion — win rate and gold/CS/XP leads at 15 vs their lane opponent, weighted per role; figures not shown (revises #1828's no-composite rule for lanes only) (2026-10-04) — #1863
 - The next item sits over the game board: the mains' next legendary, one reason, the gold left and the components buyable now, two runners-up and the boots; asked on item changes only; our gold in 50-gold steps (2026-10-01) — #1751
+- The overlay's pace sets CS/min and gold/min against the median of games at the player's Solo/Duo tier (every tier fetched, the tier picked locally); no Solo/Duo standing → no comparison; a reference, never advice (2026-10-05) — #1912
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 
