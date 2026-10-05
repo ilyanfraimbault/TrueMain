@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/recordings'
 import type { PlayerLane } from '~/utils/recording-moments'
+import type { RecapWinProbability } from '~/utils/recording-win-probability'
 import { formatClock, isPlayerMoment, isStructure, LANE_NAMES, momentLabel, momentMark, momentTone, PLAYER_LANES } from '~/utils/recording-moments'
 
 /**
@@ -8,7 +9,9 @@ import { formatClock, isPlayerMoment, isStructure, LANE_NAMES, momentLabel, mome
  * assists and deaths each on a lane of their own — named by the glyph beside
  * it — and the game's objectives above them, the playhead, and the ranges
  * being cut. A click seeks, a click on a moment seeks
- * a few seconds before it; when `editable`, a drag across the track draws a new
+ * a few seconds before it. Under the lanes, when the game has one, the
+ * win-probability curve (#1911) on a lane of its own, its turning points
+ * seeking like moments. When `editable`, a drag across the track draws a new
  * range and a range's handles move its ends. Read-only (a clip's player), a
  * drag scrubs.
  */
@@ -23,11 +26,13 @@ const props = withDefaults(defineProps<{
   selected?: string | null
   saved?: { id: string, startMs: number, endMs: number, title: string }[]
   pendingIn?: number | null
-}>(), { editable: false, drafts: () => [], selected: null, saved: () => [], pendingIn: null })
+  winProbability?: RecapWinProbability | null
+}>(), { editable: false, drafts: () => [], selected: null, saved: () => [], pendingIn: null, winProbability: null })
 
 const emit = defineEmits<{
   seek: [ms: number]
-  moment: [moment: Moment]
+  /** A moment or a turning point: the player lands a few seconds before it. */
+  moment: [moment: Pick<Moment, 'videoMs'>]
   create: [startMs: number, endMs: number]
   resize: [key: string, startMs: number, endMs: number]
   /** `null`: a click on the bare track, which lets go of the selected range. */
@@ -53,9 +58,13 @@ const lanes = computed(() => PLAYER_LANES.map(lane => ({
 const objectives = computed(() => visible.value.filter(moment => !isPlayerMoment(moment))
   .sort((a, b) => Number(!isStructure(a)) - Number(!isStructure(b))))
 
-/** Geometry, px: the objectives' row, then the lanes' panel under it. */
+/** Geometry, px: the objectives' row, then the lanes' panel under it, the curve's lane last. */
 const PANEL_TOP = 28
 const LANE_HEIGHT = 20
+const CURVE_HEIGHT = 40
+const LANES_HEIGHT = LANE_HEIGHT * PLAYER_LANES.length
+const panelHeight = computed(() => LANES_HEIGHT + (props.winProbability ? CURVE_HEIGHT : 0))
+const trackHeight = computed(() => `${PANEL_TOP + panelHeight.value}px`)
 const laneCenter = (lane: PlayerLane) => PANEL_TOP + PLAYER_LANES.indexOf(lane) * LANE_HEIGHT + LANE_HEIGHT / 2
 const LANE_TONES: Record<PlayerLane, string> = { kill: 'text-data-good', assist: 'text-ink-400', death: 'text-red-400' }
 
@@ -126,7 +135,7 @@ function onUp(event: PointerEvent) {
   }
 }
 
-function onMoment(moment: Moment) {
+function onMoment(moment: Pick<Moment, 'videoMs'>) {
   emit('moment', moment)
 }
 </script>
@@ -135,7 +144,7 @@ function onMoment(moment: Moment) {
   <div class="select-none">
     <div class="flex gap-2">
       <!-- The lanes' legend. -->
-      <div class="relative h-[88px] w-4 shrink-0">
+      <div class="relative w-4 shrink-0" :style="{ height: trackHeight }">
         <div
           v-for="lane in PLAYER_LANES"
           :key="lane"
@@ -145,12 +154,21 @@ function onMoment(moment: Moment) {
         >
           <RecapMomentIcon :kind="lane" class="size-3.5" :class="LANE_TONES[lane]" />
         </div>
+        <div
+          v-if="winProbability"
+          class="absolute inset-x-0 flex items-center justify-center"
+          :style="{ top: `${PANEL_TOP + LANES_HEIGHT}px`, height: `${CURVE_HEIGHT}px` }"
+          title="Win probability"
+        >
+          <UIcon name="i-lucide-chart-spline" class="size-3.5 text-ally" />
+        </div>
       </div>
 
       <div
         ref="track"
-        class="relative h-[88px] min-w-0 flex-1 touch-none"
+        class="relative min-w-0 flex-1 touch-none"
         :class="editable ? 'cursor-crosshair' : 'cursor-pointer'"
+        :style="{ height: trackHeight }"
         @pointerdown="onDown"
         @pointermove="onMove"
         @pointerup="onUp"
@@ -178,10 +196,10 @@ function onMoment(moment: Moment) {
           <RecapMomentIcon :kind="moment.kind" :class="isStructure(moment) ? 'size-3' : 'size-3.5'" />
         </button>
 
-        <div class="absolute inset-x-0 overflow-hidden rounded-md bg-muted ring-1 ring-default" :style="{ top: `${PANEL_TOP}px`, height: `${LANE_HEIGHT * PLAYER_LANES.length}px` }">
+        <div class="absolute inset-x-0 overflow-hidden rounded-md bg-muted ring-1 ring-default" :style="{ top: `${PANEL_TOP}px`, height: `${panelHeight}px` }">
           <div class="absolute inset-y-0 left-0 bg-white/[0.035]" :style="{ width: pct(currentMs) }" />
           <div v-for="at in ticks" :key="`grid-${at}`" class="absolute inset-y-0 w-px bg-white/[0.04]" :style="{ left: pct(at) }" />
-          <div v-for="index in PLAYER_LANES.length - 1" :key="`lane-${index}`" class="absolute inset-x-0 h-px bg-white/[0.05]" :style="{ top: `${index * LANE_HEIGHT}px` }" />
+          <div v-for="index in PLAYER_LANES.length - (winProbability ? 0 : 1)" :key="`lane-${index}`" class="absolute inset-x-0 h-px bg-white/[0.05]" :style="{ top: `${index * LANE_HEIGHT}px` }" />
           <div v-if="hoverMs !== null && !drag" class="absolute inset-y-0 w-px bg-white/15" :style="{ left: pct(hoverMs) }" />
           <div
             v-for="clip in saved"
@@ -199,15 +217,26 @@ function onMoment(moment: Moment) {
           :data-range="range.key"
           class="absolute rounded-md ring-1 transition-colors"
           :class="range.key === selected ? 'bg-primary/20 ring-primary' : 'bg-primary/10 ring-primary/40 hover:bg-primary/15'"
-          :style="{ top: `${PANEL_TOP}px`, height: `${LANE_HEIGHT * PLAYER_LANES.length}px`, left: pct(range.startMs), width: `calc(${pct(range.endMs)} - ${pct(range.startMs)})` }"
+          :style="{ top: `${PANEL_TOP}px`, height: `${panelHeight}px`, left: pct(range.startMs), width: `calc(${pct(range.endMs)} - ${pct(range.startMs)})` }"
         >
           <template v-if="editable">
             <span data-handle="start" :data-key="range.key" class="absolute -left-1 inset-y-0 w-2 cursor-ew-resize rounded-sm bg-primary" :class="range.key !== selected && 'opacity-50'" />
             <span data-handle="end" :data-key="range.key" class="absolute -right-1 inset-y-0 w-2 cursor-ew-resize rounded-sm bg-primary" :class="range.key !== selected && 'opacity-50'" />
           </template>
         </div>
-        <div v-if="ghost" class="pointer-events-none absolute rounded-md bg-primary/20 ring-1 ring-primary" :style="{ top: `${PANEL_TOP}px`, height: `${LANE_HEIGHT * PLAYER_LANES.length}px`, left: pct(ghost.startMs), width: `calc(${pct(ghost.endMs)} - ${pct(ghost.startMs)})` }" />
+        <div v-if="ghost" class="pointer-events-none absolute rounded-md bg-primary/20 ring-1 ring-primary" :style="{ top: `${PANEL_TOP}px`, height: `${panelHeight}px`, left: pct(ghost.startMs), width: `calc(${pct(ghost.endMs)} - ${pct(ghost.startMs)})` }" />
         <div v-if="pendingIn !== null" class="pointer-events-none absolute bottom-0 border-l-2 border-dashed border-primary" :style="{ top: `${PANEL_TOP - 4}px`, left: pct(pendingIn) }" title="In point" />
+
+        <RecapWinProbabilityLane
+          v-if="winProbability"
+          class="absolute inset-x-0"
+          :style="{ top: `${PANEL_TOP + LANES_HEIGHT}px`, height: `${CURVE_HEIGHT}px` }"
+          :curve="winProbability.curve"
+          :turning-points="winProbability.turningPoints"
+          :length-ms="lengthMs"
+          :height="CURVE_HEIGHT"
+          @jump="onMoment"
+        />
 
         <!-- The player's own moments, each kind on its lane. -->
         <template v-for="{ lane, moments: laneMoments } in lanes" :key="lane">
