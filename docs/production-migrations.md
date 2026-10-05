@@ -244,3 +244,8 @@ startup as before. The migrator now logs when it applies, succeeds, skips
 
 [applying]: https://learn.microsoft.com/ef/core/managing-schemas/migrations/applying
 [aspnet]: https://learn.microsoft.com/aspnet/core/data/ef-rp/migrations#applying-migrations-in-production
+
+
+## Example Usage
+
+Resolved parameter handling for issue #1911.
