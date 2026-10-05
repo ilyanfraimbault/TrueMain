@@ -24,6 +24,18 @@ copy (
   select "ChampionId", "TeamPosition", "PartnerChampionId", "PartnerPosition", sum("Games") as "Games", sum("Wins") as "Wins"
   from champion_synergy_stats where "Patch" in (:train) group by 1, 2, 3, 4
 ) to stdout with csv header;
+-- The opposing pairs (#1713). Empty until ChampionOpponentAggregation has drained the
+-- training patches; the tool skips the enemy-team section without these two files.
+\echo ===opponents===
+copy (
+  select "ChampionId", "TeamPosition", "OpponentChampionId", "OpponentPosition", sum("Games") as "Games", sum("Wins") as "Wins"
+  from champion_opponent_stats where "Patch" in (:train) group by 1, 2, 3, 4
+) to stdout with csv header;
+\echo ===opponentbaselines===
+copy (
+  select "Side", "ChampionId", "TeamPosition", sum("Games") as "Games", sum("Wins") as "Wins"
+  from champion_opponent_baseline_stats where "Patch" in (:train) group by 1, 2, 3
+) to stdout with csv header;
 \echo ===roster===
 copy (
   with mm as (

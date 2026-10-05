@@ -80,5 +80,11 @@ public enum JobMode
     /// under its own request caps. Last in the fetch lane, so it only spends what the
     /// ingestion left.
     /// </summary>
-    PaceSamplingOnly = 27
+    PaceSamplingOnly = 27,
+
+    /// <summary>
+    /// Folds each match into the opposing-pair aggregates the draft's enemy-team
+    /// component reads (#1713). Appended for the same reason as the values above.
+    /// </summary>
+    OpponentAggregationOnly = 28
 }

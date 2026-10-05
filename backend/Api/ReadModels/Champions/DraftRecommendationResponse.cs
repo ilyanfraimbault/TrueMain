@@ -61,6 +61,15 @@ public sealed record DraftCandidateReadModel
     public int StrengthGames { get; init; }
 
     /// <summary>
+    /// Observed-minus-expected win rate against the enemies on the board beyond our
+    /// lane (#1713), each weighted by the chance it plays elsewhere than our lane.
+    /// </summary>
+    public double EnemyDelta { get; init; }
+
+    /// <summary>Games the enemy-team figure rests on, across every measured enemy.</summary>
+    public int EnemyGames { get; init; }
+
+    /// <summary>
     /// Mean observed-minus-expected win rate with the allies on the board (locked,
     /// and hovered at half weight), straight from the site's synergy figures —
     /// a mean since #1906, so four allies do not outweigh one lane.
@@ -128,6 +137,12 @@ public static class DraftReasonKinds
 
     /// <summary>The champion's own record at the lane: <c>delta</c> against the lane's average, over <c>games</c>.</summary>
     public const string LaneStrength = "laneStrength";
+
+    /// <summary>
+    /// Against one enemy off our lane (#1713): <c>championId</c> (the enemy), <c>delta</c>,
+    /// <c>games</c>, <c>probability</c> it plays elsewhere than our lane.
+    /// </summary>
+    public const string EnemyTeam = "enemyTeam";
 
     /// <summary>The pairing with one ally: <c>championId</c>, <c>position</c>, <c>delta</c>, <c>games</c>, <c>tentative</c> when only hovered.</summary>
     public const string Synergy = "synergy";

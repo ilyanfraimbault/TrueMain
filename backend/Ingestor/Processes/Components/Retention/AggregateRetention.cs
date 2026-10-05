@@ -40,6 +40,10 @@ public static class AggregateRetention
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionSynergyBaselineStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionOpponentStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionOpponentBaselineStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionBanStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.BanScopeTotals
@@ -108,6 +112,12 @@ public static class AggregateRetention
                 result.DeletedSynergyStats + await db.ChampionSynergyStats
                     .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionSynergyBaselineStats
+                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
+                    // The opposing pairs (#1713) and their baselines, by the same rule,
+                    // counted with the synergy rows they mirror.
+                    + await db.ChampionOpponentStats
+                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
+                    + await db.ChampionOpponentBaselineStats
                         .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 // Same reasoning as the synergy pair: the ban counts and the match
                 // totals they are divided by must leave together, or the survivor

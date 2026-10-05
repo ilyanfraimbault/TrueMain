@@ -72,6 +72,9 @@ public static class JobModeSequence
         // between the two is arbitrary; kept adjacent because they read the same
         // slice of match_participants and benefit from a warm cache.
         JobMode.SynergyAggregationOnly,
+        // The opposing-pair twin of the synergy step (#1713): same participant rows,
+        // enemies instead of teammates, its own pending flag. Adjacent for the warm cache.
+        JobMode.OpponentAggregationOnly,
         // Folds each match's champion-select bans into champion_ban_stats (#920).
         // Must run after EloBracketEnrichment, whose stamping decides which elo
         // bands a match is counted in — a match folded before its participants are
@@ -131,6 +134,7 @@ public static class JobModeSequence
         JobMode.ChampionItemContextAggregationOnly,
         JobMode.MatchupLeadAggregationOnly,
         JobMode.SynergyAggregationOnly,
+        JobMode.OpponentAggregationOnly,
         JobMode.BanAggregationOnly,
         JobMode.MatchDataRetentionOnly,
         JobMode.CandidateStockSnapshotOnly,

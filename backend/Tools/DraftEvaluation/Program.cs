@@ -22,6 +22,11 @@ var directory = args.Length > 0 ? args[0] : ".";
 string File(string name) => Path.Combine(directory, name);
 
 var data = EvaluationData.Load(File("matchups.csv"), File("baselines.csv"), File("synergy.csv"));
+// The opposing-pair aggregate (#1713) only exists once its fold has drained; without the
+// export the enemy-team section is skipped.
+var opponents = System.IO.File.Exists(File("opponents.csv"))
+    ? OpponentData.Load(File("opponents.csv"), File("opponentbaselines.csv"))
+    : null;
 var games = Roster.Load(File("roster.csv"));
 var samples = games.SelectMany(game => game.Samples()).ToList();
 Console.WriteLine($"Test picks (mains): {samples.Count:N0} over {games.Count:N0} games");
@@ -51,6 +56,21 @@ DraftComponent StrengthOf(Sample sample)
     return DraftScoring.Strength(games, wins, data.LaneAverage(sample.Position));
 }
 
+double EnemyShrunk(Sample sample, double k)
+{
+    if (opponents is null)
+    {
+        return 0d;
+    }
+
+    // Every enemy off our lane, weight 1: with the whole board visible the solver is sure.
+    var enemies = sample.Enemies
+        .Where(enemy => enemy.Position != sample.Position)
+        .Select(enemy => new DraftEnemyPairing(opponents.Delta(sample.ChampionId, sample.Position, enemy.ChampionId), 1d))
+        .ToList();
+    return DraftScoring.Enemy(enemies, k).Shrunk;
+}
+
 double NewLaneKnownScore(Sample sample, DraftScoringWeights weights)
 {
     var record = data.Record(sample.ChampionId, sample.Position);
@@ -64,7 +84,8 @@ double NewLaneKnownScore(Sample sample, DraftScoringWeights weights)
         .ToList();
     var (_, synergyShrunk) = DraftScoring.Synergy(allies, weights);
     return DraftScoring.Score(
-        laneShrunk, occupied, 0d, StrengthOf(sample).Shrunk(weights.ShrinkGames), synergyShrunk, weights);
+        laneShrunk, occupied, 0d, StrengthOf(sample).Shrunk(weights.ShrinkGames), synergyShrunk, weights,
+        weights.Enemy > 0d ? EnemyShrunk(sample, weights.ShrinkGames) : 0d);
 }
 
 double NewBlindScore(Sample sample, DraftScoringWeights weights)
@@ -105,6 +126,90 @@ foreach (var k in shrinkGrid)
     var row = strengthGrid.Select(strength => F(Auc.Of(samples, sample => NewBlindScore(
         sample, DraftScoringWeights.Default with { ShrinkGames = k, Strength = strength }))));
     Console.WriteLine($"  blind safety k={k,5} strength 0/.5/1           : {string.Join("  ", row)}");
+}
+
+if (opponents is not null)
+{
+    // The weights settled by the previous runs (DraftScoringWeights.Default), the enemy
+    // term's weight the only thing varied.
+    Console.WriteLine();
+    Console.WriteLine("Lane known + enemy team (#1713) — AUC of the score against the result");
+    var row = new[] { 0d, 0.25d, 0.5d, 1d }.Select(enemy => F(Auc.Of(known, sample => NewLaneKnownScore(
+        sample, DraftScoringWeights.Default with { Enemy = enemy }))));
+    Console.WriteLine($"  k=400 strength .5 synergy .25, enemy 0/.25/.5/1 : {string.Join("  ", row)}");
+}
+
+/// <summary>
+/// The opposing-pair aggregate (#1713), folded to what the enemy-team term reads, with the
+/// API's arithmetic (<c>DraftEnemyReader</c>): observed minus the <c>SynergyMath</c>
+/// expectation from the SELF and ENEMY marginals, the enemy's own lane ignored past "not ours".
+/// </summary>
+internal sealed class OpponentData
+{
+    private const int MinBaselineGames = 50;
+
+    private readonly Dictionary<(int, string, int), (long Games, long Wins)> _pairs = [];
+    private readonly Dictionary<(int, string), (long Games, long Wins)> _self = [];
+    private readonly Dictionary<(int, string), (long Games, long Wins)> _enemy = [];
+    private double _cohortRate = 0.5;
+
+    public static OpponentData Load(string pairs, string baselines)
+    {
+        var data = new OpponentData();
+        foreach (var r in Csv.Rows(pairs))
+        {
+            // Our lane's opponent is the matchup table's; it is left out here.
+            if (r[1] == r[3])
+            {
+                continue;
+            }
+
+            var key = (Csv.Int(r[0]), r[1], Csv.Int(r[2]));
+            var sum = data._pairs.GetValueOrDefault(key);
+            data._pairs[key] = (sum.Games + Csv.Int(r[4]), sum.Wins + Csv.Int(r[5]));
+        }
+
+        long cohortGames = 0, cohortWins = 0;
+        foreach (var r in Csv.Rows(baselines))
+        {
+            var key = (Csv.Int(r[1]), r[2]);
+            var value = (Games: (long)Csv.Int(r[3]), Wins: (long)Csv.Int(r[4]));
+            if (r[0] == "SELF")
+            {
+                data._self[key] = value;
+                cohortGames += value.Games;
+                cohortWins += value.Wins;
+            }
+            else if (r[0] == "ENEMY")
+            {
+                data._enemy[key] = value;
+            }
+        }
+
+        data._cohortRate = cohortGames == 0 ? 0.5 : (double)cohortWins / cohortGames;
+        return data;
+    }
+
+    public DraftComponent Delta(int championId, string position, int enemyId)
+    {
+        if (!_pairs.TryGetValue((championId, position, enemyId), out var pair) || pair.Games == 0)
+        {
+            return DraftComponent.None;
+        }
+
+        var self = _self.GetValueOrDefault((championId, position));
+        var faced = _enemy
+            .Where(entry => entry.Key.Item1 == enemyId && entry.Key.Item2 != position)
+            .Aggregate((Games: 0L, Wins: 0L), (sum, entry) => (sum.Games + entry.Value.Games, sum.Wins + entry.Value.Wins));
+        if (self.Games < MinBaselineGames || faced.Games < MinBaselineGames)
+        {
+            return DraftComponent.None;
+        }
+
+        var expected = SynergyMath.ExpectedWinRate(
+            (double)self.Wins / self.Games, [(double)faced.Wins / faced.Games], _cohortRate);
+        return new DraftComponent(((double)pair.Wins / pair.Games) - expected, (int)pair.Games);
+    }
 }
 
 /// <summary>The training aggregates, folded to what the scoring reads.</summary>
@@ -224,7 +329,8 @@ internal sealed record Sample(
     string Position,
     bool Win,
     int? OpponentChampionId,
-    IReadOnlyList<(int ChampionId, string Position)> Allies);
+    IReadOnlyList<(int ChampionId, string Position)> Allies,
+    IReadOnlyList<(int ChampionId, string Position)> Enemies);
 
 internal sealed record Seat(int ChampionId, int TeamId, string Position, bool Win, bool IsMain);
 
@@ -248,7 +354,11 @@ internal sealed record Roster(IReadOnlyList<Seat> Seats)
                 .Where(other => other.TeamId == seat.TeamId && other != seat && Lanes.Contains(other.Position))
                 .Select(other => (other.ChampionId, other.Position))
                 .ToList();
-            yield return new Sample(seat.ChampionId, seat.Position, seat.Win, opponent?.ChampionId, allies);
+            var enemies = Seats
+                .Where(other => other.TeamId != seat.TeamId && Lanes.Contains(other.Position))
+                .Select(other => (other.ChampionId, other.Position))
+                .ToList();
+            yield return new Sample(seat.ChampionId, seat.Position, seat.Win, opponent?.ChampionId, allies, enemies);
         }
     }
 }

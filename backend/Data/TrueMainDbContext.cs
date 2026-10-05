@@ -36,6 +36,10 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionSynergyStat> ChampionSynergyStats => Set<ChampionSynergyStat>();
     public DbSet<ChampionSynergyBaselineStat> ChampionSynergyBaselineStats => Set<ChampionSynergyBaselineStat>();
 
+    // The opposing-pair twin of the two above (#1713), populated by ChampionOpponentAggregationProcess.
+    public DbSet<ChampionOpponentStat> ChampionOpponentStats => Set<ChampionOpponentStat>();
+    public DbSet<ChampionOpponentBaselineStat> ChampionOpponentBaselineStats => Set<ChampionOpponentBaselineStat>();
+
     // Champion ban counts and the match totals they are divided by (#920), both
     // populated by ChampionBanAggregationProcess in one fold so a ban rate is
     // always numerator and denominator over the same cohort of matches.

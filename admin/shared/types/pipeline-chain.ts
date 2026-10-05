@@ -35,6 +35,7 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'ChampionItemContextAggregation',
   'ChampionMatchupLeadAggregation',
   'ChampionSynergyAggregation',
+  'ChampionOpponentAggregation',
   'ChampionBanAggregation',
   'AccountRefresh',
   'PaceSampling',
@@ -105,6 +106,7 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'ChampionItemContextAggregation',
       'ChampionMatchupLeadAggregation',
       'ChampionSynergyAggregation',
+      'ChampionOpponentAggregation',
       'ChampionBanAggregation',
       'MatchDataRetention',
       'CandidateStockSnapshot',
@@ -217,6 +219,11 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Synergies',
     description:
       'Folds each match into the same-team champion pair stats behind the synergy panel.',
+  },
+  ChampionOpponentAggregation: {
+    label: 'Opponents',
+    description:
+      'Folds each match into the champion-versus-enemy pair stats behind the draft\'s enemy-team component.',
   },
   ChampionBanAggregation: {
     label: 'Bans',

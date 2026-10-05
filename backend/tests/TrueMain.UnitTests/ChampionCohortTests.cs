@@ -22,7 +22,8 @@ public sealed class ChampionCohortTests
     private static readonly string[] FoldSourceFiles =
     [
         "ChampionMatchupLeadAggregationProcess.cs",
-        "ChampionSynergyAggregationProcess.cs"
+        "ChampionSynergyAggregationProcess.cs",
+        "ChampionOpponentAggregationProcess.cs"
     ];
 
     [Theory]

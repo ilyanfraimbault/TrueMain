@@ -33,15 +33,19 @@ public interface IDraftRecommendationQueryService
 ///     on the lane;</item>
 ///   <item><b>synergy</b> — the mean observed-minus-expected win rate with the
 ///     allies on the board, read through the synergy service the champion page
-///     uses, hovered allies at reduced weight.</item>
+///     uses, hovered allies at reduced weight;</item>
+///   <item><b>strength</b> — the candidate's win rate at the lane minus the lane's
+///     average;</item>
+///   <item><b>enemy team</b> — observed-minus-expected win rate against the enemies
+///     off our lane, from <c>champion_opponent_stats</c> (#1713), each weighted by the
+///     chance it plays elsewhere than our lane.</item>
 /// </list>
 ///
 /// <para>
-/// The order is the lane term then the ally term (<see cref="DraftScoringWeights"/>),
-/// each delta shrunk towards zero by its games, so a thin reading is discounted
-/// by exactly how thin it is rather than cut at a floor. What this does not
-/// capture yet: the enemy team beyond our lane (#1713) and the damage mix
-/// (#1905, #1907). The response keeps the components separate, with the reasons
+/// Weighed by <see cref="DraftScoringWeights"/> (lane first), each delta shrunk
+/// towards zero by its games, so a thin reading is discounted by exactly how thin
+/// it is rather than cut at a floor. What this does not capture yet: the damage
+/// mix (#1905, #1907 show it, unscored). The response keeps the components separate, with the reasons
 /// that carry each pick, so the client can say why rather than show a total.
 /// </para>
 /// </summary>
@@ -50,6 +54,7 @@ public sealed class DraftRecommendationQueryService(
     IDraftPatchScopeResolver patchScopes,
     IDraftLaneReader lanes,
     IChampionSynergyQueryService synergies,
+    IDraftEnemyReader enemyReader,
     IChampionReadCache cache)
     : IDraftRecommendationQueryService
 {
@@ -166,6 +171,8 @@ public sealed class DraftRecommendationQueryService(
             .ToDictionary(entry => entry.Key, entry => entry.Value);
         var laneAverage = await lanes.ReadLaneAverageAsync(position, scope, criteria.EloBracket, ct);
         var allies = await ReadAlliesAsync(candidates, position, criteria, scope, ct);
+        var enemyPairings = await enemyReader.ReadAsync(
+            candidates, position, criteria.EnemyChampions, scope, criteria.EloBracket, ct);
         var weights = DraftScoringWeights.Default;
 
         return candidates
@@ -178,9 +185,30 @@ public sealed class DraftRecommendationQueryService(
                 available.Where(entry => entry.Key != championId).ToDictionary(e => e.Key, e => e.Value),
                 laneAverage,
                 allies.GetValueOrDefault(championId, []),
-                weights))
+                weights,
+                EnemiesFor(championId, criteria.EnemyChampions, occupancy, enemyPairings)))
             .OrderByDescending(c => c.Score)
             .ThenBy(c => c.ChampionId)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The enemies on the board as the enemy-team term weighs them: each by the
+    /// chance it plays elsewhere than our lane, unmeasured ones as no effect (#1713).
+    /// </summary>
+    private static List<DraftEnemyInput> EnemiesFor(
+        int championId,
+        IReadOnlyList<int> enemyChampions,
+        IReadOnlyDictionary<int, double> occupancy,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<int, DraftComponent>> pairings)
+    {
+        var measured = pairings.GetValueOrDefault(championId);
+        return enemyChampions
+            .Distinct()
+            .Select(enemy => new DraftEnemyInput(
+                enemy,
+                1d - Math.Clamp(occupancy.GetValueOrDefault(enemy), 0d, 1d),
+                measured?.GetValueOrDefault(enemy) ?? DraftComponent.None))
             .ToList();
     }
 

@@ -153,6 +153,10 @@ public static class OptionsConfigurationExtensions
                 configuration, SynergyAggregationOptions.SectionName)
             .ValidateOnStart();
 
+        services.AddOptionsWithValidator<OpponentAggregationOptions, OpponentAggregationOptionsValidator>(
+                configuration, OpponentAggregationOptions.SectionName)
+            .ValidateOnStart();
+
         services.AddOptionsWithValidator<LaneOutcomeAggregationOptions, LaneOutcomeAggregationOptionsValidator>(
                 configuration, LaneOutcomeAggregationOptions.SectionName)
             .ValidateOnStart();

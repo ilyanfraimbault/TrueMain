@@ -291,6 +291,11 @@ public sealed class ProcessRunSummaryJsonTests
             new SynergyAggregationSummary(4000, 4, 15000, 900),
             new { matches = 4000, batches = 4, pairRows = 15000, baselineRows = 900 });
 
+        // ChampionOpponentAggregationProcess (#1713) — the synergy shape.
+        yield return (
+            new OpponentAggregationSummary(4000, 4, 18000, 1100),
+            new { matches = 4000, batches = 4, pairRows = 18000, baselineRows = 1100 });
+
         // ChampionMatchupLeadAggregationProcess (#919, one fold since #1445).
         yield return (
             new MatchupAggregationSummary(4000, 4, 3600, 900, 300),
