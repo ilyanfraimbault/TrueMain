@@ -34,6 +34,7 @@ using TrueMain.Services.Ops.Processes;
 using TrueMain.Services.Ops.Stats;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Lookup;
 using TrueMain.Services.Truemains.Matches;
 using TrueMain.Services.Truemains.PlayerChampions;
 using TrueMain.Services.Truemains.Profile;
@@ -331,6 +332,7 @@ builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
+builder.Services.AddScoped<ITruemainLookupQueryService, TruemainLookupQueryService>();
 // The cockpit is re-asked every 30 s by every open admin tab (#1411): callers get the cached,
 // single-flighted payload, and only the decorator reaches the evaluation itself (#1427).
 builder.Services.AddScoped<PipelineHealthQueryService>();

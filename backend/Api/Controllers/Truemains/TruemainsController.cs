@@ -5,6 +5,7 @@ using TrueMain.ReadModels.Champions;
 using TrueMain.ReadModels.Truemains;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Lookup;
 using TrueMain.Services.Truemains.Matches;
 using TrueMain.Services.Truemains.PlayerChampions;
 using TrueMain.Services.Truemains.Profile;
@@ -24,8 +25,40 @@ public sealed class TruemainsController(
     IRankHistoryQueryService rankHistoryQueryService,
     ITruemainActivityQueryService activityQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService,
-    ISearchQueryService searchQueryService) : ControllerBase
+    ISearchQueryService searchQueryService,
+    ITruemainLookupQueryService lookupQueryService) : ControllerBase
 {
+    /// <summary>
+    /// Which players of one game are true mains of the champion they are on —
+    /// the desktop app's mark on its loading screen and Game page (#1910). One
+    /// call per game: up to ten <c>player=Name#TAG:championId</c> pairs and the
+    /// game's <paramref name="platformId"/>. Only the true mains come back; a
+    /// player who is not one, or whom TrueMain does not track, is absent.
+    /// </summary>
+    /// <param name="platformId">The Riot platform the game is played on, e.g. <c>EUW1</c>.</param>
+    /// <param name="player">Each player as <c>Name#TAG:championId</c>, at most ten.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("lookup")]
+    [ProducesResponseType(typeof(TruemainLookupResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<TruemainLookupResponse>> LookupAsync(
+        [FromQuery] string? platformId,
+        [FromQuery] string[]? player,
+        CancellationToken ct = default)
+    {
+        if (!TruemainLookupRequest.TryParse(platformId, player, out var request, out var error))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid lookup",
+                Detail = error,
+                Status = StatusCodes.Status400BadRequest,
+            });
+        }
+
+        return Ok(await lookupQueryService.LookupAsync(request, ct));
+    }
+
     /// <summary>
     /// Name/tag lookup for the search box: returns a short, ranked list of
     /// truemains whose Riot id matches <paramref name="q"/> (case-insensitive
