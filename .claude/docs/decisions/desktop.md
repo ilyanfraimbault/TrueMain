@@ -48,9 +48,11 @@ read as a web page; the sidebar is how the app is navigated, and the bar keeps o
 **Picks are ranked from the player's pool or from the whole lane, never from a "meta" slice.** "My pool" is the
 player's ten most-mastered champions (LCU champion mastery) that the tier list has on the lane; off, every champion
 the tier list has on the lane, split into requests of 40 (the endpoint's ceiling) and merged in the endpoint's own
-order — each candidate's score depends on it alone, so the merge is exact. Before an enemy picks or an ally locks
-there is nothing to measure, so the podium shows win rates on the lane in the pool's order rather than "+0.0%". The
-ranking itself is the endpoint's; the enemy-team component and a lane-first weighting are #1713 (2026-09-27) — #1675.
+order — each candidate's score depends on it alone, so the merge is exact. The ranking itself is the endpoint's
+(lane first, blind safety before the enemy shows our lane opponent — #1906); the enemy-team component is #1713
+(2026-09-27) — #1675. Player comfort (mastery, the player's recent games on the champion) decides the pool and is
+shown as a reason; it never enters the score or breaks ties — no composite player score, #1671/#1683 (2026-10-05)
+— #1906.
 
 **The app draws the site's components, as labelled twin copies, not look-alikes** — superseded page by page by the shared layer above (#1732): a component that moves into the layer loses its twin. Hand-ported versions (a skill
 order with plain letters, icons without tooltips) were rejected as "not the site". The copies follow the web↔admin
