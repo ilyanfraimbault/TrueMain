@@ -41,6 +41,7 @@ public sealed class WorkerFailureMetricsTests
         ("ChampionSynergyAggregation", JobMode.SynergyAggregationOnly),
         ("ChampionBanAggregation", JobMode.BanAggregationOnly),
         ("AccountRefresh", JobMode.AccountRefreshOnly),
+        ("PaceSampling", JobMode.PaceSamplingOnly),
         ("MatchDataRetention", JobMode.MatchDataRetentionOnly),
         ("CandidateStockSnapshot", JobMode.CandidateStockSnapshotOnly),
         ("StorageSnapshot", JobMode.StorageSnapshotOnly)
