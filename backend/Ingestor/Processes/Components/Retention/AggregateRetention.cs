@@ -48,6 +48,8 @@ public static class AggregateRetention
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionItemContextStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.PaceBenchmarkStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
 
         // Rank the observed patch strings by parsed version and keep the N most
         // recent. Unparseable strings are never deleted — better to leave an odd
@@ -125,7 +127,11 @@ public static class AggregateRetention
                     + await db.ChampionItemContextVerdicts
                         .Where(verdict => verdict.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionNextItemTerms
-                        .Where(term => term.Patch == stalePatch).ExecuteDeleteAsync(ct));
+                        .Where(term => term.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                // The desktop overlay's pace benchmark (#1912). Its read already pools only
+                // the most recent patches, so an aged-out patch is dead weight either way.
+                result.DeletedPaceBenchmarkStats + await db.PaceBenchmarkStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct));
             await transaction.CommitAsync(ct);
         }
 
@@ -153,15 +159,17 @@ public static class AggregateRetention
         // The situational-context family (#1449, #1450): champion profiles, the item
         // context counters and the verdicts derived from them, summed — they are deleted
         // together in one transaction, so one counter describes all four tables.
-        int DeletedContextStats)
+        int DeletedContextStats,
+        int DeletedPaceBenchmarkStats)
     {
-        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0);
+        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0, 0);
 
         public int TotalDeleted
             => DeletedScopes
                 + DeletedMatchupStats
                 + DeletedSynergyStats
                 + DeletedBanStats
-                + DeletedContextStats;
+                + DeletedContextStats
+                + DeletedPaceBenchmarkStats;
     }
 }
