@@ -118,6 +118,7 @@ Last verified against `develop` on 2026-09-02.
 - A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
 - The "{player} vs mains" card is gone — one page, one definition of a core build (2026-09-03) — #529
 - An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
+- The match detail's Timeline tab (win-probability curve + turning points) is computed at ingest and stored one row per match; no backfill, no tab without a curve, no Riot call at request time (2026-10-05) — #1911
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
 
@@ -358,6 +359,7 @@ Last verified against `develop` on 2026-09-02.
 - The overlay on Windows: the same panels through one platform-neutral driver, each a topmost non-activating layered window, over Borderless/Windowed only (Windows draws nothing over exclusive Full Screen), Alt+Shift+O (2026-10-02) — #1798
 - The overlay is set up on its own sidebar page, out of game: a copy of the screen to drag panels on, × to hide one, a column of hidden panels to drag back (2026-10-03) — #1819
 - Win probability in the overlay: each lane's CS/level/kill lead weighted by a regression fitted on our ranked games (no item gold; the support weighs little), plus the map (turrets, inhibitors down, drakes/soul, Baron, Elder) with hand-set weights — the product owner's call, reversing #1671's line for in game; the draft keeps none (2026-10-02, refitted 2026-10-04) — #1795, #1864
+- After the game, the same model (now in `web/layers/common`) draws the whole game's curve and its five largest turning points, built on the client from the client's timeline in the recap and the dashboard; a C# port runs at ingest, held to the TS by a shared fixture (2026-10-05) — #1911
 - Runes are imported on a click only, from a discreet corner icon; the app reuses its one `TrueMain: ` page and never deletes a page of the player's; no spell import (2026-10-03) — #1678
 - The player's own account is never highlighted — loading screen, game page, match rows, scoreboard, runes; ours only orders the sides (2026-10-02) — #1803
 - Desktop usage is measured by the app itself (anonymous install id, counters folded per install and UTC day in Mongo, 13-month TTL, opt-out in the native menu), downloads by the site's redirect; nothing read from the League client is sent (2026-10-02) — #1805
