@@ -46,6 +46,11 @@ const SPEED_VAR: &str = "TRUEMAIN_LCU_REPLAY_SPEED";
 
 pub type SharedState = Arc<Mutex<AppState>>;
 
+/// Whether this run plays a tape rather than following a client.
+pub(crate) fn replaying() -> bool {
+    std::env::var_os(REPLAY_VAR).is_some()
+}
+
 pub(crate) fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
     let in_game = in_game(&next);
     crate::recording::follow(app, next.phase);

@@ -39,6 +39,9 @@ const FEATURE_LABELS: Record<string, string> = {
   overlayShown: 'Games with the overlay drawn',
   gameRecorded: 'Games recorded',
   siteOpened: 'Site pages opened',
+  champSelectHover: 'Picks hovered from the app',
+  champSelectLock: 'Picks locked in from the app',
+  champSelectBan: 'Bans made from the app',
 }
 const OS_LABELS: Record<string, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
 

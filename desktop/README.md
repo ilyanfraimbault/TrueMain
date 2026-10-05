@@ -483,6 +483,14 @@ lane's most played champions for "My pool"); **Game starts** and **Dodge** end i
 the way the client does, **Clear** empties the board. The app answers every
 click live — suggestions, lanes, builds.
 
+**Our turn** (*Not ours* / *Our ban* / *Our pick*) opens our ban or our pick
+as the client would, so the app's own **Hover**, **Ban** and **Lock in**
+controls (#1909) can be tried: the shell sends each request it would make to
+the client — the session, the pickable and bannable lists, the hover, the
+completion — through the same relay the other way (`op: 'request'`), the page
+answers it and applies it to the board, and refuses a write to an action that
+is not open. The page has to stay open for the app's writes to be answered.
+
 The page sends what the client would — gameflow phase, summoner, mastery, and
 `/lol-champ-select/v1/session` in the client's shape — as tape readings to a
 relay on the dev server (`server/routes/__sim/lcu.ts`), and the shell, started

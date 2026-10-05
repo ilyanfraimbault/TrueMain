@@ -239,9 +239,21 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   never one per game; with every slot taken and none of them ours, a toast asks the player to free one — no page of
   theirs is ever deleted. An incomplete page (an empty slot) is refused. Every outcome is a toast. Nothing is written
   without the click.
+- **Hover, lock and ban from the app** (#1909) — the strip over the draft says whose turn it is ("Your ban", "Your
+  pick", "Declare your pick" in ranked planning, "Your pick in N turns"). Each pick card carries a "Hover" control
+  ("Ban" during our ban) in its corner, separate from the card's own click (which still previews the build); typing
+  in the pick search also lists every other champion it names, with the same control. A ban always asks first
+  ("Ban Fizz?"); a hover, ban or lock of a champion an ally is hovering asks too, naming the ally's lane. "Lock in
+  <Champion>" sits in the strip beside the clock, enabled during our pick once the client shows our hover, and locks
+  only that hovered champion. Disabled controls say why in their tooltip (not your turn, banned, already picked, not
+  owned or disabled). The shell re-reads the session and the client's pickable/bannable lists before every write,
+  resolves our open action itself, and refuses with a reason toast (`champselect.rs`, `lcu::champ_select`). Nothing
+  is ever written without the click: no auto-lock, no auto-ban, no auto-accept. Hidden on a tape replay.
 - **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a champion select filled by clicking
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
-  payloads through a dev-server relay, so the app runs its real champion select live without a game.
+  payloads through a dev-server relay, so the app runs its real champion select live without a game. "Our turn"
+  (not ours / our ban / our pick) opens our action, and the page answers the app's hovers, locks and bans through the
+  same relay as the client would — refused when that action is not open (#1909).
   Outside a live champion select the product's `/draft` page only waits for the next one.
 - **Game** (`/game`, #1748) — while the phase is `InProgress` the shell polls the game's Live Client Data API
   (`127.0.0.1:2999/liveclientdata/allgamedata`, every 2 s, backing off to 5 s while the game loads; `crates/live-client`)
@@ -392,7 +404,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 - **Usage counts** (#1805, `src-tauri/src/telemetry.rs`): a random install id drawn on the first launch
   (`telemetry.json` in the app's config folder) and, under it, launches, minutes open, page views (`plugins/telemetry.ts`,
   keys in `utils/telemetry.ts`; a filter change is not a view) and features counted by the shell — a champion select
-  or a game followed, a game with the overlay drawn (once per game), a game recorded, a site page opened — with the
+  or a game followed, a game with the overlay drawn (once per game), a game recorded, a site page opened, a pick
+  hovered, locked or a ban made from the draft (#1909) — with the
   app's version and OS. Sent to `POST /api/desktop/telemetry` a minute after launch, every 5 minutes and at exit; a
   failed send keeps its counts for the next. Nothing read from the League client is sent. "Share Anonymous Usage
   Data", checked by default, in the macOS app menu / Windows tray menu turns it off for good; a debug build never
