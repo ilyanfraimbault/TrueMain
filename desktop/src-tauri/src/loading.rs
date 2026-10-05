@@ -23,6 +23,8 @@
 //!
 //! A player who hides their name (Streamer Mode) stays anonymous: their
 //! champion and lane show, never their name, and their history is not read.
+//! The session's teams leave such a player out; they are put back from its
+//! champion selections (`GameflowGameData::teams`).
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -323,7 +325,8 @@ async fn roster(client: &LcuClient, me: &Me) -> Option<(Vec<LoadingPlayer>, Vec<
         if let Ok(Some(session)) = client.gameflow_session().await {
             let data = session.game_data;
             if !data.team_one.is_empty() || !data.team_two.is_empty() {
-                return Some(ordered(&data.team_one, &data.team_two, me));
+                let (blue, red) = data.teams(&me.puuid);
+                return Some(ordered(&blue, &red, me));
             }
         }
         tokio::time::sleep(SESSION_RETRY).await;
