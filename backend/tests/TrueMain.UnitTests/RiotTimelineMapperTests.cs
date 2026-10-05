@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AwesomeAssertions;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
@@ -172,6 +173,35 @@ public sealed class RiotTimelineMapperTests
         result.Frames.Should().ContainSingle();
         result.Frames[0].ParticipantFrames.Should().BeEmpty();
         result.Events.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Map_CarriesObjectiveAndBountyFields_FromTheRawPayload()
+    {
+        // Riot's wire names, through the source-generated options the client uses (#1911).
+        const string payload = """
+            {"info":{"frames":[{"timestamp":0,"participantFrames":{},"events":[
+              {"type":"BUILDING_KILL","timestamp":900000,"killerId":3,"teamId":200,"buildingType":"TOWER_BUILDING","laneType":"MID_LANE","towerType":"OUTER_TURRET","bounty":250},
+              {"type":"ELITE_MONSTER_KILL","timestamp":1200000,"killerId":2,"killerTeamId":100,"monsterType":"DRAGON","monsterSubType":"FIRE_DRAGON"},
+              {"type":"CHAMPION_KILL","timestamp":1300000,"killerId":9,"victimId":1,"bounty":300,"shutdownBounty":150}
+            ]}]}}
+            """;
+        var timeline = JsonSerializer.Deserialize<RiotTimelineDto>(payload, RiotJson.Options)!;
+
+        var events = RiotTimelineMapper.Map(timeline).Events;
+
+        events.Should().HaveCount(3);
+        events[0].TeamId.Should().Be(200);
+        events[0].BuildingType.Should().Be("TOWER_BUILDING");
+        events[0].LaneType.Should().Be("MID_LANE");
+        events[0].TowerType.Should().Be("OUTER_TURRET");
+        events[1].KillerTeamId.Should().Be(100);
+        events[1].MonsterType.Should().Be("DRAGON");
+        events[1].MonsterSubType.Should().Be("FIRE_DRAGON");
+        events[1].TeamId.Should().BeNull();
+        events[2].Bounty.Should().Be(300);
+        events[2].ShutdownBounty.Should().Be(150);
+        events[2].MonsterType.Should().BeNull();
     }
 
     private static RiotTimelineDto SingleEventTimeline(RiotTimelineEventDto evt)

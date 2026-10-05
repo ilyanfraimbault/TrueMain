@@ -7,11 +7,32 @@ export const OVERLAY_PANEL_INFO: Record<OverlayPanel, { label: string, descripti
   'next-item': { label: 'Next item', description: 'The next item to buy, and the gold it still needs.' },
   'win-probability': { label: 'Win probability', description: 'Each side\'s chance to win, from the item-gold gap and the map. The whole game.' },
   'stats': { label: 'Your pace', description: 'CS per minute with its curve, and gold per minute.' },
-  'item-value': { label: 'Item value', description: 'While TAB is held: what each team\'s items are worth, and each lane\'s gap.' },
+  'item-value': { label: 'Item value', description: 'What each team\'s items are worth, and each lane\'s gap. While TAB is held by default.' },
 }
 
 export type OverlayShow = 'always' | 'whileDead'
 export type OverlayAnchor = 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center-right'
+
+/**
+ * Mirrors `Chord` in `crates/shell-state/src/keys.rs`: the modifiers and TAB
+ * held, and at most one key, by its `KeyboardEvent.code` — a key position, so
+ * the chord holds on any layout.
+ */
+export interface Chord {
+  alt: boolean
+  shift: boolean
+  ctrl: boolean
+  /** ⌘ on macOS, the Windows key on Windows. */
+  meta: boolean
+  tab: boolean
+  key: string | null
+}
+
+/** Mirrors `PanelTrigger`: what brings a panel on screen in game. */
+export type PanelTrigger =
+  | { kind: 'always' }
+  | { kind: 'whileHeld', chord: Chord }
+  | { kind: 'toggle', chord: Chord, startShown: boolean }
 
 /** Mirrors `PanelSettings`. */
 export interface OverlayPanelSettings {
@@ -19,6 +40,7 @@ export interface OverlayPanelSettings {
   anchor: OverlayAnchor
   /** Where the panel was dragged, as a fraction of the room the screen leaves around it (0 against the left/top edge, 1 against the right/bottom); wins over `anchor`. */
   custom: { x: number, y: number } | null
+  trigger: PanelTrigger
 }
 
 /** Mirrors `OverlaySettings`. */
@@ -56,6 +78,22 @@ export interface OverlayView {
   shortcut: string
   /** A condition the platform puts on the overlay (Windows: no Full Screen). */
   notice: string | null
+  /** Each panel's chord, by panel, if it has one. */
+  chords: Partial<Record<OverlayPanel, ChordView>>
+  /** The warnings come from the player's own League keybindings, not Riot's defaults. */
+  ownBinds: boolean
+}
+
+/** Mirrors `ChordView`: a chord as the player presses it, and what it also does in game. */
+export interface ChordView {
+  label: string
+  warning: string | null
+}
+
+/** Mirrors `TriggerCheck`: the shell's answer about a trigger before it is saved. */
+export interface TriggerCheck {
+  refusal: string | null
+  chord: ChordView | null
 }
 
 export const OVERLAY_SCALE = { min: 0.8, max: 1.4 } as const
@@ -68,13 +106,15 @@ export const DEV_OVERLAY_VIEW: OverlayView = {
     show: 'always',
     scale: 1,
     opacity: 0.95,
-    nextItem: { enabled: true, anchor: 'top-right', custom: null },
-    winProbability: { enabled: true, anchor: 'top-left', custom: null },
-    itemValue: { enabled: true, anchor: 'top-center', custom: null },
-    stats: { enabled: true, anchor: 'center-left', custom: null },
+    nextItem: { enabled: true, anchor: 'top-right', custom: null, trigger: { kind: 'always' } },
+    winProbability: { enabled: true, anchor: 'top-left', custom: null, trigger: { kind: 'always' } },
+    itemValue: { enabled: true, anchor: 'top-center', custom: null, trigger: { kind: 'whileHeld', chord: { alt: false, shift: false, ctrl: false, meta: false, tab: true, key: null } } },
+    stats: { enabled: true, anchor: 'center-left', custom: null, trigger: { kind: 'always' } },
   },
   supported: true,
   preview: false,
   shortcut: '⌥⇧O',
   notice: null,
+  chords: { 'item-value': { label: 'Tab', warning: null } },
+  ownBinds: false,
 }

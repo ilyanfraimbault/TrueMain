@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/recordings'
+import type { RecapWinProbability } from '~/utils/recording-win-probability'
 import { formatClock } from '~/utils/recording-moments'
 
 /**
@@ -26,7 +27,9 @@ const props = withDefaults(defineProps<{
   selected?: string | null
   saved?: { id: string, startMs: number, endMs: number, title: string }[]
   pendingIn?: number | null
-}>(), { editable: false, drafts: () => [], selected: null, saved: () => [], pendingIn: null })
+  /** The game's win-probability curve on the video, drawn under the moments' lanes. */
+  winProbability?: RecapWinProbability | null
+}>(), { editable: false, drafts: () => [], selected: null, saved: () => [], pendingIn: null, winProbability: null })
 
 const emit = defineEmits<{
   create: [startMs: number, endMs: number]
@@ -111,7 +114,7 @@ function playRange(startMs: number, endMs: number) {
   void video.value?.play()
 }
 
-const jumpTo = (moment: Moment) => seek(moment.videoMs - LEAD_MS)
+const jumpTo = (moment: Pick<Moment, 'videoMs'>) => seek(moment.videoMs - LEAD_MS)
 
 function nextMoment() {
   const found = sorted.value.find(moment => moment.videoMs - LEAD_MS > currentMs.value + 500)
@@ -268,6 +271,7 @@ defineExpose({ seek, playRange, jumpTo, currentMs })
             :selected="selected"
             :saved="saved"
             :pending-in="pendingIn"
+            :win-probability="winProbability"
             @seek="seek"
             @moment="jumpTo"
             @create="(start, end) => emit('create', start, end)"

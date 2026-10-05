@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import type { DraftClip } from '~/composables/useRecapDrafts'
 import type { Clip, Moment } from '~/types/recordings'
+import type { RecapTurningPoint } from '~/utils/recording-win-probability'
 import { formatClock } from '~/utils/recording-moments'
 
 /**
  * Beside the recap's video: the clips — those being cut, each named and saved
- * on its own (or all at once), then those already saved from this game — and
- * the game's moments to jump to.
+ * on its own (or all at once), then those already saved from this game — the
+ * game's moments to jump to, and, when the game has a win-probability curve,
+ * its turning points (#1911).
  */
 const props = defineProps<{
   drafts: DraftClip[]
@@ -14,6 +16,7 @@ const props = defineProps<{
   saved: Clip[]
   moments: Moment[]
   currentMs: number
+  turningPoints?: RecapTurningPoint[]
 }>()
 const emit = defineEmits<{
   select: [key: string]
@@ -22,14 +25,20 @@ const emit = defineEmits<{
   remove: [key: string]
   save: [key: string]
   saveAll: []
-  jump: [moment: Moment]
+  jump: [moment: Pick<Moment, 'videoMs'>]
 }>()
 
-const tab = ref<'clips' | 'moments'>('clips')
+const tab = ref<'clips' | 'moments' | 'turning'>('clips')
 const tabs = computed(() => [
   { label: 'Clips', value: 'clips', badge: props.drafts.length + props.saved.length || undefined },
   { label: 'Moments', value: 'moments', badge: props.moments.length || undefined },
+  // "Swings": three tabs share the panel's narrow width; the list is titled in full.
+  ...(props.turningPoints?.length ? [{ label: 'Swings', value: 'turning' }] : []),
 ])
+// A game whose curve goes away (its data no longer reads) leaves no empty tab open.
+watch(() => props.turningPoints?.length, (count) => {
+  if (tab.value === 'turning' && !count) tab.value = 'clips'
+})
 const savingAny = computed(() => props.drafts.some(draft => draft.saving))
 </script>
 
@@ -78,6 +87,10 @@ const savingAny = computed(() => props.drafts.some(draft => draft.saving))
           <span class="ml-auto shrink-0 tabular-nums text-dimmed">{{ formatClock(clip.durationMs) }}</span>
         </NuxtLink>
       </template>
+    </div>
+
+    <div v-else-if="tab === 'turning' && turningPoints?.length" class="min-h-0 flex-1 overflow-y-auto pr-1">
+      <RecapTurningPoints :points="turningPoints" @jump="point => emit('jump', point)" />
     </div>
 
     <div v-else class="min-h-0 flex-1 overflow-y-auto pr-1">
