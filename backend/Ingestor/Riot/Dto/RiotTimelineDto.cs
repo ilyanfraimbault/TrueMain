@@ -120,4 +120,35 @@ public sealed record RiotTimelineEventDto
 
     [JsonPropertyName("position")]
     public RiotTimelinePositionDto? Position { get; init; }
+
+    // Objective and kill details read by the win-probability curve (#1911).
+
+    [JsonPropertyName("monsterType")]
+    public string? MonsterType { get; init; }
+
+    [JsonPropertyName("monsterSubType")]
+    public string? MonsterSubType { get; init; }
+
+    [JsonPropertyName("buildingType")]
+    public string? BuildingType { get; init; }
+
+    [JsonPropertyName("laneType")]
+    public string? LaneType { get; init; }
+
+    [JsonPropertyName("towerType")]
+    public string? TowerType { get; init; }
+
+    /// <summary>BUILDING_KILL: the side that owned (and lost) the building.</summary>
+    [JsonPropertyName("teamId")]
+    public int? TeamId { get; init; }
+
+    /// <summary>ELITE_MONSTER_KILL: the side that took the monster.</summary>
+    [JsonPropertyName("killerTeamId")]
+    public int? KillerTeamId { get; init; }
+
+    [JsonPropertyName("bounty")]
+    public int? Bounty { get; init; }
+
+    [JsonPropertyName("shutdownBounty")]
+    public int? ShutdownBounty { get; init; }
 }

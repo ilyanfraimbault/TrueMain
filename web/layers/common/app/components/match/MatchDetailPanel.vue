@@ -7,6 +7,7 @@ import type {
   StaticSummonerSpellData,
 } from '#shared/types/static-data'
 import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { resolveWinProbability } from '#common/utils/win-probability-swing'
 
 /**
  * Inline match-detail body rendered inside an expanded `MatchRow` accordion.
@@ -69,11 +70,21 @@ function selectPlayer(participantId: number) {
   selectedId.value = participantId
 }
 
-const tabItems = [
+// ─── Timeline tab: the win-probability curve (#1911) ─────────────────────────
+// Only when the game has one — an older or short game gets no tab rather than
+// an empty chart. Read for the row owner's side.
+const winProbability = computed(() => (detail.value ? resolveWinProbability(detail.value) : null))
+const ownerTeamId = computed(() => {
+  const owner = props.selfChampionId ? participants.value.find(p => p.championId === props.selfChampionId) : null
+  return owner?.teamId ?? 100
+})
+
+const tabItems = computed(() => [
   { value: 'general', label: 'General', slot: 'general' as const },
+  ...(winProbability.value ? [{ value: 'timeline', label: 'Timeline', slot: 'timeline' as const }] : []),
   { value: 'details', label: 'Details', slot: 'details' as const },
   { value: 'runes', label: 'Runes', slot: 'runes' as const },
-]
+])
 </script>
 
 <template>
@@ -128,6 +139,18 @@ const tabItems = [
             :rune-tree="runeTree"
           />
         </div>
+      </template>
+
+      <!-- ── Timeline: win-probability curve and turning points ──────── -->
+      <template #timeline>
+        <MatchDetailWinProbability
+          v-if="winProbability"
+          class="mt-3"
+          :win-probability="winProbability"
+          :perspective-team-id="ownerTeamId"
+          :participants="participants"
+          :champions="champions"
+        />
       </template>
 
       <!-- ── Details: player selector + single-player breakdown ──────── -->

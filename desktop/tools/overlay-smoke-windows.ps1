@@ -15,7 +15,9 @@
 # address is wiped from the app's log, which CI uploads from a public repository.
 #
 # The preview is opened from the game page's settings through UI Automation,
-# and a panel is dragged with the mouse, as a player places one.
+# and a panel is dragged with the mouse, as a player places one. Two panels
+# are put on chords first (#1915): the next item while Alt+Shift+1 is held,
+# our pace toggled by Alt+Shift+3, both pressed with synthesised keys.
 #
 # What it cannot stand in for: the real game's renderer (Borderless or
 # Windowed, never Full Screen) and the real anti-cheat.
@@ -279,6 +281,13 @@ function Key([byte] $Code, [bool] $Down) {
     [Desk]::keybd_event($Code, 0, $(if ($Down) { 0 } else { 2 }), [UIntPtr]::Zero)
 }
 
+# Alt+Shift and a key, held for $HoldMs.
+function Chord([byte] $Code, [int] $HoldMs = 300) {
+    Key 0x12 $true; Key 0x10 $true; Key $Code $true
+    Start-Sleep -Milliseconds $HoldMs
+    Key $Code $false; Key 0x10 $false; Key 0x12 $false
+}
+
 function Screenshot([string] $Name) {
     $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
     $bitmap = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
@@ -332,12 +341,18 @@ function Report([string] $Name) {
 }
 
 $WS_EX_TRANSPARENT = 0x20; $WS_EX_TOPMOST = 0x8; $WS_EX_LAYERED = 0x80000; $WS_EX_NOACTIVATE = 0x8000000
-$InGame = "next-item,stats,win-probability"
+$InGame = "stats,win-probability"
 
 # What the app menu's "Share Anonymous Usage Data" writes when turned off.
 $config = Join-Path $env:APPDATA "gg.truemain.desktop"
 New-Item -ItemType Directory -Force -Path $config | Out-Null
 @{ installId = [guid]::NewGuid().ToString(); enabled = $false } | ConvertTo-Json | Set-Content (Join-Path $config "telemetry.json")
+# The panels' triggers; every other setting is left to its default.
+@{
+    version  = 3
+    nextItem = @{ trigger = @{ kind = "whileHeld"; chord = @{ alt = $true; shift = $true; key = "Digit1" } } }
+    stats    = @{ trigger = @{ kind = "toggle"; chord = @{ alt = $true; shift = $true; key = "Digit3" }; startShown = $true } }
+} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $config "overlay-settings.json")
 
 $env:TRUEMAIN_LCU_REPLAY = $Tape
 $env:TRUEMAIN_LCU_REPLAY_SPEED = "0"
@@ -348,7 +363,7 @@ try {
     for ($i = 0; $i -lt 120 -and (Panels).Count -lt 4; $i++) { Start-Sleep -Milliseconds 500 }
     [Desk]::Of([uint32]$script:shell.Id) | ForEach-Object { [ordered]@{ title = $_.Title; class = [Desk]::ClassOf($_.Handle); visible = $_.Visible; exStyle = ('0x{0:X8}' -f $_.ExStyle) } } |
         ConvertTo-Json | Set-Content (Join-Path $Out "0-windows.json")
-    Expect ((Panels).Count -eq 4) "the app builds its four panels' windows"
+    Expect ((Panels).Count -eq 4) "a running game gets a window for each of the four panels switched on"
     # The replay has opened the game and every page has measured itself.
     Start-Sleep -Seconds 8
     Expect ((Shown) -eq "") "nothing shows while the app, not the game, is in front"
@@ -377,11 +392,30 @@ try {
     Start-Sleep -Milliseconds 800
     Expect ((Shown) -eq $InGame) "TAB released takes it away ($(Shown))"
 
+    # A panel on a held chord shows while the chord is down, and only then.
+    Key 0x12 $true; Key 0x10 $true; Key 0x31 $true
+    Start-Sleep -Milliseconds 800
+    $state = Report "2-held-chord"
+    Key 0x31 $false; Key 0x10 $false; Key 0x12 $false
+    Expect ((Shown) -eq "next-item,$InGame") "Alt+Shift+1 held adds the next item ($(Shown))"
+    $nextItem = $state.panels | Where-Object { $_.slug -eq "next-item" -and $_.visible }
+    if ($nextItem) {
+        Expect ($nextItem.gameShare -lt 0.5 -and $nextItem.colors -ge 6) "next-item is drawn (game colour $([Math]::Round($nextItem.gameShare * 100))%, $($nextItem.colors) colours)"
+    }
+    Start-Sleep -Milliseconds 800
+    Expect ((Shown) -eq $InGame) "Alt+Shift+1 released takes it away ($(Shown))"
+
+    # A toggled panel flips on each press, held or not.
+    Chord 0x33 900
+    Start-Sleep -Milliseconds 800
+    Expect ((Shown) -eq "win-probability") "Alt+Shift+3 toggles our pace off, once however long it is held ($(Shown))"
+    Chord 0x33
+    Start-Sleep -Milliseconds 800
+    Expect ((Shown) -eq $InGame) "Alt+Shift+3 again brings it back ($(Shown))"
+
     # Alt+Shift+O hides the overlay for the game, and brings it back.
     foreach ($expected in @("", $InGame)) {
-        Key 0x12 $true; Key 0x10 $true; Key 0x4F $true
-        Start-Sleep -Milliseconds 300
-        Key 0x4F $false; Key 0x10 $false; Key 0x12 $false
+        Chord 0x4F
         Start-Sleep -Milliseconds 800
         Expect ((Shown) -eq $expected) "Alt+Shift+O toggles the overlay ($(Shown))"
     }
@@ -391,6 +425,9 @@ try {
     Start-Sleep -Seconds 2
     Report "4-another-app" | Out-Null
     Expect ((Shown) -eq "") "another app in front hides the overlay ($(Shown))"
+    Chord 0x33
+    Start-Sleep -Milliseconds 500
+    Expect ((Shown) -eq "") "a chord pressed over another app does nothing ($(Shown))"
 
     $standIns += StartStandIn $classOnlyExe "RiotWindowClass" "League of Legends (TM) Client" $GameColorRef
     Start-Sleep -Seconds 2

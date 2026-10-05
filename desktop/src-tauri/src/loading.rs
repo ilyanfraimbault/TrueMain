@@ -82,6 +82,9 @@ pub struct LoadingPlayer {
 #[serde(rename_all = "camelCase")]
 pub struct LoadingView {
     pub players: Vec<LoadingPlayer>,
+    /// The shard the game is played on, e.g. `EUW1`, from the first history
+    /// read; empty until then. The true-main lookup is asked on it (#1910).
+    pub platform_id: String,
 }
 
 #[derive(Default)]
@@ -103,7 +106,7 @@ pub fn follow(app: &AppHandle, state: &AppState) {
         }
         let cleared = {
             let mut view = loading.view.lock().expect("loading view poisoned");
-            !std::mem::take(&mut view.players).is_empty()
+            !std::mem::take(&mut *view).players.is_empty()
         };
         if cleared {
             let _ = app.emit(EVENT, LoadingView::default());
@@ -234,6 +237,9 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
             match read {
                 Read::Form(_, Ok((history, _, champion))) => {
                     player.form = Some(PlayerForm::from_history(&history, champion));
+                    if view.platform_id.is_empty() {
+                        view.platform_id = history.platform_id;
+                    }
                 }
                 Read::Form(_, Err(error)) => {
                     tracing::debug!(%error, "a player's history could not be read");

@@ -16,6 +16,7 @@ pub mod detail;
 pub mod error;
 pub mod events;
 pub mod form;
+pub mod item_sets;
 pub mod laning;
 pub mod live;
 pub mod model;
@@ -23,6 +24,7 @@ pub mod record;
 pub mod runes;
 pub mod tape;
 pub mod tls;
+pub mod win_probability;
 
 pub use champ_select::{ActionKind, DraftAction, Refusal};
 pub use client::LcuClient;
@@ -31,6 +33,7 @@ pub use detail::GameDetail;
 pub use error::{Error, Result};
 pub use events::{stream_events, LcuEvent};
 pub use form::{PlayerForm, PositionGames, RecentGame, FORM_GAMES, RECENT_GAMES};
+pub use item_sets::{plan_item_set_import, BuildItems, ItemSetDraft};
 pub use laning::{
     gaps_at_fifteen, laning_games, LaningForm, LaningGame, LANING_DEPTH, LANING_GAMES,
 };
@@ -42,6 +45,7 @@ pub use model::{
 pub use record::{GameParticipant, PlayerGame, PlayerRecord, RankedQueue, Scoreboard};
 pub use runes::{plan_import, RuneImportPlan, RunePage, RunePageDraft};
 pub use tape::{Played, Reading, Recorder, Tape};
+pub use win_probability::WinProbabilityTimeline;
 
 /// Endpoints the app subscribes to, named once so the Rust and the shell agree.
 pub mod uri {

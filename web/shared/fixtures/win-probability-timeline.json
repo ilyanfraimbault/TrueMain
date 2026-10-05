@@ -1,0 +1,2764 @@
+{
+ "timeline": {
+  "durationMs": 1842000,
+  "participants": [
+   {
+    "participantId": 1,
+    "teamId": 100,
+    "position": "TOP"
+   },
+   {
+    "participantId": 2,
+    "teamId": 100,
+    "position": "JUNGLE"
+   },
+   {
+    "participantId": 3,
+    "teamId": 100,
+    "position": "MIDDLE"
+   },
+   {
+    "participantId": 4,
+    "teamId": 100,
+    "position": "BOTTOM"
+   },
+   {
+    "participantId": 5,
+    "teamId": 100,
+    "position": "UTILITY"
+   },
+   {
+    "participantId": 6,
+    "teamId": 200,
+    "position": "TOP"
+   },
+   {
+    "participantId": 7,
+    "teamId": 200,
+    "position": "JUNGLE"
+   },
+   {
+    "participantId": 8,
+    "teamId": 200,
+    "position": "MIDDLE"
+   },
+   {
+    "participantId": 9,
+    "teamId": 200,
+    "position": "BOTTOM"
+   },
+   {
+    "participantId": 10,
+    "teamId": 200,
+    "position": "UTILITY"
+   }
+  ],
+  "frames": [
+   {
+    "ms": 0,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 0,
+      "level": 1
+     },
+     {
+      "participantId": 2,
+      "cs": 0,
+      "level": 1
+     },
+     {
+      "participantId": 3,
+      "cs": 0,
+      "level": 1
+     },
+     {
+      "participantId": 4,
+      "cs": 0,
+      "level": 1
+     },
+     {
+      "participantId": 5,
+      "cs": 0,
+      "level": 1
+     },
+     {
+      "participantId": 6,
+      "cs": 0,
+      "level": 1
+     },
+     {
+      "participantId": 7,
+      "cs": 0,
+      "level": 1
+     },
+     {
+      "participantId": 8,
+      "cs": 0,
+      "level": 1
+     },
+     {
+      "participantId": 9,
+      "cs": 0,
+      "level": 1
+     },
+     {
+      "participantId": 10,
+      "cs": 0,
+      "level": 1
+     }
+    ]
+   },
+   {
+    "ms": 60000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 8,
+      "level": 3
+     },
+     {
+      "participantId": 2,
+      "cs": 5,
+      "level": 3
+     },
+     {
+      "participantId": 3,
+      "cs": 7,
+      "level": 3
+     },
+     {
+      "participantId": 4,
+      "cs": 9,
+      "level": 3
+     },
+     {
+      "participantId": 5,
+      "cs": 1,
+      "level": 3
+     },
+     {
+      "participantId": 6,
+      "cs": 8,
+      "level": 3
+     },
+     {
+      "participantId": 7,
+      "cs": 4,
+      "level": 3
+     },
+     {
+      "participantId": 8,
+      "cs": 9,
+      "level": 3
+     },
+     {
+      "participantId": 9,
+      "cs": 8,
+      "level": 3
+     },
+     {
+      "participantId": 10,
+      "cs": 1,
+      "level": 3
+     }
+    ]
+   },
+   {
+    "ms": 120000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 16,
+      "level": 4
+     },
+     {
+      "participantId": 2,
+      "cs": 11,
+      "level": 4
+     },
+     {
+      "participantId": 3,
+      "cs": 14,
+      "level": 4
+     },
+     {
+      "participantId": 4,
+      "cs": 19,
+      "level": 4
+     },
+     {
+      "participantId": 5,
+      "cs": 2,
+      "level": 4
+     },
+     {
+      "participantId": 6,
+      "cs": 15,
+      "level": 4
+     },
+     {
+      "participantId": 7,
+      "cs": 10,
+      "level": 4
+     },
+     {
+      "participantId": 8,
+      "cs": 18,
+      "level": 4
+     },
+     {
+      "participantId": 9,
+      "cs": 16,
+      "level": 4
+     },
+     {
+      "participantId": 10,
+      "cs": 2,
+      "level": 4
+     }
+    ]
+   },
+   {
+    "ms": 180000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 23,
+      "level": 5
+     },
+     {
+      "participantId": 2,
+      "cs": 16,
+      "level": 5
+     },
+     {
+      "participantId": 3,
+      "cs": 21,
+      "level": 5
+     },
+     {
+      "participantId": 4,
+      "cs": 29,
+      "level": 5
+     },
+     {
+      "participantId": 5,
+      "cs": 3,
+      "level": 4
+     },
+     {
+      "participantId": 6,
+      "cs": 21,
+      "level": 5
+     },
+     {
+      "participantId": 7,
+      "cs": 15,
+      "level": 5
+     },
+     {
+      "participantId": 8,
+      "cs": 25,
+      "level": 5
+     },
+     {
+      "participantId": 9,
+      "cs": 22,
+      "level": 5
+     },
+     {
+      "participantId": 10,
+      "cs": 3,
+      "level": 4
+     }
+    ]
+   },
+   {
+    "ms": 240000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 32,
+      "level": 5
+     },
+     {
+      "participantId": 2,
+      "cs": 21,
+      "level": 5
+     },
+     {
+      "participantId": 3,
+      "cs": 31,
+      "level": 5
+     },
+     {
+      "participantId": 4,
+      "cs": 38,
+      "level": 5
+     },
+     {
+      "participantId": 5,
+      "cs": 4,
+      "level": 5
+     },
+     {
+      "participantId": 6,
+      "cs": 29,
+      "level": 5
+     },
+     {
+      "participantId": 7,
+      "cs": 21,
+      "level": 5
+     },
+     {
+      "participantId": 8,
+      "cs": 34,
+      "level": 5
+     },
+     {
+      "participantId": 9,
+      "cs": 31,
+      "level": 5
+     },
+     {
+      "participantId": 10,
+      "cs": 4,
+      "level": 5
+     }
+    ]
+   },
+   {
+    "ms": 300000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 38,
+      "level": 6
+     },
+     {
+      "participantId": 2,
+      "cs": 28,
+      "level": 6
+     },
+     {
+      "participantId": 3,
+      "cs": 40,
+      "level": 6
+     },
+     {
+      "participantId": 4,
+      "cs": 48,
+      "level": 6
+     },
+     {
+      "participantId": 5,
+      "cs": 5,
+      "level": 6
+     },
+     {
+      "participantId": 6,
+      "cs": 37,
+      "level": 6
+     },
+     {
+      "participantId": 7,
+      "cs": 25,
+      "level": 6
+     },
+     {
+      "participantId": 8,
+      "cs": 41,
+      "level": 6
+     },
+     {
+      "participantId": 9,
+      "cs": 39,
+      "level": 6
+     },
+     {
+      "participantId": 10,
+      "cs": 5,
+      "level": 5
+     }
+    ]
+   },
+   {
+    "ms": 360000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 46,
+      "level": 6
+     },
+     {
+      "participantId": 2,
+      "cs": 34,
+      "level": 7
+     },
+     {
+      "participantId": 3,
+      "cs": 49,
+      "level": 7
+     },
+     {
+      "participantId": 4,
+      "cs": 57,
+      "level": 6
+     },
+     {
+      "participantId": 5,
+      "cs": 6,
+      "level": 6
+     },
+     {
+      "participantId": 6,
+      "cs": 43,
+      "level": 6
+     },
+     {
+      "participantId": 7,
+      "cs": 30,
+      "level": 6
+     },
+     {
+      "participantId": 8,
+      "cs": 50,
+      "level": 6
+     },
+     {
+      "participantId": 9,
+      "cs": 47,
+      "level": 6
+     },
+     {
+      "participantId": 10,
+      "cs": 6,
+      "level": 6
+     }
+    ]
+   },
+   {
+    "ms": 420000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 55,
+      "level": 7
+     },
+     {
+      "participantId": 2,
+      "cs": 41,
+      "level": 7
+     },
+     {
+      "participantId": 3,
+      "cs": 58,
+      "level": 7
+     },
+     {
+      "participantId": 4,
+      "cs": 65,
+      "level": 7
+     },
+     {
+      "participantId": 5,
+      "cs": 7,
+      "level": 6
+     },
+     {
+      "participantId": 6,
+      "cs": 50,
+      "level": 7
+     },
+     {
+      "participantId": 7,
+      "cs": 36,
+      "level": 7
+     },
+     {
+      "participantId": 8,
+      "cs": 56,
+      "level": 7
+     },
+     {
+      "participantId": 9,
+      "cs": 56,
+      "level": 7
+     },
+     {
+      "participantId": 10,
+      "cs": 7,
+      "level": 6
+     }
+    ]
+   },
+   {
+    "ms": 480000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 63,
+      "level": 7
+     },
+     {
+      "participantId": 2,
+      "cs": 47,
+      "level": 7
+     },
+     {
+      "participantId": 3,
+      "cs": 65,
+      "level": 7
+     },
+     {
+      "participantId": 4,
+      "cs": 72,
+      "level": 7
+     },
+     {
+      "participantId": 5,
+      "cs": 8,
+      "level": 7
+     },
+     {
+      "participantId": 6,
+      "cs": 56,
+      "level": 7
+     },
+     {
+      "participantId": 7,
+      "cs": 41,
+      "level": 7
+     },
+     {
+      "participantId": 8,
+      "cs": 63,
+      "level": 7
+     },
+     {
+      "participantId": 9,
+      "cs": 63,
+      "level": 7
+     },
+     {
+      "participantId": 10,
+      "cs": 8,
+      "level": 7
+     }
+    ]
+   },
+   {
+    "ms": 540000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 70,
+      "level": 8
+     },
+     {
+      "participantId": 2,
+      "cs": 52,
+      "level": 8
+     },
+     {
+      "participantId": 3,
+      "cs": 72,
+      "level": 8
+     },
+     {
+      "participantId": 4,
+      "cs": 79,
+      "level": 8
+     },
+     {
+      "participantId": 5,
+      "cs": 9,
+      "level": 7
+     },
+     {
+      "participantId": 6,
+      "cs": 62,
+      "level": 8
+     },
+     {
+      "participantId": 7,
+      "cs": 45,
+      "level": 8
+     },
+     {
+      "participantId": 8,
+      "cs": 71,
+      "level": 8
+     },
+     {
+      "participantId": 9,
+      "cs": 71,
+      "level": 8
+     },
+     {
+      "participantId": 10,
+      "cs": 9,
+      "level": 7
+     }
+    ]
+   },
+   {
+    "ms": 600000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 77,
+      "level": 8
+     },
+     {
+      "participantId": 2,
+      "cs": 58,
+      "level": 8
+     },
+     {
+      "participantId": 3,
+      "cs": 79,
+      "level": 8
+     },
+     {
+      "participantId": 4,
+      "cs": 88,
+      "level": 8
+     },
+     {
+      "participantId": 5,
+      "cs": 10,
+      "level": 8
+     },
+     {
+      "participantId": 6,
+      "cs": 70,
+      "level": 8
+     },
+     {
+      "participantId": 7,
+      "cs": 51,
+      "level": 8
+     },
+     {
+      "participantId": 8,
+      "cs": 80,
+      "level": 8
+     },
+     {
+      "participantId": 9,
+      "cs": 78,
+      "level": 8
+     },
+     {
+      "participantId": 10,
+      "cs": 10,
+      "level": 7
+     }
+    ]
+   },
+   {
+    "ms": 660000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 84,
+      "level": 9
+     },
+     {
+      "participantId": 2,
+      "cs": 64,
+      "level": 9
+     },
+     {
+      "participantId": 3,
+      "cs": 88,
+      "level": 9
+     },
+     {
+      "participantId": 4,
+      "cs": 97,
+      "level": 9
+     },
+     {
+      "participantId": 5,
+      "cs": 11,
+      "level": 8
+     },
+     {
+      "participantId": 6,
+      "cs": 76,
+      "level": 9
+     },
+     {
+      "participantId": 7,
+      "cs": 57,
+      "level": 8
+     },
+     {
+      "participantId": 8,
+      "cs": 89,
+      "level": 8
+     },
+     {
+      "participantId": 9,
+      "cs": 84,
+      "level": 8
+     },
+     {
+      "participantId": 10,
+      "cs": 11,
+      "level": 8
+     }
+    ]
+   },
+   {
+    "ms": 720000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 93,
+      "level": 9
+     },
+     {
+      "participantId": 2,
+      "cs": 71,
+      "level": 9
+     },
+     {
+      "participantId": 3,
+      "cs": 97,
+      "level": 9
+     },
+     {
+      "participantId": 4,
+      "cs": 106,
+      "level": 9
+     },
+     {
+      "participantId": 5,
+      "cs": 12,
+      "level": 8
+     },
+     {
+      "participantId": 6,
+      "cs": 82,
+      "level": 9
+     },
+     {
+      "participantId": 7,
+      "cs": 62,
+      "level": 9
+     },
+     {
+      "participantId": 8,
+      "cs": 96,
+      "level": 9
+     },
+     {
+      "participantId": 9,
+      "cs": 92,
+      "level": 9
+     },
+     {
+      "participantId": 10,
+      "cs": 12,
+      "level": 8
+     }
+    ]
+   },
+   {
+    "ms": 780000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 100,
+      "level": 9
+     },
+     {
+      "participantId": 2,
+      "cs": 77,
+      "level": 9
+     },
+     {
+      "participantId": 3,
+      "cs": 105,
+      "level": 9
+     },
+     {
+      "participantId": 4,
+      "cs": 114,
+      "level": 9
+     },
+     {
+      "participantId": 5,
+      "cs": 13,
+      "level": 9
+     },
+     {
+      "participantId": 6,
+      "cs": 89,
+      "level": 9
+     },
+     {
+      "participantId": 7,
+      "cs": 68,
+      "level": 9
+     },
+     {
+      "participantId": 8,
+      "cs": 104,
+      "level": 9
+     },
+     {
+      "participantId": 9,
+      "cs": 101,
+      "level": 9
+     },
+     {
+      "participantId": 10,
+      "cs": 13,
+      "level": 8
+     }
+    ]
+   },
+   {
+    "ms": 840000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 107,
+      "level": 10
+     },
+     {
+      "participantId": 2,
+      "cs": 83,
+      "level": 10
+     },
+     {
+      "participantId": 3,
+      "cs": 113,
+      "level": 9
+     },
+     {
+      "participantId": 4,
+      "cs": 124,
+      "level": 10
+     },
+     {
+      "participantId": 5,
+      "cs": 14,
+      "level": 9
+     },
+     {
+      "participantId": 6,
+      "cs": 95,
+      "level": 10
+     },
+     {
+      "participantId": 7,
+      "cs": 74,
+      "level": 9
+     },
+     {
+      "participantId": 8,
+      "cs": 113,
+      "level": 9
+     },
+     {
+      "participantId": 9,
+      "cs": 108,
+      "level": 9
+     },
+     {
+      "participantId": 10,
+      "cs": 14,
+      "level": 8
+     }
+    ]
+   },
+   {
+    "ms": 900000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 113,
+      "level": 10
+     },
+     {
+      "participantId": 2,
+      "cs": 88,
+      "level": 10
+     },
+     {
+      "participantId": 3,
+      "cs": 120,
+      "level": 10
+     },
+     {
+      "participantId": 4,
+      "cs": 132,
+      "level": 10
+     },
+     {
+      "participantId": 5,
+      "cs": 15,
+      "level": 9
+     },
+     {
+      "participantId": 6,
+      "cs": 101,
+      "level": 10
+     },
+     {
+      "participantId": 7,
+      "cs": 78,
+      "level": 10
+     },
+     {
+      "participantId": 8,
+      "cs": 121,
+      "level": 10
+     },
+     {
+      "participantId": 9,
+      "cs": 115,
+      "level": 10
+     },
+     {
+      "participantId": 10,
+      "cs": 15,
+      "level": 9
+     }
+    ]
+   },
+   {
+    "ms": 960000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 120,
+      "level": 10
+     },
+     {
+      "participantId": 2,
+      "cs": 95,
+      "level": 10
+     },
+     {
+      "participantId": 3,
+      "cs": 127,
+      "level": 10
+     },
+     {
+      "participantId": 4,
+      "cs": 142,
+      "level": 10
+     },
+     {
+      "participantId": 5,
+      "cs": 16,
+      "level": 9
+     },
+     {
+      "participantId": 6,
+      "cs": 108,
+      "level": 10
+     },
+     {
+      "participantId": 7,
+      "cs": 84,
+      "level": 10
+     },
+     {
+      "participantId": 8,
+      "cs": 128,
+      "level": 10
+     },
+     {
+      "participantId": 9,
+      "cs": 123,
+      "level": 10
+     },
+     {
+      "participantId": 10,
+      "cs": 16,
+      "level": 9
+     }
+    ]
+   },
+   {
+    "ms": 1020000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 129,
+      "level": 11
+     },
+     {
+      "participantId": 2,
+      "cs": 101,
+      "level": 11
+     },
+     {
+      "participantId": 3,
+      "cs": 135,
+      "level": 10
+     },
+     {
+      "participantId": 4,
+      "cs": 151,
+      "level": 11
+     },
+     {
+      "participantId": 5,
+      "cs": 17,
+      "level": 10
+     },
+     {
+      "participantId": 6,
+      "cs": 116,
+      "level": 10
+     },
+     {
+      "participantId": 7,
+      "cs": 89,
+      "level": 10
+     },
+     {
+      "participantId": 8,
+      "cs": 135,
+      "level": 10
+     },
+     {
+      "participantId": 9,
+      "cs": 132,
+      "level": 10
+     },
+     {
+      "participantId": 10,
+      "cs": 17,
+      "level": 9
+     }
+    ]
+   },
+   {
+    "ms": 1080000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 138,
+      "level": 11
+     },
+     {
+      "participantId": 2,
+      "cs": 107,
+      "level": 11
+     },
+     {
+      "participantId": 3,
+      "cs": 145,
+      "level": 11
+     },
+     {
+      "participantId": 4,
+      "cs": 158,
+      "level": 11
+     },
+     {
+      "participantId": 5,
+      "cs": 18,
+      "level": 10
+     },
+     {
+      "participantId": 6,
+      "cs": 124,
+      "level": 11
+     },
+     {
+      "participantId": 7,
+      "cs": 94,
+      "level": 11
+     },
+     {
+      "participantId": 8,
+      "cs": 142,
+      "level": 11
+     },
+     {
+      "participantId": 9,
+      "cs": 139,
+      "level": 11
+     },
+     {
+      "participantId": 10,
+      "cs": 18,
+      "level": 10
+     }
+    ]
+   },
+   {
+    "ms": 1140000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 146,
+      "level": 11
+     },
+     {
+      "participantId": 2,
+      "cs": 112,
+      "level": 11
+     },
+     {
+      "participantId": 3,
+      "cs": 154,
+      "level": 11
+     },
+     {
+      "participantId": 4,
+      "cs": 166,
+      "level": 11
+     },
+     {
+      "participantId": 5,
+      "cs": 19,
+      "level": 10
+     },
+     {
+      "participantId": 6,
+      "cs": 131,
+      "level": 11
+     },
+     {
+      "participantId": 7,
+      "cs": 99,
+      "level": 11
+     },
+     {
+      "participantId": 8,
+      "cs": 150,
+      "level": 11
+     },
+     {
+      "participantId": 9,
+      "cs": 146,
+      "level": 11
+     },
+     {
+      "participantId": 10,
+      "cs": 19,
+      "level": 10
+     }
+    ]
+   },
+   {
+    "ms": 1200000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 152,
+      "level": 11
+     },
+     {
+      "participantId": 2,
+      "cs": 117,
+      "level": 11
+     },
+     {
+      "participantId": 3,
+      "cs": 161,
+      "level": 11
+     },
+     {
+      "participantId": 4,
+      "cs": 174,
+      "level": 11
+     },
+     {
+      "participantId": 5,
+      "cs": 20,
+      "level": 10
+     },
+     {
+      "participantId": 6,
+      "cs": 137,
+      "level": 11
+     },
+     {
+      "participantId": 7,
+      "cs": 104,
+      "level": 11
+     },
+     {
+      "participantId": 8,
+      "cs": 158,
+      "level": 11
+     },
+     {
+      "participantId": 9,
+      "cs": 154,
+      "level": 11
+     },
+     {
+      "participantId": 10,
+      "cs": 20,
+      "level": 10
+     }
+    ]
+   },
+   {
+    "ms": 1260000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 159,
+      "level": 12
+     },
+     {
+      "participantId": 2,
+      "cs": 123,
+      "level": 12
+     },
+     {
+      "participantId": 3,
+      "cs": 168,
+      "level": 12
+     },
+     {
+      "participantId": 4,
+      "cs": 181,
+      "level": 12
+     },
+     {
+      "participantId": 5,
+      "cs": 21,
+      "level": 11
+     },
+     {
+      "participantId": 6,
+      "cs": 143,
+      "level": 11
+     },
+     {
+      "participantId": 7,
+      "cs": 110,
+      "level": 11
+     },
+     {
+      "participantId": 8,
+      "cs": 166,
+      "level": 11
+     },
+     {
+      "participantId": 9,
+      "cs": 161,
+      "level": 11
+     },
+     {
+      "participantId": 10,
+      "cs": 21,
+      "level": 10
+     }
+    ]
+   },
+   {
+    "ms": 1320000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 166,
+      "level": 12
+     },
+     {
+      "participantId": 2,
+      "cs": 130,
+      "level": 12
+     },
+     {
+      "participantId": 3,
+      "cs": 176,
+      "level": 12
+     },
+     {
+      "participantId": 4,
+      "cs": 189,
+      "level": 12
+     },
+     {
+      "participantId": 5,
+      "cs": 22,
+      "level": 11
+     },
+     {
+      "participantId": 6,
+      "cs": 149,
+      "level": 12
+     },
+     {
+      "participantId": 7,
+      "cs": 115,
+      "level": 12
+     },
+     {
+      "participantId": 8,
+      "cs": 172,
+      "level": 12
+     },
+     {
+      "participantId": 9,
+      "cs": 170,
+      "level": 12
+     },
+     {
+      "participantId": 10,
+      "cs": 22,
+      "level": 11
+     }
+    ]
+   },
+   {
+    "ms": 1380000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 174,
+      "level": 12
+     },
+     {
+      "participantId": 2,
+      "cs": 135,
+      "level": 12
+     },
+     {
+      "participantId": 3,
+      "cs": 185,
+      "level": 12
+     },
+     {
+      "participantId": 4,
+      "cs": 197,
+      "level": 12
+     },
+     {
+      "participantId": 5,
+      "cs": 23,
+      "level": 11
+     },
+     {
+      "participantId": 6,
+      "cs": 156,
+      "level": 12
+     },
+     {
+      "participantId": 7,
+      "cs": 120,
+      "level": 12
+     },
+     {
+      "participantId": 8,
+      "cs": 179,
+      "level": 12
+     },
+     {
+      "participantId": 9,
+      "cs": 179,
+      "level": 12
+     },
+     {
+      "participantId": 10,
+      "cs": 23,
+      "level": 11
+     }
+    ]
+   },
+   {
+    "ms": 1440000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 180,
+      "level": 12
+     },
+     {
+      "participantId": 2,
+      "cs": 141,
+      "level": 12
+     },
+     {
+      "participantId": 3,
+      "cs": 192,
+      "level": 12
+     },
+     {
+      "participantId": 4,
+      "cs": 206,
+      "level": 13
+     },
+     {
+      "participantId": 5,
+      "cs": 24,
+      "level": 11
+     },
+     {
+      "participantId": 6,
+      "cs": 162,
+      "level": 12
+     },
+     {
+      "participantId": 7,
+      "cs": 126,
+      "level": 12
+     },
+     {
+      "participantId": 8,
+      "cs": 186,
+      "level": 12
+     },
+     {
+      "participantId": 9,
+      "cs": 188,
+      "level": 12
+     },
+     {
+      "participantId": 10,
+      "cs": 24,
+      "level": 11
+     }
+    ]
+   },
+   {
+    "ms": 1500000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 187,
+      "level": 13
+     },
+     {
+      "participantId": 2,
+      "cs": 147,
+      "level": 13
+     },
+     {
+      "participantId": 3,
+      "cs": 200,
+      "level": 13
+     },
+     {
+      "participantId": 4,
+      "cs": 214,
+      "level": 13
+     },
+     {
+      "participantId": 5,
+      "cs": 25,
+      "level": 12
+     },
+     {
+      "participantId": 6,
+      "cs": 169,
+      "level": 12
+     },
+     {
+      "participantId": 7,
+      "cs": 131,
+      "level": 12
+     },
+     {
+      "participantId": 8,
+      "cs": 192,
+      "level": 12
+     },
+     {
+      "participantId": 9,
+      "cs": 197,
+      "level": 12
+     },
+     {
+      "participantId": 10,
+      "cs": 25,
+      "level": 11
+     }
+    ]
+   },
+   {
+    "ms": 1560000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 194,
+      "level": 13
+     },
+     {
+      "participantId": 2,
+      "cs": 153,
+      "level": 13
+     },
+     {
+      "participantId": 3,
+      "cs": 210,
+      "level": 13
+     },
+     {
+      "participantId": 4,
+      "cs": 221,
+      "level": 13
+     },
+     {
+      "participantId": 5,
+      "cs": 26,
+      "level": 12
+     },
+     {
+      "participantId": 6,
+      "cs": 176,
+      "level": 13
+     },
+     {
+      "participantId": 7,
+      "cs": 136,
+      "level": 13
+     },
+     {
+      "participantId": 8,
+      "cs": 199,
+      "level": 13
+     },
+     {
+      "participantId": 9,
+      "cs": 204,
+      "level": 12
+     },
+     {
+      "participantId": 10,
+      "cs": 26,
+      "level": 12
+     }
+    ]
+   },
+   {
+    "ms": 1620000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 202,
+      "level": 13
+     },
+     {
+      "participantId": 2,
+      "cs": 160,
+      "level": 13
+     },
+     {
+      "participantId": 3,
+      "cs": 218,
+      "level": 13
+     },
+     {
+      "participantId": 4,
+      "cs": 229,
+      "level": 13
+     },
+     {
+      "participantId": 5,
+      "cs": 27,
+      "level": 12
+     },
+     {
+      "participantId": 6,
+      "cs": 183,
+      "level": 13
+     },
+     {
+      "participantId": 7,
+      "cs": 142,
+      "level": 13
+     },
+     {
+      "participantId": 8,
+      "cs": 205,
+      "level": 13
+     },
+     {
+      "participantId": 9,
+      "cs": 211,
+      "level": 13
+     },
+     {
+      "participantId": 10,
+      "cs": 27,
+      "level": 12
+     }
+    ]
+   },
+   {
+    "ms": 1680000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 210,
+      "level": 13
+     },
+     {
+      "participantId": 2,
+      "cs": 166,
+      "level": 13
+     },
+     {
+      "participantId": 3,
+      "cs": 227,
+      "level": 13
+     },
+     {
+      "participantId": 4,
+      "cs": 238,
+      "level": 14
+     },
+     {
+      "participantId": 5,
+      "cs": 28,
+      "level": 12
+     },
+     {
+      "participantId": 6,
+      "cs": 189,
+      "level": 13
+     },
+     {
+      "participantId": 7,
+      "cs": 148,
+      "level": 13
+     },
+     {
+      "participantId": 8,
+      "cs": 212,
+      "level": 13
+     },
+     {
+      "participantId": 9,
+      "cs": 219,
+      "level": 13
+     },
+     {
+      "participantId": 10,
+      "cs": 28,
+      "level": 12
+     }
+    ]
+   },
+   {
+    "ms": 1740000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 216,
+      "level": 14
+     },
+     {
+      "participantId": 2,
+      "cs": 171,
+      "level": 14
+     },
+     {
+      "participantId": 3,
+      "cs": 235,
+      "level": 14
+     },
+     {
+      "participantId": 4,
+      "cs": 245,
+      "level": 14
+     },
+     {
+      "participantId": 5,
+      "cs": 29,
+      "level": 12
+     },
+     {
+      "participantId": 6,
+      "cs": 195,
+      "level": 13
+     },
+     {
+      "participantId": 7,
+      "cs": 152,
+      "level": 13
+     },
+     {
+      "participantId": 8,
+      "cs": 220,
+      "level": 13
+     },
+     {
+      "participantId": 9,
+      "cs": 227,
+      "level": 13
+     },
+     {
+      "participantId": 10,
+      "cs": 29,
+      "level": 12
+     }
+    ]
+   },
+   {
+    "ms": 1800000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 222,
+      "level": 14
+     },
+     {
+      "participantId": 2,
+      "cs": 177,
+      "level": 14
+     },
+     {
+      "participantId": 3,
+      "cs": 242,
+      "level": 14
+     },
+     {
+      "participantId": 4,
+      "cs": 253,
+      "level": 14
+     },
+     {
+      "participantId": 5,
+      "cs": 30,
+      "level": 13
+     },
+     {
+      "participantId": 6,
+      "cs": 202,
+      "level": 14
+     },
+     {
+      "participantId": 7,
+      "cs": 157,
+      "level": 13
+     },
+     {
+      "participantId": 8,
+      "cs": 228,
+      "level": 13
+     },
+     {
+      "participantId": 9,
+      "cs": 234,
+      "level": 13
+     },
+     {
+      "participantId": 10,
+      "cs": 30,
+      "level": 12
+     }
+    ]
+   },
+   {
+    "ms": 1842000,
+    "players": [
+     {
+      "participantId": 1,
+      "cs": 227,
+      "level": 14
+     },
+     {
+      "participantId": 2,
+      "cs": 181,
+      "level": 14
+     },
+     {
+      "participantId": 3,
+      "cs": 247,
+      "level": 14
+     },
+     {
+      "participantId": 4,
+      "cs": 258,
+      "level": 14
+     },
+     {
+      "participantId": 5,
+      "cs": 31,
+      "level": 13
+     },
+     {
+      "participantId": 6,
+      "cs": 206,
+      "level": 14
+     },
+     {
+      "participantId": 7,
+      "cs": 160,
+      "level": 14
+     },
+     {
+      "participantId": 8,
+      "cs": 233,
+      "level": 14
+     },
+     {
+      "participantId": 9,
+      "cs": 239,
+      "level": 14
+     },
+     {
+      "participantId": 10,
+      "cs": 31,
+      "level": 13
+     }
+    ]
+   }
+  ],
+  "events": [
+   {
+    "type": "WARD_PLACED",
+    "ms": 60000,
+    "creatorId": 5
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 221300,
+    "killerId": 1,
+    "victimId": 9,
+    "assistIds": [
+     2,
+     3,
+     4
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 290029,
+    "killerId": 9,
+    "victimId": 1,
+    "assistIds": [
+     10,
+     6,
+     7
+    ],
+    "bounty": 600
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 356730,
+    "killerId": 5,
+    "victimId": 7,
+    "assistIds": [
+     1
+    ],
+    "bounty": 450
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 370000,
+    "killerId": 2,
+    "killerTeamId": 100,
+    "monsterType": "HORDE"
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 410000,
+    "killerId": 7,
+    "killerTeamId": 200,
+    "monsterType": "DRAGON",
+    "monsterSubType": "FIRE_DRAGON"
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 432686,
+    "killerId": 5,
+    "victimId": 9,
+    "assistIds": [
+     1,
+     2,
+     3
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 436462,
+    "killerId": 2,
+    "victimId": 6,
+    "assistIds": [
+     3,
+     4
+    ]
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 493028,
+    "killerId": 2,
+    "victimId": 9,
+    "assistIds": [
+     3,
+     4,
+     5
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 494597,
+    "killerId": 1,
+    "victimId": 10,
+    "assistIds": [
+     2
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 513711,
+    "killerId": 8,
+    "victimId": 1,
+    "assistIds": [
+     9
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 522650,
+    "killerId": 2,
+    "victimId": 7,
+    "assistIds": [
+     3,
+     4,
+     5
+    ],
+    "bounty": 500
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 524145,
+    "killerId": 1,
+    "victimId": 6,
+    "assistIds": [
+     2,
+     3,
+     4
+    ]
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 527557,
+    "killerId": 3,
+    "victimId": 9,
+    "assistIds": []
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 552000,
+    "killerId": 0,
+    "victimId": 3,
+    "assistIds": []
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 554463,
+    "killerId": 7,
+    "victimId": 2,
+    "assistIds": [
+     8
+    ],
+    "bounty": 500
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 565898,
+    "killerId": 3,
+    "victimId": 10,
+    "assistIds": [
+     4,
+     5,
+     1
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 650567,
+    "killerId": 7,
+    "victimId": 1,
+    "assistIds": [
+     8,
+     9,
+     10
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 670223,
+    "killerId": 7,
+    "victimId": 2,
+    "assistIds": [
+     8,
+     9,
+     10
+    ],
+    "bounty": 500
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 700000,
+    "teamId": 200,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "BOT_LANE",
+    "towerType": "OUTER_TURRET",
+    "killerId": 2,
+    "assistIds": []
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 707066,
+    "killerId": 2,
+    "victimId": 6,
+    "assistIds": [
+     3
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 719944,
+    "killerId": 5,
+    "victimId": 8,
+    "assistIds": [],
+    "bounty": 300
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 724000,
+    "killerId": 2,
+    "killerTeamId": 100,
+    "monsterType": "DRAGON",
+    "monsterSubType": "MOUNTAIN_DRAGON"
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 741750,
+    "killerId": 3,
+    "victimId": 9,
+    "assistIds": [
+     4,
+     5,
+     1
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 785000,
+    "teamId": 100,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "TOP_LANE",
+    "towerType": "OUTER_TURRET",
+    "killerId": 6,
+    "assistIds": []
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 835885,
+    "killerId": 7,
+    "victimId": 2,
+    "assistIds": [
+     8,
+     9
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 860000,
+    "teamId": 200,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "MID_LANE",
+    "towerType": "OUTER_TURRET",
+    "killerId": 3,
+    "assistIds": []
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 880000,
+    "killerId": 2,
+    "killerTeamId": 100,
+    "monsterType": "RIFTHERALD"
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 904956,
+    "killerId": 10,
+    "victimId": 1,
+    "assistIds": [],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 909392,
+    "killerId": 4,
+    "victimId": 7,
+    "assistIds": [],
+    "bounty": 500
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 953446,
+    "killerId": 4,
+    "victimId": 7,
+    "assistIds": [],
+    "bounty": 300
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1022000,
+    "teamId": 200,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "BOT_LANE",
+    "towerType": "INNER_TURRET",
+    "killerId": 5,
+    "assistIds": []
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 1050000,
+    "killerId": 2,
+    "killerTeamId": 100,
+    "monsterType": "DRAGON",
+    "monsterSubType": "MOUNTAIN_DRAGON"
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1055551,
+    "killerId": 6,
+    "victimId": 4,
+    "assistIds": [],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1107982,
+    "killerId": 5,
+    "victimId": 7,
+    "assistIds": [
+     1
+    ],
+    "bounty": 500
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1163593,
+    "killerId": 1,
+    "victimId": 6,
+    "assistIds": [
+     2,
+     3
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1189888,
+    "killerId": 5,
+    "victimId": 10,
+    "assistIds": [],
+    "bounty": 300
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1190000,
+    "teamId": 100,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "MID_LANE",
+    "towerType": "OUTER_TURRET",
+    "killerId": 7,
+    "assistIds": []
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1196541,
+    "killerId": 1,
+    "victimId": 7,
+    "assistIds": [
+     2,
+     3
+    ]
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 1215000,
+    "killerId": 7,
+    "killerTeamId": 200,
+    "monsterType": "ATAKHAN"
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1225770,
+    "killerId": 8,
+    "victimId": 2,
+    "assistIds": [
+     9
+    ]
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1353000,
+    "teamId": 200,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "TOP_LANE",
+    "towerType": "OUTER_TURRET",
+    "killerId": 1,
+    "assistIds": []
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 1380000,
+    "killerId": 2,
+    "killerTeamId": 100,
+    "monsterType": "DRAGON",
+    "monsterSubType": "MOUNTAIN_DRAGON"
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1380950,
+    "killerId": 4,
+    "victimId": 8,
+    "assistIds": [
+     5,
+     1,
+     2
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1383240,
+    "killerId": 5,
+    "victimId": 7,
+    "assistIds": [
+     1
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 1445000,
+    "killerId": 2,
+    "killerTeamId": 100,
+    "monsterType": "BARON_NASHOR"
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1510000,
+    "teamId": 200,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "MID_LANE",
+    "towerType": "INNER_TURRET",
+    "killerId": 1,
+    "assistIds": []
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1561000,
+    "teamId": 200,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "MID_LANE",
+    "towerType": "BASE_TURRET",
+    "killerId": 2,
+    "assistIds": []
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1575000,
+    "teamId": 200,
+    "buildingType": "INHIBITOR_BUILDING",
+    "laneType": "MID_LANE",
+    "killerId": 3,
+    "assistIds": [
+     1,
+     2
+    ]
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1602329,
+    "killerId": 2,
+    "victimId": 10,
+    "assistIds": [
+     3,
+     4
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1609561,
+    "killerId": 6,
+    "victimId": 5,
+    "assistIds": [
+     7,
+     8,
+     9
+    ],
+    "bounty": 550
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1674031,
+    "killerId": 5,
+    "victimId": 7,
+    "assistIds": [
+     1,
+     2
+    ]
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1680828,
+    "killerId": 5,
+    "victimId": 9,
+    "assistIds": [
+     1
+    ]
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1706937,
+    "killerId": 3,
+    "victimId": 10,
+    "assistIds": [
+     4
+    ],
+    "bounty": 300
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 1720000,
+    "killerId": 2,
+    "killerTeamId": 100,
+    "monsterType": "DRAGON",
+    "monsterSubType": "MOUNTAIN_DRAGON"
+   },
+   {
+    "type": "ELITE_MONSTER_KILL",
+    "ms": 1770000,
+    "killerId": 9,
+    "monsterType": "DRAGON",
+    "monsterSubType": "ELDER_DRAGON"
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1773805,
+    "killerId": 9,
+    "victimId": 3,
+    "assistIds": [],
+    "bounty": 300
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1788251,
+    "killerId": 3,
+    "victimId": 8,
+    "assistIds": [
+     4,
+     5,
+     1
+    ]
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1795000,
+    "teamId": 200,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "BOT_LANE",
+    "towerType": "BASE_TURRET",
+    "killerId": 4,
+    "assistIds": []
+   },
+   {
+    "type": "CHAMPION_KILL",
+    "ms": 1795592,
+    "killerId": 5,
+    "victimId": 6,
+    "assistIds": [
+     1
+    ]
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1802000,
+    "teamId": 200,
+    "buildingType": "INHIBITOR_BUILDING",
+    "laneType": "BOT_LANE",
+    "killerId": 4,
+    "assistIds": [
+     5
+    ]
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1820000,
+    "teamId": 200,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "MID_LANE",
+    "towerType": "NEXUS_TURRET",
+    "killerId": 5,
+    "assistIds": []
+   },
+   {
+    "type": "BUILDING_KILL",
+    "ms": 1831000,
+    "teamId": 200,
+    "buildingType": "TOWER_BUILDING",
+    "laneType": "MID_LANE",
+    "towerType": "NEXUS_TURRET",
+    "killerId": 2,
+    "assistIds": []
+   }
+  ]
+ },
+ "expected": {
+  "points": [
+   {
+    "ms": 0,
+    "p": 0.5
+   },
+   {
+    "ms": 60000,
+    "p": 0.5038249253855591
+   },
+   {
+    "ms": 120000,
+    "p": 0.5088740680575521
+   },
+   {
+    "ms": 180000,
+    "p": 0.5319314828391241
+   },
+   {
+    "ms": 240000,
+    "p": 0.582853891623377
+   },
+   {
+    "ms": 300000,
+    "p": 0.5683690492836211
+   },
+   {
+    "ms": 360000,
+    "p": 0.6234411427196234
+   },
+   {
+    "ms": 420000,
+    "p": 0.5724122700454849
+   },
+   {
+    "ms": 480000,
+    "p": 0.649922826161622
+   },
+   {
+    "ms": 540000,
+    "p": 0.7849112634359142
+   },
+   {
+    "ms": 600000,
+    "p": 0.772924708665416
+   },
+   {
+    "ms": 660000,
+    "p": 0.7692391470546218
+   },
+   {
+    "ms": 720000,
+    "p": 0.7535618408840942
+   },
+   {
+    "ms": 780000,
+    "p": 0.8054982704292922
+   },
+   {
+    "ms": 840000,
+    "p": 0.7935207882575529
+   },
+   {
+    "ms": 900000,
+    "p": 0.7275048797540088
+   },
+   {
+    "ms": 960000,
+    "p": 0.7676769238468818
+   },
+   {
+    "ms": 1020000,
+    "p": 0.8638168386798349
+   },
+   {
+    "ms": 1080000,
+    "p": 0.7893480323506182
+   },
+   {
+    "ms": 1140000,
+    "p": 0.7878242347352126
+   },
+   {
+    "ms": 1200000,
+    "p": 0.7890485765778672
+   },
+   {
+    "ms": 1260000,
+    "p": 0.9095760955735627
+   },
+   {
+    "ms": 1320000,
+    "p": 0.7689727741049882
+   },
+   {
+    "ms": 1380000,
+    "p": 0.8103659848132122
+   },
+   {
+    "ms": 1440000,
+    "p": 0.8538247852435326
+   },
+   {
+    "ms": 1500000,
+    "p": 0.9747449571067562
+   },
+   {
+    "ms": 1560000,
+    "p": 0.9407092051172573
+   },
+   {
+    "ms": 1620000,
+    "p": 0.9588160253301492
+   },
+   {
+    "ms": 1680000,
+    "p": 0.9249357595696885
+   },
+   {
+    "ms": 1740000,
+    "p": 0.9835201548110344
+   },
+   {
+    "ms": 1800000,
+    "p": 0.9600209676462473
+   },
+   {
+    "ms": 1842000,
+    "p": 0.941420218812073
+   }
+  ],
+  "swings": [
+   {
+    "ms": 1445000,
+    "kind": "baron",
+    "teamId": 100,
+    "delta": 0.07607797717323794,
+    "killerId": 0,
+    "victimId": 0,
+    "assists": 0,
+    "bounty": null,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": null
+   },
+   {
+    "ms": 290029,
+    "kind": "kill",
+    "teamId": 200,
+    "delta": -0.055364940708904076,
+    "killerId": 9,
+    "victimId": 1,
+    "assists": 3,
+    "bounty": 600,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": null
+   },
+   {
+    "ms": 436462,
+    "kind": "kill",
+    "teamId": 100,
+    "delta": 0.054818722999409264,
+    "killerId": 2,
+    "victimId": 6,
+    "assists": 2,
+    "bounty": null,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": null
+   },
+   {
+    "ms": 221300,
+    "kind": "kill",
+    "teamId": 100,
+    "delta": 0.05077411425184419,
+    "killerId": 1,
+    "victimId": 9,
+    "assists": 3,
+    "bounty": 300,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": null
+   },
+   {
+    "ms": 493028,
+    "kind": "kill",
+    "teamId": 100,
+    "delta": 0.04851592616278322,
+    "killerId": 2,
+    "victimId": 9,
+    "assists": 3,
+    "bounty": 300,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": null
+   },
+   {
+    "ms": 522650,
+    "kind": "kill",
+    "teamId": 100,
+    "delta": 0.04430832877398483,
+    "killerId": 2,
+    "victimId": 7,
+    "assists": 3,
+    "bounty": 500,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": null
+   },
+   {
+    "ms": 513711,
+    "kind": "kill",
+    "teamId": 200,
+    "delta": -0.04051438493103354,
+    "killerId": 8,
+    "victimId": 1,
+    "assists": 1,
+    "bounty": 300,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": null
+   },
+   {
+    "ms": 554463,
+    "kind": "kill",
+    "teamId": 200,
+    "delta": -0.03679426506956884,
+    "killerId": 7,
+    "victimId": 2,
+    "assists": 1,
+    "bounty": 500,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": null
+   },
+   {
+    "ms": 410000,
+    "kind": "dragon",
+    "teamId": 200,
+    "delta": -0.036161985664848295,
+    "killerId": 0,
+    "victimId": 0,
+    "assists": 0,
+    "bounty": null,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": "FIRE_DRAGON"
+   },
+   {
+    "ms": 494597,
+    "kind": "kill",
+    "teamId": 100,
+    "delta": 0.0347400837577827,
+    "killerId": 1,
+    "victimId": 10,
+    "assists": 1,
+    "bounty": 300,
+    "lane": null,
+    "towerType": null,
+    "monsterSubType": null
+   }
+  ],
+  "objectives": [
+   {
+    "ms": 370000,
+    "monsterType": "HORDE",
+    "monsterSubType": null,
+    "teamId": 100,
+    "delta": null
+   },
+   {
+    "ms": 410000,
+    "monsterType": "DRAGON",
+    "monsterSubType": "FIRE_DRAGON",
+    "teamId": 200,
+    "delta": -0.036161985664848295
+   },
+   {
+    "ms": 724000,
+    "monsterType": "DRAGON",
+    "monsterSubType": "MOUNTAIN_DRAGON",
+    "teamId": 100,
+    "delta": 0.02679055126107288
+   },
+   {
+    "ms": 880000,
+    "monsterType": "RIFTHERALD",
+    "monsterSubType": null,
+    "teamId": 100,
+    "delta": null
+   },
+   {
+    "ms": 1050000,
+    "monsterType": "DRAGON",
+    "monsterSubType": "MOUNTAIN_DRAGON",
+    "teamId": 100,
+    "delta": 0.01950797937878357
+   },
+   {
+    "ms": 1215000,
+    "monsterType": "ATAKHAN",
+    "monsterSubType": null,
+    "teamId": 200,
+    "delta": null
+   },
+   {
+    "ms": 1380000,
+    "monsterType": "DRAGON",
+    "monsterSubType": "MOUNTAIN_DRAGON",
+    "teamId": 100,
+    "delta": 0.024129043471735168
+   },
+   {
+    "ms": 1445000,
+    "monsterType": "BARON_NASHOR",
+    "monsterSubType": null,
+    "teamId": 100,
+    "delta": 0.07607797717323794
+   },
+   {
+    "ms": 1720000,
+    "monsterType": "DRAGON",
+    "monsterSubType": "MOUNTAIN_DRAGON",
+    "teamId": 100,
+    "delta": 0.0225780119987542
+   },
+   {
+    "ms": 1770000,
+    "monsterType": "DRAGON",
+    "monsterSubType": "ELDER_DRAGON",
+    "teamId": 200,
+    "delta": -0.030384302335468627
+   }
+  ]
+ }
+}

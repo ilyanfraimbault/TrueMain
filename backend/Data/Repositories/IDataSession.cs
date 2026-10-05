@@ -8,10 +8,12 @@ public interface IDataSession : IAsyncDisposable
     IMatchRepository Matches { get; }
     IMatchParticipantRepository MatchParticipants { get; }
     IMatchParticipantTimelineSnapshotRepository MatchParticipantTimelineSnapshots { get; }
+    IMatchWinProbabilityRepository MatchWinProbabilities { get; }
     IMatchBanRepository MatchBans { get; }
     IRankSnapshotRepository RankSnapshots { get; }
     IDiscoveryCursorRepository DiscoveryCursors { get; }
     ILadderSyncCursorRepository LadderSyncCursors { get; }
+    IPaceBenchmarkStatRepository PaceBenchmarkStats { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
     Task<IDataTransaction> BeginTransactionAsync(CancellationToken ct);

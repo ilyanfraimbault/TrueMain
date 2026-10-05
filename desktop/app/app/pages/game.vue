@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { OVERLAY_PANEL_INFO, OVERLAY_PANELS, PANEL_KEY } from '~/types/overlay'
+
 /**
  * The running game. The gameflow phase opens this page on its own when a game
  * starts (`app.vue`), and the shell reads the game through its own API while
@@ -15,6 +17,8 @@ const { game, syncedAt } = useLiveGame()
 const { view: loading } = useLoadingPlayers()
 /** Each lane's edge (#1863), drawn on the board while the game loads. */
 const edges = useLaneEdges(() => loading.value.players)
+/** Which players are true mains of their champion (#1910), for the board and the Game page. */
+useTruemainMarks(loading)
 const { view: overlay } = useGameOverlay()
 
 const overlayStatus = computed(() => {
@@ -22,7 +26,15 @@ const overlayStatus = computed(() => {
   if (!view) return null
   if (!view.supported) return 'The in-game overlay works on macOS and Windows.'
   if (!view.settings.enabled) return 'The in-game overlay is off.'
-  return `The overlay shows over your game; TAB adds the item value. ${view.shortcut} hides it.`
+  // Each panel on a chord, as the player brings it up (#1915).
+  const keys = OVERLAY_PANELS.flatMap((panel) => {
+    const panelSettings = view.settings[PANEL_KEY[panel]]
+    const chord = view.chords[panel]
+    if (!panelSettings.enabled || !chord || panelSettings.trigger.kind === 'always') return []
+    const how = panelSettings.trigger.kind === 'toggle' ? 'toggles' : 'shows'
+    return [`${chord.label} ${how} ${OVERLAY_PANEL_INFO[panel].label.toLowerCase()}`]
+  })
+  return `The overlay shows over your game${keys.length ? `; ${keys.join(', ')}` : ''}. ${view.shortcut} hides it.`
 })
 
 const waiting = computed(() => {

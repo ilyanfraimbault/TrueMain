@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 18,
+                propertyCount: 19,
                 navigationCount: 1,
                 unnamedIndexCount: 5,
                 namedIndexCount: 6,
@@ -122,6 +122,16 @@ namespace Data.CompiledModels
                 sentinel: false);
             matchupLeadAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             matchupLeadAggregated.AddAnnotation("Relational:DefaultValue", false);
+
+            var paceBenchmarkAggregated = runtimeEntityType.AddProperty(
+                "PaceBenchmarkAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("PaceBenchmarkAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<PaceBenchmarkAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            paceBenchmarkAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            paceBenchmarkAggregated.AddAnnotation("Relational:DefaultValue", false);
 
             var patch = runtimeEntityType.AddProperty(
                 "Patch",

@@ -22,6 +22,43 @@ internal static class MatchDetailHydrator
 {
     private const int LaningIntervalMinute = 15;
 
+    /// <summary>The stored win-probability row (#1911) as the payload carries it; null when the match has none.</summary>
+    public static MatchWinProbabilityReadModel? HydrateWinProbability(MatchWinProbability? row)
+        => row is null
+            ? null
+            : new MatchWinProbabilityReadModel
+            {
+                Points = row.Points
+                    .Select(point => new WinProbabilityPointReadModel { Ms = point.Ms, P = point.P })
+                    .ToList(),
+                Swings = row.Swings
+                    .Select(swing => new WinProbabilitySwingReadModel
+                    {
+                        Ms = swing.Ms,
+                        Kind = swing.Kind,
+                        TeamId = swing.TeamId,
+                        Delta = swing.Delta,
+                        KillerId = swing.KillerId,
+                        VictimId = swing.VictimId,
+                        Assists = swing.Assists,
+                        Bounty = swing.Bounty,
+                        Lane = swing.Lane,
+                        TowerType = swing.TowerType,
+                        MonsterSubType = swing.MonsterSubType,
+                    })
+                    .ToList(),
+                Objectives = row.Objectives
+                    .Select(objective => new WinProbabilityObjectiveReadModel
+                    {
+                        Ms = objective.Ms,
+                        MonsterType = objective.MonsterType,
+                        MonsterSubType = objective.MonsterSubType,
+                        TeamId = objective.TeamId,
+                        Delta = objective.Delta,
+                    })
+                    .ToList(),
+            };
+
     /// <summary>
     /// Builds every participant of one match, ordered by team then participant id.
     /// <paramref name="accountsById"/> and <paramref name="rankByAccount"/> are keyed

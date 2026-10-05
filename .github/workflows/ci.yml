@@ -51,6 +51,8 @@ jobs:
             backend:
               - "backend/**"
               - "global.json"
+              - "web/shared/fixtures/win-probability-timeline.json"
+              - "web/layers/common/app/utils/win-probability*.ts"
             data:
               - "backend/Data/**"
             web:

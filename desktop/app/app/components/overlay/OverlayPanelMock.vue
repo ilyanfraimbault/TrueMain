@@ -10,9 +10,10 @@ import { PANEL_WIDTHS } from '~/utils/overlay-layout'
  * by `zoom` to the copy of the screen — so what is placed is what shows, edges
  * included. Its size before the shrink is reported (`measure`) for the editor
  * to place it by. On the screen, a × takes it off, over the corner while the
- * panel is hovered or focused.
+ * panel is hovered or focused, and the chord that brings it up (#1915) is
+ * marked in its corner, unshrunk.
  */
-const props = defineProps<{ panel: OverlayPanel, zoom: number, removable?: boolean }>()
+const props = defineProps<{ panel: OverlayPanel, zoom: number, removable?: boolean, chord?: string | null }>()
 const emit = defineEmits<{ remove: [], measure: [size: Size] }>()
 
 const info = computed(() => OVERLAY_PANEL_INFO[props.panel])
@@ -38,6 +39,7 @@ onBeforeUnmount(() => observer?.disconnect())
     >
       <OverlayPanelSample :panel="panel" />
     </div>
+    <span v-if="chord" class="pointer-events-none absolute right-0.5 bottom-0.5 rounded bg-primary px-1 font-mono text-[9px] leading-tight font-semibold text-inverted">{{ chord }}</span>
   </div>
   <button
     v-if="removable"

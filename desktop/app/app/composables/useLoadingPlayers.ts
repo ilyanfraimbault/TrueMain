@@ -8,7 +8,7 @@ import type { LoadingView } from '~/types/loading'
  * loading" scenario stands in (`utils/loading-dev.ts`).
  */
 export function useLoadingPlayers() {
-  const view = useState<LoadingView>('loading-players', () => ({ players: [] }))
+  const view = useState<LoadingView>('loading-players', () => ({ players: [], platformId: '' }))
   const subscribed = useState<boolean>('loading-players-subscribed', () => false)
 
   if (!subscribed.value) {
