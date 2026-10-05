@@ -141,7 +141,7 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
           :title="streak.wins ? `Won their last ${streak.games} games` : `Lost their last ${streak.games} games`"
         >
           <UIcon :name="streak.wins ? 'i-lucide-flame' : 'i-lucide-trending-down'" class="size-3" />
-          {{ streak.games }}{{ streak.wins ? 'W' : 'L' }} streak
+          {{ streak.wins ? 'Won' : 'Lost' }} {{ streak.games }} in a row
         </span>
       </div>
     </div>

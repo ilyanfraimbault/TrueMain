@@ -4634,6 +4634,8 @@ dependencies = [
  "lcu",
  "live-client",
  "objc2-app-kit",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
  "percent-encoding",
  "reqwest 0.12.28",
  "serde",

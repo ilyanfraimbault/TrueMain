@@ -18,11 +18,12 @@
 //! `desktop/tools/overlay-smoke-windows.ps1` drives all of this on a Windows
 //! desktop in CI, a stand-in window in the game's place.
 
+use shell_state::overlay::Rect;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
-use windows::Win32::Foundation::{CloseHandle, COLORREF, HWND};
+use windows::Win32::Foundation::{CloseHandle, COLORREF, HWND, RECT};
 use windows::Win32::Graphics::Dwm::{
-    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
-    DWM_WINDOW_CORNER_PREFERENCE,
+    DwmGetWindowAttribute, DwmSetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS,
+    DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND, DWM_WINDOW_CORNER_PREFERENCE,
 };
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -159,6 +160,37 @@ pub fn game_frontmost() -> bool {
     // SAFETY: a plain query.
     let window = unsafe { GetForegroundWindow() };
     !window.0.is_null() && (class_is_game(window) || process_is_game(window))
+}
+
+/// `game_frame` is in pixels: the app is per-monitor DPI aware, so the window
+/// manager reports every frame unscaled, like the monitors' own.
+pub const FRAME_IN_POINTS: bool = false;
+
+/// The game's window frame, without the invisible resize border
+/// `GetWindowRect` would add. Called only while the game is frontmost, so the
+/// foreground window is the game's; nothing opens the game's process.
+pub fn game_frame() -> Option<Rect> {
+    let mut frame = RECT::default();
+    // SAFETY: plain queries, into a buffer of the size given.
+    unsafe {
+        let window = GetForegroundWindow();
+        if window.0.is_null() {
+            return None;
+        }
+        DwmGetWindowAttribute(
+            window,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            &mut frame as *mut _ as *mut _,
+            std::mem::size_of::<RECT>() as u32,
+        )
+        .ok()?;
+    }
+    Some(Rect {
+        x: f64::from(frame.left),
+        y: f64::from(frame.top),
+        width: f64::from(frame.right - frame.left),
+        height: f64::from(frame.bottom - frame.top),
+    })
 }
 
 fn class_is_game(window: HWND) -> bool {
