@@ -33,6 +33,17 @@ pub enum Error {
     #[error("every rune page is in use and none of them is ours")]
     NoRunePageSlot,
 
+    /// The account's item sets could not be read, or did not decode as a list.
+    /// Nothing was written: the list goes back whole, so writing one built from
+    /// a failed read would wipe the player's sets.
+    #[error("could not read the client's item sets, nothing was written: {0}")]
+    ItemSetsUnreadable(String),
+
+    /// The item set was written, but reading the list back no longer shows
+    /// every set the player had. The caller must say so, not swallow it.
+    #[error("the item set was written, but the player's own sets no longer read the same")]
+    PlayerItemSetsChanged,
+
     /// A recorded session that cannot be read back. Dev tooling, but an error
     /// rather than a skipped line: a replay that drops a pick is a fixture
     /// that lies.

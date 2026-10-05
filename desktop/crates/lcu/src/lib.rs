@@ -14,6 +14,7 @@ pub mod detail;
 pub mod error;
 pub mod events;
 pub mod form;
+pub mod item_sets;
 pub mod laning;
 pub mod live;
 pub mod model;
@@ -28,6 +29,7 @@ pub use detail::GameDetail;
 pub use error::{Error, Result};
 pub use events::{stream_events, LcuEvent};
 pub use form::{PlayerForm, PositionGames, RecentGame, FORM_GAMES, RECENT_GAMES};
+pub use item_sets::{plan_item_set_import, BuildItems, ItemSetDraft};
 pub use laning::{
     gaps_at_fifteen, laning_games, LaningForm, LaningGame, LANING_DEPTH, LANING_GAMES,
 };

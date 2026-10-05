@@ -246,6 +246,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   never one per game; with every slot taken and none of them ours, a toast asks the player to free one — no page of
   theirs is ever deleted. An incomplete page (an empty slot) is refused. Every outcome is a toast. Nothing is written
   without the click.
+- **Item set import** (#1908) — the rune button's twin, in the build tree's top-right corner, on every build the
+  build view shows. A click writes the build on screen into the client as one item set `TrueMain: <champion>`
+  (Starter, Boots, Core, Situational — the item context's situational verdicts, else the tree's other branches),
+  offered on that champion on Summoner's Rift (`itemsets::import_item_set` → `LcuClient::import_item_set`). One set,
+  replaced in place, moved to the next champion imported. The player's own sets are written back exactly as read; a
+  list that cannot be read writes nothing, and a player set missing after the write is reported. Every outcome is a
+  toast. Nothing is written without the click.
 - **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a champion select filled by clicking
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own
   payloads through a dev-server relay, so the app runs its real champion select live without a game.
