@@ -220,7 +220,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   an accordion onto a compact, same-surface version of the site's match detail (Scoreboard with each build as on the
   row, Build — laning @15, per-minute figures, build and skill order for any of the ten — and Runes as small tiles), read
   from TrueMain's copy of the game when it has one, else from the client's scoreboard and timeline (which list no
-  purchases or skill points: the build and skill order sections are then left out, #1768); the site's ranked card with
+  purchases or skill points: the build and skill order sections are then left out, #1768); a **Timeline** view (#1911) with the site's win-probability panel from the player's side — TrueMain's stored curve when it has one, else built from the client's timeline; the site's ranked card with
   its LP curve; a champions card (games, KDA, win rate) and a roles card (share bar, win rate) in the ranked card's
   frame. A game's role is its participant slot on a queue that assigns roles, none elsewhere (#1768). The LP history is noted on this machine each
   time the record is read (`utils/lp-history.ts`), so the curve and per-game LP start empty and grow. A queue filter
@@ -349,7 +349,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   kills, assists and deaths each on a lane of its own, named by a glyph beside it (#1804) — kills rose-gold chips,
   multi-kills labelled ×N and gold from a triple kill, assists neutral dots, deaths dark red chips with a skull —;
   objectives above the lanes in the side's colour (epic monsters as tinted badges, towers and inhibitors as bare
-  glyphs), minute gridlines, the playhead, saved clips as gold bars. Clips are cut by hand: drag across the
+  glyphs), minute gridlines, the playhead, saved clips as gold bars. Under the lanes, a **win-probability lane** (#1911): the whole game's curve from the player's side (ahead tinted ally, behind enemy), mapped onto the video through the recording's anchor, its five largest turning points as dots that seek 5 s before them; a "Swings" side-panel tab lists them (clock, what happened, signed points). Built in the webview from the client's timeline, kept beside the video as `win-probability.json` at finalisation; recordings made before #1911 and live-feed-only ones have none. Clips are cut by hand: drag across the
   track, or I / O at the playhead (I/O move the selected range's ends), handles to adjust, as many ranges as wanted,
   each named from what it holds ("Triple kill on Ahri", "Kill + Dragon", editable), previewed, saved alone or all at
   once (`clip_save`), then listed under "Saved clips"; unsaved ranges survive leaving the page for the session. A
