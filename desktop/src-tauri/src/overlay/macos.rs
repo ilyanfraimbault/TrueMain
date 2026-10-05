@@ -41,8 +41,42 @@ tauri_panel! {
     })
 }
 
-/// One panel's window, hidden, its page on `url`.
-pub fn build(
+/// One panel's window, hidden, its page on `url`. Never on the main thread:
+/// the panel is made there (AppKit), and this waits for it.
+pub fn build(app: &AppHandle, label: &str, url: &str, opacity: f64) -> Result<(), String> {
+    let (done, built) = std::sync::mpsc::channel();
+    let (handle, label, url) = (app.clone(), label.to_string(), url.to_string());
+    app.run_on_main_thread(move || {
+        let _ = done.send(build_now(&handle, &label, &url, opacity).map_err(|e| e.to_string()));
+    })
+    .map_err(|error| error.to_string())?;
+    built.recv().map_err(|error| error.to_string())?
+}
+
+/// Close a panel's window for good. Never on the main thread, like `build`:
+/// this waits for AppKit to have run it.
+pub fn destroy(app: &AppHandle, label: &str) {
+    let (done, closed) = std::sync::mpsc::channel();
+    let (handle, label) = (app.clone(), label.to_string());
+    let queued = app.run_on_main_thread(move || {
+        // Back to a plain window first, as tauri-nspanel asks: the panel's
+        // class would otherwise be released twice.
+        if let Some(window) = handle
+            .get_webview_panel(&label)
+            .ok()
+            .and_then(|panel| panel.to_window())
+        {
+            let _ = window.destroy();
+        }
+        let _ = done.send(());
+    });
+    if queued.is_ok() {
+        let _ = closed.recv();
+    }
+}
+
+/// Main thread only.
+fn build_now(
     app: &AppHandle,
     label: &str,
     url: &str,

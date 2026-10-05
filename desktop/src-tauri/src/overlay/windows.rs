@@ -58,8 +58,20 @@ fn set_styles(hwnd: HWND, add: u32, remove: u32) {
     }
 }
 
-/// One panel's window, hidden, its page on `url`.
-pub fn build(
+/// One panel's window, hidden, its page on `url`. Never on the main thread,
+/// where a webview built inside a command's handler deadlocks (wry#583).
+pub fn build(app: &AppHandle, label: &str, url: &str, opacity: f64) -> Result<(), String> {
+    build_now(app, label, url, opacity).map_err(|error| error.to_string())
+}
+
+/// Close a panel's window for good.
+pub fn destroy(app: &AppHandle, label: &str) {
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.destroy();
+    }
+}
+
+fn build_now(
     app: &AppHandle,
     label: &str,
     url: &str,

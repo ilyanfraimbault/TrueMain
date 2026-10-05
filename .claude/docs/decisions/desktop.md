@@ -552,3 +552,16 @@ overlay, which would be a separate decision under Riot's decision-support rule. 
 5 games by default (the tiles' recent window); "All" queues allowed but never the default nor suggested, since it
 mixes ARAM with the Rift; no per-champion default for a one-trick, the player picks the champion when they want one.
 No usage counter was added for goals — #1913.
+
+**The app's footprint is measured, never estimated (2026-10-05).** Resource use is among the most common complaints
+about League companions, so the product owner asked for a lighter app during a game and for its real memory on
+`/download`. A figure comes from `desktop/tools/measure-footprint.{sh,ps1}`: the whole process tree (on macOS
+WebKit's XPC services, attributed through their responsible process; on Windows every `msedgewebview2.exe` under the
+app), Activity Monitor's physical footprint and Task Manager's private working set, median and p95 over a fixed
+window per scenario, recorded with date, version and machine in `docs/desktop-footprint.md`. Until a run is recorded
+`/download` shows no figure, and a competitor's figure appears only with a published, cited source — user complaints
+are context, not numbers. The first waste removed did not wait for the numbers, since it can only shrink them: an
+overlay panel's webview exists only while the panel is switched on and a game runs (or in the preview), instead of
+four webviews from launch; identical reads from two webviews are sent once by the shell; the update timer skips its
+ticks in game. Hiding or throttling the main window during a game, and merging the panels into one webview (which
+would reverse the one-window-per-panel choice), wait on measurements and the product owner — #1916.
