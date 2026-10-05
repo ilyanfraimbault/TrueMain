@@ -45,6 +45,7 @@ const OURS: OverlayPanel[] = ['next-item', 'stats']
 const playing = computed(() => (!OURS.includes(panel.value) || game.value?.myTeam ? game.value : null))
 // A real game always wins over the sample.
 const isSample = computed(() => !playing.value)
+const { reference: paceReference } = usePaceBenchmark(computed(() => (panel.value === 'stats' ? playing.value : null)))
 
 const devPreview = ref(false)
 onMounted(async () => {
@@ -87,7 +88,7 @@ useHead({
       <template v-if="playing">
         <OverlayNextItem v-if="panel === 'next-item'" :game="playing" />
         <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="playing" :synced-at="syncedAt" />
-        <OverlayStats v-else-if="panel === 'stats'" :game="playing" />
+        <OverlayStats v-else-if="panel === 'stats'" :game="playing" :reference="paceReference" />
         <OverlayItemValue v-else :game="playing" />
       </template>
       <OverlayPanelSample v-else-if="preview" :panel="panel" />

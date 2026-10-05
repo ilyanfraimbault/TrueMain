@@ -11,6 +11,7 @@ using TrueMain.LogIngest;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
 using TrueMain.RequestLogging;
+using TrueMain.Services.Benchmarks;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Directory;
@@ -286,6 +287,7 @@ builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryS
 builder.Services.AddScoped<IChampionDirectoryQueryService, ChampionDirectoryQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
+builder.Services.AddScoped<IPaceBenchmarkQueryService, PaceBenchmarkQueryService>();
 builder.Services.AddScoped<IChampionItemContextQueryService, ChampionItemContextQueryService>();
 builder.Services.AddScoped<IChampionSynergyQueryService, ChampionSynergyQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();

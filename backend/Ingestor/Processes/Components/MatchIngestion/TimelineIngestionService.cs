@@ -88,17 +88,20 @@ public sealed class TimelineIngestionService(
 
         foreach (var batch in plan.Timelines.Chunk(batchSize))
         {
-            var appliedMatchIds = new List<string>(batch.Length);
+            var applied = new List<AppliedTimeline>(batch.Length);
             var durations = await session.Matches.GetGameDurationSecondsAsync(
                 batch.Select(timeline => timeline.MatchId).ToList(), ct);
 
             foreach (var (matchId, timelineDto) in batch)
             {
-                if (await ApplyTimelineAsync(session, matchId, durations.GetValueOrDefault(matchId), timelineDto, ct))
+                var participants = await ApplyTimelineAsync(session, matchId, durations.GetValueOrDefault(matchId), timelineDto, ct);
+                if (participants is not null)
                 {
-                    appliedMatchIds.Add(matchId);
+                    applied.Add(new AppliedTimeline(matchId, timelineDto, participants));
                 }
             }
+
+            var appliedMatchIds = applied.Select(timeline => timeline.MatchId).ToList();
 
             if (appliedMatchIds.Count == 0)
             {
@@ -119,6 +122,7 @@ public sealed class TimelineIngestionService(
             await session.MatchWinProbabilities.DeleteByMatchIdsAsync(appliedMatchIds, ct);
 
             await session.Matches.SetTimelineIngestedAsync(appliedMatchIds, true, ct);
+            await FoldPaceBenchmarkAsync(session, applied, ct);
             await session.SaveChangesAsync(ct);
             timelineUpdated += appliedMatchIds.Count;
         }
@@ -126,7 +130,63 @@ public sealed class TimelineIngestionService(
         return timelineUpdated;
     }
 
-    private static async Task<bool> ApplyTimelineAsync(
+    /// <summary>
+    /// Folds the batch's timelines into the pace benchmark (#1912) while they are still in
+    /// memory — the per-minute values are never written anywhere else. Runs inside the
+    /// caller's transaction, so the claim flag, the counters and the timeline commit together.
+    /// </summary>
+    private async Task FoldPaceBenchmarkAsync(
+        IDataSession session,
+        IReadOnlyList<AppliedTimeline> applied,
+        CancellationToken ct)
+    {
+        var claims = await session.Matches.ClaimPaceBenchmarkFoldAsync(
+            applied.Select(timeline => timeline.MatchId).ToList(),
+            ct);
+        if (claims.Count == 0)
+        {
+            return;
+        }
+
+        var timelineById = applied.ToDictionary(timeline => timeline.MatchId, StringComparer.Ordinal);
+        var trackedAccountIds = claims
+            .SelectMany(claim => timelineById[claim.Id].Participants)
+            .Where(participant => participant.RiotAccountId is not null)
+            .Select(participant => participant.RiotAccountId!.Value)
+            .ToList();
+        var tierHistory = await session.RankSnapshots.GetTierHistoryForAccountsAsync(trackedAccountIds, ct);
+
+        var keys = new List<PaceBenchmarkKey>();
+        var unplaced = 0;
+        foreach (var claim in claims)
+        {
+            var timeline = timelineById[claim.Id];
+            var matchKeys = PaceBenchmarkBuilder.Build(claim, timeline.Participants, timeline.Timeline, tierHistory);
+            if (matchKeys.Count == 0)
+            {
+                unplaced++;
+            }
+
+            keys.AddRange(matchKeys);
+        }
+
+        await session.PaceBenchmarkStats.AddCountsAsync(PaceBenchmarkBuilder.Count(keys), DateTime.UtcNow, ct);
+
+        if (unplaced > 0)
+        {
+            logger.LogDebug(
+                "Pace benchmark: {Unplaced} of {Claimed} match(es) added nothing (remake, no patch, or no ranked tracked account).",
+                unplaced,
+                claims.Count);
+        }
+    }
+
+    /// <summary>
+    /// Stages the timeline's item / skill events and interval snapshots on the match's
+    /// participants, which it returns for the pace fold — <see langword="null"/> when the
+    /// match has none stored.
+    /// </summary>
+    private static async Task<List<MatchParticipant>?> ApplyTimelineAsync(
         IDataSession session,
         string matchId,
         int gameDurationSeconds,
@@ -136,7 +196,7 @@ public sealed class TimelineIngestionService(
         var participants = await session.MatchParticipants.GetByMatchIdAsync(matchId, ct);
         if (participants.Count == 0)
         {
-            return false;
+            return null;
         }
 
         var itemEventsByParticipant = new Dictionary<int, List<ItemEvent>>();
@@ -174,8 +234,10 @@ public sealed class TimelineIngestionService(
             session.MatchWinProbabilities.Add(winProbability);
         }
 
-        return true;
+        return participants;
     }
+
+    private sealed record AppliedTimeline(string MatchId, MatchTimelineDto Timeline, List<MatchParticipant> Participants);
 
     private static void AddItemEventIfApplicable(
         IDictionary<int, List<ItemEvent>> itemEventsByParticipant,

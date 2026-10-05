@@ -1,4 +1,5 @@
 import type { GamePlayer, GameState, GameTeam } from '~/types/game'
+import type { PaceReference } from '~/utils/pace-benchmark'
 
 /**
  * What the overlay's panels show while they are placed (the settings'
@@ -10,6 +11,14 @@ import type { GamePlayer, GameState, GameTeam } from '~/types/game'
 
 /** The next item the sample shows, and the gold it still needs. */
 export const SAMPLE_NEXT_ITEM = { itemId: 3157, missing: 650 } as const
+
+/** The tier reference the pace panel's sample shows beside the sample game's pace (#1912). */
+export const SAMPLE_PACE_REFERENCE: PaceReference = {
+  tier: 'DIAMOND',
+  cs: { median: 7.3, standing: 'above' },
+  gold: { median: 425, standing: 'within' },
+  csCurve: [3, 5, 8, 13, 16, 21, 26].map((minute, index) => ({ minute, value: [4.6, 5.9, 6.5, 6.9, 7.1, 7.2, 7.3][index]! })),
+}
 
 const player = (champion: string, team: GameTeam, position: string, items: number[], isMe = false): GamePlayer => ({
   riotId: '',

@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("8ac7d3ba-6934-4468-8280-a11d3833771f"), entityTypeCount: 33)
+            : base(skipDetectChanges: false, modelId: new Guid("b7481bb1-5fd1-4834-85e1-68d46d8ec5be"), entityTypeCount: 34)
         {
         }
 
@@ -44,6 +44,7 @@ namespace Data.CompiledModels
             var matchParticipant = MatchParticipantEntityType.Create(this);
             var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
             var matchWinProbability = MatchWinProbabilityEntityType.Create(this);
+            var paceBenchmarkStat = PaceBenchmarkStatEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
             var persona = PersonaEntityType.Create(this);
@@ -95,6 +96,7 @@ namespace Data.CompiledModels
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
             MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);
             MatchWinProbabilityEntityType.CreateAnnotations(matchWinProbability);
+            PaceBenchmarkStatEntityType.CreateAnnotations(paceBenchmarkStat);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
             PersonaEntityType.CreateAnnotations(persona);

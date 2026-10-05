@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { OverlayPanel } from '~/types/overlay'
-import { SAMPLE_NEXT_ITEM, sampleGame } from '~/utils/overlay-sample'
+import { SAMPLE_NEXT_ITEM, SAMPLE_PACE_REFERENCE, sampleGame } from '~/utils/overlay-sample'
 
 /**
  * One overlay panel's content drawn over the sample game
@@ -19,6 +19,6 @@ const next = computed(() => items.value[SAMPLE_NEXT_ITEM.itemId] ?? null)
 <template>
   <OverlayNextItemCard v-if="panel === 'next-item'" :item="next" :name="next?.name ?? 'Zhonya\'s Hourglass'" :missing="SAMPLE_NEXT_ITEM.missing" />
   <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="game" :synced-at="syncedAt" />
-  <OverlayStats v-else-if="panel === 'stats'" :game="game" />
+  <OverlayStats v-else-if="panel === 'stats'" :game="game" :reference="SAMPLE_PACE_REFERENCE" />
   <OverlayItemValue v-else :game="game" />
 </template>

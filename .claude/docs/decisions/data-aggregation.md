@@ -243,3 +243,20 @@ dropped and re-added rather than altered, so no row was rewritten on a 35 GB tab
 slots 0–5 as a 3×2 grid in slot order, then the trinket over the role-bound slot. #1607 pulled the boots out
 of the grid into that column, thinking a seventh item came through the inventory slots. That left a gap in
 nearly every grid and made the trinket read as one of the six items — `#1612`.
+
+## The pace benchmark is a per-minute histogram folded from the timeline in memory, never a grid (2026-10-05)
+
+**`pace_benchmark_stats` holds, per (patch, tier, position, minute, metric), a fixed-width histogram of a laner's
+cumulative CS and gold earned — and nothing per participant.** The per-minute grid was removed on purpose (#772,
+#1599), so the values are read off the match-v5 timeline while `TimelineIngestionService` holds it and only the bin
+counts are written, in the same transaction, behind `matches.PaceBenchmarkAggregated`. That flag is flipped by a
+conditional `UPDATE … WHERE NOT … RETURNING`, so two accounts ingesting one match cannot both count it; a match whose
+timeline was ingested before the fold shipped is never folded — its minutes are gone. Histograms rather than sums,
+because a mean cannot say where a player stands; the bins stay additive (`ON CONFLICT … + EXCLUDED`), and the
+quartiles are read-time arithmetic (`Core/Lol/Pace/PaceHistogram.cs`, 5 CS and 200 gold a bin, interpolated inside
+it). **The whole lobby is counted at the tracked account's tier at game time** (`EloBracketResolver`, the lower
+median when several tracked accounts disagree); counting only tracked rows would benchmark mains, which the product
+owner excludes. A lobby with no ranked tracked account, a remake or a minute the game did not reach adds nothing.
+The read pools the newest three patches (pace barely moves between patches, and pooling fills the thin tiers) and
+serves no quartile under 50 samples. The table joins `AggregateRetention` — #1912.
+

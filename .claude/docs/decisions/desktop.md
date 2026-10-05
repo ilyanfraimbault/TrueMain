@@ -397,7 +397,8 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
   gold per minute, from one sample per whole minute the feed keeps (`live_client::pace`) — a change a minute, not one
   per poll. Gold earned is not in the API: it is read as the inventory's cost plus the gold in hand. **Damage per
   minute was asked for and left out**: the Live Client API exposes no damage total, and a figure that comes from no
-  measurement is not one the app shows.
+  measurement is not one the app shows. Beside each figure since #1912, the median of games at the player's Solo/Duo tier — see
+  the entry below.
 - **Loading screen** (#1753): from the loading screen on — never in champion select, where ranked hides the other
   team — each player's games on their champion among their last twenty Summoner's Rift games and their win rate on it,
   and their last ten of those games as bars, blue a win and red a loss, oldest to newest, each naming its champion,
@@ -599,3 +600,17 @@ overlay panel's webview exists only while the panel is switched on and a game ru
 four webviews from launch; identical reads from two webviews are sent once by the shell; the update timer skips its
 ticks in game. Hiding or throttling the main window during a game, and merging the panels into one webview (which
 would reverse the one-window-per-panel choice), wait on measurements and the product owner — #1916.
+
+**The pace panel sets the player against games at their Solo/Duo tier, not against true mains (2026-10-05).** The
+product owner's call: "players of my rank" is the comparison a player asks for, and the one OP.GG's, Blitz's and
+Porofessor's overlays make. Each figure gains the tier's median at the current minute and an arrow in the data colours
+for the quartile the player sits in; the sparkline a faint line of the median. It is a reference, never advice — Riot
+forbids an app drawing conclusions for the player in game, and Overwolf's list bans timers and power spikes, not one's
+own pace against a reference. The API answers every tier of a lane and the app picks the tier from the standing it
+already notes on this machine, so nothing read from the client is sent (#1805). **No Solo/Duo standing → no
+comparison**: an unranked or Flex-only player sees their pace alone rather than a default tier presented as theirs.
+"Games of Diamond players", not "players ranked Diamond": a lobby is counted at its tracked account's tier, matchmaking
+keeping the ten near one MMR. The panel's gold reads a little under gold earned (consumables and sell-back losses are
+invisible to the Live Client API), so the gold arrow leans low, never high; the panel's description says so, since a
+click-through panel has no tooltip. Iron → Platinum, which TrueMain does not ingest, come from a separate capped
+sampler (#1912, second part); until then those tiers show no comparison — #1912.

@@ -109,6 +109,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.PaceBenchmarkAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.HasIndex(e => e.PlatformId);
 
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
