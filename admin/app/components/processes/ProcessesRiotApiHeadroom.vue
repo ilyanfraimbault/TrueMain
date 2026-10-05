@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Budget headroom card of the Riot API tab (#1035): arithmetic on measured cost per
 // account, always over the last 7 days regardless of the tab's window — see
-// RiotApiUsageQueryService. Split out of ProcessesRiotApi.vue, which is past the size limit.
+// RiotApiUsageQueryService. Split out of ProcessesRiotApi.vue.
 import type { RiotApiHeadroom } from '~~/shared/types/ops'
 import { formatNumber } from '~~/shared/utils/format'
 
