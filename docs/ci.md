@@ -536,7 +536,11 @@ the production app every version production has caught up with.
 
 `claude-review.yml` posts inline comments prefixed `BLOCKING:` or `NIT:` and
 always ends with one formal review: approve when nothing is blocking, request
-changes otherwise. The prompt defines blocking narrowly (bugs, security, data
+changes otherwise. It reviews along two axes kept apart in its body, so one
+cannot mask the other: **Spec** (does the diff do what the linked issue's
+`Scope`/`Acceptance` ask, read with `gh issue view`; the PR body when there is
+no issue) and **Standards** (the repository's written rules). Code smells
+from a fixed list (Fowler's) are only ever `NIT:` suggestions. The prompt defines blocking narrowly (bugs, security, data
 loss, regressions, missing tests, project rules CI cannot catch) and forbids
 flagging versions or APIs from memory, because the repository regularly runs
 tooling newer than the model's training data. Dependabot is in `allowed_bots`

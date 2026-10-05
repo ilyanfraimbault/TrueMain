@@ -52,3 +52,20 @@ GitHub-hosted runner, against preprod — #1559.
 - **Nothing published names the host.** The repository is public: requests are tagged by route template, and the
   workflow refuses to publish output containing the host.
 
+## Agent disciplines are adapted from mattpocock/skills, not installed as a plugin (2026-10-05)
+
+**Decision:** `diagnosing-bugs`, `grilling`, `grill-with-docs`, `domain-modeling`, `retro` and
+`writing-for-agents` are copied into `.claude/skills/` and rewritten for this repo (MIT notice in
+`.claude/skills/THIRD-PARTY.md`); his `code-review` and `pr` are merged into ours instead — #1938.
+
+- **Not the plugin.** It updates behind our back and collides with what we have: his `code-review` shadows Claude
+  Code's built-in one, his `pr`, `to-tickets` and `setup-matt-pocock-skills` assume their own tracker setup where
+  `ship`, `new-issue` and Project #2 already decide.
+- **ADRs map to the decision log**, the glossary lives beside it in `.claude/docs/glossary.md` rather than at the
+  root, so the knowledge base stays in one place.
+- **The review gained his two axes**: `claude-review.yml` reviews **Spec** (the linked issue's scope and
+  acceptance) apart from **Standards** (our written rules), so a change that follows every rule but builds the
+  wrong thing is still caught; Fowler code smells are `NIT:` only, so they never block a merge.
+- **PR bodies** follow `ship/PR-BODY.md`: the smallest visual of the change, before/after evidence, and a merge
+  danger call (one-way or two-way door, blast radius), because migrations and aggregate wipes are one-way doors
+  and the body is where a reviewer should see it.
