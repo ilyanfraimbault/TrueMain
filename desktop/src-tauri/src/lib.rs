@@ -142,6 +142,9 @@ const READABLE_PATHS: &[&str] = &[
     "/champions/directory",
     "/truemains",
     "/truemains/search",
+    // The overlay's pace reference (#1912): every tier of one position, so the
+    // tier is picked here and never sent.
+    "/benchmarks/pace",
 ];
 
 /// A path the app may read: one of `READABLE_PATHS`, or one true main's
@@ -386,6 +389,7 @@ mod tests {
         assert!(readable("/truemains"));
         assert!(readable("/champions/tierlist"));
         assert!(readable("/champions/directory"));
+        assert!(readable("/benchmarks/pace"));
         assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
         assert!(readable("/truemains/Faker-KR1/champions/7"));
         assert!(readable("/truemains/Faker-KR1/profile"));
