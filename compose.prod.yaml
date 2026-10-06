@@ -77,21 +77,12 @@ services:
     container_name: truemain-pgbouncer
     restart: unless-stopped
     environment:
-      DB_HOST: postgres
-      DB_PORT: "5432"
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_NAME: ${POSTGRES_DB}
-      LISTEN_PORT: "6432"
       AUTH_TYPE: scram-sha-256
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: "1000"
-      DEFAULT_POOL_SIZE: "25"
-      MIN_POOL_SIZE: "5"
-      RESERVE_POOL_SIZE: "5"
-      RESERVE_POOL_TIMEOUT: "3"
-      QUERY_WAIT_TIMEOUT: "30"
-      STATS_USERS: ${POSTGRES_USER}
+    configs:
+      - source: pgbouncer_ini
+        target: /etc/pgbouncer/pgbouncer.ini
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 || exit 1"]
       interval: 30s
@@ -131,7 +122,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=30;No Reset On Close=true;Application Name=truemain-api
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=30;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       Database__ApplyMigrationsOnStartup: "false"
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
@@ -328,6 +319,29 @@ services:
       - truemain_internal
 
 configs:
+  pgbouncer_ini:
+    content: |
+      [databases]
+      ${POSTGRES_DB} = host=postgres port=5432 auth_user=${POSTGRES_USER} connect_query='SET idle_in_transaction_session_timeout = 60000'
+      ${POSTGRES_DB}_api = host=postgres port=5432 dbname=${POSTGRES_DB} auth_user=${POSTGRES_USER} connect_query='SET idle_in_transaction_session_timeout = 60000; SET statement_timeout = 60000'
+
+      [pgbouncer]
+      listen_addr = 0.0.0.0
+      listen_port = 6432
+      unix_socket_dir =
+      auth_file = /etc/pgbouncer/userlist.txt
+      auth_type = scram-sha-256
+      pool_mode = transaction
+      max_client_conn = 1000
+      default_pool_size = 25
+      min_pool_size = 5
+      reserve_pool_size = 5
+      reserve_pool_timeout = 3
+      max_user_connections = 30
+      query_wait_timeout = 30
+      ignore_startup_parameters = extra_float_digits
+      admin_users = postgres
+      stats_users = ${POSTGRES_USER}
   edge_caddyfile:
     content: |
       (security_headers) {

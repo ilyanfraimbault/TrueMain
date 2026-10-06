@@ -264,6 +264,7 @@ Last verified against `develop` on 2026-09-02.
 - Aggregation is chunked per champion to bound memory — #600
 - A heavy `CREATE INDEX CONCURRENTLY` must never be a startup migration — #595, #597, #598
 - Npgsql pools are capped per service against Postgres `max_connections=100`; the API's matches PgBouncer's, and a PgBouncer wait is bounded at 30 s — #437, #461, #462, #1570
+- Server-side timeouts: API `statement_timeout` 60 s and pooled `idle_in_transaction_session_timeout` 60 s through a dedicated PgBouncer database, migrations `lock_timeout` 5 s with retry (2026-10-06) — #1631
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
 - A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15) — #1570

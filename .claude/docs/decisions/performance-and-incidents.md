@@ -81,6 +81,31 @@ timeout with a logged error; PgBouncer's `QUERY_WAIT_TIMEOUT` is 30 s for every 
 above the longest wait measured under overload (11 s), so it only ends a wait that would otherwise last minutes.
 The ingestors keep their own caps (40 each).
 
+## Postgres enforces server-side timeouts, scoped through PgBouncer databases (2026-10-06)
+
+**The API gets `statement_timeout = 60s`, every pooled session `idle_in_transaction_session_timeout = 60s`, and
+the migration script `lock_timeout = 5s`.** Until then the only guard was the client-side `Command Timeout=300`:
+a runaway API read kept running on the server, a session idle inside a transaction held its locks and vacuum back
+(#1366), and a migration's DDL waiting on a lock queued every later query on that table behind it.
+
+- *Where each one is set.* The API and the ingestors connect as the same Postgres user and, in transaction
+  mode, share server connections, so neither a role setting (`ALTER ROLE … SET`) nor a session `SET` can tell
+  them apart, and PgBouncer refuses a `statement_timeout` passed in the startup `options` because it cannot
+  track it. PgBouncer therefore serves two databases on the same Postgres database, `${POSTGRES_DB}` for the
+  ingestors and `${POSTGRES_DB}_api` for the API, whose `connect_query` sets the timeouts on each new server
+  connection. A separate API role would have done the same with new secrets on both hosts; it is not needed
+  for this.
+- *The ingestors keep their 300 s budget.* Chunked folds legitimately run long (#603, #632, #988), so they get
+  no `statement_timeout`. Their transactions wrap writes only (the folds and Riot calls run before `BEGIN`),
+  which is why 60 s idle-in-transaction is ample.
+- *Capacity is unchanged.* Two databases mean two pools of 25 + 5; `max_user_connections = 30` caps them together
+  at what the single shared pool allowed.
+- *A blocked migration fails, then retries.* The script is applied in one transaction, so a lock timeout leaves
+  nothing behind; the `migrate` job retries it three times, 30 s apart, and a failure blocks the deploy.
+  `ON_ERROR_STOP` is part of the script itself, so a failure can never exit 0.
+
+Source: #1631; `docs/prod.md` (*Connection pools*), `docs/production-migrations.md`.
+
 ## Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02)
 
 **The server no longer runs on compiled defaults.** Until now the only setting either compose file overrode

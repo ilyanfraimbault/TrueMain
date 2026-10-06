@@ -40,5 +40,9 @@ runs:
       run: |
         dotnet ef migrations script --idempotent \
           --project Data/Data.csproj --startup-project Data/Data.csproj \
-          --output "$RUNNER_TEMP/migration.sql"
+          --output "$RUNNER_TEMP/ef-migration.sql"
+        {
+          printf '%s\n' '\set ON_ERROR_STOP on' "SET lock_timeout = '5s';" "SET statement_timeout = '10min';"
+          sed '1s/^\xEF\xBB\xBF//' "$RUNNER_TEMP/ef-migration.sql"
+        } > "$RUNNER_TEMP/migration.sql"
         echo "path=$RUNNER_TEMP/migration.sql" >> "$GITHUB_OUTPUT"

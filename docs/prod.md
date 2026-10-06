@@ -228,15 +228,29 @@ them.
 
 ## Connection pools
 
-Every service reaches Postgres through PgBouncer in transaction mode: 25 server connections (`DEFAULT_POOL_SIZE`)
-plus 5 in reserve, shared by the API and both ingestor lanes, which all connect as the same user. The same values
-run in every compose file, preprod included.
+Every service reaches Postgres through PgBouncer in transaction mode, configured by the `pgbouncer_ini` config
+inline in each compose file. All services connect as the same user, to two PgBouncer databases that point at the
+same Postgres database: the API to `${POSTGRES_DB}_api`, both ingestor lanes to `${POSTGRES_DB}`. Each has its own
+pool of 25 server connections (`default_pool_size`) plus 5 in reserve, and `max_user_connections = 30` caps the two
+together at what the single shared pool allowed before the split; PgBouncer closes an idle connection of one pool
+to open one for the other. The same values run in every compose file, preprod included.
 
 | Setting | Value | Why |
 | --- | --- | --- |
 | API `Maximum Pool Size` | 30 | what PgBouncer can actually serve (25 + 5 reserve). At 100, a load test queued 74 API clients at PgBouncer, with waits up to 11 s and requests hanging until the visitor gave up (#1570). Excess requests now wait in Npgsql and fail after its 15 s connection timeout, with a logged error |
 | Ingestors' `Maximum Pool Size` | 40 each | unchanged; their batches hold a connection across a pass |
-| PgBouncer `QUERY_WAIT_TIMEOUT` | 30 s | ends a client's wait for a server connection. The longest wait measured under overload was 11 s, so it only cuts a wait that would otherwise last minutes; it applies to the ingestors too |
+| PgBouncer `query_wait_timeout` | 30 s | ends a client's wait for a server connection. The longest wait measured under overload was 11 s, so it only cuts a wait that would otherwise last minutes; it applies to the ingestors too |
+| `statement_timeout`, API only | 60 s | set by the `connect_query` of `${POSTGRES_DB}_api`, so Postgres itself cancels a runaway API read. 60 s is the visitor's own timeout in the #1570 load test, past which nobody is waiting for the answer (#1631) |
+| API `Command Timeout` | 65 s | just above the server-side limit, so the server's `canceling statement due to statement timeout` is the error that gets logged, not Npgsql's client-side timeout |
+| `idle_in_transaction_session_timeout`, every pooled session | 60 s | ends a session left idle inside an open transaction, which would keep its locks and hold back vacuum. Every ingestor transaction wraps writes only: the folds and Riot calls run before `BEGIN`, so the idle gaps inside one are milliseconds |
+| Ingestors' `Command Timeout` | 300 s, no `statement_timeout` | the chunked folds legitimately run long (#603, #632, #988) |
+
+These settings are applied per server connection by `connect_query`, not by a plain `SET`: in transaction mode a
+session `SET` lands on whichever server connection the transaction borrowed and leaks to the next client. The
+startup `options` route does not work either, since PgBouncer only accepts parameters it tracks, and
+`statement_timeout` is not one. Nothing in the backend resets them: Npgsql runs with `No Reset On Close=true`, and
+PgBouncer only sends its `server_reset_query` in session mode. To check them, connect with `psql` through PgBouncer (port 6432)
+to `${POSTGRES_DB}_api` or `${POSTGRES_DB}` and run `SHOW statement_timeout; SHOW idle_in_transaction_session_timeout;`.
 
 ## Ingestor tuning knobs
 

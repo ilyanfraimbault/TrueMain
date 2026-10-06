@@ -23,7 +23,13 @@ two environments and the migration path in detail.
 `.github/actions/migration-script` is the composite action every job that
 needs the idempotent EF migration script goes through (`migrate-fresh` in CI,
 `migrate` in the rollout), so the script that is validated is the script that
-is deployed: same .NET SDK, same `dotnet-ef` version, same command.
+is deployed: same .NET SDK, same `dotnet-ef` version, same command. It also
+prepends the session guard every apply runs under (#1631): `\set ON_ERROR_STOP
+on`, so psql exits non-zero on the first error whatever flags the caller
+passes, then `lock_timeout = '5s'` and `statement_timeout = '10min'`. EF writes
+the script with a UTF-8 byte-order mark, which psql only skips at the very
+start of a file; once the guard sits in front it would land mid-file and break
+the first statement, so the action strips it.
 
 `.github/scripts/resolve-preprod-version.sh` computes the `<base>-rc.<N>`
 preprod version. It lives in its own file, with its own test
@@ -240,18 +246,34 @@ GitHub-hosted runners intermittently cannot reach the VPS: the connection
 times out upstream of the host, nothing shows in its auth log, and the same job
 re-run minutes later passes (#1568). Release `1.22.0` failed its migration step
 that way. `apply-migration.sh` pipes the script into the host with a bounded
-retry: four attempts, 15, 30 then 60 seconds apart, each with a 30-second
-`ConnectTimeout`, so the worst case stays well inside the job's 15 minutes.
+retry, on two schedules counted apart:
 
-Only ssh's own failures are retried. ssh exits 255 when it cannot connect or
-authenticate, and with the remote command's status otherwise, so a script that
-reached `psql` and failed is reported at once and never re-run behind a retry.
-A retry after a connection dropped mid-script is safe anyway: the script is
-idempotent, so whatever part of it had already applied is skipped the second
-time. When all four attempts fail,
-nothing was applied and the deploy job does not run: re-run the failed jobs.
-`.github/scripts/apply-migration.test.sh` pins the behaviour with an `ssh` stub
-and runs in the `deploy-scripts` CI job.
+- **Connection failures**: four attempts, 15, 30 then 60 seconds apart, each
+  with a 30-second `ConnectTimeout`. ssh exits 255 when it cannot connect or
+  authenticate, and with the remote command's status otherwise, so only 255
+  counts here.
+- **Lock timeouts** (#1631): three attempts, 30 seconds apart. The script opens
+  with `SET lock_timeout = '5s'` (`docs/production-migrations.md`), so a DDL
+  that cannot get its lock fails instead of queueing traffic. The failure is
+  recognised from what psql printed on stderr (`lock timeout` or SQLSTATE
+  `55P03`), and since it runs in one transaction, a lost lock rolls everything
+  back and the next attempt starts clean.
+
+Any other failure of a script that reached `psql` is reported at once and never
+re-run behind a retry. A retry after a connection dropped mid-script is safe
+anyway: the script is idempotent, so whatever part of it had already applied is
+skipped the second time. When a schedule runs out, nothing was applied and the
+deploy job does not run: re-run the failed jobs, after finding the blocker in
+the lock case.
+
+The worst case is about six minutes: the four connection attempts take under
+four (30 s timeouts plus 105 s of waits), and the two lock retries add 60 s of
+waits plus a few seconds per attempt, since a script whose migrations are
+already applied runs in seconds and a lost lock costs 5 s. That stays inside the
+job's 15 minutes. If a pending migration runs long and the job is cancelled
+mid-attempt, the session dies with its transaction and nothing is applied.
+`.github/scripts/apply-migration.test.sh` pins the behaviour, both schedules
+included, with an `ssh` stub and runs in the `deploy-scripts` CI job.
 
 Each deploy workflow takes a **workflow-level** concurrency group with
 `cancel-in-progress: false`. On preprod the rc counter is derived from the
@@ -691,6 +713,14 @@ leaves a misleading version on the page (#1637).
   variant, `compose.preprod.yaml` and `compose.prod.yaml` the two deployed
   ones. Both deployed stacks run `Database__ApplyMigrationsOnStartup=false`
   and rely on the rollout to migrate.
+- PgBouncer reads a `pgbouncer.ini` written inline under `configs:` in every
+  stack, not the image's env-generated one (#1631). The env vars can only
+  describe one database entry, and the API needs its own: `${POSTGRES_DB}_api`
+  points at the same database with a `connect_query` that sets
+  `statement_timeout`, so the API's server connections carry it and the
+  ingestors' do not. The image still writes `userlist.txt` from `DB_USER`,
+  `DB_PASSWORD` and `AUTH_TYPE`, the only env vars it keeps. The values are in
+  `docs/prod.md` (*Connection pools*).
 - Both deployed stacks put Caddy in front of web and admin with its
   Caddyfile inline under `configs.edge_caddyfile`, because the deploy ships
   the compose file alone (*What the deploy writes on the VPS*; prod in
