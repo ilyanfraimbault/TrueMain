@@ -259,7 +259,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   `GET /champions/damage-profiles` (#1905), weighted by damage per game like the item-context axes. A ranked pick that
   answers a one-sided team carries a "+ Magic damage" / "+ Physical damage" chip (order unchanged). Over the draft's
   build: the boots and the first legendary this draft moves the mains toward, with the situation that does ("against
-  a magic-damage team"), from `POST /champions/{id}/next-item` asked with an empty inventory.
+  a magic-damage team"), from `POST /champions/{id}/next-item` asked with an empty inventory — only when the draft
+  moves it at least 5 points *and* 25% above its usual share, and only for an enemy or lane-opponent situation.
 - **Rune import** (#1678) — a small ghost icon in the runes' top-right corner, on every build the build view shows
   (draft, lane builds, a true main's, and the app's champion page), there whenever the client is connected; its label
   is its tooltip. A click pushes the page on screen into the client as `TrueMain: <champion>` and selects it
