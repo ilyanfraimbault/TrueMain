@@ -262,6 +262,7 @@ public sealed class MatchIngestionProcess(
             snapshotResult.Inserted,
             snapshotResult.Skipped,
             snapshotResult.SkippedWrongQueue,
+            snapshotResult.SkippedShell,
             timelineUpdated,
             snapshotResult.MainsReactivated);
 

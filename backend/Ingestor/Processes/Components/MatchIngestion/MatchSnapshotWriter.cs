@@ -86,8 +86,15 @@ public sealed class MatchSnapshotWriter(
         // Ordered by id so the write phase is deterministic: the bag's enumeration order
         // is not, and a stable order keeps batch boundaries (and their savepoints)
         // reproducible across a retry of the same account.
-        var targetMatches = fetched
+        //
+        // A shell — a match Riot recorded with endOfGameResult other than GameComplete — is
+        // dropped at the same point and for the same reasons (#1364): it is not a game, and
+        // stored it would count as one in every fold and on every profile.
+        var onQueue = fetched
             .Where(item => item.Dto.Info.QueueId == _targetQueueId)
+            .ToList();
+        var targetMatches = onQueue
+            .Where(item => RiotMatchMapper.IsCompletedGame(item.Dto))
             .OrderBy(item => item.MatchId, StringComparer.Ordinal)
             .ToList();
 
@@ -108,7 +115,8 @@ public sealed class MatchSnapshotWriter(
             targetMatches,
             participantAccounts,
             trackedAccount?.Id,
-            fetched.Count - targetMatches.Count);
+            fetched.Count - onQueue.Count,
+            onQueue.Count - targetMatches.Count);
     }
 
     /// <summary>
@@ -208,7 +216,8 @@ public sealed class MatchSnapshotWriter(
             inserted,
             plan.ExistingMatchIds.Count,
             plan.SkippedWrongQueue,
-            activity.MainsReactivated);
+            activity.MainsReactivated,
+            plan.SkippedShell);
     }
 
     /// <summary>

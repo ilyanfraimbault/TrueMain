@@ -40,6 +40,19 @@ public sealed record RiotMatchInfoDto
     [JsonPropertyName("gameVersion")]
     public string GameVersion { get; init; } = string.Empty;
 
+    [JsonPropertyName("gameCreation")]
+    public long GameCreation { get; init; }
+
+    [JsonPropertyName("gameEndTimestamp")]
+    public long GameEndTimestamp { get; init; }
+
+    /// <summary>
+    /// How the game ended: <c>GameComplete</c> for a played game, <c>Abort_*</c> for a shell
+    /// Riot recorded without one being played (#1364). Absent from old payloads, hence nullable.
+    /// </summary>
+    [JsonPropertyName("endOfGameResult")]
+    public string? EndOfGameResult { get; init; }
+
     [JsonPropertyName("participants")]
     public IReadOnlyList<RiotParticipantDto> Participants { get; init; } = [];
 
@@ -110,6 +123,10 @@ public sealed record RiotParticipantDto
 
     [JsonPropertyName("win")]
     public bool Win { get; init; }
+
+    /// <summary>The remake vote passed. Riot repeats the same value on every participant.</summary>
+    [JsonPropertyName("gameEndedInEarlySurrender")]
+    public bool GameEndedInEarlySurrender { get; init; }
 
     [JsonPropertyName("kills")]
     public int Kills { get; init; }

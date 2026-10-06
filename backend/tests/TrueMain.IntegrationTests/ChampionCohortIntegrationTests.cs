@@ -219,8 +219,8 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
         {
             var account = AddAccount(db, TrackedPuuid);
             // Under the 5-minute floor: the pre-vote remake every fold used to decide
-            // for itself whether to count. Riot's gameEndedInEarlySurrender is not
-            // stored, so the duration is the signal (#1365).
+            // for itself whether to count; the duration floor is the signal for every
+            // match Riot's flag does not cover (#1365, #1364).
             Seed(db, "EUW1_REMAKE", TrackedPuuid, Yone, account.Id, participantId: 1,
                 gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds - 1);
             Seed(db, "EUW1_GAME", TrackedPuuid, Yone, account.Id, participantId: 1,
@@ -238,6 +238,31 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
             cohort.IncludesMatch("EUW1_GAME").Should().BeTrue();
             cohort.IncludesMatch("EUW1_REMAKE").Should()
                 .BeFalse("a remake contributes nothing at all, not even to a population-wide normaliser");
+        }
+    }
+
+    [Fact]
+    public async Task Excludes_a_game_riot_flagged_as_a_remake_whatever_its_duration()
+    {
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = AddAccount(db, TrackedPuuid);
+            // Over the floor, but Riot's own remake vote says it was not a game (#1364).
+            Seed(db, "EUW1_FLAGGED", TrackedPuuid, Yone, account.Id, participantId: 1,
+                gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds + 60);
+            Seed(db, "EUW1_GAME", TrackedPuuid, Yone, account.Id, participantId: 1);
+            db.Matches.Local.Single(match => match.Id == "EUW1_FLAGGED").EndedInEarlySurrender = true;
+            db.MainChampionStats.Add(MainRow(TrackedPuuid, Yone, isMain: true));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var cohort = await ChampionCohort.LoadAsync(
+                db, ["EUW1_FLAGGED", "EUW1_GAME"], CancellationToken.None);
+
+            cohort.Keys.Select(key => key.MatchId).Should().BeEquivalentTo(["EUW1_GAME"]);
+            cohort.IncludesMatch("EUW1_FLAGGED").Should().BeFalse();
         }
     }
 

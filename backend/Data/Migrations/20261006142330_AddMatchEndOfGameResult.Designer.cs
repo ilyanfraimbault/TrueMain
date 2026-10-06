@@ -7,6 +7,7 @@ using Data.Entities;
 using Data.ItemContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -15,9 +16,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006142330_AddMatchEndOfGameResult")]
+    partial class AddMatchEndOfGameResult
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1530,8 +1533,7 @@ namespace Data.Migrations
 
                     b.Property<List<ItemEvent>>("ItemEvents")
                         .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasAnnotation("Npgsql:Compression:", "lz4");
+                        .HasColumnType("jsonb");
 
                     b.Property<int>("Kills")
                         .HasColumnType("integer");
@@ -1588,8 +1590,7 @@ namespace Data.Migrations
 
                     b.Property<List<SkillEvent>>("SkillEvents")
                         .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasAnnotation("Npgsql:Compression:", "lz4");
+                        .HasColumnType("jsonb");
 
                     b.Property<int>("SubStyleId")
                         .HasColumnType("integer");

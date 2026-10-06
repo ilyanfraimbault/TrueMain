@@ -31,14 +31,25 @@ public sealed class ChampionCohortTests
     [InlineData(1)]
     [InlineData(299)]
     public void A_game_under_five_minutes_is_a_remake(int durationSeconds)
-        => ChampionCohort.IsRemake(durationSeconds).Should().BeTrue();
+        => ChampionCohort.IsRemake(durationSeconds, endedInEarlySurrender: false).Should().BeTrue();
 
     [Theory]
     [InlineData(300)]
     [InlineData(301)]
     [InlineData(1800)]
     public void A_game_at_or_over_five_minutes_is_a_game(int durationSeconds)
-        => ChampionCohort.IsRemake(durationSeconds).Should().BeFalse();
+        => ChampionCohort.IsRemake(durationSeconds, endedInEarlySurrender: false).Should().BeFalse();
+
+    /// <summary>
+    /// Riot's remake flag is enough on its own (#1364): a remake whose game clock ran past
+    /// the floor — a slow vote, a long load — is still not a game.
+    /// </summary>
+    [Theory]
+    [InlineData(200)]
+    [InlineData(300)]
+    [InlineData(420)]
+    public void Riot_remake_flag_makes_a_remake_whatever_the_duration(int durationSeconds)
+        => ChampionCohort.IsRemake(durationSeconds, endedInEarlySurrender: true).Should().BeTrue();
 
     [Theory]
     [InlineData("TOP")]
