@@ -19,7 +19,7 @@ public sealed class RiotMatchMapperEndOfGameTests
     private static readonly DateTime FixedNow = new(2026, 10, 6, 0, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void A_completed_game_carries_its_end_of_game_fields_onto_the_match()
+    public void ACompletedGameCarriesItsEndOfGameFieldsOntoTheMatch()
     {
         var dto = Deserialize(Payload(endOfGameResult: "\"GameComplete\"", earlySurrender: false));
 
@@ -36,12 +36,12 @@ public sealed class RiotMatchMapperEndOfGameTests
     [InlineData("Abort_Unexpected")]
     [InlineData("Abort_TooFewPlayers")]
     [InlineData("Abort_AntiCheat")]
-    public void An_aborted_match_is_a_shell_not_a_game(string result)
+    public void AnAbortedMatchIsAShellNotAGame(string result)
         => RiotMatchMapper.IsCompletedGame(Deserialize(Payload(endOfGameResult: $"\"{result}\"", earlySurrender: false)))
             .Should().BeFalse();
 
     [Fact]
-    public void A_payload_without_the_field_predates_it_and_is_taken_as_a_game()
+    public void APayloadWithoutTheFieldPredatesItAndIsTakenAsAGame()
     {
         var dto = Deserialize(Payload(endOfGameResult: null, earlySurrender: false));
 
@@ -50,12 +50,12 @@ public sealed class RiotMatchMapperEndOfGameTests
     }
 
     [Fact]
-    public void Riot_remake_vote_is_lifted_onto_the_match()
+    public void RiotRemakeVoteIsLiftedOntoTheMatch()
         => Map(Deserialize(Payload(endOfGameResult: "\"GameComplete\"", earlySurrender: true)))
             .EndedInEarlySurrender.Should().BeTrue();
 
     [Fact]
-    public void Missing_timestamps_read_as_unknown_not_as_the_epoch()
+    public void MissingTimestampsReadAsUnknownNotAsTheEpoch()
     {
         var dto = new RiotMatchDto
         {

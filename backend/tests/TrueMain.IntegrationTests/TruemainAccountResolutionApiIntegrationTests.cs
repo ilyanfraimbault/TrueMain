@@ -46,7 +46,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
     [InlineData("phantasmmain-euw1")] // what a lower-casing URL bar hands back
     [InlineData("PHANTASMMAIN-EUW1")] // what a shouted link carries
     [InlineData("PhAnTaSmMaIn-eUw1")] // anything in between
-    public async Task Every_truemain_route_resolves_the_account_whatever_the_casing(string nameTag)
+    public async Task EveryTruemainRouteResolvesTheAccountWhateverTheCasing(string nameTag)
     {
         await SeedAccountAsync();
 
@@ -89,7 +89,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
     [InlineData("PhantasmMain#EuW1")]
     [InlineData("phantasmmain#euw1")]
     [InlineData("PHANTASMMAIN#EUW1")]
-    public async Task Mains_comparison_resolves_the_account_whatever_the_casing(string riotId)
+    public async Task MainsComparisonResolvesTheAccountWhateverTheCasing(string riotId)
     {
         await SeedAccountAsync();
 
@@ -110,7 +110,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Case_insensitive_resolution_keeps_the_most_recently_active_tiebreak()
+    public async Task CaseInsensitiveResolutionKeepsTheMostRecentlyActiveTiebreak()
     {
         // Two rows carrying the same Riot ID in different casings — a stale row
         // left by a rename and the live one. Matching case-insensitively widens
@@ -161,7 +161,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task An_unheld_riot_id_still_404s_whatever_the_casing()
+    public async Task AnUnheldRiotIdStill404sWhateverTheCasing()
     {
         // Case-insensitive matching widens what resolves; it must not turn
         // "we don't hold this account" into anything but a 404.
@@ -176,7 +176,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task The_lowered_riot_id_lookup_has_its_functional_index()
+    public async Task TheLoweredRiotIdLookupHasItsFunctionalIndex()
     {
         // The resolver's `lower(col) = @p` only seeks with this index (#1570). It is
         // declared in a migration, not in the model, so nothing else would notice a

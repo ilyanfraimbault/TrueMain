@@ -19,7 +19,7 @@ public sealed class ProcessRunStalenessTests
     private static readonly DateTime Now = new(2026, 6, 13, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void Running_with_no_heartbeat_maps_to_Abandoned()
+    public void Running_WithNoHeartbeatMapsToAbandoned()
     {
         // A legacy row (pre-heartbeat) or one that never beat reads as Abandoned.
         ProcessRunStaleness.EffectiveStatus(ProcessRunStatus.Running, null, Now)
@@ -27,7 +27,7 @@ public sealed class ProcessRunStalenessTests
     }
 
     [Fact]
-    public void Running_with_stale_heartbeat_maps_to_Abandoned()
+    public void Running_WithStaleHeartbeatMapsToAbandoned()
     {
         var stale = Now - ProcessRunStaleness.Threshold - TimeSpan.FromSeconds(1);
         ProcessRunStaleness.EffectiveStatus(ProcessRunStatus.Running, stale, Now)
@@ -35,7 +35,7 @@ public sealed class ProcessRunStalenessTests
     }
 
     [Fact]
-    public void Running_with_fresh_heartbeat_stays_Running()
+    public void Running_WithFreshHeartbeatStaysRunning()
     {
         var fresh = Now - TimeSpan.FromSeconds(30);
         ProcessRunStaleness.EffectiveStatus(ProcessRunStatus.Running, fresh, Now)
@@ -43,7 +43,7 @@ public sealed class ProcessRunStalenessTests
     }
 
     [Fact]
-    public void Running_with_heartbeat_exactly_at_the_threshold_stays_Running()
+    public void Running_WithHeartbeatExactlyAtTheThresholdStaysRunning()
     {
         // The staleness check is strict (`< now - Threshold`), so a beat landing
         // exactly on the boundary still counts as fresh. Guards the comparison
@@ -57,7 +57,7 @@ public sealed class ProcessRunStalenessTests
     [InlineData(ProcessRunStatus.Success)]
     [InlineData(ProcessRunStatus.Failed)]
     [InlineData(ProcessRunStatus.Abandoned)]
-    public void Non_running_statuses_pass_through_unchanged(ProcessRunStatus status)
+    public void NonRunningStatusesPassThroughUnchanged(ProcessRunStatus status)
     {
         // A terminal status is returned verbatim regardless of heartbeat age.
         ProcessRunStaleness.EffectiveStatus(status, null, Now).Should().Be(status);

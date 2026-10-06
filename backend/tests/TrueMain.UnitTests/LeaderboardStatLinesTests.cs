@@ -12,7 +12,7 @@ public sealed class LeaderboardStatLinesTests
     private static readonly Guid D = Guid.Parse("00000000-0000-0000-0000-00000000000d");
 
     [Fact]
-    public void Games_sorts_descending_and_breaks_ties_on_rank_score()
+    public void Games_SortsDescendingAndBreaksTiesOnRankScore()
     {
         var lines = new[]
         {
@@ -25,7 +25,7 @@ public sealed class LeaderboardStatLinesTests
     }
 
     [Fact]
-    public void Kda_uses_the_row_formula_and_sinks_accounts_without_games()
+    public void Kda_UsesTheRowFormulaAndSinksAccountsWithoutGames()
     {
         var lines = new[]
         {
@@ -40,7 +40,7 @@ public sealed class LeaderboardStatLinesTests
     }
 
     [Fact]
-    public void WinRate_reads_the_snapshot_split_and_sinks_a_missing_one()
+    public void WinRate_ReadsTheSnapshotSplitAndSinksAMissingOne()
     {
         var lines = new[]
         {
@@ -56,7 +56,7 @@ public sealed class LeaderboardStatLinesTests
     }
 
     [Fact]
-    public void Non_stat_sorts_are_rejected()
+    public void NonStatSortsAreRejected()
     {
         var act = () => LeaderboardStatLines.Order([], LeaderboardSort.Rank);
 

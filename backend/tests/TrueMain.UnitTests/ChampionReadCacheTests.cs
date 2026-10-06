@@ -28,7 +28,7 @@ public sealed class ChampionReadCacheTests
     private static readonly DateTime SecondCycle = new(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public async Task A_second_caller_is_served_from_the_cache_without_recomputing()
+    public async Task ASecondCallerIsServedFromTheCacheWithoutRecomputing()
     {
         using var cache = SizedCache();
         var reads = new CountingStamp(FirstCycle);
@@ -44,7 +44,7 @@ public sealed class ChampionReadCacheTests
     }
 
     [Fact]
-    public async Task The_entry_is_sized_so_a_size_limited_cache_actually_keeps_it()
+    public async Task TheEntryIsSizedSoASizeLimitedCacheActuallyKeepsIt()
     {
         // Asserting the value is really in the cache — rather than only that a second
         // call returns the same number — is what distinguishes a stored entry from one
@@ -60,7 +60,7 @@ public sealed class ChampionReadCacheTests
     }
 
     [Fact]
-    public async Task A_null_answer_is_cached_like_any_other()
+    public async Task ANullAnswerIsCachedLikeAnyOther()
     {
         // "No data for this slice" is a real answer — an unplayed matchup, a lane a
         // champion never takes — and it comes from the corners of the site nobody has
@@ -88,7 +88,7 @@ public sealed class ChampionReadCacheTests
     }
 
     [Fact]
-    public async Task The_version_token_is_read_once_per_burst_not_once_per_read()
+    public async Task TheVersionTokenIsReadOncePerBurstNotOncePerRead()
     {
         // The token read is the one query every champion request now makes, so it must
         // not itself become the hot query: it is cached and single-flighted like the
@@ -107,7 +107,7 @@ public sealed class ChampionReadCacheTests
     }
 
     [Fact]
-    public async Task A_new_aggregation_cycle_retires_every_entry_without_evicting_anything()
+    public async Task ANewAggregationCycleRetiresEveryEntryWithoutEvictingAnything()
     {
         using var cache = SizedCache();
         var stamp = new CountingStamp(FirstCycle);
@@ -131,7 +131,7 @@ public sealed class ChampionReadCacheTests
     }
 
     [Fact]
-    public async Task An_empty_aggregate_table_is_a_version_of_its_own()
+    public async Task AnEmptyAggregateTableIsAVersionOfItsOwn()
     {
         using var cache = SizedCache();
         var subject = new ChampionReadCache(new CountingStamp(null), cache);
@@ -147,7 +147,7 @@ public sealed class ChampionReadCacheTests
     }
 
     [Fact]
-    public async Task Concurrent_callers_that_miss_share_a_single_pass()
+    public async Task ConcurrentCallersThatMissShareASinglePass()
     {
         using var cache = SizedCache();
         var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache);
@@ -174,7 +174,7 @@ public sealed class ChampionReadCacheTests
     }
 
     [Fact]
-    public async Task A_caller_that_walks_away_does_not_cancel_the_pass_for_the_others()
+    public async Task ACallerThatWalksAwayDoesNotCancelThePassForTheOthers()
     {
         // The pass runs on the owner's request-scoped DbContext, so it must outlive a
         // cancelled caller rather than die with it and take every joiner down.

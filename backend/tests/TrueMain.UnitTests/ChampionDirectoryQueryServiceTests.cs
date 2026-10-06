@@ -13,7 +13,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     [InlineData(" banRate ", ChampionDirectorySort.BanRate)]
     [InlineData("games", ChampionDirectorySort.Games)]
     [InlineData("tier", ChampionDirectorySort.Tier)]
-    public void TryParseSort_reads_every_column_case_insensitively(string raw, ChampionDirectorySort expected)
+    public void TryParseSort_ReadsEveryColumnCaseInsensitively(string raw, ChampionDirectorySort expected)
     {
         ChampionDirectoryOrdering.TryParseSort(raw, out var sort).Should().BeTrue();
         sort.Should().Be(expected);
@@ -23,7 +23,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("name")]
-    public void TryParseSort_falls_back_to_pick_rate(string? raw)
+    public void TryParseSort_FallsBackToPickRate(string? raw)
     {
         ChampionDirectoryOrdering.TryParseSort(raw, out var sort).Should().BeFalse();
         sort.Should().Be(ChampionDirectorySort.PickRate);
@@ -34,7 +34,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     [InlineData("desc", true)]
     [InlineData("sideways", true)]
     [InlineData("ASC", false)]
-    public void IsDescending_reads_only_asc_as_ascending(string? raw, bool expected)
+    public void IsDescending_ReadsOnlyAscAsAscending(string? raw, bool expected)
         => ChampionDirectoryOrdering.IsDescending(raw).Should().Be(expected);
 
     [Theory]
@@ -44,7 +44,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     [InlineData(ChampionDirectorySort.WinRate, false, new[] { 3, 2, 1 })]
     [InlineData(ChampionDirectorySort.Games, true, new[] { 3, 1, 2 })]
     [InlineData(ChampionDirectorySort.Games, false, new[] { 2, 1, 3 })]
-    public void Apply_orders_by_the_column_in_both_directions(
+    public void Apply_OrdersByTheColumnInBothDirections(
         ChampionDirectorySort sort, bool descending, int[] expected)
     {
         var rows = new[]
@@ -61,7 +61,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     [Theory]
     [InlineData(true, new[] { 2, 1, 3 })]
     [InlineData(false, new[] { 1, 2, 3 })]
-    public void Apply_keeps_an_unobserved_ban_rate_last_in_both_directions(bool descending, int[] expected)
+    public void Apply_KeepsAnUnobservedBanRateLastInBothDirections(bool descending, int[] expected)
     {
         var rows = new[]
         {
@@ -78,7 +78,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     [Theory]
     [InlineData(true, new[] { 2, 3, 1, 4 })]
     [InlineData(false, new[] { 1, 3, 2, 4 })]
-    public void Apply_orders_by_tier_then_tier_score_and_keeps_an_unknown_tier_last(bool descending, int[] expected)
+    public void Apply_OrdersByTierThenTierScoreAndKeepsAnUnknownTierLast(bool descending, int[] expected)
     {
         var rows = new[]
         {
@@ -93,7 +93,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     }
 
     [Fact]
-    public void Apply_breaks_ties_on_pick_rate_games_champion_then_lane()
+    public void Apply_BreaksTiesOnPickRateGamesChampionThenLane()
     {
         var rows = new[]
         {
@@ -110,7 +110,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     }
 
     [Fact]
-    public async Task GetPageAsync_filters_by_lane_and_champion_before_paging()
+    public async Task GetPageAsync_FiltersByLaneAndChampionBeforePaging()
     {
         var service = ServiceReturning(
             Row(championId: 1, position: "TOP", pickRate: 0.03),
@@ -128,7 +128,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     }
 
     [Fact]
-    public async Task GetPageAsync_slices_the_page_and_reports_the_filtered_total()
+    public async Task GetPageAsync_SlicesThePageAndReportsTheFilteredTotal()
     {
         var service = ServiceReturning(Enumerable.Range(1, 7)
             .Select(id => Row(championId: id, pickRate: id / 100.0))
@@ -144,7 +144,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     }
 
     [Fact]
-    public async Task GetPageAsync_answers_a_page_past_the_end_with_no_rows_and_the_real_total()
+    public async Task GetPageAsync_AnswersAPagePastTheEndWithNoRowsAndTheRealTotal()
     {
         var service = ServiceReturning(Row(championId: 1), Row(championId: 2));
 
@@ -155,7 +155,7 @@ public sealed class ChampionDirectoryQueryServiceTests
     }
 
     [Fact]
-    public async Task GetPageAsync_carries_the_patch_even_when_no_line_matches()
+    public async Task GetPageAsync_CarriesThePatchEvenWhenNoLineMatches()
     {
         var service = ServiceReturning(Row(championId: 1, position: "TOP"));
 

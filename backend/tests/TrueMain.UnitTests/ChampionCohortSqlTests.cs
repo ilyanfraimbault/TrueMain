@@ -27,7 +27,7 @@ public sealed class ChampionCohortSqlTests
     }
 
     [Fact]
-    public void Members_carries_every_clause_of_the_cohort()
+    public void Members_CarriesEveryClauseOfTheCohort()
     {
         using var db = CreateContext();
 
@@ -46,7 +46,7 @@ public sealed class ChampionCohortSqlTests
     }
 
     [Fact]
-    public void Games_is_the_match_half_only()
+    public void Games_IsTheMatchHalfOnly()
     {
         using var db = CreateContext();
 
@@ -59,7 +59,7 @@ public sealed class ChampionCohortSqlTests
     }
 
     [Fact]
-    public void Item_timings_compose_the_raw_unnest_under_the_cohort_in_one_statement()
+    public void ItemTimingsComposeTheRawUnnestUnderTheCohortInOneStatement()
     {
         using var db = CreateContext();
 

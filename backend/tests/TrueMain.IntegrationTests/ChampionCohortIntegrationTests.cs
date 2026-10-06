@@ -41,7 +41,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Returns_an_empty_set_when_no_matches_are_asked_for()
+    public async Task ReturnsAnEmptySetWhenNoMatchesAreAskedFor()
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -51,7 +51,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Admits_a_tracked_participant_that_mains_the_champion_it_played()
+    public async Task AdmitsATrackedParticipantThatMainsTheChampionItPlayed()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -71,7 +71,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_an_untracked_participant_even_when_a_main_row_exists_for_its_puuid()
+    public async Task ExcludesAnUntrackedParticipantEvenWhenAMainRowExistsForItsPuuid()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -92,7 +92,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_tracked_participant_playing_a_champion_it_does_not_main()
+    public async Task ExcludesATrackedParticipantPlayingAChampionItDoesNotMain()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -122,7 +122,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_participant_whose_main_row_was_computed_on_another_platform()
+    public async Task ExcludesAParticipantWhoseMainRowWasComputedOnAnotherPlatform()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -144,7 +144,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Keeps_a_retired_main_because_IsActive_only_retires_future_ingestion()
+    public async Task KeepsARetiredMainBecauseIsActiveOnlyRetiresFutureIngestion()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -166,7 +166,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Scopes_the_result_to_the_requested_matches_only()
+    public async Task ScopesTheResultToTheRequestedMatchesOnly()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -186,7 +186,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Keys_stay_per_match_because_a_participant_id_is_only_a_slot_number()
+    public async Task Keys_StayPerMatchBecauseAParticipantIdIsOnlyASlotNumber()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -214,7 +214,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_remade_game_because_a_remake_is_not_a_game()
+    public async Task ExcludesARemadeGameBecauseARemakeIsNotAGame()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -243,7 +243,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_game_riot_flagged_as_a_remake_whatever_its_duration()
+    public async Task ExcludesAGameRiotFlaggedAsARemakeWhateverItsDuration()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -268,7 +268,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_participant_whose_position_is_not_canonical()
+    public async Task ExcludesAParticipantWhosePositionIsNotCanonical()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -296,7 +296,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     /// every case the clauses above separate (#1365).
     /// </summary>
     [Fact]
-    public async Task The_live_read_query_and_the_fold_load_admit_the_same_participants()
+    public async Task TheLiveReadQueryAndTheFoldLoadAdmitTheSameParticipants()
     {
         string[] matchIds =
             ["EUW1_A_MAIN", "EUW1_A_OFFMAIN", "EUW1_A_ORPHAN", "EUW1_A_REMAKE", "EUW1_A_NOLANE", "EUW1_A_RETIRED"];
@@ -333,7 +333,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Games_drops_the_remakes_and_keeps_the_queue_and_patch_asked_for()
+    public async Task Games_DropsTheRemakesAndKeepsTheQueueAndPatchAskedFor()
     {
         await using (var db = _fixture.CreateDbContext())
         {

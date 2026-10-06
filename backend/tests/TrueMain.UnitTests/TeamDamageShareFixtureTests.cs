@@ -19,7 +19,7 @@ public sealed class TeamDamageShareFixtureTests
     private static readonly DraftAxisThresholds Thresholds = new();
 
     [Fact]
-    public void The_evaluator_reads_every_fixture_team_as_the_desktop_bar_does()
+    public void TheEvaluatorReadsEveryFixtureTeamAsTheDesktopBarDoes()
     {
         using var fixture = JsonDocument.Parse(File.ReadAllText(FixturePath()));
         var cases = fixture.RootElement.GetProperty("cases").EnumerateArray().ToList();

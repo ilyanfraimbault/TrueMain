@@ -21,7 +21,7 @@ public sealed class MatchIngestClaimClassesSqlTests
             .Options);
 
     [Fact]
-    public void NewCandidate_only_takes_accounts_never_ingested()
+    public void NewCandidate_OnlyTakesAccountsNeverIngested()
     {
         using var db = CreateContext();
 
@@ -33,7 +33,7 @@ public sealed class MatchIngestClaimClassesSqlTests
     }
 
     [Fact]
-    public void EstablishedMain_does_not_filter_on_ingest_history()
+    public void EstablishedMain_DoesNotFilterOnIngestHistory()
     {
         using var db = CreateContext();
 
@@ -47,7 +47,7 @@ public sealed class MatchIngestClaimClassesSqlTests
     }
 
     [Fact]
-    public void PromotionRanking_excludes_candidates_of_ingested_accounts()
+    public void PromotionRanking_ExcludesCandidatesOfIngestedAccounts()
     {
         using var db = CreateContext();
 
@@ -61,7 +61,7 @@ public sealed class MatchIngestClaimClassesSqlTests
     }
 
     [Fact]
-    public void QueuedForIngestedAccounts_selects_only_queued_rows_of_ingested_accounts_in_a_bounded_batch()
+    public void QueuedForIngestedAccounts_SelectsOnlyQueuedRowsOfIngestedAccountsInABoundedBatch()
     {
         using var db = CreateContext();
 

@@ -11,7 +11,7 @@ public sealed class FinalBuildResolverTests
     private static IReadOnlyDictionary<int, ItemMetadata> Metadata => ItemMetadataFixtures.ItemMetadataById;
 
     [Fact]
-    public void Resolve_keeps_only_final_completed_items_in_completion_order()
+    public void Resolve_KeepsOnlyFinalCompletedItemsInCompletionOrder()
     {
         var buildItems = FinalBuildResolver.Resolve(
         [
@@ -25,7 +25,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_excludes_base_boots_and_intermediate_items()
+    public void Resolve_ExcludesBaseBootsAndIntermediateItems()
     {
         var buildItems = FinalBuildResolver.Resolve(
         [
@@ -38,7 +38,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_uses_the_latest_reacquisition_time_for_final_items()
+    public void Resolve_UsesTheLatestReacquisitionTimeForFinalItems()
     {
         var buildItems = FinalBuildResolver.Resolve(
         [
@@ -52,7 +52,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_ignores_trinket_slot_items()
+    public void Resolve_IgnoresTrinketSlotItems()
     {
         var buildItems = FinalBuildResolver.Resolve(
         [
@@ -65,7 +65,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_ignores_cull_in_final_build()
+    public void Resolve_IgnoresCullInFinalBuild()
     {
         // Cull (1083) is flagged via IsStarterClassItem in the fixture rather
         // than the legacy hardcoded IgnoredFinalBuildItemIds — same outcome,
@@ -82,7 +82,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_excludes_doran_item_bought_after_starter_window()
+    public void Resolve_ExcludesDoranItemBoughtAfterStarterWindow()
     {
         // Reproduces match NA1_5560060671 (Shaco TOP 16.10): the player
         // bought a non-Doran starter (Sapphire Crystal + Refillable Potion)
@@ -106,7 +106,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_includes_inventory_transforms_using_their_source_purchase_time()
+    public void Resolve_IncludesInventoryTransformsUsingTheirSourcePurchaseTime()
     {
         var buildItems = FinalBuildResolver.Resolve(
         [
@@ -118,7 +118,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_displays_the_source_item_using_the_transform_completion_time()
+    public void Resolve_DisplaysTheSourceItemUsingTheTransformCompletionTime()
     {
         var buildItems = FinalBuildResolver.Resolve(
         [
@@ -131,7 +131,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_excludes_support_quest_completion_from_the_build_path()
+    public void Resolve_ExcludesSupportQuestCompletionFromTheBuildPath()
     {
         // Bloodsong (3877) is a support-quest completion — it belongs to
         // the starter slot via StarterItemAnalyzer, never as a build node.
@@ -149,7 +149,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_excludes_support_quest_root_from_the_build_path()
+    public void Resolve_ExcludesSupportQuestRootFromTheBuildPath()
     {
         // 3899 is a synthetic support-quest root fixture: marked
         // IsSupportQuestStarter=true *and* IsFinalItem=true, and absent from
@@ -168,7 +168,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_keeps_six_items_when_the_boots_sit_in_the_role_bound_slot()
+    public void Resolve_KeepsSixItemsWhenTheBootsSitInTheRoleBoundSlot()
     {
         var buildItems = FinalBuildResolver.Resolve(
         [
@@ -185,7 +185,7 @@ public sealed class FinalBuildResolverTests
     }
 
     [Fact]
-    public void Resolve_leaves_a_role_quest_reward_out_of_the_build()
+    public void Resolve_LeavesARoleQuestRewardOutOfTheBuild()
     {
         var buildItems = FinalBuildResolver.Resolve(
             [new ItemEvent { TimestampMs = 10000, ItemId = 3153, EventType = "ITEM_PURCHASED" }],
