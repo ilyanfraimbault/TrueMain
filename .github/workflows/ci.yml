@@ -263,6 +263,9 @@ jobs:
       - name: Rollout verification
         run: .github/scripts/verify-rollout.test.sh
 
+      - name: Edge verification
+        run: .github/scripts/verify-edge.test.sh
+
       - name: Desktop app versions
         run: .github/scripts/desktop-version.test.sh
 
