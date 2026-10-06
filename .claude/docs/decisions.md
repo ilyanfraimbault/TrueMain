@@ -259,6 +259,7 @@ Last verified against `develop` on 2026-09-02.
 
 - An expensive read path behind a TTL cache needs a single-flight, not a lock — #870
 - Postgres runs with `max_parallel_workers_per_gather=0` in every compose file — do not re-enable — #589
+- The API retries transient Npgsql failures (not client timeouts); the Ingestor does not (2026-10-06) — #1634
 - Consequence: every heavy aggregate runs single-threaded, so batch work must be chunked — #603, #594, #632
 - Aggregation is chunked per champion to bound memory — #600
 - A heavy `CREATE INDEX CONCURRENTLY` must never be a startup migration — #595, #597, #598

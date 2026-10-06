@@ -386,7 +386,8 @@ builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryS
 // short-lived, independently owned contexts per parallel branch — and, in the
 // same call, the scoped TrueMainDbContext for the common request-scoped
 // injection. Both share the one NpgsqlDataSource built inside the extension.
-builder.Services.AddTrueMainData(builder.Configuration);
+// Read-only and idempotent, so the API alone retries transient failures (#1634).
+builder.Services.AddTrueMainData(builder.Configuration, retryTransientFailures: true);
 // Startup migrations run as a hosted service (#258); the web server only starts listening
 // once every hosted service has started, so no request reaches a stale schema. Gated on
 // Database:ApplyMigrationsOnStartup, which prod and preprod keep disabled.
