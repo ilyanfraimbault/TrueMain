@@ -91,6 +91,7 @@ Last verified against `develop` on 2026-09-02.
 - The lane win rate carries its own floor, because it is its own sample — #1087
 - The matchup folds count mains of the champion, not every account we know — #1087
 - Every champion-page fold takes its cohort from one place, and a remake is not a game — #1365, #1087, #922
+- The live champion reads compose that same cohort; a read whose champion side differs on purpose (one player, the full build pool) still takes its matches from it, so no read counts a remake (2026-10-06) — #1365
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
@@ -202,6 +203,7 @@ Last verified against `develop` on 2026-09-02.
 - Measured on held-out games before shipping: composition moves boots (right 400 vs 215 where it overrides the base order), barely legendaries (534 vs 509) — enemy builds are the lever; correlated axes are summed, grouping measured no better (2026-10-01) — #1749, #1750
 - No pick+ban "presence" figure, despite it being standard elsewhere — #920
 - A dimension's identity is enforced by the schema (canonical UNIQUE index, CHECK, generated key), not repaired afterwards (2026-09-03) — #1418, #911
+- A champion stat row's invariants are write-time CHECKs added `NOT VALID` — `Wins <= Games` on every stat table by convention, `LaneGames <= Games`, canonical lanes, a real opponent; the one lane sentinel is pinned to `''`, not made `NULL` (2026-10-06) — #1365
 - Rank snapshots are capped at one row per account per UTC day (DB-level unique index) — #907
 - `(GameName, TagLine, PlatformId)` on `riot_accounts` is a plain, NON-unique index. PUUID is the only real identity — #901, #902
 - PUUID indexing is intentional — do not propose dropping it or migrating to `RiotAccountId`-only — #123, #124

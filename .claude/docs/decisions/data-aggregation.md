@@ -196,6 +196,23 @@ with `ON CONFLICT DO NOTHING` and re-reads, so a disagreement between its normal
 costs a re-read instead of a failed aggregation run; `RunePageDeduplicationProcess` was deleted with the
 merge folded into the same migration that adds the constraints — #1418, #911, #924.
 
+**A champion stat row's invariants are write-time CHECKs, added `NOT VALID`; the one lane sentinel is pinned, not
+made `NULL`.** Every table with an `int Games` and an `int Wins` carries `Wins <= Games`, applied by convention in
+`Data/DataQuality/ChampionStatInvariants.cs` so a new stat table gets it from its first migration;
+`champion_matchup_stats` adds `LaneGames <= Games`; the fold lane columns (matchups, opponents, synergies and their
+baselines, profiles) must be one of the five canonical lanes, and an opponent or partner a real champion (`> 0`).
+The reason is the #1418 one moved to the counters: the folds are additive and a frozen patch is never recomputed
+(#466), so a writer regression is permanent the moment its patch freezes, and only a constraint fails it on the
+batch that would have written it. **`NOT VALID`, deliberately:** every insert and update is checked from the
+migration on, but the rows already written are not scanned — frozen patches hold rows folded under older rules
+(positions before #1087, lane counters folded off their own flag before #1445) that nothing can rebuild, and a
+failed `VALIDATE` would stop the deploy carrying it. The live window's rows are all folded under the current
+rules, so the folds never update a row the check refuses. **The sentinel:** `champion_aggregate_scopes.Position`
+is the only lane column with a "no lane" value in its meaning; it stays non-nullable and the check pins `''` as
+its single spelling (it had been written `''` and `' '`). Turning it into `NULL` would touch every reader of the
+column for no gain the check does not already give. `match_participants` is left out: its `TeamPosition` is Riot's
+raw value and its `elo_bracket` is the rank stamp #1367 owns — #1365.
+
 **Rank snapshots are capped at one row per account per UTC day (DB-level unique index).**
 Intra-day LP granularity has no consumer. Accepted: rank history, match detail and the "nearest snapshot" elo
 resolvers are day-precision — #907.
