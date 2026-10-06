@@ -13,7 +13,9 @@ import { loadingOfAlias, splashOfAlias, splashOfSkin } from '~/composables/useCh
  * animation. In the packaged app neither reached art inserted after the first
  * image, and WKWebView left every later splash invisible for good while a
  * browser showed all of them. A picture that is either there or not cannot
- * fail that way, and a pick landing is abrupt in champion select anyway.
+ * fail that way, and a pick landing is abrupt in champion select anyway. The
+ * skeleton is the picture's own background (`img-skeleton`), so it needs no
+ * event either: the decoded splash simply covers it.
  */
 const props = withDefaults(defineProps<{
   championId?: number | null
@@ -53,7 +55,7 @@ const scrim = computed(() => ({
       :key="source"
       :src="source"
       alt=""
-      class="size-full object-cover"
+      class="img-skeleton size-full object-cover"
       :style="{ objectPosition: position }"
       decoding="async"
     >

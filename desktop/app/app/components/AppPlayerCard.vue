@@ -41,7 +41,7 @@ const title = computed(() => (state.value.connected ? (state.value.riotId ?? 'Lo
   <UTooltip v-if="compact" :text="`${title} · ${status.label}`">
     <div class="relative size-10 shrink-0">
       <div class="size-full overflow-hidden rounded-lg bg-ink-800 ring-1 ring-default">
-        <img v-if="icon && state.connected" :src="icon" alt="" class="size-full object-cover">
+        <img v-if="icon && state.connected" :src="icon" alt="" class="img-skeleton size-full object-cover">
         <div v-else class="flex size-full items-center justify-center">
           <UIcon name="i-lucide-user-round" class="size-5 text-dimmed" />
         </div>
@@ -52,7 +52,7 @@ const title = computed(() => (state.value.connected ? (state.value.riotId ?? 'Lo
   <div v-else class="surface flex items-center gap-3 rounded-xl p-2.5">
     <div class="relative shrink-0">
       <div class="size-10 overflow-hidden rounded-lg bg-ink-800 ring-1 ring-default">
-        <img v-if="icon && state.connected" :src="icon" alt="" class="size-full object-cover">
+        <img v-if="icon && state.connected" :src="icon" alt="" class="img-skeleton size-full object-cover">
         <div v-else class="flex size-full items-center justify-center">
           <UIcon name="i-lucide-user-round" class="size-5 text-dimmed" />
         </div>

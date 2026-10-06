@@ -110,7 +110,7 @@ const showPanel = computed(() => open.value && term.value.trim().length > 0)
           class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accented"
           @click="pickChampion(champion.id)"
         >
-          <img v-if="portraitOf(champion.id)" :src="portraitOf(champion.id)!" alt="" class="size-6 rounded">
+          <img v-if="portraitOf(champion.id)" :src="portraitOf(champion.id)!" alt="" class="img-skeleton size-6 rounded">
           <span class="text-highlighted">{{ champion.name }}</span>
           <span class="ml-auto text-[11px] text-dimmed">Filter</span>
         </button>
@@ -144,7 +144,7 @@ const showPanel = computed(() => open.value && term.value.trim().length > 0)
             :key="id"
             :src="championById.get(id)?.iconUrl"
             :alt="championById.get(id)?.name"
-            class="size-5 rounded-sm"
+            class="img-skeleton size-5 rounded-sm"
             :class="id === championId ? 'ring-1 ring-primary' : ''"
           >
         </span>

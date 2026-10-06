@@ -46,6 +46,13 @@ const props = defineProps<{
    * keeps the loading box while its map is in flight.
    */
   settled?: boolean
+  /**
+   * The picture has transparent pixels (a lane glyph, a rune). Ignored here —
+   * the skeleton is taken down on `load` — but the app's twin, which cannot
+   * wait for `load`, draws its skeleton *behind* the picture and must not for
+   * these, or it would show through them. Shared components pass it for both.
+   */
+  transparent?: boolean
 }>()
 
 const loaded = ref(false)

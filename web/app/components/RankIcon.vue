@@ -31,20 +31,39 @@ const iconUrl = computed(() => {
   if (!tier) return null
   return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${tier}.svg`
 })
+
+// The crest is transparent, so the skeleton cannot sit behind it: it stands in
+// its place until `load`, as in SkeletonImage — including the check for a crest
+// that finished loading before hydration attached the listener.
+const loaded = ref(false)
+watch(iconUrl, () => (loaded.value = false))
+const imgEl = ref<HTMLImageElement | null>(null)
+onMounted(() => {
+  if (imgEl.value?.complete && imgEl.value.naturalWidth > 0) loaded.value = true
+})
 </script>
 
 <template>
-  <img
+  <span
     v-if="iconUrl"
-    :src="ipx(iconUrl, { width: dim, height: dim })"
-    :alt="`${tier} rank`"
-    :title="tier ?? undefined"
-    :width="dim"
-    :height="dim"
-    :loading="loading"
-    class="shrink-0"
+    class="relative inline-block shrink-0"
     :style="{ width: `${dim}px`, height: `${dim}px` }"
   >
+    <USkeleton v-if="!loaded" class="absolute inset-0 rounded-full" />
+    <img
+      ref="imgEl"
+      :src="ipx(iconUrl, { width: dim, height: dim })"
+      :alt="`${tier} rank`"
+      :title="tier ?? undefined"
+      :width="dim"
+      :height="dim"
+      :loading="loading"
+      class="block size-full transition-opacity duration-150"
+      :class="loaded ? 'opacity-100' : 'opacity-0'"
+      @load="loaded = true"
+      @error="loaded = true"
+    >
+  </span>
   <div
     v-else
     class="shrink-0 rounded bg-elevated/40"

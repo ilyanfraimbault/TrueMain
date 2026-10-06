@@ -44,7 +44,7 @@ const groups = computed(() => [
     <div v-for="group in groups" :key="group.label" class="flex flex-col gap-0.5">
       <h3 v-if="group.opponent" class="flex items-center gap-1.5 px-2 pb-1 stat-label">
         VS
-        <img v-if="portraitOf(group.opponent)" :src="portraitOf(group.opponent)!" :alt="nameOf(group.opponent)" :title="nameOf(group.opponent)" class="size-4 rounded">
+        <img v-if="portraitOf(group.opponent)" :src="portraitOf(group.opponent)!" :alt="nameOf(group.opponent)" :title="nameOf(group.opponent)" class="img-skeleton size-4 rounded">
       </h3>
       <h3 v-else class="truncate px-2 pb-1 stat-label">{{ group.label }}</h3>
 

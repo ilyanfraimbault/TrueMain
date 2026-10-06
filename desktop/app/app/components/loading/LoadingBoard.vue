@@ -70,7 +70,7 @@ const rate = (player: LoadingPlayer) => {
             v-if="portraitOf(player.championId)"
             :src="portraitOf(player.championId)!"
             :alt="nameOf(player.championId)"
-            class="size-7 shrink-0 rounded ring-1"
+            class="img-skeleton size-7 shrink-0 rounded ring-1"
             :class="index === 0 ? 'ring-ally/50' : 'ring-enemy/50'"
           >
           <span v-else class="size-7 shrink-0 rounded bg-elevated" />

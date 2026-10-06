@@ -4,10 +4,12 @@
 
   - No `_ipx` URL: the app has no image server, so the source is used as given.
   - No opacity gate on `load`: an image with a source is drawn as soon as it
-    decodes, with no skeleton behind it (rune icons are transparent, and one
-    would show through). WKWebView, in the packaged app, never reported `load`
-    for images inserted after the first one (see `ChampionArt.vue`), so an icon
-    waiting for it to fade in would stay invisible for good.
+    decodes. WKWebView, in the packaged app, never reported `load` for images
+    inserted after the first one (see `ChampionArt.vue`), so an icon waiting
+    for it to fade in would stay invisible for good. The loading skeleton is
+    painted *behind* the picture instead (`img-skeleton`, main.css), which the
+    picture covers once decoded — except for a `transparent` one (lane glyphs,
+    runes), where it would show through and is left out.
 
   Same props, same placeholder states (`pending`, `settled`, `fallback`), so the
   twinned tooltip and core-view components use it exactly as the site does.
@@ -30,6 +32,8 @@ const props = defineProps<{
   pending?: boolean
   /** The caller's source is final: an empty slot draws the hollow "no icon" box. */
   settled?: boolean
+  /** Transparent pixels (a lane glyph, a rune): no skeleton behind the picture. */
+  transparent?: boolean
 }>()
 
 const failed = ref(false)
@@ -65,6 +69,7 @@ watch(() => props.src, () => (failed.value = false))
         :title="title"
         :loading="loading"
         class="relative size-full"
+        :class="!transparent && 'img-skeleton'"
         @error="failed = true"
       >
     </span>

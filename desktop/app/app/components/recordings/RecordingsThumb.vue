@@ -32,12 +32,12 @@ const ago = computed(() => formatRelativeTime(new Date(props.item.atMs).toISOStr
       v-if="thumbnail"
       :src="thumbnail"
       alt=""
-      class="size-full object-cover"
+      class="img-skeleton size-full object-cover"
       loading="lazy"
       @error="failed = true"
     >
     <template v-else>
-      <img v-if="splash" :src="splash" alt="" class="size-full object-cover object-[70%_20%] opacity-35" loading="lazy">
+      <img v-if="splash" :src="splash" alt="" class="img-skeleton size-full object-cover object-[70%_20%] opacity-35" loading="lazy">
       <UIcon v-else name="i-lucide-film" class="absolute left-1/2 top-1/2 size-7 -translate-1/2 text-ink-700" />
     </template>
 

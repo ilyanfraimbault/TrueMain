@@ -69,6 +69,7 @@ defineEmits<{
             >
               <SkeletonImage
                 :src="option.iconUrl"
+                transparent
                 :alt="option.label"
                 :width="18"
                 :height="18"
@@ -103,6 +104,7 @@ defineEmits<{
             >
               <SkeletonImage
                 :src="option.iconUrl"
+                transparent
                 :alt="option.label"
                 :width="18"
                 :height="18"

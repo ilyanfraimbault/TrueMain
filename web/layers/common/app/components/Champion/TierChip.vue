@@ -93,6 +93,7 @@ const ariaLabel = computed(() => {
       <SkeletonImage
         v-if="positionOption?.iconUrl"
         :src="positionOption.iconUrl"
+        transparent
         :alt="positionOption.label"
         :width="18"
         :height="18"
