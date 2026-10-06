@@ -975,6 +975,10 @@ candidats — ne tient pas dans une query string, et qu'elle change à chaque pi
   côté allié plutôt que la table des scopes, qui ne couvre que les champions que
   notre population *main* — un champion que personne ne main n'aurait sinon aucune
   distribution de lane, précisément sur les picks rares où le devin sert le plus.
+  Ce prior **ignore `eloBracket`** et agrège toutes les tranches d'elo, alors que
+  les deltas des candidats (matchup, blind, force, synergie, équipe ennemie)
+  respectent la tranche demandée : la lane d'un champion bouge à peine avec le
+  rang, et découper par tranche aveuglerait le prior sur les picks rares (#1707).
 - `confidence` ∈ [0, 1] mesure de combien la draft se lit moins bien si le champion
   change de lane ; **0,5 est un pile ou face** entre deux lectures, pas "à moitié
   juste". `laneOpponentChampionId` est `null` tant qu'aucun ennemi n'est placé sur
