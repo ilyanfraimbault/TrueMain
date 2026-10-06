@@ -215,6 +215,25 @@ migration succeeding, so a failed script blocks the image roll
 and uploaded as an artifact with 90-day retention, the only place the SQL is
 visible before it applies.
 
+### Migration over SSH
+
+GitHub-hosted runners intermittently cannot reach the VPS: the connection
+times out upstream of the host, nothing shows in its auth log, and the same job
+re-run minutes later passes (#1568). Release `1.22.0` failed its migration step
+that way. `apply-migration.sh` pipes the script into the host with a bounded
+retry: four attempts, 15, 30 then 60 seconds apart, each with a 30-second
+`ConnectTimeout`, so the worst case stays well inside the job's 15 minutes.
+
+Only ssh's own failures are retried. ssh exits 255 when it cannot connect or
+authenticate, and with the remote command's status otherwise, so a script that
+reached `psql` and failed is reported at once and never re-run behind a retry.
+A retry after a connection dropped mid-script is safe anyway: the script is
+idempotent, so whatever part of it had already applied is skipped the second
+time. When all four attempts fail,
+nothing was applied and the deploy job does not run: re-run the failed jobs.
+`.github/scripts/apply-migration.test.sh` pins the behaviour with an `ssh` stub
+and runs in the `deploy-scripts` CI job.
+
 Each deploy workflow takes a **workflow-level** concurrency group with
 `cancel-in-progress: false`. On preprod the rc counter is derived from the
 tags already on the remote, so two runs resolving a version at once would land
