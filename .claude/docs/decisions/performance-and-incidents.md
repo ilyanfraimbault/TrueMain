@@ -12,9 +12,25 @@ a caller who walks away must not cancel the pass the others are waiting on — s
 
 **Postgres runs with `max_parallel_workers_per_gather=0` in every compose file — do not re-enable.**
 2026-06-25 prod crash-loop: `53100: could not resize shared memory segment` — per-worker DSM segments
-exhausting the container's 256 MB `/dev/shm` in bursts. EF read it as transient and retried, which under
-`restart: unless-stopped` became an API + ingestor crash loop. Disabling beat raising `shm_size` because it is
-deterministic (raising only moves the ceiling) and the API workload is index/PK reads — #589.
+exhausting the container's 256 MB `/dev/shm` in bursts. EF flagged it as a transient failure — but no context
+ran a retrying strategy then, so nothing replayed the query: the error killed the request or the pass, and
+`restart: unless-stopped` turned that into an API + ingestor crash loop (corrected 2026-10-06, #1634: the entry
+used to say "EF retried"). Disabling beat raising `shm_size` because it is deterministic (raising only moves the
+ceiling) and the API workload is index/PK reads — #589.
+
+**The API retries transient Npgsql failures; the Ingestor does not (2026-10-06).** The API's context runs
+`TransientConnectionRetryStrategy` (`Data/TransientConnectionRetryStrategy.cs`, opted in through
+`AddTrueMainData(..., retryTransientFailures: true)`): up to 3 replays, backoff capped at 5 s, on what Npgsql
+flags transient — a dropped connection, a PgBouncer or Postgres restart (`57P01`), `53300` too many connections.
+Safe there because the API's Postgres access is read-only and idempotent, with no explicit transaction (a
+retrying strategy rejects any `BeginTransaction` not wrapped in `CreateExecutionStrategy().ExecuteAsync`).
+Client-side timeouts are excluded although Npgsql flags them transient: with `Command Timeout=300` a timed-out
+query would run three more times against an already slow database, and an exhausted pool reports the same way.
+Cost accepted: a retrying strategy buffers each result set before materialising it; the API has no streaming
+read (`AsAsyncEnumerable`), every read is already a capped `ToList`, so the copy is transient and bounded by the
+same caps. The **Ingestor keeps the default non-retrying strategy**: its writes go through explicit
+transactions (`IDataSession`) that are not replayable units of work, and a failed pass already replays on the
+next cycle — #1634.
 
 **Consequence: every heavy aggregate runs single-threaded, so batch work must be chunked.**
 Three separate 300 s command-timeout incidents followed — pattern aggregation's `DISTINCT ChampionId` scan
