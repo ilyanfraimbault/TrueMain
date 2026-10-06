@@ -320,6 +320,7 @@ Last verified against `develop` on 2026-09-02.
 - Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
 - The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
 - A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
+- The Ingestor's own meter is folded into Mongo per minute and shown on the Riot API tab — no OpenTelemetry pipeline, no tracing (2026-10-05) — #1636
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 

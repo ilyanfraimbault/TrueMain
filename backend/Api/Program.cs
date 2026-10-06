@@ -367,6 +367,7 @@ builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
 builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
 builder.Services.AddScoped<IRiotQuotaQueryService, RiotQuotaQueryService>();
+builder.Services.AddScoped<IIngestorMetricsQueryService, IngestorMetricsQueryService>();
 builder.Services.AddScoped<IIncompleteMatchesQueryService, IncompleteMatchesQueryService>();
 builder.Services.AddScoped<IMatchDataQualityDetailQueryService, MatchDataQualityDetailQueryService>();
 builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService>();
