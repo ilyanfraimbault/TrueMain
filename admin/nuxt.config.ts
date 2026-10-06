@@ -13,6 +13,7 @@ export default defineNuxtConfig({
     'nuxt-charts',
     '@vueuse/nuxt',
     'nuxt-auth-utils',
+    '@nuxt/eslint',
   ],
   // Namespace upstream nuxt-charts components under `Nc*` (same convention as
   // `web/`) so app-level chart wrappers can embed the upstream chart without

@@ -9,6 +9,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "typecheck": "nuxt typecheck",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -23,9 +24,12 @@
     "vue": "^3.5.43"
   },
   "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
     "@types/node": "^26.6.4",
     "@vitejs/plugin-vue": "^6.0.9",
     "@vue/test-utils": "^2.5.1",
+    "eslint": "^10.12.0",
+    "eslint-plugin-vuejs-accessibility": "^2.6.0",
     "happy-dom": "^20.14.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
