@@ -265,6 +265,9 @@ jobs:
       - name: Rollout verification
         run: .github/scripts/verify-rollout.test.sh
 
+      - name: Migration over SSH
+        run: .github/scripts/apply-migration.test.sh
+
       - name: Edge verification
         run: .github/scripts/verify-edge.test.sh
 

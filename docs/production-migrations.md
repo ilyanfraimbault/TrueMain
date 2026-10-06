@@ -215,7 +215,9 @@ The migrate job, in each workflow:
    `PROD_SSH_HOST_KEY` repo variable rather than trusted fresh from
    `ssh-keyscan` on every run, which would only be TOFU-per-run (no real
    protection, since ephemeral runners never have a prior-trusted
-   `known_hosts` to compare against).
+   `known_hosts` to compare against). A connection that never gets through
+   is attempted up to four times; a script that ran and failed is not
+   (`docs/ci.md`, *Migration over SSH*, #1568).
 
 The credential used inside the container is the same `POSTGRES_USER` the app
 connects with — there is no separate restricted migration-only role today.
