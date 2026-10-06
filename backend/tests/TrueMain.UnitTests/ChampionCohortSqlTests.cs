@@ -38,6 +38,7 @@ public sealed class ChampionCohortSqlTests
         sql.Should().Contain("\"RiotAccountId\" IS NOT NULL", "it is the partial index's filter");
         sql.Should().Contain("\"IsMain\"", "the cohort is the champion's mains");
         sql.Should().Contain("\"GameDurationSeconds\" >= 300", "a remake is not a game");
+        sql.Should().Contain("\"EndedInEarlySurrender\"", "nor is a match Riot flagged as a remake (#1364)");
         sql.Should().Contain("\"QueueId\"");
         sql.Should().Contain("\"Patch\"");
         sql.Should().Contain("main_champion_stats");
@@ -52,6 +53,7 @@ public sealed class ChampionCohortSqlTests
         var sql = ChampionCohort.Games(db, 420, null).ToQueryString();
 
         sql.Should().Contain("\"GameDurationSeconds\" >= 300");
+        sql.Should().Contain("\"EndedInEarlySurrender\"", "Riot's remake flag is the other half of the rule (#1364)");
         sql.Should().Contain("\"QueueId\"");
         sql.Should().NotContain("main_champion_stats");
     }
@@ -68,6 +70,7 @@ public sealed class ChampionCohortSqlTests
         sql.Should().Contain("jsonb_array_elements", "the purchase unnest stays in SQL");
         sql.Should().Contain("\"IsMain\"", "the cohort is composed into the same statement");
         sql.Should().Contain("\"GameDurationSeconds\" >= 300");
+        sql.Should().Contain("\"EndedInEarlySurrender\"", "Riot's remake flag is the other half of the rule (#1364)");
         sql.Should().Contain("GROUP BY");
         sql.Should().Contain("HAVING", "the sample floor is applied before rows cross the wire");
         sql.Should().Contain("ORDER BY");

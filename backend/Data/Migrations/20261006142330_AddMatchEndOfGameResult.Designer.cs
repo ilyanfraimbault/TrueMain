@@ -7,6 +7,7 @@ using Data.Entities;
 using Data.ItemContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -15,9 +16,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Data.Migrations
 {
     [DbContext(typeof(TrueMainDbContext))]
-    partial class TrueMainDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006142330_AddMatchEndOfGameResult")]
+    partial class AddMatchEndOfGameResult
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -113,10 +116,7 @@ namespace Data.Migrations
                     b.HasIndex("ScopeId", "BuildId", "RunePageId", "SkillOrderId", "SpellPairId", "StarterItemsId")
                         .IsUnique();
 
-                    b.ToTable("champion_aggregate_patterns", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_aggregate_patterns_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_aggregate_patterns", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionAggregateScope", b =>
@@ -200,12 +200,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1");
 
-                    b.ToTable("champion_aggregate_scopes", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_aggregate_scopes_PositionOrNoLane", "\"Position\" IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY', '')");
-
-                            t.HasCheckConstraint("CK_champion_aggregate_scopes_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_aggregate_scopes", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionBanStat", b =>
@@ -499,10 +494,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_item_context_stats_grain");
 
-                    b.ToTable("champion_item_context_stats", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_item_context_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_item_context_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionItemContextTotal", b =>
@@ -557,10 +549,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_item_context_totals_grain");
 
-                    b.ToTable("champion_item_context_totals", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_item_context_totals_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_item_context_totals", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionItemContextVerdict", b =>
@@ -629,10 +618,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_item_context_verdicts_grain");
 
-                    b.ToTable("champion_item_context_verdicts", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_item_context_verdicts_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_item_context_verdicts", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionMatchupStat", b =>
@@ -714,16 +700,7 @@ namespace Data.Migrations
                     b.HasIndex("ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "EloBracket")
                         .IsUnique();
 
-                    b.ToTable("champion_matchup_stats", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_matchup_stats_CanonicalTeamPosition", "\"TeamPosition\" IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')");
-
-                            t.HasCheckConstraint("CK_champion_matchup_stats_LaneGamesWithinGames", "\"LaneGames\" <= \"Games\"");
-
-                            t.HasCheckConstraint("CK_champion_matchup_stats_OpponentChampionId", "\"OpponentChampionId\" > 0");
-
-                            t.HasCheckConstraint("CK_champion_matchup_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_matchup_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionNextItemTerm", b =>
@@ -793,10 +770,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_next_item_terms_grain");
 
-                    b.ToTable("champion_next_item_terms", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_next_item_terms_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_next_item_terms", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionOpponentBaselineStat", b =>
@@ -843,12 +817,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_opponent_baseline_stats_grain");
 
-                    b.ToTable("champion_opponent_baseline_stats", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_opponent_baseline_stats_CanonicalTeamPosition", "\"TeamPosition\" IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')");
-
-                            t.HasCheckConstraint("CK_champion_opponent_baseline_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_opponent_baseline_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionOpponentStat", b =>
@@ -898,14 +867,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_opponent_stats_grain");
 
-                    b.ToTable("champion_opponent_stats", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_opponent_stats_CanonicalTeamPosition", "\"TeamPosition\" IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')");
-
-                            t.HasCheckConstraint("CK_champion_opponent_stats_OpponentChampionId", "\"OpponentChampionId\" > 0");
-
-                            t.HasCheckConstraint("CK_champion_opponent_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_opponent_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionProfileStat", b =>
@@ -1023,12 +985,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_profile_stats_grain");
 
-                    b.ToTable("champion_profile_stats", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_profile_stats_CanonicalPosition", "\"Position\" IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')");
-
-                            t.HasCheckConstraint("CK_champion_profile_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_profile_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionSynergyBaselineStat", b =>
@@ -1078,12 +1035,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_synergy_baseline_stats_grain");
 
-                    b.ToTable("champion_synergy_baseline_stats", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_synergy_baseline_stats_CanonicalTeamPosition", "\"TeamPosition\" IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')");
-
-                            t.HasCheckConstraint("CK_champion_synergy_baseline_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_synergy_baseline_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionSynergyStat", b =>
@@ -1136,16 +1088,7 @@ namespace Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_champion_synergy_stats_grain");
 
-                    b.ToTable("champion_synergy_stats", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_champion_synergy_stats_CanonicalPartnerPosition", "\"PartnerPosition\" IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')");
-
-                            t.HasCheckConstraint("CK_champion_synergy_stats_CanonicalTeamPosition", "\"TeamPosition\" IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')");
-
-                            t.HasCheckConstraint("CK_champion_synergy_stats_PartnerChampionId", "\"PartnerChampionId\" > 0");
-
-                            t.HasCheckConstraint("CK_champion_synergy_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
-                        });
+                    b.ToTable("champion_synergy_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.DiscoveryCursor", b =>
@@ -1590,8 +1533,7 @@ namespace Data.Migrations
 
                     b.Property<List<ItemEvent>>("ItemEvents")
                         .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasAnnotation("Npgsql:Compression:", "lz4");
+                        .HasColumnType("jsonb");
 
                     b.Property<int>("Kills")
                         .HasColumnType("integer");
@@ -1648,8 +1590,7 @@ namespace Data.Migrations
 
                     b.Property<List<SkillEvent>>("SkillEvents")
                         .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasAnnotation("Npgsql:Compression:", "lz4");
+                        .HasColumnType("jsonb");
 
                     b.Property<int>("SubStyleId")
                         .HasColumnType("integer");
