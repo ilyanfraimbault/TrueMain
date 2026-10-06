@@ -116,8 +116,16 @@ public sealed class MatchSummariesQueryService(
         // The page slice carries the self participant id straight out of the
         // ordering query, so hydration needs no second lookup to know whose
         // slice of each match the row renders.
+        //
+        // Offset paging on purpose (#1635): the depth is one player's history,
+        // the count above already reads every row the slice could skip, and no
+        // index yields a player's matches pre-sorted by start time, so a seek
+        // would save nothing but the top-N sort. The id tie-break makes the
+        // ordering unique, so two matches sharing a start time can never repeat
+        // or vanish between pages.
         var pageKeys = await matchesQuery
             .OrderByDescending(m => m.GameStartTimeUtc)
+            .ThenByDescending(m => m.Id)
             .Skip((clampedPage - 1) * clampedPageSize)
             .Take(clampedPageSize)
             .Select(m => new

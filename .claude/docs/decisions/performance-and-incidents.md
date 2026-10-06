@@ -12,9 +12,25 @@ a caller who walks away must not cancel the pass the others are waiting on — s
 
 **Postgres runs with `max_parallel_workers_per_gather=0` in every compose file — do not re-enable.**
 2026-06-25 prod crash-loop: `53100: could not resize shared memory segment` — per-worker DSM segments
-exhausting the container's 256 MB `/dev/shm` in bursts. EF read it as transient and retried, which under
-`restart: unless-stopped` became an API + ingestor crash loop. Disabling beat raising `shm_size` because it is
-deterministic (raising only moves the ceiling) and the API workload is index/PK reads — #589.
+exhausting the container's 256 MB `/dev/shm` in bursts. EF flagged it as a transient failure — but no context
+ran a retrying strategy then, so nothing replayed the query: the error killed the request or the pass, and
+`restart: unless-stopped` turned that into an API + ingestor crash loop (corrected 2026-10-06, #1634: the entry
+used to say "EF retried"). Disabling beat raising `shm_size` because it is deterministic (raising only moves the
+ceiling) and the API workload is index/PK reads — #589.
+
+**The API retries transient Npgsql failures; the Ingestor does not (2026-10-06).** The API's context runs
+`TransientConnectionRetryStrategy` (`Data/TransientConnectionRetryStrategy.cs`, opted in through
+`AddTrueMainData(..., retryTransientFailures: true)`): up to 3 replays, backoff capped at 5 s, on what Npgsql
+flags transient — a dropped connection, a PgBouncer or Postgres restart (`57P01`), `53300` too many connections.
+Safe there because the API's Postgres access is read-only and idempotent, with no explicit transaction (a
+retrying strategy rejects any `BeginTransaction` not wrapped in `CreateExecutionStrategy().ExecuteAsync`).
+Client-side timeouts are excluded although Npgsql flags them transient: with `Command Timeout=300` a timed-out
+query would run three more times against an already slow database, and an exhausted pool reports the same way.
+Cost accepted: a retrying strategy buffers each result set before materialising it; the API has no streaming
+read (`AsAsyncEnumerable`), every read is already a capped `ToList`, so the copy is transient and bounded by the
+same caps. The **Ingestor keeps the default non-retrying strategy**: its writes go through explicit
+transactions (`IDataSession`) that are not replayable units of work, and a failed pass already replays on the
+next cycle — #1634.
 
 **Consequence: every heavy aggregate runs single-threaded, so batch work must be chunked.**
 Three separate 300 s command-timeout incidents followed — pattern aggregation's `DISTINCT ChampionId` scan
@@ -64,6 +80,31 @@ PgBouncer with waits up to 11 s, and API requests hung until the visitor's 60 s 
 timeout with a logged error; PgBouncer's `QUERY_WAIT_TIMEOUT` is 30 s for every client, ingestors included, well
 above the longest wait measured under overload (11 s), so it only ends a wait that would otherwise last minutes.
 The ingestors keep their own caps (40 each).
+
+## Postgres enforces server-side timeouts, scoped through PgBouncer databases (2026-10-06)
+
+**The API gets `statement_timeout = 60s`, every pooled session `idle_in_transaction_session_timeout = 60s`, and
+the migration script `lock_timeout = 5s`.** Until then the only guard was the client-side `Command Timeout=300`:
+a runaway API read kept running on the server, a session idle inside a transaction held its locks and vacuum back
+(#1366), and a migration's DDL waiting on a lock queued every later query on that table behind it.
+
+- *Where each one is set.* The API and the ingestors connect as the same Postgres user and, in transaction
+  mode, share server connections, so neither a role setting (`ALTER ROLE … SET`) nor a session `SET` can tell
+  them apart, and PgBouncer refuses a `statement_timeout` passed in the startup `options` because it cannot
+  track it. PgBouncer therefore serves two databases on the same Postgres database, `${POSTGRES_DB}` for the
+  ingestors and `${POSTGRES_DB}_api` for the API, whose `connect_query` sets the timeouts on each new server
+  connection. A separate API role would have done the same with new secrets on both hosts; it is not needed
+  for this.
+- *The ingestors keep their 300 s budget.* Chunked folds legitimately run long (#603, #632, #988), so they get
+  no `statement_timeout`. Their transactions wrap writes only (the folds and Riot calls run before `BEGIN`),
+  which is why 60 s idle-in-transaction is ample.
+- *Capacity is unchanged.* Two databases mean two pools of 25 + 5; `max_user_connections = 30` caps them together
+  at what the single shared pool allowed.
+- *A blocked migration fails, then retries.* The script is applied in one transaction, so a lock timeout leaves
+  nothing behind; the `migrate` job retries it three times, 30 s apart, and a failure blocks the deploy.
+  `ON_ERROR_STOP` is part of the script itself, so a failure can never exit 0.
+
+Source: #1631; `docs/prod.md` (*Connection pools*), `docs/production-migrations.md`.
 
 ## Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02)
 
@@ -254,3 +295,34 @@ to `true`) — #1618.
   argument for `true` is CDN caching of the payload file, and there is no CDN — the request went back to the
   same container. The gain is small (one tiny request on three low-traffic pages); it is taken because it is
   free and aligns with the next major's default, not because it moves the main pages.
+
+## Paginated reads stay on offset paging; keyset waits for a measured cost (2026-10-06)
+
+**Decision:** every paginated read keeps `page`/`pageSize` offset paging. An endpoint moves to keyset (seek)
+pagination with an opaque cursor only once `EXPLAIN (ANALYZE, BUFFERS)` in preprod, at a page actually reached,
+shows the skipped rows costing something the rest of the query does not already pay — #1635 (product owner,
+2026-10-05: "measure first", P3).
+
+Why, endpoint by endpoint, from the code:
+
+- **`GET /truemains/{nameTag}/matches`** (`MatchSummariesQueryService`) — the only public SQL `OFFSET` of the
+  four the issue listed. Its depth is one player's ranked history. The `COUNT` that feeds the page control
+  already reads every match the slice could skip, through `match_participants ("Puuid", "MatchId")`, and no
+  index hands a player's matches pre-sorted by `GameStartTimeUtc` (the filter is on participants, the order on
+  matches), so Postgres sorts the player's whole set whatever the page. A seek would save the top-N sort's
+  extra rows, not the scan — and would cost the jump-to-page the UI offers. The ordering gained an `Id`
+  tie-break so it is unique: without it two matches sharing a start time could repeat or vanish across pages.
+- **`GET /ops/candidates`** (`CandidateQueryService`) — admin-only, paged by an operator. Same shape: the
+  numbered pager needs the filtered `COUNT`, which reads the whole filtered set, and the free-text `ILIKE`
+  search cannot seek an index anyway. Its ordering was already unique (`Score`, `DiscoveredAtUtc`, `Id`).
+- **Composition games** (`CompositionRecommendationQueryService.GetGamesAsync`) and **`GET /ops/data-quality`**
+  (`IncompleteMatchesQueryService`) — no SQL offset at all: both slice an in-memory list (the cached match
+  selection; at most `CandidateScanLimit` = 5000 scanned headers), so their depth is bounded by construction.
+- **The leaderboard's rank ordering** does run `LIMIT … OFFSET` on `IX_riot_accounts_score` (only the
+  dedication and stat orderings slice an in-memory id list). It stays too: its `COUNT` evaluates the same
+  eligibility `EXISTS` over the whole population, and each page's response is cached.
+
+↳ **What keyset would have cost.** An opaque cursor drops "go to page N" and the shareable `?page=` URLs the
+match history and the leaderboard carry, for a gain bounded by what the `COUNT` already spends. Revisit only
+when a measurement shows otherwise — and for a migrated endpoint, check that an index serves the chosen
+`(sort key, Id)` ordering first, since a seek without one is still a sort.

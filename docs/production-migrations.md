@@ -136,6 +136,52 @@ below), so the actual `migrate` job of the rollout pipes the script
 into `psql` inside the running container over SSH instead — same
 `--single-transaction` flag, different transport.
 
+### A blocked migration fails fast instead of queueing traffic
+
+The generated script opens with a session guard (#1631), added by the
+`.github/actions/migration-script` action, so CI validates the same file the
+rollout applies:
+
+```sql
+\set ON_ERROR_STOP on
+SET lock_timeout = '5s';
+SET statement_timeout = '10min';
+```
+
+- **`lock_timeout`.** A DDL statement waits for an `ACCESS EXCLUSIVE` lock
+  behind every transaction already reading the table, and every query that
+  arrives after it queues behind the DDL. One long ingestor read was enough to
+  stall the API's reads of that table for the whole wait. The DDL now gives up
+  after 5 s, so the queue it builds lasts 5 s at most.
+- **`statement_timeout`.** 10 minutes, below the `migrate` job's 15-minute
+  timeout, so a statement that outruns it is cancelled by Postgres instead of
+  left running after the runner has gone. A migration that legitimately needs
+  longer (a heavy transactional index build) raises it with its own `SET` in
+  that migration's SQL.
+- **`ON_ERROR_STOP`.** Without it psql keeps reading after an error, the
+  transaction ends in a rollback, and psql still exits 0, which would let the
+  deploy roll new images onto the old schema. The guard makes the failure
+  visible whatever flags the VPS's forced command
+  (`/usr/local/bin/apply-migration.sh`) passes.
+
+**Retry behaviour.** The whole script runs in one transaction
+(`--single-transaction`), so a lock timeout rolls back every statement before
+it and leaves the database exactly as it was. The `migrate` job's
+`.github/scripts/apply-migration.sh` retries an attempt that failed on a lock
+timeout up to three attempts, 30 s apart, on a schedule kept apart from its SSH
+connection retries; any other SQL error fails the job at once (`docs/ci.md`,
+*Migration over SSH*). If all three attempts lose, the deploy does not run and
+the old images keep serving the old schema, which is consistent. Find the
+blocker before re-running the workflow — a long ingestor fold is the usual
+one:
+
+```sql
+SELECT pid, application_name, state, now() - xact_start AS xact_age, left(query, 80)
+FROM pg_stat_activity
+WHERE datname = current_database() AND xact_start IS NOT NULL
+ORDER BY xact_start;
+```
+
 ### A migration that depends on a server setting runs before the setting exists
 
 The rollout's `migrate` job deliberately runs **before** the deploy job rolls
@@ -215,7 +261,9 @@ The migrate job, in each workflow:
    `PROD_SSH_HOST_KEY` repo variable rather than trusted fresh from
    `ssh-keyscan` on every run, which would only be TOFU-per-run (no real
    protection, since ephemeral runners never have a prior-trusted
-   `known_hosts` to compare against).
+   `known_hosts` to compare against). A connection that never gets through
+   is attempted up to four times; a script that ran and failed is not
+   (`docs/ci.md`, *Migration over SSH*, #1568).
 
 The credential used inside the container is the same `POSTGRES_USER` the app
 connects with — there is no separate restricted migration-only role today.
