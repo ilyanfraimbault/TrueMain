@@ -32,6 +32,19 @@ Part of the [decision log](../decisions.md). Format: **Decision** — why — `s
   overloading was dropped because it silently competed with the real iteration field the board was already
   using. No milestones.
 
+## The frontends lint with ESLint, with a severity ratchet (2026-10-06)
+
+**Decision:** `web/` (shared layer included), `admin/` and `desktop/app` run ESLint through `@nuxt/eslint` —
+the recommended preset, Vue's rules and `eslint-plugin-vuejs-accessibility` — as `npm run lint`, a CI step in
+each app's job — #1440.
+
+- **Severities are a ratchet**, the reasoning of the file-size guardrail (#1430): a rule clean when the linter
+  landed is an error; each rule already broken sits in its app's `ratchet` list as a warning until its last
+  violation is fixed, then leaves the list. A wall of red on the first run would have got the linter switched off.
+- **Accessibility rules are all warnings first**, an owner's call (2026-10-05): the plugin is the noisiest of
+  the set, and the repo's a11y work (#1402) is the reason to have it at all.
+- Fixing the existing warnings is follow-up work, sized by the first run's per-rule counts in the PR.
+
 ## Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14)
 
 **Decision:** the load test is a k6 script in `loadtest/k6/`, started by hand from `loadtest-preprod.yml` on a
