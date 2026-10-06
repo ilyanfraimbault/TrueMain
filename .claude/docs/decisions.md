@@ -185,7 +185,8 @@ Last verified against `develop` on 2026-09-02.
 
 - Champion aggregates are replace-by-scope on *live* patches only. Old patches are frozen and must never be wiped — #466, #606, #694
 - "Live" is the retained-patch window, not "has at least one match left"; one snapshot per run feeds both the cleanup set and the source rows — #1549
-- Aggregate retention is opt-in per environment: `AggregateRetainedPatchCount` defaults to 0 (frozen forever); preprod sets 2 — #711
+- Aggregate retention is opt-in per environment: `AggregateRetainedPatchCount` defaults to 0 (frozen forever); preprod sets 2 — #711; superseded for production by the two-level retention below once it ships
+- Build aggregates live for the current and previous patch; every patch keeps a light win/pick/ban record per champion × position × elo bracket, written before the full aggregates are dropped (2026-10-06) — #1467
 - Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid — #772, #694, #1599
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
@@ -364,6 +365,7 @@ Last verified against `develop` on 2026-09-02.
 - The app draws the site's components as labelled twin copies, with app behaviour in shims beside them; superseded page by page by the shared layer — #1687, #1732
 - The pages the app shares with the site (champions, tier list, matchup, truemains, favorites) are one implementation in `web/layers/common`, which both apps extend (2026-10-01) — #1732
 - A tab changes on click (the app's own `<Suspense>` over the shared page's await, header + skeleton); a bar across the window's top edge runs on every page load, not only navigations — the site keeps #1689 (2026-10-01) — #1788
+- Installing the app never feeds ingestion: dashboard and pool come from the local client for any account; a tracked main gets a link to their site page, an untracked player no prompt (2026-10-06) — #1682, #1942
 - Dashboard roles come from the participant slot on role-assigning queues, never the client's lane guess; a game's build and skill orders from TrueMain's copy, left out when only the client has the game (2026-10-01) — #1768
 - The build pane shows the site's core without its build path (the tree draws it), runes beside; build rows are icons only; a true main's click shows their own build (2026-09-28) — #1671
 - Icons bundled at build time, hash routing, images drawn without a `load` gate (WKWebView); opaque pictures over an `img-skeleton` background, transparent ones bare (2026-10-06) — #1949

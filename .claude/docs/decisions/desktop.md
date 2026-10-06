@@ -175,6 +175,14 @@ on demand (a Tauri command, not the pushed state — the record only moves when 
 scoreboard once per launch (kill participation, damage share, both teams), and a game's timeline when its row is
 opened (`player_game`), all cached by game.
 
+**Installing the app never feeds the ingestion pipeline (2026-10-06).** The intake #1682 was waiting on is not built:
+the dashboard (profile, history, form tiles, LP curve) and the draft's "My pool" (the client's champion mastery) are
+complete for any account from the local client alone, so an install never enters the mains population nor spends
+the regional ingestion budget — the two things a self-serve intake would have had to defend. A tracked main gets a
+link from the dashboard to their site page (#1942); an untracked player gets no prompt and no empty state. To be
+revisited once the production key (#1363) widens the budget, and in light of DevRel's answer on app-driven intake
+(#1680) — #1682.
+
 The layout went through three rounds. A DPM-style page of widgets of its own (ranked card, recent-games list,
 last-game card, champion podium, chips on the banner) was "not the site"; the site's profile components dropped in
 verbatim then read too tall and out of step with the rest; and the site's match-detail panel, twinned into the
