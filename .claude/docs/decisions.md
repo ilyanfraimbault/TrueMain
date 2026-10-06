@@ -151,6 +151,7 @@ Last verified against `develop` on 2026-09-02.
 - Icon slots are rendered from the ids, never gated on a resolved static lookup
 - Champion-page icons are slow because of browser queue depth, not the image proxy — measure the split before "optimising" it — #680, #997
 - `SkeletonImage` serves WebP; `RankIcon` deliberately does not
+- Every picture shows a skeleton until it has loaded (`SkeletonImage`, `SkeletonPicture`); build-summary inline icons excepted (2026-10-06) — #1949
 - Every icon URL is built by one helper, so one asset is one cache entry — #1000
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
 - `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26); a root-level web↔admin Nuxt layer was rejected (2026-09-17); the site and the desktop app share `web/layers/common` since #1732, the admin does not extend it (2026-10-01); a CI drift check is planned — #1226, #947, #966, #1623, #1732, #1684, #1625
@@ -365,7 +366,7 @@ Last verified against `develop` on 2026-09-02.
 - A tab changes on click (the app's own `<Suspense>` over the shared page's await, header + skeleton); a bar across the window's top edge runs on every page load, not only navigations — the site keeps #1689 (2026-10-01) — #1788
 - Dashboard roles come from the participant slot on role-assigning queues, never the client's lane guess; a game's build and skill orders from TrueMain's copy, left out when only the client has the game (2026-10-01) — #1768
 - The build pane shows the site's core without its build path (the tree draws it), runes beside; build rows are icons only; a true main's click shows their own build (2026-09-28) — #1671
-- Icons bundled at build time, hash routing, images drawn without a `load` gate (WKWebView)
+- Icons bundled at build time, hash routing, images drawn without a `load` gate (WKWebView); opaque pictures over an `img-skeleton` background, transparent ones bare (2026-10-06) — #1949
 - In-game overlay: four panels in their own windows, none before `GameStart` (the loading screen board lives in the app only since 2026-10-04: form on the champion + last ten games as win/loss bars, via the client, names by puuid, #1753, #1803; a Streamer Mode player stays anonymous, nothing read about them; a true main of their champion carries the TrueMain mark alone, figures in its tooltip, one batch lookup per game, 2026-10-05, #1910) — next item (one item, gold still needed or "Can buy now"), win probability (always), your pace (CS/min + curve, gold/min; no damage/min — not in the API), item value (TAB held by default; each panel always, chord held or toggled since #1915); over the game process only, above the captured display, never key, click-through; TAB and the shortcut read from the keyboard's state (no Input Monitoring); macOS and Windows (2026-10-02) — #1673, #1795, #1752
 - The overlay on Windows: the same panels through one platform-neutral driver, each a topmost non-activating layered window, over Borderless/Windowed only (Windows draws nothing over exclusive Full Screen), Alt+Shift+O (2026-10-02) — #1798
 - The overlay goes on the monitor holding the game's window (read while it is frontmost, no permission, no handle on the game), the primary one before any game (2026-10-05) — #1914

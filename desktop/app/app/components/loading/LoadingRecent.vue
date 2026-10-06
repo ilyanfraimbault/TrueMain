@@ -39,7 +39,7 @@ const lane = (game: RecentGame) => (game.position && game.position in LANE_LABEL
               v-if="portraitOf(game.championId)"
               :src="portraitOf(game.championId)!"
               :alt="nameOf(game.championId)"
-              class="size-8 shrink-0 rounded"
+              class="img-skeleton size-8 shrink-0 rounded"
             >
             <div class="min-w-0 leading-tight">
               <p class="flex items-center gap-1.5 text-sm font-semibold text-highlighted">

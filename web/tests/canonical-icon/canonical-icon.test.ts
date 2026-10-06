@@ -119,6 +119,11 @@ describe('canonical icon URLs', () => {
       /^optimizedSrc$/, // SkeletonImage's own computed, itself the helper
       /^ipx\(/, // RankIcon's documented SVG exception
     ]
+    // SkeletonPicture serves the site's own pre-sized captures as given; its
+    // `src` prop is typed as a root-relative path, so no upstream URL fits it.
+    const ALLOWED_SRC_IN: Record<string, RegExp> = {
+      'components/SkeletonPicture.vue': /^src$/,
+    }
 
     const offenders: string[] = []
 
@@ -138,7 +143,8 @@ describe('canonical icon URLs', () => {
         // single-quoted binding is reachable and would otherwise slip through.
         const match = /:src=(?:"([^"]*)"|'([^']*)')/.exec(tag)
         const src = match?.[1] ?? match?.[2]
-        if (src && !ALLOWED_SRC.some(pattern => pattern.test(src.trim()))) {
+        const allowed = [...ALLOWED_SRC, ...(ALLOWED_SRC_IN[rel] ? [ALLOWED_SRC_IN[rel]] : [])]
+        if (src && !allowed.some(pattern => pattern.test(src.trim()))) {
           offenders.push(`${rel}: :src="${src}"`)
         }
       }

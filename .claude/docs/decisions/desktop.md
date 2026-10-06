@@ -129,7 +129,10 @@ packaged app has no server to resolve an icon and a CSP that reaches only Data D
 (`icon.provider: 'none'` + `clientBundle.scan`); Tauri's custom protocol serves files, not an SPA fallback, so a
 history-mode path would 404 on reload; and WKWebView never reported `load` for images inserted after the first,
 which left fade-in-on-load art invisible for good — the twinned `SkeletonImage` therefore draws as soon as it
-decodes (2026-09-27).
+decodes (2026-09-27). The loading skeleton (#1949) waits for no event either: `img-skeleton` paints it as the
+opaque picture's own background, which the decoded picture covers, pulsing for a few cycles only. Transparent
+pictures (lane glyphs — bundled, so instant — runes, rank crests) get none, since it would show through them
+(2026-10-06).
 
 **The beta ships unsigned, as GitHub pre-releases resolved by the site, and updates itself.** The product owner chose
 an unsigned beta over paying for Apple notarisation and a Windows certificate before anyone has used the app; the

@@ -75,7 +75,7 @@ const tierColor = computed(() => {
         <span class="stat-label text-[9px]!">Suggested</span>
         <div class="flex -space-x-1">
           <template v-for="id in suggested.slice(0, 3)" :key="id">
-            <img v-if="portraitOf(id)" :src="portraitOf(id)!" :alt="nameOf(id)" class="size-5 rounded ring-1 ring-ink-950">
+            <img v-if="portraitOf(id)" :src="portraitOf(id)!" :alt="nameOf(id)" class="img-skeleton size-5 rounded ring-1 ring-ink-950">
           </template>
         </div>
       </div>

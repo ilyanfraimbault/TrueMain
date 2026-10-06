@@ -133,6 +133,7 @@ const buildPathOf = (row: DirectoryRow) => (row.topBuild?.itemPath ?? []).slice(
       <SkeletonImage
         v-else-if="POSITION_BY_VALUE.get(row.original.position)"
         :src="POSITION_BY_VALUE.get(row.original.position)!.iconUrl"
+        transparent
         :alt="POSITION_BY_VALUE.get(row.original.position)!.label"
         :title="POSITION_BY_VALUE.get(row.original.position)!.label"
         :width="20"
