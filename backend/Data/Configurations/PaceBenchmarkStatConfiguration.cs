@@ -14,7 +14,7 @@ public sealed class PaceBenchmarkStatConfiguration : IEntityTypeConfiguration<Pa
         entity.Property(e => e.Id).ValueGeneratedOnAdd();
 
         entity.Property(e => e.Patch).IsRequired().HasMaxLength(16);
-        entity.Property(e => e.Tier).IsRequired().HasMaxLength(20);
+        entity.Property(e => e.Tier).IsRequired().HasMaxLength(20).HasConversion<RankTierConverter>();
         entity.Property(e => e.Position).IsRequired().HasMaxLength(16);
         entity.Property(e => e.Minute).IsRequired();
         // Text, per the enum rule (decisions/backend-conventions.md): an aggregate key read

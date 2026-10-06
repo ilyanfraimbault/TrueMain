@@ -1,3 +1,5 @@
+using Core.Lol.Ranking;
+
 namespace Data.Entities;
 
 /// <summary>
@@ -17,10 +19,10 @@ public class LadderSyncCursor
     public string PlatformId { get; set; } = string.Empty;
 
     /// <summary>Riot tier the next page belongs to (e.g. "DIAMOND").</summary>
-    public string Tier { get; set; } = string.Empty;
+    public RankTier Tier { get; set; }
 
     /// <summary>Roman division within <see cref="Tier"/> (e.g. "II").</summary>
-    public string Division { get; set; } = string.Empty;
+    public RankDivision Division { get; set; }
 
     /// <summary>1-based page to fetch next for that (tier, division) slot.</summary>
     public int Page { get; set; }

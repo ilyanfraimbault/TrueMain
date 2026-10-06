@@ -4,7 +4,17 @@ using Data.Repositories;
 
 namespace Ingestor.Ranking;
 
-public sealed record RankSnapshotInput(string Tier, string Division, int LeaguePoints, int? Wins, int? Losses);
+public sealed record RankSnapshotInput(RankTier Tier, RankDivision Division, int LeaguePoints, int? Wins, int? Losses)
+{
+    /// <summary>
+    /// The reading behind a Riot league entry, or <see langword="null"/> when its tier or
+    /// division is blank or not one Riot's ladder has — such an entry carries no rank to store.
+    /// </summary>
+    public static RankSnapshotInput? TryCreate(string? tier, string? division, int leaguePoints, int? wins, int? losses)
+        => RankTiers.TryParseTier(tier, out var parsedTier) && RankTiers.TryParseDivision(division, out var parsedDivision)
+            ? new RankSnapshotInput(parsedTier, parsedDivision, leaguePoints, wins, losses)
+            : null;
+}
 
 public enum RankSnapshotOutcome
 {
@@ -56,7 +66,7 @@ public sealed class RankSnapshotWriter : IRankSnapshotWriter
         // leaderboard can ORDER BY it without recomputing in SQL. Both are
         // idempotent — EF only writes when the value actually changes.
         account.LastRankSyncAtUtc = nowUtc;
-        account.Score = RankScore.Compute(input.Tier, input.Division, input.LeaguePoints);
+        account.Score = RankScore.Compute(input.Tier.ToRiotName(), input.Division.ToRiotName(), input.LeaguePoints);
 
         // Kept current on every reading, including the Unchanged path (#1360): the claim
         // orders by how many games this account has played since we last ingested it, and
@@ -70,8 +80,8 @@ public sealed class RankSnapshotWriter : IRankSnapshotWriter
         }
 
         var unchanged = latest is not null
-            && string.Equals(latest.Tier, input.Tier, StringComparison.Ordinal)
-            && string.Equals(latest.Division, input.Division, StringComparison.Ordinal)
+            && latest.Tier == input.Tier
+            && latest.Division == input.Division
             && latest.LeaguePoints == input.LeaguePoints;
 
         if (unchanged)

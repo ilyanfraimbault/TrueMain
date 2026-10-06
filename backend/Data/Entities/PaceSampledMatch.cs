@@ -1,3 +1,5 @@
+using Core.Lol.Ranking;
+
 namespace Data.Entities;
 
 /// <summary>
@@ -12,7 +14,7 @@ public class PaceSampledMatch
     public string MatchId { get; set; } = string.Empty;
 
     /// <summary>The tier the lobby was counted at — the seed player's.</summary>
-    public string Tier { get; set; } = string.Empty;
+    public RankTier Tier { get; set; }
 
     public DateTime SampledAtUtc { get; set; }
 }

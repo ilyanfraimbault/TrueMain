@@ -41,7 +41,7 @@ internal static class PaceBenchmarkBuilder
             .Where(participant => ChampionCohort.IsCanonicalPosition(participant.TeamPosition))
             .ToDictionary(participant => participant.ParticipantId, participant => participant.TeamPosition);
 
-        return BuildAtTier(match.Patch, match.GameDurationSeconds, tier, positionByParticipant, timeline);
+        return BuildAtTier(match.Patch, match.GameDurationSeconds, tier.Value, positionByParticipant, timeline);
     }
 
     /// <summary>
@@ -53,7 +53,7 @@ internal static class PaceBenchmarkBuilder
     public static List<PaceBenchmarkKey> BuildAtTier(
         string patch,
         int gameDurationSeconds,
-        string tier,
+        RankTier tier,
         IReadOnlyDictionary<int, string> positionByParticipant,
         MatchTimelineDto timeline)
     {
@@ -96,7 +96,7 @@ internal static class PaceBenchmarkBuilder
     /// of them when several tracked accounts disagree. <see langword="null"/> when no tracked
     /// account has a ranked capture — such a lobby has no tier to be a sample of.
     /// </summary>
-    internal static string? ResolveLobbyTier(
+    internal static RankTier? ResolveLobbyTier(
         IReadOnlyCollection<MatchParticipant> participants,
         IReadOnlyDictionary<Guid, List<(DateTime CapturedAtUtc, string? Tier)>> tierHistoryByAccount,
         DateTime gameStartUtc)
@@ -113,7 +113,7 @@ internal static class PaceBenchmarkBuilder
 
         return ladderIndexes.Count == 0
             ? null
-            : EloBracket.Ladder[ladderIndexes[(ladderIndexes.Count - 1) / 2]];
+            : RankTiers.ParseTier(EloBracket.Ladder[ladderIndexes[(ladderIndexes.Count - 1) / 2]]);
     }
 
     /// <summary>Sums a batch's bin increments into one count per key, the shape the upsert takes.</summary>
@@ -123,7 +123,7 @@ internal static class PaceBenchmarkBuilder
             .Select(group => new PaceBenchmarkCount(group.Key, group.LongCount()))
             .ToList();
 
-    private static PaceBenchmarkKey Key(string patch, string tier, string position, int minute, PaceMetric metric, int value)
+    private static PaceBenchmarkKey Key(string patch, RankTier tier, string position, int minute, PaceMetric metric, int value)
         => new(patch, tier, position, minute, metric, PaceHistogram.ToBucket(metric, value));
 
     private static int IndexOf(IReadOnlyList<string> ladder, string band)

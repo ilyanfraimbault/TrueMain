@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TrueMain.ReadModels.Truemains;
@@ -336,8 +337,8 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
                     Id = Guid.NewGuid(),
                     RiotAccountId = MainAccountId,
                     CapturedAtUtc = gameStart.AddDays(-20),
-                    Tier = "PLATINUM",
-                    Division = "I",
+                    Tier = RankTier.Platinum,
+                    Division = RankDivision.I,
                     LeaguePoints = 10,
                 });
                 db.RankSnapshots.Add(new RankSnapshot
@@ -345,8 +346,8 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
                     Id = Guid.NewGuid(),
                     RiotAccountId = MainAccountId,
                     CapturedAtUtc = gameStart.AddHours(2),
-                    Tier = "EMERALD",
-                    Division = "III",
+                    Tier = RankTier.Emerald,
+                    Division = RankDivision.III,
                     LeaguePoints = 42,
                 });
             }

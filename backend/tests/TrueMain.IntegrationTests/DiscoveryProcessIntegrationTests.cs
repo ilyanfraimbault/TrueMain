@@ -1,5 +1,6 @@
-using Core.Lol.Identifiers;
 using AwesomeAssertions;
+using Core.Lol.Identifiers;
+using Core.Lol.Ranking;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
@@ -66,8 +67,8 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
         account.LastRankSyncAtUtc.Should().NotBeNull();
 
         var snapshot = await verifyDb.RankSnapshots.SingleAsync(s => s.RiotAccountId == account.Id);
-        snapshot.Tier.Should().Be("MASTER");
-        snapshot.Division.Should().Be("I");
+        snapshot.Tier.Should().Be(RankTier.Master);
+        snapshot.Division.Should().Be(RankDivision.I);
         snapshot.LeaguePoints.Should().Be(42);
         snapshot.Wins.Should().Be(7);
         snapshot.Losses.Should().Be(3);
@@ -238,8 +239,8 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                 Id = Guid.NewGuid(),
                 RiotAccountId = existing.Id,
                 CapturedAtUtc = DateTime.UtcNow.AddHours(-1),
-                Tier = "MASTER",
-                Division = "I",
+                Tier = RankTier.Master,
+                Division = RankDivision.I,
                 LeaguePoints = 42,
                 Wins = 5,
                 Losses = 2
@@ -312,8 +313,8 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                     Id = Guid.NewGuid(),
                     RiotAccountId = existing.Id,
                     CapturedAtUtc = TestInstants.EarlierSameUtcDay(TimeSpan.FromHours(1)),
-                    Tier = "GOLD",
-                    Division = "IV",
+                    Tier = RankTier.Gold,
+                    Division = RankDivision.IV,
                     LeaguePoints = 10,
                     Wins = 1,
                     Losses = 1
@@ -349,7 +350,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             account.LastRankSyncAtUtc.Should().NotBeNull($"the {puuid} slice's SaveChanges must persist, not just the first slice's");
 
             var snapshot = await verifyDb.RankSnapshots.SingleAsync(s => s.RiotAccountId == accountId);
-            snapshot.Tier.Should().Be("PLATINUM", $"the {puuid} slice must overwrite the same-day row in place rather than leaving the stale seeded rank");
+            snapshot.Tier.Should().Be(RankTier.Platinum, $"the {puuid} slice must overwrite the same-day row in place rather than leaving the stale seeded rank");
             snapshot.LeaguePoints.Should().Be(75);
         }
     }
@@ -494,7 +495,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                         ProfileIconId = 1,
                         SummonerLevel = 100
                     },
-                    new RankSnapshotInput("PLATINUM", "II", 75, Wins: 10, Losses: 5)),
+                    new RankSnapshotInput(RankTier.Platinum, RankDivision.II, 75, Wins: 10, Losses: 5)),
                 new(
                     new RiotSummonerDto
                     {
@@ -504,7 +505,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                         ProfileIconId = 1,
                         SummonerLevel = 100
                     },
-                    new RankSnapshotInput("PLATINUM", "II", 75, Wins: 10, Losses: 5))
+                    new RankSnapshotInput(RankTier.Platinum, RankDivision.II, 75, Wins: 10, Losses: 5))
             };
 
             return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset, ProfileCallsSkipped: 0));
@@ -531,7 +532,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                         ProfileIconId = 23,
                         SummonerLevel = 201
                     },
-                    new RankSnapshotInput("MASTER", "I", 42, Wins: 7, Losses: 3))
+                    new RankSnapshotInput(RankTier.Master, RankDivision.I, 42, Wins: 7, Losses: 3))
             };
 
             return Task.FromResult(new LadderDiscoveryResult(discovered, discovered.Count, offset, ProfileCallsSkipped: 0));

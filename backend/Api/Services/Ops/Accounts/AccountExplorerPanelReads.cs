@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -180,8 +181,8 @@ internal sealed class AccountExplorerPanelReads(TrueMainDbContext db)
             .Select(s => new AccountExplorerRankSnapshotReadModel
             {
                 CapturedAtUtc = s.CapturedAtUtc,
-                Tier = s.Tier,
-                Division = s.Division,
+                Tier = s.Tier.ToRiotName(),
+                Division = s.Division.ToRiotName(),
                 LeaguePoints = s.LeaguePoints,
                 Wins = s.Wins,
                 Losses = s.Losses

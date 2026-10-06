@@ -1,11 +1,12 @@
 using AwesomeAssertions;
+using Core.Lol.Identifiers;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Ranking;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
-using Core.Lol.Identifiers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.TestKit;
@@ -70,8 +71,8 @@ public sealed class AccountRefreshSliceIntegrationTests(PostgresFixture fixture)
                     // Clamped into today: see TestInstants — an hour before 00:36 UTC is
                     // yesterday, and a snapshot on another day is appended, not updated.
                     CapturedAtUtc = TestInstants.EarlierSameUtcDay(TimeSpan.FromHours(1)),
-                    Tier = "GOLD",
-                    Division = "IV",
+                    Tier = RankTier.Gold,
+                    Division = RankDivision.IV,
                     LeaguePoints = 10,
                     Wins = 1,
                     Losses = 1
@@ -107,8 +108,8 @@ public sealed class AccountRefreshSliceIntegrationTests(PostgresFixture fixture)
 
             // Seeded GOLD IV 10 LP, the ladder now says PLATINUM II 64 LP. Both rows are
             // mutated in place, so a drained tracker would leave either at its seeded value.
-            snapshot.Tier.Should().Be("PLATINUM", "the snapshot update of {0} must survive the drain", puuid);
-            snapshot.Division.Should().Be("II");
+            snapshot.Tier.Should().Be(RankTier.Platinum, "the snapshot update of {0} must survive the drain", puuid);
+            snapshot.Division.Should().Be(RankDivision.II);
             snapshot.LeaguePoints.Should().Be(64);
 
             // The account is the other tracked entity the slice mutates: the writer stamps

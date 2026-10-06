@@ -78,21 +78,6 @@ public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests 
     }
 
     [Fact]
-    public async Task RunAsync_StampsGenuineUnranked_WhenSnapshotHasNoTier()
-    {
-        var gameStart = new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc);
-        var account = await SeedAccountAsync("enrich-unranked", "enrich-unranked-puuid");
-        var matchId = await AddGameAsync("m-unranked", gameStart, account.Id);
-
-        // A snapshot exists but carries no ranked tier → the band resolves to a
-        // genuine, final UNRANKED (as opposed to the deferred empty above).
-        await SeedSnapshotsAsync((account.Id, gameStart, ""));
-
-        await RunEnrichmentAsync();
-        (await BandsByMatchAsync())[matchId].Should().Be(EloBracket.Unranked);
-    }
-
-    [Fact]
     public async Task RunAsync_LeavesUntrackedRowsUntouched()
     {
         var gameStart = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
@@ -176,8 +161,8 @@ public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests 
         {
             RiotAccountId = snapshot.AccountId,
             CapturedAtUtc = snapshot.CapturedAtUtc,
-            Tier = snapshot.Tier,
-            Division = "I",
+            Tier = RankTiers.ParseTier(snapshot.Tier),
+            Division = RankDivision.I,
             LeaguePoints = 50
         }));
         await db.SaveChangesAsync();
