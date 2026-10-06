@@ -41,6 +41,14 @@ leaving prod on the old binary against the new one. All of it (SSH secrets, `PRO
 depends on, `publish` included — publishing would otherwise move `:latest` ahead of what prod runs. Both
 halves of a release happen or neither does — #1228.
 
+**The preflight rejects `INGESTOR_JOB_MODE=Full` next to an aggregate lane; the override itself stays.**
+Release `1.20.5` gave prod its two ingestor lanes and went green, while a leftover `INGESTOR_JOB_MODE=full`
+in the env file (from a key freeze) kept `ingestor` on the whole pipeline: every aggregate step ran twice, once
+per container, for about twenty hours. When the compose file declares `ingestor-aggregate`, the `preflight` of
+both deploys now fails on `Full` in any casing (`.github/scripts/check-job-mode.sh`). The variable stays the
+lever `docs/riot-key-switch.md` uses, so unset and the single-process freeze modes pass. A general post-deploy
+read-back of each container's effective `Job__Mode` was considered and left out of scope — #1493 (2026-10-06).
+
 **A deploy job proves the environment moved; the API acknowledgement is not evidence.**
 #1228 made an incomplete *configuration* fail the run rather than skip green. Release `1.20.0` produced the
 same mismatch through the door that check does not watch: everything was configured, all seven jobs were

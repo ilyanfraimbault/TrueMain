@@ -278,6 +278,7 @@ Last verified against `develop` on 2026-09-02.
 - Prod deploys from the version-controlled compose file — no hand-maintained host compose — #462
 - Preprod and prod both apply migrations out-of-band, as a discrete CI step before the images roll — not at startup — #208, #246, #1058
 - An incomplete prod deployment configuration fails the release run; it is never a green skip — #1228
+- The deploy preflight rejects `INGESTOR_JOB_MODE=Full` when the compose file runs an aggregate lane — #1493
 - A deploy job proves the environment moved; the API acknowledgement is not evidence — #1394, #1365, #1374
 - Both deploy pipelines serialise at workflow level, not per job — #1228
 - Integration tests run on pushes to `develop`/`master`, not only on pull requests — #1228

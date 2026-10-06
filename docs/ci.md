@@ -41,7 +41,7 @@ which downstream jobs are worth a runner:
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` / `admin` | `web/**` / `admin/**` | the frontend job for that app, its image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
-| `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt` | deploy-script tests, file sizes |
+| `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt`, `compose.preprod.yaml`, `compose.prod.yaml` | deploy-script tests, file sizes |
 | `ci` | `ci.yml`, `.github/actions/**` | everything |
 
 The `backend` filter also lists `web/shared/fixtures/win-probability-timeline.json` and
@@ -206,6 +206,25 @@ ever skip the image roll after the schema had already moved, leaving the old
 binary against the new schema (#1259). The env file must be non-empty in
 particular because `hostinger/deploy-on-vps` overwrites the project `.env` on
 every run.
+
+The same job then checks the one setting the env file can silently turn
+against the compose file: `INGESTOR_JOB_MODE`. Both deployed compose files run
+the ingestor as two lanes, `ingestor` on `${INGESTOR_JOB_MODE:-FetchLane}` and
+`ingestor-aggregate` on `AggregateLane`, and the env file wins over that
+default. Release `1.20.5` deployed green with a leftover `full` from a key
+freeze: `ingestor` kept running the whole pipeline next to the new aggregate
+container, and every aggregate step ran twice for about twenty hours (#1493).
+`.github/scripts/check-job-mode.sh` therefore fails the preflight when the
+compose file declares `ingestor-aggregate` and the env file sets the variable to
+`Full` in any casing. An unset variable and the single-process freeze modes
+`docs/riot-key-switch.md` relies on stay allowed, so the lever keeps working.
+The env file reaches the script through an environment variable, never argv,
+and only the offending mode is ever printed. `check-job-mode.test.sh` runs it
+against the real deployed compose files in the `deploy-scripts` CI job, which
+is why those two files are in the `scripts` path filter: renaming the aggregate
+service must break the test, not the next deploy. The preflight checks out the
+same ref the rollout deploys (the release tag on prod), so it reads the compose
+file Docker Manager will.
 
 ### Rollout order and concurrency
 
