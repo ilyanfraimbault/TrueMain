@@ -19,7 +19,18 @@ rows, which is also what makes the scope insert collision-free: a pair entering 
 the next run instead of being rebuilt without its cleanup — #1549.
 
 **Aggregate retention is opt-in per environment: `AggregateRetainedPatchCount` defaults to 0 (frozen forever); preprod sets 2.**
-The freeze is right for production history but preprod must stay tiny — #711.
+The freeze is right for production history but preprod must stay tiny — #711. *Superseded for production by the
+two-level retention below (2026-10-06, #1467); stays in force until its implementation ships.*
+
+**Build aggregates live for two patches; the long tail keeps a light per-patch record (2026-10-06).** Nobody reads
+a build from four patches ago — items have been reworked and the build misleads rather than merely ages — while those
+frozen aggregates keep costing storage and aggregation time on a stack that has hit disk-full (#680) and
+aggregation-timeout (#600, #632) incidents. So two levels: the full aggregates (everything the champion page renders)
+for the current and the previous patch only, and per patch a light record — win, pick and ban rate per champion ×
+position × elo bracket, a few thousand rows — which feeds "Trend by patch" and honours its rank filter. The light row
+of a patch is written before any of its full aggregates is dropped (never purge first and backfill later: the
+history would be gone), and patch N-2 is purged only once patch N has enough matches to be live. This reverses the
+production half of #466/#711 ("old patches are frozen and must never be wiped") on purpose — #1467.
 
 **Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid.**
 The dense per-minute grid grew to ~13 GB / 55.6M rows for exactly one consumer (power spikes); every other

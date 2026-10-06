@@ -10,7 +10,9 @@
          Microsoft.AspNetCore.OpenApi 10.0.9 pulls in transitively (NU1903 /
          GHSA-v5pm-xwqc-g5wc, high severity). Not referenced directly in code;
          drop this once the AspNetCore.OpenApi metapackage ships a patched
-         transitive. -->
+         transitive. Stays on 2.x: Microsoft.OpenApi 3.x breaks the build
+         until an AspNetCore.OpenApi release's XML-comment source generator
+         targets the v3 object model (#1054). -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.17.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
