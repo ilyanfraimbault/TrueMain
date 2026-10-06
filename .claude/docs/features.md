@@ -466,7 +466,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 - **Usage counts** (#1805, `src-tauri/src/telemetry.rs`): a random install id drawn on the first launch
   (`telemetry.json` in the app's config folder) and, under it, launches, minutes open, page views (`plugins/telemetry.ts`,
   keys in `utils/telemetry.ts`; a filter change is not a view) and features counted by the shell — a champion select
-  or a game followed, a game with the overlay drawn (once per game), a game recorded, a site page opened, a pick
+  or a game followed, a game with the overlay drawn (once per game), a game recorded, a clip saved from the recap, a full game kept and a recording deleted
+  by hand (#1952), a site page opened, a pick
   hovered, locked or a ban made from the draft (#1909) — with the
   app's version and OS. Sent to `POST /api/desktop/telemetry` a minute after launch, every 5 minutes and at exit; a
   failed send keeps its counts for the next. Nothing read from the League client is sent. "Share Anonymous Usage

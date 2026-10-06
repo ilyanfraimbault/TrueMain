@@ -39,6 +39,12 @@ public static partial class DesktopTelemetryCatalog
         "overlayShown",
         // A game the app recorded.
         "gameRecorded",
+        // A clip cut from a recording and saved, from the recap.
+        "clipSaved",
+        // A full game the player chose to keep, exempt from the storage budget.
+        "gameKept",
+        // A full game the player deleted by hand.
+        "recordingDeleted",
         // A page of the site the app opened in the browser.
         "siteOpened",
         // A pick hovered from the app's draft screen, on the player's click.
