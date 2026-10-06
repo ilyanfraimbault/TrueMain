@@ -47,7 +47,8 @@ public interface IRiotAccountRepository
     /// Atomically claims the next accounts to ingest matches for.
     /// <c>establishedMainShares</c> is, per platform, the share of that platform's quota
     /// reserved for accounts that are already active established mains, the remainder going
-    /// to <c>Queued</c> candidates (#900) — a floor, not a partition: whatever one class cannot
+    /// to <c>Queued</c> candidates of accounts never ingested (#900, #1535 — an ingested account
+    /// comes back through the established-main arm when due) — a floor, not a partition: whatever one class cannot
     /// fill spills to the other within the platform. Per platform since #1533, so a saturated
     /// region and a thin one each get the split their own coverage calls for. A platform
     /// missing from the map reserves nothing for established mains (they still take the spill).

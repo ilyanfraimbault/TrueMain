@@ -33,6 +33,45 @@ public sealed class AccountExplorerVerdictTests
     }
 
     [Fact]
+    public void ResolveState_QueuedCandidateOnAnIngestedAccount_IsNotTracked()
+    {
+        // #1535: breadth only claims never-ingested accounts, so a leftover Queued row on an
+        // ingested account without an active main puts it in neither arm.
+        var account = Account();
+        account.LastMatchIngestAtUtc = Now.AddDays(-2);
+
+        var state = AccountExplorerVerdict.ResolveState(account, [], [Candidate(MainCandidateStatus.Queued)]);
+
+        state.Should().Be(AccountPipelineState.CandidateOnly);
+    }
+
+    [Fact]
+    public void IsInNewCandidateArm_RequiresAQueuedCandidateAndNoIngestHistory()
+    {
+        var fresh = Account();
+        var ingested = Account();
+        ingested.LastMatchIngestAtUtc = Now.AddDays(-2);
+        List<AccountExplorerCandidateReadModel> queued = [Candidate(MainCandidateStatus.Queued)];
+
+        AccountExplorerVerdict.IsInNewCandidateArm(fresh, queued).Should().BeTrue();
+        AccountExplorerVerdict.IsInNewCandidateArm(ingested, queued).Should().BeFalse();
+        AccountExplorerVerdict.IsInNewCandidateArm(fresh, [Candidate(MainCandidateStatus.Scored)]).Should().BeFalse();
+        AccountExplorerVerdict.HasQueuedCandidate(queued).Should().BeTrue("the raw flag still reports the row");
+    }
+
+    [Fact]
+    public void ResolveState_IngestedAccountWithAnActiveMain_StaysTrackedThroughDepth()
+    {
+        var account = Account();
+        account.LastMatchIngestAtUtc = Now.AddDays(-2);
+
+        var state = AccountExplorerVerdict.ResolveState(
+            account, [MainRow(isMain: true, isActive: true)], [Candidate(MainCandidateStatus.Queued)]);
+
+        state.Should().Be(AccountPipelineState.Tracked);
+    }
+
+    [Fact]
     public void ResolveState_OnlyInactiveMainRows_IsRetired()
     {
         var state = AccountExplorerVerdict.ResolveState(
