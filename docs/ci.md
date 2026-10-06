@@ -12,7 +12,7 @@ two environments and the migration path in detail.
 | `ci.yml` | PRs, pushes to `develop`/`master`, manual | Build, test and sanity-check whatever the change touches |
 | `claude-review.yml` | PRs to `develop`/`master` | Automated formal code review |
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
-| `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → serve a held desktop app build the release catches up with |
+| `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → verify the edge, and serve a held desktop app build the release catches up with |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
@@ -311,6 +311,47 @@ The wait is ten minutes at fifteen-second intervals, which is why the deploy
 job's own timeout is larger than the migration's.
 `.github/scripts/verify-rollout.test.sh` pins the behaviour against fixed API
 responses and runs in the `deploy-scripts` CI job.
+
+### What the deploy writes on the VPS
+
+Exactly two things, on both environments: the **compose file**, which Docker
+Manager reads from this repository at the deployed commit and stores as the
+project's `docker-compose.yml`, and the project **`.env`**, overwritten from
+the `PROD_ENV_FILE` / `PREPROD_ENV_FILE` secret plus `IMAGE_TAG` and
+`APP_VERSION`. Nothing else in the repository reaches the host: not a sibling
+file a compose file would bind-mount with a relative path, not a script, not a
+config. The `migrate` job writes nothing either, it pipes SQL into a fixed
+command on the host.
+
+So **every piece of configuration a deployed stack needs lives inside its
+compose file**: the edge Caddyfile of both stacks
+(`configs.edge_caddyfile`), preprod's Umami proxy and Umami's replay cleanup
+script are top-level `configs:` with inline `content`. A relative bind mount
+in `compose.prod.yaml` or `compose.preprod.yaml` is a file someone has to copy
+by hand, and it drifts silently: prod's edge ran a hand-copied `Caddyfile`
+while two released edge changes (#1583, #1696) never reached it (#1598).
+Only named volumes hold state on the host.
+
+Inline `content` is interpolated like the rest of the compose file, so a
+literal `$` in it is written `$$`.
+
+### Verifying the edge
+
+`verify-rollout.sh` proves the containers run the released images; it cannot
+see what the edge does with their responses. The `edge` job of
+`deploy-prod.yml` runs `verify-edge.sh` after the rollout and asks the live
+public site, with a client that offers `zstd, gzip`, for its landing page and a
+JSON route (`/api/static/versions`, large enough for Caddy to compress). It
+fails the run unless both answer 200 with a `Content-Encoding` of `zstd` or
+`gzip`, and the page carries `Strict-Transport-Security` and
+`Content-Security-Policy` — the directives that were shipped and silently
+absent (#1598). It polls for five minutes, because Caddy is recreated with the
+stack and may still be starting when the rollout check passes.
+
+It only runs on prod: preprod's origins are operator values kept out of the
+repository, and its edge is plain HTTP without HSTS or CSP by design
+(`docs/preprod.md`). `.github/scripts/verify-edge.test.sh` pins the checks
+against fixed headers and runs in the `deploy-scripts` CI job.
 
 ### Preprod versioning
 
@@ -650,11 +691,12 @@ leaves a misleading version on the page (#1637).
   variant, `compose.preprod.yaml` and `compose.prod.yaml` the two deployed
   ones. Both deployed stacks run `Database__ApplyMigrationsOnStartup=false`
   and rely on the rollout to migrate.
-- `compose.preprod.yaml` puts a plain-HTTP `caddy` in front of web and admin,
-  like prod's edge, with its Caddyfile inline under `configs:` because the
-  deploy ships the compose file alone (`docs/preprod.md`, #1558). It requires
-  `PREPROD_SITE_URL` and `PREPROD_ADMIN_URL`, which is why the compose-config
-  job sets both.
+- Both deployed stacks put Caddy in front of web and admin with its
+  Caddyfile inline under `configs.edge_caddyfile`, because the deploy ships
+  the compose file alone (*What the deploy writes on the VPS*; prod in
+  `docs/prod.md`, #1598; preprod's plain-HTTP edge in `docs/preprod.md`,
+  #1558). The preprod one requires `PREPROD_SITE_URL` and
+  `PREPROD_ADMIN_URL`, which is why the compose-config job sets both.
 - Both deployed stacks publish the API's port on the loopback interface only
   (`127.0.0.1:8080:8080` on prod, `127.0.0.1:8081:8080` on preprod). Nothing
   external needs it: web and admin reach the API over the internal network as

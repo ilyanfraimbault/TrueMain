@@ -268,6 +268,9 @@ jobs:
       - name: Migration over SSH
         run: .github/scripts/apply-migration.test.sh
 
+      - name: Edge verification
+        run: .github/scripts/verify-edge.test.sh
+
       - name: Ingestor job mode preflight
         run: .github/scripts/check-job-mode.test.sh
 
