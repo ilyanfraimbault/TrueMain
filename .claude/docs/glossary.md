@@ -45,7 +45,9 @@ A Riot account the pipeline knows and ingests, identified by its PUUID (name#tag
 
 **Candidate**:
 A (player, champion) pair proposed as a possible true main, found on the apex ladder, added by an operator, or
-harvested from games already stored. It moves New → Scored → Queued → Processing → Validated.
+harvested from games already stored. It moves New → Scored → Queued → Processing → Validated, and leaves only
+by demotion (back to Scored, into the pool) or by being pruned when stale; no candidate is ever rejected.
+_Avoid_: rejected candidate
 
 **Main analysis**:
 The decision, per account, champion and platform, of whether the player is a true main or an OTP.

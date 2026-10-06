@@ -91,8 +91,8 @@ public sealed record CandidateFunnelReadModel
 /// </param>
 /// <param name="Demoted">
 /// Accounts <c>MainAnalysis</c> demoted back out of Validated on a critical play rate.
-/// This is the funnel's only negative outcome today: the <c>Rejected</c> status exists on
-/// the entity but no process ever assigns it.
+/// This is the funnel's only negative outcome: a candidate is in the pipeline, demoted back
+/// into the pool, or pruned — there is no rejection verdict (#1029).
 /// </param>
 /// <param name="Runs">
 /// Runs of any of the six contributing processes that started in this period. Zero

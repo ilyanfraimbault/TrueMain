@@ -1,5 +1,4 @@
 using Data.Entities;
-using Data.Logging;
 using Data.Repositories;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
@@ -39,12 +38,7 @@ public sealed class AccountValidationService(
             // Information — the Mongo sink persists registered OpsEvents despite
             // its Warning floor, and /ops/logs can filter on the event name. Emitted
             // after the commit so it only ever reports a promotion that stuck.
-            logger.LogInformation(
-                OpsEvents.CandidateValidated,
-                "Validated {Count} candidates for {Platform}/{Puuid}.",
-                updated,
-                account.PlatformId,
-                account.Puuid);
+            logger.CandidateValidated(updated, account.PlatformId, account.Puuid);
         }
 
         return updated > 0;
@@ -86,11 +80,7 @@ public sealed class AccountValidationService(
         {
             // After the commit, like ValidateAsync's: a release that rolled back is not
             // something to report as done.
-            logger.LogDebug(
-                "Released {Count} candidates back to Queued for uningestable {Platform}/{Puuid}.",
-                updated,
-                account.PlatformId,
-                account.Puuid);
+            logger.UningestableReleased(updated, account.PlatformId, account.Puuid);
         }
     }
 
@@ -117,11 +107,7 @@ public sealed class AccountValidationService(
 
         if (updated > 0)
         {
-            logger.LogDebug(
-                "Reverted {Count} candidates to Queued for {Platform}/{Puuid}.",
-                updated,
-                account.PlatformId,
-                account.Puuid);
+            logger.ClaimReverted(updated, account.PlatformId, account.Puuid);
         }
     }
 }

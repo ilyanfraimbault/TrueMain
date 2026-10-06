@@ -158,7 +158,7 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
     }
 
     private static readonly MainCandidateStatus[] NeverPromotedStatuses =
-        [MainCandidateStatus.New, MainCandidateStatus.Scored, MainCandidateStatus.Rejected];
+        [MainCandidateStatus.New, MainCandidateStatus.Scored];
 
     public Task<int> PruneStaleNeverPromotedAsync(DateTime lastPlayCutoffUtc, CancellationToken ct)
         => db.MainCandidates

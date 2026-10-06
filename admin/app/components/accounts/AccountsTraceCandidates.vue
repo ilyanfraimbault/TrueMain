@@ -48,7 +48,7 @@ const candidatesEmptyNote = 'No main_candidates row exists for this account. Not
     <template #header>
       <PanelTitle
         title="Candidate funnel"
-        subtitle="New → Scored → Queued → Processing → Validated (or Rejected)."
+        subtitle="New → Scored → Queued → Processing → Validated."
       >
         <template #info>
           <p>

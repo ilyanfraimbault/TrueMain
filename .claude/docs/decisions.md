@@ -23,6 +23,7 @@ Last verified against `develop` on 2026-09-02.
 - The account explorer (#1032) reports raw score inputs, not score components — and never calls Riot
 - `MainActivity` deactivation carries no persisted reason, so the account explorer says so rather than guessing — #900
 - A main whose matches expired is dated, not deleted and not hidden (2026-08-24) — #825, #466
+- A candidate has no rejection verdict: it is in the pipeline, demoted back into the pool, or pruned (2026-10-06) — #1029, #1024, #1535
 
 ## Population and rank scope of the champion pages (#1346) — [`decisions/product-population.md`](decisions/product-population.md)
 
@@ -205,6 +206,7 @@ Last verified against `develop` on 2026-09-02.
 - Rank snapshots are capped at one row per account per UTC day (DB-level unique index) — #907
 - `(GameName, TagLine, PlatformId)` on `riot_accounts` is a plain, NON-unique index. PUUID is the only real identity — #901, #902
 - PUUID indexing is intentional — do not propose dropping it or migrating to `RiotAccountId`-only — #123, #124
+- `ItemEvents`/`SkillEvents` use LZ4 TOAST compression per column; old rows are rewritten by the #1946 repack, not a migration (2026-10-06) — #123
 - Pattern aggregates use a junction model (`champion_aggregate_patterns` + globally deduplicated `champion_dim_*`)
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
 - A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
@@ -306,7 +308,7 @@ Last verified against `develop` on 2026-09-02.
 - A step change in what is measured is not growth, so the forecast restarts at it — #1023
 - Ingestion throughput is measured from the run summaries, not from `matches.CreatedAtUtc` — #1025, #982, #988
 - The counters are summed in memory because the summary is stored as opaque JSON text — #1025, #990
-- The candidate funnel measures Validated and Demoted, because Rejected is a status nothing assigns — #1024, #1029
+- The candidate funnel measures Validated and Demoted — its only exit and only negative outcome — #1024, #1029
 - A forward-only counter renders as absent, not as zero, and key presence is what says which — #1024, #924
 - `ValidatedAtUtc` had never been written in production, and the queue-latency snapshot is why that surfaced — #1024
 - Queue latency is a snapshot over retained rows and is labelled as one, rather than being faked into a series — #1024
@@ -326,6 +328,7 @@ Last verified against `develop` on 2026-09-02.
 - Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
 - The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
 - A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
+- The Ingestor's own meter is folded into Mongo per minute and shown on the Riot API tab — no OpenTelemetry pipeline, no tracing (2026-10-05) — #1636
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
@@ -412,6 +415,7 @@ Last verified against `develop` on 2026-09-02.
 - CI traps — #1236
 - API wire conventions
 - Every issue goes on GitHub Project #2
+- The frontends lint with ESLint (`@nuxt/eslint` + vue + a11y); already-broken rules and all a11y rules are warnings, the rest errors (2026-10-06) — #1440
 - Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 - Agent disciplines (debugging, grilling, glossary, retro) adapted from mattpocock/skills; review split into Spec and Standards axes; PR bodies carry a merge-danger call (2026-10-05) — #1938
 
