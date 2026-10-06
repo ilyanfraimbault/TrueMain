@@ -146,10 +146,10 @@ front of the apps:
 - **Admin login throttle.** The admin runs with `NUXT_TRUST_PROXY=true`, like
   prod, because Caddy overwrites `X-Forwarded-For` with the peer it saw.
 
-Two things stay different by nature. The Caddyfile is inline in
-`compose.preprod.yaml` (`configs.edge_caddyfile`) rather than a file next to it,
-because the Docker Manager deploy ships the compose file and nothing else — the
-same reason `umami-proxy` is configured that way. And it serves plain HTTP
+The Caddyfile is inline in `compose.preprod.yaml` (`configs.edge_caddyfile`),
+as prod's is in `compose.prod.yaml`, because the Docker Manager deploy ships
+the compose file and nothing else — the same reason `umami-proxy` is
+configured that way. One thing stays different by nature: it serves plain HTTP
 (`auto_https off`): preprod has no DNS name to get a certificate for, and the
 host's 80/443 belong to another project, so the admin session cookie stays
 non-`Secure`.

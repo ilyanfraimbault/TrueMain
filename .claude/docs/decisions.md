@@ -270,6 +270,7 @@ Last verified against `develop` on 2026-09-02.
 - A Riot ID resolves through a functional index on the lowered name and tag (2026-09-15) — #1570
 - The public web server runs one Node worker per useful core (2026-09-15) — #1579
 - The payload is inlined on first load and extracted for client navigation only (`payloadExtraction: 'client'`; it only reaches the `swr` text pages) (2026-10-04) — #1618
+- Paginated reads stay on offset paging; keyset waits for a preprod `EXPLAIN` showing a real cost at a page actually reached (2026-10-06) — #1635
 
 ## Infrastructure and deploy — [`decisions/infrastructure-and-deploy.md`](decisions/infrastructure-and-deploy.md)
 - The rate-limit partition is the visitor (last `X-Forwarded-For` hop, trusted proxies only), not the connection — this reverses "100 req/min per IP" — #1546
@@ -279,6 +280,7 @@ Last verified against `develop` on 2026-09-02.
 - Prod deploys from the version-controlled compose file — no hand-maintained host compose — #462
 - Preprod and prod both apply migrations out-of-band, as a discrete CI step before the images roll — not at startup — #208, #246, #1058
 - An incomplete prod deployment configuration fails the release run; it is never a green skip — #1228
+- The deploy preflight rejects `INGESTOR_JOB_MODE=Full` when the compose file runs an aggregate lane — #1493
 - A deploy job proves the environment moved; the API acknowledgement is not evidence — #1394, #1365, #1374
 - Both deploy pipelines serialise at workflow level, not per job — #1228
 - Integration tests run on pushes to `develop`/`master`, not only on pull requests — #1228
@@ -293,6 +295,7 @@ Last verified against `develop` on 2026-09-02.
 - Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
 - The edge Caddy sets the security response headers the app frameworks did not (HSTS, CSP per vhost, X-Frame-Options, nosniff, Referrer/Permissions-Policy); preprod carries the non-CSP subset — 2026-09-24
 - The API port is published on loopback only (not `0.0.0.0`), and pgAdmin was removed from every stack — 2026-09-24
+- Prod's edge Caddyfile is inline in `compose.prod.yaml` (the deploy writes only the compose file and `.env`), and the release asserts compression and HSTS/CSP on the live site — #1598
 
 ## Admin portal — observability data — [`decisions/admin-observability.md`](decisions/admin-observability.md)
 

@@ -279,3 +279,34 @@ to `true`) — #1618.
   argument for `true` is CDN caching of the payload file, and there is no CDN — the request went back to the
   same container. The gain is small (one tiny request on three low-traffic pages); it is taken because it is
   free and aligns with the next major's default, not because it moves the main pages.
+
+## Paginated reads stay on offset paging; keyset waits for a measured cost (2026-10-06)
+
+**Decision:** every paginated read keeps `page`/`pageSize` offset paging. An endpoint moves to keyset (seek)
+pagination with an opaque cursor only once `EXPLAIN (ANALYZE, BUFFERS)` in preprod, at a page actually reached,
+shows the skipped rows costing something the rest of the query does not already pay — #1635 (product owner,
+2026-10-05: "measure first", P3).
+
+Why, endpoint by endpoint, from the code:
+
+- **`GET /truemains/{nameTag}/matches`** (`MatchSummariesQueryService`) — the only public SQL `OFFSET` of the
+  four the issue listed. Its depth is one player's ranked history. The `COUNT` that feeds the page control
+  already reads every match the slice could skip, through `match_participants ("Puuid", "MatchId")`, and no
+  index hands a player's matches pre-sorted by `GameStartTimeUtc` (the filter is on participants, the order on
+  matches), so Postgres sorts the player's whole set whatever the page. A seek would save the top-N sort's
+  extra rows, not the scan — and would cost the jump-to-page the UI offers. The ordering gained an `Id`
+  tie-break so it is unique: without it two matches sharing a start time could repeat or vanish across pages.
+- **`GET /ops/candidates`** (`CandidateQueryService`) — admin-only, paged by an operator. Same shape: the
+  numbered pager needs the filtered `COUNT`, which reads the whole filtered set, and the free-text `ILIKE`
+  search cannot seek an index anyway. Its ordering was already unique (`Score`, `DiscoveredAtUtc`, `Id`).
+- **Composition games** (`CompositionRecommendationQueryService.GetGamesAsync`) and **`GET /ops/data-quality`**
+  (`IncompleteMatchesQueryService`) — no SQL offset at all: both slice an in-memory list (the cached match
+  selection; at most `CandidateScanLimit` = 5000 scanned headers), so their depth is bounded by construction.
+- **The leaderboard's rank ordering** does run `LIMIT … OFFSET` on `IX_riot_accounts_score` (only the
+  dedication and stat orderings slice an in-memory id list). It stays too: its `COUNT` evaluates the same
+  eligibility `EXISTS` over the whole population, and each page's response is cached.
+
+↳ **What keyset would have cost.** An opaque cursor drops "go to page N" and the shareable `?page=` URLs the
+match history and the leaderboard carry, for a gain bounded by what the `COUNT` already spends. Revisit only
+when a measurement shows otherwise — and for a migrated endpoint, check that an index serves the chosen
+`(sort key, Id)` ordering first, since a seek without one is still a sort.

@@ -12,7 +12,7 @@ two environments and the migration path in detail.
 | `ci.yml` | PRs, pushes to `develop`/`master`, manual | Build, test and sanity-check whatever the change touches |
 | `claude-review.yml` | PRs to `develop`/`master` | Automated formal code review |
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
-| `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → serve a held desktop app build the release catches up with |
+| `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → verify the edge, and serve a held desktop app build the release catches up with |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
@@ -47,7 +47,7 @@ which downstream jobs are worth a runner:
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` / `admin` | `web/**` / `admin/**` | the frontend job for that app, its image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
-| `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt` | deploy-script tests, file sizes |
+| `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt`, `compose.preprod.yaml`, `compose.prod.yaml` | deploy-script tests, file sizes |
 | `ci` | `ci.yml`, `.github/actions/**` | everything |
 
 The `backend` filter also lists `web/shared/fixtures/win-probability-timeline.json` and
@@ -213,16 +213,67 @@ binary against the new schema (#1259). The env file must be non-empty in
 particular because `hostinger/deploy-on-vps` overwrites the project `.env` on
 every run.
 
+The same job then checks the one setting the env file can silently turn
+against the compose file: `INGESTOR_JOB_MODE`. Both deployed compose files run
+the ingestor as two lanes, `ingestor` on `${INGESTOR_JOB_MODE:-FetchLane}` and
+`ingestor-aggregate` on `AggregateLane`, and the env file wins over that
+default. Release `1.20.5` deployed green with a leftover `full` from a key
+freeze: `ingestor` kept running the whole pipeline next to the new aggregate
+container, and every aggregate step ran twice for about twenty hours (#1493).
+`.github/scripts/check-job-mode.sh` therefore fails the preflight when the
+compose file declares `ingestor-aggregate` and the env file sets the variable to
+`Full` in any casing. An unset variable and the single-process freeze modes
+`docs/riot-key-switch.md` relies on stay allowed, so the lever keeps working.
+The env file reaches the script through an environment variable, never argv,
+and only the offending mode is ever printed. `check-job-mode.test.sh` runs it
+against the real deployed compose files in the `deploy-scripts` CI job, which
+is why those two files are in the `scripts` path filter: renaming the aggregate
+service must break the test, not the next deploy. The preflight checks out the
+same ref the rollout deploys (the release tag on prod), so it reads the compose
+file Docker Manager will.
+
 ### Rollout order and concurrency
 
 `rollout.yml` runs `migrate` then `deploy`; the deploy depends on the
 migration succeeding, so a failed script blocks the image roll
 (`docs/production-migrations.md`). The migration script is printed to the log
 and uploaded as an artifact with 90-day retention, the only place the SQL is
-visible before it applies. A run that fails on `lock timeout` is retried up to
-three times, 30 s apart: the script is idempotent and applied in one
-transaction, so a blocked attempt leaves nothing behind. Any other failure
-stops at once (`docs/production-migrations.md`).
+visible before it applies.
+
+### Migration over SSH
+
+GitHub-hosted runners intermittently cannot reach the VPS: the connection
+times out upstream of the host, nothing shows in its auth log, and the same job
+re-run minutes later passes (#1568). Release `1.22.0` failed its migration step
+that way. `apply-migration.sh` pipes the script into the host with a bounded
+retry, on two schedules counted apart:
+
+- **Connection failures**: four attempts, 15, 30 then 60 seconds apart, each
+  with a 30-second `ConnectTimeout`. ssh exits 255 when it cannot connect or
+  authenticate, and with the remote command's status otherwise, so only 255
+  counts here.
+- **Lock timeouts** (#1631): three attempts, 30 seconds apart. The script opens
+  with `SET lock_timeout = '5s'` (`docs/production-migrations.md`), so a DDL
+  that cannot get its lock fails instead of queueing traffic. The failure is
+  recognised from what psql printed on stderr (`lock timeout` or SQLSTATE
+  `55P03`), and since it runs in one transaction, a lost lock rolls everything
+  back and the next attempt starts clean.
+
+Any other failure of a script that reached `psql` is reported at once and never
+re-run behind a retry. A retry after a connection dropped mid-script is safe
+anyway: the script is idempotent, so whatever part of it had already applied is
+skipped the second time. When a schedule runs out, nothing was applied and the
+deploy job does not run: re-run the failed jobs, after finding the blocker in
+the lock case.
+
+The worst case is about six minutes: the four connection attempts take under
+four (30 s timeouts plus 105 s of waits), and the two lock retries add 60 s of
+waits plus a few seconds per attempt, since a script whose migrations are
+already applied runs in seconds and a lost lock costs 5 s. That stays inside the
+job's 15 minutes. If a pending migration runs long and the job is cancelled
+mid-attempt, the session dies with its transaction and nothing is applied.
+`.github/scripts/apply-migration.test.sh` pins the behaviour, both schedules
+included, with an `ssh` stub and runs in the `deploy-scripts` CI job.
 
 Each deploy workflow takes a **workflow-level** concurrency group with
 `cancel-in-progress: false`. On preprod the rc counter is derived from the
@@ -282,6 +333,47 @@ The wait is ten minutes at fifteen-second intervals, which is why the deploy
 job's own timeout is larger than the migration's.
 `.github/scripts/verify-rollout.test.sh` pins the behaviour against fixed API
 responses and runs in the `deploy-scripts` CI job.
+
+### What the deploy writes on the VPS
+
+Exactly two things, on both environments: the **compose file**, which Docker
+Manager reads from this repository at the deployed commit and stores as the
+project's `docker-compose.yml`, and the project **`.env`**, overwritten from
+the `PROD_ENV_FILE` / `PREPROD_ENV_FILE` secret plus `IMAGE_TAG` and
+`APP_VERSION`. Nothing else in the repository reaches the host: not a sibling
+file a compose file would bind-mount with a relative path, not a script, not a
+config. The `migrate` job writes nothing either, it pipes SQL into a fixed
+command on the host.
+
+So **every piece of configuration a deployed stack needs lives inside its
+compose file**: the edge Caddyfile of both stacks
+(`configs.edge_caddyfile`), preprod's Umami proxy and Umami's replay cleanup
+script are top-level `configs:` with inline `content`. A relative bind mount
+in `compose.prod.yaml` or `compose.preprod.yaml` is a file someone has to copy
+by hand, and it drifts silently: prod's edge ran a hand-copied `Caddyfile`
+while two released edge changes (#1583, #1696) never reached it (#1598).
+Only named volumes hold state on the host.
+
+Inline `content` is interpolated like the rest of the compose file, so a
+literal `$` in it is written `$$`.
+
+### Verifying the edge
+
+`verify-rollout.sh` proves the containers run the released images; it cannot
+see what the edge does with their responses. The `edge` job of
+`deploy-prod.yml` runs `verify-edge.sh` after the rollout and asks the live
+public site, with a client that offers `zstd, gzip`, for its landing page and a
+JSON route (`/api/static/versions`, large enough for Caddy to compress). It
+fails the run unless both answer 200 with a `Content-Encoding` of `zstd` or
+`gzip`, and the page carries `Strict-Transport-Security` and
+`Content-Security-Policy` — the directives that were shipped and silently
+absent (#1598). It polls for five minutes, because Caddy is recreated with the
+stack and may still be starting when the rollout check passes.
+
+It only runs on prod: preprod's origins are operator values kept out of the
+repository, and its edge is plain HTTP without HSTS or CSP by design
+(`docs/preprod.md`). `.github/scripts/verify-edge.test.sh` pins the checks
+against fixed headers and runs in the `deploy-scripts` CI job.
 
 ### Preprod versioning
 
@@ -629,11 +721,12 @@ leaves a misleading version on the page (#1637).
   ingestors' do not. The image still writes `userlist.txt` from `DB_USER`,
   `DB_PASSWORD` and `AUTH_TYPE`, the only env vars it keeps. The values are in
   `docs/prod.md` (*Connection pools*).
-- `compose.preprod.yaml` puts a plain-HTTP `caddy` in front of web and admin,
-  like prod's edge, with its Caddyfile inline under `configs:` because the
-  deploy ships the compose file alone (`docs/preprod.md`, #1558). It requires
-  `PREPROD_SITE_URL` and `PREPROD_ADMIN_URL`, which is why the compose-config
-  job sets both.
+- Both deployed stacks put Caddy in front of web and admin with its
+  Caddyfile inline under `configs.edge_caddyfile`, because the deploy ships
+  the compose file alone (*What the deploy writes on the VPS*; prod in
+  `docs/prod.md`, #1598; preprod's plain-HTTP edge in `docs/preprod.md`,
+  #1558). The preprod one requires `PREPROD_SITE_URL` and
+  `PREPROD_ADMIN_URL`, which is why the compose-config job sets both.
 - Both deployed stacks publish the API's port on the loopback interface only
   (`127.0.0.1:8080:8080` on prod, `127.0.0.1:8081:8080` on preprod). Nothing
   external needs it: web and admin reach the API over the internal network as
