@@ -341,6 +341,69 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task IngestSnapshotsAsync_ShouldRejectAShellMatch()
+    {
+        await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
+        var service = new MatchSnapshotWriter(
+            new FakeRiotMatchClient(endOfGameResult: "Abort_Unexpected"),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainActivityOptions()));
+
+        var result = await IngestSnapshotsAsync(
+            service,
+            session,
+            "KR",
+            "puuid-1",
+            RegionalRoute.Asia,
+            matchesPerAccount: 10,
+            saveBatchSize: 10,
+            maxFetchConcurrency: 4,
+            CancellationToken.None);
+
+        // An Abort_* shell is in the tracked queue, so it is not a wrong-queue skip: it is
+        // counted on its own (#1364), and neither it nor a timeline for it is written.
+        result.Inserted.Should().Be(0);
+        result.NewMatchIds.Should().BeEmpty();
+        result.SkippedShell.Should().Be(1);
+        result.SkippedWrongQueue.Should().Be(0);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        verifyDb.Matches.Should().BeEmpty();
+        verifyDb.MatchParticipants.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task IngestSnapshotsAsync_ShouldStoreHowACompletedGameEnded()
+    {
+        await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
+        var service = new MatchSnapshotWriter(
+            new FakeRiotMatchClient(endOfGameResult: "GameComplete"),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainActivityOptions()));
+
+        var result = await IngestSnapshotsAsync(
+            service,
+            session,
+            "KR",
+            "puuid-1",
+            RegionalRoute.Asia,
+            matchesPerAccount: 10,
+            saveBatchSize: 10,
+            maxFetchConcurrency: 4,
+            CancellationToken.None);
+
+        result.Inserted.Should().Be(1);
+        result.SkippedShell.Should().Be(0);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var match = verifyDb.Matches.Single();
+        match.EndOfGameResult.Should().Be("GameComplete");
+        match.EndedInEarlySurrender.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task IngestSnapshotsAsync_ShouldReactivateTheMainItSeesPlayed_AndStampMainAccounts()
     {
         // puuid-2 holds two inactive mains; the fake match shows it on 51 only. puuid-1 is a
@@ -446,7 +509,9 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
         public override DateTimeOffset GetUtcNow() => nowUtc;
     }
 
-    private sealed class FakeRiotMatchClient(int queueId = (int)LolQueueId.RankedSoloDuo) : IRiotMatchClient
+    private sealed class FakeRiotMatchClient(
+        int queueId = (int)LolQueueId.RankedSoloDuo,
+        string? endOfGameResult = null) : IRiotMatchClient
     {
         public Task<List<string>> GetMatchIdsAsync(MatchIdQuery query, CancellationToken ct)
             => Task.FromResult(new List<string> { "KR_100" });
@@ -468,6 +533,7 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
                     GameStartTimestamp = new DateTimeOffset(2026, 3, 10, 20, 15, 0, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     GameDuration = 1800,
                     GameVersion = "16.4.1",
+                    EndOfGameResult = endOfGameResult,
                     Participants =
                     [
                         CreateParticipant(1, "puuid-1", "player-one", 22, true, "BOTTOM", "DUO_CARRY", 4, 7),

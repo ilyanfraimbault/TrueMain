@@ -57,7 +57,12 @@ Whose games count in a champion page's figures: a tracked true main of the champ
 position, in a game that is not a remake.
 
 **Remake**:
-A game ended in its first minutes; never counted as a game.
+A game ended in its first minutes by the remake vote — Riot's `gameEndedInEarlySurrender`, or shorter than five
+minutes for the matches ingested before that flag was stored; never counted as a game.
+
+**Shell match**:
+A match Riot recorded although no game was played (`endOfGameResult` is an `Abort_*` value rather than
+`GameComplete`). Refused at ingest, never stored. Not a remake: a remake was played, briefly.
 
 ## Ranks and populations
 

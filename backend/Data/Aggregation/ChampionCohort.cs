@@ -56,11 +56,12 @@ public readonly record struct ChampionCohortKey(string MatchId, int ParticipantI
 /// </para>
 ///
 /// <para>
-/// <b>Remakes.</b> Riot's own <c>gameEndedInEarlySurrender</c> is not stored on
-/// <c>match_participants</c>, so the rule is a duration floor —
-/// <see cref="MinimumGameDurationSeconds"/> — held here rather than restated per fold.
-/// On production 4 762 stored matches (1.7%) sit under it. Should the Riot flag ever be
-/// persisted, this is the single place that changes.
+/// <b>Remakes.</b> Two signals, either one enough: Riot's own
+/// <c>gameEndedInEarlySurrender</c>, stored on the match since #1364
+/// (<c>matches.EndedInEarlySurrender</c>), and a duration floor —
+/// <see cref="MinimumGameDurationSeconds"/> — which still judges every match ingested
+/// before the flag was, and any remake Riot failed to flag. Both are held here rather
+/// than restated per fold.
 /// </para>
 ///
 /// <para>
@@ -75,10 +76,10 @@ public static class ChampionCohort
 {
     /// <summary>
     /// A match shorter than this is a remake — the pre-5-minute vote every fold used to
-    /// count as a game, each one deciding for itself whether to. Riot's
-    /// <c>gameEndedInEarlySurrender</c> would be the exact signal but is not stored, and
-    /// the vote cannot open before 3 minutes nor the game end much past 4, so the floor
-    /// separates the two populations cleanly without a schema change.
+    /// count as a game, each one deciding for itself whether to. The vote cannot open
+    /// before 3 minutes nor the game end much past 4, so the floor separates the two
+    /// populations cleanly; it stands beside Riot's <c>gameEndedInEarlySurrender</c>
+    /// because matches ingested before #1364 do not carry the flag.
     /// </summary>
     public const int MinimumGameDurationSeconds = 300;
 
@@ -97,9 +98,12 @@ public static class ChampionCohort
     public static bool IsCanonicalPosition(string? teamPosition)
         => teamPosition is not null && Array.IndexOf(CanonicalPositions, teamPosition) >= 0;
 
-    /// <summary>Whether a match of this length is a remake rather than a game.</summary>
-    public static bool IsRemake(int gameDurationSeconds)
-        => gameDurationSeconds < MinimumGameDurationSeconds;
+    /// <summary>
+    /// Whether a match is a remake rather than a game: Riot flagged the remake vote, or the
+    /// match is shorter than <see cref="MinimumGameDurationSeconds"/>.
+    /// </summary>
+    public static bool IsRemake(int gameDurationSeconds, bool endedInEarlySurrender)
+        => endedInEarlySurrender || gameDurationSeconds < MinimumGameDurationSeconds;
 
     /// <summary>
     /// Loads the cohort for <paramref name="matchIds"/>. Callers test membership per
@@ -122,7 +126,8 @@ public static class ChampionCohort
         var eligibleMatchIds = await db.Matches
             .AsNoTracking()
             .Where(match => matchIds.Contains(match.Id)
-                && match.GameDurationSeconds >= MinimumGameDurationSeconds)
+                && match.GameDurationSeconds >= MinimumGameDurationSeconds
+                && !match.EndedInEarlySurrender)
             .Select(match => match.Id)
             .ToListAsync(ct);
 
@@ -140,6 +145,7 @@ public static class ChampionCohort
                 && participant.RiotAccountId != null
                 && stat.IsMain
                 && match.GameDurationSeconds >= MinimumGameDurationSeconds
+                && !match.EndedInEarlySurrender
                 && CanonicalPositions.Contains(participant.TeamPosition)
             select new ChampionCohortKey(participant.MatchId, participant.ParticipantId))
             .ToListAsync(ct);
