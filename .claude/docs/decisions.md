@@ -95,7 +95,7 @@ Last verified against `develop` on 2026-09-02.
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - The draft assistant's lane guess is an assignment solved by exact enumeration — not per-champion arg-maxes, not Hungarian — #1674, #1706
-- Lane priors read the ally synergy baselines, not the scope table, and decay over four patches rather than switching — #1674, #1706
+- Lane priors read the ally synergy baselines, not the scope table, decay over four patches rather than switching, and pool every elo band (2026-10-05) — #1674, #1706, #1707
 - Draft candidates are ranked by measured deltas kept separate — lane (probability-weighted), blind safety, champion strength, mean synergy — shrunk by their games and weighed lane first by a back-test, never a fabricated win probability or a grade — #1675, #1706, #1906
 - Draft ban suggestions protect the declared pick (else the mastery pool) from the lane opponents it is behind into, weighted by how often they are played; never an ally's champion — #1906
 - Draft reads use the current patch with the previous one as a per-champion fallback, not every stored patch — #1906

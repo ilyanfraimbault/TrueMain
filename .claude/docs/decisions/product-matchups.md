@@ -272,6 +272,12 @@ lanes move. `Games` keeps counting every patch as the evidence behind a prior; a
 outside the window reads as unseen (uniform), never as impossible on every lane. `LanePriorQueryService`
 — #1674, #1706.
 
+↳ **Pooled across elo bands, unlike the rest of the draft response (2026-10-05).** The matchup, blind, strength,
+synergy and enemy-team readings honour `eloBracket`; the prior does not, and its cache key carries no bracket. A
+champion's lane barely moves with rank, and splitting the baselines by band would blind the prior on exactly the
+rare picks it exists for — coverage matters more than scope here. Decided by the product owner; pinned by
+`DraftRecommendationQueryServiceTests` — #1707.
+
 **Draft candidates are ranked by measured deltas kept separate, never a fabricated win probability.**
 The reference apps show a probability out of a black box; we have no trained composition model, and inventing one
 breaks the rule that every number on the site comes from a measurement. Every component is a win-rate difference
