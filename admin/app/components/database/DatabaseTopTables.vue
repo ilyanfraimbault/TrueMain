@@ -23,7 +23,7 @@ const topTables = computed(() =>
   [...(props.tables ?? [])]
     .sort((a, b) => b.totalBytes - a.totalBytes)
     .slice(0, TOP_N)
-    // The label carries the engine: two of these names exist on both sides, and a
+    // The label carries the engine: a name can exist on both sides, and a
     // bar chart has no other column to tell them apart.
     .map(t => ({ label: `${t.tableName} (${storageEngineLabel(t.engine)})`, bytes: t.totalBytes })),
 )
