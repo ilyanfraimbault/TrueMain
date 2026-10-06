@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Data;
 using Data.Aggregation;
 using Data.Entities;
+using Microsoft.EntityFrameworkCore;
 using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
@@ -286,6 +287,70 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
             cohort.Keys.Should().BeEmpty();
             cohort.IncludesMatch("EUW1_NOLANE").Should()
                 .BeTrue("the match is still a game - it just has nobody on the champion side");
+        }
+    }
+
+    /// <summary>
+    /// The folds load the cohort per batch and the live reads compose it as a query; both
+    /// are the one predicate, and this pins that they answer alike on a corpus holding
+    /// every case the clauses above separate (#1365).
+    /// </summary>
+    [Fact]
+    public async Task The_live_read_query_and_the_fold_load_admit_the_same_participants()
+    {
+        string[] matchIds =
+            ["EUW1_A_MAIN", "EUW1_A_OFFMAIN", "EUW1_A_ORPHAN", "EUW1_A_REMAKE", "EUW1_A_NOLANE", "EUW1_A_RETIRED"];
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var main = AddAccount(db, TrackedPuuid);
+            var retired = AddAccount(db, "retired-puuid");
+            Seed(db, "EUW1_A_MAIN", TrackedPuuid, Yone, main.Id, participantId: 1);
+            Seed(db, "EUW1_A_OFFMAIN", TrackedPuuid, Zed, main.Id, participantId: 2);
+            Seed(db, "EUW1_A_ORPHAN", "orphan-puuid", Yone, riotAccountId: null, participantId: 3);
+            Seed(db, "EUW1_A_REMAKE", TrackedPuuid, Yone, main.Id, participantId: 4,
+                gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds - 1);
+            Seed(db, "EUW1_A_NOLANE", TrackedPuuid, Yone, main.Id, participantId: 5, teamPosition: "");
+            Seed(db, "EUW1_A_RETIRED", "retired-puuid", Yone, retired.Id, participantId: 6);
+            db.MainChampionStats.AddRange(
+                MainRow(TrackedPuuid, Yone, isMain: true),
+                MainRow(TrackedPuuid, Zed, isMain: false),
+                MainRow("orphan-puuid", Yone, isMain: true),
+                MainRow("retired-puuid", Yone, isMain: true, isActive: false));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var loaded = await ChampionCohort.LoadAsync(db, matchIds, CancellationToken.None);
+            var composed = await ChampionCohort.Members(db, QueueId, patch: null)
+                .Select(p => new ChampionCohortKey(p.MatchId, p.ParticipantId))
+                .ToListAsync();
+
+            composed.Should().BeEquivalentTo(loaded.Keys);
+            composed.Select(key => key.MatchId).Should().BeEquivalentTo(["EUW1_A_MAIN", "EUW1_A_RETIRED"]);
+        }
+    }
+
+    [Fact]
+    public async Task Games_drops_the_remakes_and_keeps_the_queue_and_patch_asked_for()
+    {
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = AddAccount(db, TrackedPuuid);
+            Seed(db, "EUW1_G_GAME", TrackedPuuid, Yone, account.Id, participantId: 1);
+            Seed(db, "EUW1_G_REMAKE", TrackedPuuid, Yone, account.Id, participantId: 1,
+                gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds - 1);
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var games = await ChampionCohort.Games(db, QueueId, patch: null).Select(m => m.Id).ToListAsync();
+            var otherQueue = await ChampionCohort.Games(db, 440, patch: null).Select(m => m.Id).ToListAsync();
+
+            games.Should().BeEquivalentTo(["EUW1_G_GAME"]);
+            otherQueue.Should().BeEmpty();
         }
     }
 
