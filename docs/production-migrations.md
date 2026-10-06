@@ -161,15 +161,18 @@ SET statement_timeout = '10min';
 - **`ON_ERROR_STOP`.** Without it psql keeps reading after an error, the
   transaction ends in a rollback, and psql still exits 0, which would let the
   deploy roll new images onto the old schema. The guard makes the failure
-  visible whatever flags the VPS's `apply-migration.sh` passes.
+  visible whatever flags the VPS's forced command
+  (`/usr/local/bin/apply-migration.sh`) passes.
 
 **Retry behaviour.** The whole script runs in one transaction
 (`--single-transaction`), so a lock timeout rolls back every statement before
-it and leaves the database exactly as it was. The `migrate` job retries an
-attempt that failed on `lock timeout` up to three times, 30 s apart; any other
-error fails the job at once. If all three attempts lose, the deploy does not
-run and the old images keep serving the old schema, which is consistent. Find
-the blocker before re-running the workflow — a long ingestor fold is the usual
+it and leaves the database exactly as it was. The `migrate` job's
+`.github/scripts/apply-migration.sh` retries an attempt that failed on a lock
+timeout up to three attempts, 30 s apart, on a schedule kept apart from its SSH
+connection retries; any other SQL error fails the job at once (`docs/ci.md`,
+*Migration over SSH*). If all three attempts lose, the deploy does not run and
+the old images keep serving the old schema, which is consistent. Find the
+blocker before re-running the workflow — a long ingestor fold is the usual
 one:
 
 ```sql
