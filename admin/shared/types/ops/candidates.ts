@@ -9,7 +9,9 @@ import type { SeedRequestReadModel } from './seeds'
  *   Queued     — selected for full ingestion
  *   Processing — the Ingestor is pulling the account's matches
  *   Validated  — confirmed as a main and fully ingested
- *   Rejected   — ruled out (not a main)
+ *
+ * There is no rejection status (#1029): a candidate is in the pipeline, demoted back
+ * into the pool (Validated → Scored), or pruned.
  */
 export type MainCandidateStatus
   = | 'New'
@@ -17,7 +19,6 @@ export type MainCandidateStatus
     | 'Queued'
     | 'Processing'
     | 'Validated'
-    | 'Rejected'
 
 /**
  * One row of `GET /api/ops/candidates`. `gameName`/`tagLine` are joined from the
@@ -172,8 +173,6 @@ export interface CandidateStockBucket {
   queued: number
   processing: number
   validated: number
-  /** Structurally 0 — no process assigns `Rejected` (#1029). Carried, not charted. */
-  rejected: number
   /** The exact instant this period's reading was taken, ISO-8601 UTC. */
   sampledAtUtc: string
   /**
@@ -195,7 +194,6 @@ export interface CandidateStockAccounts {
   queued: number
   processing: number
   validated: number
-  rejected: number
 }
 
 /**

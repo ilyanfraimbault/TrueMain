@@ -35,7 +35,6 @@ public sealed class CandidatePruningIntegrationTests : IAsyncLifetime
             db.MainCandidates.AddRange(
                 Candidate("stale-new", 1, MainCandidateStatus.New, stale),
                 Candidate("stale-scored", 2, MainCandidateStatus.Scored, stale),
-                Candidate("stale-rejected", 3, MainCandidateStatus.Rejected, stale),
                 Candidate("stale-queued", 4, MainCandidateStatus.Queued, stale),
                 Candidate("stale-validated", 5, MainCandidateStatus.Validated, stale, validatedAtUtc: stale),
                 Candidate("fresh-new", 6, MainCandidateStatus.New, fresh));
@@ -50,7 +49,7 @@ public sealed class CandidatePruningIntegrationTests : IAsyncLifetime
             .OrderBy(p => p)
             .ToListAsync();
 
-        // Stale New/Scored/Rejected (never promoted) are pruned; in-flight (Queued),
+        // Stale New/Scored (never promoted) are pruned; in-flight (Queued),
         // Validated, and the fresh candidate survive.
         remaining.Should().BeEquivalentTo("fresh-new", "stale-queued", "stale-validated");
     }

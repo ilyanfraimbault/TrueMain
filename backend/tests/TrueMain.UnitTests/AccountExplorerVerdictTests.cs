@@ -103,7 +103,7 @@ public sealed class AccountExplorerVerdictTests
     {
         var candidates = new[]
         {
-            Candidate(MainCandidateStatus.Rejected),
+            Candidate(MainCandidateStatus.Processing),
             Candidate(MainCandidateStatus.Scored),
             Candidate(MainCandidateStatus.Scored)
         };
@@ -111,7 +111,7 @@ public sealed class AccountExplorerVerdictTests
         var detail = AccountExplorerVerdict.DescribeState(
             AccountPipelineState.CandidateOnly, Account(), candidates, [], new AccountExplorerMatchesIngestedReadModel());
 
-        detail.Should().Contain("(3 row(s), status Scored, Rejected)");
+        detail.Should().Contain("(3 row(s), status Scored, Processing)");
         detail.Should().EndWith("MainAnalysis has never run on this account.");
     }
 

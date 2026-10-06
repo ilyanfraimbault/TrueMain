@@ -67,9 +67,8 @@ public interface IMainCandidateRepository
 
     /// <summary>
     /// Deletes never-promoted candidates that have gone stale (#487): rows still in a
-    /// pre-ingestion or rejected status (<see cref="MainCandidateStatus.New"/>,
-    /// <see cref="MainCandidateStatus.Scored"/>, <see cref="MainCandidateStatus.Rejected"/>),
-    /// never validated, and last active before <paramref name="lastPlayCutoffUtc"/>. Set-based
+    /// pre-ingestion status (<see cref="MainCandidateStatus.New"/>,
+    /// <see cref="MainCandidateStatus.Scored"/>), never validated, and last active before <paramref name="lastPlayCutoffUtc"/>. Set-based
     /// delete; returns the number of rows removed. In-flight (Queued/Processing) and Validated
     /// candidates are never touched. Bounds <c>main_candidates</c> growth from the harvest.
     /// </summary>
