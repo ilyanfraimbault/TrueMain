@@ -70,18 +70,18 @@ make a crash-looping ingestor read as an idle one. Quiet periods **inside** the 
 since a stalled pipeline is the thing the chart exists to show. And nothing is filled **before** the oldest
 surviving run: that period was not measured, and zeros there would assert a repose we have no record of.
 
-**The candidate funnel measures Validated and Demoted, because Rejected is a status nothing assigns** (#1024).
+**The candidate funnel measures Validated and Demoted, its only exit and only negative outcome** (#1024).
 The issue asked for a rejection counter, on the reading that rejections were the funnel's missing outcome. They
-are not missing — they do not exist: `MainCandidateStatus.Rejected` is read in five places (the pruning
+were not missing — they did not exist: `MainCandidateStatus.Rejected` was read in five places (the pruning
 predicate, the harvest's refusal to resurrect, the manual seed's requeue list, the admin filter, the overview
-breakdown) and **assigned in none**, so the `Rejected` bucket the portal has always shown is structurally zero.
+breakdown) and **assigned in none**, so the `Rejected` bucket the portal had always shown was structurally zero.
 Adding the requested counter would have shipped a permanently flat series dressed as a measurement. What the
 funnel genuinely lacked was its *exit*: `AccountValidationService` promotes Processing → Validated without
 feeding any summary counter, so nothing recorded how many accounts cleared ingestion. That counter
 (`MatchIngestionSummary.AccountsValidated`) is what got added, alongside `MainAnalysisSummary.DemotedAccounts`,
 which already existed and is the pipeline's only real negative outcome. Whether a rejection verdict should
-exist at all — or whether the status should be removed, since several guards branch on a value that cannot
-occur — is a product question, left to #1029 rather than smuggled into a chart.
+exist at all was a product question, left to #1029 rather than smuggled into a chart; #1029 removed the status
+(`decisions/product-mains.md`).
 
 **A forward-only counter renders as absent, not as zero, and key presence is what says which** (#1024).
 `accountsValidated` did not exist before this deploy, so every `MatchIngestion` run already in the 180-day

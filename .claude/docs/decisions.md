@@ -23,6 +23,7 @@ Last verified against `develop` on 2026-09-02.
 - The account explorer (#1032) reports raw score inputs, not score components — and never calls Riot
 - `MainActivity` deactivation carries no persisted reason, so the account explorer says so rather than guessing — #900
 - A main whose matches expired is dated, not deleted and not hidden (2026-08-24) — #825, #466
+- A candidate has no rejection verdict: it is in the pipeline, demoted back into the pool, or pruned (2026-10-06) — #1029, #1024, #1535
 
 ## Population and rank scope of the champion pages (#1346) — [`decisions/product-population.md`](decisions/product-population.md)
 
@@ -306,7 +307,7 @@ Last verified against `develop` on 2026-09-02.
 - A step change in what is measured is not growth, so the forecast restarts at it — #1023
 - Ingestion throughput is measured from the run summaries, not from `matches.CreatedAtUtc` — #1025, #982, #988
 - The counters are summed in memory because the summary is stored as opaque JSON text — #1025, #990
-- The candidate funnel measures Validated and Demoted, because Rejected is a status nothing assigns — #1024, #1029
+- The candidate funnel measures Validated and Demoted — its only exit and only negative outcome — #1024, #1029
 - A forward-only counter renders as absent, not as zero, and key presence is what says which — #1024, #924
 - `ValidatedAtUtc` had never been written in production, and the queue-latency snapshot is why that surfaced — #1024
 - Queue latency is a snapshot over retained rows and is labelled as one, rather than being faked into a series — #1024

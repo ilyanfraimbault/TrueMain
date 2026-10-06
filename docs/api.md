@@ -1621,7 +1621,7 @@ Compteurs globaux du corpus.
   "trackedAccounts": 12000,
   "totalMatches": 1500000,
   "totalParticipants": 15000000,
-  "candidatesByStatus": { "New": 200, "Scored": 80, "Queued": 15, "Processing": 3, "Validated": 9000, "Rejected": 1200 },
+  "candidatesByStatus": { "New": 200, "Scored": 80, "Queued": 15, "Processing": 3, "Validated": 9000 },
   "totalMains": 9000,
   "totalOtps": 1300,
   "distinctChampionsWithGames": 168,
@@ -2858,14 +2858,14 @@ dans l'admin comme une panne plutôt que comme un verdict.
 
 ## `GET /ops/candidates`
 
-Candidats « main » du pipeline (New → Scored → Queued → Processing → Validated,
-ou Rejected), paginés.
+Candidats « main » du pipeline (New → Scored → Queued → Processing → Validated),
+paginés.
 
 **Query**
 
 | Param      | Type | Requis | Description |
 |------------|------|--------|-------------|
-| `status`   | string | non | Un `MainCandidateStatus` (new/scored/queued/processing/validated/rejected). |
+| `status`   | string | non | Un `MainCandidateStatus` (new/scored/queued/processing/validated). |
 | `region`   | string | non | PlatformId (ex. `EUW1`). |
 | `search`   | string | non | Riot ID / PUUID / champion-id. |
 | `page`     | int  | non | 1-based. |
@@ -2956,8 +2956,9 @@ découvert. La série est donc bornée par le TTL de `process_runs`.
 - `validated` est `null` — et non `0` — pour les périodes antérieures à
   `validatedFirstMeasuredAtUtc` : le compteur n'existait pas encore, et un panneau
   de santé ne présente pas ce qu'il n'a pas mesuré comme un zéro mesuré (#924).
-- `demoted` est aujourd'hui la seule sortie négative du funnel : le statut
-  `Rejected` existe sur l'entité mais aucun process ne l'assigne.
+- `demoted` est la seule sortie négative du funnel : il n'existe pas de statut de
+  rejet (retiré par #1029), un candidat est dans le pipeline, rétrogradé dans le
+  pool ou purgé.
 - `runs` compte les runs des six process contributeurs ; `0` distingue « le
   pipeline n'a pas tourné » de « il a tourné et n'a rien bougé ».
 - Les périodes creuses *à l'intérieur* de la plage observée valent zéro ; rien n'est

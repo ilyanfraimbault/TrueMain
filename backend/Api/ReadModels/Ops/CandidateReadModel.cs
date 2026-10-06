@@ -19,7 +19,7 @@ public sealed record CandidatesReadModel
 /// <summary>
 /// A single <c>MainCandidate</c> as surfaced to the list. <see cref="Status"/> is
 /// the <c>MainCandidateStatus</c> name ("New"/"Scored"/"Queued"/"Processing"/
-/// "Validated"/"Rejected"). The Riot ID fields (<see cref="GameName"/>,
+/// "Validated"). The Riot ID fields (<see cref="GameName"/>,
 /// <see cref="TagLine"/>) are populated from the joined <c>RiotAccount</c> when one
 /// exists for the candidate's PUUID; null when the account hasn't been resolved
 /// yet (a candidate is discovered from mastery before its account is upserted).
