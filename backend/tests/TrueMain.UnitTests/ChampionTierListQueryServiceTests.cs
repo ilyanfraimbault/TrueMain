@@ -25,7 +25,7 @@ public sealed class ChampionTierListQueryServiceTests
     private static readonly string[] ValidTiers = ["S", "A", "B", "C", "D"];
 
     [Fact]
-    public async Task GetTierListAsync_returns_empty_model_when_no_summaries()
+    public async Task GetTierListAsync_ReturnsEmptyModelWhenNoSummaries()
     {
         var summaries = Substitute.For<IChampionSummariesQueryService>();
         summaries.GetAllSummariesAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -40,7 +40,7 @@ public sealed class ChampionTierListQueryServiceTests
     }
 
     [Fact]
-    public async Task GetTierListAsync_groups_every_row_and_orders_tiers_strongest_first()
+    public async Task GetTierListAsync_GroupsEveryRowAndOrdersTiersStrongestFirst()
     {
         // 50 rows on a single position, win rate climbing, pick/ban rate held
         // constant — win rate is the sole discriminator, so this is still a
@@ -70,7 +70,7 @@ public sealed class ChampionTierListQueryServiceTests
     }
 
     [Fact]
-    public async Task GetTierListAsync_carries_the_tier_each_row_arrives_with()
+    public async Task GetTierListAsync_CarriesTheTierEachRowArrivesWith()
     {
         // The whole point of #1240: the letter on the group is the row's own
         // Tier, not a second opinion computed here. Rows stamped by hand with
@@ -95,7 +95,7 @@ public sealed class ChampionTierListQueryServiceTests
     }
 
     [Fact]
-    public async Task GetTierListAsync_breaks_score_ties_on_champion_id()
+    public async Task GetTierListAsync_BreaksScoreTiesOnChampionId()
     {
         List<ChampionSummaryReadModel> rows =
         [
@@ -111,7 +111,7 @@ public sealed class ChampionTierListQueryServiceTests
     }
 
     [Fact]
-    public async Task GetTierListAsync_keeps_a_lane_tier_identical_when_scoped_to_it()
+    public async Task GetTierListAsync_KeepsALaneTierIdenticalWhenScopedToIt()
     {
         // The position filter drops whole lanes, never rows inside a kept lane,
         // and the stamped tier is already lane-relative — which is exactly why
@@ -146,7 +146,7 @@ public sealed class ChampionTierListQueryServiceTests
     }
 
     [Fact]
-    public async Task GetTierListAsync_filters_to_requested_position()
+    public async Task GetTierListAsync_FiltersToRequestedPosition()
     {
         List<ChampionSummaryReadModel> rows = Stamp(
         [
@@ -165,7 +165,7 @@ public sealed class ChampionTierListQueryServiceTests
     }
 
     [Fact]
-    public async Task GetTierListAsync_handles_a_ban_data_free_patch()
+    public async Task GetTierListAsync_HandlesABanDataFreePatch()
     {
         // Every row null BanRate (pre-#920 patch) must still round-trip its
         // null rather than showing a fabricated 0%.

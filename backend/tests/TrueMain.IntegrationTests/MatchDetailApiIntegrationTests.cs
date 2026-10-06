@@ -26,7 +26,7 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task GetMatchDetail_returns_404_for_unknown_nameTag()
+    public async Task GetMatchDetail_Returns404ForUnknownNameTag()
     {
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -37,7 +37,7 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetMatchDetail_returns_404_for_unknown_matchId()
+    public async Task GetMatchDetail_Returns404ForUnknownMatchId()
     {
         await SeedFullMatchAsync();
 
@@ -50,7 +50,7 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetMatchDetail_returns_404_when_account_did_not_play_the_match()
+    public async Task GetMatchDetail_Returns404WhenAccountDidNotPlayTheMatch()
     {
         await SeedFullMatchAsync();
 
@@ -80,7 +80,7 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetMatchDetail_returns_full_participant_build_timeline_shape()
+    public async Task GetMatchDetail_ReturnsFullParticipantBuildTimelineShape()
     {
         await SeedFullMatchAsync();
 
@@ -199,7 +199,7 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
 
 
     [Fact]
-    public async Task GetMatchDetail_returns_the_stored_win_probability_in_the_web_shape()
+    public async Task GetMatchDetail_ReturnsTheStoredWinProbabilityInTheWebShape()
     {
         await SeedFullMatchAsync();
         await using (var db = _fixture.CreateDbContext())

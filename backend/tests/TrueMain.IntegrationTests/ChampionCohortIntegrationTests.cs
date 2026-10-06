@@ -40,7 +40,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Returns_an_empty_set_when_no_matches_are_asked_for()
+    public async Task ReturnsAnEmptySetWhenNoMatchesAreAskedFor()
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -50,7 +50,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Admits_a_tracked_participant_that_mains_the_champion_it_played()
+    public async Task AdmitsATrackedParticipantThatMainsTheChampionItPlayed()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -70,7 +70,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_an_untracked_participant_even_when_a_main_row_exists_for_its_puuid()
+    public async Task ExcludesAnUntrackedParticipantEvenWhenAMainRowExistsForItsPuuid()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -91,7 +91,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_tracked_participant_playing_a_champion_it_does_not_main()
+    public async Task ExcludesATrackedParticipantPlayingAChampionItDoesNotMain()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -121,7 +121,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_participant_whose_main_row_was_computed_on_another_platform()
+    public async Task ExcludesAParticipantWhoseMainRowWasComputedOnAnotherPlatform()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -143,7 +143,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Keeps_a_retired_main_because_IsActive_only_retires_future_ingestion()
+    public async Task KeepsARetiredMainBecauseIsActiveOnlyRetiresFutureIngestion()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -165,7 +165,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Scopes_the_result_to_the_requested_matches_only()
+    public async Task ScopesTheResultToTheRequestedMatchesOnly()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -185,7 +185,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Keys_stay_per_match_because_a_participant_id_is_only_a_slot_number()
+    public async Task Keys_StayPerMatchBecauseAParticipantIdIsOnlyASlotNumber()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -213,7 +213,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_remade_game_because_a_remake_is_not_a_game()
+    public async Task ExcludesARemadeGameBecauseARemakeIsNotAGame()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -242,7 +242,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_participant_whose_position_is_not_canonical()
+    public async Task ExcludesAParticipantWhosePositionIsNotCanonical()
     {
         await using (var db = _fixture.CreateDbContext())
         {

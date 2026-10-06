@@ -30,14 +30,14 @@ public sealed class ChampionCohortTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(299)]
-    public void A_game_under_five_minutes_is_a_remake(int durationSeconds)
+    public void AGameUnderFiveMinutesIsARemake(int durationSeconds)
         => ChampionCohort.IsRemake(durationSeconds).Should().BeTrue();
 
     [Theory]
     [InlineData(300)]
     [InlineData(301)]
     [InlineData(1800)]
-    public void A_game_at_or_over_five_minutes_is_a_game(int durationSeconds)
+    public void AGameAtOrOverFiveMinutesIsAGame(int durationSeconds)
         => ChampionCohort.IsRemake(durationSeconds).Should().BeFalse();
 
     [Theory]
@@ -46,7 +46,7 @@ public sealed class ChampionCohortTests
     [InlineData("MIDDLE")]
     [InlineData("BOTTOM")]
     [InlineData("UTILITY")]
-    public void The_five_riot_lanes_are_canonical(string position)
+    public void TheFiveRiotLanesAreCanonical(string position)
         => ChampionCohort.IsCanonicalPosition(position).Should().BeTrue();
 
     [Theory]
@@ -55,11 +55,11 @@ public sealed class ChampionCohortTests
     [InlineData("bottom")]
     [InlineData("SUPPORT")]
     [InlineData(null)]
-    public void Anything_else_is_not_a_lane_anybody_can_ask_for(string? position)
+    public void AnythingElseIsNotALaneAnybodyCanAskFor(string? position)
         => ChampionCohort.IsCanonicalPosition(position).Should().BeFalse();
 
     [Fact]
-    public void An_empty_batch_asks_nothing_of_the_database()
+    public void AnEmptyBatchAsksNothingOfTheDatabase()
     {
         ChampionCohortSnapshot.Empty.Count.Should().Be(0);
         ChampionCohortSnapshot.Empty.IncludesMatch("EUW1_1").Should().BeFalse();
@@ -67,7 +67,7 @@ public sealed class ChampionCohortTests
     }
 
     [Fact]
-    public void Membership_is_per_match_because_a_participant_id_is_only_a_slot_number()
+    public void Membership_IsPerMatchBecauseAParticipantIdIsOnlyASlotNumber()
     {
         var snapshot = new ChampionCohortSnapshot(
             [new ChampionCohortKey("EUW1_1", 3)],
@@ -85,7 +85,7 @@ public sealed class ChampionCohortTests
     /// close.
     /// </summary>
     [Fact]
-    public void The_header_floor_never_admits_a_game_the_shared_rule_rejects()
+    public void TheHeaderFloorNeverAdmitsAGameTheSharedRuleRejects()
         => ChampionPatternSourceRowReader.MinimumAggregatedGameDurationSeconds
             .Should().BeGreaterThanOrEqualTo(ChampionCohort.MinimumGameDurationSeconds);
 
@@ -99,7 +99,7 @@ public sealed class ChampionCohortTests
     /// time path, so it does not depend on the working directory the tests run from.
     /// </summary>
     [Fact]
-    public void No_fold_expresses_its_own_cohort_filter()
+    public void NoFoldExpressesItsOwnCohortFilter()
     {
         var processes = FoldSourceDirectory();
 

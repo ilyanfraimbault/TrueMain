@@ -12,7 +12,7 @@ namespace TrueMain.UnitTests;
 public sealed class RetainedPatchSelectionTests
 {
     [Fact]
-    public void Keeps_the_newest_patches_per_platform()
+    public void KeepsTheNewestPatchesPerPlatform()
     {
         var observed = new List<RetainedPatchWindow.ObservedPatch>
         {
@@ -29,7 +29,7 @@ public sealed class RetainedPatchSelectionTests
     }
 
     [Fact]
-    public void Collapses_the_build_numbers_of_a_single_patch_into_one_retained_slot()
+    public void CollapsesTheBuildNumbersOfASinglePatchIntoOneRetainedSlot()
     {
         // Two game versions normalising to 14.3 are one patch, not two: the retention
         // count is a patch count, and counting builds would silently halve the history.
@@ -46,7 +46,7 @@ public sealed class RetainedPatchSelectionTests
     }
 
     [Fact]
-    public void Drops_unparseable_game_versions_instead_of_spending_a_retained_slot_on_them()
+    public void DropsUnparseableGameVersionsInsteadOfSpendingARetainedSlotOnThem()
     {
         var observed = new List<RetainedPatchWindow.ObservedPatch>
         {

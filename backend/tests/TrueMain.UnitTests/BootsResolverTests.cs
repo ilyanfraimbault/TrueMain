@@ -11,7 +11,7 @@ public sealed class BootsResolverTests
     private static IReadOnlyDictionary<int, ItemMetadata> Metadata => ItemMetadataFixtures.ItemMetadataById;
 
     [Fact]
-    public void Resolve_returns_the_most_relevant_boots_from_final_inventory()
+    public void Resolve_ReturnsTheMostRelevantBootsFromFinalInventory()
     {
         var bootsItemId = BootsResolver.Resolve(
             [new ItemEvent { TimestampMs = 5_000, ItemId = 3006, EventType = "ITEM_PURCHASED" }],
@@ -21,7 +21,7 @@ public sealed class BootsResolverTests
     }
 
     [Fact]
-    public void Resolve_uses_purchased_boots_even_when_they_are_missing_from_final_inventory()
+    public void Resolve_UsesPurchasedBootsEvenWhenTheyAreMissingFromFinalInventory()
     {
         var bootsItemId = BootsResolver.Resolve(
         [
@@ -33,7 +33,7 @@ public sealed class BootsResolverTests
     }
 
     [Fact]
-    public void Resolve_ignores_undone_boot_purchases()
+    public void Resolve_IgnoresUndoneBootPurchases()
     {
         var bootsItemId = BootsResolver.Resolve(
         [
@@ -45,7 +45,7 @@ public sealed class BootsResolverTests
     }
 
     [Fact]
-    public void Resolve_finds_boots_held_in_the_role_bound_slot_of_a_full_inventory()
+    public void Resolve_FindsBootsHeldInTheRoleBoundSlotOfAFullInventory()
     {
         var bootsItemId = BootsResolver.Resolve(
             [],

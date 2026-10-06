@@ -22,7 +22,7 @@ public sealed class PerformanceInputsTests
         => marks.ToDictionary(m => (m.ParticipantId, m.Minute));
 
     [Fact]
-    public void BuildLaneLeads_emits_one_entry_per_mark_both_sides_cover()
+    public void BuildLaneLeads_EmitsOneEntryPerMarkBothSidesCover()
     {
         var marks = Marks(
             new TimelineMark(1, 10, Cs: 80, Gold: 4_000, Xp: 5_000),
@@ -40,7 +40,7 @@ public sealed class PerformanceInputsTests
     }
 
     [Fact]
-    public void BuildLaneLeads_returns_nothing_without_an_opponent()
+    public void BuildLaneLeads_ReturnsNothingWithoutAnOpponent()
     {
         var marks = Marks(new TimelineMark(1, 15, 130, 6_500, 8_000));
 
@@ -49,7 +49,7 @@ public sealed class PerformanceInputsTests
     }
 
     [Fact]
-    public void BuildLaneLeads_returns_the_marks_in_ascending_minute_order()
+    public void BuildLaneLeads_ReturnsTheMarksInAscendingMinuteOrder()
     {
         // Dictionary iteration order is not the wire order; the builder walks the
         // canonical mark list instead, so the curve is always sorted.
@@ -65,7 +65,7 @@ public sealed class PerformanceInputsTests
     }
 
     [Fact]
-    public void FindLaneOpponent_pairs_the_single_enemy_on_the_same_position()
+    public void FindLaneOpponent_PairsTheSingleEnemyOnTheSamePosition()
     {
         var roster = Roster(("MIDDLE", 100), ("TOP", 100), ("MIDDLE", 200), ("TOP", 200));
 
@@ -74,7 +74,7 @@ public sealed class PerformanceInputsTests
     }
 
     [Fact]
-    public void FindLaneOpponent_refuses_an_ambiguous_pairing()
+    public void FindLaneOpponent_RefusesAnAmbiguousPairing()
     {
         // Anomalous data: two enemies on one position. Taking the first would
         // make the score depend on Postgres' row order, so there is no opponent
@@ -87,7 +87,7 @@ public sealed class PerformanceInputsTests
     [Theory]
     [InlineData("")]
     [InlineData(null)]
-    public void FindLaneOpponent_has_nothing_to_pair_an_unassigned_position_with(string? position)
+    public void FindLaneOpponent_HasNothingToPairAnUnassignedPositionWith(string? position)
     {
         var roster = Roster((position, 100), (position, 200));
 
@@ -95,7 +95,7 @@ public sealed class PerformanceInputsTests
     }
 
     [Fact]
-    public void BuildMatchInputs_drops_the_lead_components_on_an_ambiguous_pairing()
+    public void BuildMatchInputs_DropsTheLeadComponentsOnAnAmbiguousPairing()
     {
         // Same rosters, same snapshots — but the second has a duplicate enemy
         // MIDDLE, so the player has no opponent and grades as if there were no
