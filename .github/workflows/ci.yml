@@ -50,6 +50,9 @@ jobs:
               - ".github/actions/**"
             backend:
               - "backend/**"
+              - "global.json"
+              - "web/shared/fixtures/win-probability-timeline.json"
+              - "web/layers/common/app/utils/win-probability*.ts"
             data:
               - "backend/Data/**"
             web:
@@ -141,10 +144,10 @@ jobs:
         run: dotnet build TrueMain.sln --configuration Release --no-restore
 
       - name: Unit tests
-        run: dotnet test tests/TrueMain.UnitTests/TrueMain.UnitTests.csproj --configuration Release --no-build --verbosity normal
+        run: dotnet test --project tests/TrueMain.UnitTests/TrueMain.UnitTests.csproj --configuration Release --no-build
 
       - name: Integration tests
-        run: dotnet test tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --configuration Release --no-build --verbosity normal
+        run: dotnet test --project tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --configuration Release --no-build
 
   migrate-fresh:
     name: Migrations on a fresh database

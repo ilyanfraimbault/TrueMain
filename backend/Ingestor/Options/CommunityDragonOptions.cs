@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -17,6 +19,7 @@ public class CommunityDragonOptions
     /// absurd value would shrink every attempt to a uselessly short timeout, and there is
     /// no legitimate reason to hammer a community-run mirror harder than that.
     /// </summary>
+    [Range(1, 10)]
     public int MaxRetryAttempts { get; set; } = 3;
 
     /// <summary>
@@ -24,6 +27,7 @@ public class CommunityDragonOptions
     /// serves a multi-megabyte static JSON file, so this is more generous than the
     /// standard handler's 10s default.
     /// </summary>
+    [Range(1, 600)]
     public int AttemptTimeoutSeconds { get; set; } = 15;
 
     /// <summary>
@@ -32,5 +36,6 @@ public class CommunityDragonOptions
     /// multi-minute <c>Retry-After</c> wait, so this stays a hard ceiling: the handler
     /// clamps the per-attempt timeout down to fit instead of stretching the total.
     /// </summary>
+    [Range(1, 3600)]
     public int TotalRequestTimeoutSeconds { get; set; } = 75;
 }

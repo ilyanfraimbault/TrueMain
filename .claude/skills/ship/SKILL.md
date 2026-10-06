@@ -11,12 +11,14 @@ Goal: take the branch from "works locally" to "merged, branch deleted, board upd
 
 Look at `git diff --name-only origin/develop...HEAD` and run only the relevant checks:
 
-- `backend/**` → `dotnet build backend --configuration Release` (CI treats code-style analyzers as errors; Debug hides them) and `dotnet test backend/tests/TrueMain.UnitTests`. Run `dotnet test backend/tests/TrueMain.IntegrationTests` **only if a Docker daemon is available** — it boots Postgres through `Testcontainers.PostgreSql`, so without Docker the failure says nothing about the diff. CI keeps the two apart the same way: unit tests always, integration tests on pull requests only (`ci.yml`).
+- `backend/**` → `dotnet build backend --configuration Release` (CI treats code-style analyzers as errors; Debug hides them) and `dotnet test --project backend/tests/TrueMain.UnitTests`. Run `dotnet test --project backend/tests/TrueMain.IntegrationTests` **only if a Docker daemon is available** — it boots Postgres through `Testcontainers.PostgreSql`, so without Docker the failure says nothing about the diff. CI keeps the two apart the same way: unit tests always, integration tests on pull requests only (`ci.yml`).
 - EF schema changed (migrations, entity configs) → regenerate the compiled model: `dotnet ef dbcontext optimize` (output in `backend/Data/CompiledModels`). If develop gained another schema PR meanwhile, merge develop first, then regenerate — a stale compiled model silently drops columns.
 - `web/**` or `admin/**` beyond trivial template tweaks → run the three commands CI runs in that app (`ci.yml`): `npm run typecheck`, `npm run test` (vitest — both apps have a suite, and `build` never runs it), then a fresh `npm run build`. `nuxt typecheck` can pass on stale `.nuxt` types while CI's build fails.
 - `web/package-lock.json` touched → it must have been generated with `npx npm@11.13.0`, the npm version CI pins for the frontend jobs (`ci.yml`); older npm omits sharp optional deps and breaks CI only.
 
 Fix failures before pushing — never push a commit you haven't built.
+
+**Spec check** — reread the issue (`gh issue view <n>`): every `Scope` bullet and `Acceptance` line is met by the diff, or the PR body says why not. Behaviour the issue did not ask for is either cut or named in the body.
 
 CI itself only runs the jobs the diff can break (`changes` job in `ci.yml`, see `docs/ci.md`): a docs-only PR shows no CI check at all, only the Claude review — that is expected, not a hung run.
 
@@ -28,7 +30,7 @@ CI itself only runs the jobs the diff can break (`changes` job in `ci.yml`, see 
 ## 3. Open the PR
 
 - Base `develop` — always (release PRs are the `release` skill's job).
-- Body includes `Closes #<issue>` when an issue exists.
+- Body follows [`PR-BODY.md`](PR-BODY.md): Summary as the smallest visual, before/after Evidence, Merge danger (one-way or two-way door, blast radius), and `Closes #<issue>` when an issue exists.
 - Title in conventional-commit style: it becomes the squash commit on develop.
 
 ## 4. Babysit — a bounded loop, not an infinite one

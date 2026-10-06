@@ -224,4 +224,42 @@ public class LaneAssignmentSolverTests
 
         Assert.Empty(result);
     }
+
+    [Fact]
+    public void OccupancyReadsTheLaneAsADistributionNotOneGuess()
+    {
+        // Two champions who each play mid or top evenly: the best placement puts
+        // one of them mid, but either is as likely to be our opponent.
+        var priors = Priors(
+            Prior(1, ("MIDDLE", 0.5), ("TOP", 0.5)),
+            Prior(2, ("MIDDLE", 0.5), ("TOP", 0.5)));
+
+        var occupancy = LaneAssignmentSolver.LaneOccupancy([1, 2], priors, "MIDDLE");
+
+        Assert.Equal(occupancy[1], occupancy[2], 9);
+        Assert.True(occupancy.Values.Sum() > 0.5);
+        Assert.True(occupancy.Values.Sum() <= 1d + 1e-9);
+    }
+
+    [Fact]
+    public void OccupancyOfAnUnclaimedLaneIsLow()
+    {
+        var priors = Priors(Dedicated(1, "JUNGLE"));
+
+        var occupancy = LaneAssignmentSolver.LaneOccupancy([1], priors, "MIDDLE");
+
+        Assert.True(occupancy.GetValueOrDefault(1) < 0.01);
+    }
+
+    [Fact]
+    public void OccupancyHonoursAPin()
+    {
+        var priors = Priors(Dedicated(1, "JUNGLE"), Dedicated(2, "MIDDLE"));
+
+        var occupancy = LaneAssignmentSolver.LaneOccupancy(
+            [1, 2], priors, "MIDDLE", new Dictionary<int, string> { [1] = "MIDDLE" });
+
+        Assert.Equal(1d, occupancy[1], 9);
+        Assert.False(occupancy.ContainsKey(2));
+    }
 }

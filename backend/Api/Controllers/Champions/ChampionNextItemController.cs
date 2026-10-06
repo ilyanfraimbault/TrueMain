@@ -58,11 +58,7 @@ public sealed class ChampionNextItemController(INextItemQueryService nextItem) :
         return Ok(await nextItem.GetAsync(championId, criteria, ct));
     }
 
-    private static string? Lane(string? raw)
-    {
-        var lane = (raw ?? string.Empty).Trim().ToUpperInvariant();
-        return Core.Lol.Map.QueueDataQualityProfile.LanePositions.Contains(lane) ? lane : null;
-    }
+    private static string? Lane(string? raw) => Core.Lol.Map.LanePositions.Normalize(raw);
 
     /// <summary>A participant whose lane is not a lane keeps the champion and loses the lane, rather than failing the request.</summary>
     private static List<NextItemParticipant> Participants(IReadOnlyList<NextItemRequestParticipant>? raw, int max)

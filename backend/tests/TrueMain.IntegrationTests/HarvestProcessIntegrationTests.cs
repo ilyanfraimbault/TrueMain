@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class HarvestProcessIntegrationTests
+public sealed class HarvestProcessIntegrationTests : IAsyncLifetime
 {
     private const int RankedSolo = 420;
 
@@ -21,10 +21,13 @@ public sealed class HarvestProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_CreatesHarvestCandidatesAndMinimalAccounts_FromOrphanParticipants()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
 
         await using (var db = _fixture.CreateDbContext())
@@ -83,7 +86,6 @@ public sealed class HarvestProcessIntegrationTests
     [Fact]
     public async Task RunAsync_WithMultipleSaveSlices_PersistsTheInPlaceCandidateUpdateOfEverySlice()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
         var puuids = new[] { "harvest-slice-1", "harvest-slice-2" };
 

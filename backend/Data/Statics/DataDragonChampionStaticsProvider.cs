@@ -9,7 +9,8 @@ namespace Data.Statics;
 /// <summary>
 /// Reads champion statics from Data Dragon, once per patch per process: the version
 /// list to map a <c>major.minor</c> patch onto the CDN's <c>major.minor.build</c>
-/// folder, then <c>champion.json</c> for every champion's numeric key and attack range.
+/// folder, then <c>champion.json</c> for every champion's numeric key, attack range and
+/// attack / magic ratings.
 /// </summary>
 /// <remarks>
 /// Data Dragon publishes a patch hours after Riot ships it, so on patch day the first
@@ -90,10 +91,23 @@ public sealed class DataDragonChampionStaticsProvider(
             var attackRange = rangeElement.ValueKind == JsonValueKind.Number
                 ? (int)Math.Round(rangeElement.GetDouble())
                 : 0;
-            champions[championId] = new ChampionStatics(championId, champion.Name, attackRange);
+            champions[championId] = new ChampionStatics(
+                championId,
+                champion.Name,
+                attackRange,
+                Rating(value, "attack"),
+                Rating(value, "magic"));
         }
 
         logger.LogInformation("Loaded statics for {Count} champions from Data Dragon {Version}.", champions.Count, version);
         return champions;
     }
+
+    /// <summary>One of the champion's <c>info</c> ratings, or null when Data Dragon does not carry it.</summary>
+    private static int? Rating(JsonElement champion, string name)
+        => champion.TryGetProperty("info", out var info)
+            && info.TryGetProperty(name, out var rating)
+            && rating.ValueKind == JsonValueKind.Number
+                ? (int)Math.Round(rating.GetDouble())
+                : null;
 }

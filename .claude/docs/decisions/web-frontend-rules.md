@@ -12,9 +12,12 @@ client's first, hydration render always starts in the loading state. Vue reconci
 rendered content, hit `insertBefore: node is not a child of this node`, then crashed on a null component in
 the patch loop, and `/truemains/{nameTag}` sat in its skeletons **permanently** on any full page load
 (client-side navigation was fine — it hydrates nothing). The initial run is now `onMounted`, which cannot run
-on the server. Consequences worth knowing: the SSR markup for a profile is *always* the skeleton branch, and
-the SSR `<title>` is the raw `Name-TAG` slug rather than `Name#TAG` — both are the price of the
-no-cross-viewer-SSR rule, not oversights, and "fixing" either by SSR-ing the profile reintroduces the hang.
+on the server. Consequence worth knowing: the SSR markup for a profile is *always* the skeleton branch — the
+price of the no-cross-viewer-SSR rule, not an oversight, and "fixing" it by SSR-ing the profile reintroduces
+the hang. The SSR `<title>` used to pay the same price (the raw `Name-TAG` slug); since #948 the pre-fetch
+label is derived from the route slug alone (`truemainSlugLabel`, last-`-` split mirroring `NameTagParser`), so
+SSR emits `Name#TAG` and the client's first render computes the identical value — the fetched identity takes
+over once it lands. Anything pre-fetch that consults fetched data instead would reopen the mismatch.
 Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
 the route is a primary, indexable one — #862.
 
@@ -54,6 +57,26 @@ dispose. The request token above still decides which response may be *written*; 
 request is still *worth fetching*. The Nitro proxy already aborts the upstream call when the browser drops
 one, so the cancellation reaches the API. `tests/api-fetch/abort-signal.test.ts` fails on a backend call that
 forwards no signal — #1712.
+
+**`onServerPrefetch` stays in the client bundle so `useId()` agrees across hydration; a table column never
+renders an empty-string header (2026-10-04).** Every champion page load in a production build reported
+`Hydration completed but contains mismatches`. Vue's `useId()` prefixes an id with the number of async
+boundaries opened before it, and a component that registers a `serverPrefetch` hook opens one. Nuxt's
+composable tree-shaking strips `onServerPrefetch(...)` from the client bundle, so a component that calls it
+unconditionally opens a boundary during SSR and none during hydration. `@nuxt/icon`'s CSS-mode icon (behind
+every `UIcon`) does exactly that, so every Reka/Nuxt UI id rendered after the header's icons came out as
+`v-2-…` on the server and `v-0-…` in the browser. Dev builds skip the tree-shaking, so `nuxt dev` (mock API
+included) never showed it, and only a production build does. `web/modules/keep-server-prefetch-on-client.ts`
+removes `onServerPrefetch` from the client tree-shake list. The hook is never called in a browser, so the cost
+is one registration per component. Nuxt's own `useAsyncData` already compensates the same way by hand (it
+seeds `instance.sp = []` on the client). The fix applies to every caller, third-party ones included, rather
+than patching `@nuxt/icon` or switching icons to SVG mode. The `/truemains` leaderboard had a second, unrelated
+mismatch. Its follow column's `header: ''` renders nothing in the server HTML, but its hydration still claims a
+node, so it swallows the slot's closing anchor. That column is now named by an `sr-only` `#follow-header` slot,
+and no `UTable` column on an SSR page may use an empty-string header. To find the next mismatch, build with
+`vite.define.__VUE_PROD_HYDRATION_MISMATCH_DETAILS__ = 'true'` and serve `.output` with `TZ=UTC`. A
+fragment-anchor mismatch prints no detail even then, so instrument `logMismatchError` in the client Vue
+runtime — #1590.
 
 - **A row rendered on more than one surface sizes off its own width, not the viewport** (#967).
   `MatchRow` and `LeaderboardRow` are `@container`s. The same row sits full-width on a page, in a ~33rem
@@ -170,19 +193,31 @@ the behaviour it encodes is pinned by a test in *both* suites. Labelled copies a
 `server/utils/ddragon-patch.ts` and `server/api/static/champions.get.ts`; the champion handlers differ only by
 the admin's `requireUserSession` gate, so any other difference in a diff is a regression, not a variant.
 
-**A local Nuxt layer was weighed and rejected for now (2026-09-17, #1623).** The argument against a package does
-not apply to a layer: a local layer has no version and is never published. The layer loses on build plumbing
-instead. The images build from `./web` and `./admin` contexts, so a root-level `layers/` directory is invisible
-to both Docker builds. Each app also has its own `node_modules` and the repo root has none, so bare imports inside
-layer files have nothing to resolve against. Adopting a layer would mean moving both production builds to the
-repo root, giving the layer its own dependency story, and making the CI `changes` gate run both apps for it. All
-of that to share about 300 near-identical, rarely touched lines (`proxy-path`, `abandoned-request`,
-`log-forwarder`, `log-forwarding`). The pairs that really drifted need their differences reconciled whatever the
-mechanism, and a layer does not do that for them. Worth revisiting if the shared surface grows substantially, or
-if the image builds move to the repo root for another reason.
+**A root-level Nuxt layer shared by `web/` and `admin/` was weighed and rejected (2026-09-17, #1623).** The
+argument against a package does not apply to a layer: a local layer has no version and is never published. That
+layer lost on build plumbing instead. The images build from `./web` and `./admin` contexts, so a root-level
+`layers/` directory is invisible to both Docker builds. Each app also has its own `node_modules` and the repo root
+has none, so bare imports inside layer files have nothing to resolve against. Adopting it would have meant moving
+both production builds to the repo root, giving the layer its own dependency story, and making the CI `changes`
+gate run both apps for it. All of that to share about 300 near-identical, rarely touched lines (`proxy-path`,
+`abandoned-request`, `log-forwarder`, `log-forwarding`). The pairs that really drifted need their differences
+reconciled whatever the mechanism, and a layer does not do that for them.
+
+**A layer now exists, between the site and the desktop app, not the admin (2026-10-01, #1732; #1684).** The desktop
+app (#1671) was the "shared surface grows substantially" trigger #1623 named, and #1732 (#1741–#1756) took the
+layer route for it: the pages the app renders identically to the site, and everything they are built from, live in
+`web/layers/common` (`decisions/desktop.md`, the layer's `README.md`). Putting the layer *inside* `web/` is what
+removes #1623's objection for that pair: the site's image still builds from `./web` alone, and the desktop app is
+not Docker-built, so it extends `../../web/layers/common` directly. The admin does **not** extend it. For the admin
+the 2026-09-17 reasoning still holds unchanged: its image builds from `./admin`, where `web/layers/common` is as
+invisible as a root-level `layers/` would be, and the web↔admin shared surface is still the few hundred lines
+above. Web↔admin sharing therefore stays on labelled twins. That pairing has not been re-decided since #1623; its
+revisit condition is unchanged — the shared surface growing substantially, or the image builds moving to the repo
+root for another reason.
 
 The guard against drift will be a CI check (#1625, not yet shipped): the twin pairs are declared, and a pair that differs outside
-lines marked app-specific fails the build.
+lines marked app-specific fails the build. It covers whatever twins remain — web↔admin, and the desktop app's own
+pages that still copy a site component (`decisions/desktop.md`).
 
 `PATCH_PATTERN` (`^\d+\.\d+\.\d+$`) sits next to `normalizeDataDragonPatch`, which produces the value it
 validates — that function expands the short `16.5` form the backend scopes expose and passes everything else

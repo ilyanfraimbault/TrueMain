@@ -1,3 +1,5 @@
+using Core.Coverage;
+
 namespace Ingestor.Processes.Components.Coverage;
 
 /// <summary>
@@ -80,7 +82,7 @@ public static class PlatformBudgetAllocator
         var safeBudget = Math.Max(1, budget);
         var weights = scoped.ToDictionary(
             platform => platform,
-            platform => 1 + coverage.MeanDeficit(platform),
+            platform => CoverageDeficit.AllocationWeight(coverage.MeanDeficit(platform)),
             StringComparer.OrdinalIgnoreCase);
         var totalWeight = weights.Values.Sum();
 

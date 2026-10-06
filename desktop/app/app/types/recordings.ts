@@ -1,3 +1,5 @@
+import type { WinProbabilityTimeline } from '#shared/types/win-probability'
+
 /**
  * The recording contract between the shell and the webview (#1744, #1755, #1777),
  * verbatim. Mirrors the shell's recording commands and events; JSON is camelCase
@@ -84,6 +86,25 @@ export interface GameRecording {
   /** Empty when the game clock could not be anchored. */
   moments: Moment[]
   highlightsSource: 'timeline' | 'live' | null
+}
+
+/**
+ * What the recap draws a full game's win-probability curve from (#1911),
+ * `recording_win_probability`: kept beside the video when the recording was
+ * finalised, so it outlives the game's place in the client's history. `null`
+ * for a game that has none — its timeline never read (a live-feed-only
+ * recording), or its clock could not be tied to the video.
+ */
+export interface RecordingWinProbability {
+  /** The player's side, 100 or 200: the curve reads for it. */
+  teamId: number
+  /** Every participant's champion, to name them in a turning point. */
+  champions: { participantId: number, championId: number }[]
+  /** The game's timeline reduced to what the shared model reads. */
+  timeline: WinProbabilityTimeline
+  /** The game-clock anchor's segments, ordered: game time + `offsetMs` is video time from `fromGameMs` on. Never empty. */
+  clock: { fromGameMs: number, offsetMs: number }[]
+  durationMs: number | null
 }
 
 /** One clip the player saved: its own file, outliving the full game. */

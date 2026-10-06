@@ -14,7 +14,9 @@ using Microsoft.Extensions.Options;
 namespace Ingestor.Processes;
 
 /// <summary>
-/// Incrementally folds each match into <c>champion_profile_stats</c> (#1449): per
+/// Incrementally folds each match into <c>champion_profile_stats</c> (#1449) — and, in the
+/// same pass and transaction, the per-build-archetype damage sums of
+/// <c>champion_damage_profile_stats</c> (#1905): per
 /// <c>(champion, position, patch)</c>, the additive sums of what the champion did —
 /// damage split by type, healing and shielding, crowd control, damage taken and
 /// mitigated, gold and XP leads over the lane opponent at 10 and 15 minutes, and the
@@ -195,6 +197,7 @@ public sealed class ChampionProfileAggregationProcess(
                     ct);
 
         var profiles = new Dictionary<ProfileKey, ProfileAccumulator>();
+        var damageProfiles = new Dictionary<DamageProfileKey, DamageProfileAccumulator>();
         var folded = 0;
 
         foreach (var matchId in measuredMatchIds)
@@ -276,14 +279,28 @@ public sealed class ChampionProfileAggregationProcess(
                 }
 
                 acc.ItemGames++;
-                var archetypes = ItemArchetypes.ClassifyInventory(
-                    FinalInventory.Of(self.Item0, self.Item1, self.Item2, self.Item3, self.Item4, self.Item5, self.RoleBoundItemId),
-                    itemMetadata);
+                var inventory = FinalInventory.Of(
+                    self.Item0, self.Item1, self.Item2, self.Item3, self.Item4, self.Item5, self.RoleBoundItemId);
+                var archetypes = ItemArchetypes.ClassifyInventory(inventory, itemMetadata);
                 acc.CritGames += archetypes.HasFlag(ItemArchetype.Crit) ? 1 : 0;
                 acc.ArmorPenetrationGames += archetypes.HasFlag(ItemArchetype.ArmorPenetration) ? 1 : 0;
                 acc.OnHitGames += archetypes.HasFlag(ItemArchetype.OnHit) ? 1 : 0;
                 acc.AbilityPowerGames += archetypes.HasFlag(ItemArchetype.AbilityPower) ? 1 : 0;
                 acc.TankGames += archetypes.HasFlag(ItemArchetype.Tank) ? 1 : 0;
+
+                // The same damage, filed under the one archetype the build leaned on (#1905).
+                var damageKey = new DamageProfileKey(
+                    self.ChampionId, self.TeamPosition, patch, ItemArchetypes.Dominant(inventory, itemMetadata));
+                if (!damageProfiles.TryGetValue(damageKey, out var damage))
+                {
+                    damage = new DamageProfileAccumulator();
+                    damageProfiles[damageKey] = damage;
+                }
+
+                damage.Games++;
+                damage.PhysicalDamageSum += self.PhysicalDamage!.Value;
+                damage.MagicDamageSum += self.MagicDamage!.Value;
+                damage.TrueDamageSum += self.TrueDamage!.Value;
 
                 if (ranged is not null && ranged.TryGetValue(self.ChampionId, out var isRanged))
                 {
@@ -295,6 +312,7 @@ public sealed class ChampionProfileAggregationProcess(
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         await ChampionProfileUpsert.WriteAsync(db, profiles, aggregatedAtUtc, ct);
+        await ChampionDamageProfileUpsert.WriteAsync(db, damageProfiles, aggregatedAtUtc, ct);
 
         await db.Matches
             .Where(m => matchIds.Contains(m.Id))

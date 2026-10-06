@@ -5,6 +5,7 @@ use serde::de::DeserializeOwned;
 use crate::credentials::Credentials;
 use crate::detail::GameTimeline;
 use crate::error::{Error, Result};
+use crate::item_sets::{decode_item_sets, plan_item_set_import, players_set_uids, ItemSetDraft};
 use crate::model::{
     ChampSelectSession, ChampionMastery, CurrentSummoner, GameflowPhase, GameflowSession,
 };
@@ -102,6 +103,12 @@ impl LcuClient {
         }
     }
 
+    /// The player's game keybindings as the client keeps them: sections of
+    /// `evtName → "[Ctrl][q],[F5]"`, parsed by `shell_state::keys`.
+    pub async fn input_settings(&self) -> Result<String> {
+        self.get_raw("/lol-game-settings/v1/input-settings").await
+    }
+
     /// Who is logged in. This is how the app knows whose dashboard to open,
     /// with no input from the player.
     pub async fn current_summoner(&self) -> Result<CurrentSummoner> {
@@ -142,11 +149,36 @@ impl LcuClient {
     /// `count` of another player's games, newest first — read by the client
     /// under the player's own session, never on TrueMain's Riot key (#1753).
     pub async fn match_history_of(&self, puuid: &str, count: usize) -> Result<MatchHistory> {
-        let end = count.saturating_sub(1);
+        self.match_history_page_of(puuid, 0, count).await
+    }
+
+    /// `count` of another player's games, skipping their latest `begin` — how
+    /// the Game page looks further back for their games on a champion (#1863).
+    pub async fn match_history_page_of(
+        &self,
+        puuid: &str,
+        begin: usize,
+        count: usize,
+    ) -> Result<MatchHistory> {
+        let end = (begin + count).saturating_sub(1);
         self.get_json(&format!(
-            "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex={end}"
+            "/lol-match-history/v1/products/lol/{puuid}/matches?begIndex={begin}&endIndex={end}"
         ))
         .await
+    }
+
+    /// Any player's Riot ID, by puuid: the gameflow session lists the game's
+    /// players without their names.
+    pub async fn summoner_by_puuid(&self, puuid: &str) -> Result<CurrentSummoner> {
+        self.get_json(&format!("/lol-summoner/v2/summoners/puuid/{puuid}"))
+            .await
+    }
+
+    /// Another player's ranked standing, read by the client like their
+    /// history (#1828).
+    pub async fn ranked_stats_of(&self, puuid: &str) -> Result<RankedStats> {
+        self.get_json(&format!("/lol-ranked/v1/ranked-stats/{puuid}"))
+            .await
     }
 
     /// One game's full scoreboard — all ten participants, which the history
@@ -163,7 +195,7 @@ impl LcuClient {
     }
 }
 
-/// The write path: pushing a rune page into the client.
+/// The write path: pushing a rune page or an item set into the client.
 impl LcuClient {
     /// How many pages the client lets a player keep. Read from the client when
     /// it answers, since Riot has raised this before and a hard-coded ceiling
@@ -188,9 +220,9 @@ impl LcuClient {
 
     /// Push a rune page and select it.
     ///
-    /// Call this from an explicit user action only. It is the single place this
-    /// app writes to the client, and the distance between doing it on a click
-    /// and doing it on a pick is the distance between a tool and a policy
+    /// Call this from an explicit user action only. Like the item set and the
+    /// champion select writes, the distance between doing it on a click and
+    /// doing it on a pick is the distance between a tool and a policy
     /// violation.
     ///
     /// Reuses the page this app owns when one exists, so a player does not end
@@ -213,7 +245,127 @@ impl LcuClient {
             .await?;
         Ok(created.id)
     }
+}
 
+/// The write path, continued: the item set (#1908).
+impl LcuClient {
+    /// The account's item-set document and its list of sets, read raw. Any
+    /// failure — the request or the decoding — is
+    /// [`Error::ItemSetsUnreadable`], so no caller can mistake it for an empty
+    /// list and write that back.
+    pub async fn item_sets(
+        &self,
+        summoner_id: i64,
+    ) -> Result<(serde_json::Value, Vec<serde_json::Value>)> {
+        self.get_raw(&item_sets_path(summoner_id))
+            .await
+            .and_then(|body| decode_item_sets(&body))
+            .map_err(|error| Error::ItemSetsUnreadable(error.to_string()))
+    }
+
+    /// Write `draft` as the one item set this app owns.
+    ///
+    /// Call this from an explicit user action only, like
+    /// [`Self::import_rune_page`]: an import on click is a tool, an import on a
+    /// pick is an automation acting on the player's behalf.
+    ///
+    /// The client only takes the account's whole list, so this reads it right
+    /// before writing, rewrites our set in place (`plan_item_set_import`), and
+    /// reads it again after: a list whose player sets no longer match is
+    /// [`Error::PlayerItemSetsChanged`]. A list that could not be read is
+    /// [`Error::ItemSetsUnreadable`], and nothing is written.
+    pub async fn import_item_set(&self, draft: &ItemSetDraft) -> Result<()> {
+        // Narrow on purpose: the summoner id is read here, at import time, and
+        // kept out of `CurrentSummoner`, whose readings tapes record.
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Summoner {
+            summoner_id: i64,
+        }
+
+        let summoner_id = self
+            .get_json::<Summoner>("/lol-summoner/v1/current-summoner")
+            .await
+            .map_err(|error| Error::ItemSetsUnreadable(error.to_string()))?
+            .summoner_id;
+        let (mut document, existing) = self.item_sets(summoner_id).await?;
+
+        let planned = plan_item_set_import(&existing, draft, &uuid::Uuid::new_v4().to_string());
+        let expected = players_set_uids(&existing);
+        document["itemSets"] = serde_json::Value::Array(planned);
+        self.put_json(&item_sets_path(summoner_id), &document)
+            .await?;
+
+        match self.item_sets(summoner_id).await {
+            Ok((_, written)) if players_set_uids(&written) != expected => {
+                tracing::warn!(
+                    before = expected.len(),
+                    after = players_set_uids(&written).len(),
+                    "the player's item sets changed across an import"
+                );
+                Err(Error::PlayerItemSetsChanged)
+            }
+            Ok(_) => Ok(()),
+            // The write went through; a re-read that fails proves nothing
+            // either way, so it is logged rather than reported as a loss.
+            Err(error) => {
+                tracing::warn!(%error, "could not re-read the item sets after an import");
+                Ok(())
+            }
+        }
+    }
+}
+
+/// The write path into champion select (#1909): hover, lock, ban — each on the
+/// player's click only, like the rune import above.
+impl LcuClient {
+    /// Champions the client lets the player pick right now: owned or free,
+    /// enabled, not taken. Read before writing, so the client's rule is the
+    /// app's rule.
+    pub async fn pickable_champions(&self) -> Result<Vec<i64>> {
+        self.get_json("/lol-champ-select/v1/pickable-champion-ids")
+            .await
+    }
+
+    /// Champions the client lets the player ban right now.
+    pub async fn bannable_champions(&self) -> Result<Vec<i64>> {
+        self.get_json("/lol-champ-select/v1/bannable-champion-ids")
+            .await
+    }
+
+    /// Set the champion on one of the player's actions without completing it:
+    /// a hovered pick (what the allies see as the intent) or a hovered ban.
+    ///
+    /// Call this from an explicit user action only — never on a timer, a phase
+    /// change or a suggestion's rank. The app supports the player's decision;
+    /// it never makes it.
+    pub async fn hover_champion(&self, action_id: i64, champion_id: i64) -> Result<()> {
+        self.send(
+            reqwest::Method::PATCH,
+            &format!("/lol-champ-select/v1/session/actions/{action_id}"),
+            Some(&serde_json::json!({ "championId": champion_id })),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Lock in (or ban) the champion the action already carries. Completing
+    /// rather than patching `completed: true` with a champion means a lock only
+    /// ever commits what the client shows hovered.
+    ///
+    /// Call this from an explicit user action only, like `hover_champion`.
+    pub async fn complete_action(&self, action_id: i64) -> Result<()> {
+        self.send::<()>(
+            reqwest::Method::POST,
+            &format!("/lol-champ-select/v1/session/actions/{action_id}/complete"),
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+}
+
+impl LcuClient {
     async fn send<B: serde::Serialize>(
         &self,
         method: reqwest::Method,
@@ -264,4 +416,8 @@ impl LcuClient {
         self.send::<()>(reqwest::Method::DELETE, path, None).await?;
         Ok(())
     }
+}
+
+fn item_sets_path(summoner_id: i64) -> String {
+    format!("/lol-item-sets/v1/item-sets/{summoner_id}/sets")
 }

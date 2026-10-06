@@ -17,8 +17,8 @@ public sealed class CandidateStockSnapshotProcessTests
     {
         var samples = CandidateStockSnapshotProcess.BuildSamples(
         [
-            ("EUW1", MainCandidateStatus.Queued, 300),
-            ("KR", MainCandidateStatus.Scored, 40)
+            ("EUW1", MainCandidateStatus.Queued, 300, 120),
+            ("KR", MainCandidateStatus.Scored, 40, 40)
         ]);
 
         var statusCount = Enum.GetValues<MainCandidateStatus>().Length;
@@ -26,6 +26,9 @@ public sealed class CandidateStockSnapshotProcessTests
         samples.Should().Contain(sample => sample.PlatformId == "EUW1" && sample.Status == "New" && sample.Count == 0);
         samples.Should().Contain(sample => sample.PlatformId == "KR" && sample.Status == "Queued" && sample.Count == 0);
         samples.Single(sample => sample.PlatformId == "EUW1" && sample.Status == "Queued").Count.Should().Be(300);
+        samples.Single(sample => sample.PlatformId == "EUW1" && sample.Status == "Queued").Accounts.Should()
+            .Be(120, "the accounts figure travels with its rows rather than being re-derived");
+        samples.Single(sample => sample.PlatformId == "EUW1" && sample.Status == "New").Accounts.Should().Be(0);
         samples.Single(sample => sample.PlatformId == "KR" && sample.Status == "Scored").Count.Should().Be(40);
     }
 
@@ -39,7 +42,7 @@ public sealed class CandidateStockSnapshotProcessTests
     [Fact]
     public void BuildSamples_NamesStatusesByName_SoTheDocumentsDoNotEncodeTheEnumNumbering()
     {
-        var samples = CandidateStockSnapshotProcess.BuildSamples([("EUW1", MainCandidateStatus.Validated, 1)]);
+        var samples = CandidateStockSnapshotProcess.BuildSamples([("EUW1", MainCandidateStatus.Validated, 1, 1)]);
 
         samples.Select(sample => sample.Status).Should()
             .BeEquivalentTo(Enum.GetNames<MainCandidateStatus>());

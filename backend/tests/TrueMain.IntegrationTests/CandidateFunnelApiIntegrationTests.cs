@@ -19,9 +19,17 @@ namespace TrueMain.IntegrationTests;
 /// rewrite the bucket that discovered it.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CandidateFunnelApiIntegrationTests
+public sealed class CandidateFunnelApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
+
+    /// <summary>
+    /// The host's clock, frozen at midday of the current UTC day. The runs are seeded and the
+    /// buckets asserted relative to it, so a suite that straddles UTC midnight can no longer
+    /// seed one day and query the next (#1246); midday keeps every seeded run in its past,
+    /// and the current day keeps them inside the run-retention TTL Mongo reaps by.
+    /// </summary>
+    private static readonly DateTimeOffset Now = new(DateTime.UtcNow.Date.AddHours(12), TimeSpan.Zero);
 
     private readonly PostgresFixture _fixture;
     private readonly MongoFixture _mongo;
@@ -32,13 +40,18 @@ public sealed class CandidateFunnelApiIntegrationTests
         _mongo = mongo;
     }
 
-    [Fact]
-    public async Task GetCandidateFunnel_SplitsEachProcessIntoItsOwnSeries()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetDatabaseAsync();
         await _mongo.ResetAsync();
+    }
 
-        var today = DateTime.UtcNow.Date;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task GetCandidateFunnel_SplitsEachProcessIntoItsOwnSeries()
+    {
+        var today = Now.UtcDateTime.Date;
         await Runs().InsertManyAsync(
         [
             Run("Discovery", today.AddHours(1), new
@@ -98,7 +111,7 @@ public sealed class CandidateFunnelApiIntegrationTests
             Run("MatchDataRetention", today.AddHours(7), new { prunedCandidates = 999 }),
         ]);
 
-        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync("/ops/candidates/funnel?granularity=day&windowDays=7");
@@ -124,10 +137,7 @@ public sealed class CandidateFunnelApiIntegrationTests
     [Fact]
     public async Task GetCandidateFunnel_ReportsValidatedAsAbsentForRunsRecordedBeforeTheCounter()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
-        var today = DateTime.UtcNow.Date;
+        var today = Now.UtcDateTime.Date;
         await Runs().InsertManyAsync(
         [
             // The pre-#1024 shape: no accountsValidated key at all.
@@ -142,7 +152,7 @@ public sealed class CandidateFunnelApiIntegrationTests
             }),
         ]);
 
-        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<CandidateFunnelReadModel>(
@@ -158,10 +168,7 @@ public sealed class CandidateFunnelApiIntegrationTests
     [Fact]
     public async Task GetCandidateFunnel_ReturnsNoBucketsWhenNoRunSurvives()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
-        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<CandidateFunnelReadModel>(
@@ -179,10 +186,7 @@ public sealed class CandidateFunnelApiIntegrationTests
     [InlineData("/ops/candidates/funnel?granularity=year")]
     public async Task GetCandidateFunnel_InvalidGranularity_ShouldReturn400ProblemDetails(string url)
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
-        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
         var response = await client.GetAsync(url);
@@ -193,10 +197,7 @@ public sealed class CandidateFunnelApiIntegrationTests
     [Fact]
     public async Task GetCandidateFunnel_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
-        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -205,6 +206,9 @@ public sealed class CandidateFunnelApiIntegrationTests
         var response = await client.GetAsync("/ops/candidates/funnel?granularity=day");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    private ApiWebApplicationFactory CreateFactory()
+        => new(_fixture, _mongo) { TimeProvider = new FixedTimeProvider(Now) };
 
     private static HttpClient CreateClient(ApiWebApplicationFactory factory)
     {

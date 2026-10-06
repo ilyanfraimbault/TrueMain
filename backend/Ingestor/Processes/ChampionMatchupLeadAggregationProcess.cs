@@ -5,10 +5,10 @@ using Data;
 using Data.Aggregation;
 using Data.Entities;
 using Ingestor.Options;
+using Ingestor.Processes.Components.IncrementalFolds;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Npgsql;
 
 namespace Ingestor.Processes;
 
@@ -97,6 +97,23 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 {
     private const int LaneOutcomeMinute = 15;
 
+    private static readonly AdditiveUpsert<KeyValuePair<MatchupKey, MatchupAccumulator>> MatchupsUpsert =
+        new AdditiveUpsert<KeyValuePair<MatchupKey, MatchupAccumulator>>("champion_matchup_stats")
+            .Key("ChampionId", "integer", r => r.Key.ChampionId)
+            .Key("TeamPosition", "text", r => r.Key.TeamPosition)
+            .Key("OpponentChampionId", "integer", r => r.Key.OpponentChampionId)
+            .Key("Patch", "text", r => r.Key.Patch)
+            .Key("elo_bracket", "text", r => r.Key.EloBracket)
+            .Sum("Games", "integer", r => r.Value.Games)
+            .Sum("Wins", "integer", r => r.Value.Wins)
+            .Sum("LaneGames", "integer", r => r.Value.LaneGames)
+            .Sum("LaneWins", "integer", r => r.Value.LaneWins)
+            .Sum("LaneLosses", "integer", r => r.Value.LaneLosses)
+            .Sum("LaneGoldDiffSum", "bigint", r => r.Value.LaneGoldDiffSum)
+            .Sum("LaneGoldDiffGames", "integer", r => r.Value.LaneGoldDiffGames)
+            .Sum("LaneXpDiffSum", "bigint", r => r.Value.LaneXpDiffSum)
+            .Sum("LaneXpDiffGames", "integer", r => r.Value.LaneXpDiffGames);
+
     public string Name => "ChampionMatchupLeadAggregation";
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
@@ -107,55 +124,32 @@ public sealed class ChampionMatchupLeadAggregationProcess(
         var goldLeadThreshold = laneOptions.Value.GoldLeadThreshold;
         var aggregatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
 
-        var processedMatches = 0;
         var judgedLanes = 0;
         var rows = 0;
-        var batches = 0;
 
-        while (maxPerRun == 0 || processedMatches < maxPerRun)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var take = maxPerRun == 0 ? batchSize : Math.Min(batchSize, maxPerRun - processedMatches);
-
-            await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-
-            // The TimelineIngested gate outlived the lead aggregate it was added for
-            // (#889), and the lane counters gave it a second reason to stay: they read
-            // the 15-minute snapshots, and folding a match whose timeline has not
-            // arrived yet would flag it as done while contributing no lane at all
-            // (#1223). For the game counters it also keeps the aggregate's cohort what
-            // it has always been — dropping it would suddenly fold every timeline-less
-            // match ever ingested, shifting historical matchup winrates. MatchIngestion
-            // sets TimelineIngested in the same pass as the match row, so this rarely
-            // delays anything in practice. The partial index
-            // IX_matches_matchup_lead_pending keeps this selection cheap once the
-            // backlog is drained.
-            var matchIds = await db.Matches
-                .AsNoTracking()
-                .Where(m => m.QueueId == queueId && !m.MatchupLeadAggregated && m.TimelineIngested)
-                .OrderBy(m => m.Id)
-                .Take(take)
-                .Select(m => m.Id)
-                .ToListAsync(ct);
-
-            if (matchIds.Count == 0)
+        // The TimelineIngested gate outlived the lead aggregate it was added for (#889),
+        // and the lane counters gave it a second reason to stay: they read the 15-minute
+        // snapshots, and folding a match whose timeline has not arrived yet would flag it
+        // as done while contributing no lane at all (#1223). For the game counters it
+        // also keeps the aggregate's cohort what it has always been — dropping it would
+        // suddenly fold every timeline-less match ever ingested, shifting historical
+        // matchup winrates. MatchIngestion sets TimelineIngested in the same pass as the
+        // match row, so this rarely delays anything in practice. The partial index
+        // IX_matches_matchup_lead_pending keeps this selection cheap once the backlog is
+        // drained.
+        var (processedMatches, batches) = await IncrementalMatchFold.RunAsync(
+            dbContextFactory,
+            queueId,
+            m => !m.MatchupLeadAggregated && m.TimelineIngested,
+            batchSize,
+            maxPerRun,
+            async (db, matchIds, token) =>
             {
-                break;
-            }
-
-            var written = await ProcessBatchAsync(db, matchIds, goldLeadThreshold, aggregatedAtUtc, ct);
-
-            processedMatches += matchIds.Count;
-            judgedLanes += written.JudgedLanes;
-            rows += written.Rows;
-            batches++;
-
-            if (matchIds.Count < take)
-            {
-                break;
-            }
-        }
+                var written = await ProcessBatchAsync(db, matchIds, goldLeadThreshold, aggregatedAtUtc, token);
+                judgedLanes += written.JudgedLanes;
+                rows += written.Rows;
+            },
+            ct);
 
         logger.LogInformation(
             "Champion matchup aggregation summary: matches={Matches}, batches={Batches}, "
@@ -304,7 +298,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        await UpsertMatchupsAsync(db, matchups, aggregatedAtUtc, ct);
+        await MatchupsUpsert.ExecuteAsync(db, matchups, aggregatedAtUtc, ct);
 
         await db.Matches
             .Where(m => matchIds.Contains(m.Id))
@@ -313,70 +307,6 @@ public sealed class ChampionMatchupLeadAggregationProcess(
         await transaction.CommitAsync(ct);
 
         return new WrittenRows(judgedLanes, matchups.Count);
-    }
-
-    private static async Task UpsertMatchupsAsync(
-        TrueMainDbContext db,
-        IReadOnlyDictionary<MatchupKey, MatchupAccumulator> matchups,
-        DateTime aggregatedAtUtc,
-        CancellationToken ct)
-    {
-        if (matchups.Count == 0)
-        {
-            return;
-        }
-
-        var rows = matchups.ToList();
-        const string sql = """
-            INSERT INTO champion_matchup_stats
-                ("Id", "ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "elo_bracket",
-                 "Games", "Wins", "LaneGames", "LaneWins", "LaneLosses",
-                 "LaneGoldDiffSum", "LaneGoldDiffGames",
-                 "LaneXpDiffSum", "LaneXpDiffGames", "AggregatedAtUtc")
-            SELECT gen_random_uuid(), t.champ, t.pos, t.opp, t.patch, t.elo,
-                   t.games, t.wins, t.lane_games, t.lane_wins, t.lane_losses,
-                   t.gold_diff_sum, t.gold_diff_games,
-                   t.xp_diff_sum, t.xp_diff_games, @aggAt
-            FROM unnest(@champs::integer[], @positions::text[], @opponents::integer[], @patches::text[],
-                        @elos::text[], @games::integer[], @wins::integer[],
-                        @laneGames::integer[], @laneWins::integer[], @laneLosses::integer[],
-                        @goldDiffSums::bigint[], @goldDiffGames::integer[],
-                        @xpDiffSums::bigint[], @xpDiffGames::integer[])
-                AS t(champ, pos, opp, patch, elo, games, wins, lane_games, lane_wins, lane_losses,
-                     gold_diff_sum, gold_diff_games, xp_diff_sum, xp_diff_games)
-            ON CONFLICT ("ChampionId", "TeamPosition", "OpponentChampionId", "Patch", "elo_bracket") DO UPDATE SET
-                "Games" = champion_matchup_stats."Games" + EXCLUDED."Games",
-                "Wins" = champion_matchup_stats."Wins" + EXCLUDED."Wins",
-                "LaneGames" = champion_matchup_stats."LaneGames" + EXCLUDED."LaneGames",
-                "LaneWins" = champion_matchup_stats."LaneWins" + EXCLUDED."LaneWins",
-                "LaneLosses" = champion_matchup_stats."LaneLosses" + EXCLUDED."LaneLosses",
-                "LaneGoldDiffSum" = champion_matchup_stats."LaneGoldDiffSum" + EXCLUDED."LaneGoldDiffSum",
-                "LaneGoldDiffGames" = champion_matchup_stats."LaneGoldDiffGames" + EXCLUDED."LaneGoldDiffGames",
-                "LaneXpDiffSum" = champion_matchup_stats."LaneXpDiffSum" + EXCLUDED."LaneXpDiffSum",
-                "LaneXpDiffGames" = champion_matchup_stats."LaneXpDiffGames" + EXCLUDED."LaneXpDiffGames",
-                "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
-            """;
-
-        await db.Database.ExecuteSqlRawAsync(
-            sql,
-            [
-                new NpgsqlParameter("aggAt", aggregatedAtUtc),
-                new NpgsqlParameter("champs", rows.Select(r => r.Key.ChampionId).ToArray()),
-                new NpgsqlParameter("positions", rows.Select(r => r.Key.TeamPosition).ToArray()),
-                new NpgsqlParameter("opponents", rows.Select(r => r.Key.OpponentChampionId).ToArray()),
-                new NpgsqlParameter("patches", rows.Select(r => r.Key.Patch).ToArray()),
-                new NpgsqlParameter("elos", rows.Select(r => r.Key.EloBracket).ToArray()),
-                new NpgsqlParameter("games", rows.Select(r => r.Value.Games).ToArray()),
-                new NpgsqlParameter("wins", rows.Select(r => r.Value.Wins).ToArray()),
-                new NpgsqlParameter("laneGames", rows.Select(r => r.Value.LaneGames).ToArray()),
-                new NpgsqlParameter("laneWins", rows.Select(r => r.Value.LaneWins).ToArray()),
-                new NpgsqlParameter("laneLosses", rows.Select(r => r.Value.LaneLosses).ToArray()),
-                new NpgsqlParameter("goldDiffSums", rows.Select(r => r.Value.LaneGoldDiffSum).ToArray()),
-                new NpgsqlParameter("goldDiffGames", rows.Select(r => r.Value.LaneGoldDiffGames).ToArray()),
-                new NpgsqlParameter("xpDiffSums", rows.Select(r => r.Value.LaneXpDiffSum).ToArray()),
-                new NpgsqlParameter("xpDiffGames", rows.Select(r => r.Value.LaneXpDiffGames).ToArray())
-            ],
-            ct);
     }
 
     private sealed record ParticipantRow(

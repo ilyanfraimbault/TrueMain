@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 public class CoverageOptions
@@ -21,5 +23,6 @@ public class CoverageOptions
     /// each region — not a tuning knob derived from throughput.
     /// </para>
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int TargetMainsPerChampion { get; set; } = 50;
 }

@@ -3,6 +3,7 @@ using Core.Lol.Identifiers;
 using Core.Options;
 using Data.Entities;
 using Data.Repositories;
+using Ingestor.Options;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
 using Microsoft.Extensions.Options;
@@ -12,7 +13,8 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 public sealed class MatchSnapshotWriter(
     IRiotMatchClient riotMatchClient,
     TimeProvider timeProvider,
-    IOptions<MainAnalysisOptions> mainAnalysisOptions) : IMatchSnapshotWriter
+    IOptions<MainAnalysisOptions> mainAnalysisOptions,
+    IOptions<MainActivityOptions> mainActivityOptions) : IMatchSnapshotWriter
 {
     /// <summary>
     /// How far before the previous ingest the <c>startTime</c> window opens. One hour covers a
@@ -171,9 +173,8 @@ public sealed class MatchSnapshotWriter(
         var inserted = 0;
         var persistedIds = new List<string>(plan.TargetMatches.Count);
 
-        for (var i = 0; i < plan.TargetMatches.Count; i += batchSize)
+        foreach (var batch in plan.TargetMatches.Chunk(batchSize))
         {
-            var batch = plan.TargetMatches.Skip(i).Take(batchSize).ToList();
 
             // Pre-resolve perk catalog ids for the whole batch BEFORE we add any
             // match/participant entities to the change tracker. The catalog upsert
@@ -199,12 +200,49 @@ public sealed class MatchSnapshotWriter(
             await session.SaveChangesAsync(ct);
         }
 
+        var activity = await RecordMainActivityAsync(session, plan, platformId, ct);
+
         return new SnapshotIngestionResult(
             plan.AllMatchIds,
             persistedIds,
             inserted,
             plan.ExistingMatchIds.Count,
-            plan.SkippedWrongQueue);
+            plan.SkippedWrongQueue,
+            activity.MainsReactivated);
+    }
+
+    /// <summary>
+    /// Match participation is the primary activity signal for mains (#1475): every fresh
+    /// match names ten accounts and the champion each one played, at no Riot cost. Recorded
+    /// inside the caller's transaction, so it commits or rolls back with the matches it was
+    /// read from. Only fresh matches count: an id already stored was observed when it was
+    /// first written.
+    /// </summary>
+    private async Task<MatchActivityRecordResult> RecordMainActivityAsync(
+        IDataSession session,
+        SnapshotIngestionPlan plan,
+        string platformId,
+        CancellationToken ct)
+    {
+        var observations = new List<MatchActivityObservation>(plan.TargetMatches.Count * 10);
+        foreach (var (_, dto) in plan.TargetMatches)
+        {
+            if (RiotValueConverters.ToUtcDateTime(dto.Info.GameStartTimestamp) is not { } playedAtUtc)
+            {
+                continue;
+            }
+
+            observations.AddRange(dto.Info.Participants
+                .Where(participant => !string.IsNullOrWhiteSpace(participant.Puuid))
+                .Select(participant => new MatchActivityObservation(participant.Puuid, participant.ChampionId, playedAtUtc)));
+        }
+
+        // The same window the mastery check deactivates by, so a game that would keep a main
+        // active there is the one that brings it back here.
+        var activeSinceUtc = timeProvider.GetUtcNow().UtcDateTime
+            .AddDays(-Math.Max(0, mainActivityOptions.Value.InactiveAfterDays));
+
+        return await session.MainChampionStats.RecordMatchActivityAsync(platformId, observations, activeSinceUtc, ct);
     }
 
     private static void PersistMatch(

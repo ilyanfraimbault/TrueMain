@@ -282,16 +282,16 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             .ToListAsync(ct);
     }
 
-    public Task<List<AccountKey>> GetAccountsForActivityCheckAsync(DateTime cutoff, int batchSize, CancellationToken ct)
+    public Task<List<AccountKey>> GetAccountsForActivityCheckAsync(
+        DateTime cutoff, DateTime observedSince, int batchSize, CancellationToken ct)
     {
-        // Deliberately NOT filtered on IsActive: an already-deactivated main is excluded from
-        // match ingestion and from main analysis, so this mastery check is its only way back
-        // (#900). Dropping it here would make deactivation permanent.
-        var accounts = db.RiotAccounts
-            .AsNoTracking()
+        // Not on IsActive: the way back for a deactivated main (#900). Seen in a match and read since observedSince: skip (#1475).
+        var accounts = db.RiotAccounts.AsNoTracking()
             .Where(account => account.Status == RiotAccountStatus.Active
                               && db.MainChampionStats.Any(stat =>
-                                  stat.PlatformId == account.PlatformId && stat.Puuid == account.Puuid && stat.IsMain));
+                                  stat.PlatformId == account.PlatformId && stat.Puuid == account.Puuid && stat.IsMain)
+                              && (account.LastSeenInMatchAtUtc == null || account.LastSeenInMatchAtUtc < observedSince
+                                  || account.LastActivityCheckAtUtc == null || account.LastActivityCheckAtUtc < observedSince));
 
         if (cutoff > DateTime.MinValue)
         {
@@ -312,15 +312,13 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
     public async Task<List<AccountKey>> ClaimAccountsForMatchIngestAtomicallyAsync(
         IReadOnlyDictionary<string, int> platformQuotas,
         int batchSize,
-        double establishedMainShare,
+        IReadOnlyDictionary<string, double> establishedMainShares,
         DateTime nowUtc,
         TimeSpan lease,
         CancellationToken ct)
     {
-        var quotas = platformQuotas
-            .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
-            .GroupBy(entry => entry.Key.Trim().ToUpperInvariant(), StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => Math.Max(0, group.Max(entry => entry.Value)), StringComparer.Ordinal);
+        var quotas = PlatformKeyed.Normalize(platformQuotas, values => Math.Max(0, values.Max()));
+        var shares = PlatformKeyed.Normalize(establishedMainShares, values => Math.Clamp(values.Max(), 0d, 1d));
 
         if (quotas.Count == 0)
         {
@@ -384,15 +382,14 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
             _ => new ClassCursor(),
             StringComparer.Ordinal);
 
-        // Pass 1 — each platform fills its own quota, applying the established/queued share
-        // inside it. Depth over breadth (#900) is a per-platform rule: most of a platform's
-        // slots go to re-ingesting the mains we already track there, the rest to its new
-        // candidates, and whichever class that platform is short on spills to the other
-        // without leaving the platform.
+        // Pass 1 — each platform fills its own quota, applying its own established/queued share
+        // inside it (#1533). Depth over breadth (#900) is a per-platform rule, and so is the
+        // share: a saturated region spends on depth while a thin one spends on breadth. Whichever
+        // class that platform is short on spills to the other without leaving the platform.
         foreach (var platform in platforms)
         {
             var quota = Math.Min(quotas[platform], safeBatchSize);
-            var establishedQuota = (int)Math.Ceiling(quota * Math.Clamp(establishedMainShare, 0, 1));
+            var establishedQuota = (int)Math.Ceiling(quota * shares.GetValueOrDefault(platform));
             var taken = 0;
 
             taken += Append(platform, established: true, Math.Min(establishedQuota, quota - taken));

@@ -54,11 +54,13 @@ const {
   ready: activityReady,
 } = useTruemainActivity(nameTag)
 
-// Human label for the breadcrumb / SEO title — `gameName#tagLine`, falling
-// back to the raw nameTag slug while the profile fetch is in flight.
+// Human label for the breadcrumb / SEO title — `gameName#tagLine`. While the
+// (client-only) profile fetch is in flight it is derived from the route slug
+// alone, so the SSR `<title>` already reads `Name#TAG` and the client's first
+// render computes the same value (#948, the hydration trap of #862).
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
-  if (!identity) return nameTag.value
+  if (!identity) return truemainSlugLabel(nameTag.value)
   return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
 })
 
@@ -84,9 +86,9 @@ useSeoMeta({
 // The card resolves the profile itself through `/api/og/truemain/{nameTag}` at
 // render time; it is a public rendering of a public profile, so nothing
 // viewer-specific leaks into a shared image.
-defineOgImageComponent('Truemain', { nameTag })
+defineOgImage('Truemain', { nameTag })
 
-// `playerLabel` falls back to the raw slug while the profile is in flight, so
+// `playerLabel` is derived from the slug while the profile is in flight, so
 // the share text is always something a human can read.
 const shareTitle = computed(() => `${playerLabel.value} on TrueMain`)
 const SHARE_DESCRIPTION = 'Rank, main champions and Truemain score — tracked as a true main.'

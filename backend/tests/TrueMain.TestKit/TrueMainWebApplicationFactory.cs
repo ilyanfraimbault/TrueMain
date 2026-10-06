@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace TrueMain.TestKit;
 
@@ -33,9 +36,26 @@ public class TrueMainWebApplicationFactory<TEntryPoint>(
     /// </summary>
     public const string DefaultCorsOrigin = "https://frontend.test.truemain.local";
 
+    /// <summary>
+    /// The clock the host reads instead of <see cref="System.TimeProvider.System"/>, for a test
+    /// whose seed and assertion are both anchored to "now": frozen with a
+    /// <see cref="FixedTimeProvider"/>, the service and the test agree on the instant even when
+    /// the run straddles UTC midnight. Left unset, the host keeps the wall clock.
+    /// </summary>
+    public TimeProvider? TimeProvider { get; init; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        if (TimeProvider is { } timeProvider)
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton(timeProvider);
+            });
+        }
+
         builder.ConfigureAppConfiguration((_, configurationBuilder) =>
         {
             var baseline = new List<KeyValuePair<string, string?>>

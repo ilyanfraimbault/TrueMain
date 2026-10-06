@@ -9,7 +9,7 @@ using TrueMain.ReadModels.Truemains;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class TruemainsLeaderboardApiIntegrationTests
+public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -18,10 +18,13 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task List_orders_by_rank_score_LP_aware_and_skips_unranked()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Mix of ranks across two exposed regions. Master/GM/Challenger share
@@ -88,7 +91,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         // #900: the leaderboard used to show mains who had stopped playing entirely
         // — the "0 games" rows at the top of the board. Once MainActivityProcess flips
         // their stat to inactive they must disappear, without the row being deleted.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -138,7 +140,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         // overall split totals, NOT the aggregate's win count. The snapshot here
         // carries 60/40 while the scopes only sum to 25 wins over 50 games, so a
         // WR of 0.6 proves the cell tracks the snapshot and not the scopes.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -186,7 +187,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         // but the account still has a live overall ranked W-L on its latest rank
         // snapshot. The WR cell must come from that snapshot so a #1-LP main
         // doesn't render with a blank win rate.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -221,7 +221,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_filters_by_region_and_maps_platform_to_region_slug()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -282,7 +281,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_filters_by_position_and_champion_via_main_champion_stats()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -315,6 +313,10 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         middles.Rows.Select(r => r.Identity.GameName)
             .Should().BeEquivalentTo(["MidYasuo", "MidAhri"]);
 
+        // The short form filters the same lane rather than silently filtering nothing (#1232).
+        var mids = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=mid");
+        mids!.Total.Should().Be(2);
+
         // championId=157 → only Yasuo main.
         var yasuoMains = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?championId=157");
         yasuoMains!.Total.Should().Be(1);
@@ -334,7 +336,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_position_filter_uses_position_breakdown_share_threshold()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Three Yasuo mains with different lane splits. The filter should
@@ -400,7 +401,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_exposes_primary_and_secondary_position_from_position_share()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Three players with different lane spreads across their mains. The
@@ -480,7 +480,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_resolves_tied_lanes_deterministically_by_ordinal_position()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Two lanes at an exact games tie (MIDDLE 50 / TOP 50). Without a
@@ -519,7 +518,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_derives_positions_from_only_the_top_mains_like_the_profile()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // MainStatsCalculator can flag more than the profile's 6-main cap as
@@ -576,7 +574,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_paginates_with_server_computed_rank()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -624,7 +621,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_filters_out_accounts_below_min_ranked_games_threshold()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Four accounts at the same rank, with 1 / 4 / 5 / 6 valid-position
@@ -681,7 +677,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         // main_champion_stats (fresh ingest, or main analysis hasn't run yet,
         // or the player isn't a true main of anyone) must NOT appear on the
         // leaderboard. See issue #184.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -718,7 +713,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_surfaces_otp_flag_and_filters_by_otp_only()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Two Yasuo (157) mains: one flagged OTP by main analysis, one not.
@@ -761,7 +755,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
     [Fact]
     public async Task List_otp_only_composes_with_champion_filter()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // A player who is an OTP of Ahri (103) but only a flex main of Yasuo
@@ -805,7 +798,6 @@ public sealed class TruemainsLeaderboardApiIntegrationTests
         // *after* the first request and verify the second request still sees
         // the snapshot from the first — which only happens if the second one
         // came back from the cache without hitting the DB.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())

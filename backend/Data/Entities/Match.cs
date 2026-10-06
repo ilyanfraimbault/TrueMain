@@ -77,6 +77,15 @@ public class Match
     public bool SynergyAggregated { get; set; }
 
     /// <summary>
+    /// Set once this match has been folded into the opposing-pair aggregates (#1713),
+    /// the same one-fold-per-match gate as <see cref="SynergyAggregated"/> and shipped
+    /// <c>false</c> for the same reason: the tables are created empty, so every retained
+    /// match is folded once. Its own flag rather than the synergy one, so the backlog
+    /// drains without refolding — and double-counting — the synergies.
+    /// </summary>
+    public bool OpponentAggregated { get; set; }
+
+    /// <summary>
     /// Set once this match has been folded into the champion ban aggregates (#920),
     /// the same one-fold-per-match gate as <see cref="SynergyAggregated"/>. Its
     /// migration backfills every existing row to <see langword="true"/> — and here
@@ -110,6 +119,16 @@ public class Match
     /// on the backlog.
     /// </summary>
     public bool ItemContextAggregated { get; set; }
+
+    /// <summary>
+    /// Whether this match's timeline has been folded into <c>pace_benchmark_stats</c> (#1912).
+    /// Unlike its siblings this fold has no backlog to drain: it reads the timeline in memory
+    /// while ingesting it, so a match whose timeline was ingested before the fold shipped is
+    /// never folded — its per-minute values are gone. The flag is flipped by a conditional
+    /// update in the same transaction as the fold, so two accounts ingesting the same match
+    /// cannot both count it.
+    /// </summary>
+    public bool PaceBenchmarkAggregated { get; set; }
 
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

@@ -174,7 +174,8 @@ public sealed class ProcessRunSummaryJsonTests
                 new MatchIngestionPlatformSummary("EUW1", 5, 20, 3, 8, 4),
                 new MatchIngestionPlatformSummary("KR", 4, 10, 1, 4, 2)
             ],
-            3),
+            3,
+            2),
             new
             {
                 accountsProcessed = 9,
@@ -219,7 +220,9 @@ public sealed class ProcessRunSummaryJsonTests
                 // Appended by #1360, for the same reason as the two blocks above: a run
                 // recorded before the deploy has no key here, which reads as "not measured"
                 // rather than as a batch where every visit found new matches.
-                accountsWithoutNewMatches = 3
+                accountsWithoutNewMatches = 3,
+                // Appended by #1475: inactive mains a fresh match showed played again.
+                mainsReactivated = 2
             });
 
         yield return (
@@ -287,6 +290,11 @@ public sealed class ProcessRunSummaryJsonTests
         yield return (
             new SynergyAggregationSummary(4000, 4, 15000, 900),
             new { matches = 4000, batches = 4, pairRows = 15000, baselineRows = 900 });
+
+        // ChampionOpponentAggregationProcess (#1713) — the synergy shape.
+        yield return (
+            new OpponentAggregationSummary(4000, 4, 18000, 1100),
+            new { matches = 4000, batches = 4, pairRows = 18000, baselineRows = 1100 });
 
         // ChampionMatchupLeadAggregationProcess (#919, one fold since #1445).
         yield return (

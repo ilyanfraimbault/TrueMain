@@ -13,7 +13,7 @@ namespace TrueMain.IntegrationTests;
 /// empty-collection path (#93).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class RiotApiUsageQueryIntegrationTests
+public sealed class RiotApiUsageQueryIntegrationTests : IAsyncLifetime
 {
     private readonly MongoFixture _mongo;
 
@@ -22,10 +22,13 @@ public sealed class RiotApiUsageQueryIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetAsync_AggregatesTotalsEndpointsStatusTimeSeriesAndRateLimit()
     {
-        await _mongo.ResetAsync();
         await SeedAsync(
             Call("match-v5.match", 200, 120, minutesAgo: 5, appLimit: "20:1,100:120", appCount: "3:1,57:120"),
             Call("match-v5.match", 200, 80, minutesAgo: 8),
@@ -72,7 +75,6 @@ public sealed class RiotApiUsageQueryIntegrationTests
     [Fact]
     public async Task GetAsync_WithEndpointFilter_RestrictsToThatEndpoint()
     {
-        await _mongo.ResetAsync();
         await SeedAsync(
             Call("match-v5.match", 200, 100, minutesAgo: 3),
             Call("match-v5.match", 200, 100, minutesAgo: 4),
@@ -94,7 +96,6 @@ public sealed class RiotApiUsageQueryIntegrationTests
     [Fact]
     public async Task GetAsync_ExcludesCallsOlderThanTheWindow()
     {
-        await _mongo.ResetAsync();
         await SeedAsync(
             Call("match-v5.match", 200, 100, minutesAgo: 5),
             // Two hours old: outside the one-hour window.
@@ -108,8 +109,6 @@ public sealed class RiotApiUsageQueryIntegrationTests
     [Fact]
     public async Task GetAsync_EmptyCollection_ReturnsZeroedResult()
     {
-        await _mongo.ResetAsync();
-
         var usage = await QueryAsync(RiotUsageWindow.Last24Hours);
 
         usage.TotalCalls.Should().Be(0);
@@ -124,7 +123,6 @@ public sealed class RiotApiUsageQueryIntegrationTests
     [Fact]
     public async Task GetAsync_SumsRollupCounts_NotDocumentCount()
     {
-        await _mongo.ResetAsync();
         var at = DateTime.UtcNow.AddMinutes(-3);
         var bucket = new DateTime(at.Year, at.Month, at.Day, at.Hour, at.Minute, 0, DateTimeKind.Utc);
         // One rollup standing for 10 attempts (4 of them 429 errors), 5000ms total.
@@ -227,7 +225,6 @@ public sealed class RiotApiUsageQueryIntegrationTests
     [Fact]
     public async Task GetAsync_AggregatesCallerBreakdown_AndCollapsesNullCallerToUnknown()
     {
-        await _mongo.ResetAsync();
         await SeedAsync(
             Call("match-v5.match", 200, 100, minutesAgo: 5, callerProcess: "Discovery"),
             Call("match-v5.match", 200, 100, minutesAgo: 6, callerProcess: "Discovery"),
@@ -249,7 +246,6 @@ public sealed class RiotApiUsageQueryIntegrationTests
     [Fact]
     public async Task GetAsync_TimeSeries_SeparatesRetriesFromOtherCalls()
     {
-        await _mongo.ResetAsync();
         await SeedAsync(
             Call("match-v5.match", 200, 100, minutesAgo: 5),
             Call("match-v5.match", 429, 30, minutesAgo: 5),
@@ -267,7 +263,6 @@ public sealed class RiotApiUsageQueryIntegrationTests
     [Fact]
     public async Task GetAsync_MergesLatestMethodRateLimit_PerEndpoint_SkippingRollupsWithoutHeaders()
     {
-        await _mongo.ResetAsync();
         await SeedAsync(
             // Oldest first: freshest (5 minutes ago) header values must win.
             Call("match-v5.match", 200, 100, minutesAgo: 20, methodLimit: "500:60", methodLimitCount: "10:60"),
@@ -290,7 +285,6 @@ public sealed class RiotApiUsageQueryIntegrationTests
     [Fact]
     public async Task GetSaturationInputsAsync_CoversSevenDays_IgnoringEndpointConcept()
     {
-        await _mongo.ResetAsync();
         await SeedAsync(
             Call("match-v5.match", 200, 100, minutesAgo: 60),
             Call("league-v4.challenger", 200, 100, minutesAgo: 3 * 24 * 60, appLimit: "20:1,100:120", appCount: "5:1,80:120"),
@@ -314,8 +308,6 @@ public sealed class RiotApiUsageQueryIntegrationTests
     [Fact]
     public async Task GetSaturationInputsAsync_EmptyCollection_ReturnsNoEarliestBucketOrRateLimit()
     {
-        await _mongo.ResetAsync();
-
         using var context = BuildContext();
         var query = new RiotApiUsageQuery(context);
         var inputs = await query.GetSaturationInputsAsync(CancellationToken.None);

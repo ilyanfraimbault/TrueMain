@@ -10,7 +10,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionScalingApiIntegrationTests
+public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const int Champion = 157; // Yone
@@ -26,10 +26,13 @@ public sealed class ChampionScalingApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetChampionScalingAsync_BucketsWinRateByDuration_AndComputesIndex()
     {
-        await _fixture.ResetDatabaseAsync();
         // Short games: 4/12 won. Long games: 9/12 won → champion scales late.
         await SeedScalingSampleAsync(shortGames: 12, shortWins: 4, longGames: 12, longWins: 9);
 
@@ -62,7 +65,6 @@ public sealed class ChampionScalingApiIntegrationTests
     [Fact]
     public async Task GetChampionScalingAsync_DropsThinBuckets_AndNullsIndexBelowTwoBuckets()
     {
-        await _fixture.ResetDatabaseAsync();
         // Only the short bucket clears the floor of 10; the long bucket (5) drops.
         await SeedScalingSampleAsync(shortGames: 12, shortWins: 6, longGames: 5, longWins: 3);
 
@@ -80,7 +82,6 @@ public sealed class ChampionScalingApiIntegrationTests
     [Fact]
     public async Task GetChampionScalingAsync_FiltersToRequestedPatch()
     {
-        await _fixture.ResetDatabaseAsync();
         // 12 short games, all on 16.4.521.123 (no long games seeded).
         await SeedScalingSampleAsync(shortGames: 12, shortWins: 6, longGames: 0, longWins: 0);
 
@@ -103,8 +104,6 @@ public sealed class ChampionScalingApiIntegrationTests
     [Fact]
     public async Task GetChampionScalingAsync_ReturnsEmptyWhenNoGames()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -119,7 +118,6 @@ public sealed class ChampionScalingApiIntegrationTests
     [Fact]
     public async Task GetChampionScalingAsync_FiltersToRequestedEloBracket()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedBracketedScalingSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -146,8 +144,6 @@ public sealed class ChampionScalingApiIntegrationTests
     [Fact]
     public async Task GetChampionScalingAsync_ReturnsBadRequestForInvalidPosition()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 

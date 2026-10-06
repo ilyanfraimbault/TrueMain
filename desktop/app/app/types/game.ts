@@ -65,6 +65,8 @@ export interface GamePlayer {
   kills: number
   deaths: number
   assists: number
+  /** Minions and monsters killed, floored to 10 (`CS_STEP`). */
+  creepScore: number
   dead: boolean
   /** Game time the player comes back at, while dead. */
   respawnAt: number | null
@@ -86,7 +88,7 @@ export interface GameSpell {
 export type GameChange =
   | { kind: 'items', player: number, items: GameItem[] }
   | { kind: 'levelUp', player: number, level: number }
-  | { kind: 'score', player: number, kills: number, deaths: number, assists: number }
+  | { kind: 'score', player: number, kills: number, deaths: number, assists: number, creepScore: number }
   | { kind: 'died', player: number, respawnAt: number }
   | { kind: 'objectives', objectives: GameObjectives }
   | { kind: 'pace', pace: GamePace }

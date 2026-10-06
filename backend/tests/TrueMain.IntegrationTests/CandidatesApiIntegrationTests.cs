@@ -20,7 +20,7 @@ namespace TrueMain.IntegrationTests;
 /// ID, PUUID and champion-id matching.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CandidatesApiIntegrationTests
+public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -41,11 +41,17 @@ public sealed class CandidatesApiIntegrationTests
         _mongo = mongo;
     }
 
-    [Fact]
-    public async Task GetCandidates_ReturnsStableShape_OrderedByScoreDesc_WithJoinedRiotId()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetDatabaseAsync();
         await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task GetCandidates_ReturnsStableShape_OrderedByScoreDesc_WithJoinedRiotId()
+    {
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -91,8 +97,6 @@ public sealed class CandidatesApiIntegrationTests
     [Fact]
     public async Task GetCandidates_FiltersByStatus()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -109,8 +113,6 @@ public sealed class CandidatesApiIntegrationTests
     [Fact]
     public async Task GetCandidates_FiltersByRegion_CaseInsensitive()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -126,8 +128,6 @@ public sealed class CandidatesApiIntegrationTests
     [Fact]
     public async Task GetCandidates_SearchesByRiotId_PuuidAndChampionId()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -149,8 +149,6 @@ public sealed class CandidatesApiIntegrationTests
     [Fact]
     public async Task GetCandidates_SearchesByFullRiotId()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -176,8 +174,6 @@ public sealed class CandidatesApiIntegrationTests
     [Fact]
     public async Task GetCandidateById_ReturnsDetail_WithLinkedSeedRequestAndIngestedMatchCount()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -210,8 +206,6 @@ public sealed class CandidatesApiIntegrationTests
     [Fact]
     public async Task GetCandidateById_ReturnsNullSeedRequest_ForOrganicallyDiscoveredCandidate()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -229,9 +223,6 @@ public sealed class CandidatesApiIntegrationTests
     [Fact]
     public async Task GetCandidateById_ReturnsNotFound_ForUnknownId()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
@@ -242,9 +233,6 @@ public sealed class CandidatesApiIntegrationTests
     [Fact]
     public async Task CandidateEndpoints_RequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

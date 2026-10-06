@@ -13,15 +13,17 @@ namespace TrueMain.IntegrationTests;
 /// that its granularity is a closed set rather than free text.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CandidateStockApiIntegrationTests(PostgresFixture fixture)
+public sealed class CandidateStockApiIntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
+
+    public async ValueTask InitializeAsync() => await fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task GetStock_ReturnsAnEmptySeriesRatherThanZeros_WhenNothingWasSnapshotted()
     {
-        await fixture.ResetDatabaseAsync();
-
         await using var factory = new TrueMainWebApplicationFactory<Program>(fixture);
         using var client = CreateClient(factory);
 
@@ -41,8 +43,6 @@ public sealed class CandidateStockApiIntegrationTests(PostgresFixture fixture)
     [InlineData("week")]
     public async Task GetStock_AcceptsEveryGranularityThePanelOffers(string granularity)
     {
-        await fixture.ResetDatabaseAsync();
-
         await using var factory = new TrueMainWebApplicationFactory<Program>(fixture);
         using var client = CreateClient(factory);
 
@@ -54,8 +54,6 @@ public sealed class CandidateStockApiIntegrationTests(PostgresFixture fixture)
     [Fact]
     public async Task GetStock_RejectsAnUnknownGranularity()
     {
-        await fixture.ResetDatabaseAsync();
-
         await using var factory = new TrueMainWebApplicationFactory<Program>(fixture);
         using var client = CreateClient(factory);
 
@@ -67,8 +65,6 @@ public sealed class CandidateStockApiIntegrationTests(PostgresFixture fixture)
     [Fact]
     public async Task GetStock_ShouldRequireOpsApiKey()
     {
-        await fixture.ResetDatabaseAsync();
-
         await using var factory = new TrueMainWebApplicationFactory<Program>(fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

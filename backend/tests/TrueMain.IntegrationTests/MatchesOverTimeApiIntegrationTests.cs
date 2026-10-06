@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchesOverTimeApiIntegrationTests
+public sealed class MatchesOverTimeApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -19,10 +19,13 @@ public sealed class MatchesOverTimeApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetMatchesOverTime_Month_ShouldBucketByGameMonthInAscendingOrder()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -58,7 +61,6 @@ public sealed class MatchesOverTimeApiIntegrationTests
     [Fact]
     public async Task GetMatchesOverTime_Patch_ShouldBucketByNormalizedPatchOrderedChronologically()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -86,7 +88,6 @@ public sealed class MatchesOverTimeApiIntegrationTests
     [Fact]
     public async Task GetMatchesOverTime_Patch_WithRegion_ShouldFilterByPlatformId()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -107,7 +108,6 @@ public sealed class MatchesOverTimeApiIntegrationTests
     [Fact]
     public async Task GetMatchesOverTime_Day_ShouldBucketByGameDayInAscendingOrder()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -137,8 +137,6 @@ public sealed class MatchesOverTimeApiIntegrationTests
     [InlineData("/ops/stats/matches-over-time?granularity=quarter")]
     public async Task GetMatchesOverTime_InvalidGranularity_ShouldReturn400ProblemDetails(string url)
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -150,8 +148,6 @@ public sealed class MatchesOverTimeApiIntegrationTests
     [Fact]
     public async Task GetMatchesOverTime_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

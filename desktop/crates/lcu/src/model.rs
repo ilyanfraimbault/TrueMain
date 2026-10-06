@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::champ_select::DraftAction;
+
 /// Where the player is in the client, and what the app should therefore show.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GameflowPhase {
@@ -65,6 +67,84 @@ pub struct GameflowGameData {
     pub team_one: Vec<GameflowPlayer>,
     /// Red side's.
     pub team_two: Vec<GameflowPlayer>,
+    /// Every player's champion, by puuid — the hidden ones too, whom the
+    /// teams leave out altogether (Streamer Mode).
+    pub player_champion_selections: Vec<GameflowChampionSelection>,
+}
+
+impl GameflowGameData {
+    /// The two teams with the players they leave out put back, as anonymous
+    /// players: no puuid, their champion, and their lane when it is the one
+    /// their team has left. Each goes to the team short of players — the
+    /// emptier one first. `keep` is the puuid kept on such a player: ours,
+    /// whose line is read whatever the client hides.
+    pub fn teams(&self, keep: &str) -> (Vec<GameflowPlayer>, Vec<GameflowPlayer>) {
+        let (mut blue, mut red) = (self.team_one.clone(), self.team_two.clone());
+        // A player listed without a puuid (a bot) is known by their champion.
+        let listed = |selection: &GameflowChampionSelection| {
+            self.team_one.iter().chain(&self.team_two).any(|player| {
+                if player.puuid.is_empty() {
+                    player.champion_id == selection.champion_id
+                } else {
+                    player.puuid == selection.puuid
+                }
+            })
+        };
+        let unlisted: Vec<&GameflowChampionSelection> = self
+            .player_champion_selections
+            .iter()
+            .filter(|selection| selection.champion_id > 0 && !listed(selection))
+            .collect();
+        let size = (blue.len() + red.len() + unlisted.len()).div_ceil(2);
+        for selection in unlisted {
+            let team = if blue.len() <= red.len() {
+                &mut blue
+            } else {
+                &mut red
+            };
+            if team.len() >= size {
+                continue;
+            }
+            let player = GameflowPlayer {
+                puuid: if !keep.is_empty() && selection.puuid == keep {
+                    selection.puuid.clone()
+                } else {
+                    String::new()
+                },
+                champion_id: selection.champion_id,
+                selected_position: free_lane(team, size).unwrap_or_default(),
+                ..GameflowPlayer::default()
+            };
+            team.push(player);
+        }
+        (blue, red)
+    }
+}
+
+/// The one lane a team short of one player has nobody in; `None` when the
+/// team is short of more, or plays without lanes.
+fn free_lane(team: &[GameflowPlayer], size: usize) -> Option<String> {
+    const LANES: [&str; 5] = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+    if size != LANES.len() || team.len() + 1 != size {
+        return None;
+    }
+    let mut free = LANES.iter().filter(|lane| {
+        !team
+            .iter()
+            .any(|player| player.selected_position.eq_ignore_ascii_case(lane))
+    });
+    match (free.next(), free.next()) {
+        (Some(lane), None) => Some((*lane).to_string()),
+        _ => None,
+    }
+}
+
+/// One player's champion in the session, listed for everyone.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GameflowChampionSelection {
+    pub puuid: String,
+    pub champion_id: i64,
 }
 
 /// One player of the game, as the session lists them. Which identity fields
@@ -79,19 +159,17 @@ pub struct GameflowPlayer {
     pub summoner_name: String,
     /// `TOP`, `JUNGLE`, `MIDDLE`, `BOTTOM`, `UTILITY`; empty without roles.
     pub selected_position: String,
-    /// `HIDDEN` for a player whose name the client keeps from us (Streamer
-    /// Mode, patch 25.20), as the champion select marks one; absent otherwise.
-    pub name_visibility_type: String,
 }
 
 impl GameflowPlayer {
-    /// The player chose not to be known in this game: the client marks the
-    /// name hidden, or leaves out the name or the puuid it would be looked
-    /// up by. Their name and their history are then never read (#1753).
+    /// The client keeps this player's identity from us: it leaves out the
+    /// puuid they would be looked up by. Their history is then never read
+    /// (#1753). Neither the session's `nameVisibilityType` nor a missing name
+    /// is a signal: ranked keeps the champion select's `HIDDEN` on every
+    /// player, and the session may list a player without `gameName`/`tagLine`
+    /// — the name is then read by puuid (`LcuClient::summoner_by_puuid`).
     pub fn is_anonymous(&self) -> bool {
-        self.name_visibility_type.eq_ignore_ascii_case("HIDDEN")
-            || self.puuid.trim().is_empty()
-            || self.riot_id().trim().is_empty()
+        self.puuid.trim().is_empty()
     }
 
     /// `Name#TAG` when the session carries it, else the summoner name.
@@ -162,12 +240,17 @@ pub struct ChampSelectBans {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampSelectAction {
+    /// What a write to this action is addressed by
+    /// (`/lol-champ-select/v1/session/actions/{id}`).
+    pub id: i64,
     pub actor_cell_id: i64,
     /// Zero until the actor commits, or when a ban turn is skipped.
     pub champion_id: i64,
     pub completed: bool,
     pub is_ally_action: bool,
-    /// `"ban"` or `"pick"`.
+    /// The turn is open: the actor can hover and lock now.
+    pub is_in_progress: bool,
+    /// `"ban"` or `"pick"` — or a step that is neither (`ten_bans_reveal`).
     #[serde(rename = "type")]
     pub kind: String,
 }
@@ -205,6 +288,13 @@ pub struct DraftState {
     pub ally_bans: Vec<i64>,
     pub enemy_bans: Vec<i64>,
     pub seconds_left: i64,
+    /// The client's timer phase (`PLANNING`, `BAN_PICK`, `FINALIZATION`).
+    pub timer_phase: String,
+    /// Our action open right now — the ban or pick a click may write to.
+    pub my_action: Option<DraftAction>,
+    /// Our first action still to come, and how many turns away it is.
+    pub my_next_action: Option<DraftAction>,
+    pub turns_until_my_action: Option<i64>,
 }
 
 /// One cell of our side of champion select.
@@ -264,6 +354,7 @@ impl ChampSelectSession {
 
     pub fn draft_state(&self) -> DraftState {
         let me = self.local_player();
+        let turn = self.turn();
 
         let ally_champions = self
             .my_team
@@ -301,6 +392,10 @@ impl ChampSelectSession {
             ally_bans: self.bans(true),
             enemy_bans: self.bans(false),
             seconds_left: self.timer.adjusted_time_left_in_phase / 1000,
+            timer_phase: self.timer.phase.clone(),
+            my_action: turn.current,
+            my_next_action: turn.next,
+            turns_until_my_action: turn.turns_until_next,
         }
     }
 }
@@ -308,6 +403,7 @@ impl ChampSelectSession {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CurrentSummoner {
+    pub puuid: String,
     pub game_name: String,
     pub tag_line: String,
     pub summoner_level: i64,
@@ -553,24 +649,146 @@ mod tests {
     }
 
     #[test]
-    fn a_hidden_or_nameless_player_is_anonymous() {
+    fn only_a_player_without_a_puuid_is_anonymous() {
         let named = serde_json::json!({ "puuid": "p-1", "gameName": "Lumen", "tagLine": "EUW", "championId": 254 });
         assert!(!gameflow_player(named.clone()).is_anonymous());
 
-        let mut hidden = named.clone();
-        hidden["nameVisibilityType"] = "HIDDEN".into();
-        assert!(gameflow_player(hidden).is_anonymous());
-
-        let mut visible = named.clone();
-        visible["nameVisibilityType"] = "VISIBLE".into();
-        assert!(!gameflow_player(visible).is_anonymous());
+        // Ranked keeps the champion select's flag on every player of the
+        // loading screen, names and puuids sent all the same.
+        let mut ranked = named.clone();
+        ranked["nameVisibilityType"] = "HIDDEN".into();
+        assert!(!gameflow_player(ranked).is_anonymous());
 
         let mut no_puuid = named.clone();
         no_puuid["puuid"] = "".into();
         assert!(gameflow_player(no_puuid).is_anonymous());
 
-        assert!(
-            gameflow_player(serde_json::json!({ "puuid": "p-2", "championId": 81 })).is_anonymous()
+        // A puuid without a name: the name is read by it.
+        assert!(!gameflow_player(
+            serde_json::json!({ "puuid": "p-2", "championId": 81, "summonerName": "" })
+        )
+        .is_anonymous());
+    }
+
+    /// The session as the client sends it with an enemy in Streamer Mode: the
+    /// teams list four of them, the champion selections all ten.
+    fn session_hiding(hidden: &[(&str, i64)]) -> GameflowGameData {
+        let listed = |team: &str, lanes: &[(&str, i64)]| -> Vec<serde_json::Value> {
+            lanes
+                .iter()
+                .map(|(lane, champion)| {
+                    serde_json::json!({
+                        "puuid": format!("{team}-{lane}"),
+                        "championId": champion,
+                        "selectedPosition": lane,
+                    })
+                })
+                .collect()
+        };
+        let blue = listed(
+            "blue",
+            &[
+                ("TOP", 84),
+                ("JUNGLE", 517),
+                ("MIDDLE", 777),
+                ("BOTTOM", 157),
+                ("UTILITY", 267),
+            ],
         );
+        let red = listed(
+            "red",
+            &[
+                ("TOP", 57),
+                ("JUNGLE", 104),
+                ("MIDDLE", 7),
+                ("BOTTOM", 18),
+                ("UTILITY", 893),
+            ],
+        );
+        let selections: Vec<serde_json::Value> = blue
+            .iter()
+            .chain(&red)
+            .map(|player| serde_json::json!({ "puuid": player["puuid"], "championId": player["championId"], "spell1Id": 4 }))
+            .collect();
+        let shown = |team: Vec<serde_json::Value>| -> Vec<serde_json::Value> {
+            team.into_iter()
+                .filter(|player| !hidden.iter().any(|(puuid, _)| player["puuid"] == *puuid))
+                .collect()
+        };
+        serde_json::from_value(serde_json::json!({
+            "gameId": 1,
+            "teamOne": shown(blue),
+            "teamTwo": shown(red),
+            "playerChampionSelections": selections,
+        }))
+        .expect("a gameflow session")
+    }
+
+    #[test]
+    fn a_player_the_teams_leave_out_comes_back_anonymous_in_their_lane() {
+        let data = session_hiding(&[("red-JUNGLE", 104)]);
+        let (blue, red) = data.teams("");
+        assert_eq!(blue.len(), 5);
+        assert_eq!(red.len(), 5);
+        let graves = red
+            .iter()
+            .find(|p| p.champion_id == 104)
+            .expect("Graves is back");
+        assert!(
+            graves.is_anonymous(),
+            "no puuid kept: nothing read about them"
+        );
+        assert_eq!(
+            graves.selected_position, "JUNGLE",
+            "the lane their team left"
+        );
+    }
+
+    #[test]
+    fn our_own_hidden_line_keeps_its_puuid() {
+        let data = session_hiding(&[("blue-MIDDLE", 777)]);
+        let (blue, _) = data.teams("blue-MIDDLE");
+        let ours = blue
+            .iter()
+            .find(|p| p.champion_id == 777)
+            .expect("ours is back");
+        assert_eq!(ours.puuid, "blue-MIDDLE");
+        assert_eq!(ours.selected_position, "MIDDLE");
+    }
+
+    #[test]
+    fn two_hidden_players_on_one_team_come_back_without_a_lane() {
+        let data = session_hiding(&[("red-TOP", 57), ("red-BOTTOM", 18)]);
+        let (blue, red) = data.teams("");
+        assert_eq!((blue.len(), red.len()), (5, 5));
+        let back: Vec<&GameflowPlayer> = red.iter().filter(|p| p.is_anonymous()).collect();
+        assert_eq!(back.len(), 2);
+        assert!(
+            back.iter().all(|p| p.selected_position.is_empty()),
+            "which is which is unknown"
+        );
+    }
+
+    #[test]
+    fn a_full_session_is_left_as_it_is() {
+        let data = session_hiding(&[]);
+        let (blue, red) = data.teams("");
+        assert_eq!((blue.len(), red.len()), (5, 5));
+        assert!(blue.iter().chain(&red).all(|p| !p.is_anonymous()));
+    }
+
+    #[test]
+    fn a_bot_listed_without_a_puuid_is_not_put_back_twice() {
+        let data: GameflowGameData = serde_json::from_value(serde_json::json!({
+            "teamOne": [{ "puuid": "me", "championId": 1 }],
+            "teamTwo": [{ "puuid": "", "championId": 22 }],
+            "playerChampionSelections": [
+                { "puuid": "me", "championId": 1 },
+                { "puuid": "", "championId": 22 },
+            ],
+        }))
+        .expect("a gameflow session");
+        let (blue, red) = data.teams("");
+        assert_eq!((blue.len(), red.len()), (1, 1));
     }
 }

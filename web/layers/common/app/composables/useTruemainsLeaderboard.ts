@@ -1,4 +1,6 @@
 import type { LeaderboardResponse, LeaderboardRowResponse, LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
+import { parseLeaderboardSort } from '#shared/utils/leaderboard-sort'
+import { describeStaleFetchError } from '#common/utils/errors'
 
 interface UseTruemainsLeaderboardOptions {
   /** Page size to request per fetch. Omitted = use the backend default (25). */
@@ -23,6 +25,13 @@ interface UseTruemainsLeaderboardOptions {
    * (#1123 / #926); this one had arrived as a side effect of the default.
    */
   server?: boolean
+  /**
+   * Opt into keeping the previous rows on a failed refetch (#1668), with this
+   * as the action toast's title. Only for a consumer whose filters or pager
+   * the reader drives *and* that renders `staleError` — elsewhere a refetch is
+   * a different subject (another champion's card), not an update of this one.
+   */
+  refetchFailureTitle?: string
 }
 
 /**
@@ -69,10 +78,9 @@ export function useTruemainsLeaderboard(
     return typeof value === 'number' && value > 0 ? value : null
   })
   const otpOnlyRef = computed(() => toValue(options.otpOnly) === true)
-  // Only `dedication` is ever sent: the default ranking has a clean URL and
-  // shares the unfiltered cache key on both sides.
-  const sortRef = computed<LeaderboardSort>(() =>
-    toValue(options.sort) === 'dedication' ? 'dedication' : 'rank')
+  // The default `rank` is never sent: it has a clean URL and shares the
+  // unfiltered cache key on both sides.
+  const sortRef = computed<LeaderboardSort>(() => parseLeaderboardSort(toValue(options.sort)))
 
   function buildQuery() {
     const query: Record<string, string | number | boolean> = {
@@ -83,7 +91,7 @@ export function useTruemainsLeaderboard(
     if (positionRef.value) query.position = positionRef.value
     if (championIdRef.value) query.championId = championIdRef.value
     if (otpOnlyRef.value) query.otpOnly = true
-    if (sortRef.value === 'dedication') query.sort = 'dedication'
+    if (sortRef.value !== 'rank') query.sort = sortRef.value
     return query
   }
 
@@ -124,7 +132,17 @@ export function useTruemainsLeaderboard(
       }),
     },
   )
-  const { data, status, error, refresh } = leaderboardFetch
+  const { status, refresh } = leaderboardFetch
+  const refetchFailureTitle = options.refetchFailureTitle
+  const actionToast = refetchFailureTitle ? useActionToast() : null
+  const fallback = refetchFailureTitle
+    ? useRefetchFallback(leaderboardFetch, {
+        onStaleFailure: failure => actionToast?.failure(refetchFailureTitle, describeStaleFetchError(failure)),
+      })
+    : null
+  const data = fallback?.data ?? leaderboardFetch.data
+  const error = fallback?.error ?? leaderboardFetch.error
+  const staleError = fallback?.staleError ?? computed(() => null)
 
   const rows = computed<LeaderboardRowResponse[]>(() => data.value?.rows ?? [])
   const total = computed(() => data.value?.total ?? 0)
@@ -171,6 +189,7 @@ export function useTruemainsLeaderboard(
     isLoading,
     isInitialLoading,
     error,
+    staleError,
     refresh,
     // Settles once the first page has (at once on a hydration, which reuses the
     // SSR payload): a page awaiting it in setup keeps the outgoing page under

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Core.Lol.Map;
 
 namespace Ingestor.Options;
@@ -21,12 +22,14 @@ public class HarvestOptions
     public List<string> Platforms { get; set; } = [];
 
     /// <summary>Queue to aggregate over. Defaults to ranked solo, the main-detection queue.</summary>
+    [Range(1, int.MaxValue)]
     public int QueueId { get; set; } = (int)LolQueueId.RankedSoloDuo;
 
     /// <summary>
     /// Anti-noise / anti-explosion gate: only emit a candidate for a (puuid, champion)
     /// with at least this many observed games. A single observed game is not signal.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int MinObservedGames { get; set; } = 5;
 
     /// <summary>
@@ -47,6 +50,7 @@ public class HarvestOptions
     /// <c>platforms x 2 x MaxCandidatesPerRun</c> rows (~8 MB at the defaults; see
     /// <c>ParticipantHarvestService.HarvestAsync</c> for the arithmetic).
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int MaxCandidatesPerRun { get; set; } = 5000;
 
     /// <summary>
@@ -64,6 +68,7 @@ public class HarvestOptions
     /// first one left unused. No value of this share disables a class: with <c>1</c>, a run
     /// whose new pairs do not fill the budget still spends the remainder on refreshes.
     /// </summary>
+    [Range(0d, 1d)]
     public double NewCandidateShare { get; set; } = 0.5;
 
     /// <summary>
@@ -72,8 +77,10 @@ public class HarvestOptions
     /// deleted older rows, and focuses the harvest on currently-active players. Should roughly
     /// cover the retained window (~2 patches). <c>0</c> disables the date filter (scan all).
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int LookbackDays { get; set; } = 30;
 
     /// <summary>Pending changes flushed to the DB per batch while upserting.</summary>
+    [Range(1, int.MaxValue)]
     public int SaveBatchSize { get; set; } = 200;
 }

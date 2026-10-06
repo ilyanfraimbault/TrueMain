@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// Mongo rather than with mocked collections) (#93).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class RiotApiMetricsSinkIntegrationTests
+public sealed class RiotApiMetricsSinkIntegrationTests : IAsyncLifetime
 {
     private readonly MongoFixture _mongo;
 
@@ -26,11 +26,13 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         _mongo = mongo;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Sink_FoldsRecordedCalls_IntoPerMinuteRollupsAndCreatesIndexes()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 
@@ -44,7 +46,7 @@ public sealed class RiotApiMetricsSinkIntegrationTests
             var names = (await collection.Indexes.List().ToListAsync())
                 .Select(index => index["name"].AsString)
                 .ToList();
-            return names.Contains("ux_bucket_endpoint_status_caller")
+            return names.Contains("ux_bucket_endpoint_status_caller_route")
                 && names.Contains("ix_timestamp_desc")
                 && names.Contains("ix_endpoint_timestamp")
                 && names.Contains("ttl_timestamp");
@@ -94,8 +96,6 @@ public sealed class RiotApiMetricsSinkIntegrationTests
     [Fact]
     public async Task Sink_LaterCallWithoutHeaders_KeepsEarlierStoredValues()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 
@@ -133,8 +133,6 @@ public sealed class RiotApiMetricsSinkIntegrationTests
     [Fact]
     public async Task Sink_TwoCallersInSameBucketEndpointStatus_FoldIntoTwoDocuments()
     {
-        await _mongo.ResetAsync();
-
         using var host = BuildHost();
         await host.StartAsync();
 
@@ -166,6 +164,41 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         documents.Select(doc => doc.CallerProcess).Should().BeEquivalentTo(["Discovery", "MatchIngestion", null]);
     }
 
+    [Fact]
+    public async Task Sink_SameCallerOnTwoRoutesInOneMinute_FoldsIntoOneDocumentPerRoute()
+    {
+        using var host = BuildHost();
+        await host.StartAsync();
+
+        var collection = _mongo.GetCollection<RiotApiCallRollupDocument>(MongoFixture.RiotApiCallsCollection);
+        var at = DateTime.UtcNow;
+        var recorder = host.Services.GetRequiredService<IRiotApiCallRecorder>();
+
+        // match-v5 runs on several regional hosts at once, and Riot keeps one app budget
+        // per host (#1458): the same minute/endpoint/status/caller must stay split by route,
+        // each document carrying its own host's rate-limit count.
+        recorder.Record(Record("match-v5.match", 200, 50, at, appCount: "10:120", callerProcess: "MatchIngestion", route: "europe"));
+        recorder.Record(Record("match-v5.match", 200, 60, at, appCount: "80:120", callerProcess: "MatchIngestion", route: "asia"));
+        recorder.Record(Record("match-v5.match", 200, 70, at, appCount: "11:120", callerProcess: "MatchIngestion", route: "europe"));
+
+        await AsyncWait.UntilAsync(async () =>
+        {
+            var docs = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).ToListAsync();
+            return docs.Count == 2 && docs.Sum(doc => doc.Count) == 3;
+        }, "the three calls to fold into one rollup per route");
+
+        await host.StopAsync();
+
+        var documents = await collection.Find(FilterDefinition<RiotApiCallRollupDocument>.Empty).ToListAsync();
+        documents.Should().OnlyContain(doc => doc.RouteKeyed);
+        var europe = documents.Single(doc => doc.Route == "europe");
+        europe.Count.Should().Be(2);
+        europe.AppRateLimitCount.Should().Be("11:120");
+        var asia = documents.Single(doc => doc.Route == "asia");
+        asia.Count.Should().Be(1);
+        asia.AppRateLimitCount.Should().Be("80:120");
+    }
+
     private IHost BuildHost()
     {
         var builder = Host.CreateApplicationBuilder();
@@ -189,14 +222,15 @@ public sealed class RiotApiMetricsSinkIntegrationTests
         string? appLimit = null,
         string? appCount = null,
         int? retryAfter = null,
-        string? callerProcess = null)
+        string? callerProcess = null,
+        string route = "europe")
         => new(
             at,
             endpoint,
             "GET",
             statusCode,
             latencyMs,
-            Route: "europe",
+            Route: route,
             AppRateLimit: appLimit,
             AppRateLimitCount: appCount,
             MethodRateLimit: null,

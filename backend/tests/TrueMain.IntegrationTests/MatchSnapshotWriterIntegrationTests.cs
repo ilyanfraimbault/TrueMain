@@ -3,6 +3,7 @@ using Core.Options;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using AwesomeAssertions;
+using Ingestor.Options;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
@@ -10,7 +11,7 @@ using Ingestor.Riot.Dto;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchSnapshotWriterIntegrationTests
+public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -39,13 +40,19 @@ public sealed class MatchSnapshotWriterIntegrationTests
         return await service.WriteAsync(session, plan, platformId, puuid, saveBatchSize, ct);
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldPersistRawMatchParticipantsAndPerks()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
+        var service = new MatchSnapshotWriter(
+            new FakeRiotMatchClient(),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainActivityOptions()));
 
         var result = await IngestSnapshotsAsync(
             service,
@@ -100,8 +107,11 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldSkipAlreadyPersistedMatches()
     {
-        await _fixture.ResetDatabaseAsync();
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
+        var service = new MatchSnapshotWriter(
+            new FakeRiotMatchClient(),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainActivityOptions()));
 
         await using (var firstSession = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
         {
@@ -142,8 +152,11 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldBackfillTrackedRiotAccountIdForExistingMatches()
     {
-        await _fixture.ResetDatabaseAsync();
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
+        var service = new MatchSnapshotWriter(
+            new FakeRiotMatchClient(),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainActivityOptions()));
         var now = DateTime.UtcNow;
 
         await using (var seedDb = _fixture.CreateDbContext())
@@ -224,8 +237,11 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldAssignKnownRiotAccountIdsForAllKnownParticipantsInANewMatch()
     {
-        await _fixture.ResetDatabaseAsync();
-        var service = new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
+        var service = new MatchSnapshotWriter(
+            new FakeRiotMatchClient(),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainActivityOptions()));
         var now = DateTime.UtcNow;
 
         await using (var seedDb = _fixture.CreateDbContext())
@@ -289,13 +305,12 @@ public sealed class MatchSnapshotWriterIntegrationTests
     [Fact]
     public async Task IngestSnapshotsAsync_ShouldSkipMatchesFromOtherQueues()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
         var service = new MatchSnapshotWriter(
             new FakeRiotMatchClient(queueId: (int)LolQueueId.RankedFlex),
             TimeProvider.System,
-            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }));
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainActivityOptions()));
 
         var result = await IngestSnapshotsAsync(
             service,
@@ -323,6 +338,112 @@ public sealed class MatchSnapshotWriterIntegrationTests
         verifyDb.Matches.Should().BeEmpty();
         verifyDb.MatchParticipants.Should().BeEmpty();
         verifyDb.ParticipantPerkSelections.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task IngestSnapshotsAsync_ShouldReactivateTheMainItSeesPlayed_AndStampMainAccounts()
+    {
+        // puuid-2 holds two inactive mains; the fake match shows it on 51 only. puuid-1 is a
+        // known account with no main at all.
+        await SeedAccountAsync("puuid-1");
+        await SeedAccountAsync("puuid-2");
+        await SeedMainStatAsync("puuid-2", championId: 51);
+        await SeedMainStatAsync("puuid-2", championId: 99);
+
+        // Two days after the fake game: inside the 30-day activity window.
+        var service = BuildActivityWriter(FakeGameStartUtc.AddDays(2));
+
+        await using (var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
+        {
+            var result = await IngestSnapshotsAsync(
+                service, session, "KR", "puuid-1", RegionalRoute.Asia, 10, 10, 4, CancellationToken.None);
+            result.MainsReactivated.Should().Be(1);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var stats = verifyDb.MainChampionStats.Where(s => s.Puuid == "puuid-2").ToDictionary(s => s.ChampionId, s => s.IsActive);
+        stats[51].Should().BeTrue();
+
+        // A match only ever adds evidence: the champion it did not show stays as it was.
+        stats[99].Should().BeFalse();
+
+        verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-2").LastSeenInMatchAtUtc.Should().Be(FakeGameStartUtc);
+
+        // No main to protect, so no stamp to write.
+        verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-1").LastSeenInMatchAtUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task IngestSnapshotsAsync_ShouldNotReactivateAMain_FromAGameOlderThanTheActivityWindow()
+    {
+        await SeedAccountAsync("puuid-2");
+        await SeedMainStatAsync("puuid-2", championId: 51);
+
+        // A first ingestion lists weeks of history: a game from before the window is not
+        // activity, so the mastery check's deactivation stands.
+        var service = BuildActivityWriter(FakeGameStartUtc.AddDays(45));
+
+        await using (var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
+        {
+            var result = await IngestSnapshotsAsync(
+                service, session, "KR", "puuid-1", RegionalRoute.Asia, 10, 10, 4, CancellationToken.None);
+            result.MainsReactivated.Should().Be(0);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        verifyDb.MainChampionStats.Single(s => s.Puuid == "puuid-2").IsActive.Should().BeFalse();
+
+        // Still stamped: the selection compares it against the window itself.
+        verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-2").LastSeenInMatchAtUtc.Should().Be(FakeGameStartUtc);
+    }
+
+    private static readonly DateTime FakeGameStartUtc = new(2026, 3, 10, 20, 15, 0, DateTimeKind.Utc);
+
+    private static MatchSnapshotWriter BuildActivityWriter(DateTime nowUtc)
+        => new(
+            new FakeRiotMatchClient(),
+            new FixedTimeProvider(new DateTimeOffset(nowUtc)),
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new MainActivityOptions { InactiveAfterDays = 30 }));
+
+    private async Task SeedAccountAsync(string puuid)
+    {
+        await using var db = _fixture.CreateDbContext();
+        db.RiotAccounts.Add(new RiotAccount
+        {
+            Puuid = puuid,
+            GameName = puuid,
+            TagLine = "KR1",
+            PlatformId = "KR",
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SeedMainStatAsync(string puuid, int championId)
+    {
+        await using var db = _fixture.CreateDbContext();
+        db.MainChampionStats.Add(new MainChampionStat
+        {
+            PlatformId = "KR",
+            Puuid = puuid,
+            ChampionId = championId,
+            TotalMatches = 30,
+            ChampionMatches = 25,
+            PlayRate = 0.83,
+            IsMain = true,
+            IsActive = false,
+            PrimaryPosition = "TOP",
+            PositionBreakdown = [],
+            CalculatedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset nowUtc) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => nowUtc;
     }
 
     private sealed class FakeRiotMatchClient(int queueId = (int)LolQueueId.RankedSoloDuo) : IRiotMatchClient

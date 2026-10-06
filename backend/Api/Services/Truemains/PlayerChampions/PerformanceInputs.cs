@@ -1,4 +1,5 @@
 using Core.Lol.Performance;
+using Data.Entities;
 
 namespace TrueMain.Services.Truemains.PlayerChampions;
 
@@ -158,7 +159,9 @@ public static class PerformanceInputs
     /// Leads over the lane opponent at every canonical mark both sides have a
     /// snapshot for. Empty when there is no opponent (an unparsed team position,
     /// a remake) or when no mark is covered on both sides — which drops the
-    /// laning and mid-game components rather than scoring them 0.
+    /// laning and mid-game components rather than scoring them 0. Iterates
+    /// <see cref="TimelineSnapshotMarks.Minutes"/> rather than the rows, so the
+    /// leads stay sorted and bounded even if the table ever holds an off-grid mark.
     /// </summary>
     public static IReadOnlyList<LaneLead> BuildLaneLeads(
         int participantId,
@@ -173,7 +176,7 @@ public static class PerformanceInputs
         }
 
         var leads = new List<LaneLead>();
-        foreach (var minute in CanonicalMinutes)
+        foreach (var minute in TimelineSnapshotMarks.Minutes)
         {
             if (!marks.TryGetValue((participantId, minute), out var self)
                 || !marks.TryGetValue((opponentId, minute), out var foe))
@@ -190,11 +193,4 @@ public static class PerformanceInputs
 
         return leads;
     }
-
-    /// <summary>
-    /// The canonical marks the ingestor stores, in order. Iterating this rather
-    /// than the rows keeps the produced leads sorted and bounded even if the
-    /// table ever holds an off-grid interval.
-    /// </summary>
-    private static ReadOnlySpan<int> CanonicalMinutes => [5, 10, 15, 20, 30];
 }

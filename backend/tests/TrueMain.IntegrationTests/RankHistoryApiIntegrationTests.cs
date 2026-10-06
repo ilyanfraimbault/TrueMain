@@ -21,7 +21,7 @@ namespace TrueMain.IntegrationTests;
 /// TEST-9 names elsewhere in the suite).
 /// </remarks>
 [Collection(IntegrationCollection.Name)]
-public sealed class RankHistoryApiIntegrationTests
+public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -30,11 +30,13 @@ public sealed class RankHistoryApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Returns_404_for_an_unknown_account()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
@@ -49,8 +51,6 @@ public sealed class RankHistoryApiIntegrationTests
     [InlineData("TrailingHyphen-")]
     public async Task Returns_404_for_a_malformed_name_tag(string nameTag)
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
@@ -62,8 +62,6 @@ public sealed class RankHistoryApiIntegrationTests
     [Fact]
     public async Task Returns_an_empty_series_rather_than_404_for_a_known_account_with_no_snapshots()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using (var db = _fixture.CreateDbContext())
         {
             db.RiotAccounts.Add(Account("silent-puuid", "Silent"));
@@ -87,7 +85,6 @@ public sealed class RankHistoryApiIntegrationTests
     [Fact]
     public async Task Returns_the_snapshots_oldest_first_with_the_chart_contract_shape()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var account = Account("climber-puuid", "Climber");
@@ -130,7 +127,6 @@ public sealed class RankHistoryApiIntegrationTests
     [Fact]
     public async Task Defaults_to_a_90_day_window_when_days_is_absent_zero_or_negative()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var account = Account("veteran-puuid", "Veteran");
@@ -162,7 +158,6 @@ public sealed class RankHistoryApiIntegrationTests
     [Fact]
     public async Task Narrows_the_window_to_the_requested_number_of_days()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var account = Account("recent-puuid", "Recent");
@@ -186,7 +181,6 @@ public sealed class RankHistoryApiIntegrationTests
     [Fact]
     public async Task Clamps_an_oversized_window_to_two_years_instead_of_scanning_everything()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var account = Account("ancient-puuid", "Ancient");
@@ -213,7 +207,6 @@ public sealed class RankHistoryApiIntegrationTests
     [Fact]
     public async Task Serves_only_the_requested_account_when_two_players_share_a_game_name()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var wanted = Account("wanted-puuid", "Twin", tagLine: "EUW1");
@@ -245,7 +238,6 @@ public sealed class RankHistoryApiIntegrationTests
     [Fact]
     public async Task Prefers_the_most_recently_ingested_account_when_a_riot_id_was_reused()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // A Riot ID freed and re-registered: two rows share (gameName, tagLine) and the
@@ -279,7 +271,6 @@ public sealed class RankHistoryApiIntegrationTests
     [Fact]
     public async Task Keeps_a_flat_stretch_as_repeated_points_rather_than_collapsing_it()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         var account = Account("plateau-puuid", "Plateau");

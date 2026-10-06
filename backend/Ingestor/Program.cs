@@ -128,6 +128,10 @@ builder.Services.AddSingleton<ICallerContext, CallerContext>();
 builder.Services.AddIngestorProcesses();
 
 builder.Services.AddTrueMainData(builder.Configuration);
+// Startup migrations run as the first hosted service (#258), so they finish before the
+// Worker — registered last, below — touches the schema. Gated on
+// Database:ApplyMigrationsOnStartup, which prod and preprod keep disabled.
+builder.Services.AddDatabaseMigrationsOnStartup();
 
 builder.Services.AddSingleton<IDataSessionFactory, DataSessionFactory>();
 
@@ -173,7 +177,8 @@ builder.Services.AddHostedService<Worker>();
 var host = builder.Build();
 
 // Wire the process-level crash hooks and the unclean-shutdown sentinel before the
-// host runs, so a startup/migration fault or a background-thread throw is captured.
+// host runs, so a startup fault (a failed migration included) or a background-thread
+// throw is captured.
 host.Services.UseProcessCrashCapture();
 
 // Resolved before Run: a failed start disposes the provider, so resolving inside the
@@ -181,7 +186,6 @@ host.Services.UseProcessCrashCapture();
 var crashReporter = host.Services.GetRequiredService<ICrashReporter>();
 try
 {
-    await DatabaseMigrator.ApplyPendingMigrationsAsync(host.Services);
     await host.RunAsync();
 }
 catch (Microsoft.Extensions.Hosting.HostAbortedException)

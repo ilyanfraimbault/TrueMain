@@ -12,7 +12,9 @@ namespace TrueMain.Controllers.Champions;
 /// — two teams, bans, pinned lanes, a candidate pool — which does not fit a
 /// query string, and it changes on every pick so there is nothing to bookmark.
 /// </remarks>
-public sealed class ChampionDraftController(IDraftRecommendationQueryService draft)
+public sealed class ChampionDraftController(
+    IDraftRecommendationQueryService draft,
+    IDraftBanQueryService bans)
     : ChampionsControllerBase
 {
     /// <summary>Maximum candidates scored in one request.</summary>
@@ -39,15 +41,10 @@ public sealed class ChampionDraftController(IDraftRecommendationQueryService dra
         [FromBody] DraftRequest request,
         CancellationToken ct = default)
     {
-        var position = (request.Position ?? string.Empty).Trim().ToUpperInvariant();
-        if (!Core.Lol.Map.QueueDataQualityProfile.LanePositions.Contains(position))
+        var position = Core.Lol.Map.LanePositions.Normalize(request.Position);
+        if (position is null)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Unknown position",
-                Detail = "Position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.",
-                Status = StatusCodes.Status400BadRequest,
-            });
+            return UnknownPosition();
         }
 
         var criteria = new DraftCriteria
@@ -58,8 +55,8 @@ public sealed class ChampionDraftController(IDraftRecommendationQueryService dra
             PreviousEnemyLanes = request.PreviousEnemyLanes is null
                 ? null
                 : Normalize(request.PreviousEnemyLanes),
-            Allies = (request.Allies ?? new Dictionary<string, int>())
-                .ToDictionary(e => e.Key.ToUpperInvariant(), e => e.Value, StringComparer.Ordinal),
+            Allies = ByLane(request.Allies),
+            HoveredAllies = ByLane(request.HoveredAllies),
             Bans = request.Bans ?? [],
             Candidates = (request.Candidates ?? []).Take(MaxCandidates).ToList(),
             Patch = request.Patch,
@@ -68,6 +65,53 @@ public sealed class ChampionDraftController(IDraftRecommendationQueryService dra
 
         return Ok(await draft.GetAsync(criteria, ct));
     }
+
+    /// <summary>
+    /// Suggest the bans for one draft: the threats to the player's declared pick,
+    /// or to their pool, never a champion an ally is playing (#1906).
+    /// </summary>
+    [HttpPost("draft/bans")]
+    [ProducesResponseType(typeof(DraftBanResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<DraftBanResponse>> PostBansAsync(
+        [FromBody] DraftBanRequest request,
+        CancellationToken ct = default)
+    {
+        var position = Core.Lol.Map.LanePositions.Normalize(request.Position);
+        if (position is null)
+        {
+            return UnknownPosition();
+        }
+
+        var criteria = new DraftBanCriteria
+        {
+            Position = position,
+            PlannedPick = request.PlannedPick,
+            Pool = (request.Pool ?? [])
+                .Take(MaxCandidates)
+                .Select(entry => new DraftPoolEntry(entry.ChampionId, entry.Weight))
+                .ToList(),
+            AllyChampions = request.AllyChampions ?? [],
+            EnemyChampions = request.EnemyChampions ?? [],
+            Bans = request.Bans ?? [],
+            Patch = request.Patch,
+            EloBracket = request.EloBracket,
+        };
+
+        return Ok(await bans.GetAsync(criteria, ct));
+    }
+
+    private BadRequestObjectResult UnknownPosition()
+        => BadRequest(new ProblemDetails
+        {
+            Title = "Unknown position",
+            Detail = "Position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.",
+            Status = StatusCodes.Status400BadRequest,
+        });
+
+    private static Dictionary<string, int> ByLane(IReadOnlyDictionary<string, int>? lanes)
+        => (lanes ?? new Dictionary<string, int>())
+            .ToDictionary(e => e.Key.ToUpperInvariant(), e => e.Value, StringComparer.Ordinal);
 
     private static Dictionary<int, string> Normalize(IReadOnlyDictionary<int, string>? lanes)
         => (lanes ?? new Dictionary<int, string>())
@@ -94,6 +138,9 @@ public sealed class ChampionDraftController(IDraftRecommendationQueryService dra
         /// <summary>Allies already locked, keyed by lane.</summary>
         public IReadOnlyDictionary<string, int>? Allies { get; init; }
 
+        /// <summary>Allies hovering a champion they have not locked, keyed by lane (#1906).</summary>
+        public IReadOnlyDictionary<string, int>? HoveredAllies { get; init; }
+
         public IReadOnlyList<int>? Bans { get; init; }
 
         /// <summary>The player's champion pool, to rank.</summary>
@@ -102,5 +149,39 @@ public sealed class ChampionDraftController(IDraftRecommendationQueryService dra
         public string? Patch { get; init; }
 
         public string? EloBracket { get; init; }
+    }
+
+    /// <summary>The champion-select state the ban suggestions need, as posted by the client.</summary>
+    public sealed record DraftBanRequest
+    {
+        /// <summary>The player's own lane.</summary>
+        public string? Position { get; init; }
+
+        /// <summary>The pick the player declared (their own hover), if any.</summary>
+        public int? PlannedPick { get; init; }
+
+        /// <summary>The player's pool with its mastery points, protected when no pick is declared.</summary>
+        public IReadOnlyList<PoolEntry>? Pool { get; init; }
+
+        /// <summary>Allies' champions, locked or hovered — never suggested.</summary>
+        public IReadOnlyList<int>? AllyChampions { get; init; }
+
+        /// <summary>Enemy champions already picked.</summary>
+        public IReadOnlyList<int>? EnemyChampions { get; init; }
+
+        public IReadOnlyList<int>? Bans { get; init; }
+
+        public string? Patch { get; init; }
+
+        public string? EloBracket { get; init; }
+    }
+
+    /// <summary>One champion of the player's pool.</summary>
+    public sealed record PoolEntry
+    {
+        public int ChampionId { get; init; }
+
+        /// <summary>Mastery points, or any non-negative weight.</summary>
+        public double Weight { get; init; }
     }
 }

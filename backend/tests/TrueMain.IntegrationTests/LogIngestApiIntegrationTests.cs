@@ -12,7 +12,7 @@ namespace TrueMain.IntegrationTests;
 /// the row an accepted report becomes.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class LogIngestApiIntegrationTests
+public sealed class LogIngestApiIntegrationTests : IAsyncLifetime
 {
     private const string IngestKey = "test-log-ingest-key-0123456789-abcdefghijkl";
     private readonly PostgresFixture _postgres;
@@ -69,10 +69,13 @@ public sealed class LogIngestApiIntegrationTests
         return request;
     }
 
+    public async ValueTask InitializeAsync() => await _mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task AcceptedReport_IsPersistedUnderTheFrontendProcess()
     {
-        await _mongo.ResetAsync();
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
 

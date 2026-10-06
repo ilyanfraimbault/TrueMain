@@ -16,7 +16,7 @@ namespace TrueMain.IntegrationTests;
 /// manual review.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchTeamPositionCorrectionProcessIntegrationTests
+public sealed class MatchTeamPositionCorrectionProcessIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -25,11 +25,13 @@ public sealed class MatchTeamPositionCorrectionProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ResolvesTheOneUnresolvedMember_OnAFullTeamMissingOneLane()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var matchId = await SeedMatchAsync(
             "m-resolvable",
             (1, 100, "TOP"),
@@ -47,8 +49,6 @@ public sealed class MatchTeamPositionCorrectionProcessIntegrationTests
     [Fact]
     public async Task RunAsync_LeavesTeamUntouched_WhenMoreThanOneMemberIsUnresolved()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var matchId = await SeedMatchAsync(
             "m-ambiguous",
             (1, 100, "TOP"),
@@ -67,8 +67,6 @@ public sealed class MatchTeamPositionCorrectionProcessIntegrationTests
     [Fact]
     public async Task RunAsync_LeavesTeamUntouched_WhenHeadcountIsNotFive()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var matchId = await SeedMatchAsync(
             "m-shortcount",
             (1, 100, "TOP"),
@@ -85,8 +83,6 @@ public sealed class MatchTeamPositionCorrectionProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ResolvesBothTeams_InTheSameMatch()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var matchId = await SeedMatchAsync(
             "m-both-teams",
             (1, 100, "TOP"),

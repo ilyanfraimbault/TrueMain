@@ -42,6 +42,18 @@ public static class IngestorEffectiveConfigurationCatalog
             + "sweep and the apex re-read from running on every iteration."
     };
 
+    private static EffectiveConfigurationSectionDescriptor PaceSampling { get; } = new()
+    {
+        SectionName = PaceSamplingOptions.SectionName,
+        OptionsType = typeof(PaceSamplingOptions),
+        Title = "Pace sampling",
+        Description =
+            "Reads games of the tiers TrueMain does not ingest into the desktop overlay's pace "
+            + "benchmark, without storing them: tiers sampled, the per-run and per-day Riot call "
+            + "caps every call counts against, how ladder pages and seeds are drawn, and how far "
+            + "back a seed's games are read."
+    };
+
     private static EffectiveConfigurationSectionDescriptor MainActivity { get; } = new()
     {
         SectionName = MainActivityOptions.SectionName,
@@ -132,6 +144,17 @@ public static class IngestorEffectiveConfigurationCatalog
             + "established-main share swings with the coverage deficit."
     };
 
+    private static EffectiveConfigurationSectionDescriptor Coverage { get; } = new()
+    {
+        SectionName = CoverageOptions.SectionName,
+        OptionsType = typeof(CoverageOptions),
+        Title = "Coverage",
+        Description =
+            "The active mains per champion per region the pipeline aims for. Its distance from "
+            + "this target is the coverage deficit that splits each match-ingest claim across "
+            + "regions, and the health cockpit's region-balance panel reads it from here."
+    };
+
     public static EffectiveConfigurationCatalog Instance { get; } = new(
         ProcessName: "Ingestor",
         Sections:
@@ -141,11 +164,13 @@ public static class IngestorEffectiveConfigurationCatalog
             SharedEffectiveConfigurationSections.MongoLogging,
             RiotRateLimit,
             LadderSync,
+            PaceSampling,
             Discovery,
             Scoring,
             Harvest,
             MainActivity,
             MatchIngestion,
+            Coverage,
             Intake,
             LaneOutcomeAggregation,
             MatchDataRetention

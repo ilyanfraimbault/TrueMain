@@ -10,7 +10,7 @@ use game_recording::clips::clean_title;
 use game_recording::{ClipMeta, RecordingSettings, StoredClip, StoredRecording};
 use tauri::{AppHandle, State};
 
-use super::views::{ClipView, GameView, LibraryView, SettingsView};
+use super::views::{ClipView, GameView, LibraryView, SettingsView, WinProbabilityView};
 use super::{emit_library, emit_status, RecordingStatusView, SharedRecorder};
 
 /// The thumbnail of a clip is taken this far into it — past the lead-in.
@@ -45,7 +45,6 @@ pub fn set_recording_settings(
 ) -> Result<SettingsView, String> {
     let settings = RecordingSettings::from_json(&settings.to_string());
     recorder.replace_settings(settings).map_err(text)?;
-    recorder.allow_folder(&app);
     let protect = recorder
         .activity()
         .folder
@@ -124,6 +123,17 @@ fn find(recorder: &SharedRecorder, id: &str) -> Result<StoredRecording, String> 
 pub fn recording_get(recorder: State<'_, SharedRecorder>, id: String) -> Result<GameView, String> {
     let recording = find(&recorder, &id)?;
     Ok(GameView::new(&recording, &recorder.activity()))
+}
+
+/// The recap's win-probability curve data, read apart from the library since
+/// only the recap needs it. `None` for a recording that has none.
+#[tauri::command]
+pub fn recording_win_probability(
+    recorder: State<'_, SharedRecorder>,
+    id: String,
+) -> Result<Option<WinProbabilityView>, String> {
+    let recording = find(&recorder, &id)?;
+    Ok(WinProbabilityView::new(&recording))
 }
 
 /// Keep the full game — exempt from the budget — or let the budget have it.

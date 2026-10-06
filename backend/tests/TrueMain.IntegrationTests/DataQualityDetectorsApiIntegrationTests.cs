@@ -22,15 +22,18 @@ namespace TrueMain.IntegrationTests;
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixture)
+public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture = fixture;
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetDetectors_CollapsesEveryPermutationOntoOneCanonicalKey()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var guards = await SeedDuplicateDimensionsAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -64,7 +67,6 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     [Fact]
     public async Task GetDetectors_ReportsAGreenDuplicateCard_WhenEveryRowIsCanonical()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedCanonicalDimensionsAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -80,7 +82,6 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     [Fact]
     public async Task GetDetectors_WordsTheDuplicateHeadlineFromTheVerdict_NotFromTheDuplicateCount()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var guards = await SeedNonCanonicalOnlyAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -102,7 +103,6 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     [Fact]
     public async Task GetDetectors_WordsTheSanityHeadlineFromTheVerdict_WhenOnlyZeroSampleRowsExist()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedZeroSampleScopeAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -123,7 +123,6 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     [Fact]
     public async Task GetDetectors_MeasuresTheOrphanShareFromTheNewestMatchesPerPlatform()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedOrphanSampleAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -162,8 +161,6 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     [Fact]
     public async Task GetDetectors_ReturnsEveryDetectorWithItsThresholds_OnAnEmptyDatabase()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
@@ -211,7 +208,6 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     [Fact]
     public async Task GetAggregateFreshness_RanksTheStalestChampionFirst()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAggregateScopesAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -239,8 +235,6 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
     [Fact]
     public async Task DetectorEndpoints_RejectAnUnauthenticatedCaller()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

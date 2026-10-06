@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Core.Lol.Map;
 using Core.Truemains;
 
@@ -30,16 +31,20 @@ public class MainAnalysisOptions
     /// </summary>
     public bool AggregateNonMainPopulation { get; set; }
 
+    [Range(1, int.MaxValue)]
     public int BatchSize { get; set; } = 100;
 
     /// <summary>
     /// Number of accounts to process per database transaction.
     /// Higher values reduce transaction overhead but increase the amount of work lost on rollback.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int ProcessingBatchSize { get; set; } = 100;
 
+    [Range(1, int.MaxValue)]
     public int MatchesToConsider { get; set; } = 50;
     public LolQueueId QueueId { get; set; } = LolQueueId.RankedSoloDuo;
+    [Range(0d, 1d)]
     public double PlayRateThreshold { get; set; } = 0.2;
 
     /// <summary>
@@ -55,10 +60,14 @@ public class MainAnalysisOptions
     /// and the configured value is threaded into scoring, so retuning this option moves both (#869).
     /// </para>
     /// </summary>
+    [Range(0d, 1d, MaximumIsExclusive = true)]
     public double PlayRateFloor { get; set; } = DedicationScore.CommitmentFloor;
 
     public double OtpPlayRateThreshold { get; set; } = 0.85;
+    [Range(0d, 1d)]
     public double CriticalPlayRateThreshold { get; set; } = 0.1;
+    [Range(1, int.MaxValue)]
     public int MinMatchesToEvaluate { get; set; } = 20;
+    [Range(0, int.MaxValue)]
     public int RecomputeAfterHours { get; set; } = 24;
 }

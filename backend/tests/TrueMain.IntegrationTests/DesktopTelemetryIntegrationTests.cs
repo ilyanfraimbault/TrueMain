@@ -14,16 +14,19 @@ namespace TrueMain.IntegrationTests;
 /// ingest key, and the admin read requiring the ops key.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class DesktopTelemetryIntegrationTests(PostgresFixture postgres, MongoFixture mongo)
+public sealed class DesktopTelemetryIntegrationTests(PostgresFixture postgres, MongoFixture mongo) : IAsyncLifetime
 {
     private const string IngestKey = "test-log-ingest-key-0123456789-abcdefghijkl";
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private static readonly Guid InstallId = Guid.Parse("3f2b8c1e-5a4d-4e8f-9b7a-1c2d3e4f5a6b");
 
+    public async ValueTask InitializeAsync() => await mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Batches_AddUpIntoTheInstallsDay()
     {
-        await mongo.ResetAsync();
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
@@ -45,7 +48,6 @@ public sealed class DesktopTelemetryIntegrationTests(PostgresFixture postgres, M
     [Fact]
     public async Task Batch_WithAMalformedVersion_IsRejected()
     {
-        await mongo.ResetAsync();
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
@@ -60,7 +62,6 @@ public sealed class DesktopTelemetryIntegrationTests(PostgresFixture postgres, M
     [Fact]
     public async Task Download_IsCountedWithTheIngestKeyOnly()
     {
-        await mongo.ResetAsync();
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
         var body = new { platform = "windows", version = "0.3.1" };
@@ -88,7 +89,6 @@ public sealed class DesktopTelemetryIntegrationTests(PostgresFixture postgres, M
     [Fact]
     public async Task Usage_RequiresTheOpsKey()
     {
-        await mongo.ResetAsync();
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
 

@@ -31,6 +31,7 @@ namespace Data.Metrics.Mongo;
 /// nothing about whether scoring is keeping up or leases are being reaped (#1344).
 /// </para>
 /// </summary>
+[BsonIgnoreExtraElements]
 public sealed class CandidateStockSnapshotDocument
 {
     [BsonId]
@@ -65,6 +66,19 @@ public sealed class CandidateStockSnapshotDocument
     /// </summary>
     [BsonElement("count")]
     public long Count { get; set; }
+
+    /// <summary>
+    /// Distinct accounts — <c>(PlatformId, Puuid)</c> — holding at least one candidate in
+    /// that status (#1534). <see cref="Count"/> counts <em>rows</em>, and a row is one
+    /// (account, champion) pair, so it moves whenever the number of rows per account
+    /// does: when the queue cap (#1361) started demoting all but an account's best
+    /// champion, Validated rows fell ~4x overnight while accounts validated per day did
+    /// not move. The two side by side tell a throughput change from a change in rows per
+    /// account. Null on snapshots recorded before the field existed — unmeasured, not 0.
+    /// </summary>
+    [BsonElement("accounts")]
+    [BsonIgnoreIfNull]
+    public long? Accounts { get; set; }
 
     /// <summary>Wall-clock time the reading was taken, for "last updated" display.</summary>
     [BsonElement("capturedAtUtc")]

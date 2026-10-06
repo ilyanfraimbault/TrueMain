@@ -33,6 +33,14 @@ public sealed record DraftCriteria
     public IReadOnlyDictionary<string, int> Allies { get; init; } =
         new Dictionary<string, int>();
 
+    /// <summary>
+    /// Allies hovering a champion they have not locked yet, keyed by their lane
+    /// (#1906). Counted in the synergy at reduced weight and flagged tentative in
+    /// the reasons; never suggested to us, since an ally means to play it.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> HoveredAllies { get; init; } =
+        new Dictionary<string, int>();
+
     /// <summary>Champions banned this draft; never returned as candidates.</summary>
     public IReadOnlyList<int> Bans { get; init; } = [];
 

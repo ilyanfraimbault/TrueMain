@@ -234,6 +234,7 @@ mod tests {
                         p.kills,
                         p.deaths,
                         p.assists,
+                        p.creep_score,
                         p.dead,
                     )
                 })
@@ -251,7 +252,7 @@ mod tests {
         feed.ingest(&readings[0]);
         let mut later = readings[0].clone();
         later["gameData"]["gameTime"] = serde_json::json!(16.2);
-        later["allPlayers"][2]["scores"]["creepScore"] = serde_json::json!(1);
+        later["allPlayers"][2]["scores"]["wardScore"] = serde_json::json!(1.5);
         assert_eq!(feed.ingest(&later), None);
         assert_eq!(feed.current().unwrap().game_time, 16.2);
     }
@@ -290,5 +291,20 @@ mod tests {
         assert_eq!(feed.ingest(&partial), None);
         assert_eq!(feed.ingest(&serde_json::json!("not a payload")), None);
         assert!(feed.current().is_none());
+    }
+
+    #[test]
+    fn the_ten_players_before_the_game_starts_are_not_a_game_yet() {
+        let mut loading = fixture().remove(0);
+        loading["events"]["Events"] = serde_json::json!([]);
+        loading["gameData"]["gameTime"] = serde_json::json!(0.0);
+        let mut feed = GameFeed::default();
+        feed.follow(true);
+        assert_eq!(feed.ingest(&loading), None);
+        assert!(feed.current().is_none());
+        assert!(matches!(
+            feed.ingest(&fixture()[0]),
+            Some(Emission::Snapshot(Some(_)))
+        ));
     }
 }

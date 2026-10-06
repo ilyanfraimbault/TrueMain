@@ -8,7 +8,6 @@ using Ingestor.Processes.Summaries;
 using Ingestor.Riot;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -29,7 +28,7 @@ public sealed class MainActivityCadenceTests
 
         summary.Should().BeOfType<SkippedSummary>().Which.Skipped.Should().BeTrue();
         await harness.RiotAccounts.DidNotReceive().GetAccountsForActivityCheckAsync(
-            Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -41,7 +40,7 @@ public sealed class MainActivityCadenceTests
 
         summary.Should().BeOfType<NoWorkSummary>();
         await harness.RiotAccounts.Received(1).GetAccountsForActivityCheckAsync(
-            Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -52,7 +51,7 @@ public sealed class MainActivityCadenceTests
         await harness.Process(TimeSpan.Zero).RunCoreAsync(CancellationToken.None);
 
         await harness.RiotAccounts.Received(1).GetAccountsForActivityCheckAsync(
-            Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
     private sealed class Harness
@@ -65,7 +64,7 @@ public sealed class MainActivityCadenceTests
         {
             // No account due -> the process returns a NoWorkSummary right after the selection,
             // which is all the cadence tests need to observe.
-            RiotAccounts.GetAccountsForActivityCheckAsync(Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            RiotAccounts.GetAccountsForActivityCheckAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(new List<AccountKey>()));
 
             var session = Substitute.For<IDataSession>();

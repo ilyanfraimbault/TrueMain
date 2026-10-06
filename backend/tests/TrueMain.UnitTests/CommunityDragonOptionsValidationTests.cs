@@ -38,7 +38,7 @@ public sealed class CommunityDragonOptionsValidationTests
         // total / (MaxRetryAttempts + 1) division toward TimeSpan.Zero; the operator gets
         // this message at startup instead.
         validate.Should().Throw<OptionsValidationException>()
-            .WithMessage("*CommunityDragon:MaxRetryAttempts must be between 1 and 10.*");
+            .WithMessage("*CommunityDragonOptions.MaxRetryAttempts must be between 1 and 10.*");
     }
 
     [Fact]

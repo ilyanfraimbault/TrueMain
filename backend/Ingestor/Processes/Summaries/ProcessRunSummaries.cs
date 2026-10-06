@@ -109,6 +109,10 @@ public sealed record MatchIngestionPlatformSummary(
 /// games actually played since the last visit should drive it toward zero. Appended last so
 /// the pre-existing keys keep their wire order.
 /// </para>
+/// <para>
+/// <see cref="MainsReactivated"/> (#1475) counts inactive mains the run's fresh matches showed
+/// played again — reactivations that cost no mastery call. Appended last for the same reason.
+/// </para>
 /// </summary>
 public sealed record MatchIngestionSummary(
     int AccountsProcessed,
@@ -121,7 +125,8 @@ public sealed record MatchIngestionSummary(
     int ExpiredClaimsReleased,
     int MatchesSkippedWrongQueue,
     IReadOnlyList<MatchIngestionPlatformSummary> ByPlatform,
-    int AccountsWithoutNewMatches = 0) : IProcessRunSummary;
+    int AccountsWithoutNewMatches = 0,
+    int MainsReactivated = 0) : IProcessRunSummary;
 
 /// <summary>Manual seed outcome for the claimed batch.</summary>
 public sealed record ManualSeedSummary(
@@ -226,6 +231,16 @@ public sealed record RoleBoundItemBackfillSummary(int Resolved, int InferredBoot
 /// untracked) from one that had no matches to fold at all.
 /// </summary>
 public sealed record SynergyAggregationSummary(
+    int Matches,
+    int Batches,
+    int PairRows,
+    int BaselineRows) : IProcessRunSummary;
+
+/// <summary>
+/// Champion opposing-pair aggregation outcome (#1713), the synergy summary's shape:
+/// matches and batches, plus the two upsert counts.
+/// </summary>
+public sealed record OpponentAggregationSummary(
     int Matches,
     int Batches,
     int PairRows,

@@ -5,6 +5,7 @@ using Core.Options;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.TestKit;
@@ -20,7 +21,7 @@ namespace TrueMain.IntegrationTests;
 /// nothing.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionBanAggregationProcessIntegrationTests
+public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const int Banned = 266;      // Aatrox, banned in the seeded games.
@@ -35,10 +36,13 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_CountsABanOncePerMatch_AcrossTheAllBandAndEachPlayerBand()
     {
-        await _fixture.ResetDatabaseAsync();
         // Both teams ban Aatrox in every match: two ban rows, one banned match.
         await SeedMatchesAsync(count: 4, bands: [EloBracket.Gold], bans: [(100, Banned), (200, Banned)]);
 
@@ -60,7 +64,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_CountsBanlessMatchesInTheDenominator()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync(count: 3, bands: [EloBracket.Gold], bans: [(100, Banned)]);
         await SeedMatchesAsync(count: 7, bands: [EloBracket.Gold], bans: [], matchPrefix: "clean");
 
@@ -82,7 +85,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_StoresAllBandSeparately_BecauseBandsOverlapAndCannotBeSummed()
     {
-        await _fixture.ResetDatabaseAsync();
         // One match, two tracked players in different bands: it counts once in
         // GOLD, once in PLATINUM and once in ALL. Summing the bands would say two
         // matches; only the stored ALL row says one.
@@ -103,7 +105,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_FoldsIntoTheAllBandOnly_WhenNoParticipantHasBeenEloStamped()
     {
-        await _fixture.ResetDatabaseAsync();
         // Elo enrichment defers participants with no rank snapshot, leaving the
         // band blank. Those matches must still be counted, in ALL alone.
         await SeedMatchesAsync(count: 5, bands: [], bans: [(100, Banned)]);
@@ -120,7 +121,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_DoesNotDoubleCountOnRerunWithNoNewMatches()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync(count: 6, bands: [EloBracket.Gold], bans: [(100, Banned)]);
 
         var process = CreateProcess();
@@ -139,7 +139,6 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_AccumulatesAcrossRunsAsNewMatchesArrive()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync(count: 6, bands: [EloBracket.Gold], bans: [(100, Banned)]);
 
         var process = CreateProcess();
@@ -158,9 +157,40 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_FoldsInCappedBatches_AndConvergesOnTheSingleBatchTotals()
+    {
+        await SeedMatchesAsync(count: 7, bands: [EloBracket.Gold], bans: [(100, Banned)]);
+
+        // Batches of 2 under a cap of 5: 2 + 2 + 1 this run, the last 2 on the next. Every
+        // batch upserts the same rows again, so the counters only add up if the conflict
+        // branch adds rather than replaces (#1239).
+        var process = CreateProcess(new BanAggregationOptions { MatchBatchSize = 2, MaxMatchesPerRun = 5 });
+
+        var first = (BanAggregationSummary)(await process.RunCoreAsync(CancellationToken.None))!;
+        first.Matches.Should().Be(5);
+        first.Batches.Should().Be(3);
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            (await db.Matches.CountAsync(m => !m.BansAggregated)).Should().Be(2, "the run cap left the tail pending");
+        }
+
+        var second = (BanAggregationSummary)(await process.RunCoreAsync(CancellationToken.None))!;
+        second.Matches.Should().Be(2);
+        second.Batches.Should().Be(1);
+
+        await using var verify = _fixture.CreateDbContext();
+        var stats = await verify.ChampionBanStats.AsNoTracking().ToListAsync();
+        stats.Should().HaveCount(2);
+        stats.Should().AllSatisfy(stat => stat.Bans.Should().Be(7));
+        var totals = await verify.BanScopeTotals.AsNoTracking().ToListAsync();
+        totals.Should().HaveCount(2);
+        totals.Should().AllSatisfy(total => total.Matches.Should().Be(7));
+    }
+
+    [Fact]
     public async Task RunAsync_SkipsMatchesFromOtherQueues()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedMatchesAsync(count: 3, bands: [EloBracket.Gold], bans: [(100, Banned)], queueId: 450);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -171,11 +201,11 @@ public sealed class ChampionBanAggregationProcessIntegrationTests
             .Should().Be(3, "an out-of-queue match is left pending, exactly as the other folds leave it");
     }
 
-    private ChampionBanAggregationProcess CreateProcess()
+    private ChampionBanAggregationProcess CreateProcess(BanAggregationOptions? options = null)
         => new(
             NullLogger<ChampionBanAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
-            Microsoft.Extensions.Options.Options.Create(new BanAggregationOptions()),
+            Microsoft.Extensions.Options.Options.Create(options ?? new BanAggregationOptions()),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
 

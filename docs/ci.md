@@ -16,7 +16,7 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; typecheck and static build of its Nuxt app (below) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; typecheck, unit tests and static build of its Nuxt app (below) |
 | `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
 | `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
@@ -37,12 +37,19 @@ which downstream jobs are worth a runner:
 
 | Output | Paths | Gates |
 | ------ | ----- | ----- |
-| `backend` | `backend/**` | backend build + unit + integration tests, API and Ingestor image builds |
+| `backend` | `backend/**`, `global.json`, the win-probability fixture and TS model (see below) | backend build + unit + integration tests, API and Ingestor image builds |
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` / `admin` | `web/**` / `admin/**` | the frontend job for that app, its image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
 | `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt` | deploy-script tests, file sizes |
 | `ci` | `ci.yml`, `.github/actions/**` | everything |
+
+The `backend` filter also lists `web/shared/fixtures/win-probability-timeline.json` and
+`web/layers/common/app/utils/win-probability*.ts` (#1911): the backend's
+`WinProbabilityParityTests` hold the C# port in `backend/Core/Lol/WinProbability` to that
+fixture, whose `expected` is the TS builder's output, so a web-only change to either must still run the
+backend tests. The reverse needs nothing: a C# change that drifts from the fixture fails the
+backend job on its own.
 
 Pushes to `develop`/`master` and manual runs are always exhaustive: the push to
 `develop` is the commit the preprod deploy builds, and the `develop→master`
@@ -67,6 +74,13 @@ CI builds **Release** with code-style analyzers as errors, so a Debug build
 passing locally proves nothing. Unit and integration tests run on the same
 runner after one build: splitting them would cost a second restore and build
 to parallelise a suite that runs in about the same time.
+
+Both test projects are xunit v3 (#299), which runs on Microsoft Testing Platform
+only — VSTest is not supported from xunit.v3 4.0. The repo-root `global.json`
+switches `dotnet test` to that runner (`"test": {"runner":
+"Microsoft.Testing.Platform"}`), which is why the steps pass the project with
+`--project` instead of positionally. It sits at the root rather than under
+`backend/` so the command also works when run from the repo root.
 
 ### Frontend
 
@@ -280,6 +294,12 @@ those two paths, and its `Nuxt app` job typechecks the app and builds its static
 bundle (`npm run generate`, what `tauri build` runs) with only the app's own
 dependencies installed — the same conditions as `desktop-release.yml`, where a
 shared file importing a package the app lacks would otherwise fail first.
+Between the two it runs the app's vitest suite (`npm run test`, #1724): pure
+tests of the dashboard's rules — each game's LP gain from the locally noted
+standings, recent form against the player's average — in a bare happy-dom
+environment with no Nuxt runtime. `npm ci` runs `nuxt prepare` (the app's
+`postinstall`, as on `web/` and `admin/`) because the tests' TypeScript
+transform reads the generated `.nuxt` tsconfig.
 
 The `macOS capture spike` job builds the game-recording spike (#1745): the
 Swift capture helper (`desktop/capture/macos`, ScreenCaptureKit, so only a Mac
@@ -322,9 +342,9 @@ stand-in's flat colour. The steps are:
 - a window of the game's class alone;
 - the preview, opened through UI Automation on the game page's buttons, with a
   panel dragged by the mouse and its place saved and kept;
-- the loading screen: the app restarted on the same tape without its game
-  readings, so the game is in progress but not read yet, and the loading panel
-  alone shows over the stand-in.
+- the loading screen: the app restarted on the same tape with its first game
+  reading made into the loading screen's (ten players, no `GameStart`, clock
+  at zero), and no panel shows over the stand-in.
 
 The build reads preprod, like the beta (`DESKTOP_BETA_SITE_URL`), so the panels
 get their data from the API that has their endpoints. Without the secret, as on
@@ -516,7 +536,11 @@ the production app every version production has caught up with.
 
 `claude-review.yml` posts inline comments prefixed `BLOCKING:` or `NIT:` and
 always ends with one formal review: approve when nothing is blocking, request
-changes otherwise. The prompt defines blocking narrowly (bugs, security, data
+changes otherwise. It reviews along two axes kept apart in its body, so one
+cannot mask the other: **Spec** (does the diff do what the linked issue's
+`Scope`/`Acceptance` ask, read with `gh issue view`; the PR body when there is
+no issue) and **Standards** (the repository's written rules). Code smells
+from a fixed list (Fowler's) are only ever `NIT:` suggestions. The prompt defines blocking narrowly (bugs, security, data
 loss, regressions, missing tests, project rules CI cannot catch) and forbids
 flagging versions or APIs from memory, because the repository regularly runs
 tooling newer than the model's training data. Dependabot is in `allowed_bots`
@@ -534,6 +558,14 @@ mongo, umami, caddy), which no Dockerfile references; our own
 `ghcr.io/ilyanfraimbault/truemain-*` images are ignored there because their
 tag is chosen by the deploy, not by a registry lookup. Every stream targets
 `develop`.
+
+The NuGet stream has one extra group, `ef-core`, matching every
+`Microsoft.EntityFrameworkCore*` package at any update type and declared before
+`minor-and-patch` (Dependabot assigns a dependency to the first group that matches).
+The runtime, `Relational` and `Design` packages must move in lockstep: `Design`
+drives `dotnet ef` and the compiled-model generator, and a `Relational` pin below
+the one the Npgsql provider pulls in is silently lifted anyway, so a split bump
+leaves a misleading version on the page (#1637).
 
 ## Images
 

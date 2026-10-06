@@ -227,8 +227,90 @@ actually use. The Guid PK was never scanned once, yet cost 16 bytes per row and 
 UUIDs on one of the largest tables in the database — and, B-trees never shrinking on disk, it stayed at the
 size of the retired per-minute grid (#1599) long after the rows were gone. #1697 promoted the unique index to
 the primary key (`ADD CONSTRAINT ... PRIMARY KEY USING INDEX`: no index build, no table rewrite) and dropped
-the column.
+the column. #124 did the same for `participant_perk_selections`, keyed by `(MatchId, ParticipantId,
+PerkSelectionCatalogId)`.
 
 A surrogate key still earns its place where rows have no stable natural identity, or where other tables
 reference the row and a wide composite FK would be copied into each of them. A leaf table nobody references
 is not that case.
+
+## Ingestor options: bounds are attributes checked by a generated validator, cross-field rules stay lambdas (2026-10-04)
+
+**A single-property bound (`[Range]`, `[Required]`) is declared on the options class and checked by an
+`[OptionsValidator]` source-generated validator (`Ingestor/Options/OptionsValidators.cs`); only what an
+attribute cannot express — cross-field invariants, conditional rules, custom parsing — stays a `Validate(...)`
+lambda in `OptionsConfigurationExtensions`.** Both run under `ValidateOnStart()`, so the boot fails on the same
+invalid configurations as before (#271).
+
+The generator substitutes its own `RangeAttribute` copy that ignores `ErrorMessage`, so the attributes carry
+none: the stock message names the class and property (`ScoringOptions.BatchSize must be between 1 and ...`),
+which is enough to find the key; what a bound means lives in the property docs. A new options class gets its
+validator line in `OptionsValidators.cs` and is registered through `AddOptionsWithValidator`.
+
+## A role is a string from `LanePositions`, and the timeline marks live once in `Data` (2026-10-04)
+
+**The five lane positions are `Core/Lol/Map/LanePositions.All` (`TOP`/`JUNGLE`/`MIDDLE`/`BOTTOM`/`UTILITY`),
+the same string the schema stores in `TeamPosition` — there is no role enum beside it.** The `LolPosition`
+enum was offered as authoritative but named in two files and never persisted, so it was removed rather than
+spread (#1232, DATA-11). Two entry points, one per question: `IsLane` is the exact, stored-data test;
+`Normalize` canonicalises client input (trim, upper-case, `MID`→`MIDDLE`, `BOT`→`BOTTOM`) and is what every
+`position` parameter goes through, so `/truemains?position=mid` and `/champions?position=mid` now agree.
+Role names (`adc`, `support`) stay rejected. `ChampionCohort.CanonicalPositions` is the array form EF Core
+translates, derived from `All`.
+
+**The canonical timeline marks `{5, 10, 15, 20, 30}` are `Data/Entities/TimelineSnapshotMarks.Minutes`**, read
+by the snapshot builder (what is written), match-data retention (what survives the prune, #772), the
+performance score (what is iterated) and the dev seed. It is a two-way invariant: a mark removed on one side
+only would drop a lead without an error, so no consumer keeps its own copy.
+
+## Integration tests: resets in `InitializeAsync`, migration replays on a scratch database, frozen clocks (2026-10-05)
+
+**Every integration test class that touches a store implements `IAsyncLifetime` and resets it in
+`InitializeAsync` (`PostgresFixture.ResetDatabaseAsync`, `MongoFixture.ResetAsync`) — no test body opens with
+the reset.** xUnit builds a class instance per test, so the reset still runs before every test; what changes is
+that a test can no longer forget it. A missing reset in a test that reads is invisible on reading and only shows
+up as an order dependency, which the per-test copy (some 540 lines) had already produced: classes with ten
+facts and six resets (#1246, TEST-6). A helper that re-seeds *within* one test may still reset mid-test.
+
+**A test that drives the migrator itself works on `PostgresFixture.CreateScratchDatabase()`**, a database of its
+own on the shared container, dropped on disposal. The shared database is migrated once and never recreated
+mid-suite: dropping it behind the fixture worked only because the collection is serialised and the final
+re-migration happened to be complete (TEST-5).
+
+**An API test whose seed and assertion are both anchored to "now" freezes the host's clock** with
+`TrueMainWebApplicationFactory.TimeProvider = new FixedTimeProvider(...)` (TestKit) rather than tuning offsets,
+so a run straddling UTC midnight cannot seed one day and query the next (TEST-9).
+
+## Analyzers: VS Threading and Roslynator on every project, tuned for bugs not style (2026-10-05)
+
+**`Microsoft.VisualStudio.Threading.Analyzers` and `Roslynator.Analyzers` are referenced once, from
+`backend/Directory.Build.props` (versions in `Directory.Packages.props`), and their severities live in
+`backend/analyzers.globalconfig`.** Not the root `.editorconfig`: the Docker images build from `backend/` and
+never see the repository root, so a severity kept there held in CI's solution build and not in the image build
+(only the test-path overrides stay in `.editorconfig`, since tests never go through Docker). With `TreatWarningsAsErrors`, anything at warning fails CI, so a severity is a decision about
+what blocks a merge (#294).
+
+- **VSTHRD: shipped severities kept** — sync-over-async (VSTHRD002), `async void` (VSTHRD100/101), unobserved
+  fire-and-forget (VSTHRD110), `null` returned for a `Task` (VSTHRD114), the `Async` suffix (VSTHRD200) and the
+  rest of the defaults stay errors. The codebase had no finding on any of them when they landed.
+- **VSTHRD003 and VSTHRD011 are off.** Both guard deadlocks against a `JoinableTaskFactory` / UI thread; ASP.NET
+  Core and the worker host have neither, so their findings (one leaderboard continuation, the three
+  `Lazy<Task<T>>` caches, ~25 test `TaskCompletionSource` awaits) were all false. The caches already evict a
+  faulted load, which is the real hazard of `Lazy<Task<T>>`; `AsyncLazy<T>` would add a runtime dependency on
+  `Microsoft.VisualStudio.Threading` for nothing.
+- **VSTHRD103 is a suggestion.** 590 of its 594 findings were `DbSet.Add`/`AddRange` (EF Core documents
+  `AddAsync` as needed only for async value generators such as HiLo — `Add` is the correct call) and Mongo's
+  `Aggregate()` (a fluent builder that does no I/O). The rule offers no per-method exclusion, so an error would
+  only teach people to suppress it.
+- **Tests:** VSTHRD200 (fakes mirror the names of what they replace) and RCS1194 (one-off test exception types)
+  are off.
+- **Roslynator: its catalog stays at its shipped info/hidden severities** — IDE hints, never a build failure.
+  Promoting the stylistic rules would churn hundreds of files and catch no bug. The few rules it ships as
+  warnings are kept (their 4 findings were fixed: 3 missing `<summary>`, one `ToUpper() == ToUpper()`), and nine
+  rules that catch real defects are promoted to warning: RCS1044 (`throw ex`), RCS1059 (lock on a public
+  instance), RCS1075 (empty `catch (Exception)`), RCS1202 (`as` then member access), RCS1210 (`null` for a
+  `Task`), RCS1215 (always-true/false expression), RCS1229 (task returned from inside a `using`), RCS1234
+  (duplicate enum value), RCS1261 (sync dispose of an `IAsyncDisposable`, whose 8 test findings became
+  `await using`).
+
+Promoting another rule is a one-line `.editorconfig` change, made in the PR that fixes its findings.

@@ -9,7 +9,7 @@ using TrueMain.ReadModels.Truemains;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class TruemainsSearchApiIntegrationTests
+public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -18,10 +18,13 @@ public sealed class TruemainsSearchApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task Search_matches_game_name_substring_case_insensitively_and_ranks_exact_first()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -65,7 +68,6 @@ public sealed class TruemainsSearchApiIntegrationTests
     [Fact]
     public async Task Search_with_tag_narrows_to_the_matching_tag_line()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Same game name on two regions → two distinct Riot ids. The tag in the
@@ -102,7 +104,6 @@ public sealed class TruemainsSearchApiIntegrationTests
     [Fact]
     public async Task Search_excludes_unranked_and_non_main_accounts()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -137,7 +138,6 @@ public sealed class TruemainsSearchApiIntegrationTests
     [Fact]
     public async Task Search_hydrates_top_champions_and_positions()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -183,8 +183,6 @@ public sealed class TruemainsSearchApiIntegrationTests
     [InlineData("/truemains/search?q=%20%20")]
     public async Task Search_returns_empty_200_for_too_short_or_missing_query(string url)
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
@@ -200,8 +198,6 @@ public sealed class TruemainsSearchApiIntegrationTests
     {
         // A query far longer than any real Riot id is rejected before it reaches
         // EscapeLike / the ILIKE — a normal empty 200, never a 500.
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
@@ -216,7 +212,6 @@ public sealed class TruemainsSearchApiIntegrationTests
     [Fact]
     public async Task Search_treats_like_metacharacters_as_literals()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // "100%Real" contains a literal '%'; "RealDeal" is a decoy that shares
@@ -251,7 +246,6 @@ public sealed class TruemainsSearchApiIntegrationTests
     [Fact]
     public async Task Search_treats_underscore_metacharacter_as_literal()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // EscapeLike neutralises '_' as well as '%'. "100_Real" has a literal
@@ -285,7 +279,6 @@ public sealed class TruemainsSearchApiIntegrationTests
     [Fact]
     public async Task Search_tag_metacharacters_are_treated_as_literals()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // Two "Zed"s on different tags. A `Zed#%` query must match neither —
@@ -324,7 +317,6 @@ public sealed class TruemainsSearchApiIntegrationTests
     [Fact]
     public async Task Search_clamps_the_result_limit()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         // 30 eligible accounts that all share the "Clamp" substring — enough to

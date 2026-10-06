@@ -1,6 +1,13 @@
 import type { DraftCandidate, DraftRecommendation } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 
+/** Our allies' champions keyed by lane, locked ones or hovered ones. */
+export function alliesByLane(draft: DraftState | null, locked: boolean): Record<string, number> {
+  return Object.fromEntries((draft?.myTeam ?? [])
+    .filter(slot => slot.locked === locked && !slot.isMe && slot.championId !== null && slot.position)
+    .map(slot => [slot.position, slot.championId!]))
+}
+
 /** Picks and corrections landing together collapse into one request. */
 const DEBOUNCE_MS = 120
 
@@ -9,11 +16,12 @@ const CANDIDATES_PER_REQUEST = 40
 
 /**
  * The endpoint's own order, restated for answers merged from several requests:
- * a proven pick before an unproven one, then the score, then the id. Each
- * candidate's score depends on it alone, so batches merge without distortion.
+ * the score, then the id. Each candidate's score depends on it alone, so
+ * batches merge without distortion. Thin samples are not pushed back any more:
+ * the score already discounts a delta by how few games it rests on (#1906).
  */
 function byServerOrder(a: DraftCandidate, b: DraftCandidate) {
-  return Number(a.thinSample) - Number(b.thinSample) || b.score - a.score || a.championId - b.championId
+  return b.score - a.score || a.championId - b.championId
 }
 
 /**
@@ -35,10 +43,11 @@ export function useDraftRecommendation(
   const pending = ref(false)
   const error = ref<string | null>(null)
 
-  /** Allies locked in, keyed by the lane the client assigned them — the synergy half's input. */
-  const allies = computed(() => Object.fromEntries((draft.value?.myTeam ?? [])
-    .filter(slot => slot.locked && !slot.isMe && slot.championId !== null && slot.position)
-    .map(slot => [slot.position, slot.championId])))
+  /** Allies locked in, keyed by the lane the client assigned them — the synergy's input. */
+  const allies = computed(() => alliesByLane(draft.value, true))
+
+  /** Allies only hovering, keyed the same way: counted at half weight and never suggested to us (#1906). */
+  const hoveredAllies = computed(() => alliesByLane(draft.value, false))
 
   /** Guards against an older answer landing after a newer one. */
   let latestRequest = 0
@@ -72,6 +81,7 @@ export function useDraftRecommendation(
         (recommendation.value?.enemyLanes ?? []).map(lane => [lane.championId, lane.position]),
       ),
       allies: allies.value,
+      hoveredAllies: hoveredAllies.value,
       bans: [...state.allyBans, ...state.enemyBans],
     }
     // A pool wider than one request is split, and the answers merged: the
@@ -112,6 +122,7 @@ export function useDraftRecommendation(
     draft.value?.enemyBans,
     pinnedLanes.value,
     allies.value,
+    hoveredAllies.value,
     candidates.value,
   ]))
 

@@ -4,29 +4,39 @@
 //! platform, including the Linux CI box, while the app shell it serves only
 //! builds on macOS and Windows.
 //!
-//! Read-only by design. Nothing here injects, reads process memory, or takes an
-//! action on the player's behalf — the app talks to the same local HTTP API the
-//! client serves to its own web UI.
+//! Read-mostly by design. Nothing here injects, reads process memory, or takes
+//! an action on the player's behalf — the app talks to the same local HTTP API
+//! the client serves to its own web UI, and its few writes (a rune page, a
+//! champion select hover, lock or ban) are made on the player's click only.
 
+pub mod champ_select;
 pub mod client;
 pub mod credentials;
 pub mod detail;
 pub mod error;
 pub mod events;
 pub mod form;
+pub mod item_sets;
+pub mod laning;
 pub mod live;
 pub mod model;
 pub mod record;
 pub mod runes;
 pub mod tape;
 pub mod tls;
+pub mod win_probability;
 
+pub use champ_select::{ActionKind, DraftAction, Refusal};
 pub use client::LcuClient;
 pub use credentials::Credentials;
 pub use detail::GameDetail;
 pub use error::{Error, Result};
 pub use events::{stream_events, LcuEvent};
-pub use form::{PlayerForm, RecentGame, FORM_GAMES, RECENT_GAMES};
+pub use form::{PlayerForm, PositionGames, RecentGame, FORM_GAMES, RECENT_GAMES};
+pub use item_sets::{plan_item_set_import, BuildItems, ItemSetDraft};
+pub use laning::{
+    gaps_at_fifteen, laning_games, LaningForm, LaningGame, LANING_DEPTH, LANING_GAMES,
+};
 pub use live::LiveClient;
 pub use model::{
     ChampSelectSession, ChampionMastery, CurrentSummoner, DraftState, GameflowPhase,
@@ -35,6 +45,7 @@ pub use model::{
 pub use record::{GameParticipant, PlayerGame, PlayerRecord, RankedQueue, Scoreboard};
 pub use runes::{plan_import, RuneImportPlan, RunePage, RunePageDraft};
 pub use tape::{Played, Reading, Recorder, Tape};
+pub use win_probability::WinProbabilityTimeline;
 
 /// Endpoints the app subscribes to, named once so the Rust and the shell agree.
 pub mod uri {

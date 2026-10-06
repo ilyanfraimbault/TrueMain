@@ -21,7 +21,7 @@ namespace TrueMain.IntegrationTests;
 /// through the real fold, since its answer is a live join over participant rows.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionSynergyApiIntegrationTests
+public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const string TrackedPuuid = "synergy-api-puuid";
@@ -41,10 +41,13 @@ public sealed class ChampionSynergyApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetChampionSynergiesAsync_RanksByExcessOverExpected_NotByRawPairWinRate()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAggregateAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -87,7 +90,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionSynergiesAsync_DropsPairsAndBaselinesBelowTheirFloors()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAggregateAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -114,7 +116,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionSynergiesAsync_DropsAPartnerOnALaneItBarelyPlays()
     {
-        await _fixture.ResetDatabaseAsync();
         // Garen at BOTTOM: the pairing clears the games floor and the baseline floor,
         // and BOTTOM holds 25 of his 325 ally games — 7.7%, under the 10% floor. This
         // is the "Sylas BOTTOM" line that topped Viego JUNGLE's synergies on
@@ -139,7 +140,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionSynergiesAsync_ScalesThePairFloorWithTheChampionsVolume()
     {
-        await _fixture.ResetDatabaseAsync();
         // 3 000 champion games, so the share floor (1%) is 30 and outranks the
         // absolute floor of 10. A 25-game pairing is comfortably above the absolute
         // floor and still 0.8% of the champion's games — the shape that filled the
@@ -163,7 +163,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionSynergiesAsync_NarrowsToOnePartnerLane_WithoutMovingTheNumbers()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAggregateAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -187,7 +186,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionSynergiesAsync_ReturnsNoEntriesRatherThanInventedOnes_WhenTheChampionSampleIsThin()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAggregateAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -206,8 +204,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionSynergiesAsync_RejectsAnUnknownPartnerPosition()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -220,7 +216,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionTrioSynergiesAsync_ExtendsTheDuoWithItsRemainingTeammates()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedFoldedGamesAsync(games: 24, wins: 12);
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -248,7 +243,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionTrioSynergiesAsync_ReportsTheDuoSampleWhenItIsTooSmallToSplit()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedFoldedGamesAsync(games: 3, wins: 2);
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -266,8 +260,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionTrioSynergiesAsync_RejectsAPartnerInTheSameLane()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
@@ -280,7 +272,6 @@ public sealed class ChampionSynergyApiIntegrationTests
     [Fact]
     public async Task GetChampionSynergiesAsync_OrdersTiedSynergiesByPartnerAndLane()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedTiedSynergyPartnersAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);

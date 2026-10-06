@@ -118,6 +118,11 @@ const shown = computed(() => {
   if (onMain.value) return mainOption.value
   return options.value.find(option => option.key === selected.value) ?? options.value[0] ?? null
 })
+/** What the item set button imports: the build on screen, named for the set's title. */
+const itemSetSubject = computed(() => {
+  const name = championStatic(props.championId)?.championName
+  return shown.value && name ? { championId: props.championId, champion: name, position: props.position, build: shown.value } : null
+})
 const waiting = computed(() => !shown.value && (onMain.value ? mainPending.value : lanePending.value || props.draft?.pending))
 const emptyMessage = computed(() => {
   if (onMain.value && main.value) {
@@ -169,6 +174,9 @@ const emptyMessage = computed(() => {
         />
       </div>
 
+      <!-- What the page around the view adds above the build: the draft's item advice (#1907). -->
+      <slot name="advice" />
+
       <BuildCore
         :summoner-spells="shown.core.summonerSpells"
         :starter-items="shown.core.starterItems"
@@ -181,21 +189,26 @@ const emptyMessage = computed(() => {
         :summoners-pending="staticPending"
         :rune-tree="runeTree"
         :no-runes-message="shown.key === 'draft' ? 'No rune data in the sampled games.' : null"
+        :champion-name="championStatic(championId)?.championName || null"
       />
       <!-- The site's tree, drawn smaller and tighter to fit the pane. It is the build path too,
-           item by item; a build with no branch to draw (a true main's thin sample) states the path instead. -->
-      <ChampionBuildPanelBuildTree
-        v-if="shown.buildTree.length > 0"
-        :tree="shown.buildTree"
-        :first-item-id="shown.firstItemId"
-        :item-path="shown.core.itemPath?.itemIds ?? []"
-        :items-map="items"
-        :item-size="28"
-        :h-gap="10"
-        :v-gap="20"
-      />
-      <div v-else-if="shown.core.itemPath?.itemIds.length" class="flex justify-center">
-        <ChampionCoreBuildPath :path="shown.core.itemPath" :items-map="items" />
+           item by item; a build with no branch to draw (a true main's thin sample) states the path instead.
+           The item set import button sits in its corner (#1908). -->
+      <div class="relative">
+        <BuildItemSetImport v-if="itemSetSubject" :subject="itemSetSubject" class="absolute right-0 top-0 z-10" />
+        <ChampionBuildPanelBuildTree
+          v-if="shown.buildTree.length > 0"
+          :tree="shown.buildTree"
+          :first-item-id="shown.firstItemId"
+          :item-path="shown.core.itemPath?.itemIds ?? []"
+          :items-map="items"
+          :item-size="28"
+          :h-gap="10"
+          :v-gap="20"
+        />
+        <div v-else-if="shown.core.itemPath?.itemIds.length" class="flex justify-center">
+          <ChampionCoreBuildPath :path="shown.core.itemPath" :items-map="items" />
+        </div>
       </div>
     </div>
 

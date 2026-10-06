@@ -12,14 +12,17 @@ namespace TrueMain.IntegrationTests;
 /// documents the read side would then sum.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mongo)
+public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mongo) : IAsyncLifetime
 {
     private static readonly DateTime Instant = new(2026, 8, 5, 9, 30, 0, DateTimeKind.Utc);
+
+    public async ValueTask InitializeAsync() => await mongo.ResetAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task UpsertHourAsync_RefreshesTheHourInPlaceRatherThanAppending()
     {
-        await mongo.ResetAsync();
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
 
@@ -33,13 +36,13 @@ public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mon
 
         history.Should().ContainSingle();
         history[0].Count.Should().Be(310, "the last run of the hour wins");
+        history[0].Accounts.Should().Be(155, "the accounts figure is refreshed with its rows");
         history[0].SnapshotHourUtc.Should().Be(new DateTime(2026, 8, 5, 9, 0, 0, DateTimeKind.Utc));
     }
 
     [Fact]
     public async Task UpsertHourAsync_KeepsPlatformsAndStatusesApartWithinOneHour()
     {
-        await mongo.ResetAsync();
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
 
@@ -62,7 +65,6 @@ public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mon
     [Fact]
     public async Task GetHistoryAsync_ExcludesHoursBeforeTheWindow()
     {
-        await mongo.ResetAsync();
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
 
@@ -76,7 +78,7 @@ public sealed class CandidateStockSnapshotStoreIntegrationTests(MongoFixture mon
     }
 
     private static CandidateStockSample Sample(string platform, string status, long count)
-        => new(platform, status, count);
+        => new(platform, status, count, Accounts: count / 2);
 
     private MongoLogContext BuildContext()
         => new(Microsoft.Extensions.Options.Options.Create(new MongoLoggingOptions

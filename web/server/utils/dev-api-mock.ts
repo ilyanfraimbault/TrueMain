@@ -30,6 +30,7 @@ import type {
   ChampionSummaryResponse,
   ChampionSynergies,
   ChampionSynergyEntry,
+  ChampionTierListResponse,
   ChampionTrendResponse,
   ChampionTrioSynergies,
   ChampionTrioSynergyEntry,
@@ -40,6 +41,7 @@ import type {
   LeaderboardRowResponse,
   RegionSlug,
 } from '~~/shared/types/leaderboard'
+import { parseLeaderboardSort } from '~~/shared/utils/leaderboard-sort'
 import type { ChampionDirectoryResponse, ChampionDirectorySort } from '~~/shared/types/champion-directory'
 import { CHAMPION_DIRECTORY_SORTS } from '~~/shared/types/champion-directory'
 import type { CompositionBuildGamesResponse, CompositionBuildResponse, CompositionGame } from '~~/shared/types/composition'
@@ -50,6 +52,9 @@ import type {
   MatchDetailResponse,
   MatchDetailSkillEvent,
 } from '~~/shared/types/match-detail'
+import type { MatchWinProbability, WinProbabilityTimeline } from '~~/shared/types/win-probability'
+import winProbabilityFixture from '~~/shared/fixtures/win-probability-timeline.json'
+import { buildWinProbability } from '~~/layers/common/app/utils/win-probability-timeline'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
 import type {
   PerformanceComponentKind,
@@ -440,6 +445,36 @@ async function mockChampionDirectory(query: Record<string, unknown>): Promise<Ch
     pageSize,
     total: lines.length,
     patchVersion: summaries[0]?.patchVersion ?? await latestShortPatch(),
+  }
+}
+
+// Tier list (`GET /champions/tierlist`): the summaries above grouped by their
+// per-lane tier, narrowed to one lane when asked. Like the directory, the
+// fixture ignores patch, elo and population.
+async function mockChampionTierList(query: Record<string, unknown>): Promise<ChampionTierListResponse> {
+  const summaries = await mockChampionSummaries()
+  const position = typeof query.position === 'string' ? query.position : null
+  const lines = summaries.filter(line => !position || line.position === position)
+  const tiers = DIRECTORY_TIER_ORDER
+    .map(tier => ({
+      tier,
+      entries: lines
+        .filter(line => line.tier === tier)
+        .sort((a, b) => b.tierScore - a.tierScore)
+        .map(line => ({
+          championId: line.championId,
+          position: line.position,
+          games: line.games,
+          winRate: line.winRate,
+          pickRate: line.pickRate,
+          banRate: line.banRate,
+        })),
+    }))
+    .filter(group => group.entries.length > 0)
+  return {
+    patchVersion: summaries[0]?.patchVersion ?? await latestShortPatch(),
+    position,
+    tiers,
   }
 }
 
@@ -1244,13 +1279,21 @@ function mockLeaderboard(query: Record<string, unknown>): LeaderboardResponse {
       : rows.filter(p => p.row.topChampions.some(c => c.isOtp))
   }
 
-  // `?sort=dedication` re-ranks on the dedication score, as the backend does
-  // (score desc, then a stable tiebreak). Anything else keeps the seeded ladder
-  // order, which already stands in for the ranked-standing sort.
-  if (query.sort === 'dedication') {
-    rows = [...rows].sort((a, b) =>
-      (b.row.dedication?.score ?? -1) - (a.row.dedication?.score ?? -1)
-      || a.nameTag.localeCompare(b.nameTag))
+  // `?sort=dedication|games|kda|winRate` re-ranks on that figure, as the
+  // backend does (desc, a missing figure last, then the ladder order as the
+  // tiebreak — `sort` is stable). Anything else keeps the seeded ladder order,
+  // which already stands in for the ranked-standing sort.
+  const sort = parseLeaderboardSort(query.sort)
+  if (sort !== 'rank') {
+    const figure = (p: typeof rows[number]): number | null => {
+      switch (sort) {
+        case 'dedication': return p.row.dedication?.score ?? null
+        case 'games': return p.row.stats.games || null
+        case 'kda': return p.row.stats.kda
+        case 'winRate': return p.row.stats.winRate
+      }
+    }
+    rows = [...rows].sort((a, b) => (figure(b) ?? -1) - (figure(a) ?? -1))
   }
 
   const start = (page - 1) * pageSize
@@ -1737,7 +1780,42 @@ async function mockMatchDetail(player: MockPlayer, matchId: string): Promise<Mat
     gameDurationSeconds: summary.gameDurationSeconds,
     gameVersion: `${await latestShortPatch()}.1`,
     participants,
+    // Every third game reads as ingested before the curve existed: no Timeline tab.
+    winProbability: index % 3 === 2 ? null : mockWinProbability(participants, summary.gameDurationSeconds * 1000),
   }
+}
+
+/**
+ * The shared fixture's game (`shared/fixtures/win-probability-timeline.json`)
+ * replayed onto this roster — each fixture player becomes the participant on
+ * the same side and lane — and stretched to this game's length, then run
+ * through the real builder, so the Timeline tab draws what the API would send.
+ */
+export function mockWinProbability(participants: MatchDetailParticipant[], durationMs: number): MatchWinProbability | null {
+  const source = winProbabilityFixture.timeline as WinProbabilityTimeline
+  const ids = new Map<number, number>()
+  for (const p of source.participants) {
+    const match = participants.find(candidate => candidate.teamId === p.teamId && candidate.teamPosition === p.position)
+    if (!match) return null
+    ids.set(p.participantId, match.participantId)
+  }
+  const id = (participantId: number | undefined) => ids.get(participantId ?? 0) ?? 0
+  const scale = (ms: number) => Math.round(ms * durationMs / source.durationMs)
+  return buildWinProbability({
+    durationMs,
+    participants: source.participants.map(p => ({ ...p, participantId: id(p.participantId) })),
+    frames: source.frames.map(frame => ({
+      ms: scale(frame.ms),
+      players: frame.players.map(player => ({ ...player, participantId: id(player.participantId) })),
+    })),
+    events: source.events.map(event => ({
+      ...event,
+      ms: scale(event.ms),
+      killerId: id(event.killerId),
+      victimId: id(event.victimId),
+      assistIds: (event.assistIds ?? []).map(id),
+    })),
+  })
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -1752,6 +1830,25 @@ async function mockMatchDetail(player: MockPlayer, matchId: string): Promise<Mat
 export function devApiMockEnabled(): boolean {
   const flag = process.env.NUXT_DEV_MOCK_API?.toLowerCase()
   return flag === '1' || flag === 'true'
+}
+
+/**
+ * The failure knob (#1668): with `NUXT_DEV_MOCK_FAIL` set to a regular
+ * expression, every mocked request whose `path?query` (plus the JSON body of a
+ * POST) matches it answers a 500 instead of its fixture. Lets a page's failure
+ * states be eyeballed without a backend — e.g. `NUXT_DEV_MOCK_FAIL='page=2'`
+ * loads the first page of a listing and fails the pager click to the second.
+ */
+export function devApiMockForcedFailure(
+  pathname: string,
+  query: Record<string, unknown>,
+  body: unknown,
+): boolean {
+  const pattern = process.env.NUXT_DEV_MOCK_FAIL
+  if (!pattern) return false
+  const search = new URLSearchParams(Object.entries(query).map(([key, value]) => [key, String(value)]))
+  const subject = `${pathname}?${search}${body === undefined ? '' : JSON.stringify(body)}`
+  return new RegExp(pattern).test(subject)
 }
 
 /**
@@ -1784,6 +1881,30 @@ function wellFormedRiotId(riotId: string): boolean {
 }
 
 /**
+ * Reserved Riot IDs that stage the mains-comparison `INSUFFICIENT_SAMPLE`
+ * states (#868), keyed by lowercased tag line: type `Thin#PLAYER`,
+ * `Thin#MAINS` or `Thin#BOTH` in the panel to put the account side, the mains
+ * side, or both below `minGames`. No seeded player is named `Thin`, so these
+ * never shadow a real mock account.
+ */
+const THIN_SAMPLE_ACCOUNTS: Record<string, { player: boolean, mains: boolean }> = {
+  player: { player: true, mains: false },
+  mains: { player: false, mains: true },
+  both: { player: true, mains: true },
+}
+
+function thinSampleFixture(riotId: string): { identity: ProfileIdentity, player: boolean, mains: boolean } | null {
+  const [gameName, tagLine] = riotId.trim().split(/[#-]/)
+  if (gameName?.toLowerCase() !== 'thin' || !tagLine) return null
+  const fixture = THIN_SAMPLE_ACCOUNTS[tagLine.toLowerCase()]
+  if (!fixture) return null
+  return {
+    ...fixture,
+    identity: { gameName: 'Thin', tagLine: tagLine.toUpperCase(), platformId: 'EUW1', profileIconId: 29, summonerLevel: 120 },
+  }
+}
+
+/**
  * Account-vs-mains head-to-head (#528). Mirrors the backend's database-only
  * contract, including the parts that only differ in edge cases — a mock that
  * contradicts the contract is worse than none, because it makes a wrong
@@ -1797,6 +1918,8 @@ function wellFormedRiotId(riotId: string): boolean {
  *   invariants the read model documents (`winRate = wins / games`,
  *   `sampleMet = games >= minGames`, `status` following from both sides)
  *   cannot drift out of the mock the way a hardcoded `status: 'OK'` did.
+ * - The seeded players always clear the floor, so the `INSUFFICIENT_SAMPLE`
+ *   notice is staged through the reserved {@link THIN_SAMPLE_ACCOUNTS} (#868).
  */
 async function mockMainsComparison(
   id: number,
@@ -1828,12 +1951,19 @@ async function mockMainsComparison(
 
   // The mock players are keyed on the `Name-TAG` slug; the endpoint takes the
   // typed `Name#TAG` form, so normalise before the lookup.
-  const player = findPlayer(account.replace('#', '-'))
-  if (!player) return { ...base, status: 'UNKNOWN_ACCOUNT', player: null, mains: null }
+  const thin = thinSampleFixture(account)
+  const player = thin ? null : findPlayer(account.replace('#', '-'))
+  const playerIdentity = thin?.identity ?? player?.row.identity
+  if (!playerIdentity) return { ...base, status: 'UNKNOWN_ACCOUNT', player: null, mains: null }
 
-  const side = (seed: number, identity: ProfileIdentity | null, players: number): ChampionComparisonSide => {
+  const side = (seed: number, identity: ProfileIdentity | null, players: number, belowFloor = false): ChampionComparisonSide => {
     const rng = mulberry32(seed)
-    const games = 6 + Math.floor(rng() * 60) + (players > 1 ? 200 : 0)
+    // A thin side lands on 1..minGames-1 recorded games; one draw either way,
+    // so the rest of the side's stats stay identical to the seeded ones.
+    const roll = rng()
+    const games = belowFloor
+      ? 1 + Math.floor(roll * (minGames - 1))
+      : 6 + Math.floor(roll * 60) + (players > 1 ? 200 : 0)
     const deaths = round3(3 + rng() * 3)
     const kills = round3(4 + rng() * 5)
     const assists = round3(4 + rng() * 5)
@@ -1859,7 +1989,7 @@ async function mockMainsComparison(
     }
   }
 
-  const playerSide = side(s.id * 907 + 11, player.row.identity, 1)
+  const playerSide = side(s.id * 907 + 11, playerIdentity, 1, thin?.player)
 
   // A named target we don't hold: the player column stays populated, matching
   // ChampionMainsComparisonQueryService — only the yardstick is missing.
@@ -1869,8 +1999,8 @@ async function mockMainsComparison(
   }
 
   const mainsSide = target
-    ? side(s.id * 911 + 13, target.row.identity, 1)
-    : side(s.id * 919 + 17, null, 12)
+    ? side(s.id * 911 + 13, target.row.identity, 1, thin?.mains)
+    : side(s.id * 919 + 17, null, 12, thin?.mains)
 
   return {
     ...base,
@@ -2281,6 +2411,7 @@ export async function resolveDevApiMock(
 ): Promise<unknown | undefined> {
   if (path === '/champions') return mockChampionSummaries()
   if (path === '/champions/directory') return mockChampionDirectory(query)
+  if (path === '/champions/tierlist') return mockChampionTierList(query)
   if (path === '/champions/overview') return mockChampionOverview(query)
 
   const compositionGamesMatch = path.match(/^\/champions\/(\d+)\/composition-build\/games$/)

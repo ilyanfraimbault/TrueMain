@@ -72,12 +72,18 @@ public static class JobModeSequence
         // between the two is arbitrary; kept adjacent because they read the same
         // slice of match_participants and benefit from a warm cache.
         JobMode.SynergyAggregationOnly,
+        // The opposing-pair twin of the synergy step (#1713): same participant rows,
+        // enemies instead of teammates, its own pending flag. Adjacent for the warm cache.
+        JobMode.OpponentAggregationOnly,
         // Folds each match's champion-select bans into champion_ban_stats (#920).
         // Must run after EloBracketEnrichment, whose stamping decides which elo
         // bands a match is counted in — a match folded before its participants are
         // stamped lands in the ALL band only, and the fold is one-shot.
         JobMode.BanAggregationOnly,
         JobMode.AccountRefreshOnly,
+        // Reads low-tier games into the pace benchmark (#1912) under its own caps. After
+        // everything else that spends the Riot budget, so it only uses what they left.
+        JobMode.PaceSamplingOnly,
         JobMode.MatchDataRetentionOnly,
         // Reads the candidate stock per status (#1403) after retention, for the same
         // reason the storage snapshot follows it: retention prunes stale candidates and
@@ -113,7 +119,8 @@ public static class JobModeSequence
         JobMode.ScoringOnly,
         JobMode.MainActivityOnly,
         JobMode.MatchIngestionOnly,
-        JobMode.AccountRefreshOnly
+        JobMode.AccountRefreshOnly,
+        JobMode.PaceSamplingOnly
     ]);
 
     private static readonly ReadOnlyCollection<JobMode> AggregateLanePipeline = Array.AsReadOnly<JobMode>(
@@ -127,6 +134,7 @@ public static class JobModeSequence
         JobMode.ChampionItemContextAggregationOnly,
         JobMode.MatchupLeadAggregationOnly,
         JobMode.SynergyAggregationOnly,
+        JobMode.OpponentAggregationOnly,
         JobMode.BanAggregationOnly,
         JobMode.MatchDataRetentionOnly,
         JobMode.CandidateStockSnapshotOnly,

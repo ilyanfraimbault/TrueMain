@@ -36,13 +36,13 @@ public sealed class MongoFixture : IAsyncLifetime
 
     public string ConnectionString => _container.GetConnectionString();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _container.StartAsync();
         _client = new MongoClient(ConnectionString);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // Dispose the driver client first so its connection pool and background
         // monitoring threads are torn down before the container goes away.

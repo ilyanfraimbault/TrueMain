@@ -14,7 +14,7 @@ namespace TrueMain.IntegrationTests;
 /// cascade vs restrict semantics) so they're worth pinning explicitly.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionPatternJunctionSchemaIntegrationTests
+public sealed class ChampionPatternJunctionSchemaIntegrationTests : IAsyncLifetime
 {
     private const string UniqueViolationSqlState = "23505";
     private const string ForeignKeyViolationSqlState = "23503";
@@ -26,10 +26,13 @@ public sealed class ChampionPatternJunctionSchemaIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task DimBuild_RejectsDuplicateContent()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var db = _fixture.CreateDbContext();
 
         db.ChampionDimBuilds.Add(BuildBuild(bootsId: 3006));
@@ -43,7 +46,6 @@ public sealed class ChampionPatternJunctionSchemaIntegrationTests
     [Fact]
     public async Task DimBuild_AcceptsDistinctContent()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var db = _fixture.CreateDbContext();
 
         db.ChampionDimBuilds.Add(BuildBuild(bootsId: 3006));
@@ -57,7 +59,6 @@ public sealed class ChampionPatternJunctionSchemaIntegrationTests
     [Fact]
     public async Task DimRunePage_RejectsDuplicateContent()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var db = _fixture.CreateDbContext();
 
         db.ChampionDimRunePages.Add(BuildRunePage(keystoneId: 8005));
@@ -73,7 +74,6 @@ public sealed class ChampionPatternJunctionSchemaIntegrationTests
     [InlineData("Q-W-E", "Q-E-W", false)]
     public async Task DimSkillOrder_UniquenessIsKeyedOnSkillOrderKey(string first, string second, bool expectConflict)
     {
-        await _fixture.ResetDatabaseAsync();
         await using var db = _fixture.CreateDbContext();
 
         db.ChampionDimSkillOrders.Add(new ChampionDimSkillOrder { SkillOrderKey = first });
@@ -97,7 +97,6 @@ public sealed class ChampionPatternJunctionSchemaIntegrationTests
     [Fact]
     public async Task Pattern_RejectsDuplicateScopeAndDimensionTuple()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var db = _fixture.CreateDbContext();
 
         var (scope, build, runes, skill, spells, starters) = await SeedScopeAndDimensionsAsync(db);
@@ -110,7 +109,6 @@ public sealed class ChampionPatternJunctionSchemaIntegrationTests
     [Fact]
     public async Task Pattern_CascadesDeleteFromScope()
     {
-        await _fixture.ResetDatabaseAsync();
         await using var db = _fixture.CreateDbContext();
 
         var (scope, _, _, _, _, _) = await SeedScopeAndDimensionsAsync(db);
@@ -129,8 +127,6 @@ public sealed class ChampionPatternJunctionSchemaIntegrationTests
     [Fact]
     public async Task DimBuild_RestrictsDeleteWhilePatternReferencesIt()
     {
-        await _fixture.ResetDatabaseAsync();
-
         Guid buildId;
         await using (var seedDb = _fixture.CreateDbContext())
         {

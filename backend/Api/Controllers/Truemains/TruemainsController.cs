@@ -5,6 +5,7 @@ using TrueMain.ReadModels.Champions;
 using TrueMain.ReadModels.Truemains;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Lookup;
 using TrueMain.Services.Truemains.Matches;
 using TrueMain.Services.Truemains.PlayerChampions;
 using TrueMain.Services.Truemains.Profile;
@@ -24,8 +25,40 @@ public sealed class TruemainsController(
     IRankHistoryQueryService rankHistoryQueryService,
     ITruemainActivityQueryService activityQueryService,
     ITruemainsLeaderboardQueryService leaderboardQueryService,
-    ISearchQueryService searchQueryService) : ControllerBase
+    ISearchQueryService searchQueryService,
+    ITruemainLookupQueryService lookupQueryService) : ControllerBase
 {
+    /// <summary>
+    /// Which players of one game are true mains of the champion they are on —
+    /// the desktop app's mark on its loading screen and Game page (#1910). One
+    /// call per game: up to ten <c>player=Name#TAG:championId</c> pairs and the
+    /// game's <paramref name="platformId"/>. Only the true mains come back; a
+    /// player who is not one, or whom TrueMain does not track, is absent.
+    /// </summary>
+    /// <param name="platformId">The Riot platform the game is played on, e.g. <c>EUW1</c>.</param>
+    /// <param name="player">Each player as <c>Name#TAG:championId</c>, at most ten.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("lookup")]
+    [ProducesResponseType(typeof(TruemainLookupResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<TruemainLookupResponse>> LookupAsync(
+        [FromQuery] string? platformId,
+        [FromQuery] string[]? player,
+        CancellationToken ct = default)
+    {
+        if (!TruemainLookupRequest.TryParse(platformId, player, out var request, out var error))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid lookup",
+                Detail = error,
+                Status = StatusCodes.Status400BadRequest,
+            });
+        }
+
+        return Ok(await lookupQueryService.LookupAsync(request, ct));
+    }
+
     /// <summary>
     /// Name/tag lookup for the search box: returns a short, ranked list of
     /// truemains whose Riot id matches <paramref name="q"/> (case-insensitive
@@ -65,9 +98,7 @@ public sealed class TruemainsController(
         // An unknown ?sort= falls back to the default ranking rather than a 400:
         // it is a presentation preference, and a stale bookmark should still
         // render the leaderboard.
-        var sort = string.Equals(query.Sort, "dedication", StringComparison.OrdinalIgnoreCase)
-            ? LeaderboardSort.Dedication
-            : LeaderboardSort.Rank;
+        var sort = query.ParsedSort;
 
         var response = await leaderboardQueryService.GetAsync(
             query.Page ?? 1,
@@ -106,8 +137,9 @@ public sealed class TruemainsController(
     /// Player-scoped champion page: the same <see cref="ChampionResponse"/>
     /// contract as <c>GET /champions/{championId}</c>, but every aggregate is
     /// computed only from this player's games on the champion. 404 when the
-    /// account is unknown or the player has too few games on the champion to
-    /// draw a build (see <c>PlayerChampionBuildsQueryService.MinPlayerGames</c>).
+    /// account is unknown or the player has no aggregated games on the champion;
+    /// a thin sample still renders (<c>ChampionsListOptions.MinPlayerBuildGames</c>
+    /// only steers which patch is picked).
     /// </summary>
     [HttpGet("{nameTag}/champions/{championId:int}")]
     [ProducesResponseType(typeof(ChampionResponse), StatusCodes.Status200OK)]
@@ -330,9 +362,19 @@ public sealed record LeaderboardQuery
     public bool? OtpOnly { get; init; }
 
     /// <summary>
-    /// Ranking column: <c>dedication</c> ranks by TrueMain's dedication score,
-    /// anything else (including omitted) keeps the default ranked-standing
-    /// order.
+    /// Ranking column, always descending: <c>dedication</c> ranks by TrueMain's
+    /// dedication score, <c>games</c> / <c>kda</c> / <c>winRate</c> by the
+    /// row's Games / KDA / WR figure (case-insensitive); anything else
+    /// (including omitted) keeps the default ranked-standing order.
     /// </summary>
     public string? Sort { get; init; }
+
+    internal LeaderboardSort ParsedSort => Sort?.Trim() switch
+    {
+        { } value when value.Equals("dedication", StringComparison.OrdinalIgnoreCase) => LeaderboardSort.Dedication,
+        { } value when value.Equals("games", StringComparison.OrdinalIgnoreCase) => LeaderboardSort.Games,
+        { } value when value.Equals("kda", StringComparison.OrdinalIgnoreCase) => LeaderboardSort.Kda,
+        { } value when value.Equals("winRate", StringComparison.OrdinalIgnoreCase) => LeaderboardSort.WinRate,
+        _ => LeaderboardSort.Rank,
+    };
 }

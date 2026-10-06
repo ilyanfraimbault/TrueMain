@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchIngestionProcessIntegrationTests
+public sealed class MatchIngestionProcessIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -21,16 +21,19 @@ public sealed class MatchIngestionProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ShouldPersistRawMatchesForClaimedAccounts()
     {
-        await _fixture.ResetDatabaseAsync();
         var validationService = new FakeAccountValidationService();
         var process = new MatchIngestionProcess(
             NullLogger<MatchIngestionProcess>.Instance,
             _fixture.CreateSessionFactory(),
             new FakeMatchClaimService(),
-            new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo })),
+            new MatchSnapshotWriter(new FakeRiotMatchClient(), TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }), Microsoft.Extensions.Options.Options.Create(new MainActivityOptions())),
             new TimelineIngestionService(new FakeRiotMatchClient(), NullLogger<TimelineIngestionService>.Instance),
             validationService,
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions

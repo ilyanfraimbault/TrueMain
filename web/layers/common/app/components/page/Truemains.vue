@@ -5,6 +5,7 @@
 import type { LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
 import type { ChampionPosition } from '#common/utils/positions'
 import { REGION_SLUGS } from '#shared/types/leaderboard'
+import { parseLeaderboardSort } from '#shared/utils/leaderboard-sort'
 
 const LEADERBOARD_PAGE_SIZE = 25
 const VALID_REGIONS: ReadonlySet<RegionSlug> = new Set(REGION_SLUGS)
@@ -32,12 +33,12 @@ const filterOtpOnly = computed<boolean>(() => {
   return raw === 'true' || raw === '1'
 })
 
-// Ranking column. Only `dedication` switches away from the default ranked
+// Ranking column. A known server order switches away from the default ranked
 // standing; anything else (including a hand-typed value) falls back to `rank`,
 // which also keeps the canonical URL free of a redundant `?sort=rank`.
 const sort = computed<LeaderboardSort>(() => {
   const raw = Array.isArray(route.query.sort) ? route.query.sort[0] : route.query.sort
-  return raw === 'dedication' ? 'dedication' : 'rank'
+  return parseLeaderboardSort(raw)
 })
 
 // Any filter change drops `?page=` — staying on page 5 after narrowing the
@@ -68,7 +69,7 @@ async function setOtpOnly(next: boolean) {
 // not throw the reader back to page 1.
 async function setSort(next: LeaderboardSort) {
   if (next === sort.value) return
-  await setQueryFilter('sort', next === 'dedication' ? 'dedication' : null)
+  await setQueryFilter('sort', next === 'rank' ? null : next)
 }
 
 // ─── Leaderboard fetch ────────────────────────────────────────────────────
@@ -79,9 +80,13 @@ const {
   isInitialLoading: leaderboardInitialLoading,
   isLoading: leaderboardLoading,
   error: leaderboardError,
+  staleError: leaderboardStaleError,
+  refresh: refreshLeaderboard,
   ready: leaderboardReady,
 } = useTruemainsLeaderboard(currentPage, {
   pageSize: LEADERBOARD_PAGE_SIZE,
+  // A failed filter, sort or page click keeps the previous rows (#1668).
+  refetchFailureTitle: 'Could not update the leaderboard',
   region: filterRegion,
   position: filterPosition,
   championId: filterChampionId,
@@ -136,6 +141,12 @@ await leaderboardReady
     <FetchErrorAlert
       :error="leaderboardError"
       title="Failed to load the leaderboard"
+    />
+
+    <StaleContentNotice
+      :error="leaderboardStaleError"
+      subject="the previous results"
+      :on-retry="() => refreshLeaderboard()"
     />
 
     <UEmpty

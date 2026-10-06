@@ -114,7 +114,7 @@ public static class LaneAssignmentSolver
             .Where(pin => champions.Contains(pin.Key))
             .ToDictionary(pin => pin.Key, pin => pin.Value);
 
-        var lanes = QueueDataQualityProfile.LanePositions;
+        var lanes = LanePositions.All;
         var placements = EnumeratePlacements(champions, lanes, pinned);
         if (placements.Count == 0)
         {
@@ -155,6 +155,67 @@ public static class LaneAssignmentSolver
                     : ConfidenceFor(championId, best[championId], bestScore, scored),
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// For each champion, the probability it plays <paramref name="lane"/> —
+    /// summed over every placement the solver weighs, each placement weighted by
+    /// its likelihood (#1906). The remainder up to 1 is the chance nobody on the
+    /// board plays that lane yet.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Solve"/> keeps the single best placement, which is the right
+    /// answer for drawing the board and the wrong one for scoring a matchup: at a
+    /// coin-flip confidence it bets the whole matchup on one reading. This reads
+    /// the same placements as a distribution instead. A pinned champion is in its
+    /// pinned lane with certainty, exactly as on the board.
+    /// </remarks>
+    public static IReadOnlyDictionary<int, double> LaneOccupancy(
+        IReadOnlyList<int> championIds,
+        IReadOnlyDictionary<int, LanePrior> priors,
+        string lane,
+        IReadOnlyDictionary<int, string>? pinned = null)
+    {
+        var champions = championIds.Distinct().ToList();
+        if (champions.Count == 0)
+        {
+            return new Dictionary<int, double>();
+        }
+
+        var pins = (pinned ?? new Dictionary<int, string>())
+            .Where(pin => champions.Contains(pin.Key))
+            .ToDictionary(pin => pin.Key, pin => pin.Value);
+        var placements = EnumeratePlacements(champions, LanePositions.All, pins);
+        if (placements.Count == 0)
+        {
+            placements = EnumeratePlacements(champions, LanePositions.All, new Dictionary<int, string>());
+        }
+
+        if (placements.Count == 0)
+        {
+            return new Dictionary<int, double>();
+        }
+
+        var scored = placements.Select(placement => (placement, score: Score(placement, priors))).ToList();
+        var best = scored.Max(entry => entry.score);
+        // Normalised in log space against the best placement, so 120 small
+        // likelihoods do not underflow to zero together.
+        var weights = scored.Select(entry => (entry.placement, weight: Math.Exp(entry.score - best))).ToList();
+        var total = weights.Sum(entry => entry.weight);
+
+        var occupancy = new Dictionary<int, double>();
+        foreach (var (placement, weight) in weights)
+        {
+            var occupant = placement.FirstOrDefault(slot => slot.Value == lane);
+            if (occupant.Value is null)
+            {
+                continue;
+            }
+
+            occupancy[occupant.Key] = occupancy.GetValueOrDefault(occupant.Key) + (weight / total);
+        }
+
+        return occupancy;
     }
 
     /// <summary>
@@ -228,7 +289,7 @@ public static class LaneAssignmentSolver
         // champion far harder than an unknown one.
         if (!priors.TryGetValue(championId, out var prior) || prior.Games == 0 || prior.ByLane.Count == 0)
         {
-            return 1d / QueueDataQualityProfile.LanePositions.Count;
+            return 1d / LanePositions.All.Count;
         }
 
         return prior.ByLane.TryGetValue(lane, out var probability)

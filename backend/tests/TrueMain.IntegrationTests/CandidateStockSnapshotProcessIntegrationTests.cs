@@ -16,14 +16,19 @@ namespace TrueMain.IntegrationTests;
 /// documents it produces are what the panel later reads.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixture postgres, MongoFixture mongo)
+public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixture postgres, MongoFixture mongo) : IAsyncLifetime
 {
-    [Fact]
-    public async Task RunCoreAsync_RecordsOneReadingPerPlatformAndStatus()
+    public async ValueTask InitializeAsync()
     {
         await postgres.ResetDatabaseAsync();
         await mongo.ResetAsync();
+    }
 
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task RunCoreAsync_RecordsOneReadingPerPlatformAndStatus()
+    {
         await using (var db = postgres.CreateDbContext())
         {
             db.MainCandidates.AddRange(
@@ -54,11 +59,38 @@ public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixtur
     }
 
     [Fact]
+    public async Task RunCoreAsync_CountsDistinctAccountsAlongsideRows()
+    {
+        await using (var db = postgres.CreateDbContext())
+        {
+            // One account validated on three champions, another on one: four rows, two
+            // accounts (#1534). The same PUUID on another platform is another account.
+            db.MainCandidates.AddRange(
+                Candidate("euw-a", 1, "EUW1", MainCandidateStatus.Validated),
+                Candidate("euw-a", 2, "EUW1", MainCandidateStatus.Validated),
+                Candidate("euw-a", 3, "EUW1", MainCandidateStatus.Validated),
+                Candidate("euw-b", 1, "EUW1", MainCandidateStatus.Validated),
+                Candidate("euw-a", 1, "KR", MainCandidateStatus.Validated));
+            await db.SaveChangesAsync();
+        }
+
+        using var context = BuildContext();
+        var store = new CandidateStockSnapshotStore(context);
+        await BuildProcess(store).RunCoreAsync(CancellationToken.None);
+
+        var history = await store.GetHistoryAsync(DateTime.UtcNow.AddDays(-1), CancellationToken.None);
+
+        var euw = history.Single(point => point.PlatformId == "EUW1" && point.Status == "Validated");
+        euw.Count.Should().Be(4);
+        euw.Accounts.Should().Be(2);
+        history.Single(point => point.PlatformId == "KR" && point.Status == "Validated").Accounts.Should().Be(1);
+        history.Single(point => point.PlatformId == "EUW1" && point.Status == "Queued").Accounts.Should()
+            .Be(0, "an empty status is a measured zero in both units");
+    }
+
+    [Fact]
     public async Task RunCoreAsync_WritesNothingRatherThanAnEmptyReading_WhenThereAreNoCandidates()
     {
-        await postgres.ResetDatabaseAsync();
-        await mongo.ResetAsync();
-
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
         var summary = await BuildProcess(store).RunCoreAsync(CancellationToken.None);

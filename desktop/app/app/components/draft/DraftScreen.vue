@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Lane, TeamRow } from '~/types/draft'
+import type { DraftSuggestionItem, Lane, TeamRow } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 import type { ViewedPick } from '~/composables/useDraftSubject'
 import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
@@ -22,6 +22,9 @@ const { state: lcu } = useLcuState()
 
 const draft = toRef(props, 'draft')
 
+// Hover, lock and ban, on the player's click (#1909): one instance for every control under this screen.
+const { turnLabel } = provideChampSelectActions(draft)
+
 // ─── The pool, and the answer for it ────────────────────────────────────────
 
 /** How many of the player's own champions are ranked: their ten most played on the lane. */
@@ -34,13 +37,20 @@ const hasPool = computed(() => championPool.value.length > 0)
 /** Rank the player's own champions, or every champion played on the lane. On by default when there is a pool. */
 const myPool = ref(true)
 
-/** Champions nobody can pick any more: banned, or locked on either side. */
+/** Champions nobody can pick any more: banned, picked by the enemy, or locked or hovered by an ally. */
 const unavailable = computed(() => new Set([
   ...props.draft.allyBans,
   ...props.draft.enemyBans,
   ...props.draft.enemyChampions,
-  ...props.draft.myTeam.filter(slot => slot.locked && !slot.isMe && slot.championId !== null).map(slot => slot.championId!),
+  ...props.draft.myTeam.filter(slot => !slot.isMe && slot.championId !== null).map(slot => slot.championId!),
 ]))
+
+/** The player's most-mastered champions played on our lane and still available, the first ten. */
+const lanePool = computed(() => {
+  const position = props.draft.myPosition
+  if (!position) return []
+  return championPool.value.filter(id => !unavailable.value.has(id) && entryOf(id, position) !== null).slice(0, POOL_SIZE)
+})
 
 /**
  * What the endpoint ranks. Our pool: the player's most-mastered champions that
@@ -51,16 +61,35 @@ const unavailable = computed(() => new Set([
 const candidates = computed(() => {
   const position = props.draft.myPosition
   if (!position) return []
-  if (myPool.value && hasPool.value) {
-    return championPool.value
-      .filter(id => !unavailable.value.has(id) && entryOf(id, position) !== null)
-      .slice(0, POOL_SIZE)
-  }
+  if (myPool.value && hasPool.value) return lanePool.value
   return laneEntries(position).filter(entry => !unavailable.value.has(entry.championId)).map(entry => entry.championId)
 })
 
 const pinnedLanes = ref<Record<number, string>>({})
 const { recommendation, pending: ranking, error: rankError } = useDraftRecommendation(draft, pinnedLanes, candidates)
+
+/**
+ * Bans are the question on our ban turn, and in the planning phase once the
+ * player has declared a pick — the one the bans then protect (#1906).
+ */
+const banTime = computed(() => {
+  const action = props.draft.myAction
+  if (action?.kind === 'ban' && action.inProgress) return true
+  return props.draft.timerPhase === 'PLANNING' && props.draft.myChampion !== null && !props.draft.myChampionLocked
+})
+const { bans, pending: banPending, error: banError } = useDraftBans(draft, lanePool, banTime)
+
+const pickSuggestions = computed<DraftSuggestionItem[]>(() => (recommendation.value?.candidates ?? []).map(candidate => ({
+  championId: candidate.championId,
+  reasons: candidate.reasons ?? [],
+  thin: candidate.thinSample,
+})))
+
+const banSuggestions = computed<DraftSuggestionItem[]>(() => (bans.value?.candidates ?? []).map(candidate => ({
+  championId: candidate.championId,
+  reasons: candidate.reasons,
+  thin: false,
+})))
 
 const enemyLanes = computed(() => recommendation.value?.enemyLanes ?? [])
 const { slots, pinned, hasCorrections, swap, reset } = useLaneAssignment(enemyLanes)
@@ -136,10 +165,12 @@ watch(() => [props.draft.myChampion, props.draft.myChampionLocked].join(':'), ()
   previewed.value = null
 })
 
-/** Picks while ours is open and there is a lane to rank for; the build otherwise. */
-const mode = computed<'pick' | 'build'>(() => {
+/** Bans on our ban turn, picks while ours is open, with a lane to rank for; the build otherwise. */
+const mode = computed<'pick' | 'ban' | 'build'>(() => {
   if (shownView.value || previewed.value !== null || showBuild.value) return 'build'
-  return !props.draft.myChampionLocked && byLane.value ? 'pick' : 'build'
+  if (!byLane.value) return 'build'
+  if (banTime.value) return 'ban'
+  return !props.draft.myChampionLocked ? 'pick' : 'build'
 })
 
 const canGoBack = computed(() => shownView.value !== null || previewed.value !== null || showBuild.value)
@@ -171,22 +202,56 @@ function back() {
   showBuild.value = false
 }
 
+// ─── The damage mix (#1907) ─────────────────────────────────────────────────
+
+/**
+ * Our side's picks for the damage bar: the locked ones, and our own pick being
+ * weighed — hovered in the client, or a suggestion opened here — as a preview.
+ * Other allies' hovers are not counted: they are not picks yet.
+ */
+const allyDamagePicks = computed(() => {
+  const picks: { championId: number, position: string | null, preview?: boolean }[] = allyRows.value
+    .filter(row => row.championId !== null && row.locked && !(row.me && previewed.value !== null))
+    .map(row => ({ championId: row.championId!, position: row.lane }))
+  const mine = allyRows.value.find(row => row.me)
+  const weighed = previewed.value ?? (mine && !mine.locked ? mine.championId : null)
+  if (weighed !== null) picks.push({ championId: weighed, position: mine?.lane ?? (props.draft.myPosition || null), preview: true })
+  return picks
+})
+
+/** Theirs, on the lanes the guesser (and the player's corrections) put them. */
+const enemyDamagePicks = computed(() => enemyRows.value
+  .filter(row => row.championId !== null)
+  .map(row => ({ championId: row.championId!, position: row.lane })))
+
+/** Our locked allies, ourselves excluded: what a suggested pick's damage note is read against. */
+const lockedAllies = computed(() => allyRows.value
+  .filter(row => row.championId !== null && row.locked && !row.me)
+  .map(row => ({ championId: row.championId!, position: row.lane })))
+
 const suggested = computed(() => (recommendation.value?.candidates ?? []).filter(candidate => !candidate.thinSample).map(candidate => candidate.championId))
 </script>
 
 <template>
   <div class="flex h-full flex-col gap-3 px-4 pb-4 pt-3">
-    <DraftTopStrip :ally-bans="draft.allyBans" :enemy-bans="draft.enemyBans" :seconds-left="draft.secondsLeft" :label="label" />
+    <DraftTopStrip :ally-bans="draft.allyBans" :enemy-bans="draft.enemyBans" :seconds-left="draft.secondsLeft" :label="turnLabel ?? label">
+      <template #action>
+        <DraftLockButton />
+      </template>
+    </DraftTopStrip>
 
     <div class="grid grid-cols-[minmax(0,1fr)_8.5rem_minmax(0,1fr)] gap-3">
-      <DraftTeam
-        team="ally"
-        :rows="allyRows"
-        :selected-cell="selectedCell.ally"
-        :opponent-cell="opponentCell.ally"
-        :suggested="suggested"
-        @view="view('ally', $event)"
-      />
+      <div class="flex flex-col gap-1.5">
+        <DraftTeam
+          team="ally"
+          :rows="allyRows"
+          :selected-cell="selectedCell.ally"
+          :opponent-cell="opponentCell.ally"
+          :suggested="suggested"
+          @view="view('ally', $event)"
+        />
+        <DraftDamageBar team="ally" :picks="allyDamagePicks" />
+      </div>
 
       <DraftLaneDuel
         :champion-id="duel.championId"
@@ -197,39 +262,44 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         class="pb-6"
       />
 
-      <div class="relative">
-        <DraftTeam
-          team="enemy"
-          :rows="enemyRows"
-          :selected-cell="selectedCell.enemy"
-          :opponent-cell="opponentCell.enemy"
-          :correctable="recommendation !== null"
-          @view="view('enemy', $event)"
-          @swap="swap"
-        />
-        <UButton
-          v-if="hasCorrections"
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-rotate-ccw"
-          label="Reset lanes"
-          class="absolute -bottom-1.5 right-0"
-          @click="reset"
-        />
+      <div class="flex flex-col gap-1.5">
+        <div class="relative">
+          <DraftTeam
+            team="enemy"
+            :rows="enemyRows"
+            :selected-cell="selectedCell.enemy"
+            :opponent-cell="opponentCell.enemy"
+            :correctable="recommendation !== null"
+            @view="view('enemy', $event)"
+            @swap="swap"
+          />
+          <UButton
+            v-if="hasCorrections"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-rotate-ccw"
+            label="Reset lanes"
+            class="absolute -bottom-1.5 right-0"
+            @click="reset"
+          />
+        </div>
+        <DraftDamageBar team="enemy" :picks="enemyDamagePicks" />
       </div>
     </div>
 
     <div class="min-h-0 flex-1">
       <DraftSuggestions
-        v-if="mode === 'pick'"
+        v-if="mode === 'pick' || mode === 'ban'"
         v-model:my-pool="myPool"
+        :mode="mode"
         :has-pool="hasPool"
-        :pool="candidates"
-        :candidates="recommendation?.candidates ?? []"
-        :pending="ranking"
-        :error="rankError"
+        :suggestions="mode === 'ban' ? banSuggestions : pickSuggestions"
+        :target="mode === 'ban' && bans ? { kind: bans.target, championIds: bans.targetChampionIds } : null"
+        :pending="mode === 'ban' ? banPending : ranking"
+        :error="mode === 'ban' ? banError : rankError"
         :position="draft.myPosition"
+        :allies="lockedAllies"
         @preview="previewed = $event"
       />
 
@@ -239,6 +309,9 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         :position="subject.request.position"
         :draft="{ build, pending: buildPending, error: buildError, opponentId: duel.opponentId, label: 'This draft' }"
       >
+        <template #advice>
+          <DraftItemAdvice :subject="subject" />
+        </template>
         <template #header>
           <div class="flex items-center gap-2.5">
             <ChampionPortrait :champion-id="subject.championId" size="sm" class="size-10! rounded-lg!" />

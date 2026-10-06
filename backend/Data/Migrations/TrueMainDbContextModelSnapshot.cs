@@ -102,8 +102,6 @@ namespace Data.Migrations
 
                     b.HasIndex("StarterItemsId");
 
-                    b.HasIndex("ScopeId", "BuildId");
-
                     b.HasIndex("ScopeId", "RunePageId");
 
                     b.HasIndex("ScopeId", "SkillOrderId");
@@ -237,6 +235,54 @@ namespace Data.Migrations
                         .HasDatabaseName("IX_champion_ban_stats_grain");
 
                     b.ToTable("champion_ban_stats", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionDamageProfileStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Archetype")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("MagicDamageToChampionsSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<long>("PhysicalDamageToChampionsSum")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<long>("TrueDamageToChampionsSum")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Patch", "ChampionId", "Position", "Archetype")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_damage_profile_stats_grain");
+
+                    b.ToTable("champion_damage_profile_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionDimBuild", b =>
@@ -724,6 +770,103 @@ namespace Data.Migrations
                     b.ToTable("champion_next_item_terms", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionOpponentBaselineStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EloBracket")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Side")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("TeamPosition")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "TeamPosition", "Side", "Patch", "EloBracket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_opponent_baseline_stats_grain");
+
+                    b.ToTable("champion_opponent_baseline_stats", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionOpponentStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EloBracket")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OpponentChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OpponentPosition")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TeamPosition")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "TeamPosition", "OpponentChampionId", "OpponentPosition", "Patch", "EloBracket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_opponent_stats_grain");
+
+                    b.ToTable("champion_opponent_stats", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.ChampionProfileStat", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1207,6 +1350,16 @@ namespace Data.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("OpponentAggregated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("PaceBenchmarkAggregated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Patch")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasMaxLength(32)
@@ -1266,6 +1419,9 @@ namespace Data.Migrations
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_matchup_lead_pending")
                         .HasFilter("\"MatchupLeadAggregated\" = false");
+
+                    b.HasIndex(new[] { "QueueId" }, "IX_matches_opponent_pending")
+                        .HasFilter("\"OpponentAggregated\" = false");
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_profile_pending")
                         .HasFilter("\"ProfileAggregated\" = false");
@@ -1555,14 +1711,100 @@ namespace Data.Migrations
                     b.ToTable("match_participant_timeline_snapshots", (string)null);
                 });
 
-            modelBuilder.Entity("Data.Entities.ParticipantPerkSelection", b =>
+            modelBuilder.Entity("Data.Entities.MatchWinProbability", b =>
+                {
+                    b.Property<string>("MatchId")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<List<MatchWinProbabilityObjective>>("Objectives")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<List<MatchWinProbabilityPoint>>("Points")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<List<MatchWinProbabilitySwing>>("Swings")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("MatchId");
+
+                    b.ToTable("match_win_probability", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.PaceBenchmarkStat", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("MatchId")
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Bucket")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Metric")
                         .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Minute")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Position", "Patch", "Tier", "Minute", "Metric", "Bucket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_pace_benchmark_stats_grain");
+
+                    b.ToTable("pace_benchmark_stats", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.PaceSampledMatch", b =>
+                {
+                    b.Property<string>("MatchId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("SampledAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("MatchId");
+
+                    b.HasIndex("SampledAtUtc");
+
+                    b.ToTable("pace_sampled_matches", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ParticipantPerkSelection", b =>
+                {
+                    b.Property<string>("MatchId")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
@@ -1572,12 +1814,9 @@ namespace Data.Migrations
                     b.Property<int>("PerkSelectionCatalogId")
                         .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                    b.HasKey("MatchId", "ParticipantId", "PerkSelectionCatalogId");
 
                     b.HasIndex("PerkSelectionCatalogId");
-
-                    b.HasIndex("MatchId", "ParticipantId", "PerkSelectionCatalogId")
-                        .IsUnique();
 
                     b.ToTable("participant_perk_selections", (string)null);
                 });
@@ -1759,6 +1998,9 @@ namespace Data.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("LastRankSyncAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastSeenInMatchAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("MatchIngestClaimedAtUtc")
@@ -1975,6 +2217,15 @@ namespace Data.Migrations
                 });
 
             modelBuilder.Entity("Data.Entities.MatchParticipantTimelineSnapshot", b =>
+                {
+                    b.HasOne("Data.Entities.Match", null)
+                        .WithMany()
+                        .HasForeignKey("MatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Data.Entities.MatchWinProbability", b =>
                 {
                     b.HasOne("Data.Entities.Match", null)
                         .WithMany()

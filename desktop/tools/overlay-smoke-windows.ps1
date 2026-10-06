@@ -15,7 +15,9 @@
 # address is wiped from the app's log, which CI uploads from a public repository.
 #
 # The preview is opened from the game page's settings through UI Automation,
-# and a panel is dragged with the mouse, as a player places one.
+# and a panel is dragged with the mouse, as a player places one. Two panels
+# are put on chords first (#1915): the next item while Alt+Shift+1 is held,
+# our pace toggled by Alt+Shift+3, both pressed with synthesised keys.
 #
 # What it cannot stand in for: the real game's renderer (Borderless or
 # Windowed, never Full Screen) and the real anti-cheat.
@@ -237,12 +239,16 @@ function StartStandIn([string] $Exe, [string] $Class, [string] $Title, [string] 
     return $process
 }
 
-# Press a button of the app's main window by its accessible name.
+# Press a button of the app's main window by its accessible name — or a link:
+# a button that navigates (`to=`) is an anchor, e.g. the game page's
+# "Overlay settings" since the overlay got its own page (#1822, #1834).
 function Press([string] $Name) {
     $isMain = [System.Windows.Automation.AndCondition]::new(
         [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $script:shell.Id),
         [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "TrueMain"))
-    $isButton = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+    $isButton = [System.Windows.Automation.OrCondition]::new(
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button),
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Hyperlink))
     $buttons = @()
     for ($i = 0; $i -lt 20; $i++) {
         $main = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $isMain)
@@ -273,6 +279,13 @@ function Drag([int] $FromX, [int] $FromY, [int] $ByX, [int] $ByY) {
 
 function Key([byte] $Code, [bool] $Down) {
     [Desk]::keybd_event($Code, 0, $(if ($Down) { 0 } else { 2 }), [UIntPtr]::Zero)
+}
+
+# Alt+Shift and a key, held for $HoldMs.
+function Chord([byte] $Code, [int] $HoldMs = 300) {
+    Key 0x12 $true; Key 0x10 $true; Key $Code $true
+    Start-Sleep -Milliseconds $HoldMs
+    Key $Code $false; Key 0x10 $false; Key 0x12 $false
 }
 
 function Screenshot([string] $Name) {
@@ -328,12 +341,18 @@ function Report([string] $Name) {
 }
 
 $WS_EX_TRANSPARENT = 0x20; $WS_EX_TOPMOST = 0x8; $WS_EX_LAYERED = 0x80000; $WS_EX_NOACTIVATE = 0x8000000
-$InGame = "next-item,stats,win-probability"
+$InGame = "stats,win-probability"
 
 # What the app menu's "Share Anonymous Usage Data" writes when turned off.
 $config = Join-Path $env:APPDATA "gg.truemain.desktop"
 New-Item -ItemType Directory -Force -Path $config | Out-Null
 @{ installId = [guid]::NewGuid().ToString(); enabled = $false } | ConvertTo-Json | Set-Content (Join-Path $config "telemetry.json")
+# The panels' triggers; every other setting is left to its default.
+@{
+    version  = 3
+    nextItem = @{ trigger = @{ kind = "whileHeld"; chord = @{ alt = $true; shift = $true; key = "Digit1" } } }
+    stats    = @{ trigger = @{ kind = "toggle"; chord = @{ alt = $true; shift = $true; key = "Digit3" }; startShown = $true } }
+} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $config "overlay-settings.json")
 
 $env:TRUEMAIN_LCU_REPLAY = $Tape
 $env:TRUEMAIN_LCU_REPLAY_SPEED = "0"
@@ -341,10 +360,10 @@ $env:RUST_LOG = "truemain_desktop_lib=debug,lcu=info"
 $script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app.log") -RedirectStandardError (Join-Path $Out "app.err.log")
 $standIns = @()
 try {
-    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 4; $i++) { Start-Sleep -Milliseconds 500 }
     [Desk]::Of([uint32]$script:shell.Id) | ForEach-Object { [ordered]@{ title = $_.Title; class = [Desk]::ClassOf($_.Handle); visible = $_.Visible; exStyle = ('0x{0:X8}' -f $_.ExStyle) } } |
         ConvertTo-Json | Set-Content (Join-Path $Out "0-windows.json")
-    Expect ((Panels).Count -eq 5) "the app builds its five panels' windows"
+    Expect ((Panels).Count -eq 4) "a running game gets a window for each of the four panels switched on"
     # The replay has opened the game and every page has measured itself.
     Start-Sleep -Seconds 8
     Expect ((Shown) -eq "") "nothing shows while the app, not the game, is in front"
@@ -373,11 +392,30 @@ try {
     Start-Sleep -Milliseconds 800
     Expect ((Shown) -eq $InGame) "TAB released takes it away ($(Shown))"
 
+    # A panel on a held chord shows while the chord is down, and only then.
+    Key 0x12 $true; Key 0x10 $true; Key 0x31 $true
+    Start-Sleep -Milliseconds 800
+    $state = Report "2-held-chord"
+    Key 0x31 $false; Key 0x10 $false; Key 0x12 $false
+    Expect ((Shown) -eq "next-item,$InGame") "Alt+Shift+1 held adds the next item ($(Shown))"
+    $nextItem = $state.panels | Where-Object { $_.slug -eq "next-item" -and $_.visible }
+    if ($nextItem) {
+        Expect ($nextItem.gameShare -lt 0.5 -and $nextItem.colors -ge 6) "next-item is drawn (game colour $([Math]::Round($nextItem.gameShare * 100))%, $($nextItem.colors) colours)"
+    }
+    Start-Sleep -Milliseconds 800
+    Expect ((Shown) -eq $InGame) "Alt+Shift+1 released takes it away ($(Shown))"
+
+    # A toggled panel flips on each press, held or not.
+    Chord 0x33 900
+    Start-Sleep -Milliseconds 800
+    Expect ((Shown) -eq "win-probability") "Alt+Shift+3 toggles our pace off, once however long it is held ($(Shown))"
+    Chord 0x33
+    Start-Sleep -Milliseconds 800
+    Expect ((Shown) -eq $InGame) "Alt+Shift+3 again brings it back ($(Shown))"
+
     # Alt+Shift+O hides the overlay for the game, and brings it back.
     foreach ($expected in @("", $InGame)) {
-        Key 0x12 $true; Key 0x10 $true; Key 0x4F $true
-        Start-Sleep -Milliseconds 300
-        Key 0x4F $false; Key 0x10 $false; Key 0x12 $false
+        Chord 0x4F
         Start-Sleep -Milliseconds 800
         Expect ((Shown) -eq $expected) "Alt+Shift+O toggles the overlay ($(Shown))"
     }
@@ -387,6 +425,9 @@ try {
     Start-Sleep -Seconds 2
     Report "4-another-app" | Out-Null
     Expect ((Shown) -eq "") "another app in front hides the overlay ($(Shown))"
+    Chord 0x33
+    Start-Sleep -Milliseconds 500
+    Expect ((Shown) -eq "") "a chord pressed over another app does nothing ($(Shown))"
 
     $standIns += StartStandIn $classOnlyExe "RiotWindowClass" "League of Legends (TM) Client" $GameColorRef
     Start-Sleep -Seconds 2
@@ -399,7 +440,7 @@ try {
     Expect (Press "Place on screen") "the settings start the preview"
     Start-Sleep -Seconds 2
     $state = Report "6-preview"
-    Expect ((Shown) -eq "item-value,loading,next-item,stats,win-probability") "the preview shows every panel ($(Shown))"
+    Expect ((Shown) -eq "item-value,next-item,stats,win-probability") "the preview shows every panel ($(Shown))"
     foreach ($panel in @(Panels | Where-Object Visible)) {
         Expect (($panel.Styles -band $WS_EX_TRANSPARENT) -eq 0) "$($panel.Slug) takes the mouse in the preview ($($panel.ExStyle))"
     }
@@ -421,30 +462,38 @@ try {
     Report "8-placed" | Out-Null
     $placed = Panels | Where-Object Slug -eq "win-probability"
     Expect ((Shown) -eq $InGame) "back over the game, the in-game panels show ($(Shown))"
-    # A place is the panel's centre, kept as it shrinks out of the preview.
+    # A place is a fraction of the room the screen leaves around the panel,
+    # so its corner follows it at whatever size it takes out of the preview.
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-    $centreX = ($placed.Left + $placed.Right) / 2; $centreY = ($placed.Top + $placed.Bottom) / 2
-    Expect ([Math]::Abs($centreX - $saved.winProbability.custom.x * $screen.Width) -le 2 -and [Math]::Abs($centreY - $saved.winProbability.custom.y * $screen.Height) -le 2) "the dragged panel is centred where it was put ($centreX,$centreY)"
+    $wantX = $saved.winProbability.custom.x * ($screen.Width - ($placed.Right - $placed.Left))
+    $wantY = $saved.winProbability.custom.y * ($screen.Height - ($placed.Bottom - $placed.Top))
+    Expect ([Math]::Abs($placed.Left - $wantX) -le 2 -and [Math]::Abs($placed.Top - $wantY) -le 2) "the dragged panel sits where it was put ($($placed.Left),$($placed.Top), wanted $wantX,$wantY)"
     Expect (($placed.Styles -band $WS_EX_TRANSPARENT) -ne 0) "out of the preview, clicks go through again ($($placed.ExStyle))"
 
-    # The loading screen: the game in progress, its API not answering yet —
-    # the same tape without its game readings, in a new run of the app.
+    # The loading screen: the game in progress, its API already listing the
+    # ten players but the game not started yet (no GameStart, clock at zero) —
+    # the tape's first reading made into one, in a new run of the app.
     Stop-Process -Id $script:shell.Id -Force
     $script:shell.WaitForExit(5000) | Out-Null
     $loadingTape = Join-Path $Out "loading.jsonl"
-    Get-Content $Tape | Where-Object { $_ -notmatch '"kind":"game"' } | Set-Content $loadingTape
+    $firstGame = $true
+    Get-Content $Tape | ForEach-Object {
+        if ($_ -notmatch '"kind":"game"') { return $_ }
+        if (-not $firstGame) { return }
+        $firstGame = $false
+        $line = $_ | ConvertFrom-Json -Depth 100
+        $line.data.events.Events = @()
+        $line.data.gameData.gameTime = 0.0
+        $line | ConvertTo-Json -Depth 100 -Compress
+    } | Set-Content $loadingTape
     $env:TRUEMAIN_LCU_REPLAY = $loadingTape
     $script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app-loading.log") -RedirectStandardError (Join-Path $Out "app-loading.err.log")
-    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 4; $i++) { Start-Sleep -Milliseconds 500 }
     Start-Sleep -Seconds 5
     $standIns += StartStandIn $gameExe "RiotWindowClass" "League of Legends (TM) Client" $GameColorRef
     Start-Sleep -Seconds 3
-    $state = Report "9-loading-screen"
-    Expect ((Shown) -eq "loading") "on the loading screen, the loading panel alone shows ($(Shown))"
-    $loading = $state.panels | Where-Object { $_.slug -eq "loading" -and $_.visible }
-    if ($loading) {
-        Expect ($loading.hit -eq "RiotWindowClass" -and $loading.gameShare -lt 0.5 -and $loading.colors -ge 6) "the loading panel is drawn and click-through (game colour $([Math]::Round($loading.gameShare * 100))%, $($loading.colors) colours, hit $($loading.hit))"
-    }
+    Report "9-loading-screen" | Out-Null
+    Expect ((Shown) -eq "") "on the loading screen, no panel shows ($(Shown))"
 }
 catch {
     Write-Host "FAIL - $_`n$($_.ScriptStackTrace)"

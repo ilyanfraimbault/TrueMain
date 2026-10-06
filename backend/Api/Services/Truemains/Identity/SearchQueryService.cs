@@ -137,7 +137,7 @@ public sealed class SearchQueryService(
         // because it does it per page under sustained traffic; search doesn't
         // need that machinery.
         var puuids = rows.Select(r => r.Puuid).ToArray();
-        var ranksByAccount = await FetchLatestRanksAsync(rows.Select(r => r.Id).ToArray(), ct);
+        var ranksByAccount = await LatestRankSnapshots.FetchAsync(db, rows.Select(r => r.Id).ToArray(), ct);
         var topChampionsByPuuid = await FetchTopChampionIdsAsync(puuids, ct);
         var positionsByPuuid = await MainPositions.FetchAsync(db, rows.Select(r => r.PlatformId).Distinct().ToArray(), puuids, ct);
 
@@ -232,30 +232,6 @@ public sealed class SearchQueryService(
         .Replace("%", "\\%")
         .Replace("_", "\\_");
 
-    private async Task<Dictionary<Guid, RankRow>> FetchLatestRanksAsync(Guid[] accountIds, CancellationToken ct)
-    {
-        if (accountIds.Length == 0)
-        {
-            return new Dictionary<Guid, RankRow>();
-        }
-
-        // Latest snapshot per account for the display cell — the same DISTINCT
-        // ON shape the leaderboard uses, scoped to the handful of result rows.
-        FormattableString sql = $"""
-            SELECT DISTINCT ON (rs."RiotAccountId")
-                rs."RiotAccountId" AS "AccountId",
-                rs."Tier" AS "Tier",
-                rs."Division" AS "Division",
-                rs."LeaguePoints" AS "LeaguePoints"
-            FROM rank_snapshots rs
-            WHERE rs."RiotAccountId" = ANY ({accountIds})
-            ORDER BY rs."RiotAccountId", rs."CapturedAtUtc" DESC
-            """;
-
-        var rows = await db.Database.SqlQuery<RankRow>(sql).ToListAsync(ct);
-        return rows.ToDictionary(r => r.AccountId);
-    }
-
     private async Task<Dictionary<string, List<int>>> FetchTopChampionIdsAsync(string[] puuids, CancellationToken ct)
     {
         if (puuids.Length == 0)
@@ -304,8 +280,6 @@ public sealed class SearchQueryService(
         string PlatformId,
         int ProfileIconId,
         int SummonerLevel);
-
-    private sealed record RankRow(Guid AccountId, string Tier, string Division, int LeaguePoints);
 
     private sealed record ChampionIdRow(string Puuid, int ChampionId);
 }

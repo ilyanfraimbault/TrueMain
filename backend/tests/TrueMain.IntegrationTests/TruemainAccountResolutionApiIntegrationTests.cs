@@ -20,7 +20,7 @@ namespace TrueMain.IntegrationTests;
 /// from quietly reintroducing the split.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class TruemainAccountResolutionApiIntegrationTests
+public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetime
 {
     private const int Champion = 157; // Yone
 
@@ -37,6 +37,10 @@ public sealed class TruemainAccountResolutionApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Theory]
     [InlineData("PhantasmMain-EuW1")] // exactly as stored
     [InlineData("phantasmmain-euw1")] // what a lower-casing URL bar hands back
@@ -44,7 +48,6 @@ public sealed class TruemainAccountResolutionApiIntegrationTests
     [InlineData("PhAnTaSmMaIn-eUw1")] // anything in between
     public async Task Every_truemain_route_resolves_the_account_whatever_the_casing(string nameTag)
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -88,7 +91,6 @@ public sealed class TruemainAccountResolutionApiIntegrationTests
     [InlineData("PHANTASMMAIN#EUW1")]
     public async Task Mains_comparison_resolves_the_account_whatever_the_casing(string riotId)
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -114,7 +116,6 @@ public sealed class TruemainAccountResolutionApiIntegrationTests
         // left by a rename and the live one. Matching case-insensitively widens
         // the candidate set, so the tiebreak has to hold: the most recently
         // active row wins, exactly as it did when the comparison was on `==`.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -164,7 +165,6 @@ public sealed class TruemainAccountResolutionApiIntegrationTests
     {
         // Case-insensitive matching widens what resolves; it must not turn
         // "we don't hold this account" into anything but a 404.
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);

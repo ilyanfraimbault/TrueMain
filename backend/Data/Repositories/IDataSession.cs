@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore.Storage;
-
 namespace Data.Repositories;
 
 public interface IDataSession : IAsyncDisposable
@@ -10,13 +8,16 @@ public interface IDataSession : IAsyncDisposable
     IMatchRepository Matches { get; }
     IMatchParticipantRepository MatchParticipants { get; }
     IMatchParticipantTimelineSnapshotRepository MatchParticipantTimelineSnapshots { get; }
+    IMatchWinProbabilityRepository MatchWinProbabilities { get; }
     IMatchBanRepository MatchBans { get; }
     IRankSnapshotRepository RankSnapshots { get; }
     IDiscoveryCursorRepository DiscoveryCursors { get; }
     ILadderSyncCursorRepository LadderSyncCursors { get; }
+    IPaceBenchmarkStatRepository PaceBenchmarkStats { get; }
+    IPaceSampledMatchRepository PaceSampledMatches { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
-    Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken ct);
+    Task<IDataTransaction> BeginTransactionAsync(CancellationToken ct);
 
     /// <summary>
     /// Detaches everything the change tracker holds, so a long batched loop stops

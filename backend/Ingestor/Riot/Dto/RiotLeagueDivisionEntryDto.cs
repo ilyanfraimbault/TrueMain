@@ -13,26 +13,26 @@ namespace Ingestor.Riot.Dto;
 /// <see cref="RiotLeagueEntryDto"/>, the apex <c>LeagueItemDTO</c>, which carries no tier of
 /// its own because its parent league list holds it.
 /// </remarks>
-public class RiotLeagueDivisionEntryDto
+public sealed record RiotLeagueDivisionEntryDto
 {
     [JsonPropertyName("puuid")]
-    public string? Puuid { get; set; }
+    public string? Puuid { get; init; }
 
     [JsonPropertyName("queueType")]
-    public string? QueueType { get; set; }
+    public string? QueueType { get; init; }
 
     [JsonPropertyName("tier")]
-    public string? Tier { get; set; }
+    public string? Tier { get; init; }
 
     [JsonPropertyName("rank")]
-    public string? Rank { get; set; }
+    public string? Rank { get; init; }
 
     [JsonPropertyName("leaguePoints")]
-    public int LeaguePoints { get; set; }
+    public int LeaguePoints { get; init; }
 
     [JsonPropertyName("wins")]
-    public int Wins { get; set; }
+    public int Wins { get; init; }
 
     [JsonPropertyName("losses")]
-    public int Losses { get; set; }
+    public int Losses { get; init; }
 }

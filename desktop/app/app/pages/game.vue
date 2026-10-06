@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { OVERLAY_PANEL_INFO, OVERLAY_PANELS, PANEL_KEY } from '~/types/overlay'
+
 /**
  * The running game. The gameflow phase opens this page on its own when a game
  * starts (`app.vue`), and the shell reads the game through its own API while
@@ -7,21 +9,32 @@
  * In development a game can be played from a recorded tape without League —
  * `/dev/game-sim`, or `TRUEMAIN_LCU_REPLAY` (desktop/README.md).
  *
- * The in-game overlay is set up from here (`OverlaySettings`): the page that
- * shows the same panels in this window.
+ * The in-game overlay is set up on its own page (`/overlay`), linked from
+ * here: the page that shows the same panels in this window.
  */
 const { state, screen } = useLcuState()
 const { game, syncedAt } = useLiveGame()
 const { view: loading } = useLoadingPlayers()
+/** Each lane's edge (#1863), drawn on the board while the game loads. */
+const edges = useLaneEdges(() => loading.value.players)
+/** Which players are true mains of their champion (#1910), for the board and the Game page. */
+useTruemainMarks(loading)
 const { view: overlay } = useGameOverlay()
-const overlayOpen = ref(false)
 
 const overlayStatus = computed(() => {
   const view = overlay.value
   if (!view) return null
   if (!view.supported) return 'The in-game overlay works on macOS and Windows.'
   if (!view.settings.enabled) return 'The in-game overlay is off.'
-  return `The overlay shows over your game; TAB adds the item value. ${view.shortcut} hides it.`
+  // Each panel on a chord, as the player brings it up (#1915).
+  const keys = OVERLAY_PANELS.flatMap((panel) => {
+    const panelSettings = view.settings[PANEL_KEY[panel]]
+    const chord = view.chords[panel]
+    if (!panelSettings.enabled || !chord || panelSettings.trigger.kind === 'always') return []
+    const how = panelSettings.trigger.kind === 'toggle' ? 'toggles' : 'shows'
+    return [`${chord.label} ${how} ${OVERLAY_PANEL_INFO[panel].label.toLowerCase()}`]
+  })
+  return `The overlay shows over your game${keys.length ? `; ${keys.join(', ')}` : ''}. ${view.shortcut} hides it.`
 })
 
 const waiting = computed(() => {
@@ -42,9 +55,9 @@ const waiting = computed(() => {
 
 <template>
   <div class="h-full">
-    <GameScreen v-if="screen === 'in-game' && game" :game="game" :synced-at="syncedAt">
+    <GameScreen v-if="screen === 'in-game' && game" :game="game" :synced-at="syncedAt" :lines="loading.players">
       <template #actions>
-        <UButton icon="i-lucide-layers" color="neutral" variant="ghost" size="sm" aria-label="Overlay settings" title="Overlay settings" @click="overlayOpen = true" />
+        <UButton icon="i-lucide-layers" color="neutral" variant="ghost" size="sm" to="/overlay" aria-label="Overlay settings" title="Overlay settings" />
       </template>
     </GameScreen>
 
@@ -58,14 +71,12 @@ const waiting = computed(() => {
         <h1 class="text-2xl font-semibold tracking-tight text-highlighted">{{ waiting.title }}</h1>
         <p class="max-w-sm text-sm text-muted">{{ waiting.body }}</p>
       </div>
-      <LoadingBoard v-if="screen === 'in-game' && loading.players.length" :players="loading.players" class="surface relative w-full max-w-xl rounded-xl p-3 text-left" />
+      <LoadingBoard v-if="screen === 'in-game' && loading.players.length" :players="loading.players" :edges="edges" class="surface relative w-full max-w-2xl rounded-xl p-3 text-left" />
       <div v-if="overlayStatus" class="relative mt-4 flex items-center gap-3 rounded-lg bg-elevated/60 py-1.5 pl-3 pr-1.5 ring-1 ring-default">
         <UIcon name="i-lucide-layers" class="size-4 text-primary" />
         <span class="text-xs text-muted">{{ overlayStatus }}</span>
-        <UButton label="Customize" color="neutral" variant="ghost" size="xs" @click="overlayOpen = true" />
+        <UButton label="Customize" color="neutral" variant="ghost" size="xs" to="/overlay" />
       </div>
     </div>
-
-    <OverlaySettings v-model:open="overlayOpen" />
   </div>
 </template>

@@ -36,7 +36,7 @@ const HISTORY_LENGTH: usize = 20;
 /// are paced rather than fired twenty at a time.
 const SCOREBOARDS_AT_ONCE: usize = 4;
 
-fn attached(client: &SharedClient) -> Result<Arc<LcuClient>, String> {
+pub(crate) fn attached(client: &SharedClient) -> Result<Arc<LcuClient>, String> {
     client
         .read()
         .expect("client lock poisoned")

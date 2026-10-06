@@ -23,8 +23,9 @@ namespace Ingestor.Processes;
 /// </para>
 ///
 /// <para>
-/// <b>Cheap enough to run every pass.</b> The whole step is one grouped index-only
-/// scan of <c>main_candidates</c> — measured at ~190 ms over 745k rows in prod — and
+/// <b>Cheap enough to run every pass.</b> The whole step is one grouped scan of
+/// <c>main_candidates</c> — the row counts alone measured at ~190 ms over 745k rows in
+/// prod; the distinct-accounts count (#1534) adds a per-group sort on <c>Puuid</c> — and
 /// one small bulk upsert of well under a hundred documents. Like
 /// <see cref="StorageSnapshotProcess"/>, the store keys documents on the period rather
 /// than on the run, so the pipeline running back-to-back refreshes the hour's reading
@@ -58,11 +59,12 @@ public sealed class CandidateStockSnapshotProcess(
             {
                 group.Key.PlatformId,
                 group.Key.Status,
-                Count = (long)group.LongCount()
+                Count = (long)group.LongCount(),
+                Accounts = (long)group.Select(candidate => candidate.Puuid).Distinct().LongCount()
             })
             .ToListAsync(ct);
 
-        var samples = BuildSamples(groups.Select(row => (row.PlatformId, row.Status, row.Count)));
+        var samples = BuildSamples(groups.Select(row => (row.PlatformId, row.Status, row.Count, row.Accounts)));
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var written = await store.UpsertHourAsync(nowUtc, samples, ct);
@@ -93,14 +95,20 @@ public sealed class CandidateStockSnapshotProcess(
     /// nothing to say about the funnel, and inventing a row for every platform the
     /// configuration mentions would assert a measurement of a population that does not
     /// exist.
+    ///
+    /// <para>
+    /// Each group carries two figures (#1534): its rows, and the distinct accounts holding
+    /// them. The grouping is per platform, so the accounts figure is already distinct on
+    /// <c>(PlatformId, Puuid)</c> and the read side can sum it across platforms.
+    /// </para>
     /// </summary>
     internal static List<CandidateStockSample> BuildSamples(
-        IEnumerable<(string PlatformId, MainCandidateStatus Status, long Count)> groups)
+        IEnumerable<(string PlatformId, MainCandidateStatus Status, long Count, long Accounts)> groups)
     {
-        var counts = new Dictionary<(string PlatformId, MainCandidateStatus Status), long>();
+        var counts = new Dictionary<(string PlatformId, MainCandidateStatus Status), (long Count, long Accounts)>();
         foreach (var group in groups)
         {
-            counts[(group.PlatformId, group.Status)] = group.Count;
+            counts[(group.PlatformId, group.Status)] = (group.Count, group.Accounts);
         }
 
         var platforms = counts.Keys
@@ -113,10 +121,8 @@ public sealed class CandidateStockSnapshotProcess(
         {
             foreach (var status in Enum.GetValues<MainCandidateStatus>())
             {
-                samples.Add(new CandidateStockSample(
-                    platform,
-                    status.ToString(),
-                    counts.GetValueOrDefault((platform, status))));
+                var (count, accounts) = counts.GetValueOrDefault((platform, status));
+                samples.Add(new CandidateStockSample(platform, status.ToString(), count, accounts));
             }
         }
 

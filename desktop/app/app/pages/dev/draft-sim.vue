@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SimSlot } from '~/composables/useLcuSimulator'
+import type { SimRequest, SimSlot, SimTurn } from '~/composables/useLcuSimulator'
 import type { Lane } from '~/types/draft'
 import type { ChampionPosition } from '#common/utils/positions'
 import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
@@ -14,9 +14,9 @@ import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
  * through the dev server's relay (`/__sim/lcu`). The app, started with
  * `npm run tauri:sim`, takes it for a real champion select and answers live.
  */
-const { board, taken, championAt, place, lockMine, setMyLane, clear, tick, session } = useLcuSimulator()
+const { board, taken, championAt, place, lockMine, setMyLane, setTurn, clear, tick, session, answer } = useLcuSimulator()
 const { laneEntries } = useTierList()
-const { nameOf, portraitOf } = useChampionStatics()
+const { nameOf, portraitOf, champions } = useChampionStatics()
 
 type Phase = 'Lobby' | 'ChampSelect' | 'InProgress'
 const phase = ref<Phase>('Lobby')
@@ -67,12 +67,46 @@ watch(session, (next) => {
 }, { deep: true })
 
 let clock: ReturnType<typeof setInterval> | undefined
+let requests: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   clock = setInterval(() => {
     if (phase.value === 'ChampSelect') tick()
   }, 1000)
+  requests = setInterval(answerRequests, 150)
 })
-onBeforeUnmount(() => clearInterval(clock))
+onBeforeUnmount(() => {
+  clearInterval(clock)
+  clearInterval(requests)
+})
+
+// ─── The app's requests ─────────────────────────────────────────────────────
+
+/** Answer what the app's shell asked the "client" since the last poll, in order. */
+let answering = false
+async function answerRequests() {
+  if (answering) return
+  answering = true
+  try {
+    const waiting = await $fetch<SimRequest[]>(RELAY, { query: { op: 'requests' } })
+    const ids = [...champions.value.keys()]
+    for (const request of waiting) {
+      const { status, body } = answer(request, ids, phase.value === 'ChampSelect')
+      await $fetch(RELAY, { method: 'POST', body: { op: 'answer', id: request.id, status, body } })
+    }
+  }
+  catch {
+    // The relay is down with the dev server; the next poll tries again.
+  }
+  finally {
+    answering = false
+  }
+}
+
+const TURNS: { label: string, value: SimTurn }[] = [
+  { label: 'Not ours', value: 'none' },
+  { label: 'Our ban', value: 'ban' },
+  { label: 'Our pick', value: 'pick' },
+]
 
 // ─── Picking ────────────────────────────────────────────────────────────────
 
@@ -128,6 +162,17 @@ const mine = computed(() => board.value.allies[board.value.myLane])
       <section class="flex flex-wrap items-center gap-3">
         <span class="stat-label">Our position</span>
         <RolePicker :position="board.myLane" hide-all @update:position="(lane: ChampionPosition | null) => lane && setMyLane(lane as Lane)" />
+        <span class="stat-label ml-4">Our turn</span>
+        <UFieldGroup size="sm">
+          <UButton
+            v-for="turn in TURNS"
+            :key="turn.value"
+            :label="turn.label"
+            color="neutral"
+            :variant="board.turn === turn.value ? 'solid' : 'subtle'"
+            @click="setTurn(turn.value)"
+          />
+        </UFieldGroup>
         <span class="ml-auto stat-value text-xl tabular-nums">{{ phase === 'ChampSelect' ? board.secondsLeft : '—' }}</span>
       </section>
 
@@ -144,6 +189,12 @@ const mine = computed(() => board.value.allies[board.value.myLane])
               @click="championId ? place({ kind: 'ban', team, index }, null) : edit({ kind: 'ban', team, index })"
             >
               <img v-if="championId && portraitOf(championId)" :src="portraitOf(championId)!" :alt="nameOf(championId)" class="size-full object-cover grayscale">
+              <img
+                v-else-if="team === 'ally' && index === LANES.indexOf(board.myLane) && board.myBanHover && portraitOf(board.myBanHover)"
+                :src="portraitOf(board.myBanHover)!"
+                :alt="`${nameOf(board.myBanHover)} hovered`"
+                class="size-full object-cover opacity-50"
+              >
               <UIcon v-else name="i-lucide-ban" class="size-4 text-dimmed group-hover:hidden" />
               <UIcon :name="championId ? 'i-lucide-x' : 'i-lucide-plus'" class="absolute hidden size-4 text-highlighted group-hover:block" />
             </button>

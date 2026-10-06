@@ -5,6 +5,9 @@ everything those pages are built from: components, composables, utils, the desig
 and the Nuxt UI theme (`app/app.config.ts`). The site picks it up on its own (Nuxt registers `web/layers/*`); the app
 lists it in `extends`. One file, one rendering: a change made here shows in both (#1732).
 
+The admin portal does not extend it: its image builds from `./admin`, where this directory is invisible, so
+web↔admin sharing stays on labelled twin files (`.claude/docs/decisions/web-frontend-rules.md`, #1623, #1684).
+
 A shared page is a component under `app/components/page/` (`<PageTierList>`). Each app's route file wraps it with
 what is the app's own — the site's head tags and structured data, the app's `SharedPage` frame (scroll container,
 and a `<Suspense>` so a tab changes before the page's first read is in, #1788) — and nothing else.

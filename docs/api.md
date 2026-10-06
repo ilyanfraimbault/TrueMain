@@ -1167,7 +1167,7 @@ agrégé uniquement sur les games de ce joueur.
 **`404`** si `nameTag` est malformé, si le compte est inconnu, ou s'il n'existe
 **aucune tranche agrégée** pour ce joueur sur ce champion.
 
-Un échantillon mince n'est **pas** un `404` : le plancher `MinPlayerGames` sert à
+Un échantillon mince n'est **pas** un `404` : le plancher `ChampionsList:MinPlayerBuildGames` (défaut 5) sert à
 *choisir* le patch, pas à barrer la route. Quand aucun patch ne le franchit, le
 service retombe sur le patch le plus récent ayant des parties et rend la tranche mince
 telle quelle, avec `minSampleMet: false` — la page dit elle-même que c'est peu, ce
@@ -1535,7 +1535,10 @@ re-mesurer, pour qu'une tuile ne puisse jamais contredire la page vers laquelle 
 pointe. Le verdict vit ici et non dans le front, parce qu'un seuil est une décision
 métier et qu'un second consommateur (l'alerting) doit obtenir la même réponse.
 
-Pas de paramètre.
+Pas de paramètre. La réponse est mise en cache 30 s et single-flightée (#1427) : des
+appels concurrents partagent une seule évaluation, et `evaluatedAtUtc` dit son âge. Les
+compteurs du corpus brut (`rawMatchCount`, `rawParticipantCount`) ont leur propre cache
+de 10 min — le comptage des participants est la lecture la plus coûteuse de l'évaluation.
 
 **Réponse `200`** — `PipelineHealthReadModel`
 
@@ -2143,7 +2146,7 @@ Métriques d'usage de la Riot API sur une fenêtre relative.
 
 | Param      | Type   | Requis | Description |
 |------------|--------|--------|-------------|
-| `window`   | string | non | `1h` / `24h` (défaut) / `7d`. Valeur vide ou inconnue → repli silencieux sur `24h`, jamais un `400` ; la réponse **réénonce** la fenêtre appliquée dans `window`, donc l'appelant peut toujours voir ce qu'il a réellement obtenu. |
+| `window`   | string | non | `1h` / `24h` (défaut) / `7d` / `30d` (#1458, barres journalières). Valeur vide ou inconnue → repli silencieux sur `24h`, jamais un `400` ; la réponse **réénonce** la fenêtre appliquée dans `window`, donc l'appelant peut toujours voir ce qu'il a réellement obtenu. |
 | `endpoint` | string | non | Clé d'endpoint exacte (ex. `match-v5.match`). |
 
 **Réponse `200`** — `RiotApiUsageReadModel`
@@ -2207,6 +2210,70 @@ Métriques d'usage de la Riot API sur une fenêtre relative.
 - `headroom.bindingLimit` est la fenêtre de rate-limit applicatif dont le plafond
   journalier soutenu est le **plus petit** — celle qui contraint en premier sous charge
   continue, pas celle dont le ratio instantané est le plus haut.
+
+## `GET /ops/riot-quota`
+
+Utilisation du quota Riot **par host de routage** (#1458) et duty cycle de chaque lane de
+l'ingestor, sur la même fenêtre que `/ops/riot-usage`. Riot applique la limite applicative
+par host : le budget n'est pas un pot unique mais un par host, et `match-v5` ne vit que sur
+les hosts régionaux.
+
+**Query** — `window` : `1h` / `24h` (défaut) / `7d` / `30d`, même repli silencieux que
+`/ops/riot-usage`.
+
+**Réponse `200`** — `RiotQuotaReadModel`
+
+```json
+{
+  "window": "24h",
+  "sinceUtc": "2026-06-25T10:00:00Z",
+  "generatedAtUtc": "2026-06-26T10:00:00Z",
+  "coverageStartUtc": "2026-06-25T10:00:00Z",
+  "coveredHours": 24.0,
+  "retentionDays": 30.0,
+  "oldestRetainedUtc": "2026-05-27T10:01:00Z",
+  "routes": [
+    {
+      "route": "europe", "kind": "regional",
+      "calls": 36000, "rateLimited": 12, "rateLimitedRate": 0.00033, "errors": 40,
+      "callsPerMinute": 25.0, "activeMinuteShare": 0.62,
+      "bindingLimit": { "limit": 100, "windowSeconds": 120, "maxCallsPerDay": 72000.0 },
+      "utilisation": 0.5, "currentUtilisation": 0.89,
+      "appRateLimit": "20:1,100:120", "appRateLimitCount": "2:1,89:120",
+      "observedAtUtc": "2026-06-26T09:59:52Z",
+      "consumers": [
+        { "caller": "MatchIngestion", "endpoint": "match-v5.match", "calls": 18000, "rateLimited": 10, "share": 0.5 }
+      ]
+    }
+  ],
+  "lanes": [
+    {
+      "lane": "FetchLane", "dutyCycle": 0.97, "busyHours": 23.3, "runs": 830,
+      "processes": [ { "processName": "MatchIngestion", "dutyCycle": 0.69, "busyHours": 16.6, "runs": 104 } ]
+    }
+  ]
+}
+```
+
+- `routes` : hosts régionaux (`americas`/`europe`/`asia`/`sea`) d'abord, puis plateformes,
+  chacun par `calls` décroissant — deux budgets indépendants, jamais additionnés.
+- `calls` compte chaque tentative physique, 429 compris. `utilisation` = appels sur la
+  période couverte / ce que la limite liante (même règle que `headroom.bindingLimit`)
+  autorise sur cette période ; `currentUtilisation` = le dernier `X-App-Rate-Limit-Count`
+  du host sur cette fenêtre liante, à `observedAtUtc`. Les deux valent `null` si le host
+  n'a renvoyé aucun en-tête de limite exploitable : sans limite annoncée, pas de ratio.
+- `coverageStartUtc` vaut `sinceUtc`, ou le plus ancien rollup compté quand la
+  rétention ou la bascule coupe la fenêtre : tous les débits divisent par `coveredHours`, jamais par la
+  fenêtre nominale. `retentionDays` est la rétention configurée (`null` = pas de TTL).
+- Seuls les rollups découpés par route (`routeKeyed`, écrits depuis #1458) sont comptés :
+  avant, un rollup créditait toute sa minute à la dernière route vue, ce qui empilait les
+  appels `match-v5` de plusieurs hosts régionaux sur un seul (au-delà de 100 % de sa limite
+  en prod). `coverageStartUtc` démarre donc au plus ancien rollup découpé ; sans aucun,
+  `routes` est vide et `coveredHours` vaut 0. Les anciens rollups alimentent toujours
+  `/ops/riot-usage` et expirent avec la rétention.
+- `lanes` : part du temps mural où au moins un process de la lane (le `jobMode` de
+  l'hôte, `unassigned` sans) tournait — union des runs bornés à la fenêtre, jamais leur
+  somme, donc ≤ 1. Un run encore `Running` s'arrête à son dernier heartbeat.
 
 ## `GET /ops/data-quality/detectors`
 

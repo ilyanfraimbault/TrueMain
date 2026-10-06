@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 public class LadderSyncOptions
@@ -40,6 +42,7 @@ public class LadderSyncOptions
     /// sweep entirely and leaves only the apex refresh.
     /// </para>
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxRequestsPerRun { get; set; } = 300;
 
     /// <summary>
@@ -52,6 +55,7 @@ public class LadderSyncOptions
     /// smaller of the per-run cap and what is left of the day; 0 disables the daily ceiling.
     /// </para>
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int MaxRequestsPerDay { get; set; }
 
     /// <summary>
@@ -64,6 +68,7 @@ public class LadderSyncOptions
     /// spend ingesting matches.
     /// </para>
     /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "10675199.02:48:05.4775807")]
     public TimeSpan MinRunInterval { get; set; } = TimeSpan.Zero;
 
     /// <summary>
@@ -73,6 +78,7 @@ public class LadderSyncOptions
     /// Measured from the last run that refreshed them; <see cref="TimeSpan.Zero"/> (default)
     /// refreshes them on every run.
     /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "10675199.02:48:05.4775807")]
     public TimeSpan ApexRefreshInterval { get; set; } = TimeSpan.Zero;
 
     /// <summary>
@@ -80,5 +86,6 @@ public class LadderSyncOptions
     /// writing the snapshots. A page holds ~205 entries, so the default is ~10 pages per join
     /// instead of one query per page.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int SaveBatchSize { get; set; } = 2000;
 }

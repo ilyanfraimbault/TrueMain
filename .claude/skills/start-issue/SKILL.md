@@ -16,9 +16,11 @@ description: Pick up a GitHub issue and start working on it — read the issue a
 
 4. **Check what already exists and what was already decided**: scan `.claude/docs/features.md` for the page or process involved, and `.claude/docs/decisions.md` (the index) for the area — then open only the matching `.claude/docs/decisions/<area>.md`. A proposal that re-litigates a listed decision or rebuilds a listed feature is the most common wasted iteration.
 
-5. **Plan before coding**: identify the layers touched (web/admin → Api → Data).
+5. **Open decisions → grill first**: if the issue leaves product or design choices open (what to show, which population, what happens at the edges), run the `grilling` skill before planning — asking costs a round, guessing costs a PR.
+
+6. **Plan before coding**: identify the layers touched (web/admin → Api → Data).
    - API reads are **purpose-built query services** returning read-models, living in `Api/Services/<area>` next to the endpoints they serve, injecting `TrueMainDbContext` and projecting with `AsNoTracking` (`backend/Api/Services/{Champions,Truemains,Ops}`, read-models in `backend/Api/ReadModels`). **No generic `IRepository<T>` for reads.**
    - `Data` owns the schema (entities, configurations, migrations, the compiled model), the Mongo-side query objects, the ingestor write side (`Data/Repositories`), and SQL that must not diverge between two consumers (e.g. `Data/DataQuality/ChampionDimensionCanonicalKeys.cs`).
    - Schema changes imply an EF migration + compiled-model regeneration (the `ship` skill re-checks this).
 
-6. When the work is implemented and verified, invoke the `ship` skill to land it — it handles PR, review babysitting, autonomous merge and branch cleanup.
+7. When the work is implemented and verified, invoke the `ship` skill to land it — it handles PR, review babysitting, autonomous merge and branch cleanup.

@@ -272,12 +272,68 @@ lanes move. `Games` keeps counting every patch as the evidence behind a prior; a
 outside the window reads as unseen (uniform), never as impossible on every lane. `LanePriorQueryService`
 — #1674, #1706.
 
-**Draft candidates are ranked by two measured deltas kept separate, never a fabricated win
-probability.** The reference apps show a probability out of a black box; we have no trained composition
-model, and inventing one breaks the rule that every number on the site comes from a measurement. The
-score is the matchup delta (win rate into the resolved opponent minus the champion's rate at the lane,
-both from `champion_matchup_stats`, scoped to the requested bracket) plus the synergy delta (observed
-minus expected with the locked allies, through the synergy service the champion page uses), auditable
-down to the games and kept separate so the client can say which one carries a pick. A candidate under
-the games floor is flagged `thinSample` and still returned — hiding a pick the player owns would hide
-the decision, not inform it. `DraftRecommendationQueryService` — #1675, #1706.
+**Draft candidates are ranked by measured deltas kept separate, never a fabricated win probability.**
+The reference apps show a probability out of a black box; we have no trained composition model, and inventing one
+breaks the rule that every number on the site comes from a measurement. Every component is a win-rate difference
+with the games behind it, scoped to the requested bracket, and kept separate so the client can say which one carries
+a pick. A candidate under the games floor is flagged `thinSample` and still returned — hiding a pick the player owns
+would hide the decision, not inform it. `DraftRecommendationQueryService` — #1675, #1706.
+
+↳ **Reworked in #1906, because the order read as random.** The flat `matchup + synergy` sum gave the most common
+moment — picking before the lane opponent — no signal at all (the pool's own order), let a synergy summed over four
+allies outweigh the lane, and bet the matchup on the solver's top placement even at a coin-flip confidence. Now:
+- **lane** — each placed enemy's matchup weighted by the probability the solver gives it of being our opponent,
+  summed over every placement it weighs (`LaneAssignmentSolver.LaneOccupancy`), not the top guess alone;
+- **blind safety** — for the share of the lane still unknown, the matchup deltas into the opponents still
+  available (not banned, not picked, not hovered by an ally), weighted by their games on the lane (ALLY synergy
+  baselines, which cover every champion), plus a lower tail: how many of the 8 most-played it is clearly behind
+  into (shrunk delta ≤ −2 pts). This replaces "before the enemy picks: pool order";
+- **synergy** — the **mean** over the allies on the board, locked at weight 1 and hovered at 0.5 (flagged
+  tentative), an unmeasured pairing counting as no effect: four allies weigh what one does;
+- **ranking** — `Lane × [P(occupied) × lane + (1 − P) × blind] + Strength × strength + Synergy × synergy`, each
+  delta shrunk towards zero by its games (`delta × n / (n + k)`) instead of the binary 30-game floor as the
+  ordering device; *strength* is the champion's own win rate at the lane minus the lane's average (the matchup and
+  blind terms are deltas against that rate, so without it a champion that wins everywhere scores like one that
+  loses everywhere). The values come from `backend/Tools/DraftEvaluation` (AUC of the score against the result,
+  training on earlier patches, testing on a later one), never from taste. First preprod run (test 16.19, training
+  16.18, 39,659 main picks): lane known, old 0.5071 against new 0.5096–0.5110, rising with k up to the grid's edge
+  (400), synergy weight 0 to 0.25 indistinguishable at k = 400 and worse beyond; blind, the delta-only blind
+  safety (0.5031 at best) stayed under the plain lane win rate (0.5046) — which is what the strength term adds.
+  Second run, same data, wider grid with the strength term: lane known peaks at 0.5123 (k = 400 or 800, strength
+  0.5, synergy 0–0.25), strength 1 and k ≥ 1600 both lose; blind with strength 0.5 reaches 0.5058 (k 400–1600),
+  above the lane win rate's 0.5046. **Settled: k = 400, strength 0.5, synergy 0.25** (0.5122, within 0.0001 of
+  the best, keeping the ally term the reasons need). Every gap here is small — a few thousandths of AUC on
+  ~40k picks — so these are the best measured values, not a large effect, and the next back-test may move them.
+  The total is a ranking key, never displayed, and there are **no letter grades** (product owner, 2026-10-05: a
+  grade binned from these deltas would still be a derived number);
+- **reasons** — the 2–3 parts of the score that move it most, either way, as text-free data the client words
+  (`laneMatchup`, `blindSafety`, `synergy`, plus the lane phase at 15 minutes as a reason that is never a score
+  term). Still missing: the enemy team beyond our lane (#1713) and the damage mix (#1905, #1907).
+`DraftCandidateScorer`, `Core/Lol/Draft/DraftScoring.cs` — #1906.
+
+**The enemy team is measured on its own opposing-pair aggregate, folded behind its own flag, and enters the score
+only once a back-test sets its weight.** `champion_opponent_stats` pairs a tracked seat with each enemy, and the
+draft term is observed minus expected — the synergy formula (`SynergyMath`) with the enemy's rate as faced by
+tracked players in place of an ally's — so a champion everybody loses to is not held against any one pick. The lane
+opponent stays the matchup table's; every other enemy counts whatever lane the guess gives it, weighted by the
+chance it is *not* our lane opponent. A separate process and `Match.OpponentAggregated` rather than four more lines
+in the synergy fold: the synergy flag is already set on every retained match, so only a new gate drains the
+retained history without double-counting synergies. The term ships with weight 0 — the table starts empty, and the
+back-test (`Tools/DraftEvaluation`, now reading `champion_opponent_*`) needs the backfilled patches to measure it.
+`ChampionOpponentAggregationProcess`, `DraftEnemyReader` — #1713, #1906.
+
+**Draft ban suggestions protect something.** `POST /champions/draft/bans`, its own endpoint because bans are asked
+on the ban turn and picks on the pick turn. With a declared pick (the player's planning-phase hover) the threat of
+enemy E is how far the pick is behind into E, shrunk, times E's share of the lane's games — a champion it loses to
+that nobody plays is not worth a ban; without one, the same over the pool's top 10 by mastery. Never suggested: a
+champion banned, picked, or locked or hovered by an ally (banning a teammate's intended pick is worse than no
+suggestion), nor the protected champions. With nothing to protect, or no measured threat, the lane's most banned
+champions (≥ 25% of their games on the lane), labelled with their ban rate — not presented as a threat. The enemy
+team beyond the lane waits for #1713's opposing-pair aggregate. `DraftBanQueryService` — #1906.
+
+**Draft reads use the current patch, with the previous one as a per-champion fallback.** The app sent no patch, so
+every draft figure averaged every stored patch — several balance states at once. Without a requested patch the
+draft reads the two newest patches of the synergy baselines; a champion's matchup record comes from the current
+patch when it has 200 games at the lane there, from both summed otherwise (lane shares: 2,000 games), and a pairing
+the current patch lacks is looked up on the previous one. Per champion, not per draft: on patch day the popular
+picks are measured hours before a niche one. `DraftPatchScopeResolver`, `DraftLaneReader` — #1906, #1467.

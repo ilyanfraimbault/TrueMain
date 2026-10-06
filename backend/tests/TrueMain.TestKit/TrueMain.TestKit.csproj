@@ -19,7 +19,7 @@
     <PackageReference Include="MongoDB.Driver" />
     <!-- Fixtures only (IAsyncLifetime); this project declares no tests, so it does
          not need the xunit metapackage's assert and analyzer packages. -->
-    <PackageReference Include="xunit.extensibility.core" />
+    <PackageReference Include="xunit.v3.extensibility.core" />
   </ItemGroup>
 
   <ItemGroup>

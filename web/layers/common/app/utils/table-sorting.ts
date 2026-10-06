@@ -1,4 +1,5 @@
 import type { LeaderboardSort } from '#shared/types/leaderboard'
+import { parseLeaderboardSort } from '#shared/utils/leaderboard-sort'
 import type { ChampionDirectorySort, SortOrder } from '#shared/types/champion-directory'
 import { CHAMPION_DIRECTORY_SORTS } from '#shared/types/champion-directory'
 
@@ -13,14 +14,14 @@ import { CHAMPION_DIRECTORY_SORTS } from '#shared/types/champion-directory'
  */
 export type TableSorting = { id: string, desc: boolean }[]
 
-/** The leaderboard has two server orders, both descending: column ids are the API's `sort` values. */
+/** Every leaderboard server order is descending: column ids are the API's `sort` values. */
 export function leaderboardSortToSorting(sort: LeaderboardSort): TableSorting {
   return [{ id: sort, desc: true }]
 }
 
-/** Any column but the score (or an emptied state) is the default rank order. */
+/** A sortable column maps to its server order; any other column (or an emptied state) is the default rank order. */
 export function sortingToLeaderboardSort(sorting: TableSorting | undefined): LeaderboardSort {
-  return sorting?.[0]?.id === 'dedication' ? 'dedication' : 'rank'
+  return parseLeaderboardSort(sorting?.[0]?.id)
 }
 
 export interface DirectoryOrder {

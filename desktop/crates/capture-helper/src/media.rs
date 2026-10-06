@@ -12,7 +12,7 @@ use std::process::Stdio;
 use game_recording::CaptureError;
 use serde_json::Value;
 
-use crate::{command, error_of, parse_events};
+use crate::{command, error_of, parse_events, retry_busy};
 
 /// What to do about the Screen Recording permission when it is not granted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,11 +95,9 @@ pub fn thumbnail(
 
 /// Run the helper once and return the `expected` event it answered with.
 fn run(binary: &Path, args: &[&str], expected: &str) -> Result<Value, CaptureError> {
-    let output = command(binary)
-        .args(args)
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
+    let mut run = command(binary);
+    run.args(args).stdin(Stdio::null()).stderr(Stdio::null());
+    let output = retry_busy(|| run.output())
         .map_err(|e| CaptureError(format!("could not run {}: {e}", binary.display())))?;
     answer(&output.stdout, expected).ok_or_else(|| {
         CaptureError(format!(

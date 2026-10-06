@@ -46,3 +46,11 @@ export function describeHttpStatus(status: number | undefined): string {
 export function describeFetchError(error: unknown): string {
   return describeHttpStatus(fetchErrorStatus(error))
 }
+
+/**
+ * The action toast's line for a refetch that failed while the previous payload
+ * stayed on screen (#1668): why it failed, and what the reader is looking at.
+ */
+export function describeStaleFetchError(error: unknown): string {
+  return `${describeFetchError(error)} The previous results are still shown.`
+}

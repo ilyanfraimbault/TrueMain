@@ -79,14 +79,25 @@ Tracking issue: **#1671**.
   its own — the next item alone (the item and the gold still to earn for it, or
   that it can be bought now), a win probability estimated from the item-gold
   gap and the map (turrets, inhibitors down, drakes, Baron, Elder), your CS per
-  minute with its curve and gold per minute, the loading screen's ten players (an anonymous one — Streamer Mode — as their champion alone)
-  (games and win rate on their champion, latest games as win/loss bars — #1753), and, while TAB is held, each team's item gold and each lane's gap —
+  minute with its curve and gold per minute, and, while TAB is held, each team's item gold and each lane's gap —
+  once the game has started (its `GameStart` event), never over its loading screen —
   only while the game is the frontmost app, never over the client or anything
   else. Click-through and never focused, so the game keeps every click and key;
-  ⌥⇧O hides them for the rest of the game. Set up from the game page (each panel
-  on/off and where — five spots, or anywhere by dragging it in a preview — the
-  next item's moment, size, opacity).
+  ⌥⇧O hides them for the rest of the game. Set up on the Overlay page (each panel
+  on/off and where — five spots, or anywhere by dragging it — the next item's
+  moment, size, opacity), with each panel shown always, while a chord is held
+  or toggled by one (#1915): the chord is recorded by key position, so it
+  holds on any layout, and the page warns when its key also does something in
+  game (the overlay reads keys, the game still gets them).
   The window layer is the #1673 spike's verdict, `docs/desktop-overlay-spike.md`.
+  The panels go on the monitor the game runs on, read from the game's window
+  while it is in front (#1914), the primary monitor before any game.
+- **A window you can size** (#1914): resizable down to 960 × 640, opening
+  where it was left — on a monitor still plugged in, else centred on the
+  primary one, never larger than the monitor. Below 1100 px wide the sidebar
+  folds into a rail of icons. Nothing pops up by itself during champion select
+  or a game: an update found then waits in the sidebar, its toast after the
+  phase.
 
 ## What it does not do yet
 
@@ -103,11 +114,17 @@ Tracking issue: **#1671**.
 - **The Windows overlay has not met a League game yet** (#1798). CI runs it
   on a Windows desktop over a stand-in game window
   (`tools/overlay-smoke-windows.ps1`, #1806). The panels are drawn, never take
-  the foreground, let clicks through, and follow TAB, Alt+Shift+O and the window
-  in front. They are placed by a drag in the preview. What only a player can
+  the foreground, let clicks through, and follow TAB, a held and a toggled
+  chord, Alt+Shift+O and the window in front. They are placed by a drag in the preview. What only a player can
   check: a real game in Borderless, under its anti-cheat. Over League in
   exclusive Full Screen Windows draws nothing, so the settings ask for
   Borderless.
+- **No compact mode docked beside the client, no second-monitor setting yet**
+  (#1914). The window sizes and remembers its monitor, and the overlay follows
+  the game's monitor; docking to the client's edge, compact draft and game
+  layouts, and opening on a chosen monitor during a phase are still to come.
+  The game's monitor is matched from its window's frame on both platforms, but
+  only CI's single-monitor runner has run it so far.
 - **The next item reads the draft, not the enemies' builds yet.** What they
   have actually bought is #1750; the gold standing and the loading screen are
   #1752 and #1753.
@@ -167,7 +184,10 @@ at the playhead, several ranges, each named and saved as its own file — and ke
 or deletes the full game; a **clip player** renames, favourites and deletes a
 clip; the **settings** slideover holds the short list of choices; and a
 dashboard row offers **Watch** when its game was recorded. Files reach the
-webview through Tauri's asset protocol (`convertFileSrc`).
+webview through the shell's `recording` scheme (`src-tauri/src/recording/files.rs`),
+limited to the recordings folder. Not Tauri's asset protocol: it answers every
+range with at most 1000 KiB, and WebKit drops a video track whose sample table
+(past ~36 minutes at 60 fps) comes back short, so long games played black (#1830).
 
 In development the shell finds the helper `swift build` leaves in
 `capture/macos/.build/` — build it once with
@@ -183,23 +203,25 @@ hardware encoder).
 
 ## Sharing with the site
 
-The app is its own Nuxt project, so the site's components reach it as **twin
-copies** — the repo's rule for a file two apps need (`decisions/web-frontend-rules.md`):
-each copied file says so in a header naming its twin, and stays identical to it
-except for lines marked app-specific. The shared types and utilities sit under
-`app/shared/` at the same paths as `web/shared/`, so the copies keep their
-`~~/shared/...` imports unchanged. What the app does differently lives beside
-them, not inside them:
+The pages the app renders exactly like the site — champions, tier list, matchup,
+truemains, favorites — and everything they are built from (components,
+composables, the design system, the Nuxt UI theme, the site's `shared/` types)
+come from the Nuxt layer `web/layers/common`, which the app lists in `extends`
+(#1732). Its `README.md` is the contract: the imports a shared file may use and
+what each app provides (`useApiFetch`, `useChampionSlugs`, `useCanonicalIcon`,
+`SkeletonImage`, `RankIcon`). The app's side lives beside its own code:
 
-- `composables/useSiteShims.ts` answers the site composables the copies call
-  (`useChampionSlugs`, `useBuildResolvers`, `useCanonicalIcon`) for an app with
-  no image server and no player pages;
+- `composables/useSiteShims.ts` answers the site composables for an app with no
+  image server and no player pages;
 - `utils/static-data.ts` builds the site's static-data shapes from Data Dragon
-  and Community Dragon in the webview, where the site does it in Nitro;
-- `SkeletonImage`, `RankIcon`, `FavoriteToggle` and `LeaderboardRow` carry the
-  app-specific differences, each stated in its header.
+  and Community Dragon in the webview, where the site does it in Nitro.
 
-A Nuxt layer would replace the copies; that is #1687.
+The app's own pages (dashboard, draft, game, champion page) are not in the
+layer. Where one of them still needs a site component the layer does not hold,
+it takes a **twin copy** — the repo's rule for a file two apps need
+(`decisions/web-frontend-rules.md`): a header names its twin, and it stays
+identical to it except for lines marked app-specific. A component that moves
+into the layer loses its twin.
 
 ## Reaching the API
 
@@ -347,6 +369,11 @@ The **navigation rule lives in Rust** (`crates/shell-state/src/lib.rs`), not in 
 frontend: which screen belongs to which phase is a product decision, and two
 implementations of it would drift.
 
+The main window runs with `dragDropEnabled: false`. Left on, Tauri takes every
+drop at the native level to report dropped files, and the page's own HTML5
+drag and drop — dragging an enemy onto another lane in champion select — never
+receives its `drop`. The app reads no dropped file, so nothing is lost.
+
 ## Testing without a game
 
 Champion select is the app's subject and the hardest state to reach: it needs a
@@ -425,7 +452,7 @@ is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chu
 that is never fetched.
 
 The overlay's page opens the same way, alone, as the panel shows it:
-`?scenario=in-game-late#/overlay` (reload after changing only the hash — the
+`?scenario=in-game-late#/overlay/next-item` (reload after changing only the hash — the
 page stands outside the app's shell from its first load), and `&preview` adds
 the placing state. Its window — level, focus, click-through, the frontmost
 rule, dragging — exists only in the shell; `tools/overlay-probe.swift` reads
@@ -472,6 +499,14 @@ champion select (a synthetic `Simulated#DEV` player, with a mastery list of each
 lane's most played champions for "My pool"); **Game starts** and **Dodge** end it
 the way the client does, **Clear** empties the board. The app answers every
 click live — suggestions, lanes, builds.
+
+**Our turn** (*Not ours* / *Our ban* / *Our pick*) opens our ban or our pick
+as the client would, so the app's own **Hover**, **Ban** and **Lock in**
+controls (#1909) can be tried: the shell sends each request it would make to
+the client — the session, the pickable and bannable lists, the hover, the
+completion — through the same relay the other way (`op: 'request'`), the page
+answers it and applies it to the board, and refuses a write to an action that
+is not open. The page has to stay open for the app's writes to be answered.
 
 The page sends what the client would — gameflow phase, summoner, mastery, and
 `/lol-champ-select/v1/session` in the client's shape — as tape readings to a

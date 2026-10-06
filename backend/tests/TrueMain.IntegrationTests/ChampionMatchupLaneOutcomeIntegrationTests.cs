@@ -22,7 +22,7 @@ namespace TrueMain.IntegrationTests;
 /// land on the same row, whatever happens to its elo bracket between runs.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionMatchupLaneOutcomeIntegrationTests
+public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const int Champion = 157;    // The tracked side.
@@ -41,10 +41,13 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_CountsALaneWonPastTheThreshold()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 4, selfGold: 6000, opponentGold: 5000);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -60,7 +63,6 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests
     [Fact]
     public async Task RunAsync_CountsALaneLostPastTheThreshold()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 3, selfGold: 5000, opponentGold: 6000);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -79,7 +81,6 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests
     [InlineData(-Threshold)]
     public async Task RunAsync_LeavesALaneInsideTheBandUndecided(int lead)
     {
-        await _fixture.ResetDatabaseAsync();
         // The whole reason wins and losses are stored separately: a threshold creates a
         // third outcome. Exactly ±threshold is inside the band — the comparison is
         // strict — so these lanes count as judged but decide nothing, and must not be
@@ -105,7 +106,6 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests
     [Fact]
     public async Task RunAsync_SumsTheExperienceGapOnItsOwnCounter()
     {
-        await _fixture.ResetDatabaseAsync();
         // Ahead in gold, behind in experience (#1111): a lane won on kills and lost on
         // waves. This is the case both counters exist for — deriving XP from gold, or
         // banding it with the gold verdict, would report a very good lane where the
@@ -127,7 +127,6 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests
     [Fact]
     public async Task RunAsync_CountsAMatchWithNoFifteenMinuteSnapshotAsAGameButNotALane()
     {
-        await _fixture.ResetDatabaseAsync();
         // A game that ended before the mark: a real game but not a judgeable lane.
         // Counting it in LaneGames would understate the lane win rate; that is exactly
         // why LaneGames is separate from Games — and why Games >= LaneGames is the
@@ -149,7 +148,6 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests
     [Fact]
     public async Task RunAsync_LeavesAMatchWhoseTimelineHasNotArrivedForALaterRun()
     {
-        await _fixture.ResetDatabaseAsync();
         // Timeline still pending — the ordinary case, not a corruption:
         // TimelineIngestionService leaves TimelineIngested false on a truncated payload
         // and re-fetches the match on a later run, so its 15-minute snapshots are simply
@@ -194,7 +192,6 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests
     [Fact]
     public async Task RunAsync_AddsOntoTheRowAnEarlierFoldWroteRatherThanDuplicatingIt()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 4, selfGold: 6000, opponentGold: 5000);
 
         // The row an earlier pass left for this grain — a patch is folded over many
@@ -230,7 +227,6 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests
     [Fact]
     public async Task RunAsync_KeepsAMatchsGameAndLaneCountersOnOneRowWhenItsBracketIsStampedLater()
     {
-        await _fixture.ResetDatabaseAsync();
         // The defect #1445 closes. elo_bracket is part of the row key and is stamped
         // asynchronously (MatchParticipantEloBracketEnrichment), so while the two folds
         // were separate a match could be counted as a game under one bracket and as a
@@ -269,7 +265,6 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests
     [Fact]
     public async Task RunAsync_DoesNotDoubleCountOnRerun()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedGamesAsync(games: 4, selfGold: 6000, opponentGold: 5000);
 
         var process = CreateProcess();

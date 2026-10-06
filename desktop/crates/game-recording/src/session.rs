@@ -19,6 +19,7 @@ use crate::highlights::{self, HighlightSource};
 use crate::moments;
 use crate::settings::{Quality, RecordingSettings};
 use crate::store::{RecordingDir, RecordingMeta, RecordingStatus, Store, StoredRecording};
+use crate::win_probability::RecordedWinProbability;
 
 /// The screen capture and encoder, whichever #1745 settles on.
 pub trait Capture {
@@ -70,6 +71,9 @@ pub struct GameOutcome<'a> {
     /// gives their participant id, champion and result.
     pub game: Option<&'a HistoryGame>,
     pub timeline: Option<&'a GameTimeline>,
+    /// The game's full scoreboard, all ten (`LcuClient::game`): with the
+    /// timeline, what the recap's win-probability curve is drawn from.
+    pub scoreboard: Option<&'a HistoryGame>,
 }
 
 struct Active {
@@ -266,6 +270,13 @@ impl<C: Capture> Session<C> {
                 _ => 200,
             };
             active.meta.objectives = moments::objectives(timeline, my_team);
+            if let Some(scoreboard) = outcome.scoreboard {
+                let recorded = RecordedWinProbability::from_game(scoreboard, timeline, my_team);
+                // The recording stands without its curve: never fail it for that.
+                if let Err(error) = active.dir.write_win_probability(&recorded) {
+                    tracing::warn!(%error, "could not keep the game's win-probability timeline");
+                }
+            }
         }
         active.meta.status = RecordingStatus::Ready;
         active.dir.write_meta(&active.meta)?;
@@ -455,6 +466,8 @@ mod tests {
                 GameOutcome {
                     game: Some(&game),
                     timeline: Some(&timeline),
+                    // The history line stands in for the full scoreboard.
+                    scoreboard: Some(&game),
                 },
                 u64::MAX,
                 root.path(),
@@ -472,10 +485,12 @@ mod tests {
         // The kill at 1:35 of game time is 20 s further into the video.
         let anchor = meta.anchor.unwrap();
         assert!((anchor.video_ms(95_000) - 115_003).abs() <= 1);
-        assert_eq!(
-            RecordingDir::new(path).read_meta().unwrap().status,
-            RecordingStatus::Ready
-        );
+        let dir = RecordingDir::new(path);
+        assert_eq!(dir.read_meta().unwrap().status, RecordingStatus::Ready);
+        // The curve's data is kept beside the video, for the player's side.
+        let recorded = dir.read_win_probability().unwrap();
+        assert_eq!(recorded.team_id, 100);
+        assert_eq!(recorded.timeline.events.len(), 2);
         assert_eq!(session.awaiting(), None);
     }
 
@@ -483,7 +498,7 @@ mod tests {
     fn without_a_timeline_the_live_highlights_stay() {
         let root = tempfile::tempdir().unwrap();
         let mut session = Session::new(FakeCapture::default());
-        play(&mut session, root.path());
+        let path = play(&mut session, root.path());
 
         let game = history_game();
         let meta = session
@@ -491,6 +506,7 @@ mod tests {
                 GameOutcome {
                     game: Some(&game),
                     timeline: None,
+                    scoreboard: Some(&game),
                 },
                 u64::MAX,
                 root.path(),
@@ -501,6 +517,7 @@ mod tests {
         assert_eq!(meta.highlights_source, Some(HighlightSource::Live));
         assert_eq!(meta.highlights.len(), 2);
         assert_eq!(meta.champion_id, Some(103));
+        assert_eq!(RecordingDir::new(path).read_win_probability(), None);
     }
 
     #[test]

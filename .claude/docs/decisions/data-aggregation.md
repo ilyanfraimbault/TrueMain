@@ -65,6 +65,31 @@ blanks it, while an item-metadata outage aborts the run — flagging a match wit
 archetypes would lose them for good. Shares, means and per-minute rates are read-time arithmetic over the sums;
 readers apply their own games floor — an additive fold cannot know a row's final count — #1449.
 
+**A champion's damage profile is read through the fold's snapshot, split by build in a sibling table, and an
+unprofiled champion gets a class, never a share (2026-10-05).** `GET /champions/damage-profiles` (#1905) serves the
+profile shares for the desktop draft's team damage bars. Three calls:
+- **One snapshot rule.** The endpoint, the item-context fold and the next-item read resolve profiles through
+  `ChampionProfileSnapshotRules` (lookback 2 patches, floor 100 games — the ingestor options default to it), so a
+  bar the player sees and the axis that drives the build advice cannot disagree; a test pins that a client
+  rebuilding a team's magic share from the payload lands in the same `EnemyMagicDamage` bucket as
+  `DraftAxisEvaluator`.
+- **The build split is a sibling table, not a key column.** `champion_damage_profile_stats` holds the damage sums
+  per `(champion, position, patch, archetype)`, folded in the profile's pass under the same `ProfileAggregated`
+  gate. Adding the archetype to `champion_profile_stats`' key would multiply every row the item-context fold
+  reads and change what a profile means; the blended profile stays the draft-time expectation. The archetype is
+  the one the final inventory leans on — counted per item, so one hybrid item does not flip an AD build to AP;
+  ties go AP > crit > armour-pen > on-hit > tank; `None` when nothing is classified — stored as text (a
+  dimension read in ad-hoc SQL). **No backfill**: resetting `ProfileAggregated` would fold every match into the
+  profile a second time, and a per-match flag of its own buys one retained window; the table fills forward and
+  a build's share is over the table's own games, so a partly covered patch is a smaller sample, not a skewed
+  one. `flexDamage` = two builds with opposite dominant damage types each holding ≥ 20% of the games — one cut for
+  every champion, not a per-champion list.
+- **Fallback = a class, never a percentage.** Preference: measured at the lane → measured at the best-covered lane
+  → Data Dragon's `info.attack` / `info.magic` ratings (gap ≥ 3 names a type, else `mixed`) → nothing.
+  CommunityDragon's `tacticalInfo.damageType` and Meraki were the alternatives: Data Dragon was already a
+  dependency (the ranged flag) with a client, and both others are a new source for the same coarse answer.
+  The ratings are hand-authored and old, so they never produce a share — #1905.
+
 **A situation is only allowed to explain an item it could mechanically answer — the whitelist is the feature.**
 `champion_item_context_stats` (#1450) measures an item's pick rate at each end of fifteen draft axes and keeps the
 axes that move it. Over a patch's games plenty of unrelated draft features correlate with an item's pick rate, so
@@ -243,3 +268,20 @@ dropped and re-added rather than altered, so no row was rewritten on a 35 GB tab
 slots 0–5 as a 3×2 grid in slot order, then the trinket over the role-bound slot. #1607 pulled the boots out
 of the grid into that column, thinking a seventh item came through the inventory slots. That left a gap in
 nearly every grid and made the trinket read as one of the six items — `#1612`.
+
+## The pace benchmark is a per-minute histogram folded from the timeline in memory, never a grid (2026-10-05)
+
+**`pace_benchmark_stats` holds, per (patch, tier, position, minute, metric), a fixed-width histogram of a laner's
+cumulative CS and gold earned — and nothing per participant.** The per-minute grid was removed on purpose (#772,
+#1599), so the values are read off the match-v5 timeline while `TimelineIngestionService` holds it and only the bin
+counts are written, in the same transaction, behind `matches.PaceBenchmarkAggregated`. That flag is flipped by a
+conditional `UPDATE … WHERE NOT … RETURNING`, so two accounts ingesting one match cannot both count it; a match whose
+timeline was ingested before the fold shipped is never folded — its minutes are gone. Histograms rather than sums,
+because a mean cannot say where a player stands; the bins stay additive (`ON CONFLICT … + EXCLUDED`), and the
+quartiles are read-time arithmetic (`Core/Lol/Pace/PaceHistogram.cs`, 5 CS and 200 gold a bin, interpolated inside
+it). **The whole lobby is counted at the tracked account's tier at game time** (`EloBracketResolver`, the lower
+median when several tracked accounts disagree); counting only tracked rows would benchmark mains, which the product
+owner excludes. A lobby with no ranked tracked account, a remake or a minute the game did not reach adds nothing.
+The read pools the newest three patches (pace barely moves between patches, and pooling fills the thin tiers) and
+serves no quartile under 50 samples. The table joins `AggregateRetention` — #1912.
+

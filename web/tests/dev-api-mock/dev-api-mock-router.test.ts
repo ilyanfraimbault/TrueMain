@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { pageParams, resolveDevApiMock, tierFor } from '~~/server/utils/dev-api-mock'
 import type { ChampionDirectoryResponse } from '~~/shared/types/champion-directory'
 import type { ChampionMainsComparison } from '~~/shared/types/champions'
+import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 
 // `resolveDevApiMock` reaches two auto-imported server globals: `$fetch`
 // (via latestShortPatch, for the DDragon version list) and `createError`
@@ -77,6 +78,18 @@ describe('resolveDevApiMock', () => {
     const page = await resolveDevApiMock('/champions/directory', { position: 'JUNGLE', pageSize: '100' }) as ChampionDirectoryResponse
     expect(page.rows.length).toBe(page.total)
     expect(page.rows.every(row => row.position === 'JUNGLE')).toBe(true)
+  })
+
+  it.each([
+    ['games', (row: LeaderboardRowResponse) => row.stats.games],
+    ['kda', (row: LeaderboardRowResponse) => row.stats.kda ?? -1],
+    ['winRate', (row: LeaderboardRowResponse) => row.stats.winRate ?? -1],
+  ] as const)('orders the whole truemains board by %s, then pages it', async (sort, figure) => {
+    const first = await resolveDevApiMock('/truemains', { sort, pageSize: '10' }) as LeaderboardResponse
+    const second = await resolveDevApiMock('/truemains', { sort, pageSize: '10', page: '2' }) as LeaderboardResponse
+    const values = [...first.rows, ...second.rows].map(figure)
+    expect(values).toEqual([...values].sort((a, b) => b - a))
+    expect(second.rows[0]?.rank).toBe(11)
   })
 
   it('resolves a known player route (Sheiden-1234)', async () => {
@@ -159,6 +172,33 @@ describe('resolveDevApiMock: /champions/{id}/mains-comparison', () => {
     // The pool column has no single owner; a targeted one does.
     expect(res.mains!.identity).toBeNull()
     expect(res.mains!.players).toBeGreaterThan(1)
+  })
+
+  it('stages each insufficient-sample variant through the reserved Thin accounts (#868)', async () => {
+    const cases = [
+      { account: 'Thin#PLAYER', player: false, mains: true },
+      { account: 'Thin#MAINS', player: true, mains: false },
+      { account: 'Thin#BOTH', player: false, mains: false },
+    ]
+    for (const { account, player, mains } of cases) {
+      const res = await comparison({ account })
+      expect(res.status).toBe('INSUFFICIENT_SAMPLE')
+      expect(res.player!.identity?.gameName).toBe('Thin')
+      expect(res.player!.sampleMet).toBe(player)
+      expect(res.mains!.sampleMet).toBe(mains)
+      for (const side of [res.player!, res.mains!]) {
+        expect(side.games).toBeGreaterThan(0)
+        expect(side.sampleMet).toBe(side.games >= res.minGames)
+        expect(side.winRate).toBeCloseTo(side.wins / side.games, 2)
+      }
+    }
+    // A targeted main thins the same way as the pool.
+    const targeted = await comparison({ account: 'Thin#MAINS', main: 'Sheiden#1234' })
+    expect(targeted.status).toBe('INSUFFICIENT_SAMPLE')
+    expect(targeted.mains!.identity?.gameName).toBe('Sheiden')
+    expect(targeted.mains!.sampleMet).toBe(false)
+    // An unreserved tag on the same name is still an unknown account.
+    expect((await comparison({ account: 'Thin#EUW' })).status).toBe('UNKNOWN_ACCOUNT')
   })
 
   it('echoes the normalised patch and position it was scoped to', async () => {

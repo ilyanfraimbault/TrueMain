@@ -1,17 +1,11 @@
 <script setup lang="ts">
 // Logs panel — server-paginated application logs from `GET /api/ops/logs`.
-// Filterable by minimum severity (`level`), category, named ops event
-// (`eventType`, exact match against the backend's static catalog), producing
-// process, exception presence, relative time window and a free-text search
-// (matched against message + exception). The endpoint paginates, so we only
-// ever hold one page in memory and drive UPagination off the response's
+// The filters, the fetch and the row selection live in `useLogsList`; the
+// endpoint paginates, so UPagination is driven off the response's
 // `total`/`page`/`pageSize`. Each row's full detail + exception stack is
 // inspectable in a slide-over; rows are checkbox-selectable and the selection
-// can be copied as JSON (#722).
-import { h } from 'vue'
-import { UCheckbox } from '#components'
-import type { TableColumn } from '@nuxt/ui'
-import type { LogEntry, LogLevel } from '~~/shared/types/logs'
+// can be copied as JSON (#722, `LogsTable`).
+import type { LogEntry } from '~~/shared/types/logs'
 import { formatDateTime } from '~~/shared/utils/format'
 
 // This page hosts two server-paginated lists: the application Logs and the durable
@@ -31,188 +25,32 @@ watch(() => route.query.view, (v) => {
   view.value = v === 'crashes' ? 'crashes' : 'logs'
 })
 
-// --- Filters -----------------------------------------------------------------
-// `level` is a MINIMUM threshold: Warning returns Warning + Error + Critical.
-// It defaults to Warning (#1415) so the first paint is failures, not a wall of
-// `Information`; an explicit `?level=` (including `?level=all`) still wins.
-const level = ref<'all' | LogLevel>(parseLevelQuery(route.query.level))
-// Named ops event (exact match); the option list comes from the response's
-// static `eventTypes` catalog.
-const eventType = ref<string>(ALL)
-// Producing process ("Api"/"Ingestor"); catalog rides on the response.
-const process = ref<string>(ALL)
-// True keeps only rows carrying a formatted exception.
-const exceptionsOnly = ref(false)
-const category = ref('')
-// Relative window -> ISO `since`. "All" omits the param.
-const sinceWindow = ref<SinceWindow>(ALL)
-// Raw search input; debounced before it hits the query so typing doesn't fire a
-// request per keystroke.
-const searchInput = ref('')
-const search = refDebounced(searchInput, 300)
-
-const page = ref(1)
-const pageSize = 50
-
-const levelItems = [
-  { label: 'All levels', value: ALL },
-  ...LOG_LEVELS.map(name => ({ label: name, value: name })),
-]
-
-// Selecting a level rewrites `?level=` so the current view is always a shareable
-// link — and so a reload doesn't silently snap back to the default.
-watch(level, (value) => {
-  router.replace({
-    query: {
-      ...route.query,
-      level: value === DEFAULT_LOG_LEVEL ? undefined : value,
-    },
-  })
-})
-
-function showAllLevels() {
-  level.value = ALL
-}
-
-const filters = computed(() => ({
-  level: level.value === ALL ? undefined : level.value,
-  category: category.value.trim() || undefined,
-  since: sinceWindow.value === ALL
-    ? undefined
-    : sinceToIso(sinceWindow.value),
-  search: search.value.trim() || undefined,
-  eventType: eventType.value === ALL ? undefined : eventType.value,
-  process: process.value === ALL ? undefined : process.value,
-  hasException: exceptionsOnly.value || undefined,
-  page: page.value,
-  pageSize,
-}))
-
-const hasActiveFilters = computed(() =>
-  Boolean(
-    level.value !== DEFAULT_LOG_LEVEL
-    || eventType.value !== ALL
-    || process.value !== ALL
-    || exceptionsOnly.value
-    || category.value.trim()
-    || sinceWindow.value !== ALL
-    || searchInput.value.trim(),
-  ),
-)
-// "Clear" returns to the page's default view (Warning and above), not to a
-// filterless one — the errors-first default is the resting state.
-function resetFilters() {
-  level.value = DEFAULT_LOG_LEVEL
-  eventType.value = ALL
-  process.value = ALL
-  exceptionsOnly.value = false
-  category.value = ''
-  sinceWindow.value = ALL
-  searchInput.value = ''
-}
-
-const { data, pending, error, refresh } = useLogs(filters)
-
-const entries = computed(() => data.value?.entries ?? [])
-const total = computed(() => data.value?.total ?? 0)
-// The page the server actually served (its clamp wins over our optimistic ref).
-const serverPage = computed(() => data.value?.page ?? page.value)
-const serverPageSize = computed(() => data.value?.pageSize ?? pageSize)
-
-// Event filter options: the response carries the backend's static catalog of
-// known event names on every page, so no extra request (or Mongo distinct) is
-// needed. Empty until the first response lands.
-const eventItems = computed(() => [
-  { label: 'All events', value: ALL },
-  ...(data.value?.eventTypes ?? []).map(name => ({ label: name, value: name })),
-])
-
-// Process filter options — same static-catalog-on-response pattern as events.
-const processItems = computed(() => [
-  { label: 'All processes', value: ALL },
-  ...(data.value?.processes ?? []).map(name => ({ label: name, value: name })),
-])
-
-// Any filter change must reset to the first page — otherwise a narrower filter
-// could leave us stranded on a now-out-of-range page. `search` (debounced) is
-// watched rather than the raw input so the reset lands with the actual query.
-watch([level, eventType, process, exceptionsOnly, category, sinceWindow, search], () => {
-  page.value = 1
-})
-
-// --- Row selection (#722) ------------------------------------------------------
-// Checkbox multi-select keyed by entry id (`get-row-id`), so the selection maps
-// straight back to entries. Cleared whenever the visible set changes (filter or
-// page) — a hidden selection would silently ride into the copied JSON.
-const rowSelection = ref<Record<string, boolean>>({})
-watch([filters], () => {
-  rowSelection.value = {}
-})
-
-const selectedEntries = computed(() =>
-  entries.value.filter(entry => rowSelection.value[String(entry.id)]))
-// Full entries, pretty-printed — not the truncated table cells.
-const selectionJson = computed(() => JSON.stringify(selectedEntries.value, null, 2))
-
-// --- Table -------------------------------------------------------------------
-const columns: TableColumn<LogEntry>[] = [
-  {
-    id: 'select',
-    header: ({ table }) =>
-      h(UCheckbox, {
-        'modelValue': table.getIsSomePageRowsSelected()
-          ? 'indeterminate'
-          : table.getIsAllPageRowsSelected(),
-        'onUpdate:modelValue': (value: unknown) =>
-          table.toggleAllPageRowsSelected(!!value),
-        'aria-label': 'Select all rows',
-      }),
-    cell: ({ row }) =>
-      h(UCheckbox, {
-        'modelValue': row.getIsSelected(),
-        'onUpdate:modelValue': (value: unknown) =>
-          row.toggleSelected(!!value),
-        // The row itself opens the detail slide-over on click; the checkbox
-        // must not bubble into that.
-        'onClick': (event: Event) => event.stopPropagation(),
-        'aria-label': 'Select row',
-      }),
-  },
-  {
-    accessorKey: 'timestampUtc',
-    header: 'Time',
-  },
-  {
-    accessorKey: 'level',
-    header: 'Level',
-  },
-  {
-    accessorKey: 'eventType',
-    header: 'Event',
-  },
-  {
-    accessorKey: 'category',
-    header: 'Category',
-  },
-  {
-    accessorKey: 'message',
-    header: 'Message',
-  },
-  {
-    accessorKey: 'processName',
-    header: 'Process',
-  },
-]
-
-// Tint Error/Critical rows so failures stand out while scanning.
-const tableMeta = {
-  class: {
-    tr: (row: { original: LogEntry }) =>
-      row.original.level === 'Error' || row.original.level === 'Critical'
-        ? 'bg-error/5'
-        : '',
-  },
-}
+const {
+  level,
+  eventType,
+  process,
+  exceptionsOnly,
+  category,
+  sinceWindow,
+  searchInput,
+  page,
+  levelItems,
+  eventItems,
+  processItems,
+  showAllLevels,
+  hasActiveFilters,
+  resetFilters,
+  pending,
+  error,
+  refresh,
+  entries,
+  total,
+  serverPage,
+  serverPageSize,
+  rowSelection,
+  selectedEntries,
+  selectionJson,
+} = useLogsList()
 
 // --- Detail slide-over -------------------------------------------------------
 const detailOpen = ref(false)
@@ -348,105 +186,17 @@ function openDetail(entry: LogEntry) {
           Showing <span class="font-medium">{{ level }}</span> and above.
         </p>
 
-        <UCard :ui="{ body: 'p-0 sm:p-0' }">
-          <template #header>
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-sm font-medium text-highlighted">
-                Log entries
-              </p>
-              <div class="flex items-center gap-2">
-                <CopyButton
-                  v-if="selectedEntries.length"
-                  :text="selectionJson"
-                  :label="`Copy JSON (${selectedEntries.length})`"
-                />
-                <UBadge
-                  v-if="!pending"
-                  color="neutral"
-                  variant="subtle"
-                  :label="`${total.toLocaleString('en-US')} ${total === 1 ? 'entry' : 'entries'}`"
-                />
-              </div>
-            </div>
-          </template>
-
-          <UTable
-            v-model:row-selection="rowSelection"
-            :data="entries"
-            :columns="columns"
-            :meta="tableMeta"
-            :get-row-id="row => String(row.id)"
-            :loading="pending"
-            loading-color="primary"
-            :ui="{ td: 'py-2', tr: 'cursor-pointer' }"
-            @select="(_event, row) => openDetail(row.original)"
-          >
-            <template #timestampUtc-cell="{ row }">
-              <span class="text-muted whitespace-nowrap tabular-nums">
-                {{ formatDateTime(row.original.timestampUtc) }}
-              </span>
-            </template>
-            <template #level-cell="{ row }">
-              <UBadge
-                :color="levelColor(row.original.level)"
-                :icon="levelIcon(row.original.level)"
-                variant="subtle"
-                size="sm"
-                :label="row.original.level"
-              />
-            </template>
-            <template #eventType-cell="{ row }">
-              <UBadge
-                v-if="row.original.eventType"
-                color="primary"
-                variant="subtle"
-                size="sm"
-                :label="row.original.eventType"
-              />
-              <span v-else class="text-dimmed text-xs">—</span>
-            </template>
-            <template #category-cell="{ row }">
-              <span
-                class="font-mono text-xs text-muted line-clamp-1 max-w-[16rem]"
-                :title="row.original.category"
-              >
-                {{ row.original.category }}
-              </span>
-            </template>
-            <template #message-cell="{ row }">
-              <span
-                class="font-mono text-xs line-clamp-1 max-w-[32rem]"
-                :title="row.original.message"
-              >
-                {{ row.original.message }}
-              </span>
-            </template>
-            <template #processName-cell="{ row }">
-              <span class="text-muted font-mono text-xs whitespace-nowrap">
-                {{ row.original.processName ?? '—' }}
-              </span>
-            </template>
-
-            <template #empty>
-              <div class="py-10 flex flex-col items-center gap-3">
-                <p class="text-sm text-muted">
-                  No log entries match these filters.
-                </p>
-                <!-- Nothing at this severity is good news, but the operator
-                     still has to be able to see the quiet rows in one click. -->
-                <UButton
-                  v-if="level !== ALL"
-                  icon="i-lucide-list"
-                  color="neutral"
-                  variant="subtle"
-                  size="sm"
-                  label="Show all levels"
-                  @click="showAllLevels"
-                />
-              </div>
-            </template>
-          </UTable>
-        </UCard>
+        <LogsTable
+          v-model:row-selection="rowSelection"
+          :entries="entries"
+          :pending="pending"
+          :total="total"
+          :level="level"
+          :selected-count="selectedEntries.length"
+          :selection-json="selectionJson"
+          @select="openDetail"
+          @show-all-levels="showAllLevels"
+        />
 
         <!-- Server-side pagination: total/page/pageSize come from the response. -->
         <div

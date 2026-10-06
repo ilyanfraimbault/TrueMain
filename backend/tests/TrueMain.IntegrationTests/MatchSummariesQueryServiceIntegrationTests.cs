@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// positive total (falls through the normal query path).
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class MatchSummariesQueryServiceIntegrationTests
+public sealed class MatchSummariesQueryServiceIntegrationTests : IAsyncLifetime
 {
     private const string NameTag = "TestSummoner-KR1";
 
@@ -28,10 +28,13 @@ public sealed class MatchSummariesQueryServiceIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetAsync_ZeroMatches_ReturnsTheRequestedClampedPage()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
 
         await using var db = _fixture.CreateDbContext();
@@ -46,7 +49,6 @@ public sealed class MatchSummariesQueryServiceIntegrationTests
     [Fact]
     public async Task GetAsync_PageBeyondPositiveTotal_ReturnsTheRequestedClampedPage()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAccountAsync();
         await SeedMatchAsync("MATCH_ONE");
 

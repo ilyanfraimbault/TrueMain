@@ -14,7 +14,7 @@ namespace TrueMain.IntegrationTests;
 /// read time with the situation the posted game sits in.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionNextItemApiIntegrationTests
+public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
 {
     private const int Champion = 266;
     private const string Position = "TOP";
@@ -39,10 +39,13 @@ public sealed class ChampionNextItemApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task NextItem_ServesTheBaseOrder_ForAGameItKnowsNothingAbout()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         var response = await PostAsync(new { position = Position, items = Array.Empty<int>() });
@@ -58,7 +61,6 @@ public sealed class ChampionNextItemApiIntegrationTests
     [Fact]
     public async Task NextItem_ReordersTheCandidates_AgainstAMagicDamageTeam()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         var response = await PostAsync(new
@@ -80,7 +82,6 @@ public sealed class ChampionNextItemApiIntegrationTests
     [Fact]
     public async Task NextItem_WalksTheBuildAndDropsTheBootsOnceHeld()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         var response = await PostAsync(new { position = Position, items = new[] { 1055, Armor, Ninja } });
@@ -93,7 +94,6 @@ public sealed class ChampionNextItemApiIntegrationTests
     [Fact]
     public async Task NextItem_PlacesUnlanedEnemiesAroundTheGivenOnes()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         var response = await PostAsync(new
@@ -111,8 +111,6 @@ public sealed class ChampionNextItemApiIntegrationTests
     [Fact]
     public async Task NextItem_AnswersEmpty_ForAChampionWithNoModel()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var response = await PostAsync(new { position = Position });
 
         response.Patch.Should().BeNull();
@@ -123,8 +121,6 @@ public sealed class ChampionNextItemApiIntegrationTests
     [Fact]
     public async Task NextItem_RequiresALane()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 

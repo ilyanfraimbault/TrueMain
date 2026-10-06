@@ -2,7 +2,7 @@ namespace Core.Lol.Map;
 
 /// <summary>
 /// Infers a single missing lane assignment for a lane-queue team of five: when
-/// exactly one of the five canonical <see cref="QueueDataQualityProfile.LanePositions"/>
+/// exactly one of the five canonical <see cref="LanePositions.All"/>
 /// is absent from the team and exactly one member's <c>TeamPosition</c> is blank or
 /// unrecognised, the pairing is unambiguous — that member must be the missing lane.
 /// Used both to self-heal newly-ingested matches (<c>RiotMatchMapper</c>) and to
@@ -34,7 +34,7 @@ public static class TeamPositionInferrer
         {
             var position = teamPositions[i];
             if (string.IsNullOrEmpty(position)
-                || !QueueDataQualityProfile.LanePositions.Contains(position, StringComparer.OrdinalIgnoreCase))
+                || !LanePositions.All.Contains(position, StringComparer.OrdinalIgnoreCase))
             {
                 unresolvedIndices.Add(i);
             }
@@ -49,7 +49,7 @@ public static class TeamPositionInferrer
             return false;
         }
 
-        var missingPositions = QueueDataQualityProfile.LanePositions
+        var missingPositions = LanePositions.All
             .Where(position => !filledPositions.Contains(position))
             .ToList();
 

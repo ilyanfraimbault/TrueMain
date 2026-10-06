@@ -6,7 +6,6 @@ using Ingestor.Processes;
 using Ingestor.Processes.Components.Coverage;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 

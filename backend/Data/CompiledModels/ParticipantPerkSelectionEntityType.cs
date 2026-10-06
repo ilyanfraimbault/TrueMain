@@ -21,27 +21,18 @@ namespace Data.CompiledModels
                 "Data.Entities.ParticipantPerkSelection",
                 typeof(ParticipantPerkSelection),
                 baseEntityType,
-                propertyCount: 4,
+                propertyCount: 3,
                 navigationCount: 1,
                 foreignKeyCount: 2,
-                unnamedIndexCount: 2,
+                unnamedIndexCount: 1,
                 keyCount: 1);
-
-            var id = runtimeEntityType.AddProperty(
-                "Id",
-                typeof(Guid),
-                propertyInfo: typeof(ParticipantPerkSelection).GetProperty("Id", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(ParticipantPerkSelection).GetField("<Id>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                valueGenerated: ValueGenerated.OnAdd,
-                afterSaveBehavior: PropertySaveBehavior.Throw,
-                sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
-            id.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var matchId = runtimeEntityType.AddProperty(
                 "MatchId",
                 typeof(string),
                 propertyInfo: typeof(ParticipantPerkSelection).GetProperty("MatchId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(ParticipantPerkSelection).GetField("<MatchId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                afterSaveBehavior: PropertySaveBehavior.Throw,
                 maxLength: 32);
             matchId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
@@ -50,6 +41,7 @@ namespace Data.CompiledModels
                 typeof(int),
                 propertyInfo: typeof(ParticipantPerkSelection).GetProperty("ParticipantId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(ParticipantPerkSelection).GetField("<ParticipantId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                afterSaveBehavior: PropertySaveBehavior.Throw,
                 sentinel: 0);
             participantId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
@@ -58,19 +50,16 @@ namespace Data.CompiledModels
                 typeof(int),
                 propertyInfo: typeof(ParticipantPerkSelection).GetProperty("PerkSelectionCatalogId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(ParticipantPerkSelection).GetField("<PerkSelectionCatalogId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                afterSaveBehavior: PropertySaveBehavior.Throw,
                 sentinel: 0);
             perkSelectionCatalogId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var key = runtimeEntityType.AddKey(
-                new[] { id });
+                new[] { matchId, participantId, perkSelectionCatalogId });
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
                 new[] { perkSelectionCatalogId });
-
-            var index0 = runtimeEntityType.AddIndex(
-                new[] { matchId, participantId, perkSelectionCatalogId },
-                unique: true);
 
             return runtimeEntityType;
         }

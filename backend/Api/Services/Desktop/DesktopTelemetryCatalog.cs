@@ -22,6 +22,7 @@ public static partial class DesktopTelemetryCatalog
         "favorites",
         "draft",
         "game",
+        "overlay",
         "recordings",
         "recording",
         "clip",
@@ -40,6 +41,12 @@ public static partial class DesktopTelemetryCatalog
         "gameRecorded",
         // A page of the site the app opened in the browser.
         "siteOpened",
+        // A pick hovered from the app's draft screen, on the player's click.
+        "champSelectHover",
+        // A pick locked in from the app's draft screen.
+        "champSelectLock",
+        // A ban made from the app's draft screen.
+        "champSelectBan",
     ];
 
     private static readonly HashSet<string> PageSet = new(Pages, StringComparer.Ordinal);

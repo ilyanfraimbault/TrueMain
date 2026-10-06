@@ -18,7 +18,7 @@ public sealed class MatchTeamPositionCorrectionProcess(
     ILogger<MatchTeamPositionCorrectionProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory) : IIngestorProcess
 {
-    private static readonly int TeamSize = QueueDataQualityProfile.LanePositions.Count;
+    private static readonly int TeamSize = LanePositions.All.Count;
 
     // Bounds how many ambiguous (match, team) pairs are inspected per run. Once
     // RiotMatchMapper's ingestion-time fix stops new gaps from appearing, this
@@ -33,7 +33,7 @@ public sealed class MatchTeamPositionCorrectionProcess(
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
         // Empty TeamPosition is the only "unresolved" signal Riot's data carries
-        // (mirrors DataQualityQueryService's own check), so this is a small,
+        // (mirrors MatchDataQualityRules' own check), so this is a small,
         // selective subset of an otherwise huge table.
         var candidateTeams = await db.MatchParticipants
             .AsNoTracking()

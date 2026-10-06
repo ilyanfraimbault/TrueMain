@@ -70,6 +70,12 @@ pub enum Feature {
     GameRecorded,
     /// A page of the site opened in the browser.
     SiteOpened,
+    /// A pick hovered from the draft screen, on the player's click (#1909).
+    ChampSelectHover,
+    /// A pick locked in from the draft screen.
+    ChampSelectLock,
+    /// A ban made from the draft screen.
+    ChampSelectBan,
 }
 
 impl Feature {
@@ -80,6 +86,9 @@ impl Feature {
             Feature::OverlayShown => "overlayShown",
             Feature::GameRecorded => "gameRecorded",
             Feature::SiteOpened => "siteOpened",
+            Feature::ChampSelectHover => "champSelectHover",
+            Feature::ChampSelectLock => "champSelectLock",
+            Feature::ChampSelectBan => "champSelectBan",
         }
     }
 }

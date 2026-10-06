@@ -13,6 +13,7 @@
 //! stands in for the client's events, not for a game window to capture.
 
 mod commands;
+pub mod files;
 mod runner;
 mod views;
 
@@ -95,7 +96,6 @@ impl Recorder {
             activity: Mutex::new(Activity::default()),
             phase,
         });
-        recorder.allow_folder(app);
         (recorder, receiver)
     }
 
@@ -141,15 +141,6 @@ impl Recorder {
     pub fn games_budget(&self) -> u64 {
         let clips = self.clips().size_bytes().unwrap_or(0);
         self.settings().budget_bytes.saturating_sub(clips)
-    }
-
-    /// Let the webview load the recordings folder's videos and thumbnails
-    /// through the asset protocol — that folder and nothing else.
-    fn allow_folder(&self, app: &AppHandle) {
-        let folder = self.folder();
-        if let Err(error) = app.asset_protocol_scope().allow_directory(&folder, true) {
-            tracing::warn!(%error, folder = %folder.display(), "recordings folder not readable by the webview");
-        }
     }
 
     /// Whether the app can record, and if not why.

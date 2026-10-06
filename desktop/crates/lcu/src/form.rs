@@ -1,5 +1,6 @@
 //! A player's form, read off their recent games for the loading screen
-//! (#1753): how often they played the champion they are on and how it went,
+//! (#1753) and the Game page (#1828): how often they played the champion they
+//! are on and how it went, the roles they were given, the streak they are on,
 //! and their latest games one by one. Counts only — no composite player
 //! score, which #1671 rules out as an alternative to Riot's ranking.
 
@@ -25,8 +26,26 @@ pub struct PlayerForm {
     /// Of those, the ones on the champion the player is on now.
     pub champion_games: u32,
     pub champion_wins: u32,
+    /// Kills, deaths and assists summed over the games on the champion.
+    pub champion_kills: i64,
+    pub champion_deaths: i64,
+    pub champion_assists: i64,
+    /// The roles the player was given, most played first, over the games of
+    /// a queue that assigns them — what tells a main role from an autofill.
+    pub positions: Vec<PositionGames>,
+    /// The run the latest games make: `3` for three wins in a row, `-2` for
+    /// two losses, `0` with no game read.
+    pub streak: i32,
     /// The latest counted games, newest first, at most `RECENT_GAMES`.
     pub recent: Vec<RecentGame>,
+}
+
+/// How many of a player's games were played in one role.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionGames {
+    pub position: &'static str,
+    pub games: u32,
 }
 
 /// One of a player's latest games, as the loading screen's bar and its
@@ -51,6 +70,7 @@ impl PlayerForm {
     /// list carries the player alone in each game's participants.
     pub fn from_history(history: &MatchHistory, champion_id: i64) -> Self {
         let mut form = Self::default();
+        let mut streak_open = true;
         for game in &history.games.games {
             let Some(me) = counted(game) else {
                 continue;
@@ -59,11 +79,28 @@ impl PlayerForm {
             if me.champion_id == champion_id {
                 form.champion_games += 1;
                 form.champion_wins += u32::from(me.stats.win);
+                form.champion_kills += me.stats.kills;
+                form.champion_deaths += me.stats.deaths;
+                form.champion_assists += me.stats.assists;
+            }
+            let position = game.position_of(me);
+            if let Some(position) = position {
+                match form.positions.iter_mut().find(|p| p.position == position) {
+                    Some(seen) => seen.games += 1,
+                    None => form.positions.push(PositionGames { position, games: 1 }),
+                }
+            }
+            // Newest first: the streak runs until the first game that breaks it.
+            let step = if me.stats.win { 1 } else { -1 };
+            if streak_open && (form.streak == 0 || form.streak.signum() == step) {
+                form.streak += step;
+            } else {
+                streak_open = false;
             }
             if form.recent.len() < RECENT_GAMES {
                 form.recent.push(RecentGame {
                     champion_id: me.champion_id,
-                    position: game.position_of(me),
+                    position,
                     win: me.stats.win,
                     kills: me.stats.kills,
                     deaths: me.stats.deaths,
@@ -72,6 +109,8 @@ impl PlayerForm {
                 });
             }
         }
+        // A stable sort: a tie keeps the role played most recently first.
+        form.positions.sort_by_key(|p| std::cmp::Reverse(p.games));
         form
     }
 }
@@ -159,6 +198,77 @@ mod tests {
         // Blind pick still counts, without a role.
         assert_eq!(form.recent[1].position, None);
         assert_eq!(form.recent[1].champion_id, 7);
+    }
+
+    #[test]
+    fn the_champion_kda_sums_its_games_only() {
+        let mut games = history(&[
+            (420, 103, true, 1800),
+            (420, 7, true, 1700),
+            (420, 103, false, 1600),
+        ]);
+        for (game, (k, d, a)) in
+            games
+                .games
+                .games
+                .iter_mut()
+                .zip([(5, 1, 7), (20, 0, 0), (2, 6, 3)])
+        {
+            let stats = &mut game.participants[0].stats;
+            (stats.kills, stats.deaths, stats.assists) = (k, d, a);
+        }
+        let form = PlayerForm::from_history(&games, 103);
+        assert_eq!(
+            (
+                form.champion_kills,
+                form.champion_deaths,
+                form.champion_assists
+            ),
+            (7, 7, 10)
+        );
+    }
+
+    #[test]
+    fn the_roles_given_most_played_first() {
+        let mut games = history(&[
+            (420, 1, true, 1500),
+            (420, 1, true, 1500),
+            (440, 1, true, 1500),
+            (420, 1, true, 1500),
+            (450, 1, true, 1500),
+        ]);
+        // Slots on blue: 1 top, 2 jungle, 3 mid. The fifth game assigns none.
+        for (game, slot) in games.games.games.iter_mut().zip([3, 2, 3, 3, 1]) {
+            let me = &mut game.participants[0];
+            (me.participant_id, me.team_id) = (slot, 100);
+        }
+        let form = PlayerForm::from_history(&games, 1);
+        assert_eq!(
+            form.positions,
+            [
+                PositionGames {
+                    position: "MIDDLE",
+                    games: 3
+                },
+                PositionGames {
+                    position: "JUNGLE",
+                    games: 1
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn the_streak_runs_from_the_latest_game() {
+        let wins = |pattern: &[bool]| {
+            let games: Vec<(i64, i64, bool, i64)> =
+                pattern.iter().map(|win| (420, 1, *win, 1500)).collect();
+            PlayerForm::from_history(&history(&games), 1).streak
+        };
+        assert_eq!(wins(&[true, true, true, false, true]), 3);
+        assert_eq!(wins(&[false, false, true, false]), -2);
+        assert_eq!(wins(&[true]), 1);
+        assert_eq!(wins(&[]), 0);
     }
 
     #[test]

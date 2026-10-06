@@ -7,7 +7,7 @@ using Ingestor.Riot.Dto;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class AccountUpsertIntegrationTests
+public sealed class AccountUpsertIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
 
@@ -16,10 +16,13 @@ public sealed class AccountUpsertIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task UpsertAsync_ShouldInsertNewRiotAccount_WithEmptyIdentityForAccountRefreshToFill()
     {
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None);
@@ -62,7 +65,6 @@ public sealed class AccountUpsertIntegrationTests
     [Fact]
     public async Task UpsertAsync_ShouldUpdateExistingRiotAccount_PreservingAccountRefreshIdentity()
     {
-        await _fixture.ResetDatabaseAsync();
         var createdAt = DateTime.UtcNow.AddDays(-1);
         var now = DateTime.UtcNow;
 

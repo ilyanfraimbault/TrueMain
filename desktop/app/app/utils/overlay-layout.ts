@@ -1,0 +1,86 @@
+import type { OverlayPanel, OverlayPanelSettings } from '~/types/overlay'
+
+/**
+ * Where the overlay panels sit on the screen, for the layout editor (#1819):
+ * the same rule the shell places their windows by (`OverlaySettings::origin`
+ * in `crates/shell-state/src/overlay.rs`), in screen points.
+ */
+
+export interface Size { width: number, height: number }
+export interface Point { x: number, y: number }
+export interface Box extends Point, Size {}
+
+/** Mirrors `EDGE_MARGIN` and `TOP_MARGIN`. */
+const EDGE_MARGIN = 16
+const TOP_MARGIN = 56
+
+/** Each panel's width, as its window (`pages/overlay/[panel].vue`) and the editor lay it out. */
+export const PANEL_WIDTHS: Record<OverlayPanel, number> = {
+  'next-item': 232,
+  'win-probability': 160,
+  'item-value': 300,
+  'stats': 176,
+}
+
+/**
+ * Each panel's height in a game. A panel's window takes its content's size, so
+ * this is the usual one, not a fixed one: what the editor uses until it has
+ * measured the panel drawn with its sample.
+ */
+const HEIGHTS: Record<OverlayPanel, number> = {
+  'next-item': 60,
+  'win-probability': 48,
+  'item-value': 200,
+  'stats': 84,
+}
+
+/** The screen a browser-only `npm run dev` lays the panels on. */
+const FALLBACK_SCREEN: Size = { width: 1920, height: 1080 }
+
+/** The screen this window is on, in points: the one the game is usually played on. */
+export function currentScreen(): Size {
+  if (typeof window === 'undefined' || !window.screen.width || !window.screen.height) return FALLBACK_SCREEN
+  return { width: window.screen.width, height: window.screen.height }
+}
+
+/** A panel's size on screen, at the overlay's scale: as `measured` unscaled, or the usual one. */
+export function panelSize(panel: OverlayPanel, scale: number, measured?: Size): Size {
+  const size = measured ?? { width: PANEL_WIDTHS[panel], height: HEIGHTS[panel] }
+  return { width: size.width * scale, height: size.height * scale }
+}
+
+/** `value` moved just enough for `[value, value + extent]` to fit `[0, length]`. */
+function clampInto(value: number, length: number, extent: number) {
+  return Math.min(Math.max(value, 0), Math.max(length - extent, 0))
+}
+
+/** A panel's box on `screen`: where it was dragged, or its anchor's spot. */
+export function panelBox(settings: Pick<OverlayPanelSettings, 'anchor' | 'custom'>, size: Size, screen: Size): Box {
+  let x: number
+  let y: number
+  if (settings.custom) {
+    x = settings.custom.x * Math.max(screen.width - size.width, 0)
+    y = settings.custom.y * Math.max(screen.height - size.height, 0)
+  }
+  else {
+    const [row, column] = settings.anchor.split('-') as ['top' | 'center', 'left' | 'center' | 'right']
+    x = column === 'left' ? EDGE_MARGIN : column === 'right' ? screen.width - size.width - EDGE_MARGIN : (screen.width - size.width) / 2
+    y = row === 'top' ? TOP_MARGIN : (screen.height - size.height) / 2
+  }
+  return {
+    x: clampInto(x, screen.width, size.width),
+    y: clampInto(y, screen.height, size.height),
+    ...size,
+  }
+}
+
+/**
+ * The custom position of a panel whose top-left corner is dropped at `origin`:
+ * on each axis, a fraction of the room the screen leaves around the panel — 0
+ * against the left (top) edge, 1 against the right (bottom) one — so a panel
+ * against an edge stays against it whatever size it takes in game.
+ */
+export function customAt(origin: Point, size: Size, screen: Size): Point {
+  const fraction = (value: number, room: number) => (room <= 0 ? 0.5 : Math.round(Math.min(Math.max(value / room, 0), 1) * 10_000) / 10_000)
+  return { x: fraction(origin.x, screen.width - size.width), y: fraction(origin.y, screen.height - size.height) }
+}

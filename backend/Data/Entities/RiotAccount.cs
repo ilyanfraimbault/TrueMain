@@ -70,6 +70,15 @@ public class RiotAccount
     /// </summary>
     public DateTime? LastActivityCheckAtUtc { get; set; }
 
+    /// <summary>
+    /// Start time of the most recent ingested match this account played, stamped by match
+    /// ingestion on the participant write path (#1475). Only stamped on accounts holding a
+    /// main, the only ones <c>MainActivityProcess</c> selects. An account seen in a match
+    /// within <c>MainActivity:InactiveAfterDays</c> is demonstrably still playing, so the
+    /// mastery check skips it until its mastery facts are themselves that old.
+    /// </summary>
+    public DateTime? LastSeenInMatchAtUtc { get; set; }
+
     public MatchIngestStatus MatchIngestStatus { get; set; } = MatchIngestStatus.Idle;
 
     public DateTime? MatchIngestClaimedAtUtc { get; set; }

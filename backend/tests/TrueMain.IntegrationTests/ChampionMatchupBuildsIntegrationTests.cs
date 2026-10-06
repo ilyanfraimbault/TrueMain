@@ -29,7 +29,7 @@ namespace TrueMain.IntegrationTests;
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixture)
+public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
     private const int Champion = 157;
     private const int Opponent = 122;
@@ -39,11 +39,13 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
 
     private readonly PostgresFixture _fixture = fixture;
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetAsync_FoldsOnlyTheGamesAgainstThatOpponent()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Two real games of the matchup, both on the same build.
         await SeedGameAsync("MU_1", win: true, opponentChampionId: Opponent, buildOrder: [3031, 3153]);
         await SeedGameAsync("MU_2", win: false, opponentChampionId: Opponent, buildOrder: [3031, 3153]);
@@ -64,8 +66,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
     [Fact]
     public async Task GetAsync_IgnoresTheOpponentChampionOnTheSameTeam()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // The champion is on this player's own team: an ally, not a matchup. Without the
         // TeamId check the self-join would count it and the page would report a lane
         // matchup that never happened.
@@ -80,8 +80,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
     [Fact]
     public async Task GetAsync_IgnoresTheOpponentChampionInAnotherPosition()
     {
-        await _fixture.ResetDatabaseAsync();
-
         // Enemy team, but not the lane opponent — same champion bottom while ours is mid.
         await SeedGameAsync("MU_OTHERLANE", win: true, opponentChampionId: Opponent, buildOrder: [3031], opponentPosition: "BOTTOM");
 
@@ -94,8 +92,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
     [Fact]
     public async Task GetAsync_ScopesToTheRequestedPatch()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await SeedGameAsync("MU_OLD", win: true, opponentChampionId: Opponent, buildOrder: [3031], gameVersion: "16.3.500.1");
         await SeedGameAsync("MU_NEW", win: true, opponentChampionId: Opponent, buildOrder: [3031], gameVersion: KnownVersion);
 
@@ -116,8 +112,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
     [Fact]
     public async Task GetAsync_ScopesToTheRequestedElo()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await SeedGameAsync("MU_GOLD", win: true, opponentChampionId: Opponent, buildOrder: [3031], eloBracket: "GOLD");
         await SeedGameAsync("MU_IRON", win: true, opponentChampionId: Opponent, buildOrder: [3031], eloBracket: "IRON");
 
@@ -134,8 +128,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
         // matchup's overall newest. Resolving "no patch" against every elo would pick
         // 16.4 for an IRON request, find no IRON rows there, and wrongly report "no data"
         // for an elo that genuinely has games — just on a different patch than GOLD's.
-        await _fixture.ResetDatabaseAsync();
-
         await SeedGameAsync(
             "MU_IRON_OLD", win: true, opponentChampionId: Opponent, buildOrder: [3031],
             eloBracket: "IRON", gameVersion: "16.3.500.1");
@@ -154,8 +146,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
     [Fact]
     public async Task GetAsync_ReturnsNull_WhenTheMatchupHasNoGame()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var result = await CreateService().GetAsync(
             Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
 

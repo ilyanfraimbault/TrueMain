@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Ingestor.Options;
 
 /// <summary>
@@ -12,6 +14,7 @@ public class MainActivityOptions
     public const string SectionName = "MainActivity";
 
     /// <summary>Accounts checked per run. Each one costs exactly one Riot call.</summary>
+    [Range(1, int.MaxValue)]
     public int BatchSize { get; set; } = 200;
 
     /// <summary>
@@ -21,12 +24,14 @@ public class MainActivityOptions
     /// break does not retire a real main — the row comes back on its own, but only after the
     /// player's next check.
     /// </summary>
+    [Range(1, int.MaxValue)]
     public int InactiveAfterDays { get; set; } = 30;
 
     /// <summary>
     /// Minimum delay between two mastery checks of the same account. <c>0</c> re-checks every
     /// account on every run, which only makes sense with a small pool.
     /// </summary>
+    [Range(0, int.MaxValue)]
     public int RecheckAfterHours { get; set; } = 24;
 
     /// <summary>
@@ -41,5 +46,6 @@ public class MainActivityOptions
     /// of the fetch lane.
     /// </para>
     /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "10675199.02:48:05.4775807")]
     public TimeSpan MinRunInterval { get; set; } = TimeSpan.Zero;
 }

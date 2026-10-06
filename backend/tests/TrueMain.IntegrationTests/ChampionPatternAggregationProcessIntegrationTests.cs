@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionPatternAggregationProcessIntegrationTests
+public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLifetime
 {
     private readonly PostgresFixture _fixture;
     private readonly Guid _riotAccountId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -23,10 +23,13 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_ShouldPersistAccountScopedChampionPatternAggregates()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
@@ -67,7 +70,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldReplaceExistingRowsDeterministically()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
@@ -87,7 +89,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldPurgeAggregatesWhenUnqualified_WithTheDefaultPopulation()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
 
         // Default pipeline: mains only (#1346's widening is gated on
@@ -119,7 +120,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldDemoteAggregatesWhenAllSupportingStatsBecomeUnqualified()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
 
         // Demotion is what the *widened* pipeline does. With the flag off (the
@@ -163,7 +163,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_PopulatesGloballyDeduplicatedDimensionRows()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
@@ -196,7 +195,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldKeepAggregatesForPatchesWhoseMatchesWerePurgedByRetention()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
@@ -234,7 +232,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldNotRebuildAFrozenPatchWhenAStragglerMatchArrivesLate()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
 
         // A one-patch window, so 16.5 is unambiguously retired once 16.6 is out: with the
@@ -278,7 +275,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldIgnoreMatchesShorterThanFifteenMinutes()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync(includeShortMatch: true);
 
         var process = CreateProcess();
@@ -296,7 +292,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_ShouldBucketScopesByNearestRankSnapshotTier()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
         await SeedRankSnapshotsBracketingTheGamesAsync();
 
@@ -380,7 +375,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_StoresSecondaryPerksInCanonicalOrder_WhateverTheSelectionOrder()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedChampionPatternDataAsync();
 
         // The pair from the issue — Second Wind (8444) and Overgrowth (8451) — picked in
@@ -444,7 +438,6 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests
 
             db.ParticipantPerkSelections.Add(new ParticipantPerkSelection
             {
-                Id = Guid.NewGuid(),
                 MatchId = matchId,
                 ParticipantId = 1,
                 Catalog = catalog,

@@ -260,13 +260,22 @@ what let it spread to every page that fetched.
   trace: a link copied, a form submitted, a bulk run finished. **Never a page-load failure.** A toast
   disappears, and the message a reader most needs to re-read is the one explaining why a panel is empty.
 
-**The carve-out that was considered and found empty.** The one honest case for a toast on a fetch failure is
-a *refetch* — a filter click that fails while the previous content stays on screen, where the action needs an
-answer and the inline alert may be scrolled out of view. It has no call sites: Nuxt's `useAsyncData` resets
-`data` to `options.default()` in its catch (`asyncData.js`), and every one of these templates renders the
-alert as the head of a `v-if` / `v-else-if` chain — so a failed refetch wipes the content and the alert takes
-its place, initial load and refetch alike. Building the mechanism for zero call sites is how a design system
-starts lying about itself; keeping the old rows on a failed refetch is a separate change, tracked on its own.
+**The refetch carve-out, built in #1668.** The one honest case for a toast on a fetch failure is a
+*refetch* — a filter, sort or pager click that fails while the previous content stays on screen, where the
+action needs an answer and the inline alert may be scrolled out of view. #1661 found it with no call sites
+(Nuxt's `useAsyncData` resets `data` to `options.default()` in its catch, so a failed refetch wiped the content
+and the alert took its place) and left it to #1668. `useRefetchFallback` (`web/layers/common`) now keeps the
+last payload a request *succeeded* with and splits the failure in two: nothing to keep (the first load) →
+`error`, the inline alert, no toast, unchanged; previous payload standing in → `staleError`, reported **once**
+as `useActionToast().failure` plus a muted `StaleContentNotice` ("Couldn't update — showing the previous
+results", with Retry) beside the content — a notice, never a second alert. Wired on `/champions`, the tier list,
+`/champions/[slug]` (and its player-scoped mirror, which shares `useChampion`), `/truemains` and `/matchup`. A
+payload is never kept across its **scope** — the champion a page or a recommendation is about — so another
+champion's build is never drawn under this one's name; inside it, rows fetched under the previous filters are
+kept on purpose, which is the opposite of the admin's same-key `useLastGoodPayload` (#1426). The leaderboard
+composable opts in per consumer (`refetchFailureTitle`): the champion page's Truemains card does not, since its
+"refetch" is another champion. The dev mock has a knob for it: `NUXT_DEV_MOCK_FAIL=<regex>` fails every mocked
+request whose `path?query` (plus a POST body) matches.
 
 **Both apps now have an `error.vue`, and both render inside their own chrome.** Web's replaced a hand-rolled
 centred panel that sat outside `AppHeader` / `AppFooter` — it told a visitor they had left the site. The
@@ -369,3 +378,31 @@ surfaces and the eclipse hero all stay, and Raycast's animated banded backdrop w
 - **Primary buttons stay rose gold.** Raycast's CTAs are neutral light-grey; adopting that would remove the
   accent from the one place it means "act here". Only the keycap edge is borrowed.
 
+
+
+## Nuxt UI only feeds Tailwind the themes of the components the site uses (2026-10-04)
+
+**Decision:** `ui.experimental.componentDetection` is enabled in `web/nuxt.config.ts` — #1641.
+
+- **Why.** By default Nuxt UI adds the theme file of every component it ships (`@source "./ui"`) to Tailwind's
+  sources, so every utility mentioned by a component the site never renders (pricing tables, dashboards, color
+  pickers…) ships in the entry stylesheet that every page downloads. Detection scans the layers' `app/`
+  directories (the site's and `web/layers/common`'s) for `U*` names and keeps only those themes and their
+  dependencies: 39 components today.
+- **The saving, measured** (production `nuxt build`, entry stylesheet, zlib gzip -9 / brotli q11):
+  301,332 → 216,513 B raw (−28 %), 38,944 → 29,514 B gzip (−9.4 KB, −24 %), 30,665 → 23,537 B brotli
+  (−23 %). 763 of 2,563 class selectors disappear, none added. The prose share (#1624) is untouched: with
+  `prose` on, the whole `ui/prose` directory stays a source, and the `Prose*` components the pages use only
+  depend on `ULink`/`UIcon`, both detected.
+- **No visual change, checked three ways** (dev server, `NUXT_DEV_MOCK_API=1`): (1) every class token in the SSR
+  HTML of 13 pages (home, champions, tier list, champion, matchup, truemains, player, player-champion, about,
+  download, privacy, terms, favorites) still has its rule — zero tokens lost to the removed selectors; (2) a
+  computed-style fingerprint of every element after hydration, off vs on, on the main pages plus the open ⌘K
+  palette — the only differences were reload noise of the same size as an off-vs-off run (sub-pixel grid
+  tracks, a hover transition, inherited text properties on `<img>`, Chrome's serialisation of `calc(infinity * 1px)` on `rounded-full`, whose rule
+  is byte-identical in both builds); (3) screenshots of the champion and player pages. A true pixel diff
+  was not possible on this machine (no headless Chromium; Firefox headless hung), hence the style diff.
+- **The one blind spot.** Detection is a text scan, so a Nuxt UI component picked at runtime from a string
+  (`resolveComponent('UModal')`, `:is="'UModal'"`) is not seen and would render unstyled. None exists
+  today; if one is added, pass an array instead of `true` (`componentDetection: ['Modal']`) to force it in.
+  New components written in templates or scripts are picked up by the next build (and by HMR in dev).

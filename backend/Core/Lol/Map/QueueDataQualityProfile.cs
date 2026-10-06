@@ -39,10 +39,6 @@ public sealed record QueueDataQualityProfile
     /// <summary>True when this queue is described (not the unknown fallback).</summary>
     public bool IsKnown { get; init; } = true;
 
-    /// <summary>The five Summoner's Rift lane positions, in canonical order.</summary>
-    public static readonly IReadOnlyList<string> LanePositions =
-        ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-
     /// <summary>The two Summoner's Rift / ARAM team ids.</summary>
     public static readonly IReadOnlyList<int> StandardTeamIds = [100, 200];
 

@@ -173,6 +173,22 @@ public sealed class ChampionsListOptions
     public int MinPlayerMatchupGames { get; set; } = 3;
 
     /// <summary>
+    /// Preferred minimum games a player needs on a champion (at a single patch +
+    /// position) on the player-scoped champion page. The builds read picks the
+    /// most recent patch that clears this floor, so a thin newest patch doesn't
+    /// shadow a meaningful earlier one — a <em>preference only</em>: a champion the
+    /// player has genuinely played still renders a (thin, low-confidence) build
+    /// rather than 404-ing. The performance panel on the same page suppresses its
+    /// averages below this same floor, so the page never calls a sample enough to
+    /// name a build but too few to grade a performance. Five is the smallest
+    /// sample where a dominant build path starts to mean something rather than
+    /// echoing a single game. Must be between 1 and the performance window
+    /// (<c>PlayerChampionPerformanceQueryService.Window</c>), or the panel could
+    /// never publish an average.
+    /// </summary>
+    public int MinPlayerBuildGames { get; set; } = 5;
+
+    /// <summary>
     /// Minimum games each side of the account-vs-mains comparison (#528) needs
     /// before the head-to-head is flagged comparable. Both columns are
     /// player-scoped slices of one champion, so the global

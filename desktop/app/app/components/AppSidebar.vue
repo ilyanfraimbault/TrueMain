@@ -6,17 +6,29 @@ import type { NavigationMenuItem } from '@nuxt/ui'
  * the ones that exist only here — champion select and the running game — and
  * the player at the foot. The gameflow phase still opens those two on its own
  * (`app.vue`); this is how the player gets everywhere else.
+ *
+ * In a narrow window (`useNarrowWindow`) it folds into a rail of icons: each
+ * entry's name in a tooltip, and the "Live" / "Rec" badges as dots on their
+ * icons, their words in the tooltip.
  */
 const route = useRoute()
+const narrow = useNarrowWindow()
 const { screen } = useLcuState()
 const { status: recording } = useRecordings()
 // A downloaded update stays one click away after its toast is gone.
-const { readyVersion: updateVersion, installing: updating, restart: restartToUpdate } = useAppUpdate()
+const { readyVersion: updateVersion, installing: updating, stalled: updateStalled, restart: restartToUpdate } = useAppUpdate()
 
 const isActive = (prefix: string) => route.path === prefix || route.path.startsWith(`${prefix}/`)
 
 const LIVE = { label: 'Live', color: 'primary', variant: 'subtle', size: 'sm' } as const
 const REC = { label: 'Rec', color: 'error', variant: 'subtle', size: 'sm' } as const
+
+/** An entry lit by `badge`: the badge itself in full, a dot on the icon in the rail. */
+function lit(label: string, badge: typeof LIVE | typeof REC, on: boolean): Partial<NavigationMenuItem> {
+  if (!on) return {}
+  if (!narrow.value) return { badge }
+  return { chip: { color: badge.color }, tooltip: { text: `${label} · ${badge.label}` } }
+}
 
 const items = computed<NavigationMenuItem[][]>(() => [
   [
@@ -37,7 +49,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
       active: isActive('/draft'),
       // Lit while the client is in champion select, wherever the player is;
       // the rest of the time the page is a draft to play by hand.
-      badge: screen.value === 'draft' ? LIVE : undefined,
+      ...lit('Champ select', LIVE, screen.value === 'draft'),
     },
     {
       label: 'Game',
@@ -45,8 +57,9 @@ const items = computed<NavigationMenuItem[][]>(() => [
       to: '/game',
       active: isActive('/game'),
       // Lit while a game runs, wherever the player is.
-      badge: screen.value === 'in-game' ? LIVE : undefined,
+      ...lit('Game', LIVE, screen.value === 'in-game'),
     },
+    { label: 'Overlay', icon: 'i-lucide-layers', to: '/overlay', active: route.path === '/overlay' },
     // Only once the shell has answered for recording: a build without it has no page to open.
     ...(recording.value
       ? [{
@@ -55,7 +68,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
           to: '/recordings',
           active: isActive('/recordings'),
           // Lit while a game is being recorded, wherever the player is.
-          badge: recording.value.recordingGameId !== null ? REC : undefined,
+          ...lit('Recordings', REC, recording.value.recordingGameId !== null),
         }]
       : []),
   ],
@@ -71,7 +84,22 @@ onMounted(async () => {
 
 <template>
   <aside class="flex h-full flex-col">
-    <div class="flex flex-col items-start px-5 pb-6 pt-5">
+    <div v-if="narrow" class="flex flex-col items-center gap-3 pb-4 pt-5">
+      <NuxtLink to="/" aria-label="Dashboard">
+        <AppMark class="size-7" />
+      </NuxtLink>
+      <UTooltip v-if="updateVersion" :text="`Update to v${updateVersion}`">
+        <UButton
+          icon="i-lucide-download"
+          size="xs"
+          variant="soft"
+          :aria-label="`Update to v${updateVersion}`"
+          :loading="updating && !updateStalled"
+          @click="restartToUpdate"
+        />
+      </UTooltip>
+    </div>
+    <div v-else class="flex flex-col items-start px-5 pb-6 pt-5">
       <NuxtLink to="/" aria-label="Dashboard">
         <AppWordmark class="text-xl" />
       </NuxtLink>
@@ -83,7 +111,7 @@ onMounted(async () => {
         size="xs"
         variant="soft"
         class="ml-6 mt-2"
-        :loading="updating"
+        :loading="updating && !updateStalled"
         @click="restartToUpdate"
       />
     </div>
@@ -91,16 +119,19 @@ onMounted(async () => {
     <UNavigationMenu
       :items="items"
       orientation="vertical"
+      :collapsed="narrow"
+      tooltip
       highlight
-      class="min-h-0 flex-1 overflow-y-auto px-3"
+      class="min-h-0 flex-1 overflow-y-auto"
+      :class="narrow ? 'px-2' : 'px-3'"
       :ui="{
         label: 'mt-3 px-2.5 pb-1.5 stat-label text-[10px]!',
         link: 'px-2.5 py-2 text-[13px] text-muted hover:text-highlighted data-active:text-highlighted',
         linkLeadingIcon: 'size-[18px]',
-        separator: 'hidden',
+        separator: narrow ? 'my-2' : 'hidden',
       }"
     />
 
-    <AppPlayerCard class="m-3" />
+    <AppPlayerCard :compact="narrow" :class="narrow ? 'mx-auto mb-3' : 'm-3'" />
   </aside>
 </template>

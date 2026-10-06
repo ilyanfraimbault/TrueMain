@@ -1,20 +1,27 @@
 <script setup lang="ts">
 import type { StaticSummonerSpellData } from '#shared/types/static-data'
 import type { GamePlayer } from '~/types/game'
+import type { LoadingPlayer } from '~/types/loading'
 
 /**
- * One player on the board: champion with its level, summoner spells, Riot ID
- * and K/D/A, then the items. The right-hand team is drawn mirrored, so each
- * lane reads as a face-off across the middle. A dead player's portrait goes
- * grey under the seconds left before they are back, counted down on screen
- * from the respawn time the game gave at the death.
+ * One player on the board: champion with its level and summoner spells, then
+ * who they are — standing, role, form on the champion, streak (#1828,
+ * `GamePlayerIntel`). The items and K/D/A are left to the game's own
+ * scoreboard, which shows them already. The right-hand team is drawn
+ * mirrored, so each lane reads as a face-off across the middle. A dead
+ * player's portrait goes grey under the seconds left before they are back,
+ * counted down on screen from the respawn time the game gave at the death.
  */
 const props = withDefaults(defineProps<{
   player: GamePlayer | null
   /** Seconds of game time now, run on the page's clock between readings. */
   clock: number
+  /** The loading screen's line for this player (`loadingLineOf`). */
+  line?: LoadingPlayer | null
+  /** The loading screen is reading the game. */
+  reading?: boolean
   mirrored?: boolean
-}>(), { mirrored: false })
+}>(), { mirrored: false, line: null, reading: false })
 
 const { champions, portraitOf, patch } = useChampionStatics()
 const { summoners, pending } = useStaticData()
@@ -22,10 +29,11 @@ const { summoners, pending } = useStaticData()
 /** Data Dragon ids by alias, without case: the game writes `FiddleSticks` where Data Dragon has `Fiddlesticks`. */
 const byAlias = computed(() => new Map([...champions.value.values()].map(champion => [champion.alias.toLowerCase(), champion.id])))
 
+const championId = computed(() => (props.player ? byAlias.value.get(props.player.champion.toLowerCase()) ?? null : null))
+
 const portrait = computed(() => {
   if (!props.player) return null
-  const id = byAlias.value.get(props.player.champion.toLowerCase())
-  if (id !== undefined) return portraitOf(id)
+  if (championId.value !== null) return portraitOf(championId.value)
   return patch.value ? `https://ddragon.leagueoflegends.com/cdn/${patch.value}/img/champion/${props.player.champion}.png` : null
 })
 
@@ -38,9 +46,6 @@ const spellsByKey = computed(() => {
   }
   return out
 })
-
-const name = computed(() => props.player?.riotId.split('#')[0] ?? '')
-const tag = computed(() => props.player?.riotId.split('#')[1] ?? '')
 
 const respawnIn = computed(() => {
   const at = props.player?.respawnAt
@@ -79,16 +84,14 @@ const respawnIn = computed(() => {
       />
     </div>
 
-    <div class="min-w-0 flex-1 leading-tight" :class="mirrored && 'text-right'">
-      <p class="truncate text-[13px] text-default" :title="player.riotId">
-        {{ name }}<span v-if="tag" class="text-dimmed">#{{ tag }}</span>
-      </p>
-      <p class="mt-0.5 text-xs tabular-nums text-muted">
-        {{ player.kills }}<span class="text-dimmed"> / </span><span class="text-red-400">{{ player.deaths }}</span><span class="text-dimmed"> / </span>{{ player.assists }}
-      </p>
-    </div>
-
-    <GameItemRow :items="player.items" :mirrored="mirrored" />
+    <GamePlayerIntel
+      :riot-id="player.riotId"
+      :position="player.position"
+      :champion-id="championId"
+      :line="line"
+      :reading="reading"
+      :mirrored="mirrored"
+    />
   </div>
 
   <div v-else class="flex h-12 items-center" :class="mirrored && 'justify-end'">

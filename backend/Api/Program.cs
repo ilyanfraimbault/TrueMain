@@ -3,6 +3,8 @@ using Data;
 using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
+using Data.Statics;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
@@ -10,6 +12,7 @@ using TrueMain.LogIngest;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
 using TrueMain.RequestLogging;
+using TrueMain.Services.Benchmarks;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Directory;
@@ -19,6 +22,7 @@ using TrueMain.Services.Champions.Progression;
 using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Draft;
 using TrueMain.Services.Champions.NextItem;
+using TrueMain.Services.Champions.Profiles;
 using TrueMain.Services.Champions.Synergies;
 using TrueMain.Services.Desktop;
 using TrueMain.Services.Ops.Accounts;
@@ -33,6 +37,7 @@ using TrueMain.Services.Ops.Processes;
 using TrueMain.Services.Ops.Stats;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Lookup;
 using TrueMain.Services.Truemains.Matches;
 using TrueMain.Services.Truemains.PlayerChampions;
 using TrueMain.Services.Truemains.Profile;
@@ -66,8 +71,11 @@ var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain
 var healthChecks = builder.Services.AddHealthChecks();
 if (!string.IsNullOrWhiteSpace(healthConnectionString))
 {
+    // Probe through the shared NpgsqlDataSource registered by AddTrueMainData: the
+    // connection-string overload builds a data source of its own, i.e. a second pool
+    // outside the connection budget (#1637).
     healthChecks.AddNpgSql(
-        healthConnectionString,
+        serviceProvider => serviceProvider.GetRequiredService<Npgsql.NpgsqlDataSource>(),
         name: "postgres",
         tags: ["ready"]);
 }
@@ -164,35 +172,7 @@ builder.Services.AddOptions<TruemainsLeaderboardOptions>()
         },
         "TruemainsLeaderboard:MinRankedGames is out of range.")
     .ValidateOnStart();
-builder.Services.AddOptions<ChampionsListOptions>()
-    .Bind(builder.Configuration.GetSection(ChampionsListOptions.SectionName))
-    .Validate(options => options.MinSampleGames >= 0, "ChampionsList:MinSampleGames must be >= 0.")
-    .Validate(options => options.MinBuildSampleGames >= 0, "ChampionsList:MinBuildSampleGames must be >= 0.")
-    .Validate(options => options.MinServablePatchLines >= 0, "ChampionsList:MinServablePatchLines must be >= 0.")
-    .Validate(options => options.MinMatchupGames >= 0, "ChampionsList:MinMatchupGames must be >= 0.")
-    // A share, so out of [0,1) it stops meaning anything: 1 would demand a single
-    // opponent account for every game the champion ever played, which no matchup can.
-    .Validate(
-        options => options.MinMatchupPlayRate is >= 0d and < 1d,
-        "ChampionsList:MinMatchupPlayRate must be in [0, 1).")
-    .Validate(options => options.MinDecidedLaneGames >= 0, "ChampionsList:MinDecidedLaneGames must be >= 0.")
-    // A share, so out of [0,1) it stops meaning anything: 1 would demand a pairing
-    // present in every game the champion ever played, which no pairing is.
-    .Validate(
-        options => options.MinSynergyPlayRate is >= 0d and < 1d,
-        "ChampionsList:MinSynergyPlayRate must be in [0, 1).")
-    // A share too, but 1 is a meaningful setting here: BaselineSet.IsRealLane
-    // divides a champion's games in one lane by its games across all lanes, which
-    // is exactly 1 for a mono-lane champion. So [0, 1], closed on both ends.
-    .Validate(
-        options => options.MinSynergyPartnerLanePlayRate is >= 0d and <= 1d,
-        "ChampionsList:MinSynergyPartnerLanePlayRate must be in [0, 1].")
-    .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
-    .Validate(options => options.MaxLanesPerChampion >= 0, "ChampionsList:MaxLanesPerChampion must be >= 0.")
-    .Validate(
-        options => options.MinSecondaryLanePlayRate is >= 0 and <= 1,
-        "ChampionsList:MinSecondaryLanePlayRate must be a share between 0 and 1.")
-    .ValidateOnStart();
+builder.Services.AddChampionsListOptions(builder.Configuration);
 builder.Services.AddOptions<ChampionTierOptions>()
     .Bind(builder.Configuration.GetSection(ChampionTierOptions.SectionName))
     .Validate(options => options.PickRateWeight >= 0, "ChampionTier:PickRateWeight must be >= 0.")
@@ -309,6 +289,7 @@ builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryS
 builder.Services.AddScoped<IChampionDirectoryQueryService, ChampionDirectoryQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
+builder.Services.AddScoped<IPaceBenchmarkQueryService, PaceBenchmarkQueryService>();
 builder.Services.AddScoped<IChampionItemContextQueryService, ChampionItemContextQueryService>();
 builder.Services.AddScoped<IChampionSynergyQueryService, ChampionSynergyQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
@@ -326,9 +307,20 @@ builder.Services.AddScoped<ICompositionRecommendationQueryService, CompositionRe
 // distribution at all, exactly on the rare picks a guess is most needed for.
 builder.Services.AddScoped<ILanePriorQueryService, LanePriorQueryService>();
 builder.Services.AddScoped<IDraftRecommendationQueryService, DraftRecommendationQueryService>();
+builder.Services.AddScoped<IDraftPatchScopeResolver, DraftPatchScopeResolver>();
+builder.Services.AddScoped<IDraftLaneReader, DraftLaneReader>();
+builder.Services.AddScoped<IDraftEnemyReader, DraftEnemyReader>();
+builder.Services.AddScoped<IDraftBanQueryService, DraftBanQueryService>();
 // The in-game next-item panel (#1749): a lookup in the model the item-context fold
 // derives, combined with the game's situation; reuses the draft's lane priors.
 builder.Services.AddScoped<INextItemQueryService, NextItemQueryService>();
+// The champion damage profiles (#1905) behind the desktop draft's team damage bars:
+// the item-context fold's profile snapshot, plus a Data Dragon class for the champions
+// it does not resolve. The statics provider caches per patch inside the instance, and
+// the whole answer sits in the champion read cache, so Data Dragon is asked once per
+// aggregation cycle at most.
+builder.Services.AddScoped<IChampionDamageProfileQueryService, ChampionDamageProfileQueryService>();
+builder.Services.AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
 // identically. Patch-cached inside the provider, which clocks how long a
@@ -355,7 +347,14 @@ builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
 builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
 builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
 builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
-builder.Services.AddScoped<IPipelineHealthQueryService, PipelineHealthQueryService>();
+builder.Services.AddScoped<ITruemainLookupQueryService, TruemainLookupQueryService>();
+// The cockpit is re-asked every 30 s by every open admin tab (#1411): callers get the cached,
+// single-flighted payload, and only the decorator reaches the evaluation itself (#1427).
+builder.Services.AddScoped<PipelineHealthQueryService>();
+builder.Services.AddScoped<IPipelineHealthQueryService>(services => new CachedPipelineHealthQueryService(
+    services.GetRequiredService<PipelineHealthQueryService>(),
+    services.GetRequiredService<IMemoryCache>()));
+builder.Services.AddScoped<IRegionBalanceQueryService, RegionBalanceQueryService>();
 builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
 builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
 builder.Services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQueryService>();
@@ -367,7 +366,9 @@ builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQuer
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
 builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
-builder.Services.AddScoped<IDataQualityQueryService, DataQualityQueryService>();
+builder.Services.AddScoped<IRiotQuotaQueryService, RiotQuotaQueryService>();
+builder.Services.AddScoped<IIncompleteMatchesQueryService, IncompleteMatchesQueryService>();
+builder.Services.AddScoped<IMatchDataQualityDetailQueryService, MatchDataQualityDetailQueryService>();
 builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService>();
 builder.Services.AddScoped<IEffectiveConfigurationQueryService, EffectiveConfigurationQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
@@ -386,6 +387,10 @@ builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryS
 // same call, the scoped TrueMainDbContext for the common request-scoped
 // injection. Both share the one NpgsqlDataSource built inside the extension.
 builder.Services.AddTrueMainData(builder.Configuration);
+// Startup migrations run as a hosted service (#258); the web server only starts listening
+// once every hosted service has started, so no request reaches a stale schema. Gated on
+// Database:ApplyMigrationsOnStartup, which prod and preprod keep disabled.
+builder.Services.AddDatabaseMigrationsOnStartup();
 
 // Persist Warning+ logs to MongoDB (see Data/Logging/Mongo) so the /ops/logs
 // admin endpoint can serve them, and expose the lossless operator-action audit
@@ -477,7 +482,6 @@ app.MapControllers();
 var crashReporter = app.Services.GetRequiredService<ICrashReporter>();
 try
 {
-    await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services);
     app.Run();
 }
 catch (Microsoft.Extensions.Hosting.HostAbortedException)

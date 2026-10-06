@@ -1,0 +1,47 @@
+# Severities for the third-party analyzers referenced in Directory.Build.props (#294).
+# A global config rather than the root .editorconfig: the Docker images build from
+# backend/ alone and never see the repository root, so a severity kept there would hold
+# in CI's solution build and not in the image build. Path-scoped overrides (tests) stay
+# in the root .editorconfig, which takes precedence over this file.
+# Rationale per rule: .claude/docs/decisions/backend-conventions.md.
+is_global = true
+
+# Microsoft.VisualStudio.Threading.Analyzers
+# Every VSTHRD rule keeps its shipped severity (warning, hence error in CI) unless listed
+# here: sync-over-async (VSTHRD002), async void (VSTHRD100/101), unobserved tasks
+# (VSTHRD110), null returned for a Task (VSTHRD114), the Async suffix (VSTHRD200)...
+# The rules below either guard JoinableTaskFactory / UI-thread deadlocks that cannot
+# happen in a server with no SynchronizationContext, or misfire on calls whose async
+# twin is not the right one.
+
+# Awaiting a task started elsewhere: a JTF-only deadlock.
+dotnet_diagnostic.VSTHRD003.severity = none
+# Lazy<Task<T>>: a JTF-only deadlock; the three caches using it already evict faults.
+dotnet_diagnostic.VSTHRD011.severity = none
+# 590 of 594 findings were DbSet.Add/AddRange (AddAsync only matters for async value
+# generators) and Mongo's fluent Aggregate() builder, which does no I/O.
+dotnet_diagnostic.VSTHRD103.severity = suggestion
+
+# Roslynator.Analyzers
+# The catalog stays at its shipped info/hidden severities: IDE hints that never fail the
+# build. The few rules it ships as warnings are kept. The rules below catch real defects
+# and are promoted to warning (error in CI).
+
+# throw ex; loses the stack trace
+dotnet_diagnostic.RCS1044.severity = warning
+# lock on a publicly accessible instance
+dotnet_diagnostic.RCS1059.severity = warning
+# empty catch (Exception)
+dotnet_diagnostic.RCS1075.severity = warning
+# (x as T).Member: NullReferenceException instead of a cast error
+dotnet_diagnostic.RCS1202.severity = warning
+# return null; from a Task-returning method: NRE at the await
+dotnet_diagnostic.RCS1210.severity = warning
+# expression always true / false
+dotnet_diagnostic.RCS1215.severity = warning
+# task returned from inside a using: the resource is disposed before the task ends
+dotnet_diagnostic.RCS1229.severity = warning
+# duplicate enum value
+dotnet_diagnostic.RCS1234.severity = warning
+# IAsyncDisposable disposed synchronously
+dotnet_diagnostic.RCS1261.severity = warning

@@ -12,9 +12,15 @@ namespace TrueMain.TestKit;
 /// Spawns a throwaway Postgres container, runs the migrations once, and
 /// hands out <see cref="TrueMainDbContext"/> instances bound to it. Shared
 /// across the whole integration test assembly via an xUnit collection fixture,
-/// so a single container is started once and reused; tests reset data between
-/// runs with <see cref="ResetDatabaseAsync"/>.
+/// so a single container is started once and reused; every test class resets the
+/// data in its <c>IAsyncLifetime.InitializeAsync</c> with <see cref="ResetDatabaseAsync"/>,
+/// so no test can start from rows an earlier one left behind.
 /// </summary>
+/// <remarks>
+/// The schema itself is never recreated mid-suite: a test that has to drive the
+/// migrator (migrate to an intermediate point, seed, migrate the rest) does it on a
+/// <see cref="CreateScratchDatabase">scratch database</see> of its own instead.
+/// </remarks>
 public sealed class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17.2")
@@ -44,7 +50,7 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public string ConnectionString => _container.GetConnectionString();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _container.StartAsync();
         _dataSource = CreateDataSource();
@@ -52,7 +58,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         await db.Database.MigrateAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_dataSource is not null)
         {
@@ -71,6 +77,12 @@ public sealed class PostgresFixture : IAsyncLifetime
 
         return new TrueMainDbContext(options);
     }
+
+    /// <summary>
+    /// A separate, initially absent database on this container, for a test that replays
+    /// the migrations itself. Dispose it to drop it.
+    /// </summary>
+    public ScratchDatabase CreateScratchDatabase() => new(ConnectionString);
 
     public async Task ResetDatabaseAsync()
     {

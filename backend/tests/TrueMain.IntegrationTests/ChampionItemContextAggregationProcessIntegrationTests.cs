@@ -25,7 +25,7 @@ namespace TrueMain.IntegrationTests;
 /// other half, and it completes the magic-resist item in exactly the first half.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class ChampionItemContextAggregationProcessIntegrationTests
+public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsyncLifetime
 {
     private const int QueueId = 420;
     private const string Version = "16.4.521.123";
@@ -50,10 +50,13 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_CountsEachItemInTheBucketOfItsGame_AndOnlyOnWhitelistedAxes()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync(magicGames: 12, physicalGames: 12);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -107,7 +110,6 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_WritesTheVerdictThePageReads()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync(magicGames: 12, physicalGames: 12);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -148,7 +150,6 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_IsANoOpOnASecondRun()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync(magicGames: 12, physicalGames: 12);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);
@@ -169,7 +170,6 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
         // decides which patch becomes readable first, and a re-grain of this aggregate puts
         // the whole corpus back in the queue (#1514). Draining oldest-first rebuilt the
         // patches nobody reads before the one the site serves.
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync(magicGames: 6, physicalGames: 6, seedProfiles: false);
 
         await using (var db = _fixture.CreateDbContext())
@@ -198,7 +198,6 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests
     [Fact]
     public async Task RunAsync_FoldsNothingForAChampionItHasNoProfilesFor()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync(magicGames: 12, physicalGames: 12, seedProfiles: false);
 
         await CreateProcess().RunCoreAsync(CancellationToken.None);

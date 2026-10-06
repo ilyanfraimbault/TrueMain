@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("964de515-5a04-472c-988a-344831ab4932"), entityTypeCount: 32)
+            : base(skipDetectChanges: false, modelId: new Guid("e7100d80-1b32-4a08-8043-cad5dce9b95a"), entityTypeCount: 38)
         {
         }
 
@@ -22,6 +22,7 @@ namespace Data.CompiledModels
             var championAggregatePattern = ChampionAggregatePatternEntityType.Create(this);
             var championAggregateScope = ChampionAggregateScopeEntityType.Create(this);
             var championBanStat = ChampionBanStatEntityType.Create(this);
+            var championDamageProfileStat = ChampionDamageProfileStatEntityType.Create(this);
             var championDimBuild = ChampionDimBuildEntityType.Create(this);
             var championDimRunePage = ChampionDimRunePageEntityType.Create(this);
             var championDimSkillOrder = ChampionDimSkillOrderEntityType.Create(this);
@@ -32,6 +33,8 @@ namespace Data.CompiledModels
             var championItemContextVerdict = ChampionItemContextVerdictEntityType.Create(this);
             var championMatchupStat = ChampionMatchupStatEntityType.Create(this);
             var championNextItemTerm = ChampionNextItemTermEntityType.Create(this);
+            var championOpponentBaselineStat = ChampionOpponentBaselineStatEntityType.Create(this);
+            var championOpponentStat = ChampionOpponentStatEntityType.Create(this);
             var championProfileStat = ChampionProfileStatEntityType.Create(this);
             var championSynergyBaselineStat = ChampionSynergyBaselineStatEntityType.Create(this);
             var championSynergyStat = ChampionSynergyStatEntityType.Create(this);
@@ -43,6 +46,9 @@ namespace Data.CompiledModels
             var matchBan = MatchBanEntityType.Create(this);
             var matchParticipant = MatchParticipantEntityType.Create(this);
             var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
+            var matchWinProbability = MatchWinProbabilityEntityType.Create(this);
+            var paceBenchmarkStat = PaceBenchmarkStatEntityType.Create(this);
+            var paceSampledMatch = PaceSampledMatchEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
             var persona = PersonaEntityType.Create(this);
@@ -62,6 +68,7 @@ namespace Data.CompiledModels
             MatchParticipantEntityType.CreateForeignKey1(matchParticipant, match);
             MatchParticipantEntityType.CreateForeignKey2(matchParticipant, riotAccount);
             MatchParticipantTimelineSnapshotEntityType.CreateForeignKey1(matchParticipantTimelineSnapshot, match);
+            MatchWinProbabilityEntityType.CreateForeignKey1(matchWinProbability, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey1(participantPerkSelection, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey2(participantPerkSelection, perkSelectionCatalog);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
@@ -71,6 +78,7 @@ namespace Data.CompiledModels
             ChampionAggregatePatternEntityType.CreateAnnotations(championAggregatePattern);
             ChampionAggregateScopeEntityType.CreateAnnotations(championAggregateScope);
             ChampionBanStatEntityType.CreateAnnotations(championBanStat);
+            ChampionDamageProfileStatEntityType.CreateAnnotations(championDamageProfileStat);
             ChampionDimBuildEntityType.CreateAnnotations(championDimBuild);
             ChampionDimRunePageEntityType.CreateAnnotations(championDimRunePage);
             ChampionDimSkillOrderEntityType.CreateAnnotations(championDimSkillOrder);
@@ -81,6 +89,8 @@ namespace Data.CompiledModels
             ChampionItemContextVerdictEntityType.CreateAnnotations(championItemContextVerdict);
             ChampionMatchupStatEntityType.CreateAnnotations(championMatchupStat);
             ChampionNextItemTermEntityType.CreateAnnotations(championNextItemTerm);
+            ChampionOpponentBaselineStatEntityType.CreateAnnotations(championOpponentBaselineStat);
+            ChampionOpponentStatEntityType.CreateAnnotations(championOpponentStat);
             ChampionProfileStatEntityType.CreateAnnotations(championProfileStat);
             ChampionSynergyBaselineStatEntityType.CreateAnnotations(championSynergyBaselineStat);
             ChampionSynergyStatEntityType.CreateAnnotations(championSynergyStat);
@@ -92,6 +102,9 @@ namespace Data.CompiledModels
             MatchBanEntityType.CreateAnnotations(matchBan);
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
             MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);
+            MatchWinProbabilityEntityType.CreateAnnotations(matchWinProbability);
+            PaceBenchmarkStatEntityType.CreateAnnotations(paceBenchmarkStat);
+            PaceSampledMatchEntityType.CreateAnnotations(paceSampledMatch);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
             PersonaEntityType.CreateAnnotations(persona);

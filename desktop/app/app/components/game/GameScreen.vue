@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import type { GamePlayer, GameState, GameTeam } from '~/types/game'
+import type { LoadingPlayer } from '~/types/loading'
 import { LANE_LABELS, laneIconUrl } from '~/types/draft'
 import { laneRows, leftTeam } from '~/utils/item-value'
+import { loadingLineOf } from '~/utils/player-intel'
 
 /**
  * The running game, read through its own API (#1748): the ten players, lane
  * by lane, ours on the left and theirs mirrored on the right, each with their
- * level, summoner spells, K/D/A and items as they buy them. The strip over it
+ * level and summoner spells, and who they are — standing, role, form on the
+ * champion, streak — from what the loading screen read through the client
+ * (#1828), and between them the side the lane favours (#1863). Items and
+ * K/D/A are the game's own scoreboard's. The strip over it
  * carries the map, the kills of each side and the game clock.
  *
  * This is the frame the in-game panels of #1747 land in: over the board, the
@@ -16,6 +21,8 @@ const props = defineProps<{
   game: GameState
   /** When `game.gameTime` was read, on this page's clock. */
   syncedAt: number
+  /** The loading screen's players (`useLoadingPlayers`); empty until the roster is read. */
+  lines?: LoadingPlayer[]
 }>()
 
 // ─── The clock ──────────────────────────────────────────────────────────────
@@ -48,11 +55,27 @@ const mapName = computed(() => MAPS[props.game.mapNumber] ?? 'Live game')
 const left = computed<GameTeam>(() => leftTeam(props.game))
 const right = computed<GameTeam>(() => (left.value === 'ORDER' ? 'CHAOS' : 'ORDER'))
 
+const { champions } = useChampionStatics()
+/** Data Dragon ids by alias, without case, as `GamePlayerSide` reads them. */
+const idOfAlias = computed(() => new Map([...champions.value.values()].map(champion => [champion.alias.toLowerCase(), champion.id])))
+const lineOf = (player: GamePlayer | null) =>
+  player ? loadingLineOf(player, props.lines ?? [], alias => idOfAlias.value.get(alias.toLowerCase())) : null
+const reading = computed(() => (props.lines?.length ?? 0) > 0)
+/** Each lane's edge, by position (#1863). */
+const edges = useLaneEdges(() => props.lines ?? [])
+
 /** Lane by lane, so each row is a lane's face-off (`utils/item-value.ts`, shared with the overlay). */
 const rows = computed(() => {
   return laneRows(props.game).map(({ ally, enemy }) => {
     const lane = [ally?.position, enemy?.position].find(position => position && position in LANE_LABELS) ?? null
-    return { ally, enemy, lane: lane as keyof typeof LANE_LABELS | null, key: `${ally?.riotId}-${enemy?.riotId}` }
+    return {
+      ally,
+      enemy,
+      allyLine: lineOf(ally),
+      enemyLine: lineOf(enemy),
+      lane: lane as keyof typeof LANE_LABELS | null,
+      key: `${ally?.riotId}-${enemy?.riotId}`,
+    }
   })
 })
 
@@ -90,7 +113,7 @@ const sideLabel = (team: GameTeam, ours: boolean) => {
     <GameNextItem v-if="game.myTeam" :game="game" />
 
     <section class="surface overflow-hidden rounded-xl">
-      <div class="grid grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] items-center gap-3 border-b border-default px-4 py-2">
+      <div class="grid grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center gap-3 border-b border-default px-4 py-2">
         <div class="flex items-center gap-2">
           <span class="h-3 w-0.5 rounded-full bg-ally/70" />
           <span class="stat-label">{{ sideLabel(left, true) }}</span>
@@ -106,21 +129,27 @@ const sideLabel = (team: GameTeam, ours: boolean) => {
         <li
           v-for="row in rows"
           :key="row.key"
-          class="grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)] items-center gap-3 px-4 py-2.5"
+          class="grid min-h-[5.75rem] grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center gap-3 px-4 py-2.5"
         >
           <GamePlayerSide
             :player="row.ally"
             :clock="clock"
-            class="-mx-2 rounded-lg px-2 py-1"
+            :line="row.allyLine"
+            :reading="reading"
+            class="-mx-2 rounded-lg px-2 py-1.5"
+            :class="row.ally?.isMe && 'bg-primary/5 ring-1 ring-primary/15'"
           />
-          <div class="flex justify-center">
-            <img v-if="row.lane" :src="laneIconUrl(row.lane)" :alt="LANE_LABELS[row.lane]" :title="LANE_LABELS[row.lane]" class="size-5 opacity-70">
+          <div class="flex flex-col items-center gap-1.5">
+            <img v-if="row.lane" :src="laneIconUrl(row.lane)" :alt="LANE_LABELS[row.lane]" :title="LANE_LABELS[row.lane]" class="size-4 opacity-60">
+            <GameLaneEdge v-if="row.lane" :edge="edges.get(row.lane)" />
           </div>
           <GamePlayerSide
             :player="row.enemy"
             :clock="clock"
+            :line="row.enemyLine"
+            :reading="reading"
             mirrored
-            class="-mx-2 rounded-lg px-2 py-1"
+            class="-mx-2 rounded-lg px-2 py-1.5"
           />
         </li>
       </ul>

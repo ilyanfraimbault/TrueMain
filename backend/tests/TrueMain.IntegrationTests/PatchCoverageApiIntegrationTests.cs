@@ -27,7 +27,7 @@ namespace TrueMain.IntegrationTests;
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
+public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
 
@@ -35,6 +35,10 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
     private const int Floor = 10;
 
     private readonly PostgresFixture _fixture = fixture;
+
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task GetPatchCoverage_SeparatesAnUnaggregatedPatchFromAThinOne()
@@ -206,8 +210,6 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
     [Fact]
     public async Task GetPatchCoverage_ReportsUnknown_OnAnEmptyCorpus()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
@@ -223,8 +225,6 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
     [Fact]
     public async Task GetPatchCoverage_RejectsAnUnauthenticatedCaller()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -240,7 +240,6 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture)
 
     private async Task<PatchCoverageContract> LoadAsync()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);

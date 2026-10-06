@@ -13,6 +13,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<Persona> Personas => Set<Persona>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
     public DbSet<MatchParticipantTimelineSnapshot> MatchParticipantTimelineSnapshots => Set<MatchParticipantTimelineSnapshot>();
+    public DbSet<MatchWinProbability> MatchWinProbabilities => Set<MatchWinProbability>();
     public DbSet<MatchBan> MatchBans => Set<MatchBan>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
     public DbSet<PerkSelectionCatalog> PerkSelectionCatalogs => Set<PerkSelectionCatalog>();
@@ -35,6 +36,10 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionSynergyStat> ChampionSynergyStats => Set<ChampionSynergyStat>();
     public DbSet<ChampionSynergyBaselineStat> ChampionSynergyBaselineStats => Set<ChampionSynergyBaselineStat>();
 
+    // The opposing-pair twin of the two above (#1713), populated by ChampionOpponentAggregationProcess.
+    public DbSet<ChampionOpponentStat> ChampionOpponentStats => Set<ChampionOpponentStat>();
+    public DbSet<ChampionOpponentBaselineStat> ChampionOpponentBaselineStats => Set<ChampionOpponentBaselineStat>();
+
     // Champion ban counts and the match totals they are divided by (#920), both
     // populated by ChampionBanAggregationProcess in one fold so a ban rate is
     // always numerator and denominator over the same cohort of matches.
@@ -47,6 +52,11 @@ public class TrueMainDbContext : DbContext
     // by ChampionProfileAggregationProcess over the full participant pool; read by the
     // situational item fold (#1450) to qualify a draft.
     public DbSet<ChampionProfileStat> ChampionProfileStats => Set<ChampionProfileStat>();
+
+    // Damage profile per build archetype (#1905): the same damage sums as the profile,
+    // split by the archetype the final inventory leaned on, so a champion that goes both
+    // ways (AD/AP Kai'Sa) can be told from a 50/50 one. Folded in the profile's pass.
+    public DbSet<ChampionDamageProfileStat> ChampionDamageProfileStats => Set<ChampionDamageProfileStat>();
 
     // Situational item context (#1450): how often a champion builds each item in games
     // sitting at one end of a draft axis (stats), how many games each bucket held
@@ -61,6 +71,14 @@ public class TrueMainDbContext : DbContext
     // The next-item model (#1749): terms derived from the two counters above beside the
     // verdicts, read by the desktop app's in-game panel through POST champions/{id}/next-item.
     public DbSet<ChampionNextItemTerm> ChampionNextItemTerms => Set<ChampionNextItemTerm>();
+
+    // The desktop overlay's pace benchmark (#1912): per-minute CS and gold-earned
+    // histograms per (patch, tier, position), folded from each timeline in memory at
+    // ingestion by TimelineIngestionService — never a per-minute participant grid.
+    public DbSet<PaceBenchmarkStat> PaceBenchmarkStats => Set<PaceBenchmarkStat>();
+
+    // The low-tier pace sampler's ledger (#1912): matches it folded without storing them.
+    public DbSet<PaceSampledMatch> PaceSampledMatches => Set<PaceSampledMatch>();
 
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 

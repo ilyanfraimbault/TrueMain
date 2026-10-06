@@ -188,6 +188,29 @@ avoidable. Those downloads were most of the production host's inbound traffic.
 
 Source: #1601.
 
+## Riot quota is read per routing host, from route-keyed rollups only, kept 30 days (2026-10-05)
+
+**The admin quota view (`GET /ops/riot-quota`, Riot API tab of `/processes`) reports utilisation per routing
+host — calls over the covered span against the binding window of the `X-App-Rate-Limit` that host returned —
+never one figure for the whole app.** Riot meters each routing value separately, so regional hosts (account-v1,
+match-v5) and platform hosts are independent budgets, shown apart and never added.
+
+- **`route` is part of the `riot_api_call_rollups` key** (with minute, endpoint, status and caller). Before,
+  a rollup credited its whole minute to the last route seen: with match-v5 running on three regional hosts at
+  once, the 24 h view put one regional host above 100 % of its limit with no 429 — an impossible reading.
+- **Only rollups written since the change (`routeKeyed`) are counted per host**; older ones keep feeding the
+  endpoint/caller panels and expire. The coverage starts at the oldest counted rollup and the panel says so,
+  so a window the cutover or the retention cut short never reads as a trend.
+- **Every attempt counts toward a host's utilisation, 429s included**, and a host with no parseable limit
+  header gets no ratio rather than a guessed one.
+- **Rollup retention went from 14 to 30 days**, and a `30d` window (daily bins) joined the tab: a ramp step
+  (#1459) has to be readable against the weeks before it, and 14 days constrained #1457's analysis. Cheap —
+  per-minute rollups are a few tens of MB a month.
+- **Lane duty cycle is the union of a lane's recorded runs clipped to the window**, never their sum, so it
+  cannot exceed 100 %; a run still marked Running ends at its last heartbeat.
+
+Source: #1458, #1457, #1460.
+
 ## A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04)
 
 `LadderSync:MaxRequestsPerRun` (#1313) and `MainActivity:BatchSize` (#900) bounded a *run*. Nothing bounded
@@ -216,7 +239,56 @@ The rule this settles: **a process with a per-run budget also carries a cadence*
 What this does **not** do: fix `MainActivity`'s pool. At its batch size a full cycle over every active main
 takes far longer than `InactiveAfterDays`, so `RecheckAfterHours` never binds and the process cannot reach
 the state it maintains. That is #1475 — match participation as the primary activity signal — and the
-cadence here only bounds the damage until it lands.
+cadence here only bounds the damage until it lands. (It landed: see the next entry.)
+
+## Match participation is the primary activity signal for mains (2026-10-04)
+
+**A main the pipeline has just watched play needs no mastery call to prove it.** Every ingested match names
+ten accounts and the champion each one played, at zero Riot cost. `MainActivity` (#900) was nonetheless
+spending one champion-mastery-v4 call per main on a pool far larger than a day of batches, so a full cycle
+took longer than `InactiveAfterDays` and the state it maintained could not converge (#1474).
+
+- **Recorded on the match write path**, inside the account's write transaction: accounts holding a main get
+  `riot_accounts.LastSeenInMatchAtUtc` = the game's start time, and an inactive `IsMain` row whose champion
+  was played within `MainActivity:InactiveAfterDays` is set back to `IsActive`. Two set-based `UPDATE ... FROM
+  unnest(...)` statements per account visit, deduplicated in memory first and conditional on the stamp moving
+  forward, so a re-observation rewrites no row. A column on the account, not a new table.
+- **A match only ever adds evidence.** It reactivates, it never deactivates; a game older than the window (a
+  first ingestion lists weeks of history) stamps the account but does not reactivate. Retiring a main stays
+  mastery's call, unchanged.
+- **`MainActivity` selects the unseen tail.** An account seen in a match within the window is skipped —
+  unless its own mastery read is older than that window too. That exception is deliberate: the account stamp
+  is per account, not per champion, so a player who still plays main A but dropped main B would otherwise keep
+  B active forever; and the mastery points/rank the truemain score reads (#1701) would freeze for exactly the
+  players who play most. One mastery read per window per observed account keeps both honest, at roughly
+  `observed / InactiveAfterDays` calls a day.
+- **Same window everywhere.** Reactivation, the selection and the mastery verdict all use
+  `InactiveAfterDays`, so a game that would keep a main active under mastery is the one that brings it back
+  here. No new option.
+- No backfill: the stamp fills as matches are ingested, so the selection narrows progressively over the first
+  window after deploy rather than in one heavy migration.
+
+Source: #1475 (follows #900, #1474; epic #1460).
+
+## The claim's established-main share is per platform (2026-10-04)
+
+**Each platform's quota is split between depth and breadth by its own coverage deficit, not by the batch's
+quota-weighted mean.** The platform quotas were already per platform (#1150); only their composition was global,
+and averaging was lossy in exactly the situation the signal exists for: observed on preprod right after #1531,
+deficits of 0% / 37% / 40% had all three platforms claiming at the same 0.689. `MatchClaimService` now hands
+the claim one `AdaptiveEstablishedMainShare(configured, swing, MeanDeficit(p))` per platform, and the claim
+applies `ceil(quota x share)` with that platform's value in its first pass.
+
+**Redistributed, not inflated.** The share is linear in the deficit, so short of the [0, 1] clamp the
+quota-weighted mean of the per-platform shares is exactly the scalar the batch used to get — the total
+depth/breadth split of a batch does not move, only where it is spent. The spill semantics are unchanged: the
+share is still a floor per class, and a class a platform cannot fill spills to the other within that platform.
+A neutral snapshot still means "no signal" and gives every platform the configured share.
+
+**Inspectable from the run log.** The claim-allocation line reports each platform's quota with the deficit and
+the share it produced, plus the quota-weighted share of the batch.
+
+Source: #1533 (follows #1531, #1361, #1150, #900).
 
 ## The coverage floor is 50 mains per champion per region, and the claim's split is centred on it (2026-09-08)
 
@@ -247,11 +319,11 @@ move together.
 
 **What follows for free, and what does not.** Everything `IntakeCapacity` derives — Scoring's promotion cap,
 Harvest's refresh budget — is expressed from the share, so it rescales with it; that is the whole point of
-sizing the intake from the claim. What does *not* follow: the share is still a single scalar applied to every
+sizing the intake from the claim. What did *not* follow: the share was still a single scalar applied to every
 platform's quota, computed from the quota-weighted mean deficit. With one saturated region and two below the
-floor, the saturated one keeps spending slots on breadth it does not need while the thin ones get less than
-their own deficit argues for. A per-platform share is the right shape and is tracked separately — it changes
-the claim's signature, and this change deliberately moved only numbers.
+floor, the saturated one kept spending slots on breadth it did not need while the thin ones got less than
+their own deficit argued for. A per-platform share was the right shape and was tracked separately — it changes
+the claim's signature, and this change deliberately moved only numbers. It landed with #1533 (below).
 
 ## The intake is sized by the claim, not by the ladder (2026-09-02)
 
@@ -343,3 +415,29 @@ share follows the signal the pipeline already computes for champions:
 Observability is deliberately not part of this: the per-platform balance is visible in the claim's allocation
 log line and the `HarvestBudgetExhausted` event, but the admin portal has no region-balance panel yet
 (tracked separately). Until it does, a drift like this still has to be inferred from run summaries.
+
+## Low tiers are sampled for the pace benchmark, under a hard daily cap, and never stored (2026-10-05)
+
+**The overlay's pace benchmark needs Iron → Platinum, which no other process reads, so `PaceSampling` reads a
+few of their games per run and keeps only the counters.** Per (platform, tier) — the three active platforms,
+per the product owner — one random page of the division ladder, a few random players of it as seeds, each one's
+latest ranked game, then its match and timeline, folded in memory at the seed's tier (the lobby rule the
+ingestion fold uses for the high tiers). Per tier only, not per division: that is the product owner's ask, and it
+keeps the buckets full.
+
+**It writes no `matches` or `match_participants`.** Stored, those rows would feed the full-pool profile fold
+(#1449), the harvest (#485) would turn low-tier players into main candidates, and every champion page would
+silently gain low-elo games. Only `pace_sampled_matches` — the ids already counted, pruned once older than the
+lookback, since a seed's games are listed no further back — and the benchmark bins are written, which is what
+keeps it on the right side of "a Riot call that stores nothing is a bug" (#1358): every call ends in an aggregate
+row or a ledger row.
+
+**Every call counts, and the cap is per day** (the rule above): ladder page, id list, match, timeline, failed or
+not, against `PaceSampling:MaxRequestsPerRun` (150) and `MaxRequestsPerDay` (3 000, read back from the run
+summaries' `riotCalls`), with a 30-minute `MinRunInterval`. At three regional calls a game that is ~1 000 games a
+day across the three platforms — under 2 % of one routing value's documented `100:120` daily ceiling (72 000), an
+arithmetic bound, not a measurement. It runs last in the fetch lane, so it only spends what ingestion left. The
+sample a (tier, role, minute) needs before the read's 50-sample floor is met, and whether resolving each
+participant's own tier (`league-v4/entries/by-puuid`, up to nine platform calls a game) beats the lobby rule, are
+to be measured on preprod rather than assumed; a production key (#1363) only raises the cap — #1912.
+

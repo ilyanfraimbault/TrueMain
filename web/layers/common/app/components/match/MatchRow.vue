@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import type { MatchSummaryParticipant, MatchSummaryResponse } from '#shared/types/matches'
+import type { MatchSummaryResponse } from '#shared/types/matches'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
-  StaticPerkData,
-  StaticPerkStyleData,
   StaticSummonerSpellData,
 } from '#shared/types/static-data'
-import { getPositionIconUrl } from '#shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { formatDuration } from '#common/utils/relativeTime'
 
+// The row is the layout and the accordion; each column is its own component
+// along the row's visual blocks: `MatchRowPortrait`, `MatchRowKda`,
+// `MatchRowLoadout` (spells, runes and the shared `MatchItemGrid`),
+// `MatchRowTeams` and `MatchRowPerformance`. Expanding opens the shared
+// `MatchDetailPanel` (scoreboard + player panel).
 const props = defineProps<{
   match: MatchSummaryResponse
   champions: ChampionStaticListItem[]
@@ -26,13 +27,6 @@ const props = defineProps<{
    */
   nameTag?: string | null
 }>()
-
-// The lane glyph overlaying the champion portrait renders as a plain <img>
-// (one component instance per icon is not worth it at this count), so it needs
-// the canonical URL built explicitly — without it the raw `/positions/*.png`
-// was served full-size for a 12 px box, and as a fourth distinct cache entry
-// for a glyph the rest of the page already had.
-const canonicalIcon = useCanonicalIcon()
 
 // A nameTag is required to fetch the detail payload, so it gates the whole
 // expand affordance — without it the row degrades to a plain article.
@@ -64,83 +58,7 @@ const championName = computed(
     ?? `Champion ${self.value.championId}`,
 )
 
-// ─── Team compositions ─────────────────────────────────────────────────────
-// Both sides sorted into canonical role order (TOP → SUPPORT) so the two
-// columns line up laner-vs-laner, with a shared position-icon gutter between
-// them. Positions can be missing on old rows ingested before the field was
-// exposed — those keep the server's participant order and the gutter hides,
-// so the columns never pretend to a pairing the data can't back.
-const POSITION_ORDER = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const
-
-function sortByPosition(team: MatchSummaryParticipant[]): MatchSummaryParticipant[] {
-  return [...team].sort((a, b) => {
-    const ia = POSITION_ORDER.indexOf(a.position as typeof POSITION_ORDER[number])
-    const ib = POSITION_ORDER.indexOf(b.position as typeof POSITION_ORDER[number])
-    return (ia === -1 ? POSITION_ORDER.length : ia) - (ib === -1 ? POSITION_ORDER.length : ib)
-  })
-}
-
-const allies = computed(() =>
-  sortByPosition(props.match.participants.filter(p => p.teamId === self.value.teamId)))
-const enemies = computed(() =>
-  sortByPosition(props.match.participants.filter(p => p.teamId !== self.value.teamId)))
-
-function participantTooltip(p: MatchSummaryParticipant): string {
-  const champ = championById.value.get(p.championId)?.name ?? `Champion ${p.championId}`
-  const role = p.position ? POSITION_BY_VALUE.get(p.position)?.label : null
-  const who = p.gameName ? ` — ${p.gameName}${p.tagLine ? `#${p.tagLine}` : ''}` : ''
-  return role ? `${champ} · ${role}${who}` : `${champ}${who}`
-}
-
-const summoner1: ComputedRef<StaticSummonerSpellData | null> = computed(
-  () => props.summonerSpells[self.value.summoner1Id] ?? null,
-)
-const summoner2: ComputedRef<StaticSummonerSpellData | null> = computed(
-  () => props.summonerSpells[self.value.summoner2Id] ?? null,
-)
-
-const keystone: ComputedRef<StaticPerkData | null> = computed(() => {
-  if (!self.value.keystoneId) return null
-  return props.runeTree.perks[self.value.keystoneId] ?? null
-})
-
-const subStyle: ComputedRef<StaticPerkStyleData | null> = computed(() => {
-  if (!self.value.subStyleId) return null
-  return props.runeTree.perkStyles[self.value.subStyleId] ?? null
-})
-
-// The viewing player's assigned role, taken straight from the PUUID-matched
-// self read-model so the portrait can badge a position icon instead of the
-// champion level. Null when Riot never assigned one (old rows, non-SR modes) —
-// the level shows instead. Resolved server-side, so it stays correct even in
-// queues that allow duplicate champions on a team.
-const selfPosition = computed<string | null>(() => self.value.position ?? null)
-
 const durationLabel = computed(() => formatDuration(props.match.gameDurationSeconds))
-
-const kdaRatio = computed(() => {
-  const { kills, deaths, assists } = self.value
-  if (deaths === 0) return 'Perfect'
-  return `${((kills + assists) / deaths).toFixed(2)} KDA`
-})
-
-// Value-graded accent on the KDA ratio (op.gg-style): gold for standout games
-// (Perfect or 5+), the data axis' good end for solid ones (3+), muted
-// otherwise.
-//
-// The middle step used to be `text-sky-300` under a comment claiming it
-// "matches the win axis". It never did — the win axis is the row's own
-// blue/red result colour, not this — and a sky blue on a measurement is a hue
-// this palette does not have. Standout is `--color-gold`, the same token the
-// MVP crown wears, which is the point: a Perfect KDA is the row saying the same
-// thing the crown does.
-const kdaColor = computed(() => {
-  const { kills, deaths, assists } = self.value
-  const ratio = deaths === 0 ? Infinity : (kills + assists) / deaths
-  if (ratio >= 5) return 'text-gold'
-  if (ratio >= 3) return 'text-data-good'
-  return 'text-muted'
-})
 
 const csPerMin = computed(() => {
   const minutes = props.match.gameDurationSeconds / 60
@@ -148,51 +66,9 @@ const csPerMin = computed(() => {
   return (self.value.cs / minutes).toFixed(1)
 })
 
-// Performance score (#918), in the right-edge slot it shares with the MVP/ACE
-// accolade derived from it: a crowned game shows the crown with the score in its
-// tooltip, any other game prints the score.
-const perfScore = computed(() => self.value.performanceScore)
-
-const accolade = computed(() => {
-  if (self.value.isMvp) return 'MVP'
-  if (self.value.isAce) return 'ACE'
-  return null
-})
-
-const perfTooltip = computed(() => {
-  const detail = `Performance score ${perfScore.value}/100 — ${ordinal(self.value.placement)} of 10 in this game`
-  return accolade.value ? `${accolade.value} · ${detail}` : detail
-})
-
-function ordinal(n: number): string {
-  const rest = n % 100
-  if (rest >= 11 && rest <= 13) return `${n}th`
-  switch (n % 10) {
-    case 1: return `${n}st`
-    case 2: return `${n}nd`
-    case 3: return `${n}rd`
-    default: return `${n}th`
-  }
-}
-
-// Graded on the same three-tone ramp as the KDA ratio above, and on the same
-// thresholds the model's own bands imply: 50 is "average on every available
-// component", so a standout has to clear it comfortably.
-const perfColor = computed(() => {
-  if (perfScore.value >= 75) return 'text-gold'
-  if (perfScore.value >= 60) return 'text-data-good'
-  return 'text-muted'
-})
-
 // Only consumed by the article's aria-label: the visible row states the
 // result through its tint alone (see the header comment in the template).
 const resultLabel = computed(() => (self.value.win ? 'Victory' : 'Defeat'))
-
-const lpDeltaText = computed(() => {
-  const delta = self.value.lpDelta
-  if (delta === null || delta === undefined) return null
-  return delta > 0 ? `+${delta} LP` : `${delta} LP`
-})
 
 // Row-level tint: subtle sky for wins (the LoL-tracker convention
 // across OP.GG / Mobalytics / DPM.LOL), red for losses. We deliberately
@@ -258,75 +134,13 @@ const rowTint = computed(() =>
              instead of pooling as two dead gaps around the build (#1610).
              Portrait + KDA stay wrapped so the spread never splits them. -->
         <div class="flex shrink-0 items-center gap-2 @2xl:gap-3">
-          <!-- Champion portrait, badged with the player's role (or the champion
-               level when Riot assigned no position). Summoner spells and runes
-               used to sit next to it; they now live just left of the item block
-               (see below) so the whole loadout — spells, runes, items — reads as
-               one continuous strip, matching the scoreboard layout. -->
-          <div class="relative shrink-0 @2xl:ml-1">
-            <SkeletonImage
-              :src="championIconUrl"
-              :alt="championName"
-              :title="championName"
-              loading="lazy"
-              class="size-10 rounded @2xl:size-12"
-            />
-            <span
-              class="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-default ring-1 ring-default"
-              :class="selfPosition
-                ? 'size-4 @2xl:size-5'
-                : 'size-3.5 text-[9px] font-bold leading-none @2xl:size-4 @2xl:text-[10px]'"
-              :title="selfPosition ? (POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition) : undefined"
-            >
-              <img
-                v-if="selfPosition"
-                :src="canonicalIcon(getPositionIconUrl(selfPosition))"
-                loading="lazy"
-                :alt="POSITION_BY_VALUE.get(selfPosition)?.label ?? selfPosition"
-                class="size-3 @2xl:size-3.5"
-              >
-              <template v-else>{{ self.championLevel }}</template>
-            </span>
-          </div>
-
-          <!-- KDA cluster: KDA on top with the ratio under it. Tabular-nums
-               everywhere so digits never jitter, and the column is a fixed
-               width (not just min-width) — a 12/2/15 game and a 4/8/8 game
-               must occupy the exact same box, or every column to its right
-               drifts row to row and the columns stop lining up down the
-               list. The same holds for the stats column below. -->
-          <div class="flex w-28 shrink-0 flex-col items-center">
-            <!-- Explicit gap: whitespace between inline spans spaced the slashes unevenly. -->
-            <div class="flex items-baseline gap-1 whitespace-nowrap text-base font-bold leading-tight tabular-nums @2xl:text-lg">
-              <span>{{ self.kills }}</span>
-              <span class="text-muted/70">/</span>
-              <span class="text-red-400">{{ self.deaths }}</span>
-              <span class="text-muted/70">/</span>
-              <span>{{ self.assists }}</span>
-            </div>
-            <div class="text-[11px] font-semibold tabular-nums" :class="kdaColor">
-              {{ kdaRatio }}
-            </div>
-            <!-- LP delta stays behind a guard for when the backend starts
-                 deriving it (always null today, so it renders nothing in
-                 prod). It is a *measurement* — how much the game moved you —
-                 so it takes the data axis, not the blue/red the row wears for
-                 who won: the win/loss is already said by the tint, the KDA
-                 slash colours and the scoreboard header. -->
-            <div
-              v-if="lpDeltaText"
-              class="text-[11px] font-semibold tabular-nums"
-              :class="(self.lpDelta ?? 0) >= 0 ? 'text-data-good' : 'text-data-bad'"
-            >
-              {{ lpDeltaText }}
-            </div>
-            <!-- Duration lives under CS/m in the stats stack, which only exists
-                 from @3xl — below that it falls back here so a drawer or a
-                 phone doesn't lose it entirely. -->
-            <div class="text-[11px] text-muted tabular-nums @3xl:hidden">
-              {{ durationLabel }}
-            </div>
-          </div>
+          <MatchRowPortrait
+            :icon-url="championIconUrl"
+            :champion-name="championName"
+            :position="self.position ?? null"
+            :champion-level="self.championLevel"
+          />
+          <MatchRowKda :self="self" :duration-label="durationLabel" />
         </div>
 
         <!-- Secondary stats only once the row clears @3xl — the last thing
@@ -342,59 +156,12 @@ const rowTint = computed(() =>
           <span>{{ durationLabel }}</span>
         </div>
 
-        <!-- Loadout strip: summoner spells + runes + item block, tightly
-             grouped (small internal gaps) so spells → runes → items read
-             left-to-right as one continuous build. Summoners and runes each
-             stack 2-high to match the two rows of the item grid. -->
-        <!-- Below @md the loadout wraps onto its own line (`order-last` keeps
-             it under the row rather than between the KDA and the accolade).
-             A phone can't hold meta + portrait + KDA + a 9rem build strip on
-             one line, and the alternative — dropping half the build — throws
-             away the thing the row exists to show. -->
-        <div class="order-last flex w-full items-center justify-center @md:order-none @md:w-auto @md:shrink-0">
-          <div class="flex shrink-0 items-center gap-1">
-            <div class="flex flex-col gap-0.5">
-              <GameTooltipSummonerSpellIcon
-                :spell="summoner1"
-                :width="22"
-                :height="22"
-                loading="lazy"
-                class="size-[18px] rounded @2xl:size-[22px]"
-              />
-              <GameTooltipSummonerSpellIcon
-                :spell="summoner2"
-                :width="22"
-                :height="22"
-                loading="lazy"
-                class="size-[18px] rounded @2xl:size-[22px]"
-              />
-            </div>
-            <div class="flex flex-col items-center gap-0.5">
-              <GameTooltipPerkIcon
-                :perk="keystone"
-                :width="22"
-                :height="22"
-                loading="lazy"
-                class="size-[18px] rounded-full bg-black/40 @2xl:size-[22px]"
-              />
-              <GameTooltipPerkStyleIcon
-                :style="subStyle"
-                :width="18"
-                :height="18"
-                loading="lazy"
-                class="size-[15px] @2xl:size-[18px]"
-              />
-            </div>
-
-            <!-- Items: the shared inventory block the scoreboard draws per player. -->
-            <MatchItemGrid
-              :item-ids="self.items"
-              :trinket-item-id="self.trinketItemId"
-              :role-bound-item-id="self.roleBoundItemId"
-              :items="items"
-            />
-          </div>
-        </div>
+        <MatchRowLoadout
+          :self="self"
+          :items="items"
+          :summoner-spells="summonerSpells"
+          :rune-tree="runeTree"
+        />
 
         <!-- Right-edge group: team compositions + MVP/ACE accolade + expand
              chevron, pinned together as one unit. From @md up no margin is
@@ -403,74 +170,15 @@ const rowTint = computed(() =>
              away onto its own line and the row keeps its default justification,
              so the group needs `ml-auto` to stay on the edge. -->
         <div class="ml-auto flex shrink-0 items-center gap-2 @md:ml-0 @2xl:gap-3">
-          <!-- Team compositions: two horizontal rows of 5, allies over
-               enemies, each sorted TOP → SUPPORT so a column pairs
-               laner-vs-laner (ally above enemy = same role). Ten icons need
-               ~7rem, which the row has from @xl once the secondary stats are
-               held back to @3xl — narrower than that (a phone, a half-width
-               card) they still drop.
+          <MatchRowTeams
+            :participants="match.participants"
+            :self-team-id="self.teamId"
+            :champion-by-id="championById"
+          />
 
-               Sized with explicit width/height props, not a responsive
-               `size-*` class: SkeletonImage reserves its box from those props
-               via an inline style, which is what actually pins the item
-               icons below to 24px at every width (their own `size-5
-               @2xl:size-6` classes never take effect — inline style always
-               wins). Without matching props here these rendered at 20px
-               until the row cleared the real @2xl breakpoint, visibly
-               smaller than the items sitting right next to them. -->
-          <div class="hidden shrink-0 flex-col gap-0.5 @xl:flex">
-            <div class="flex gap-0.5">
-              <SkeletonImage
-                v-for="(p, idx) in allies"
-                :key="`ally-${idx}`"
-                :src="championById.get(p.championId)?.iconUrl ?? null"
-                :alt="participantTooltip(p)"
-                :title="participantTooltip(p)"
-                :width="24"
-                :height="24"
-                loading="lazy"
-                class="size-6 rounded"
-              />
-            </div>
-            <div class="flex gap-0.5">
-              <SkeletonImage
-                v-for="(p, idx) in enemies"
-                :key="`enemy-${idx}`"
-                :src="championById.get(p.championId)?.iconUrl ?? null"
-                :alt="participantTooltip(p)"
-                :title="participantTooltip(p)"
-                :width="24"
-                :height="24"
-                loading="lazy"
-                class="size-6 rounded"
-              />
-            </div>
-          </div>
-
-          <!-- Performance slot + chevron: MVP crown (`gold`) or ACE rosette
-               (`primary`, as in the scoreboard) with the score in the
-               tooltip, otherwise the graded score. Fixed width so the columns
-               line up down the list. -->
+          <!-- Performance slot + chevron. -->
           <div class="flex shrink-0 items-center gap-1 @2xl:gap-2">
-            <div class="flex w-7 shrink-0 items-center justify-center">
-              <UTooltip :text="perfTooltip">
-                <UIcon
-                  v-if="accolade"
-                  :name="self.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
-                  class="size-5 drop-shadow"
-                  :class="self.isMvp ? 'text-gold' : 'text-primary'"
-                  :aria-label="`${accolade}, performance score ${perfScore}`"
-                />
-                <span
-                  v-else
-                  class="text-sm font-bold tabular-nums"
-                  :class="perfColor"
-                  :aria-label="`Performance score ${perfScore}`"
-                >
-                  {{ perfScore }}
-                </span>
-              </UTooltip>
-            </div>
+            <MatchRowPerformance :self="self" />
             <UIcon
               v-if="canExpand"
               name="i-lucide-chevron-down"

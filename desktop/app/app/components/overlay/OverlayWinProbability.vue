@@ -3,15 +3,14 @@ import type { GameState } from '~/types/game'
 import { winProbability } from '~/utils/item-value'
 
 /**
- * Each side's chance to win, on screen for the whole game: the product
- * owner's formula (`winProbability`) over the item-gold gap and the map —
- * turrets, inhibitors down, drakes, the Baron's and the Elder's buffs. Our
+ * Each side's chance to win, on screen for the whole game: a model fitted on
+ * our ranked games (`winProbability`) over each lane's creep-score, level and
+ * kill lead, plus the map — turrets, inhibitors down, drakes, the Baron's and
+ * the Elder's buffs. Our
  * side on the left in blue, theirs on the right in red (blue and red sides
  * when spectating) — the colours say which is which, so no labels.
  */
 const props = defineProps<{ game: GameState, syncedAt: number }>()
-
-const { items } = useStaticData()
 
 // The game is read every couple of seconds and only a change is sent: an
 // inhibitor standing again or a buff running out is a matter of the clock,
@@ -24,7 +23,7 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(ticking))
 const clock = computed(() => props.game.gameTime + Math.max(0, now.value - props.syncedAt) / 1000)
 
-const ours = computed(() => Math.round(winProbability(props.game, items.value, clock.value) * 100))
+const ours = computed(() => Math.round(winProbability(props.game, clock.value) * 100))
 </script>
 
 <template>

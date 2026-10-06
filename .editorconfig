@@ -108,6 +108,9 @@ dotnet_diagnostic.CA2007.severity = none        # ConfigureAwait(false) — pas 
 dotnet_diagnostic.CA2016.severity = warning     # forwarder CancellationToken
 dotnet_diagnostic.CA2254.severity = warning     # ILogger message template constant
 
+# VSTHRD / RCS severities (#294) live in backend/analyzers.globalconfig, not here: the
+# Docker images build from backend/ and never see this file.
+
 # Naming
 dotnet_naming_rule.interface_should_begin_with_i.severity = warning
 dotnet_naming_rule.interface_should_begin_with_i.symbols = interface
@@ -127,6 +130,17 @@ dotnet_diagnostic.CA1822.severity = none        # static OK dans les tests
 # volontairement cette propriété (#291) pour ne pas dépendre du NoWarn CS1591 global.
 # Sans ça, Roslyn échoue le build avec l'erreur EnableGenerateDocumentationFile.
 dotnet_diagnostic.IDE0005.severity = none
+# xUnit1051 (xunit v3, #299) asks every call that accepts a CancellationToken to pass
+# TestContext.Current.CancellationToken. The suites set no test timeouts and nothing
+# cancels a run mid-test, so threading the token through ~950 existing calls would buy
+# nothing; the rule stays off for tests.
+dotnet_diagnostic.xUnit1051.severity = none
+# VSTHRD200 (Async suffix, #294) targets callable APIs; test helpers and fakes mirror the
+# names of what they stand in for.
+dotnet_diagnostic.VSTHRD200.severity = none
+# RCS1194 (standard exception constructors, #294): test-only exception types are thrown
+# from one place and never constructed by anyone else.
+dotnet_diagnostic.RCS1194.severity = none
 
 # Migrations EF : code auto-généré, on n'applique pas les règles de style.
 # Les migrations sont générées par `dotnet ef migrations add ...` et ne sont pas

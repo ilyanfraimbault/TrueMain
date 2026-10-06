@@ -144,7 +144,8 @@ public static class DraftAxisEvaluator
     /// support's damage type says much less about what the team threatens than the carry's
     /// does, and an unweighted mean would let a 5% damage share vote as loudly as a 35% one.
     /// </summary>
-    private static double DamageWeightedShare(
+    /// <remarks>Public so a reader rebuilding a team bar can be held to the axis's own arithmetic.</remarks>
+    public static double DamageWeightedShare(
         IReadOnlyList<ChampionProfileFacts> side,
         Func<ChampionProfileFacts, double> share)
     {

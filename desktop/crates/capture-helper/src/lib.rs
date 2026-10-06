@@ -155,11 +155,12 @@ impl HelperCapture {
 
     /// Ask the helper which window it would record, and its size in pixels.
     pub fn probe(&self) -> Result<Value, CaptureError> {
-        let output = command(&self.binary)
+        let mut probe = command(&self.binary);
+        probe
             .arg("probe")
             .args(self.window_args())
-            .stderr(Stdio::inherit())
-            .output()
+            .stderr(Stdio::inherit());
+        let output = retry_busy(|| probe.output())
             .map_err(|e| CaptureError(format!("could not run {}: {e}", self.binary.display())))?;
         let last = parse_events(&output.stdout).pop();
         match last {
@@ -216,6 +217,14 @@ impl HelperCapture {
     }
 }
 
+/// Never leave a recording helper behind: dropped mid-recording (the app
+/// quitting, a panic in the runner), the capture would outlive the app.
+impl Drop for HelperCapture {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
 impl Capture for HelperCapture {
     fn start(&mut self, video_path: &Path, quality: Quality) -> Result<(), CaptureError> {
         // Fresh slots for every attempt: an error from a start that failed
@@ -254,11 +263,11 @@ impl Capture for HelperCapture {
         if !self.audio {
             command.arg("--no-audio");
         }
-        let mut child = command
+        command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
+            .stderr(Stdio::inherit());
+        let mut child = retry_busy(|| command.spawn())
             .map_err(|e| CaptureError(format!("could not run {}: {e}", self.binary.display())))?;
 
         let stdout = child.stdout.take().expect("stdout is piped");
@@ -339,7 +348,12 @@ impl Capture for HelperCapture {
             let _ = writeln!(stdin, "stop").and_then(|()| stdin.flush());
         }
         let result = self.wait_for("stopped", STOP_TIMEOUT, true);
-        if let Some(mut child) = self.child.take() {
+        // A helper that never said `stopped` may be stuck in ScreenCaptureKit
+        // with the capture still running — and macOS still showing it
+        // recording. Kill it rather than wait on it forever.
+        if result.is_err() {
+            self.kill();
+        } else if let Some(mut child) = self.child.take() {
             let _ = child.wait();
         }
         self.stdin = None;
@@ -368,6 +382,28 @@ pub(crate) fn command(binary: &Path) -> Command {
         command.creation_flags(CREATE_NO_WINDOW);
     }
     command
+}
+
+/// Run `launch` again while the system answers that the helper binary is busy
+/// (`ETXTBSY`): a file that was just written can stay open for a moment in a
+/// process forked meanwhile — another thread spawning a child, typically in the
+/// test suite — and the exec is refused until that child execs or exits. The
+/// window is milliseconds, so a few short retries cover it; any other error is
+/// returned at once.
+pub(crate) fn retry_busy<T>(mut launch: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
+    const ATTEMPTS: u32 = 10;
+    let mut attempt = 1;
+    loop {
+        match launch() {
+            Err(error)
+                if error.kind() == std::io::ErrorKind::ExecutableFileBusy && attempt < ATTEMPTS =>
+            {
+                attempt += 1;
+                thread::sleep(Duration::from_millis(20));
+            }
+            result => return result,
+        }
+    }
 }
 
 pub(crate) fn parse_events(stdout: &[u8]) -> Vec<Value> {
@@ -494,5 +530,55 @@ esac
         assert_eq!(*capture.failure.lock().unwrap(), None);
         assert_eq!(capture.stop().unwrap(), 1000);
         assert_eq!(*capture.failure.lock().unwrap(), None);
+    }
+
+    /// A stand-in helper that starts recording and never stops, whatever it
+    /// is told — the one ScreenCaptureKit left hanging — and leaves its pid.
+    #[cfg(unix)]
+    fn stuck_helper(dir: &Path) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let script = dir.join("truemain-capture");
+        std::fs::write(
+            &script,
+            format!(
+                r#"#!/bin/sh
+case "$1" in
+probe) echo '{{"event":"window","width":1920,"height":1080}}' ;;
+record)
+  echo $$ > "{pid}"
+  echo '{{"event":"started"}}'
+  exec sleep 600
+  ;;
+esac
+"#,
+                pid = dir.join("pid").display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_dropped_capture_does_not_leave_its_helper_running() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut capture =
+            HelperCapture::new(stuck_helper(dir.path()), None, "window".into(), false);
+        let quality = game_recording::RecordingSettings::default().quality;
+        capture
+            .start(&dir.path().join("game.mp4"), quality)
+            .unwrap();
+        let pid = std::fs::read_to_string(dir.path().join("pid")).unwrap();
+
+        drop(capture);
+
+        let alive = std::process::Command::new("kill")
+            .args(["-0", pid.trim()])
+            .stderr(Stdio::null())
+            .status()
+            .unwrap()
+            .success();
+        assert!(!alive, "the helper {} is still running", pid.trim());
     }
 }

@@ -26,15 +26,18 @@ namespace TrueMain.IntegrationTests;
 /// </para>
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class AccountRefreshSliceIntegrationTests(PostgresFixture fixture)
+public sealed class AccountRefreshSliceIntegrationTests(PostgresFixture fixture) : IAsyncLifetime
 {
     private const string Platform = "KR";
     private static readonly string[] Puuids = ["refresh-slice-1", "refresh-slice-2"];
 
+    public async ValueTask InitializeAsync() => await fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RunAsync_WithMultipleSaveSlices_PersistsTheInPlaceRankUpdateOfEverySlice()
     {
-        await fixture.ResetDatabaseAsync();
         var nowUtc = DateTime.UtcNow;
 
         // Two accounts, each carrying a same-day snapshot at GOLD IV 10 LP. Same day is what

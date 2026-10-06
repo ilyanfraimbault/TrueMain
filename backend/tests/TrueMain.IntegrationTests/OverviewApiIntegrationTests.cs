@@ -9,7 +9,7 @@ using TrueMain.TestKit.EntityBuilders;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class OverviewApiIntegrationTests
+public sealed class OverviewApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -19,10 +19,13 @@ public sealed class OverviewApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetOverviewAsync_ShouldReturnCorpusCounters()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedOverviewAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -79,8 +82,6 @@ public sealed class OverviewApiIntegrationTests
     [Fact]
     public async Task GetOverviewAsync_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

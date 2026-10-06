@@ -4,10 +4,8 @@ using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MatchIngestion;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -97,7 +95,7 @@ public sealed class MatchClaimServiceTests
 
         var sessionFactory = Substitute.For<IDataSessionFactory>();
         var session = Substitute.For<IDataSession>();
-        var transaction = Substitute.For<IDbContextTransaction>();
+        var transaction = Substitute.For<IDataTransaction>();
 
         var riotAccounts = Substitute.For<IRiotAccountRepository>();
         var mainCandidates = Substitute.For<IMainCandidateRepository>();
@@ -108,7 +106,7 @@ public sealed class MatchClaimServiceTests
             .ClaimAccountsForMatchIngestAtomicallyAsync(
                 Arg.Any<IReadOnlyDictionary<string, int>>(),
                 Arg.Any<int>(),
-                Arg.Any<double>(),
+                Arg.Any<IReadOnlyDictionary<string, double>>(),
                 Arg.Any<DateTime>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
@@ -149,7 +147,7 @@ public sealed class MatchClaimServiceTests
         await riotAccounts.Received(1).ClaimAccountsForMatchIngestAtomicallyAsync(
             Arg.Is<IReadOnlyDictionary<string, int>>(quotas => quotas["KR"] == 10),
             10,
-            0.7,
+            Arg.Is<IReadOnlyDictionary<string, double>>(shares => shares["KR"] == 0.7),
             nowUtc,
             lease,
             Arg.Any<CancellationToken>());
@@ -187,7 +185,7 @@ public sealed class MatchClaimServiceTests
             .ClaimAccountsForMatchIngestAtomicallyAsync(
                 Arg.Any<IReadOnlyDictionary<string, int>>(),
                 Arg.Any<int>(),
-                Arg.Any<double>(),
+                Arg.Any<IReadOnlyDictionary<string, double>>(),
                 Arg.Any<DateTime>(),
                 Arg.Any<TimeSpan>(),
                 Arg.Any<CancellationToken>())
@@ -196,7 +194,7 @@ public sealed class MatchClaimServiceTests
         session.RiotAccounts.Returns(riotAccounts);
         session.MainCandidates.Returns(mainCandidates);
         session.BeginTransactionAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Substitute.For<IDbContextTransaction>()));
+            .Returns(Task.FromResult(Substitute.For<IDataTransaction>()));
         sessionFactory.CreateAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(session));
 
@@ -222,9 +220,75 @@ public sealed class MatchClaimServiceTests
         await riotAccounts.Received(1).ClaimAccountsForMatchIngestAtomicallyAsync(
             Arg.Any<IReadOnlyDictionary<string, int>>(),
             10,
-            Arg.Is<double>(share => Math.Abs(share - expectedShare) < 1e-9),
+            Arg.Is<IReadOnlyDictionary<string, double>>(shares => Math.Abs(shares["KR"] - expectedShare) < 1e-9),
             nowUtc,
             lease,
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ClaimAsync_GivesEachPlatformTheShareOfItsOwnDeficit()
+    {
+        // #1533: EUW1 holds every champion at target (deficit 0), KR and NA1 hold none (deficit
+        // 1). One quota-weighted scalar claimed all three at the same share; per platform, the
+        // saturated one leans on depth and the thin ones on breadth, while the quota-weighted
+        // mean of the per-platform shares stays the scalar the batch used to get.
+        var nowUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        var lease = TimeSpan.FromMinutes(30);
+        IReadOnlyDictionary<string, int>? quotas = null;
+        IReadOnlyDictionary<string, double>? shares = null;
+
+        var riotAccounts = Substitute.For<IRiotAccountRepository>();
+        riotAccounts
+            .ClaimAccountsForMatchIngestAtomicallyAsync(
+                Arg.Do<IReadOnlyDictionary<string, int>>(value => quotas = value),
+                Arg.Any<int>(),
+                Arg.Do<IReadOnlyDictionary<string, double>>(value => shares = value),
+                Arg.Any<DateTime>(),
+                Arg.Any<TimeSpan>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new List<AccountKey>());
+
+        var session = Substitute.For<IDataSession>();
+        session.RiotAccounts.Returns(riotAccounts);
+        session.MainCandidates.Returns(Substitute.For<IMainCandidateRepository>());
+        session.BeginTransactionAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Substitute.For<IDataTransaction>()));
+        var sessionFactory = Substitute.For<IDataSessionFactory>();
+        sessionFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(session));
+
+        var coverage = new ChampionCoverageSnapshot(
+            new Dictionary<(string PlatformId, int ChampionId), int>
+            {
+                [("EUW1", 1)] = 20,
+                [("EUW1", 2)] = 20
+            },
+            targetMainsPerChampion: 20);
+        var coverageProvider = Substitute.For<IChampionCoverageProvider>();
+        coverageProvider.GetSnapshotAsync(Arg.Any<IDataSession>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(coverage));
+
+        var service = new MatchClaimService(
+            sessionFactory,
+            coverageProvider,
+            new FixedTimeProvider(nowUtc),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions { EstablishedMainShareSwing = 0.2 }),
+            NullLogger<MatchClaimService>.Instance);
+
+        await service.ClaimAsync(new[] { "EUW1", "KR", "NA1" }, 30, 0.7, lease, CancellationToken.None);
+
+        shares.Should().NotBeNull();
+        quotas.Should().NotBeNull();
+        shares!["EUW1"].Should().BeApproximately(0.9, 1e-9);
+        shares["KR"].Should().BeApproximately(0.5, 1e-9);
+        shares["NA1"].Should().BeApproximately(0.5, 1e-9);
+
+        // Redistributed, not inflated: the share is linear in the deficit, so the
+        // quota-weighted mean of the per-platform shares is the old scalar on the
+        // quota-weighted mean deficit.
+        var totalQuota = quotas!.Values.Sum();
+        var weightedDeficit = quotas.Sum(entry => coverage.MeanDeficit(entry.Key) * entry.Value) / totalQuota;
+        var weightedShare = quotas.Sum(entry => shares[entry.Key] * entry.Value) / totalQuota;
+        weightedShare.Should().BeApproximately(0.7 + 0.2 * (1 - 2 * weightedDeficit), 1e-9);
     }
 }

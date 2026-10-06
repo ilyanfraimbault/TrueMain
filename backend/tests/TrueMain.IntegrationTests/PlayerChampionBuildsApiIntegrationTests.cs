@@ -17,7 +17,7 @@ namespace TrueMain.IntegrationTests;
 /// requested player's games — proving the scope actually narrows.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public sealed class PlayerChampionBuildsApiIntegrationTests
+public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
 {
     private static readonly Guid AccountOneId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid AccountTwoId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
@@ -29,10 +29,13 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task GetPlayerChampion_scopes_aggregates_to_the_requested_player()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -64,7 +67,6 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampion_returns_the_same_contract_as_the_global_page()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -93,7 +95,6 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampion_below_the_floor_renders_a_thin_low_confidence_build()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -117,7 +118,6 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampion_returns_404_for_unknown_player()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -130,7 +130,6 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampion_returns_404_for_champion_the_player_never_mained()
     {
-        await _fixture.ResetDatabaseAsync();
         await SeedAsync();
 
         await using var factory = CreateFactory();
@@ -144,8 +143,6 @@ public sealed class PlayerChampionBuildsApiIntegrationTests
     [Fact]
     public async Task GetPlayerChampion_with_no_patch_falls_back_to_the_latest_patch_above_the_floor()
     {
-        await _fixture.ResetDatabaseAsync();
-
         var now = DateTime.UtcNow;
         await using (var db = _fixture.CreateDbContext())
         {

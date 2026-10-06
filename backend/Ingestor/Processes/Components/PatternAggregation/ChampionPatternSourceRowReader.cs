@@ -221,7 +221,7 @@ public sealed class ChampionPatternSourceRowReader(
                 Kills = participant.Kills,
                 Deaths = participant.Deaths,
                 Assists = participant.Assists,
-                Position = LolPositionExtensions.Parse(participant.TeamPosition).ToRiotString(),
+                Position = LanePositions.Normalize(participant.TeamPosition),
                 Summoner1Id = participant.Summoner1Id,
                 Summoner2Id = participant.Summoner2Id,
                 PrimaryStyleId = participant.PrimaryStyleId,

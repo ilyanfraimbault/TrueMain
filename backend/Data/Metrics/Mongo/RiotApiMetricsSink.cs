@@ -11,7 +11,7 @@ namespace Data.Metrics.Mongo;
 /// Background service that drains the <see cref="RiotApiMetricsChannel"/> and folds
 /// each batch into per-minute <see cref="RiotApiCallRollupDocument"/> rollups in the
 /// <c>riot_api_call_rollups</c> collection, one <c>$inc</c>-upsert per
-/// <c>(minute, endpoint, statusCode, callerProcess)</c> key. Batches by count
+/// <c>(minute, endpoint, statusCode, callerProcess, route)</c> key. Batches by count
 /// (<see cref="MongoLoggingOptions.BatchSize"/>) or time
 /// (<see cref="MongoLoggingOptions.FlushInterval"/>), whichever comes first.
 /// A trimmed-down sibling of <c>MongoLogSink</c> sharing its bounded-channel,
@@ -137,8 +137,8 @@ internal sealed class RiotApiMetricsSink(
     /// <summary>
     /// Folds the drained <paramref name="records"/> into per-minute rollups and
     /// applies them as one unordered <c>$inc</c>-upsert per
-    /// <c>(bucketStartUtc, endpoint, statusCode, callerProcess)</c> key. The unique
-    /// index on that quadruple (see <c>MongoLogContext.EnsureRiotApiCallIndexesAsync</c>)
+    /// <c>(bucketStartUtc, endpoint, statusCode, callerProcess, route)</c> key. The unique
+    /// index on that key (see <c>MongoLogContext.EnsureRiotApiCallIndexesAsync</c>)
     /// makes each upsert target exactly one document; the filter supplies the key
     /// fields on insert, so they are not re-set in the update.
     /// </summary>
@@ -175,7 +175,7 @@ internal sealed class RiotApiMetricsSink(
     }
 
     /// <summary>
-    /// Groups a batch by <c>(minute, endpoint, statusCode, callerProcess)</c> and
+    /// Groups a batch by <c>(minute, endpoint, statusCode, callerProcess, route)</c> and
     /// builds one upsert per group: <c>$inc</c> the count and latency sum, <c>$max</c>
     /// the last-called timestamp, and <c>$set</c> the last-seen descriptive/rate-limit
     /// fields.
@@ -190,7 +190,10 @@ internal sealed class RiotApiMetricsSink(
     /// </remarks>
     private List<WriteModel<RiotApiCallRollupDocument>> Fold(IReadOnlyList<RiotApiCallRecord> records)
     {
-        var accumulators = new Dictionary<(DateTime Bucket, string Endpoint, int StatusCode, string? CallerProcess), Accumulator>();
+        // Route is part of the key (#1458): Riot enforces the app limit per routing host, and
+        // match-v5 runs on three of them at once, so a route kept as "last seen in the bucket"
+        // would hand one host's calls to another and make per-host utilisation unreadable.
+        var accumulators = new Dictionary<(DateTime Bucket, string Endpoint, int StatusCode, string? CallerProcess, string? Route), Accumulator>();
 
         foreach (var record in records)
         {
@@ -199,7 +202,8 @@ internal sealed class RiotApiMetricsSink(
                 record.TimestampUtc.Hour, record.TimestampUtc.Minute, 0, DateTimeKind.Utc);
             var endpoint = Truncate(record.Endpoint, 128) ?? string.Empty;
             var callerProcess = Truncate(record.CallerProcess, 64);
-            var key = (bucket, endpoint, record.StatusCode, callerProcess);
+            var route = Truncate(record.Route, 32);
+            var key = (bucket, endpoint, record.StatusCode, callerProcess, route);
 
             if (!accumulators.TryGetValue(key, out var acc))
             {
@@ -211,28 +215,31 @@ internal sealed class RiotApiMetricsSink(
         }
 
         var writes = new List<WriteModel<RiotApiCallRollupDocument>>(accumulators.Count);
-        foreach (var ((bucket, endpoint, statusCode, callerProcess), acc) in accumulators)
+        foreach (var ((bucket, endpoint, statusCode, callerProcess, route), acc) in accumulators)
         {
             var filter = Builders<RiotApiCallRollupDocument>.Filter.And(
                 Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.BucketStartUtc, bucket),
                 Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.Endpoint, endpoint),
                 Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.StatusCode, statusCode),
-                Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.CallerProcess, callerProcess));
+                Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.CallerProcess, callerProcess),
+                Builders<RiotApiCallRollupDocument>.Filter.Eq(doc => doc.Route, route));
 
-            // Key fields (bucket/endpoint/statusCode/callerProcess) come from the
+            // Key fields (bucket/endpoint/statusCode/callerProcess/route) come from the
             // filter on insert, so they are intentionally not in the update —
             // setting them too would conflict with the filter-implied values.
             var updates = new List<UpdateDefinition<RiotApiCallRollupDocument>>
             {
                 Update.Inc(doc => doc.Count, acc.Count),
                 Update.Inc(doc => doc.SumLatencyMs, acc.SumLatencyMs),
-                Update.Max(doc => doc.LastCalledAtUtc, acc.LastCalledAtUtc)
+                Update.Max(doc => doc.LastCalledAtUtc, acc.LastCalledAtUtc),
+                // On insert only: a pre-#1458 document matched in the deploy minute keeps
+                // its legacy status rather than being certified per-route.
+                Update.SetOnInsert(doc => doc.RouteKeyed, true)
             };
 
             // Last-seen non-null wins; a null is skipped so it never clobbers a
             // value an earlier flush persisted for the same bucket.
             SetIfPresent(updates, doc => doc.Method, Truncate(acc.Method, 16));
-            SetIfPresent(updates, doc => doc.Route, Truncate(acc.Route, 32));
             SetIfPresent(updates, doc => doc.AppRateLimit, Truncate(acc.AppRateLimit, 128));
             SetIfPresent(updates, doc => doc.AppRateLimitCount, Truncate(acc.AppRateLimitCount, 128));
             SetIfPresent(updates, doc => doc.MethodRateLimit, Truncate(acc.MethodRateLimit, 128));
@@ -266,7 +273,7 @@ internal sealed class RiotApiMetricsSink(
     }
 
     /// <summary>
-    /// In-memory fold state for one <c>(minute, endpoint, statusCode)</c> group:
+    /// In-memory fold state for one rollup key group:
     /// running count and latency sum, the max timestamp, and the last-seen non-null
     /// value of each descriptive/rate-limit field.
     /// </summary>
@@ -276,7 +283,6 @@ internal sealed class RiotApiMetricsSink(
         public long SumLatencyMs { get; private set; }
         public DateTime LastCalledAtUtc { get; private set; }
         public string? Method { get; private set; }
-        public string? Route { get; private set; }
         public string? AppRateLimit { get; private set; }
         public string? AppRateLimitCount { get; private set; }
         public string? MethodRateLimit { get; private set; }
@@ -297,7 +303,6 @@ internal sealed class RiotApiMetricsSink(
             // a call omitted doesn't drop one an earlier call in the batch provided.
             // Method is non-nullable on the record, so coalesce on emptiness instead.
             Method = record.Method.Length > 0 ? record.Method : Method;
-            Route = record.Route ?? Route;
             AppRateLimit = record.AppRateLimit ?? AppRateLimit;
             AppRateLimitCount = record.AppRateLimitCount ?? AppRateLimitCount;
             MethodRateLimit = record.MethodRateLimit ?? MethodRateLimit;

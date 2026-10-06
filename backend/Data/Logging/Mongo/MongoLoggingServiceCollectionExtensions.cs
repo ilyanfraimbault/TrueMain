@@ -73,6 +73,7 @@ public static class MongoLoggingServiceCollectionExtensions
         services.TryAddSingleton<RiotApiMetricsChannel>();
         services.TryAddSingleton<IRiotApiCallRecorder, RiotApiCallRecorder>();
         services.TryAddSingleton<IRiotApiUsageQuery, RiotApiUsageQuery>();
+        services.TryAddSingleton<IRiotQuotaQuery, RiotQuotaQuery>();
         services.AddHostedService<RiotApiMetricsSink>();
 
         // Daily storage snapshots (#925). No sink and no channel: the Ingestor's
@@ -93,6 +94,7 @@ public static class MongoLoggingServiceCollectionExtensions
         // the seed-request queue (written by the API, claimed by ManualSeedProcess).
         // Direct-call stores like the snapshots — no sink, no channel.
         services.TryAddSingleton<IProcessRunStore, ProcessRunStore>();
+        services.TryAddSingleton<IProcessRunIntervalQuery, ProcessRunIntervalQuery>();
         services.TryAddSingleton<ISeedRequestStore, SeedRequestStore>();
 
         // Effective-configuration snapshots (#1034): written by the Ingestor's boot-time

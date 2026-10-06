@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class PipelineHealthApiIntegrationTests
+public sealed class PipelineHealthApiIntegrationTests : IAsyncLifetime
 {
     private static readonly string OpsApiKey = TrueMainWebApplicationFactory<Program>.DefaultOpsApiKey;
     private readonly PostgresFixture _fixture;
@@ -22,11 +22,17 @@ public sealed class PipelineHealthApiIntegrationTests
         _mongo = mongo;
     }
 
-    [Fact]
-    public async Task GetPipelineHealthAsync_ShouldReturnProcessAndFreshnessSignals()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetDatabaseAsync();
         await _mongo.ResetAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Fact]
+    public async Task GetPipelineHealthAsync_ShouldReturnProcessAndFreshnessSignals()
+    {
         await SeedPipelineHealthAsync();
 
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -43,7 +49,7 @@ public sealed class PipelineHealthApiIntegrationTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         root.EnumerateObject().Select(property => property.Name)
-            .Should().BeEquivalentTo(["status", "headline", "evaluatedAtUtc", "signals", "processes", "rawData", "gaps"]);
+            .Should().BeEquivalentTo(["status", "headline", "evaluatedAtUtc", "signals", "processes", "rawData", "gaps", "regionBalance"]);
 
         var payload = await response.Content.ReadFromJsonAsync<PipelineHealthResponseTestContract>();
         payload.Should().NotBeNull();
@@ -57,14 +63,22 @@ public sealed class PipelineHealthApiIntegrationTests
         payload.RawData.Platforms.Should().Contain(platform => platform.PlatformId == "KR" && platform.LatestPatchVersion == "16.4");
         payload.Gaps.MatchIngestionToMainAnalysisMinutes.Should().NotBeNull();
         payload.Gaps.ChampionDataLagMinutes.Should().NotBeNull();
+
+        // Region balance (#1153): measured, not degraded, and every seeded match lands in the
+        // window by its ingestion day. No ingestor snapshot is published here, so the coverage
+        // columns are unknown with a reason rather than computed against a guessed target.
+        payload.RegionBalance.UnknownReason.Should().BeNull();
+        payload.RegionBalance.Platforms.Sum(platform => platform.MatchesInWindow).Should().Be(3);
+        payload.RegionBalance.DailyMatches.Sum(day => day.Matches).Should().Be(3);
+        payload.RegionBalance.ChampionUniverse.Should().Be(1);
+        payload.RegionBalance.TargetMainsPerChampion.Should().BeNull();
+        payload.RegionBalance.CoverageUnknownReason.Should().NotBeNullOrWhiteSpace();
+        payload.RegionBalance.Platforms.Should().Contain(platform => platform.PlatformId == "KR" && platform.ActiveMainAccounts == 1);
     }
 
     [Fact]
     public async Task GetPipelineHealthAsync_ShouldRequireOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -78,9 +92,6 @@ public sealed class PipelineHealthApiIntegrationTests
     [Fact]
     public async Task GetPipelineHealthAsync_ShouldRejectInvalidOpsApiKey()
     {
-        await _fixture.ResetDatabaseAsync();
-        await _mongo.ResetAsync();
-
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -377,6 +388,37 @@ public sealed class PipelineHealthApiIntegrationTests
         public RawDataFreshnessTestContract RawData { get; init; } = new();
 
         public PipelineGapTestContract Gaps { get; init; } = new();
+
+        public RegionBalanceTestContract RegionBalance { get; init; } = new();
+    }
+
+    private sealed class RegionBalanceTestContract
+    {
+        public string? UnknownReason { get; init; }
+
+        public int? TargetMainsPerChampion { get; init; }
+
+        public string? CoverageUnknownReason { get; init; }
+
+        public int ChampionUniverse { get; init; }
+
+        public IReadOnlyList<PlatformBalanceTestContract> Platforms { get; init; } = [];
+
+        public IReadOnlyList<DailyMatchesTestContract> DailyMatches { get; init; } = [];
+    }
+
+    private sealed class PlatformBalanceTestContract
+    {
+        public string PlatformId { get; init; } = string.Empty;
+
+        public int ActiveMainAccounts { get; init; }
+
+        public long MatchesInWindow { get; init; }
+    }
+
+    private sealed class DailyMatchesTestContract
+    {
+        public long Matches { get; init; }
     }
 
     private sealed class ProcessHealthTestContract

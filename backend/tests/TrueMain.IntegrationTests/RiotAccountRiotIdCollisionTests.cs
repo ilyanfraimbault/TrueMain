@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace TrueMain.IntegrationTests;
 
 [Collection(IntegrationCollection.Name)]
-public sealed class RiotAccountRiotIdCollisionTests
+public sealed class RiotAccountRiotIdCollisionTests : IAsyncLifetime
 {
     private const string Platform = "KR";
 
@@ -15,6 +15,10 @@ public sealed class RiotAccountRiotIdCollisionTests
         _fixture = fixture;
     }
 
+    public async ValueTask InitializeAsync() => await _fixture.ResetDatabaseAsync();
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
     [Fact]
     public async Task RenamingAnAccountOntoAnotherRowsRiotId_DoesNotViolateAConstraint()
     {
@@ -24,7 +28,6 @@ public sealed class RiotAccountRiotIdCollisionTests
         // GameName/TagLine on the same platform. This used to hit a unique index
         // and fail the entire AccountRefresh batch (23505), leaving every account
         // in the batch unrefreshed cycle after cycle.
-        await _fixture.ResetDatabaseAsync();
         var now = DateTime.UtcNow;
 
         await using (var seed = _fixture.CreateDbContext())

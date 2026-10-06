@@ -1,6 +1,7 @@
 //! Pushing a rune page into the client.
 //!
-//! The only place this app **writes** to the client, so it carries its own
+//! One of the places this app **writes** to the client (with the item set,
+//! `item_sets`, and champion select, `champ_select`), so it carries its own
 //! boundaries:
 //!
 //! * it runs on an explicit user click, never on a pick or a phase change.
