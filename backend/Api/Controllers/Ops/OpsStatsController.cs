@@ -8,7 +8,7 @@ namespace TrueMain.Controllers.Ops;
 
 /// <summary>
 /// The charted series under <c>/ops/stats</c>: champion rows, matches over time, matches
-/// ingested, aggregation progress and Riot API usage. They share the bucketing vocabulary —
+/// ingested, aggregation progress, Riot API usage and the Ingestor's own meter. They share the bucketing vocabulary —
 /// a granularity and an optional region — which is why they take the same parameter helpers.
 /// </summary>
 public sealed class OpsStatsController(
@@ -17,7 +17,8 @@ public sealed class OpsStatsController(
     IMatchesIngestedQueryService matchesIngestedQueryService,
     IAggregationStatsQueryService aggregationStatsQueryService,
     IRiotApiUsageQueryService riotApiUsageQueryService,
-    IRiotQuotaQueryService riotQuotaQueryService) : OpsControllerBase
+    IRiotQuotaQueryService riotQuotaQueryService,
+    IIngestorMetricsQueryService ingestorMetricsQueryService) : OpsControllerBase
 {
     [HttpGet("stats/champions")]
     [ProducesResponseType(typeof(IReadOnlyList<ChampionStatRow>), StatusCodes.Status200OK)]
@@ -146,4 +147,19 @@ public sealed class OpsStatsController(
         [FromQuery] string? window,
         CancellationToken ct = default)
         => Ok(await riotQuotaQueryService.GetAsync(window, ct));
+
+    /// <summary>
+    /// The Ingestor's own meter (#1636): run failures, Riot rate-limit waits and 429s, each
+    /// instrument split by tag set and summed over the window from the per-minute rollups its
+    /// meter exporter writes.
+    /// </summary>
+    /// <param name="window">Relative window: <c>1h</c>, <c>24h</c> (default), <c>7d</c> or <c>30d</c>.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("ingestor-metrics")]
+    [ProducesResponseType(typeof(IngestorMetricsReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IngestorMetricsReadModel>> GetIngestorMetricsAsync(
+        [FromQuery] string? window,
+        CancellationToken ct = default)
+        => Ok(await ingestorMetricsQueryService.GetAsync(window, ct));
 }

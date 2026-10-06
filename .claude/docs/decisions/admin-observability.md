@@ -377,3 +377,29 @@ proxies cancel the API call with the client — #1569.
 - **A cancelled proxy call returns quietly.** It is not a failure to report as `FrontendServerError`; the
   abandonment is already counted.
 
+
+## The Ingestor's own meter is folded into Mongo, with no OpenTelemetry pipeline (2026-10-05)
+
+**Decision:** the `TrueMain.Ingestor` meter (`IngestorMetrics`) is collected by a `MeterListener` in the Ingestor
+(`IngestorMeterExporter`) that folds every measurement into per-minute rollups — one document per minute,
+instrument and tag set, in `meter_rollups` — read back by `GET /ops/ingestor-metrics` and drawn at the bottom of
+the Riot API tab of `/processes`. No OpenTelemetry exporter, no tracing — product owner, #1636.
+
+- **Why.** The meter had been declared with nothing collecting it: run failures, rate-limit waits and 429s were
+  recorded into the void. A Prometheus endpoint or an OTLP collector would need a scraper or a collector and more
+  containers on a VPS that has no room for them, and the admin portal already reads every other observability
+  figure from Mongo (#416).
+- **Generic on both ends.** The rollup carries the instrument's own name, kind, unit and description, and the admin
+  card draws whatever instruments the payload holds, so a new instrument on the meter is visible with no change
+  outside `IngestorMetrics`.
+- **Only this host's meter.** The listener matches the meter by name *and* by the `IMeterFactory` that created it:
+  a listener is process-global, and a same-named meter from another factory must not leak in.
+- **Lossy by design.** A failed flush drops its minute and logs a warning; telemetry is the one thing the pipeline
+  may lose. The exporter is registered before the `Worker`, so it stops after it and the final flush carries the
+  last pass; that flush gets 5 seconds, so a hung Mongo costs a minute of telemetry rather than the shutdown.
+- **Absent, not zero.** An instrument with no rollup in the window is not listed; with no rollup retained at all the
+  card says nothing was measured (#924).
+- **Hot-path logs are source-generated** in the same change: the rate limiter, match ingestion (process, claim,
+  validation, timelines) and the per-account lines of account refresh and main activity go through
+  `[LoggerMessage]` methods, the two ops events among them keeping their `OpsEvents` id and name
+  (`OpsEvents.Ids` holds the constants the attribute needs).
