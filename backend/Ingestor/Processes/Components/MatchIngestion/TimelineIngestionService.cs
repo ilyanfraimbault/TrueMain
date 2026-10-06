@@ -63,10 +63,7 @@ public sealed class TimelineIngestionService(
                     throw;
                 }
 
-                logger.LogWarning(
-                    ex,
-                    "Timeline download failed for {MatchId}; leaving it pending for a later run.",
-                    matchId);
+                logger.TimelineDownloadFailed(ex, matchId);
                 continue;
             }
 
@@ -174,10 +171,7 @@ public sealed class TimelineIngestionService(
 
         if (unplaced > 0)
         {
-            logger.LogDebug(
-                "Pace benchmark: {Unplaced} of {Claimed} match(es) added nothing (remake, no patch, or no ranked tracked account).",
-                unplaced,
-                claims.Count);
+            logger.PaceBenchmarkUnplaced(unplaced, claims.Count);
         }
     }
 

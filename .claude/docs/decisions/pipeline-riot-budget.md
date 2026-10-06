@@ -280,7 +280,7 @@ were accounts validated before. Each one cost an unseen player a slot in the sca
 
 **The rule is the ingest history, not a new status.** The breadth class is `LastMatchIngestAtUtc IS NULL` and a
 `Queued` candidate (`Data/Repositories/MatchIngestClaimClasses.cs`, shared by the claim, Scoring's promotion
-ranking and the settle pass). A settling `MainCandidateStatus` was rejected: `Rejected` is being removed (#1029)
+ranking and the settle pass). A settling `MainCandidateStatus` was rejected: `Rejected` was removed for the same reason (#1029)
 and another terminal status would be one more state for the funnel charts to explain. The row stays — #900's
 "deactivate, never delete" — as the record that the pair was seen:
 

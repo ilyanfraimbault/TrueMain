@@ -1515,7 +1515,8 @@ namespace Data.Migrations
 
                     b.Property<List<ItemEvent>>("ItemEvents")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasAnnotation("Npgsql:Compression:", "lz4");
 
                     b.Property<int>("Kills")
                         .HasColumnType("integer");
@@ -1572,7 +1573,8 @@ namespace Data.Migrations
 
                     b.Property<List<SkillEvent>>("SkillEvents")
                         .IsRequired()
-                        .HasColumnType("jsonb");
+                        .HasColumnType("jsonb")
+                        .HasAnnotation("Npgsql:Compression:", "lz4");
 
                     b.Property<int>("SubStyleId")
                         .HasColumnType("integer");

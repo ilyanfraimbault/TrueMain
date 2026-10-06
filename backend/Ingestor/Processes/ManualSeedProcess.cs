@@ -41,8 +41,8 @@ public sealed class ManualSeedProcess(
 
     // Candidate statuses a manual seed promotes to Queued. New = freshly
     // upserted; Scored = previously discovered but didn't make the competitive
-    // top-N. Queued/Processing/Validated are already in/through the pipeline and
-    // Rejected was an explicit not-a-main decision, so none are requeued here.
+    // top-N. Queued/Processing/Validated are already in/through the pipeline, so
+    // none are requeued here.
     private static readonly MainCandidateStatus[] RequeueableStatuses =
         [MainCandidateStatus.New, MainCandidateStatus.Scored];
 

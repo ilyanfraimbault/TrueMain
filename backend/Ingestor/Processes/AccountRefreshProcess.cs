@@ -148,10 +148,7 @@ public sealed class AccountRefreshProcess(
             // stamp alone parks the row at the head of every batch and burns a slot that
             // an account we can actually refresh should have had (#1223).
             account.UpdatedAtUtc = nowUtc;
-            logger.LogWarning(
-                "Skipping riot account {Puuid}: invalid platform {PlatformId}.",
-                account.Puuid,
-                account.PlatformId);
+            logger.RefreshInvalidPlatform(account.Puuid, account.PlatformId);
             summary.ProfileSkipped++;
             return;
         }
@@ -223,11 +220,7 @@ public sealed class AccountRefreshProcess(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(
-                ex,
-                "Failed rank refresh for {Platform}/{Puuid}.",
-                account.PlatformId,
-                account.Puuid);
+            logger.RankRefreshFailed(ex, account.PlatformId, account.Puuid);
             summary.RankFailed++;
         }
     }
@@ -284,20 +277,13 @@ public sealed class AccountRefreshProcess(
                     account.Status = RiotAccountStatus.Invalid;
                     account.UpdatedAtUtc = nowUtc;
                     summary.ProfileInvalidated++;
-                    logger.LogWarning(
-                        "Invalidated riot account {Platform}/{Puuid}: unresolvable by PUUID and by Riot ID.",
-                        account.PlatformId,
-                        account.Puuid);
+                    logger.AccountInvalidated(account.PlatformId, account.Puuid);
                     return false;
             }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(
-                ex,
-                "Failed to refresh riot account {Platform}/{Puuid}.",
-                account.PlatformId,
-                account.Puuid);
+            logger.ProfileRefreshFailed(ex, account.PlatformId, account.Puuid);
             summary.ProfileFailed++;
         }
 
@@ -351,12 +337,7 @@ public sealed class AccountRefreshProcess(
         {
             // A transport/auth/rate-limit failure on the recovery lookup is not
             // proof the account is gone — don't invalidate, retry next cycle.
-            logger.LogWarning(
-                ex,
-                "Riot ID recovery lookup failed for {Platform}/{GameName}#{TagLine}; leaving account active.",
-                account.PlatformId,
-                account.GameName,
-                account.TagLine);
+            logger.RiotIdRecoveryFailed(ex, account.PlatformId, account.GameName, account.TagLine);
             return RecoveryOutcome.RetryLater;
         }
 
@@ -377,11 +358,7 @@ public sealed class AccountRefreshProcess(
             && (claimedPuuids.Contains(resolved.Puuid)
                 || await session.RiotAccounts.ExistsByPuuidAsync(resolved.Puuid, ct)))
         {
-            logger.LogWarning(
-                "Riot account {Platform}/{Puuid} recovered to PUUID {NewPuuid} already held by another row; invalidating the stale duplicate.",
-                account.PlatformId,
-                account.Puuid,
-                resolved.Puuid);
+            logger.RecoveredToHeldPuuid(account.PlatformId, account.Puuid, resolved.Puuid);
             return RecoveryOutcome.Unrecoverable;
         }
 
