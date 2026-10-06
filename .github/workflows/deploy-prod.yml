@@ -81,6 +81,22 @@ jobs:
       hostinger_api_key: ${{ secrets.HOSTINGER_PROD_API_KEY }}
       env_file: ${{ secrets.PROD_ENV_FILE }}
 
+  edge:
+    name: Verify the prod edge
+    needs: rollout
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Check compression and security headers on the public site
+        env:
+          SITE_URL: https://truemain.lol
+        run: .github/scripts/verify-edge.sh
+
   desktop:
     name: Serve the desktop app this release reads
     needs: rollout
