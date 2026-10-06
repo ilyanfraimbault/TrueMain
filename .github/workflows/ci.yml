@@ -65,6 +65,8 @@ jobs:
             scripts:
               - ".github/scripts/**"
               - ".github/file-size-baseline.txt"
+              - "compose.preprod.yaml"
+              - "compose.prod.yaml"
 
       - name: Plan the jobs
         id: plan
@@ -262,6 +264,9 @@ jobs:
 
       - name: Rollout verification
         run: .github/scripts/verify-rollout.test.sh
+
+      - name: Ingestor job mode preflight
+        run: .github/scripts/check-job-mode.test.sh
 
       - name: Desktop app versions
         run: .github/scripts/desktop-version.test.sh
