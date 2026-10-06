@@ -57,6 +57,13 @@ renvoient.
   `seed-requests`, les itérations et runs de process), `pageSize=0` ou négatif est
   clampé au plancher `[1, …]`, pas ramené au défaut — ce n'est pas la même
   convention partout, à vérifier par endpoint plutôt que supposée générale.
+  Toute la pagination est par **offset** (numéros de page), pas de curseur
+  keyset : le `total` que chaque réponse renvoie lit déjà l'ensemble filtré, et
+  les pages numérotées restent adressables par URL. Le passage au keyset n'est
+  envisagé que sur un coût mesuré (`.claude/docs/decisions/performance-and-incidents.md`,
+  #1635). L'historique de matchs, les candidats et le leaderboard trié par rang trient sur un
+  ordre **unique** (départage par id) : une ligne ne s'y répète ni n'y disparaît
+  d'une page à l'autre tant que les données ne changent pas.
 
 ## Endpoints d'infrastructure
 
