@@ -7,6 +7,14 @@ import { IPX_CACHE_SECONDS, IPX_ROUTE_BASE } from './shared/utils/ipx'
 // re-rendered in the background (see the `routeRules` entries below).
 const STATIC_PAGE_SWR_SECONDS = 60 * 60 // 1 hour
 
+// The static Inter cuts the share cards render with (see `ogImage` below):
+// latin only, the weights `app/components/OgImage/*` set. From @fontsource/inter
+// (Google Fonts' Inter, SIL Open Font License 1.1, licence beside the files).
+const OG_IMAGE_FONTS = [400, 600, 700].map((weight) => {
+  const src = `/fonts/og/inter-latin-${weight}-normal.woff`
+  return { family: 'Inter', weight, style: 'normal', src, satoriSrc: src }
+})
+
 // Claims `/_ipx/**` before @nuxt/image sets up its own handler. The module
 // checks `nuxt.options.serverHandlers` for the route and steps aside when it
 // finds one (`hasUserProvidedIPX`), which is exactly what we want: everything
@@ -97,12 +105,12 @@ export default defineNuxtConfig({
   //   - rendering happens in the web container, which shares a small VPS with
   //     Postgres/Mongo/the ingestor, so every render is cached and the
   //     crawler-only traffic pattern keeps it cold in practice.
-  // Fonts: Satori can't read the variable WOFF2 @nuxt/fonts serves the site, so
-  // at build time the module downloads static Inter files into its build cache
-  // and serves them under `/_og-static-fonts/`; each render then loads them
-  // with an internal request to that path (nothing leaves the container). The
-  // `nitro:build:public-assets` hook below makes sure those files exist before
-  // Nitro packs the public dir (#1335).
+  // Fonts: Satori reads neither WOFF2 nor variable fonts, so the cards cannot
+  // use the files the site is set in. They get static latin cuts of Inter
+  // instead — the three weights the cards set — committed under
+  // `public/fonts/og/` and handed to the module by the `nitro:config` hook
+  // below; each render loads them with an internal request (nothing leaves the
+  // container, and nothing is downloaded at build time either, #1106).
   ogImage: {
     // 1 h, mirroring the app-wide cache TTL (utils/static-cache.ts and the
     // server `defineCachedEventHandler`s). Long enough that a burst of
@@ -129,28 +137,6 @@ export default defineNuxtConfig({
       width: 1200,
       height: 630,
     },
-  },
-  // Self-host the two families the app uses (see the `--font-*` vars in the
-  // shared layer's theme.css): Inter for everything the reader reads,
-  // measurements included, and
-  // Geist Mono for the few places monospace is the meaning — tier letters, the
-  // empty-slot glyph, hex codes. Declared explicitly so the download doesn't rely
-  // on CSS scanning of the *theme vars* — the family names only ever appear
-  // inside `--font-sans` / `--font-mono`.
-  //
-  // Deliberately **no `weights`**. Pinning the list looks like a free saving and
-  // is a trap: the module already discovers the weights it needs from the
-  // `font-weight` declarations Tailwind emits, so a pin can only ever be a
-  // second, staler copy of that answer. A first cut here pinned 400/500/600/700
-  // and silently dropped `font-extrabold` (TierBadge's tier letters) and
-  // `font-light` (the footer links) — the browser doesn't error on a missing
-  // face, it fakes one, so the regression would have shipped looking merely
-  // slightly off. Any future `font-*` utility would have re-armed it.
-  fonts: {
-    families: [
-      { name: 'Inter', provider: 'google' },
-      { name: 'Geist Mono', provider: 'google' },
-    ],
   },
   // Namespace upstream nuxt-charts components under `Nc*` so our own
   // wrappers (e.g. `components/charts/LineChart.vue` → `<ChartsLineChart>`)
@@ -223,25 +209,16 @@ export default defineNuxtConfig({
     // loaded from our own instance, unbundled), so the route only answered
     // 500 "First-party proxy not configured" to whoever probed it, and its
     // undici-based fetcher added ~1 MB to the server output (#1622, measured).
+    //
+    // nuxt-og-image builds the cards' font list (`#og-image/fonts`) from what
+    // @nuxt/fonts emits: here, variable WOFF2 that Satori cannot read, so left
+    // alone it would download static stand-ins from Google at build time — the
+    // network dependency #1106 removes — and fall back to its bundled Inter
+    // 400/700 when that fails, setting every `fontWeight: 600` in the wrong
+    // weight. The list is replaced with the committed files instead.
     'nitro:config'(config) {
       config.handlers = config.handlers?.filter(handler => handler?.route !== '/_scripts/p/**')
-    },
-    // nuxt-og-image downloads its static Satori fonts (`Inter-400-normal.ttf`,
-    // ...) lazily, the first time Nitro's bundler asks for the `#og-image/fonts`
-    // virtual module — which is *after* Nitro has copied the public assets and
-    // built the manifest the server serves them from. A clean build (the Docker
-    // image) therefore shipped a font list pointing at files the server 404s,
-    // and every cold render logged `Failed to load font Inter` before falling
-    // back to the module's bundled Inter (#1335; a local rebuild hides it, the
-    // files are already in the build cache by then). Resolving the virtual
-    // module here, before the module's own hook copies its cache into the
-    // output, puts the files in place in time. Our hooks run before module
-    // hooks, and the module guards its resolution, so this only moves it earlier.
-    async 'nitro:build:public-assets'(nitro) {
-      const resolveOgFonts = nitro.options.virtual['#og-image/fonts']
-      if (typeof resolveOgFonts === 'function') {
-        await resolveOgFonts()
-      }
+      config.virtual = { ...config.virtual, '#og-image/fonts': `export default ${JSON.stringify(OG_IMAGE_FONTS)}` }
     },
   },
   experimental: {
