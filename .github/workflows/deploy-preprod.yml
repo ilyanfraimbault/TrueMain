@@ -43,6 +43,14 @@ jobs:
           fi
           echo "Preprod deployment configuration is complete." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Require an ingestor job mode that matches the compose lanes
+        env:
+          ENV_FILE: ${{ secrets.PREPROD_ENV_FILE }}
+        run: .github/scripts/check-job-mode.sh compose.preprod.yaml
+
       - name: Wait for a running preprod load test
         env:
           GH_TOKEN: ${{ github.token }}

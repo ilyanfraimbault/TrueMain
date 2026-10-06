@@ -42,6 +42,16 @@ jobs:
           fi
           echo "Prod deployment configuration is complete." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Require an ingestor job mode that matches the compose lanes
+        env:
+          ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: .github/scripts/check-job-mode.sh compose.prod.yaml
+
   publish:
     name: Build and publish release images
     needs: preflight
