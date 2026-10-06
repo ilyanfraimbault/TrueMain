@@ -396,7 +396,7 @@ the Riot API tab of `/processes`. No OpenTelemetry exporter, no tracing — prod
   a listener is process-global, and a same-named meter from another factory must not leak in.
 - **Lossy by design.** A failed flush drops its minute and logs a warning; telemetry is the one thing the pipeline
   may lose. The exporter is registered before the `Worker`, so it stops after it and the final flush carries the
-  last pass.
+  last pass; that flush gets 5 seconds, so a hung Mongo costs a minute of telemetry rather than the shutdown.
 - **Absent, not zero.** An instrument with no rollup in the window is not listed; with no rollup retained at all the
   card says nothing was measured (#924).
 - **Hot-path logs are source-generated** in the same change: the rate limiter, match ingestion (process, claim,

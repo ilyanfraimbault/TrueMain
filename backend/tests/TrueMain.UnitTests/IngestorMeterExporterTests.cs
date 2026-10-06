@@ -116,6 +116,35 @@ public sealed class IngestorMeterExporterTests
     }
 
     [Fact]
+    public async Task StopAsync_WithAHungStore_GivesUpOnTheFinalFlushAfterItsTimeout()
+    {
+        await using var provider = new ServiceCollection().AddMetrics().BuildServiceProvider();
+        var meterFactory = provider.GetRequiredService<IMeterFactory>();
+        var time = new FakeTimeProvider(Now);
+        var store = new RecordingStore { Hang = true };
+        var logger = new FakeLogger<IngestorMeterExporter>();
+        using var exporter = new IngestorMeterExporter(meterFactory, store, time, logger);
+
+        await exporter.StartAsync(CancellationToken.None);
+        new IngestorMetrics(meterFactory).RecordRunFailure("Harvest", JobMode.HarvestOnly);
+        var stopping = exporter.StopAsync(CancellationToken.None);
+
+        // Wait (in real time) for the final flush to reach the store, then let its budget lapse.
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (store.Calls == 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
+        store.Calls.Should().Be(1);
+        time.Advance(IngestorMeterExporter.FinalFlushTimeout);
+        await stopping.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        logger.Collector.LatestRecord.Level.Should().Be(LogLevel.Warning);
+        logger.Collector.LatestRecord.Message.Should().Contain("cancelled");
+    }
+
+    [Fact]
     public void Accumulator_SplitsMinutes_AndKeysTagsRegardlessOfOrder()
     {
         var time = new FakeTimeProvider(Now);
@@ -183,6 +212,8 @@ public sealed class IngestorMeterExporterTests
 
         public bool Throw { get; set; }
 
+        public bool Hang { get; set; }
+
         public MeterRollup Single(string instrument) => Written.Single(rollup => rollup.Instrument == instrument);
 
         public Task<int> WriteAsync(IReadOnlyCollection<MeterRollup> rollups, CancellationToken ct)
@@ -193,8 +224,19 @@ public sealed class IngestorMeterExporterTests
                 throw new InvalidOperationException("Mongo is down");
             }
 
+            if (Hang)
+            {
+                return HangAsync(ct);
+            }
+
             Written.AddRange(rollups);
             return Task.FromResult(rollups.Count);
+        }
+
+        private static async Task<int> HangAsync(CancellationToken ct)
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            return 0;
         }
 
         public Task<MeterRollupWindow> GetWindowAsync(string meter, DateTime sinceUtc, CancellationToken ct)

@@ -356,18 +356,13 @@ builder.Services.AddScoped<IPipelineHealthQueryService>(services => new CachedPi
     services.GetRequiredService<IMemoryCache>()));
 builder.Services.AddScoped<IRegionBalanceQueryService, RegionBalanceQueryService>();
 builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
-builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
-builder.Services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQueryService>();
-builder.Services.AddScoped<IMatchesIngestedQueryService, MatchesIngestedQueryService>();
+builder.Services.AddTrueMainOpsStats();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IDbStorageHistoryQueryService, DbStorageHistoryQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
-builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
-builder.Services.AddScoped<IRiotQuotaQueryService, RiotQuotaQueryService>();
-builder.Services.AddScoped<IIngestorMetricsQueryService, IngestorMetricsQueryService>();
 builder.Services.AddScoped<IIncompleteMatchesQueryService, IncompleteMatchesQueryService>();
 builder.Services.AddScoped<IMatchDataQualityDetailQueryService, MatchDataQualityDetailQueryService>();
 builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService>();
@@ -381,7 +376,6 @@ builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
 builder.Services.AddScoped<ICandidateFunnelQueryService, CandidateFunnelQueryService>();
 builder.Services.AddScoped<ICandidateStockQueryService, CandidateStockQueryService>();
 builder.Services.AddScoped<ICandidateQueueLatencyQueryService, CandidateQueueLatencyQueryService>();
-builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryService>();
 // AddTrueMainData registers the IDbContextFactory<TrueMainDbContext> — which
 // services that fire concurrent queries (e.g. ProfileQueryService) use to create
 // short-lived, independently owned contexts per parallel branch — and, in the
