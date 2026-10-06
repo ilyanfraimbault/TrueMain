@@ -117,8 +117,7 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
-        entity.HasIndex(e => e.PlatformId);
-
+        // PlatformId has no index of its own: it is the leading prefix of this one (#1244).
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
             .HasDatabaseName("IX_matches_platform_queue_game_start");
 

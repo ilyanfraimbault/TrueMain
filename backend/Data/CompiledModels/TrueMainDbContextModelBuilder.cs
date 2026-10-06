@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("e7100d80-1b32-4a08-8043-cad5dce9b95a"), entityTypeCount: 38)
+            : base(skipDetectChanges: false, modelId: new Guid("2d471a33-1b11-425d-8124-a1ab2faf4c93"), entityTypeCount: 35)
         {
         }
 
@@ -51,11 +51,8 @@ namespace Data.CompiledModels
             var paceSampledMatch = PaceSampledMatchEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
-            var persona = PersonaEntityType.Create(this);
-            var processRun = ProcessRunEntityType.Create(this);
             var rankSnapshot = RankSnapshotEntityType.Create(this);
             var riotAccount = RiotAccountEntityType.Create(this);
-            var seedRequest = SeedRequestEntityType.Create(this);
 
             ChampionAggregatePatternEntityType.CreateForeignKey1(championAggregatePattern, championDimBuild);
             ChampionAggregatePatternEntityType.CreateForeignKey2(championAggregatePattern, championDimRunePage);
@@ -72,7 +69,6 @@ namespace Data.CompiledModels
             ParticipantPerkSelectionEntityType.CreateForeignKey1(participantPerkSelection, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey2(participantPerkSelection, perkSelectionCatalog);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
-            RiotAccountEntityType.CreateForeignKey1(riotAccount, persona);
 
             BanScopeTotalEntityType.CreateAnnotations(banScopeTotal);
             ChampionAggregatePatternEntityType.CreateAnnotations(championAggregatePattern);
@@ -107,11 +103,8 @@ namespace Data.CompiledModels
             PaceSampledMatchEntityType.CreateAnnotations(paceSampledMatch);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
-            PersonaEntityType.CreateAnnotations(persona);
-            ProcessRunEntityType.CreateAnnotations(processRun);
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);
             RiotAccountEntityType.CreateAnnotations(riotAccount);
-            SeedRequestEntityType.CreateAnnotations(seedRequest);
 
             AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
             AddAnnotation("ProductVersion", "10.0.12");

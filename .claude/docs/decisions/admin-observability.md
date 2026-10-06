@@ -25,7 +25,7 @@ Consequences that matter later:
   SQL→Mongo backfill stays a dumb `row_to_json` transform.
 - The SQL tables were **not dropped in the same PR**: the code switch shipped first (no schema change, no
   compiled-model churn), the historical rows were copied preprod/prod once the frozen tables had no writers,
-  and a follow-up PR drops the tables + regenerates the compiled model.
+  and a follow-up PR drops the tables + regenerates the compiled model (#1244, which also dropped `personas`).
 
 **The disk figure sums Postgres and Mongo, because there is one disk** (#1023). The panel and the forecast
 measured Postgres only, while Mongo holds the logs, crashes, audit events, Riot rollups, process runs and seed

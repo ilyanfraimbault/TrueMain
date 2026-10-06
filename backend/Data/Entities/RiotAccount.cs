@@ -19,10 +19,6 @@ public class RiotAccount
 
     public required string PlatformId { get; set; }
 
-    public Guid? PersonaId { get; set; }
-
-    public Persona? Persona { get; set; }
-
     public string? SummonerId { get; set; }
 
     public int ProfileIconId { get; set; }

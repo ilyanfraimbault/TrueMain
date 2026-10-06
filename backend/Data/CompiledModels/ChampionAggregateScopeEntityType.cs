@@ -24,7 +24,7 @@ namespace Data.CompiledModels
                 propertyCount: 16,
                 navigationCount: 1,
                 foreignKeyCount: 1,
-                unnamedIndexCount: 4,
+                unnamedIndexCount: 3,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -171,19 +171,15 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { championId, gameVersion, platformId, queueId });
-
-            var index0 = runtimeEntityType.AddIndex(
                 new[] { riotAccountId, championId, gameVersion, platformId, position });
 
-            var index1 = runtimeEntityType.AddIndex(
+            var index0 = runtimeEntityType.AddIndex(
                 new[] { championId, gameVersion, platformId, queueId, position, eloBracket, isMain });
-            index1.AddAnnotation("Relational:Name", "IX_champion_aggregate_scopes_ChampionId_GameVersion_PlatformI~1");
 
-            var index2 = runtimeEntityType.AddIndex(
+            var index1 = runtimeEntityType.AddIndex(
                 new[] { riotAccountId, championId, gameVersion, platformId, queueId, position, eloBracket },
                 unique: true);
-            index2.AddAnnotation("Relational:Name", "IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1");
+            index1.AddAnnotation("Relational:Name", "IX_champion_aggregate_scopes_RiotAccountId_ChampionId_GameVer~1");
 
             return runtimeEntityType;
         }
