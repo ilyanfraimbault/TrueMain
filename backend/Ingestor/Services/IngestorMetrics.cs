@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
+using Data.Metrics;
 using Ingestor.Options;
 
 namespace Ingestor.Services;
@@ -15,8 +16,11 @@ namespace Ingestor.Services;
 /// </remarks>
 public sealed class IngestorMetrics
 {
-    /// <summary>Meter name to enable when scraping the ingestor (OTLP, Prometheus, dotnet-counters).</summary>
-    public const string MeterName = "TrueMain.Ingestor";
+    /// <summary>
+    /// The meter's name. <see cref="IngestorMeterExporter"/> folds it into Mongo rollups for the
+    /// admin (#1636); <c>dotnet-counters</c> can still attach to it by this name.
+    /// </summary>
+    public const string MeterName = MeterNames.Ingestor;
 
     /// <summary>Name of the failure counter emitted on every swallowed ingestion failure.</summary>
     public const string RunFailuresCounterName = "ingestor.run.failures";

@@ -84,7 +84,7 @@ public sealed class MatchRepository(TrueMainDbContext db) : IMatchRepository
                  UPDATE matches
                  SET "PaceBenchmarkAggregated" = true
                  WHERE "Id" = ANY({ids}) AND NOT "PaceBenchmarkAggregated"
-                 RETURNING "Id", "Patch", "GameStartTimeUtc", "GameDurationSeconds"
+                 RETURNING "Id", "Patch", "GameStartTimeUtc", "GameDurationSeconds", "EndedInEarlySurrender"
                  """)
             .ToListAsync(ct);
     }

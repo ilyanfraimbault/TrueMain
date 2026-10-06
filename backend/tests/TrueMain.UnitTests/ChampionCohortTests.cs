@@ -7,8 +7,8 @@ namespace TrueMain.UnitTests;
 
 /// <summary>
 /// The parts of <see cref="ChampionCohort"/> that need no database — the rules a fold
-/// asks about in memory — plus the guard that keeps the four folds from growing a
-/// cohort filter of their own again.
+/// asks about in memory — plus the guards that keep the folds and the live reads from
+/// growing a cohort filter of their own again.
 /// </summary>
 public sealed class ChampionCohortTests
 {
@@ -26,19 +26,57 @@ public sealed class ChampionCohortTests
         "ChampionOpponentAggregationProcess.cs"
     ];
 
+    /// <summary>
+    /// The API reads that compute a champion panel live from <c>match_participants</c>
+    /// rather than from an aggregate, relative to <c>backend/</c>. Each restated the
+    /// cohort in its own words until #1365 — "a tracked account", with or without
+    /// <c>IsActive</c>, remakes counted — so one champion, lane and patch could carry
+    /// several denominators on the same page.
+    /// </summary>
+    private static readonly string[] CohortReadSourceFiles =
+    [
+        "Api/Services/Champions/Builds/ChampionItemTimingsQueryService.cs",
+        "Api/Services/Champions/Progression/ChampionScalingQueryService.cs",
+        "Api/Services/Champions/Synergies/ChampionSynergyQueryService.cs",
+        "Api/Services/Champions/Mains/ChampionMainsComparisonQueryService.cs"
+    ];
+
+    /// <summary>
+    /// Live reads that deliberately choose another champion side — one player's own games,
+    /// or the full pool a build is valid over — but still count games only, never a
+    /// remake: they take their matches from <see cref="ChampionCohort.Games"/>.
+    /// </summary>
+    private static readonly string[] GameReadSourceFiles =
+    [
+        "Api/Services/Champions/Matchups/ChampionMatchupQueryService.cs",
+        "Api/Services/Champions/Composition/CompositionMatchQueryService.cs",
+        "Data/Queries/MatchupParticipantQuery.cs"
+    ];
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(299)]
     public void AGameUnderFiveMinutesIsARemake(int durationSeconds)
-        => ChampionCohort.IsRemake(durationSeconds).Should().BeTrue();
+        => ChampionCohort.IsRemake(durationSeconds, endedInEarlySurrender: false).Should().BeTrue();
 
     [Theory]
     [InlineData(300)]
     [InlineData(301)]
     [InlineData(1800)]
     public void AGameAtOrOverFiveMinutesIsAGame(int durationSeconds)
-        => ChampionCohort.IsRemake(durationSeconds).Should().BeFalse();
+        => ChampionCohort.IsRemake(durationSeconds, endedInEarlySurrender: false).Should().BeFalse();
+
+    /// <summary>
+    /// Riot's remake flag is enough on its own (#1364): a remake whose game clock ran past
+    /// the floor — a slow vote, a long load — is still not a game.
+    /// </summary>
+    [Theory]
+    [InlineData(200)]
+    [InlineData(300)]
+    [InlineData(420)]
+    public void RiotRemakeFlagMakesARemakeWhateverTheDuration(int durationSeconds)
+        => ChampionCohort.IsRemake(durationSeconds, endedInEarlySurrender: true).Should().BeTrue();
 
     [Theory]
     [InlineData("TOP")]
@@ -128,13 +166,74 @@ public sealed class ChampionCohortTests
         }
     }
 
-    private static string FoldSourceDirectory()
+    /// <summary>
+    /// The same grep for the live reads, for the same reason: a read that says
+    /// <c>RiotAccountId != null</c> answers a different question from the header above it
+    /// and nothing on the page would show it.
+    /// </summary>
+    [Fact]
+    public void NoLiveChampionReadExpressesItsOwnCohortFilter()
+    {
+        foreach (var file in CohortReadSourceFiles)
+        {
+            var source = ReadBackendSource(file);
+
+            source.Should().Contain(
+                "ChampionCohort.Members",
+                $"{file} must take its champion side from Data.Aggregation.ChampionCohort");
+            source.Should().NotContain(
+                "RiotAccountId != null",
+                $"{file} would be counting \"an account we know\" instead of the cohort (#1087, #1365)");
+            source.Should().NotContain(
+                "\"RiotAccountId\" IS NOT NULL",
+                $"{file} would be restating the cohort in its SQL");
+            source.Should().NotContain(
+                "IsMain",
+                $"{file} would be restating the cohort join instead of composing it");
+            source.Should().NotContain(
+                "\"TOP\", \"JUNGLE\"",
+                $"{file} would be keeping a private copy of ChampionCohort.CanonicalPositions");
+            source.Should().NotContain(
+                "db.Matches",
+                $"{file} would be choosing its matches without the remake rule (ChampionCohort.Games)");
+        }
+    }
+
+    [Fact]
+    public void NoLiveChampionReadCountsARemake()
+    {
+        foreach (var file in GameReadSourceFiles)
+        {
+            var source = ReadBackendSource(file);
+
+            source.Should().Contain(
+                "ChampionCohort.Games",
+                $"{file} must take its matches from ChampionCohort.Games");
+            source.Should().NotContain(
+                "db.Matches",
+                $"{file} would be choosing its matches without the remake rule");
+            source.Should().NotContain(
+                "GameDurationSeconds >",
+                $"{file} would be deciding for itself what a remake is (ChampionCohort.MinimumGameDurationSeconds)");
+        }
+    }
+
+    private static string ReadBackendSource(string relativePath)
+    {
+        var path = Path.Combine(BackendDirectory(), relativePath);
+        File.Exists(path).Should().BeTrue($"{relativePath} is a live champion read that must compose the shared cohort");
+        return File.ReadAllText(path);
+    }
+
+    private static string BackendDirectory()
     {
         // <repo>/backend/tests/TrueMain.UnitTests/ChampionCohortTests.cs
         var testsProject = Path.GetDirectoryName(ThisFilePath())!;
-        var backend = Path.GetFullPath(Path.Combine(testsProject, "..", ".."));
-        return Path.Combine(backend, "Ingestor", "Processes");
+        return Path.GetFullPath(Path.Combine(testsProject, "..", ".."));
     }
+
+    private static string FoldSourceDirectory()
+        => Path.Combine(BackendDirectory(), "Ingestor", "Processes");
 
     private static string ThisFilePath([CallerFilePath] string path = "") => path;
 }

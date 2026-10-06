@@ -51,13 +51,19 @@ public interface IMatchSnapshotWriter
 /// on the plan because the discard happens in the fetch phase but is only reported by the write
 /// phase's result (#1358).
 /// </param>
+/// <param name="SkippedShell">
+/// Matches fetched in the tracked queue and then discarded as shells — an <c>endOfGameResult</c>
+/// other than <c>GameComplete</c> (#1364). Unlike <paramref name="SkippedWrongQueue"/> no request
+/// parameter can avoid them, so a small non-zero count is expected.
+/// </param>
 public sealed record SnapshotIngestionPlan(
     IReadOnlyList<string> AllMatchIds,
     IReadOnlyList<string> ExistingMatchIds,
     IReadOnlyList<FetchedMatch> TargetMatches,
     IReadOnlyDictionary<AccountKey, RiotAccount> ParticipantAccounts,
     Guid? TrackedAccountId,
-    int SkippedWrongQueue);
+    int SkippedWrongQueue,
+    int SkippedShell = 0);
 
 public sealed record FetchedMatch(string MatchId, RiotMatchDto Dto);
 
@@ -69,6 +75,7 @@ public sealed record FetchedMatch(string MatchId, RiotMatchDto Dto);
 /// sit at zero. It is split out rather than folded into <see cref="Skipped"/> precisely so a
 /// non-zero value is visible instead of hidden inside a number that is normally large.
 /// <see cref="MainsReactivated"/> counts inactive mains these matches showed played again (#1475).
+/// <see cref="SkippedShell"/> counts the <c>Abort_*</c> shells refused at ingest (#1364).
 /// </summary>
 public sealed record SnapshotIngestionResult(
     IReadOnlyCollection<string> AllMatchIds,
@@ -76,4 +83,5 @@ public sealed record SnapshotIngestionResult(
     int Inserted,
     int Skipped,
     int SkippedWrongQueue,
-    int MainsReactivated = 0);
+    int MainsReactivated = 0,
+    int SkippedShell = 0);

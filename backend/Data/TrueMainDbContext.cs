@@ -108,6 +108,9 @@ public class TrueMainDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TrueMainDbContext).Assembly);
+
+        // After the configurations, because it walks the mapped tables they declare.
+        DataQuality.ChampionStatInvariants.Apply(modelBuilder);
     }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

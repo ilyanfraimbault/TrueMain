@@ -50,11 +50,7 @@ public sealed class MatchClaimService(
             // Information, not Debug: a non-zero reap means a previous run died holding its
             // claim, which is exactly the signal the "candidates processing" panel is built
             // to surface. A steady-state run is silent.
-            logger.LogInformation(
-                "Released {Candidates} candidate(s) and {Accounts} account claim(s) held before {Cutoff:O}.",
-                candidates,
-                accounts,
-                cutoffUtc);
+            logger.ExpiredClaimsReleased(candidates, accounts, cutoffUtc);
         }
 
         return released;
@@ -85,9 +81,7 @@ public sealed class MatchClaimService(
         // thin ones' share with a deficit that was not theirs.
         var shares = ResolveEstablishedMainShares(establishedMainShare, quotas, coverage);
 
-        logger.LogInformation(
-            "Claim allocation for a batch of {BatchSize} at a quota-weighted establishedMainShare {Share:0.###} "
-            + "(configured {ConfiguredShare}): {Quotas}.",
+        logger.ClaimAllocated(
             batchSize,
             QuotaWeightedMean(shares, quotas, establishedMainShare),
             establishedMainShare,
@@ -118,10 +112,7 @@ public sealed class MatchClaimService(
             MainCandidateStatus.Processing,
             ct);
 
-        logger.LogDebug(
-            "Moved queued candidates to Processing for {CandidateAccountCount} of {ClaimedAccountCount} claimed accounts.",
-            candidateAccounts.Count,
-            accounts.Count);
+        logger.CandidatesClaimed(candidateAccounts.Count, accounts.Count);
 
         await transaction.CommitAsync(ct);
 

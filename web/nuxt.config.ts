@@ -27,7 +27,7 @@ const cachedIpxHandler = defineNuxtModule({
 export default defineNuxtConfig({
   // `cachedIpxHandler` must come before `@nuxt/image` so the route is already
   // registered when the module decides whether to install its own.
-  modules: [cachedIpxHandler, '@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo', '@nuxt/scripts'],
+  modules: [cachedIpxHandler, '@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo', '@nuxt/scripts', '@nuxt/eslint'],
   // Canonical site identity for SEO (canonical links, sitemap, robots, OG/
   // schema.org defaults). `url` is the production default; override per
   // environment with `NUXT_PUBLIC_SITE_URL` (nuxt-site-config reads it

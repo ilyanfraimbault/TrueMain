@@ -386,10 +386,10 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
     /// <summary>
     /// Seeds the shared sample: the compared account (6 MIDDLE games on 16.4,
     /// 4 won) plus two mains — MainOne (8 on 16.4, 6 won, and 2 more on 16.5,
-    /// both lost) and MainTwo (5 games, 2 won, 25-minute games). Four kinds of
+    /// both lost) and MainTwo (5 games, 2 won, 25-minute games). Five kinds of
     /// decoy must never reach either column: a TOP game, a wrong-queue game, an
-    /// untracked participant row, and a tracked account that is not a main of
-    /// the champion.
+    /// untracked participant row, remakes, and a tracked account that is not a
+    /// main of the champion.
     /// </summary>
     private async Task SeedComparisonSampleAsync()
     {
@@ -410,13 +410,13 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
 
         for (var i = 0; i < 6; i++)
         {
-            AddGame(db, $"cmp-player-{i}", Patch, QueueId, Position, win: i < 4, player.Id,
+            AddGame(db, $"cmp-player-{i}", Patch, QueueId, Position, win: i < 4, player,
                 kills: 5, deaths: 4, assists: 6, gold: 12_000, minions: 180, monsters: 4, durationSeconds: 1_800);
         }
 
         for (var i = 0; i < 8; i++)
         {
-            AddGame(db, $"cmp-one-{i}", Patch, QueueId, Position, win: i < 6, mainOne.Id,
+            AddGame(db, $"cmp-one-{i}", Patch, QueueId, Position, win: i < 6, mainOne,
                 kills: 8, deaths: 2, assists: 4, gold: 15_000, minions: 240, monsters: 10, durationSeconds: 1_800);
         }
 
@@ -424,33 +424,42 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         // no patch is pinned.
         for (var i = 0; i < 2; i++)
         {
-            AddGame(db, $"cmp-one-next-{i}", "16.5.1", QueueId, Position, win: false, mainOne.Id,
+            AddGame(db, $"cmp-one-next-{i}", "16.5.1", QueueId, Position, win: false, mainOne,
                 kills: 8, deaths: 2, assists: 4, gold: 15_000, minions: 240, monsters: 10, durationSeconds: 1_800);
         }
 
         for (var i = 0; i < 5; i++)
         {
-            AddGame(db, $"cmp-two-{i}", Patch, QueueId, Position, win: i < 2, mainTwo.Id,
+            AddGame(db, $"cmp-two-{i}", Patch, QueueId, Position, win: i < 2, mainTwo,
                 kills: 3, deaths: 6, assists: 8, gold: 10_000, minions: 150, monsters: 0, durationSeconds: 1_500);
         }
 
         // Decoy 1: another lane (dropped by the position filter).
-        AddGame(db, "cmp-decoy-lane", Patch, QueueId, "TOP", win: true, mainOne.Id,
+        AddGame(db, "cmp-decoy-lane", Patch, QueueId, "TOP", win: true, mainOne,
             kills: 99, deaths: 0, assists: 99, gold: 99_000, minions: 999, monsters: 0, durationSeconds: 1_800);
 
         // Decoy 2: a different queue.
-        AddGame(db, "cmp-decoy-queue", Patch, queueId: 400, Position, win: true, mainOne.Id,
+        AddGame(db, "cmp-decoy-queue", Patch, queueId: 400, Position, win: true, mainOne,
             kills: 99, deaths: 0, assists: 99, gold: 99_000, minions: 999, monsters: 0, durationSeconds: 1_800);
 
         // Decoy 3: an untracked participant (no RiotAccountId) — in neither column.
-        AddGame(db, "cmp-decoy-anon", Patch, QueueId, Position, win: true, riotAccountId: null,
+        AddGame(db, "cmp-decoy-anon", Patch, QueueId, Position, win: true, account: null,
             kills: 99, deaths: 0, assists: 99, gold: 99_000, minions: 999, monsters: 0, durationSeconds: 1_800);
 
-        // Decoy 4: a tracked account with no main row on this champion — real
+        // Decoy 4: remakes, of a pool main and of the compared player — a remake is
+        // not a game on either side of the comparison (ChampionCohort, #1365).
+        AddGame(db, "cmp-decoy-remake-main", Patch, QueueId, Position, win: true, mainOne,
+            kills: 99, deaths: 0, assists: 99, gold: 99_000, minions: 999, monsters: 0,
+            durationSeconds: Data.Aggregation.ChampionCohort.MinimumGameDurationSeconds - 1);
+        AddGame(db, "cmp-decoy-remake-player", Patch, QueueId, Position, win: true, player,
+            kills: 99, deaths: 0, assists: 99, gold: 99_000, minions: 999, monsters: 0,
+            durationSeconds: Data.Aggregation.ChampionCohort.MinimumGameDurationSeconds - 1);
+
+        // Decoy 5: a tracked account with no main row on this champion — real
         // games, but not part of the champion's mains.
         for (var i = 0; i < 4; i++)
         {
-            AddGame(db, $"cmp-decoy-notmain-{i}", Patch, QueueId, Position, win: true, notAMain.Id,
+            AddGame(db, $"cmp-decoy-notmain-{i}", Patch, QueueId, Position, win: true, notAMain,
                 kills: 99, deaths: 0, assists: 99, gold: 99_000, minions: 999, monsters: 0, durationSeconds: 1_800);
         }
 
@@ -472,13 +481,13 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
 
         for (var i = 0; i < 2; i++)
         {
-            AddGame(db, $"thin-player-{i}", Patch, QueueId, Position, win: true, player.Id,
+            AddGame(db, $"thin-player-{i}", Patch, QueueId, Position, win: true, player,
                 kills: 5, deaths: 4, assists: 6, gold: 12_000, minions: 180, monsters: 4, durationSeconds: 1_800);
         }
 
         for (var i = 0; i < 8; i++)
         {
-            AddGame(db, $"thin-main-{i}", Patch, QueueId, Position, win: i < 5, mainOne.Id,
+            AddGame(db, $"thin-main-{i}", Patch, QueueId, Position, win: i < 5, mainOne,
                 kills: 8, deaths: 2, assists: 4, gold: 15_000, minions: 240, monsters: 10, durationSeconds: 1_800);
         }
 
@@ -513,7 +522,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         int queueId,
         string teamPosition,
         bool win,
-        Guid? riotAccountId,
+        RiotAccount? account,
         int kills,
         int deaths,
         int assists,
@@ -534,8 +543,8 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         {
             MatchId = match.Id,
             ParticipantId = 1,
-            Puuid = $"puuid-{matchId}",
-            RiotAccountId = riotAccountId,
+            Puuid = account?.Puuid ?? $"puuid-{matchId}",
+            RiotAccountId = account?.Id,
             SummonerName = "seed",
             SummonerLevel = 100,
             ChampionId = Champion,
