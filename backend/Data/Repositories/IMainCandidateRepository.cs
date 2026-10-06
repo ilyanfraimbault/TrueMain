@@ -56,6 +56,8 @@ public interface IMainCandidateRepository
     /// target (#900) — sort to the back of the queue whatever their score, so they only
     /// take the slots the under-covered champions leave free. A priority, not a filter:
     /// they are still promoted when the rest of the pool does not fill <c>take</c>.
+    /// Candidates of an account already ingested are filtered out (#1535): breadth only
+    /// claims never-ingested accounts, so promoting them would only park them in the queue.
     /// </summary>
     Task<List<MainCandidate>> GetScoredByPlatformAsync(
         string platformId,
@@ -87,6 +89,15 @@ public interface IMainCandidateRepository
     /// committed progress instead of blowing the command timeout in one statement.
     /// </summary>
     Task<int> DemoteLowestScoredQueuedAsync(string platformId, int batchSize, CancellationToken ct);
+
+    /// <summary>
+    /// Moves up to <paramref name="batchSize"/> <c>Queued</c> candidates on
+    /// <paramref name="platformId"/> whose account has already been ingested back to
+    /// <c>Scored</c>, and returns how many rows moved (#1535). The breadth arm of the claim no
+    /// longer takes those accounts and the promotion ranking no longer offers them, so the rows
+    /// would otherwise hold a queue place for good. Never deletes (#900).
+    /// </summary>
+    Task<int> SettleQueuedForIngestedAccountsAsync(string platformId, int batchSize, CancellationToken ct);
 
     /// <summary>
     /// Returns every <see cref="MainCandidateStatus.Processing"/> row that no live claim

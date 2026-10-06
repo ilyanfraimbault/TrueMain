@@ -236,6 +236,7 @@ Last verified against `develop` on 2026-09-02.
 - Riot quota is read per routing host, from route-keyed rollups only, kept 30 days (2026-10-05) — #1458, #1457, #1460
 - A per-run budget is bounded by a cadence, or the daily cost is whatever the loop speed makes it (2026-09-04) — #1474, #1460, #1313, #900
 - Match participation is the primary activity signal for mains; mastery answers for the unseen tail (2026-10-04) — #1475, #900, #1474
+- The claim's breadth class is accounts never ingested; their leftover candidates are neither promoted nor kept queued (2026-10-06) — #1535
 - The claim's established-main share is per platform, from each platform's own coverage deficit (2026-10-04) — #1533
 - The coverage floor is 50 mains per champion per region, and the claim's split is centred on it (2026-09-08) — #1531, #1361, #1150, #900
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150

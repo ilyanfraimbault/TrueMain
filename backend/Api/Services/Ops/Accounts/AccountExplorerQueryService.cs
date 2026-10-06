@@ -131,7 +131,8 @@ public sealed class AccountExplorerQueryService(
             StateDetail = AccountExplorerVerdict.DescribeState(state, account, candidates, mainRows, matchesIngested),
             Identity = ToIdentity(account),
             OtherAccountsWithSameRiotId = accounts.Skip(1).Select(ToAccountRef).ToList(),
-            Tracking = BuildTracking(account, hasActiveMain, hasQueuedCandidate),
+            Tracking = BuildTracking(
+                account, hasActiveMain, hasQueuedCandidate, AccountExplorerVerdict.IsInNewCandidateArm(account, candidates)),
             MatchesIngested = matchesIngested,
             Candidates = candidates,
             SeedRequest = seedRequest,
@@ -260,7 +261,8 @@ public sealed class AccountExplorerQueryService(
     private AccountExplorerTrackingReadModel BuildTracking(
         RiotAccount account,
         bool hasActiveMain,
-        bool hasQueuedCandidate)
+        bool hasQueuedCandidate,
+        bool inNewCandidateArm)
     {
         // The real ingest claim (ClaimAccountsForMatchIngestAtomicallyAsync) gates
         // on RiotAccountStatus.Active before either membership arm is even
@@ -272,7 +274,7 @@ public sealed class AccountExplorerQueryService(
         var eligible = account.Status == RiotAccountStatus.Active;
 
         var trackedVia = eligible
-            ? (hasActiveMain, hasQueuedCandidate) switch
+            ? (hasActiveMain, inNewCandidateArm) switch
             {
                 (true, true) => "Both",
                 (true, false) => "EstablishedMain",

@@ -344,31 +344,22 @@ public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRe
         // join on a projected key set: one row per account without a Distinct, and the
         // ordering columns stay on riot_accounts where the claim index lives.
         //
-        // Inactive mains (#900) are deliberately out of the first one: an account whose
-        // mastery last-play went stale returns nothing but still costs a full match-v5
-        // page every cycle, which is exactly the budget we want to move to players who
-        // actually play.
+        // Both live in MatchIngestClaimClasses, which says why each excludes what it does.
         var establishedByPlatform = new Dictionary<string, List<AccountKey>>(StringComparer.Ordinal);
         var queuedByPlatform = new Dictionary<string, List<AccountKey>>(StringComparer.Ordinal);
 
         foreach (var platform in platforms)
         {
             establishedByPlatform[platform] = await SelectClaimableAsync(
-                account => db.MainChampionStats.Any(stat =>
-                    stat.IsMain
-                    && stat.IsActive
-                    && stat.PlatformId == account.PlatformId
-                    && stat.Puuid == account.Puuid),
+                MatchIngestClaimClasses.EstablishedMain(db),
                 platform,
                 leaseCutoff,
                 FetchCapFor(platform),
                 ct);
 
+            // Breadth is for accounts never ingested (#1535): an ingested one is depth's.
             queuedByPlatform[platform] = await SelectClaimableAsync(
-                account => db.MainCandidates.Any(candidate =>
-                    candidate.Status == MainCandidateStatus.Queued
-                    && candidate.PlatformId == account.PlatformId
-                    && candidate.Puuid == account.Puuid),
+                MatchIngestClaimClasses.NewCandidate(db),
                 platform,
                 leaseCutoff,
                 FetchCapFor(platform),

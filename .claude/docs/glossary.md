@@ -180,6 +180,10 @@ The time-bounded hold a claim places on an account's candidates while they are f
 **Established main**:
 An already-validated true main, as opposed to a new candidate, in a claim.
 
+**New candidate**:
+In a claim, an account never ingested that holds a `Queued` candidate — the breadth class; an already-ingested
+account is never one (#1535).
+
 **Coverage**:
 Active true mains per platform and champion; the **coverage deficit** of a platform allocates every budget
 between platforms.

@@ -82,16 +82,17 @@ public sealed class RiotAccountClaimPlatformQuotaIntegrationTests : IAsyncLifeti
     }
 
     [Fact]
-    public async Task ClaimAsync_KeepsNullsFirstWithinAPlatform()
+    public async Task ClaimAsync_BreadthSkipsAccountsAlreadyIngested()
     {
         var now = DateTime.UtcNow;
 
-        // Two KR accounts: one already ingested an hour ago, one never ingested. Scoping the
-        // claim per platform must not lose the priority that made sense inside one.
+        // Two KR accounts with a Queued candidate: one already ingested an hour ago, one never
+        // ingested. Breadth is for unseen players only (#1535) — the ingested one, without an
+        // active main, is in neither class, even with a free slot left in the batch.
         await SeedQueuedAccountsAsync("KR", 1, now, puuidPrefix: "old", lastIngestAtUtc: now.AddHours(-1));
         await SeedQueuedAccountsAsync("KR", 1, now, puuidPrefix: "new");
 
-        var claimed = await ClaimAsync(new Dictionary<string, int> { ["KR"] = 1 }, batchSize: 1, now);
+        var claimed = await ClaimAsync(new Dictionary<string, int> { ["KR"] = 2 }, batchSize: 2, now);
 
         claimed.Should().ContainSingle().Which.Puuid.Should().StartWith("new");
     }

@@ -270,6 +270,31 @@ took longer than `InactiveAfterDays` and the state it maintained could not conve
 
 Source: #1475 (follows #900, #1474; epic #1460).
 
+## The claim's breadth class is accounts never ingested (2026-10-06)
+
+**A new-candidate slot goes to a player we have never fetched, never to one we already have.** An account's
+`Queued` candidates become `Validated` on its first claim, but its other champions' rows stay `Scored` (the
+queue-depth drain keeps only the best row per account queued). One of those was later promoted and the account
+claimed again through breadth — measured on production, ~14% of the queue and ~7% of three days' validations
+were accounts validated before. Each one cost an unseen player a slot in the scarcest arm of the claim.
+
+**The rule is the ingest history, not a new status.** The breadth class is `LastMatchIngestAtUtc IS NULL` and a
+`Queued` candidate (`Data/Repositories/MatchIngestClaimClasses.cs`, shared by the claim, Scoring's promotion
+ranking and the settle pass). A settling `MainCandidateStatus` was rejected: `Rejected` is being removed (#1029)
+and another terminal status would be one more state for the funnel charts to explain. The row stays — #900's
+"deactivate, never delete" — as the record that the pair was seen:
+
+- Scoring's promotion ranking skips candidates of ingested accounts, so they stop competing with unseen ones.
+- Retention returns the `Queued` rows of ingested accounts to `Scored`, bounded by the queue-depth drain's own
+  batch knobs, so rows promoted before the rule do not hold a queue place for good.
+- An ingested account with an active main is refreshed by depth on its `LastMatchIngestAtUtc` ordering, as
+  before. One without an active main is no longer re-fetched through a leftover candidate — that re-fetch was
+  the cost being removed. A manual seed of such an account queues its rows, but they are settled rather than
+  claimed.
+- The account explorer's tracking arm applies the same rule (`AccountExplorerVerdict.IsInNewCandidateArm`).
+
+Source: #1535 (follows #1533, #1531, #1361, #900).
+
 ## The claim's established-main share is per platform (2026-10-04)
 
 **Each platform's quota is split between depth and breadth by its own coverage deficit, not by the batch's

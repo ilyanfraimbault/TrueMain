@@ -3,7 +3,7 @@
 # path<TAB>lines<TAB>limit
 backend/Data/Logging/Mongo/MongoLogContext.cs	525	500
 backend/Data/Ops/Mongo/ProcessRunStore.cs	508	500
-backend/Data/Repositories/RiotAccountRepository.cs	624	500
+backend/Data/Repositories/RiotAccountRepository.cs	615	500
 backend/Tools/DevSeed/SeedGenerator.cs	578	500
 web/app/components/AppBackdrop.vue	426	400
 web/app/components/leaderboard/LeaderboardRow.vue	448	400

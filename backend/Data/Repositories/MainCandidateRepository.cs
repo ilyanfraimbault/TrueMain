@@ -118,17 +118,21 @@ public sealed class MainCandidateRepository(TrueMainDbContext db) : IMainCandida
         int take,
         IReadOnlyCollection<int> deprioritizedChampionIds,
         CancellationToken ct)
-        => db.MainCandidates
-            .Where(c => c.PlatformId == platformId && c.Status == MainCandidateStatus.Scored)
-            // Champions that already reached the coverage target sort last whatever their
-            // score (#900), so they only take the slots an under-covered champion left free.
-            .OrderBy(c => deprioritizedChampionIds.Contains(c.ChampionId) ? 1 : 0)
-            .ThenByDescending(c => c.Score)
-            .ThenBy(c => c.ScoredAtUtc == null ? 0 : 1)
-            .ThenBy(c => c.ScoredAtUtc)
-            .ThenBy(c => c.Id)
-            .Take(Math.Max(0, take))
-            .ToListAsync(ct);
+        => MatchIngestClaimClasses.PromotionRanking(db, platformId, take, deprioritizedChampionIds).ToListAsync(ct);
+
+    public async Task<int> SettleQueuedForIngestedAccountsAsync(string platformId, int batchSize, CancellationToken ct)
+    {
+        // Same two-step shape as DemoteLowestScoredQueuedAsync, for the same reason (#988).
+        var ids = await MatchIngestClaimClasses.QueuedForIngestedAccounts(db, platformId, batchSize).ToListAsync(ct);
+        if (ids.Count == 0)
+        {
+            return 0;
+        }
+
+        return await db.MainCandidates
+            .Where(c => ids.Contains(c.Id) && c.Status == MainCandidateStatus.Queued)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, MainCandidateStatus.Scored), ct);
+    }
 
     public Task<List<MainCandidate>> GetByPlatformsAndPuuidsAsync(
         IReadOnlyCollection<string> platformIds,
