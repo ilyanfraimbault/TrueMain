@@ -80,7 +80,19 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_ed25519
           chmod 600 ~/.ssh/deploy_ed25519
           printf '%s\n' "$SSH_HOST_KEY" > ~/.ssh/known_hosts
-          ssh -i ~/.ssh/deploy_ed25519 -o StrictHostKeyChecking=yes "root@${SSH_HOST}" < "$SCRIPT"
+          for attempt in 1 2 3; do
+            status=0
+            ssh -i ~/.ssh/deploy_ed25519 -o StrictHostKeyChecking=yes "root@${SSH_HOST}" < "$SCRIPT" > "$RUNNER_TEMP/migrate.log" 2>&1 || status=$?
+            cat "$RUNNER_TEMP/migrate.log"
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ] || ! grep -q 'lock timeout' "$RUNNER_TEMP/migrate.log"; then
+              exit "$status"
+            fi
+            echo "::warning::Migration blocked by a lock on attempt $attempt of 3, retrying in 30s."
+            sleep 30
+          done
 
   deploy:
     name: Deploy ${{ inputs.environment }} VPS

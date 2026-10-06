@@ -23,7 +23,13 @@ two environments and the migration path in detail.
 `.github/actions/migration-script` is the composite action every job that
 needs the idempotent EF migration script goes through (`migrate-fresh` in CI,
 `migrate` in the rollout), so the script that is validated is the script that
-is deployed: same .NET SDK, same `dotnet-ef` version, same command.
+is deployed: same .NET SDK, same `dotnet-ef` version, same command. It also
+prepends the session guard every apply runs under (#1631): `\set ON_ERROR_STOP
+on`, so psql exits non-zero on the first error whatever flags the caller
+passes, then `lock_timeout = '5s'` and `statement_timeout = '10min'`. EF writes
+the script with a UTF-8 byte-order mark, which psql only skips at the very
+start of a file; once the guard sits in front it would land mid-file and break
+the first statement, so the action strips it.
 
 `.github/scripts/resolve-preprod-version.sh` computes the `<base>-rc.<N>`
 preprod version. It lives in its own file, with its own test
@@ -213,7 +219,10 @@ every run.
 migration succeeding, so a failed script blocks the image roll
 (`docs/production-migrations.md`). The migration script is printed to the log
 and uploaded as an artifact with 90-day retention, the only place the SQL is
-visible before it applies.
+visible before it applies. A run that fails on `lock timeout` is retried up to
+three times, 30 s apart: the script is idempotent and applied in one
+transaction, so a blocked attempt leaves nothing behind. Any other failure
+stops at once (`docs/production-migrations.md`).
 
 Each deploy workflow takes a **workflow-level** concurrency group with
 `cancel-in-progress: false`. On preprod the rc counter is derived from the
@@ -612,6 +621,14 @@ leaves a misleading version on the page (#1637).
   variant, `compose.preprod.yaml` and `compose.prod.yaml` the two deployed
   ones. Both deployed stacks run `Database__ApplyMigrationsOnStartup=false`
   and rely on the rollout to migrate.
+- PgBouncer reads a `pgbouncer.ini` written inline under `configs:` in every
+  stack, not the image's env-generated one (#1631). The env vars can only
+  describe one database entry, and the API needs its own: `${POSTGRES_DB}_api`
+  points at the same database with a `connect_query` that sets
+  `statement_timeout`, so the API's server connections carry it and the
+  ingestors' do not. The image still writes `userlist.txt` from `DB_USER`,
+  `DB_PASSWORD` and `AUTH_TYPE`, the only env vars it keeps. The values are in
+  `docs/prod.md` (*Connection pools*).
 - `compose.preprod.yaml` puts a plain-HTTP `caddy` in front of web and admin,
   like prod's edge, with its Caddyfile inline under `configs:` because the
   deploy ships the compose file alone (`docs/preprod.md`, #1558). It requires
