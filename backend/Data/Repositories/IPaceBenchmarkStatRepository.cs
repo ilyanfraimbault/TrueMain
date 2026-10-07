@@ -1,4 +1,5 @@
 using Core.Lol.Pace;
+using Core.Lol.Ranking;
 
 namespace Data.Repositories;
 
@@ -15,7 +16,7 @@ public interface IPaceBenchmarkStatRepository
 /// <summary>One bin increment of the pace benchmark — the grain of <c>pace_benchmark_stats</c>.</summary>
 public readonly record struct PaceBenchmarkKey(
     string Patch,
-    string Tier,
+    RankTier Tier,
     string Position,
     int Minute,
     PaceMetric Metric,

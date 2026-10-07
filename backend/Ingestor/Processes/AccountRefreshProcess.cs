@@ -191,7 +191,10 @@ public sealed class AccountRefreshProcess(
             var solo = entries.FirstOrDefault(e =>
                 string.Equals(e.QueueType, SoloQueueType, StringComparison.Ordinal));
 
-            if (solo is null || string.IsNullOrEmpty(solo.Tier) || string.IsNullOrEmpty(solo.Rank))
+            var input = solo is null
+                ? null
+                : RankSnapshotInput.TryCreate(solo.Tier, solo.Rank, solo.LeaguePoints, solo.Wins, solo.Losses);
+            if (input is null)
             {
                 summary.RankSkippedUnranked++;
                 return;
@@ -201,7 +204,7 @@ public sealed class AccountRefreshProcess(
             var outcome = rankSnapshotWriter.Ingest(
                 session,
                 account,
-                new RankSnapshotInput(solo.Tier, solo.Rank, solo.LeaguePoints, solo.Wins, solo.Losses),
+                input,
                 last,
                 nowUtc);
 

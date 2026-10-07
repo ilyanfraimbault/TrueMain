@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TrueMain.ReadModels.Truemains;
@@ -214,7 +215,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         await using (var db = _fixture.CreateDbContext())
         {
             db.RiotAccounts.AddRange(wanted, other);
-            db.RankSnapshots.Add(Snapshot(wanted, now.AddDays(-5), "MASTER", string.Empty, 350));
+            db.RankSnapshots.Add(Snapshot(wanted, now.AddDays(-5), "MASTER", "I", 350));
             db.RankSnapshots.Add(Snapshot(other, now.AddDays(-5), "IRON", "IV", 0));
             await db.SaveChangesAsync();
         }
@@ -230,9 +231,8 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         var entry = payload!.Entries.Should().ContainSingle().Subject;
         entry.Tier.Should().Be("MASTER");
         entry.LeaguePoints.Should().Be(350);
-        // Apex tiers carry no division; the read model passes the empty string through
-        // rather than inventing an "I".
-        entry.Division.Should().BeEmpty();
+        // Riot reports an apex tier's single division as "I"; the frontends hide it.
+        entry.Division.Should().Be("I");
     }
 
     [Fact]
@@ -322,8 +322,8 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
             Id = Guid.NewGuid(),
             RiotAccountId = account.Id,
             CapturedAtUtc = capturedAtUtc,
-            Tier = tier,
-            Division = division,
+            Tier = RankTiers.ParseTier(tier),
+            Division = RankTiers.ParseDivision(division),
             LeaguePoints = leaguePoints,
             Wins = 10,
             Losses = 10,

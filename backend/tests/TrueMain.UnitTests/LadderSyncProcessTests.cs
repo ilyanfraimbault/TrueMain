@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Core.Lol.Identifiers;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Ops.Mongo;
 using Data.Repositories;
@@ -192,11 +193,11 @@ public sealed class LadderSyncProcessTests
             cursors.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<LadderSyncCursor?>(null));
             cursors.UpsertAsync(
-                    Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(),
+                    Arg.Any<string>(), Arg.Any<RankTier>(), Arg.Any<RankDivision>(), Arg.Any<int>(),
                     Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
                 .Returns(call =>
                 {
-                    LastCursor = (call.ArgAt<string>(0), call.ArgAt<string>(1), call.ArgAt<string>(2), call.ArgAt<int>(3));
+                    LastCursor = (call.ArgAt<string>(0), call.ArgAt<RankTier>(1).ToRiotName(), call.ArgAt<RankDivision>(2).ToRiotName(), call.ArgAt<int>(3));
                     return Task.CompletedTask;
                 });
 

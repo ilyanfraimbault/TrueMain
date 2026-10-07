@@ -1,7 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
-using Data.Entities;
 using AwesomeAssertions;
+using Core.Lol.Ranking;
+using Data.Entities;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TrueMain.ReadModels.Truemains;
 
@@ -79,8 +80,8 @@ public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
                 Id = Guid.NewGuid(),
                 RiotAccountId = accountId,
                 CapturedAtUtc = now,
-                Tier = "DIAMOND",
-                Division = "II",
+                Tier = RankTier.Diamond,
+                Division = RankDivision.II,
                 LeaguePoints = 72,
                 Wins = 90,
                 Losses = 60,

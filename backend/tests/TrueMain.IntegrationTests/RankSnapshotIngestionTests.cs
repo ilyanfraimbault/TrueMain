@@ -1,7 +1,8 @@
 using System.Net;
-using Core.Lol.Identifiers;
-using Data.Entities;
 using AwesomeAssertions;
+using Core.Lol.Identifiers;
+using Core.Lol.Ranking;
+using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Ranking;
@@ -46,8 +47,8 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
 
         snapshots.Should().ContainSingle();
         var snap = snapshots[0];
-        snap.Tier.Should().Be("GOLD");
-        snap.Division.Should().Be("II");
+        snap.Tier.Should().Be(RankTier.Gold);
+        snap.Division.Should().Be(RankDivision.II);
         snap.LeaguePoints.Should().Be(50);
         snap.Wins.Should().Be(10);
         snap.Losses.Should().Be(5);
@@ -88,8 +89,8 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
             .ToListAsync();
 
         snapshots.Should().ContainSingle("same-day rank changes overwrite the existing row instead of appending");
-        snapshots[0].Tier.Should().Be("PLATINUM");
-        snapshots[0].Division.Should().Be("IV");
+        snapshots[0].Tier.Should().Be(RankTier.Platinum);
+        snapshots[0].Division.Should().Be(RankDivision.IV);
         snapshots[0].LeaguePoints.Should().Be(0);
     }
 
@@ -111,8 +112,8 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
             .ToListAsync();
 
         snapshots.Should().ContainSingle();
-        snapshots[0].Tier.Should().Be("GOLD");
-        snapshots[0].Division.Should().Be("I");
+        snapshots[0].Tier.Should().Be(RankTier.Gold);
+        snapshots[0].Division.Should().Be(RankDivision.I);
     }
 
     [Fact]
@@ -218,7 +219,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
 
         await using var verify = _fixture.CreateDbContext();
         var snap = await verify.RankSnapshots.SingleAsync(s => s.RiotAccountId == account.Id);
-        snap.Tier.Should().Be("GOLD");
+        snap.Tier.Should().Be(RankTier.Gold);
 
         var stored = await verify.RiotAccounts.SingleAsync(a => a.Id == account.Id);
         stored.GameName.Should().Be(originalName, "profile update was skipped due to the simulated error");
@@ -507,8 +508,8 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
             Id = Guid.NewGuid(),
             RiotAccountId = riotAccountId,
             CapturedAtUtc = capturedAtUtc,
-            Tier = tier,
-            Division = division,
+            Tier = RankTiers.ParseTier(tier),
+            Division = RankTiers.ParseDivision(division),
             LeaguePoints = lp,
             Wins = 5,
             Losses = 5

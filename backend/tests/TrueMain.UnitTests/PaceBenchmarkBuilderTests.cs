@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Core.Lol.Pace;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -23,7 +24,7 @@ public sealed class PaceBenchmarkBuilderTests
             [master] = [(GameStart.AddDays(-1), "MASTER")],
         };
 
-        PaceBenchmarkBuilder.ResolveLobbyTier(participants, history, GameStart).Should().Be("DIAMOND");
+        PaceBenchmarkBuilder.ResolveLobbyTier(participants, history, GameStart).Should().Be(RankTier.Diamond);
     }
 
     [Fact]
@@ -49,9 +50,9 @@ public sealed class PaceBenchmarkBuilderTests
 
         // Minutes 1..6, two laners (the third has no canonical position), two metrics.
         keys.Should().HaveCount(6 * 2 * 2);
-        keys.Should().OnlyContain(key => key.Patch == "16.19" && key.Tier == "EMERALD" && key.Minute >= 1 && key.Minute <= 6);
-        keys.Should().Contain(new PaceBenchmarkKey("16.19", "EMERALD", "MIDDLE", 6, PaceMetric.Cs, PaceHistogram.ToBucket(PaceMetric.Cs, 6 * 8 + 6)));
-        keys.Should().Contain(new PaceBenchmarkKey("16.19", "EMERALD", "JUNGLE", 6, PaceMetric.GoldEarned, PaceHistogram.ToBucket(PaceMetric.GoldEarned, 500 + 6 * 400)));
+        keys.Should().OnlyContain(key => key.Patch == "16.19" && key.Tier == RankTier.Emerald && key.Minute >= 1 && key.Minute <= 6);
+        keys.Should().Contain(new PaceBenchmarkKey("16.19", RankTier.Emerald, "MIDDLE", 6, PaceMetric.Cs, PaceHistogram.ToBucket(PaceMetric.Cs, 6 * 8 + 6)));
+        keys.Should().Contain(new PaceBenchmarkKey("16.19", RankTier.Emerald, "JUNGLE", 6, PaceMetric.GoldEarned, PaceHistogram.ToBucket(PaceMetric.GoldEarned, 500 + 6 * 400)));
     }
 
     [Fact]
@@ -67,7 +68,7 @@ public sealed class PaceBenchmarkBuilderTests
     [Fact]
     public void Count_SumsIdenticalKeys()
     {
-        var key = new PaceBenchmarkKey("16.19", "GOLD", "TOP", 5, PaceMetric.Cs, 6);
+        var key = new PaceBenchmarkKey("16.19", RankTier.Gold, "TOP", 5, PaceMetric.Cs, 6);
         var other = key with { Bucket = 7 };
 
         PaceBenchmarkBuilder.Count([key, other, key]).Should().BeEquivalentTo(

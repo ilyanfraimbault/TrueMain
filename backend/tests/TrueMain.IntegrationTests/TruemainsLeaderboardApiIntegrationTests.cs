@@ -876,8 +876,8 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
             // arrange phase to a single round trip.
             RiotAccount = account,
             CapturedAtUtc = now,
-            Tier = tier,
-            Division = division,
+            Tier = RankTiers.ParseTier(tier),
+            Division = RankTiers.ParseDivision(division),
             LeaguePoints = leaguePoints,
             // The leaderboard WR is sourced from these split totals (League-V4),
             // not the champion aggregate; overridable so a test can prove the WR

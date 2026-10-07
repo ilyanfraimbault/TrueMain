@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Data.Entities;
@@ -33,8 +34,8 @@ public sealed class ProfileQueryService(
 
     // Private DTOs used to carry query results out of factory-owned contexts.
     private sealed record SnapshotDto(
-        string Tier,
-        string Division,
+        RankTier Tier,
+        RankDivision Division,
         int LeaguePoints,
         int? Wins,
         int? Losses);
@@ -108,8 +109,8 @@ public sealed class ProfileQueryService(
             ? null
             : new ProfileRankedReadModel
             {
-                Tier = snapshot.Tier,
-                Division = snapshot.Division,
+                Tier = snapshot.Tier.ToRiotName(),
+                Division = snapshot.Division.ToRiotName(),
                 LeaguePoints = snapshot.LeaguePoints,
                 Wins = snapshot.Wins,
                 Losses = snapshot.Losses,

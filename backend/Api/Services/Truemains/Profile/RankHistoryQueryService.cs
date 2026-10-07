@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
@@ -47,8 +48,8 @@ public sealed class RankHistoryQueryService(
             .Select(s => new RankHistoryEntryReadModel
             {
                 CapturedAtUtc = s.CapturedAtUtc,
-                Tier = s.Tier,
-                Division = s.Division,
+                Tier = s.Tier.ToRiotName(),
+                Division = s.Division.ToRiotName(),
                 LeaguePoints = s.LeaguePoints,
             })
             .ToListAsync(ct);
