@@ -1621,7 +1621,7 @@ Compteurs globaux du corpus.
   "trackedAccounts": 12000,
   "totalMatches": 1500000,
   "totalParticipants": 15000000,
-  "candidatesByStatus": { "New": 200, "Scored": 80, "Queued": 15, "Processing": 3, "Validated": 9000, "Rejected": 1200 },
+  "candidatesByStatus": { "New": 200, "Scored": 80, "Queued": 15, "Processing": 3, "Validated": 9000 },
   "totalMains": 9000,
   "totalOtps": 1300,
   "distinctChampionsWithGames": 168,
@@ -2286,6 +2286,48 @@ les hosts régionaux.
   l'hôte, `unassigned` sans) tournait — union des runs bornés à la fenêtre, jamais leur
   somme, donc ≤ 1. Un run encore `Running` s'arrête à son dernier heartbeat.
 
+## `GET /ops/ingestor-metrics`
+
+Le meter `TrueMain.Ingestor` de l'ingestor (#1636) : échecs de run avalés par le worker,
+attentes de permis du rate limiter Riot et 429, chaque instrument découpé par jeu de tags.
+Un `MeterListener` dans l'ingestor les replie par minute dans la collection Mongo
+`meter_rollups` (rétention `MongoLogging:MeterRollupsRetention`, 30 jours) ; cet endpoint
+somme ces rollups sur la fenêtre.
+
+**Query** — `window` : `1h` / `24h` (défaut) / `7d` / `30d`, même repli silencieux que
+`/ops/riot-usage`.
+
+**Réponse `200`** — `IngestorMetricsReadModel`
+
+```json
+{
+  "window": "24h",
+  "sinceUtc": "2026-06-25T10:00:00Z",
+  "generatedAtUtc": "2026-06-26T10:00:00Z",
+  "retentionDays": 30.0,
+  "oldestRetainedUtc": "2026-06-20T08:41:00Z",
+  "instruments": [
+    {
+      "name": "ingestor.riot.ratelimit.wait", "kind": "histogram", "unit": "ms",
+      "description": "Time a Riot API call spent waiting for a rate-limit permit, tagged by routing value and endpoint.",
+      "count": 1200, "sum": 96000.0, "max": 2400.0,
+      "series": [
+        {
+          "tags": { "endpoint": "match-v5.getMatch", "routing_value": "europe" },
+          "count": 900, "sum": 81000.0, "mean": 90.0, "max": 2400.0,
+          "lastRecordedAtUtc": "2026-06-26T09:59:41Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `instruments` par nom ; leurs `series` par `sum` décroissant. Un compteur se lit à
+  `sum` (son total), un histogramme à `count` / `mean` / `max`.
+- Un instrument absent n'a rien enregistré sur la fenêtre. `oldestRetainedUtc` vaut `null`
+  quand aucun rollup n'a jamais été écrit : rien de mesuré, pas une fenêtre calme.
+
 ## `GET /ops/data-quality/detectors`
 
 Détecteurs d'anomalies automatiques (#924) : une carte par détecteur, avec son verdict, son
@@ -2816,14 +2858,14 @@ dans l'admin comme une panne plutôt que comme un verdict.
 
 ## `GET /ops/candidates`
 
-Candidats « main » du pipeline (New → Scored → Queued → Processing → Validated,
-ou Rejected), paginés.
+Candidats « main » du pipeline (New → Scored → Queued → Processing → Validated),
+paginés.
 
 **Query**
 
 | Param      | Type | Requis | Description |
 |------------|------|--------|-------------|
-| `status`   | string | non | Un `MainCandidateStatus` (new/scored/queued/processing/validated/rejected). |
+| `status`   | string | non | Un `MainCandidateStatus` (new/scored/queued/processing/validated). |
 | `region`   | string | non | PlatformId (ex. `EUW1`). |
 | `search`   | string | non | Riot ID / PUUID / champion-id. |
 | `page`     | int  | non | 1-based. |
@@ -2914,8 +2956,9 @@ découvert. La série est donc bornée par le TTL de `process_runs`.
 - `validated` est `null` — et non `0` — pour les périodes antérieures à
   `validatedFirstMeasuredAtUtc` : le compteur n'existait pas encore, et un panneau
   de santé ne présente pas ce qu'il n'a pas mesuré comme un zéro mesuré (#924).
-- `demoted` est aujourd'hui la seule sortie négative du funnel : le statut
-  `Rejected` existe sur l'entité mais aucun process ne l'assigne.
+- `demoted` est la seule sortie négative du funnel : il n'existe pas de statut de
+  rejet (retiré par #1029), un candidat est dans le pipeline, rétrogradé dans le
+  pool ou purgé.
 - `runs` compte les runs des six process contributeurs ; `0` distingue « le
   pipeline n'a pas tourné » de « il a tourné et n'a rien bougé ».
 - Les périodes creuses *à l'intérieur* de la plage observée valent zéro ; rien n'est

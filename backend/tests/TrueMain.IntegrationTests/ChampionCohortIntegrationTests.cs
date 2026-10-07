@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Data;
 using Data.Aggregation;
 using Data.Entities;
+using Microsoft.EntityFrameworkCore;
 using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
@@ -40,7 +41,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Returns_an_empty_set_when_no_matches_are_asked_for()
+    public async Task ReturnsAnEmptySetWhenNoMatchesAreAskedFor()
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -50,7 +51,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Admits_a_tracked_participant_that_mains_the_champion_it_played()
+    public async Task AdmitsATrackedParticipantThatMainsTheChampionItPlayed()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -70,7 +71,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_an_untracked_participant_even_when_a_main_row_exists_for_its_puuid()
+    public async Task ExcludesAnUntrackedParticipantEvenWhenAMainRowExistsForItsPuuid()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -91,7 +92,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_tracked_participant_playing_a_champion_it_does_not_main()
+    public async Task ExcludesATrackedParticipantPlayingAChampionItDoesNotMain()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -121,7 +122,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_participant_whose_main_row_was_computed_on_another_platform()
+    public async Task ExcludesAParticipantWhoseMainRowWasComputedOnAnotherPlatform()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -143,7 +144,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Keeps_a_retired_main_because_IsActive_only_retires_future_ingestion()
+    public async Task KeepsARetiredMainBecauseIsActiveOnlyRetiresFutureIngestion()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -165,7 +166,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Scopes_the_result_to_the_requested_matches_only()
+    public async Task ScopesTheResultToTheRequestedMatchesOnly()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -185,7 +186,7 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Keys_stay_per_match_because_a_participant_id_is_only_a_slot_number()
+    public async Task Keys_StayPerMatchBecauseAParticipantIdIsOnlyASlotNumber()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -213,14 +214,14 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_remade_game_because_a_remake_is_not_a_game()
+    public async Task ExcludesARemadeGameBecauseARemakeIsNotAGame()
     {
         await using (var db = _fixture.CreateDbContext())
         {
             var account = AddAccount(db, TrackedPuuid);
             // Under the 5-minute floor: the pre-vote remake every fold used to decide
-            // for itself whether to count. Riot's gameEndedInEarlySurrender is not
-            // stored, so the duration is the signal (#1365).
+            // for itself whether to count; the duration floor is the signal for every
+            // match Riot's flag does not cover (#1365, #1364).
             Seed(db, "EUW1_REMAKE", TrackedPuuid, Yone, account.Id, participantId: 1,
                 gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds - 1);
             Seed(db, "EUW1_GAME", TrackedPuuid, Yone, account.Id, participantId: 1,
@@ -242,7 +243,32 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Excludes_a_participant_whose_position_is_not_canonical()
+    public async Task ExcludesAGameRiotFlaggedAsARemakeWhateverItsDuration()
+    {
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = AddAccount(db, TrackedPuuid);
+            // Over the floor, but Riot's own remake vote says it was not a game (#1364).
+            Seed(db, "EUW1_FLAGGED", TrackedPuuid, Yone, account.Id, participantId: 1,
+                gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds + 60);
+            Seed(db, "EUW1_GAME", TrackedPuuid, Yone, account.Id, participantId: 1);
+            db.Matches.Local.Single(match => match.Id == "EUW1_FLAGGED").EndedInEarlySurrender = true;
+            db.MainChampionStats.Add(MainRow(TrackedPuuid, Yone, isMain: true));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var cohort = await ChampionCohort.LoadAsync(
+                db, ["EUW1_FLAGGED", "EUW1_GAME"], CancellationToken.None);
+
+            cohort.Keys.Select(key => key.MatchId).Should().BeEquivalentTo(["EUW1_GAME"]);
+            cohort.IncludesMatch("EUW1_FLAGGED").Should().BeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task ExcludesAParticipantWhosePositionIsNotCanonical()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -261,6 +287,70 @@ public sealed class ChampionCohortIntegrationTests : IAsyncLifetime
             cohort.Keys.Should().BeEmpty();
             cohort.IncludesMatch("EUW1_NOLANE").Should()
                 .BeTrue("the match is still a game - it just has nobody on the champion side");
+        }
+    }
+
+    /// <summary>
+    /// The folds load the cohort per batch and the live reads compose it as a query; both
+    /// are the one predicate, and this pins that they answer alike on a corpus holding
+    /// every case the clauses above separate (#1365).
+    /// </summary>
+    [Fact]
+    public async Task TheLiveReadQueryAndTheFoldLoadAdmitTheSameParticipants()
+    {
+        string[] matchIds =
+            ["EUW1_A_MAIN", "EUW1_A_OFFMAIN", "EUW1_A_ORPHAN", "EUW1_A_REMAKE", "EUW1_A_NOLANE", "EUW1_A_RETIRED"];
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var main = AddAccount(db, TrackedPuuid);
+            var retired = AddAccount(db, "retired-puuid");
+            Seed(db, "EUW1_A_MAIN", TrackedPuuid, Yone, main.Id, participantId: 1);
+            Seed(db, "EUW1_A_OFFMAIN", TrackedPuuid, Zed, main.Id, participantId: 2);
+            Seed(db, "EUW1_A_ORPHAN", "orphan-puuid", Yone, riotAccountId: null, participantId: 3);
+            Seed(db, "EUW1_A_REMAKE", TrackedPuuid, Yone, main.Id, participantId: 4,
+                gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds - 1);
+            Seed(db, "EUW1_A_NOLANE", TrackedPuuid, Yone, main.Id, participantId: 5, teamPosition: "");
+            Seed(db, "EUW1_A_RETIRED", "retired-puuid", Yone, retired.Id, participantId: 6);
+            db.MainChampionStats.AddRange(
+                MainRow(TrackedPuuid, Yone, isMain: true),
+                MainRow(TrackedPuuid, Zed, isMain: false),
+                MainRow("orphan-puuid", Yone, isMain: true),
+                MainRow("retired-puuid", Yone, isMain: true, isActive: false));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var loaded = await ChampionCohort.LoadAsync(db, matchIds, CancellationToken.None);
+            var composed = await ChampionCohort.Members(db, QueueId, patch: null)
+                .Select(p => new ChampionCohortKey(p.MatchId, p.ParticipantId))
+                .ToListAsync();
+
+            composed.Should().BeEquivalentTo(loaded.Keys);
+            composed.Select(key => key.MatchId).Should().BeEquivalentTo(["EUW1_A_MAIN", "EUW1_A_RETIRED"]);
+        }
+    }
+
+    [Fact]
+    public async Task Games_DropsTheRemakesAndKeepsTheQueueAndPatchAskedFor()
+    {
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = AddAccount(db, TrackedPuuid);
+            Seed(db, "EUW1_G_GAME", TrackedPuuid, Yone, account.Id, participantId: 1);
+            Seed(db, "EUW1_G_REMAKE", TrackedPuuid, Yone, account.Id, participantId: 1,
+                gameDurationSeconds: ChampionCohort.MinimumGameDurationSeconds - 1);
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var games = await ChampionCohort.Games(db, QueueId, patch: null).Select(m => m.Id).ToListAsync();
+            var otherQueue = await ChampionCohort.Games(db, 440, patch: null).Select(m => m.Id).ToListAsync();
+
+            games.Should().BeEquivalentTo(["EUW1_G_GAME"]);
+            otherQueue.Should().BeEmpty();
         }
     }
 

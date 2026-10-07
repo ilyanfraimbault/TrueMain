@@ -64,6 +64,7 @@ public static class SharedEffectiveConfigurationSections
             nameof(MongoLoggingOptions.MinimumLevel),
             nameof(MongoLoggingOptions.LogsRetention),
             nameof(MongoLoggingOptions.RiotApiCallsRetention),
+            nameof(MongoLoggingOptions.MeterRollupsRetention),
             nameof(MongoLoggingOptions.DbTableSizeSnapshotsRetention),
             nameof(MongoLoggingOptions.CandidateStockSnapshotsRetention),
             nameof(MongoLoggingOptions.ProcessRunsRetention),
@@ -85,6 +86,10 @@ public static class SharedEffectiveConfigurationSections
                 nameof(MongoLoggingOptions.RiotApiCallsRetention),
                 UnsetCondition.ZeroOrNegative,
                 "No TTL index: Riot usage rollups are kept forever, well past the 7-day window the panel reads."),
+            new EffectiveConfigurationNotice(
+                nameof(MongoLoggingOptions.MeterRollupsRetention),
+                UnsetCondition.ZeroOrNegative,
+                "No TTL index: the Ingestor meter's per-minute rollups are kept forever, past the 30-day window the panel reads."),
             new EffectiveConfigurationNotice(
                 nameof(MongoLoggingOptions.DbTableSizeSnapshotsRetention),
                 UnsetCondition.ZeroOrNegative,

@@ -14,7 +14,7 @@ namespace TrueMain.UnitTests;
 public sealed class DedicationScoreTests
 {
     [Fact]
-    public void Compute_returns_100_for_a_saturated_one_trick()
+    public void Compute_Returns100ForASaturatedOneTrick()
     {
         var result = DedicationScore.Compute(new DedicationInputs(
             PlayRate: 1d,
@@ -28,7 +28,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_returns_0_when_every_component_bottoms_out()
+    public void Compute_Returns0WhenEveryComponentBottomsOut()
     {
         var result = DedicationScore.Compute(new DedicationInputs(
             PlayRate: DedicationScore.CommitmentFloor,
@@ -42,7 +42,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_weights_sum_to_one_so_the_score_spans_the_full_scale()
+    public void Compute_WeightsSumToOneSoTheScoreSpansTheFullScale()
     {
         var sum = DedicationScore.CommitmentWeight
                   + DedicationScore.MasteryWeight
@@ -52,7 +52,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_never_leaves_the_0_100_range_on_out_of_range_inputs()
+    public void Compute_NeverLeavesThe0100RangeOnOutOfRangeInputs()
     {
         // Defensive: a play rate outside 0..1 or a nonsense rank can only come
         // from corrupt data, and must clamp rather than push the score off-scale.
@@ -71,7 +71,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_treats_NaN_play_rate_as_the_bottom_of_the_scale()
+    public void Compute_TreatsNaNPlayRateAsTheBottomOfTheScale()
     {
         var result = DedicationScore.Compute(new DedicationInputs(double.NaN, null, null));
 
@@ -79,7 +79,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_is_monotone_in_play_rate()
+    public void Compute_IsMonotoneInPlayRate()
     {
         var lower = DedicationScore.Compute(new DedicationInputs(0.4d, 500_000, 2));
         var higher = DedicationScore.Compute(new DedicationInputs(0.8d, 500_000, 2));
@@ -88,7 +88,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_is_monotone_in_mastery_points()
+    public void Compute_IsMonotoneInMasteryPoints()
     {
         var lower = DedicationScore.Compute(new DedicationInputs(0.5d, 200_000, 1));
         var higher = DedicationScore.Compute(new DedicationInputs(0.5d, 1_500_000, 1));
@@ -97,7 +97,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_rewards_the_most_mastered_champion()
+    public void Compute_RewardsTheMostMasteredChampion()
     {
         var second = DedicationScore.Compute(new DedicationInputs(0.5d, 800_000, 2));
         var first = DedicationScore.Compute(new DedicationInputs(0.5d, 800_000, 1));
@@ -106,7 +106,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Mastery_is_logarithmic_between_the_floor_and_the_target()
+    public void Mastery_IsLogarithmicBetweenTheFloorAndTheTarget()
     {
         DedicationScore.Mastery(DedicationScore.MasteryFloorPoints).Should().Be(0d);
         DedicationScore.Mastery(DedicationScore.MasteryTargetPoints).Should().BeApproximately(1d, 1e-12);
@@ -118,7 +118,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Mastery_reads_zero_when_not_read_yet()
+    public void Mastery_ReadsZeroWhenNotReadYet()
     {
         DedicationScore.Mastery(null).Should().Be(0d);
     }
@@ -127,7 +127,7 @@ public sealed class DedicationScoreTests
     [InlineData(1, 1d)]
     [InlineData(2, 0.5d)]
     [InlineData(4, 0.25d)]
-    public void MasteryRank_is_the_reciprocal_of_the_rank(int rank, double expected)
+    public void MasteryRank_IsTheReciprocalOfTheRank(int rank, double expected)
     {
         DedicationScore.MasteryRank(rank).Should().BeApproximately(expected, 1e-12);
     }
@@ -136,13 +136,13 @@ public sealed class DedicationScoreTests
     [InlineData(null)]
     [InlineData(0)]
     [InlineData(-1)]
-    public void MasteryRank_reads_zero_when_unknown(int? rank)
+    public void MasteryRank_ReadsZeroWhenUnknown(int? rank)
     {
         DedicationScore.MasteryRank(rank).Should().Be(0d);
     }
 
     [Fact]
-    public void Compute_ranks_a_long_time_one_trick_above_a_fresh_pick_at_the_same_play_rate()
+    public void Compute_RanksALongTimeOneTrickAboveAFreshPickAtTheSamePlayRate()
     {
         // The point of #1701: longevity is measured by the player's mastery, not
         // by how long TrueMain has been watching. A veteran one-trick outranks a
@@ -154,7 +154,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_keeps_play_rate_the_dominant_signal()
+    public void Compute_KeepsPlayRateTheDominantSignal()
     {
         // Someone who gives the champion nine games in ten, with modest mastery,
         // is more of a truemain than a flex player with a huge lifetime pool on it.
@@ -165,7 +165,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_scores_unread_mastery_on_play_rate_alone()
+    public void Compute_ScoresUnreadMasteryOnPlayRateAlone()
     {
         var result = DedicationScore.Compute(new DedicationInputs(1d, null, null));
 
@@ -173,7 +173,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_rounds_the_score_to_one_decimal()
+    public void Compute_RoundsTheScoreToOneDecimal()
     {
         var result = DedicationScore.Compute(new DedicationInputs(0.537d, 612_345, 3));
 
@@ -181,7 +181,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void CommitmentFloor_matches_the_main_analysis_play_rate_floor_default()
+    public void CommitmentFloor_MatchesTheMainAnalysisPlayRateFloorDefault()
     {
         // #869: the commitment floor mirrors the play rate below which no
         // champion is classified as a main. Retuning the option's default
@@ -191,7 +191,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Commitment_rescales_from_the_supplied_floor()
+    public void Commitment_RescalesFromTheSuppliedFloor()
     {
         DedicationScore.Commitment(0.2d, commitmentFloor: 0.2d).Should().Be(0d);
         DedicationScore.Commitment(0.15d, commitmentFloor: 0.2d).Should().Be(0d);
@@ -200,7 +200,7 @@ public sealed class DedicationScoreTests
     }
 
     [Fact]
-    public void Compute_threads_the_supplied_floor_into_commitment()
+    public void Compute_ThreadsTheSuppliedFloorIntoCommitment()
     {
         // The point of #869: a retuned MainAnalysis:PlayRateFloor must actually
         // move the score, otherwise the two drift apart with nothing failing.
@@ -218,7 +218,7 @@ public sealed class DedicationScoreTests
     [InlineData(-0.1d)]
     [InlineData(1d)]
     [InlineData(1.5d)]
-    public void Commitment_falls_back_to_the_default_floor_when_given_a_nonsense_one(double floor)
+    public void Commitment_FallsBackToTheDefaultFloorWhenGivenANonsenseOne(double floor)
     {
         // A floor outside [0, 1) would invert the rescale or divide by zero.
         DedicationScore.Commitment(0.5d, floor)

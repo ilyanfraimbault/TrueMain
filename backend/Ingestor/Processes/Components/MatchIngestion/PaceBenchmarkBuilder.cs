@@ -26,7 +26,7 @@ internal static class PaceBenchmarkBuilder
         IReadOnlyDictionary<Guid, List<(DateTime CapturedAtUtc, string? Tier)>> tierHistoryByAccount)
     {
         var keys = new List<PaceBenchmarkKey>();
-        if (ChampionCohort.IsRemake(match.GameDurationSeconds) || string.IsNullOrEmpty(match.Patch))
+        if (ChampionCohort.IsRemake(match.GameDurationSeconds, match.EndedInEarlySurrender) || string.IsNullOrEmpty(match.Patch))
         {
             return keys;
         }
@@ -41,7 +41,7 @@ internal static class PaceBenchmarkBuilder
             .Where(participant => ChampionCohort.IsCanonicalPosition(participant.TeamPosition))
             .ToDictionary(participant => participant.ParticipantId, participant => participant.TeamPosition);
 
-        return BuildAtTier(match.Patch, match.GameDurationSeconds, tier.Value, positionByParticipant, timeline);
+        return BuildAtTier(match.Patch, match.GameDurationSeconds, match.EndedInEarlySurrender, tier.Value, positionByParticipant, timeline);
     }
 
     /// <summary>
@@ -53,12 +53,13 @@ internal static class PaceBenchmarkBuilder
     public static List<PaceBenchmarkKey> BuildAtTier(
         string patch,
         int gameDurationSeconds,
+        bool endedInEarlySurrender,
         RankTier tier,
         IReadOnlyDictionary<int, string> positionByParticipant,
         MatchTimelineDto timeline)
     {
         var keys = new List<PaceBenchmarkKey>();
-        if (ChampionCohort.IsRemake(gameDurationSeconds))
+        if (ChampionCohort.IsRemake(gameDurationSeconds, endedInEarlySurrender))
         {
             return keys;
         }

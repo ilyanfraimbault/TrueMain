@@ -34,4 +34,5 @@ public sealed record PaceBenchmarkFoldClaim(
     string Id,
     string? Patch,
     DateTime GameStartTimeUtc,
-    int GameDurationSeconds);
+    int GameDurationSeconds,
+    bool EndedInEarlySurrender);

@@ -126,6 +126,20 @@ public sealed class MongoLoggingOptions
     public TimeSpan DesktopDownloadsRetention { get; set; } = TimeSpan.Zero;
 
     /// <summary>
+    /// Collection holding the per-minute rollups of a process's own <c>System.Diagnostics.Metrics</c>
+    /// meter (#1636) — today the Ingestor's <c>TrueMain.Ingestor</c> meter, folded by its
+    /// <c>MeterListener</c> and read by the admin Riot API tab.
+    /// </summary>
+    public string MeterRollupsCollection { get; set; } = "meter_rollups";
+
+    /// <summary>
+    /// Retention window for <see cref="MeterRollupsCollection"/>, a TTL index on
+    /// <c>bucketStartUtc</c>. Thirty days, the widest window the admin reads it over, like the
+    /// Riot call rollups it sits next to. Zero or negative disables it.
+    /// </summary>
+    public TimeSpan MeterRollupsRetention { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>
     /// Master switch. When false (or when <see cref="ConnectionString"/> is
     /// blank) the provider is still registered but drops every record, so
     /// persisted logging can be turned off without code changes.

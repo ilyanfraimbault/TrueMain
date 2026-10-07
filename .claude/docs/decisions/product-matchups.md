@@ -80,6 +80,21 @@ no event spike, so the spikes panel goes thin on the live patches and refills fo
 would otherwise add a match's spread to a total that already holds it — σ becomes the spread over the retained
 window instead of a double-counted lifetime average — #1365.
 
+**The live champion reads compose that same cohort, and the ones that pick another population still take its
+matches.** The panels computed live from `match_participants` each restated "who counts" in their own words:
+item timings and scaling said `RiotAccountId IS NOT NULL` (any tracked account), the trio synergies the same
+under a duo aggregate folded over mains, and the mains comparison pool `IsMain AND IsActive` — and all of them
+counted remakes. They now compose `ChampionCohort.Members(db, queue, patch)`, an `IQueryable` built from the
+same private predicate the folds' `LoadAsync` runs, so the live panels and the folded ones count one population
+(the comparison pool loses `IsActive`, as the header never tested it). Three reads keep a different champion side
+on purpose — one player's own matchups, the composition recommender and the matchup-scoped builds over the full
+pool, because a build is valid whoever piloted it (#563, #923) — and those take their matches from
+`ChampionCohort.Games(db, queue, patch)`, so a remake still never counts. A unit test greps the read sources for
+`RiotAccountId != null`, `IsMain`, a private lane list and a bare `db.Matches`, like the fold guard. Item timings
+keep their `jsonb` unnest in raw SQL, composed as a subquery under the cohort's LINQ rather than restating it.
+The composition recommender's preference for main-piloted games (`IsMain AND IsActive` on the puuid) is a
+ranking signal, not a population, and stays as it was — #1365.
+
 **The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one.**
 It forwarded position and elo but never patch, and its aggregate outlives the matches it was folded from, so the
 panel spanned **16.12→16.15 (53 739 games) under a header reading 4 603** — two contradicting numbers a few

@@ -80,7 +80,9 @@ a one-sided team (ally magic-damage axis Low and the candidate High, or the reve
 carries a "+ Magic damage" / "+ Physical damage" chip that leaves the order untouched; a measured `damageMixDelta`
 component waits for #1906. Build advice reuses the in-game next-item read (#1749) with an empty inventory and the
 draft as the game: the boots and the first legendary a situation of this draft moves up most, with that situation in
-the site's wording — no new endpoint, the same model and axes as in game. Runes: nothing shipped; the measured route
+the site's wording — no new endpoint, the same model and axes as in game. A push is shown only past a 5-point *and*
+×1.25 shift (a "21% vs 20%" Shieldbow read as advice was noise), and only an enemy or lane-opponent axis may be its
+reason: the ally axes measure what a flex pick's team already has, which no item answers in a draft. Runes: nothing shipped; the measured route
 recommended for a follow-up is a composition-build vote weighted by damage-band similarity, not a rule — #1907.
 
 **The app draws the site's components, as labelled twin copies, not look-alikes** — superseded page by page by the shared layer above (#1732): a component that moves into the layer loses its twin. Hand-ported versions (a skill

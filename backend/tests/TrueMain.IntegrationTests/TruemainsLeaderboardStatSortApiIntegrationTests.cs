@@ -43,7 +43,7 @@ public sealed class TruemainsLeaderboardStatSortApiIntegrationTests : IAsyncLife
     [InlineData("kda", new[] { "Diamond", "Master", "Apex", "Fresh" })]
     [InlineData("winRate", new[] { "Master", "Apex", "Diamond", "Fresh" })]
     [InlineData("WINRATE", new[] { "Master", "Apex", "Diamond", "Fresh" })]
-    public async Task Stat_sort_orders_the_whole_board(string sort, string[] expectedOrder)
+    public async Task StatSortOrdersTheWholeBoard(string sort, string[] expectedOrder)
     {
         await SeedBoardAsync();
 
@@ -58,7 +58,7 @@ public sealed class TruemainsLeaderboardStatSortApiIntegrationTests : IAsyncLife
     }
 
     [Fact]
-    public async Task Stat_sort_pages_the_server_order_rather_than_one_page()
+    public async Task StatSortPagesTheServerOrderRatherThanOnePage()
     {
         await SeedBoardAsync();
 
@@ -80,7 +80,7 @@ public sealed class TruemainsLeaderboardStatSortApiIntegrationTests : IAsyncLife
     }
 
     [Fact]
-    public async Task Stat_sort_respects_the_filters()
+    public async Task StatSortRespectsTheFilters()
     {
         await SeedBoardAsync();
 

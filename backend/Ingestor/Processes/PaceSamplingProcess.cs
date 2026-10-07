@@ -255,8 +255,10 @@ public sealed class PaceSamplingProcess(
 
         var info = match.Info;
         var durationSeconds = RiotValueConverters.ToIntSafe(info.GameDuration);
+        var endedInEarlySurrender = RiotMatchMapper.EndedInEarlySurrender(match);
         if (info.QueueId != RankedSoloQueueId
-            || ChampionCohort.IsRemake(durationSeconds)
+            || !RiotMatchMapper.IsCompletedGame(match)
+            || ChampionCohort.IsRemake(durationSeconds, endedInEarlySurrender)
             || !PatchVersion.TryParse(info.GameVersion, out var version))
         {
             // Not worth its timeline call; remembered so no later run pays for the match again.
@@ -276,7 +278,7 @@ public sealed class PaceSamplingProcess(
             .GroupBy(participant => participant.ParticipantId)
             .ToDictionary(group => group.Key, group => group.First().TeamPosition);
 
-        var keys = PaceBenchmarkBuilder.BuildAtTier(version.ToMajorMinor(), durationSeconds, tier, positions, timeline);
+        var keys = PaceBenchmarkBuilder.BuildAtTier(version.ToMajorMinor(), durationSeconds, endedInEarlySurrender, tier, positions, timeline);
         await RecordAsync(session, matchId, tier, keys, run, ct);
 
         run.MatchesSampled++;

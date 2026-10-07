@@ -75,7 +75,7 @@ public sealed class PaceBenchmarkBuilderTests
             [new PaceBenchmarkCount(key, 2), new PaceBenchmarkCount(other, 1)]);
     }
 
-    private static PaceBenchmarkFoldClaim Claim(int durationSeconds) => new("EUW1_1", "16.19", GameStart, durationSeconds);
+    private static PaceBenchmarkFoldClaim Claim(int durationSeconds) => new("EUW1_1", "16.19", GameStart, durationSeconds, EndedInEarlySurrender: false);
 
     private static MatchParticipant Participant(int participantId, string position, Guid? accountId = null) => new()
     {

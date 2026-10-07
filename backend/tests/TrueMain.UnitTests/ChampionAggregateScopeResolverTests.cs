@@ -13,7 +13,7 @@ namespace TrueMain.UnitTests;
 public sealed class ChampionAggregateScopeResolverTests
 {
     [Fact]
-    public void ResolveLatestPatchAboveFloor_picks_the_newest_patch_that_clears_the_floor()
+    public void ResolveLatestPatchAboveFloor_PicksTheNewestPatchThatClearsTheFloor()
     {
         (string GameVersion, string Position, int Games)[] rows =
         [
@@ -26,7 +26,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveLatestPatchAboveFloor_returns_null_when_no_patch_clears_the_floor()
+    public void ResolveLatestPatchAboveFloor_ReturnsNullWhenNoPatchClearsTheFloor()
     {
         (string GameVersion, string Position, int Games)[] rows =
         [
@@ -38,7 +38,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveLatestPatchAboveFloor_compares_the_dominant_position_not_the_patch_total()
+    public void ResolveLatestPatchAboveFloor_ComparesTheDominantPositionNotThePatchTotal()
     {
         // 16.9 spreads 3+3 across two roles — the patch total is 6 but neither
         // role clears 5, so the resolver skips it for 16.8's single 6-game role.
@@ -53,7 +53,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveLatestPatchAboveFloor_excludes_a_patch_with_no_valid_position()
+    public void ResolveLatestPatchAboveFloor_ExcludesAPatchWithNoValidPosition()
     {
         // Defensive branch: a patch whose only rows have a blank position can't
         // form a rankable slice, so it's skipped for the newest patch that can.
@@ -67,7 +67,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveServablePatch_skips_a_new_patch_that_cannot_fill_a_directory()
+    public void ResolveServablePatch_SkipsANewPatchThatCannotFillADirectory()
     {
         // The #1109 regression, in miniature: 16.16 exists and holds rows, but only
         // seven of its lines clear the min-sample floor. Serving it would put an empty
@@ -85,7 +85,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveServablePatch_takes_the_newest_patch_the_moment_it_clears_the_bar()
+    public void ResolveServablePatch_TakesTheNewestPatchTheMomentItClearsTheBar()
     {
         var linesPastFloor = new Dictionary<string, int>(StringComparer.Ordinal)
         {
@@ -99,7 +99,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveServablePatch_walks_back_past_more_than_one_thin_patch()
+    public void ResolveServablePatch_WalksBackPastMoreThanOneThinPatch()
     {
         // Two thin patches in a row is not a shape production has produced, but the
         // walk must not stop after a single step or the fallback silently lands on
@@ -117,7 +117,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveServablePatch_orders_numerically_not_lexically()
+    public void ResolveServablePatch_OrdersNumericallyNotLexically()
     {
         // "16.9" sorts after "16.16" as text. A lexical walk would serve the older
         // patch forever once the minor number passed 9.
@@ -133,7 +133,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveServablePatch_serves_the_newest_patch_when_nothing_clears_the_bar()
+    public void ResolveServablePatch_ServesTheNewestPatchWhenNothingClearsTheBar()
     {
         // A fresh deployment, or a bar set above the whole site's volume: a thin
         // directory is the honest state, an empty one is not.
@@ -149,7 +149,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveServablePatch_counts_an_unmeasured_patch_as_zero()
+    public void ResolveServablePatch_CountsAnUnmeasuredPatchAsZero()
     {
         // A candidate missing from the lookup has no measured lines, so it can never
         // win the walk — the alternative (treating "unknown" as "fine") is exactly the
@@ -167,7 +167,7 @@ public sealed class ChampionAggregateScopeResolverTests
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public void ResolveServablePatch_with_the_bar_disabled_serves_the_newest_patch(int minLines)
+    public void ResolveServablePatch_WithTheBarDisabledServesTheNewestPatch(int minLines)
     {
         var linesPastFloor = new Dictionary<string, int>(StringComparer.Ordinal)
         {
@@ -181,7 +181,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void ResolveServablePatch_returns_null_when_there_is_no_patch_at_all()
+    public void ResolveServablePatch_ReturnsNullWhenThereIsNoPatchAtAll()
     {
         ChampionAggregateScopeResolver
             .ResolveServablePatch([], new Dictionary<string, int>(StringComparer.Ordinal), minLines: 50)
@@ -189,7 +189,7 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
-    public void OrderNewestFirst_deduplicates_and_sorts_numerically()
+    public void OrderNewestFirst_DeduplicatesAndSortsNumerically()
     {
         ChampionAggregateScopeResolver
             .OrderNewestFirst(["16.9", "16.16", "16.9", "17.1"])

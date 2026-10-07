@@ -36,7 +36,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Returns_404_for_an_unknown_account()
+    public async Task Returns404ForAnUnknownAccount()
     {
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -50,7 +50,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     [InlineData("NoHyphen")]
     [InlineData("-LeadingHyphen")]
     [InlineData("TrailingHyphen-")]
-    public async Task Returns_404_for_a_malformed_name_tag(string nameTag)
+    public async Task Returns404ForAMalformedNameTag(string nameTag)
     {
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -61,7 +61,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Returns_an_empty_series_rather_than_404_for_a_known_account_with_no_snapshots()
+    public async Task ReturnsAnEmptySeriesRatherThan404ForAKnownAccountWithNoSnapshots()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -84,7 +84,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Returns_the_snapshots_oldest_first_with_the_chart_contract_shape()
+    public async Task ReturnsTheSnapshotsOldestFirstWithTheChartContractShape()
     {
         var now = DateTime.UtcNow;
 
@@ -126,7 +126,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Defaults_to_a_90_day_window_when_days_is_absent_zero_or_negative()
+    public async Task DefaultsToA90DayWindowWhenDaysIsAbsentZeroOrNegative()
     {
         var now = DateTime.UtcNow;
 
@@ -157,7 +157,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Narrows_the_window_to_the_requested_number_of_days()
+    public async Task NarrowsTheWindowToTheRequestedNumberOfDays()
     {
         var now = DateTime.UtcNow;
 
@@ -180,7 +180,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Clamps_an_oversized_window_to_two_years_instead_of_scanning_everything()
+    public async Task ClampsAnOversizedWindowToTwoYearsInsteadOfScanningEverything()
     {
         var now = DateTime.UtcNow;
 
@@ -206,7 +206,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Serves_only_the_requested_account_when_two_players_share_a_game_name()
+    public async Task ServesOnlyTheRequestedAccountWhenTwoPlayersShareAGameName()
     {
         var now = DateTime.UtcNow;
 
@@ -236,7 +236,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Prefers_the_most_recently_ingested_account_when_a_riot_id_was_reused()
+    public async Task PrefersTheMostRecentlyIngestedAccountWhenARiotIdWasReused()
     {
         var now = DateTime.UtcNow;
 
@@ -269,7 +269,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Keeps_a_flat_stretch_as_repeated_points_rather_than_collapsing_it()
+    public async Task KeepsAFlatStretchAsRepeatedPointsRatherThanCollapsingIt()
     {
         var now = DateTime.UtcNow;
 

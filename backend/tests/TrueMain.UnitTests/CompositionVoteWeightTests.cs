@@ -34,7 +34,7 @@ public sealed class CompositionVoteWeightTests
     [InlineData(false, true, 8d)]
     [InlineData(true, false, 3d)]
     [InlineData(false, false, 2d)]
-    public void For_multiplies_patch_and_pilot_weights(
+    public void For_MultipliesPatchAndPilotWeights(
         bool isCurrentPatch,
         bool isTruemain,
         double expected)
@@ -46,7 +46,7 @@ public sealed class CompositionVoteWeightTests
     }
 
     [Fact]
-    public void For_scales_the_product_by_draft_similarity()
+    public void For_ScalesTheProductByDraftSimilarity()
     {
         // A perfect draft reproduction is worth 1 + boost (4) on the similarity factor,
         // on top of current patch (3) and main (4).
@@ -57,7 +57,7 @@ public sealed class CompositionVoteWeightTests
     }
 
     [Fact]
-    public void For_leaves_similarity_out_when_no_slot_was_requested()
+    public void For_LeavesSimilarityOutWhenNoSlotWasRequested()
     {
         // maxPossibleScore = 0 means a slotless draft: every game is equally (un)similar,
         // so patch and pilot decide alone rather than the whole product collapsing.
@@ -68,7 +68,7 @@ public sealed class CompositionVoteWeightTests
     }
 
     [Fact]
-    public void For_never_silences_a_game()
+    public void For_NeverSilencesAGame()
     {
         // The weakest possible vote — previous patch, non-main, nothing of the draft
         // matched — still counts. A zero would drop the game from the aggregation

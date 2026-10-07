@@ -6,7 +6,7 @@ namespace TrueMain.UnitTests;
 public sealed class TruemainLookupRequestTests
 {
     [Fact]
-    public void Parses_lowers_dedupes_and_sorts_the_pairs()
+    public void ParsesLowersDedupesAndSortsThePairs()
     {
         var parsed = TruemainLookupRequest.TryParse(
             " euw1 ",
@@ -22,7 +22,7 @@ public sealed class TruemainLookupRequestTests
     }
 
     [Fact]
-    public void The_same_game_in_another_order_or_casing_shares_its_key()
+    public void TheSameGameInAnotherOrderOrCasingSharesItsKey()
     {
         TruemainLookupRequest.TryParse("EUW1", ["A#1:1", "B#2:2"], out var first, out _);
         TruemainLookupRequest.TryParse("euw1", ["b#2:2", "a#1:1"], out var second, out _);
@@ -31,7 +31,7 @@ public sealed class TruemainLookupRequestTests
     }
 
     [Fact]
-    public void Splits_the_champion_on_the_last_colon()
+    public void SplitsTheChampionOnTheLastColon()
     {
         TruemainLookupRequest.TryParse("NA1", ["Re:Zero#NA1:99"], out var request, out _).Should().BeTrue();
 
@@ -43,7 +43,7 @@ public sealed class TruemainLookupRequestTests
     [InlineData("")]
     [InlineData("EUW 1")]
     [InlineData("EUW1EUW1X")]
-    public void Rejects_a_malformed_platform(string? platformId)
+    public void RejectsAMalformedPlatform(string? platformId)
     {
         TruemainLookupRequest.TryParse(platformId, ["A#1:1"], out _, out var error).Should().BeFalse();
         error.Should().NotBeEmpty();
@@ -59,13 +59,13 @@ public sealed class TruemainLookupRequestTests
     [InlineData("Name#TAG:1x")]
     [InlineData("#TAG:103")]
     [InlineData(":103")]
-    public void Rejects_a_malformed_player(string player)
+    public void RejectsAMalformedPlayer(string player)
     {
         TruemainLookupRequest.TryParse("EUW1", [player], out _, out _).Should().BeFalse();
     }
 
     [Fact]
-    public void Rejects_no_player_and_more_than_ten()
+    public void RejectsNoPlayerAndMoreThanTen()
     {
         TruemainLookupRequest.TryParse("EUW1", [], out _, out _).Should().BeFalse();
         TruemainLookupRequest.TryParse("EUW1", null, out _, out _).Should().BeFalse();

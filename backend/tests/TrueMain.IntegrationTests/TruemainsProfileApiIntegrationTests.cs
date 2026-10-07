@@ -23,7 +23,7 @@ public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task GetProfile_returns_404_for_unknown_nameTag()
+    public async Task GetProfile_Returns404ForUnknownNameTag()
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -40,7 +40,7 @@ public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
     [InlineData("NoHyphen")]
     [InlineData("-LeadingHyphen")]
     [InlineData("TrailingHyphen-")]
-    public async Task GetProfile_returns_404_for_malformed_nameTag(string nameTag)
+    public async Task GetProfile_Returns404ForMalformedNameTag(string nameTag)
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -54,7 +54,7 @@ public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetProfile_returns_identity_ranked_mains_and_aggregated_positions()
+    public async Task GetProfile_ReturnsIdentityRankedMainsAndAggregatedPositions()
     {
         var now = DateTime.UtcNow;
 
@@ -199,7 +199,7 @@ public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetProfile_carries_the_retired_sample_flag_and_its_measurement_date()
+    public async Task GetProfile_CarriesTheRetiredSampleFlagAndItsMeasurementDate()
     {
         // #1216 end-to-end: MainAnalysisProcess owns when the flag is written, but nothing
         // checked that it survives the DB -> MainDto -> ProfileReadModel hop. MainDto is a
@@ -291,7 +291,7 @@ public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetProfile_picks_most_recently_active_platform_on_collision()
+    public async Task GetProfile_PicksMostRecentlyActivePlatformOnCollision()
     {
         var now = DateTime.UtcNow;
 

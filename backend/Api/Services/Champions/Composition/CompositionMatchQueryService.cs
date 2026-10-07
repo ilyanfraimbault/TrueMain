@@ -2,6 +2,7 @@ using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Data.Queries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -28,9 +29,11 @@ public interface ICompositionMatchQueryService
 
 /// <summary>
 /// Live composition match search over the FULL participant pool — harvested
-/// rows included, unlike the tracked-only champion-page reads, because a
+/// rows included, unlike the cohort-scoped champion-page reads, because a
 /// build is valid regardless of whether its player is tracked (served by the
 /// non-filtered <c>IX_match_participants_champion_position_full</c> index).
+/// Only the match side is the cohort's: <see cref="ChampionCohort.Games"/>, so a
+/// remake never votes.
 /// Two-stage shape mirroring the live path of
 /// <see cref="ChampionMatchupQueryService"/>: SQL narrows to the candidates and
 /// joins their nine co-participants as slim slot rows; similarity scoring and
@@ -89,9 +92,7 @@ public sealed class CompositionMatchQueryService(
             ? MatchupParticipantQuery.Facing(
                 db, participants, roleOpponentId, criteria.Position, queueId, normalizedPatch)
             : participants.Join(
-                db.Matches.AsNoTracking().Where(m =>
-                    m.QueueId == queueId
-                    && (normalizedPatch == null || m.Patch == normalizedPatch)),
+                ChampionCohort.Games(db, queueId, normalizedPatch),
                 p => p.MatchId,
                 m => m.Id,
                 (p, m) => new MatchupParticipantRow

@@ -23,6 +23,36 @@ public class Match
     public string GameVersion { get; set; } = string.Empty;
 
     /// <summary>
+    /// Riot's <c>info.gameCreation</c>: when the lobby was created, before champion select
+    /// and loading — earlier than <see cref="GameStartTimeUtc"/>. <see langword="null"/> on
+    /// matches ingested before #1364.
+    /// </summary>
+    public DateTime? GameCreationUtc { get; set; }
+
+    /// <summary>
+    /// Riot's <c>info.gameEndTimestamp</c>. <see langword="null"/> on matches ingested before
+    /// #1364, and on a payload that omits it.
+    /// </summary>
+    public DateTime? GameEndTimestampUtc { get; set; }
+
+    /// <summary>
+    /// Riot's <c>info.endOfGameResult</c>, verbatim. Ingestion refuses any value other than
+    /// <c>GameComplete</c> (an <c>Abort_*</c> shell is not a game, #1364), so a stored row holds
+    /// <c>GameComplete</c> — or <see langword="null"/>: ingested before #1364, or a payload
+    /// old enough not to carry the field.
+    /// </summary>
+    public string? EndOfGameResult { get; set; }
+
+    /// <summary>
+    /// Riot's <c>gameEndedInEarlySurrender</c> — the remake vote — lifted from the
+    /// participants to the match, where it belongs: Riot repeats one value on all ten. One of
+    /// the two remake signals <c>Data.Aggregation.ChampionCohort.IsRemake</c> composes, beside
+    /// the duration floor. <see langword="false"/> on matches ingested before #1364, which the
+    /// duration floor alone still judges.
+    /// </summary>
+    public bool EndedInEarlySurrender { get; set; }
+
+    /// <summary>
     /// The canonical <c>major.minor</c> patch of <see cref="GameVersion"/>, computed by
     /// the database as a stored generated column so it can be indexed (#1368).
     /// <see cref="GameVersion"/> holds the full Riot version ("16.17.700.9993"), which

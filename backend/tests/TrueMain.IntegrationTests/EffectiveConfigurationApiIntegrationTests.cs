@@ -39,7 +39,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Requires_the_ops_api_key()
+    public async Task RequiresTheOpsApiKey()
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -53,7 +53,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Returns_the_api_snapshot_with_a_stable_shape_even_when_nothing_was_published()
+    public async Task ReturnsTheApiSnapshotWithAStableShapeEvenWhenNothingWasPublished()
     {
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -91,7 +91,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Never_exposes_a_secret_bearing_key_from_a_section_that_holds_one()
+    public async Task NeverExposesASecretBearingKeyFromASectionThatHoldsOne()
     {
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -120,7 +120,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Marks_a_value_the_container_really_overrides_and_clears_its_notice()
+    public async Task MarksAValueTheContainerReallyOverridesAndClearsItsNotice()
     {
         await using var unset = CreateFactory();
         using var unsetClient = CreateClient(unset);
@@ -152,7 +152,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Merges_the_published_ingestor_snapshot_beside_the_live_api_one()
+    public async Task MergesThePublishedIngestorSnapshotBesideTheLiveApiOne()
     {
         var publishedAt = DateTime.UtcNow.AddHours(-6);
         await PublishAsync("Ingestor", publishedAt, "9.9.9");
@@ -179,7 +179,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Lets_the_live_api_snapshot_shadow_a_stale_one_some_past_build_published()
+    public async Task LetsTheLiveApiSnapshotShadowAStaleOneSomePastBuildPublished()
     {
         // A document written by an older build of this same process. Serving it would tell
         // an operator the Api runs on settings it demonstrably does not.

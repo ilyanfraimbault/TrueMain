@@ -107,11 +107,7 @@ public sealed class RiotRateLimiter : IRiotRateLimiter, IDisposable
                     // and the response's count headers resynchronise the window — which
                     // recovers, where an unbounded wait would stall the pipeline behind one
                     // call and recover nothing.
-                    _logger.LogWarning(
-                        "Rate-limit wait for {RoutingValue}/{Endpoint} would exceed {MaxWaitSeconds}s; sending anyway.",
-                        routingValue,
-                        endpoint,
-                        _options.MaxPermitWaitSeconds);
+                    _logger.PermitWaitCeilingExceeded(routingValue, endpoint, _options.MaxPermitWaitSeconds);
                     wait = TimeSpan.Zero;
                 }
 
@@ -181,12 +177,7 @@ public sealed class RiotRateLimiter : IRiotRateLimiter, IDisposable
         }
 
         _metrics.RecordRiotRateLimitRejection(routingValue, endpoint, limitType ?? "unknown");
-        _logger.LogWarning(
-            "Riot rate limit hit on {RoutingValue}/{Endpoint} (type {LimitType}); backing off {RetryAfterSeconds}s.",
-            routingValue,
-            endpoint,
-            limitType ?? "unknown",
-            retryAfter.TotalSeconds);
+        _logger.RateLimitHit(routingValue, endpoint, limitType ?? "unknown", retryAfter.TotalSeconds);
     }
 
     /// <inheritdoc />
