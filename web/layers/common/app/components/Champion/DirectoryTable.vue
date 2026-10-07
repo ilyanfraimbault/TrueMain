@@ -6,7 +6,7 @@ import type { RuneTreeResponse, StaticItemData } from '#shared/types/static-data
 import { formatPercentage, formatPercentageOrDash } from '#shared/utils/ddragon'
 import { formatCount } from '#shared/utils/counts'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { banRateTone, pickRateTone, winRateTone } from '#common/utils/rate-tone'
+import { winRateTone } from '#common/utils/rate-tone'
 import { directoryOrderToSorting, parseDirectoryOrder, type DirectoryOrder, type TableSorting } from '#common/utils/table-sorting'
 import { clickSelectableRow, wantsNewTab } from '#common/utils/table-rows'
 
@@ -181,12 +181,13 @@ const buildPathOf = (row: DirectoryRow) => (row.topBuild?.itemPath ?? []).slice(
     </template>
     <template #pickRate-cell="{ row }">
       <USkeleton v-if="loading" class="ml-auto h-4 w-10" />
-      <span v-else class="tabular-nums" :class="pickRateTone(row.original.pickRate)">{{ formatPercentage(row.original.pickRate, 0) }}</span>
+      <span v-else class="tabular-nums text-default">{{ formatPercentage(row.original.pickRate, 0) }}</span>
     </template>
-    <!-- A dash on patches predating ban ingestion (#920): "not observed" is not 0%. -->
+    <!-- Colour stays on the win rate alone: pick rate reads plain, ban rate and games
+         recede. A dash on patches predating ban ingestion (#920): "not observed" is not 0%. -->
     <template #banRate-cell="{ row }">
       <USkeleton v-if="loading" class="ml-auto h-4 w-10" />
-      <span v-else class="tabular-nums" :class="banRateTone(row.original.banRate)">{{ formatPercentageOrDash(row.original.banRate, 0) }}</span>
+      <span v-else class="tabular-nums text-muted">{{ formatPercentageOrDash(row.original.banRate, 0) }}</span>
     </template>
     <template #games-cell="{ row }">
       <USkeleton v-if="loading" class="ml-auto h-4 w-12" />

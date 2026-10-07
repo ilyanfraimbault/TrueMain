@@ -281,25 +281,25 @@ html {
 
 /*
  * ─── Surface: the app-wide panel material ───────────────────────────────────
- * Opaque fill, neutral hairline, one soft shadow. Material only — choose your
- * own radius and padding at the call site.
+ * The desktop dashboard's KPI tile, exactly (`bg-ink-950/55 ring-1 ring-white/5
+ * backdrop-blur-md`): a dark, translucent pane with a white hairline, blurring
+ * whatever runs behind it. Material only — choose your own radius and padding
+ * at the call site.
  *
- * This is the successor to `glass`, which was applied to every card, every
- * badge and 55 hand-written call sites — and is now gone entirely (see below).
- * Translucency everywhere meant nothing
- * was ever *on top of* anything: a panel, a row inside it and the page behind
- * both landed within a few percent of each other, so the eye had no elevation
- * to read. Opacity plus the four distinct `--ui-bg-*` steps (see `:root` below)
- * is what makes the ladder legible.
+ * It replaces the opaque grey of #1060, which the product owner found flat next
+ * to the dashboard. The page ground is near-black, so on most routes the pane
+ * reads as a dark card with a hairline; the blur shows where something moves
+ * behind it — the home page's star field, the dashboard's splash. The hairline
+ * is a border rather than the tile's ring so call sites keep their box sizes.
+ * `--ui-bg-surface` names the fill for the Nuxt UI themes in app.config.ts.
  *
- * `surface-hover` is the interactive counterpart: it moves the row up one step
- * on that same ladder rather than washing it with a tint, so hovering reads as
- * "raised", consistent with every other level in the app.
+ * `surface-hover` is the interactive counterpart: it raises the row to the
+ * accented step rather than washing it with a tint.
  */
 @utility surface {
-  background-color: var(--ui-bg-elevated);
-  border: 1px solid var(--ui-border);
-  box-shadow: var(--shadow-key), 0 1px 2px 0 color-mix(in oklch, black 40%, transparent);
+  background-color: var(--ui-bg-surface);
+  border: 1px solid color-mix(in oklch, white 5%, transparent);
+  backdrop-filter: blur(12px);
 }
 
 /*
@@ -307,8 +307,8 @@ html {
  * A one-pixel lit top edge and a one-pixel shade on the bottom, both inset:
  * the surface reads as a pressed key rather than a flat fill, and it does so
  * without an outer drop shadow that would muddy the elevation ladder below.
- * `surface` carries it everywhere; `keycap` is the same edge on its own, for
- * controls that sit in a recessed well (the search field, keyboard hints).
+ * Filled buttons carry it (app.config.ts), and so do controls that sit in a
+ * recessed well (the search field, keyboard hints).
  */
 @theme {
   --shadow-key: inset 0 1px 0 0 rgb(255 255 255 / 0.05), inset 0 -1px 0 0 rgb(0 0 0 / 0.2);
@@ -497,6 +497,7 @@ html {
   --ui-bg-muted: #131317;                        /* recessed — inset strips, empty states */
   --ui-bg-elevated: #1b1b20;                     /* raised — cards, rows */
   --ui-bg-accented: #24242a;                     /* interactive — hover, nested */
+  --ui-bg-surface: color-mix(in oklch, var(--color-ink-950) 55%, transparent); /* `surface` — the KPI tile's pane */
   --ui-border: var(--ui-color-neutral-800);
   --ui-border-accented: var(--ui-color-neutral-700);
 }

@@ -158,77 +158,85 @@ await Promise.all([overviewFetch, truemainsReady])
       </div>
     </section>
 
-    <!-- The desktop app, announced before the panels it brings into
-         champion select. -->
-    <HomeDesktopBetaPanel />
+    <!-- Everything under the hero sits on the eclipse's star field, without the
+         orb or its corona (`variant="stars"`): the cards here are translucent
+         panes and the stars are what their blur shows. Even luminance — no
+         glow passes behind the tables — so the rows still scan (decision
+         "the eclipse is scoped to the home hero"). Home only. -->
+    <div class="relative overflow-hidden">
+      <AppBackdrop variant="stars" />
+      <!-- The desktop app, announced before the panels it brings into
+           champion select. -->
+      <HomeDesktopBetaPanel />
 
-    <!-- Live data panels — equal-width halves so the two read as a balanced
-         pair and the truemains rows have room for champion + play-rate
-         without truncating names. -->
-    <section class="mx-auto max-w-6xl px-4 pb-20 md:px-6">
-      <div class="mb-8">
-        <p class="eyebrow">
-          This patch
-        </p>
-        <h2 class="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
-          The strongest picks, and the players who main them.
-        </h2>
-      </div>
-      <div class="grid gap-6 lg:grid-cols-2">
-        <!-- Tier list: rendered eagerly (no chunk to fetch on demand, no
-             intersection-observer gate — #972), so there is no window where
-             neither the skeleton nor the real panel is on screen. -->
-        <HomeTierlistPanelSkeleton v-if="tierlistPending" />
-        <HomeTierlistPanel
-          v-else
-          :top-rows="overview?.topRows ?? []"
-          :champions-by-id="championsById"
-        />
-        <!-- Truemains teaser stays eagerly SSR'd + immediately hydrated: its rows
-             come from a `server: true` fetch, and its profile-icon `v-if`/`v-else`
-             and champion enrichment resolve from `server: false` sources, so
-             delaying its hydration would flip those branches after the data lands
-             and cause a structural hydration mismatch. The ~373 KiB item map it
-             needs is instead deferred inside the panel (visibility-gated fetch). -->
-        <HomeTruemainsPanel
-          :rows="truemainRows"
-          :champions-by-id="championsById"
-          :initial-loading="truemainsInitialLoading"
-          :patch="ddragonPatch"
-        />
-      </div>
-    </section>
-
-    <!-- CTA -->
-    <section class="border-t border-default/60">
-      <div class="mx-auto max-w-3xl px-6 py-16 text-center sm:py-20">
-        <p class="eyebrow">
-          Your champion
-        </p>
-        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-          Find <span class="text-primary">your</span> real build.
-        </h2>
-        <p class="mx-auto mt-3 max-w-xl text-base text-muted">
-          Open the champion you actually play and see what their mains are buying this patch.
-        </p>
-        <div class="mt-7 flex flex-wrap justify-center gap-3">
-          <UButton
-            to="/champions"
-            color="primary"
-            size="lg"
-            icon="i-lucide-swords"
-            label="Explore champions"
+      <!-- Live data panels — equal-width halves so the two read as a balanced
+           pair and the truemains rows have room for champion + play-rate
+           without truncating names. -->
+      <section class="mx-auto max-w-6xl px-4 pb-20 md:px-6">
+        <div class="mb-8">
+          <p class="eyebrow">
+            This patch
+          </p>
+          <h2 class="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
+            The strongest picks, and the players who main them.
+          </h2>
+        </div>
+        <div class="grid gap-6 lg:grid-cols-2">
+          <!-- Tier list: rendered eagerly (no chunk to fetch on demand, no
+               intersection-observer gate — #972), so there is no window where
+               neither the skeleton nor the real panel is on screen. -->
+          <HomeTierlistPanelSkeleton v-if="tierlistPending" />
+          <HomeTierlistPanel
+            v-else
+            :top-rows="overview?.topRows ?? []"
+            :champions-by-id="championsById"
           />
-          <UButton
-            to="/truemains"
-            color="neutral"
-            variant="subtle"
-            size="lg"
-            icon="i-lucide-trophy"
-            label="Truemains leaderboard"
+          <!-- Truemains teaser stays eagerly SSR'd + immediately hydrated: its rows
+               come from a `server: true` fetch, and its profile-icon `v-if`/`v-else`
+               and champion enrichment resolve from `server: false` sources, so
+               delaying its hydration would flip those branches after the data lands
+               and cause a structural hydration mismatch. The ~373 KiB item map it
+               needs is instead deferred inside the panel (visibility-gated fetch). -->
+          <HomeTruemainsPanel
+            :rows="truemainRows"
+            :champions-by-id="championsById"
+            :initial-loading="truemainsInitialLoading"
+            :patch="ddragonPatch"
           />
         </div>
-      </div>
-    </section>
+      </section>
+
+      <!-- CTA -->
+      <section class="border-t border-default/60">
+        <div class="mx-auto max-w-3xl px-6 py-16 text-center sm:py-20">
+          <p class="eyebrow">
+            Your champion
+          </p>
+          <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+            Find <span class="text-primary">your</span> real build.
+          </h2>
+          <p class="mx-auto mt-3 max-w-xl text-base text-muted">
+            Open the champion you actually play and see what their mains are buying this patch.
+          </p>
+          <div class="mt-7 flex flex-wrap justify-center gap-3">
+            <UButton
+              to="/champions"
+              color="primary"
+              size="lg"
+              icon="i-lucide-swords"
+              label="Explore champions"
+            />
+            <UButton
+              to="/truemains"
+              color="neutral"
+              variant="subtle"
+              size="lg"
+              icon="i-lucide-trophy"
+              label="Truemains leaderboard"
+            />
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 </template>

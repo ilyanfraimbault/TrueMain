@@ -4,6 +4,7 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { isApexTier } from '#common/utils/tiers'
+import { winRateTone } from '#common/utils/rate-tone'
 
 // Homepage teaser of the truemains leaderboard: the global top rows, linking
 // through to /truemains. The page owns the fetch so the leaderboard
@@ -73,135 +74,141 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMa
 <template>
   <section
     ref="rootEl"
-    class="surface flex flex-col rounded-2xl p-3 sm:p-4"
+    class="flex flex-col gap-3"
     aria-labelledby="home-truemains-title"
   >
-    <header class="pb-2">
+    <header class="flex min-h-6 items-center justify-between">
       <h3
         id="home-truemains-title"
-        class="text-sm font-medium text-highlighted"
+        class="text-xs font-semibold uppercase tracking-wide text-muted"
       >
         Top truemains
       </h3>
-    </header>
-
-    <div
-      v-if="initialLoading"
-      class="space-y-0.5"
-      aria-hidden="true"
-    >
-      <div
-        v-for="i in ROW_COUNT"
-        :key="i"
-        class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2"
-      >
-        <USkeleton class="size-9 rounded-lg" />
-        <USkeleton class="h-4 w-32" />
-        <USkeleton class="ml-auto h-4 w-16" />
-      </div>
-    </div>
-
-    <ul
-      v-else-if="rows.length > 0"
-      class="space-y-0.5"
-    >
-      <li
-        v-for="{ row, href, winRateLabel } in displayRows"
-        :key="`${row.identity.gameName}-${row.identity.tagLine}`"
-      >
-        <!-- `-mx-2 px-2`: hover background bleeds into the panel padding while
-             the icon stays flush with the section header (no row indent). -->
-        <NuxtLink
-          :to="href"
-          class="surface-hover -mx-2 flex items-center gap-3 rounded-lg px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <!-- The player, without a link of its own: the row is the link. -->
-          <Account
-            :identity="row.identity"
-            :region="row.region"
-            :patch="patch"
-            size="md"
-            :to="false"
-            class="flex-1"
-          />
-
-          <!-- Main champion: icon + play rate + keystone + first item. Plain
-               (non-link) icon — the whole row already navigates to the
-               profile. Hidden on the narrowest widths. -->
-          <LeaderboardChampionBuild
-            v-if="row.topChampions[0]"
-            compact
-            class="hidden shrink-0 sm:flex"
-            :champion="row.topChampions[0]"
-            :name="championName(row.topChampions[0].championId)"
-            :icon-url="championIcon(row.topChampions[0].championId)"
-            :keystone="perk(row.topChampions[0].primaryKeystoneId)"
-            :secondary-style="perkStyle(row.topChampions[0].secondaryStyleId)"
-            :first-item="buildItem(row.topChampions[0].firstItemId)"
-          />
-
-          <!-- Rank emblem, same treatment as the full leaderboard row: crest +
-               division only (no LP), full rank + LP + win-loss on hover. -->
-          <UTooltip
-            v-if="row.ranked"
-            :delay-duration="150"
-            :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
-          >
-            <div class="flex w-12 shrink-0 items-center justify-end gap-1">
-              <RankIcon
-                :tier="row.ranked.tier"
-                :size="26"
-              />
-              <span
-                v-if="!isApexTier(row.ranked.tier)"
-                class="text-sm font-semibold tabular-nums"
-              >
-                {{ row.ranked.division }}
-              </span>
-            </div>
-
-            <template #content>
-              <GameTooltipSurface>
-                <RankSummary
-                  :tier="row.ranked.tier"
-                  :division="row.ranked.division"
-                  :league-points="row.ranked.leaguePoints"
-                  :wins="row.stats.wins"
-                  :losses="row.stats.losses"
-                  :win-rate="row.stats.winRate"
-                  :size="32"
-                />
-              </GameTooltipSurface>
-            </template>
-          </UTooltip>
-
-          <span
-            v-if="winRateLabel"
-            class="w-10 shrink-0 text-right text-sm font-semibold tabular-nums"
-          >
-            {{ winRateLabel }}
-            <span class="stat-label block">WR</span>
-          </span>
-        </NuxtLink>
-      </li>
-    </ul>
-
-    <UEmpty
-      v-else
-      size="sm"
-      icon="i-lucide-trophy"
-      description="No ranked truemains yet."
-    />
-
-    <footer class="mt-auto flex justify-end pt-2">
       <UButton
         to="/truemains"
-        color="neutral"
-        variant="ghost"
-        size="sm"
+        color="primary"
+        variant="link"
+        size="xs"
         trailing-icon="i-lucide-arrow-right"
-        label="Full leaderboard"
+        label="Leaderboard"
       />
-    </footer>
+    </header>
+
+    <div class="surface flex flex-1 flex-col rounded-2xl py-1.5">
+      <div
+        v-if="initialLoading"
+        aria-hidden="true"
+      >
+        <div
+          v-for="i in ROW_COUNT"
+          :key="i"
+          class="flex items-center gap-3 px-4 py-2"
+        >
+          <USkeleton class="size-9 rounded-lg" />
+          <USkeleton class="h-4 w-32" />
+          <USkeleton class="ml-auto h-4 w-16" />
+        </div>
+      </div>
+
+      <template v-else-if="rows.length > 0">
+        <!-- Column heads, on the same widths as the rows below. -->
+        <div
+          class="flex items-center gap-3 px-4 py-2"
+          aria-hidden="true"
+        >
+          <span class="stat-label w-4">#</span>
+          <span class="stat-label flex-1">Player</span>
+          <span class="stat-label hidden sm:block">Main</span>
+          <span class="stat-label w-12 text-right">Rank</span>
+          <span class="stat-label w-10 text-right">WR</span>
+        </div>
+        <ul class="divide-y divide-default/60">
+          <li
+            v-for="({ row, href, winRateLabel }, index) in displayRows"
+            :key="`${row.identity.gameName}-${row.identity.tagLine}`"
+          >
+            <NuxtLink
+              :to="href"
+              class="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-accented focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+            >
+              <span class="w-4 shrink-0 text-sm tabular-nums text-dimmed">{{ index + 1 }}</span>
+              <!-- The player, without a link of its own: the row is the link. -->
+              <Account
+                :identity="row.identity"
+                :region="row.region"
+                :patch="patch"
+                size="md"
+                :to="false"
+                class="flex-1"
+              />
+
+              <!-- Main champion: icon + play rate + keystone + first item. Plain
+                   (non-link) icon — the whole row already navigates to the
+                   profile. Hidden on the narrowest widths. -->
+              <LeaderboardChampionBuild
+                v-if="row.topChampions[0]"
+                compact
+                class="hidden shrink-0 sm:flex"
+                :champion="row.topChampions[0]"
+                :name="championName(row.topChampions[0].championId)"
+                :icon-url="championIcon(row.topChampions[0].championId)"
+                :keystone="perk(row.topChampions[0].primaryKeystoneId)"
+                :secondary-style="perkStyle(row.topChampions[0].secondaryStyleId)"
+                :first-item="buildItem(row.topChampions[0].firstItemId)"
+              />
+
+              <!-- Rank emblem, same treatment as the full leaderboard row: crest +
+                   division only (no LP), full rank + LP + win-loss on hover. -->
+              <UTooltip
+                v-if="row.ranked"
+                :delay-duration="150"
+                :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
+              >
+                <div class="flex w-12 shrink-0 items-center justify-end gap-1">
+                  <RankIcon
+                    :tier="row.ranked.tier"
+                    :size="26"
+                  />
+                  <span
+                    v-if="!isApexTier(row.ranked.tier)"
+                    class="text-sm font-semibold tabular-nums"
+                  >
+                    {{ row.ranked.division }}
+                  </span>
+                </div>
+
+                <template #content>
+                  <GameTooltipSurface>
+                    <RankSummary
+                      :tier="row.ranked.tier"
+                      :division="row.ranked.division"
+                      :league-points="row.ranked.leaguePoints"
+                      :wins="row.stats.wins"
+                      :losses="row.stats.losses"
+                      :win-rate="row.stats.winRate"
+                      :size="32"
+                    />
+                  </GameTooltipSurface>
+              </template>
+            </UTooltip>
+
+            <span
+              v-if="winRateLabel"
+              class="w-10 shrink-0 text-right text-sm font-semibold tabular-nums"
+              :class="winRateTone(row.stats.winRate)"
+            >{{ winRateLabel }}</span>
+          </NuxtLink>
+        </li>
+      </ul>
+      </template>
+
+      <UEmpty
+        v-else
+        size="sm"
+        variant="naked"
+        icon="i-lucide-trophy"
+        description="No ranked truemains yet."
+      />
+    </div>
   </section>
 </template>
