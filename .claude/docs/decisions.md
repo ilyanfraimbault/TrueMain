@@ -182,6 +182,7 @@ Last verified against `develop` on 2026-09-02.
 - Empty states go through `UEmpty`, themed like the cards; an empty state is not an error, and "player not found" stays one (2026-09-22) — #1669, #1681, #1661, #862
 - Keycap edge on surfaces and filled buttons; translucency returns for the floating header only; type stays Inter set tight with rose eyebrows, primary buttons stay rose gold (2026-09-27) — #1709, #1060
 - Nuxt UI feeds Tailwind only the themes of the components the site uses (`componentDetection`): entry CSS 38.9 → 29.5 KB gzip, no visual change (2026-10-04) — #1641
+- Inter and Geist Mono are committed (variable WOFF2, every subset) and resolved by a repo-local @nuxt/fonts provider; no build fetches a font, share cards use committed static Inter (2026-10-06) — #1106, #1335
 
 ## Aggregates, retention and the schema — [`decisions/data-aggregation.md`](decisions/data-aggregation.md)
 

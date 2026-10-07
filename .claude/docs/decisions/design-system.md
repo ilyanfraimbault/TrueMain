@@ -406,3 +406,32 @@ surfaces and the eclipse hero all stay, and Raycast's animated banded backdrop w
   (`resolveComponent('UModal')`, `:is="'UModal'"`) is not seen and would render unstyled. None exists
   today; if one is added, pass an array instead of `true` (`componentDetection: ['Modal']`) to force it in.
   New components written in templates or scripts are picked up by the next build (and by HMR in dev).
+
+## The two families are committed to the repo, every subset of them, and no build fetches a font (2026-10-06)
+
+**Inter and Geist Mono are served from files in `web/layers/common/public/fonts/`, resolved by a
+repo-local @nuxt/fonts provider (`web/layers/common/fonts.ts`); every remote font provider is off, in the
+site and the desktop app alike — #1106.**
+
+- **Why.** @nuxt/fonts' Google provider downloaded the faces at build time from the hashed
+  `fonts.gstatic.com` URLs Google's CSS API hands out, and those rotate: a cold build (the Docker image,
+  which never has a warm font cache) failed once on a 404 with no code change to blame, and the same failure
+  on a release build blocks a deploy.
+- **All subsets, not latin + latin-ext.** The product owner's call on #1106 was to vendor latin + latin-ext
+  and keep the other subsets on the Google CDN as a fallback, so non-latin Riot IDs do not regress. The
+  cost that made a split look necessary was 60 static files; Google's *variable* cut is one file per subset
+  for every weight, so all of it is 12 files, ~280 kB (latin + latin-ext alone: ~170 kB). Vendoring it all
+  keeps the owner's two goals — a hermetic build, no regression for Cyrillic / Greek / Vietnamese names —
+  without the CDN half, which would have needed `fonts.gstatic.com` in the production CSP (`font-src 'self'
+  data:`) and the desktop app's, and would have sent every visitor's IP to Google from a site whose privacy
+  page says it hosts everything on its own infrastructure. Korean and CJK names were never in either family and still use the system font.
+- **What the module still does.** The provider only hands it `@font-face` data, so @nuxt/fonts keeps
+  generating the size-adjusted fallback faces and injecting them into `--font-sans` / `--font-mono`.
+- **Share cards.** Satori reads neither WOFF2 nor variable fonts, so nuxt-og-image used to download static
+  Inter cuts at build time too. The cards now render with three committed static Inter WOFF files
+  (`web/public/fonts/og/`, 400/600/700, from @fontsource/inter), handed to the module by replacing its
+  `#og-image/fonts` list in `web/nuxt.config.ts`; that also retires the #1335 build-order workaround.
+- **Licence.** Both families are SIL Open Font License 1.1, which permits bundling and redistribution;
+  the licence texts ship beside the files.
+- **Updating a family** means replacing the files by hand (fetch Google's CSS with a modern user agent for
+  the variable WOFF2 per subset); nothing refreshes them on its own, which is the point.
