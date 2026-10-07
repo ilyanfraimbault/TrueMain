@@ -1878,8 +1878,8 @@ d'un moteur. Triée par `totalBytes` décroissant, tous moteurs confondus.
 ]
 ```
 
-- `engine` : `postgres` ou `mongo`. Nécessaire et pas cosmétique — `process_runs` et
-  `seed_requests` existent des deux côtés (table Postgres gelée + collection Mongo).
+- `engine` : `postgres` ou `mongo`. Nécessaire et pas cosmétique — un même nom peut
+  exister des deux côtés (`process_runs` et `seed_requests` l'ont fait jusqu'à #1244).
 - `rowEstimate` : estimation du planner côté Postgres, **compte exact** côté Mongo.
 - Les collections Mongo sont absentes de la réponse si Mongo n'est pas configuré : le
   moteur n'est alors pas mesuré, ce qui n'est pas la même chose que vide.

@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 baseEntityType,
                 propertyCount: 24,
                 navigationCount: 1,
-                unnamedIndexCount: 5,
+                unnamedIndexCount: 4,
                 namedIndexCount: 7,
                 keyCount: 1);
 
@@ -253,23 +253,20 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { platformId });
+                new[] { timelineIngested });
+            index.AddAnnotation("Relational:Name", "IX_matches_timeline_ingested");
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { timelineIngested });
-            index0.AddAnnotation("Relational:Name", "IX_matches_timeline_ingested");
+                new[] { patch, queueId });
+            index0.AddAnnotation("Relational:Name", "IX_matches_patch_queue");
 
             var index1 = runtimeEntityType.AddIndex(
-                new[] { patch, queueId });
-            index1.AddAnnotation("Relational:Name", "IX_matches_patch_queue");
+                new[] { platformId, queueId, gameStartTimeUtc });
+            index1.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
 
             var index2 = runtimeEntityType.AddIndex(
-                new[] { platformId, queueId, gameStartTimeUtc });
-            index2.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
-
-            var index3 = runtimeEntityType.AddIndex(
                 new[] { queueId, patch, platformId });
-            index3.AddAnnotation("Relational:Name", "IX_matches_queue_patch_platform");
+            index2.AddAnnotation("Relational:Name", "IX_matches_queue_patch_platform");
 
             var iX_matches_bans_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

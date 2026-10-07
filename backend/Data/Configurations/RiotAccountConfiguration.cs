@@ -29,8 +29,6 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
             .IsRequired()
             .HasMaxLength(8);
 
-        entity.Property(e => e.PersonaId);
-
         entity.Property(e => e.SummonerId)
             .HasMaxLength(128);
 
@@ -86,8 +84,6 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
         entity.HasIndex(e => e.Puuid)
             .IsUnique();
 
-        entity.HasIndex(e => e.PersonaId);
-
         // Intentionally NOT unique: the Riot ID is a mutable, recyclable third-party
         // attribute, not an identity — the PUUID above is. A player who renames frees
         // their old Riot ID for someone else, so between two refresh cycles a stale row
@@ -108,9 +104,5 @@ public sealed class RiotAccountConfiguration : IEntityTypeConfiguration<RiotAcco
         // Serves the leaderboard's ORDER BY Score DESC NULLS LAST pagination.
         entity.HasIndex(e => e.Score)
             .HasDatabaseName("IX_riot_accounts_score");
-
-        entity.HasOne(e => e.Persona)
-            .WithMany(p => p.RiotAccounts)
-            .HasForeignKey(e => e.PersonaId);
     }
 }

@@ -34,7 +34,7 @@ public sealed class DbStorageSnapshotStoreIntegrationTests : IAsyncLifetime
         using var context = BuildContext();
         var store = new DbStorageSnapshotStore(context);
 
-        // process_runs is both a frozen Postgres table and a Mongo collection. Under
+        // process_runs was both a frozen Postgres table and a Mongo collection. Under
         // the pre-#1023 (day, name) key the second write of the day would have
         // overwritten the first, and the panel would have shown one engine's size for
         // the other's object.

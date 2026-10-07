@@ -43,12 +43,13 @@ public sealed class ChampionAggregateScopeConfiguration : IEntityTypeConfigurati
         }).IsUnique();
 
         entity.HasIndex(e => new { e.RiotAccountId, e.ChampionId, e.GameVersion, e.PlatformId, e.Position });
-        entity.HasIndex(e => new { e.ChampionId, e.GameVersion, e.PlatformId, e.QueueId });
 
         // Reader path: builds are filtered by (champion, patch, platform, queue,
         // position, bracket) and then, by default, narrowed to mains — so the
         // flag rides the same index and the default read stays a single seek
-        // rather than a seek plus a filter over every non-main row.
+        // rather than a seek plus a filter over every non-main row. It also serves
+        // every (champion, patch, platform, queue) lookup, which therefore has no
+        // index of its own (#1244).
         entity.HasIndex(e => new
         {
             e.ChampionId,
