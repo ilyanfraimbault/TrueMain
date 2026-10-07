@@ -491,3 +491,42 @@ panel, the favorites cards, the profile header and the builder's games drawer.
   skeleton between two pictures, which is what a palette wants.
 - **Every profile link goes through `shared/utils/truemain-path.ts`** (`truemainNameTag`, `truemainProfilePath`);
   `favoriteNameTag` and `truemainChampionPath` build on it.
+
+## The rune tree draws its perks from sprite sheets the server draws on demand, one per style (2026-10-07)
+
+**Decision:** `ChampionCoreRunes` cuts each perk out of a sprite sheet instead of fetching it alone. The server
+draws the sheets with `sharp` on the first request for each one: one sheet per rune style (its keystones and rows)
+and one for the stat shards. A tree therefore costs three requests instead of ~30 — #999.
+
+- **Why.** Perk icons were the largest group of above-the-fold requests on a champion page. Measured on production
+  (HTTP/2, 2026-10-07), the first viewport loaded 60–70 distinct images and 30 of them were rune-tree icons. Over
+  HTTP/2 Chrome's own queueing is short: the other above-the-fold icons waited 0.2–0.6 s at p90, against the
+  8–15 s preprod showed through an HTTP/1.1 tunnel. What the sheets remove is request count, not a long queue. The
+  product owner chose to build it on the preprod measurement.
+- **One sheet per style, not one for the whole tree.** A single sheet of all ~70 perks is 128 KB. Three
+  per-style/shard sheets are about 55 KB (22–26 KB per style, 7 KB for the shards), the same bytes as the ~30
+  icons they replace (51–59 KB). The whole-tree sheet would have saved two requests and doubled the bytes.
+- **Drawn on demand and keyed by patch, never at build time or boot.** Perk icon URLs are patch-pinned, and a
+  boot-time pre-warm against CommunityDragon was rejected in #997. A sheet costs one upstream fetch per icon it holds
+  (six at a time), once per patch per worker. That is what the `/_ipx` icons it replaces cost on their first request.
+  The bytes stay in memory: a 4 MB byte-bounded LRU swept with the `/_ipx` patch retention
+  (`server/utils/rune-sheet-render.ts`). Like the `/_ipx` cache it is per worker.
+- **The URL is immutable and the route draws nothing else.** `/api/static/rune-tree` hands out `sheets`, each URL
+  being `/_rune-sheet/<patch>/<hash>.webp`, where the hash covers the version, the cells and every icon URL. The route
+  (`server/routes/_rune-sheet/`) draws only a URL that the server's current tree describes, so it is cached for a
+  week (`immutable`) and cannot be made to draw or store anything else. Any other URL gets a 404, and so does a
+  stale one, when the tree has changed under an open page.
+- **Same pixels, same box.** Cells are 64 px, the canonical icon fetch size, encoded with IPX's WebP settings. A
+  2 px transparent gap keeps resampling from bleeding a neighbour in. Every rune keeps its box, its `deselected` /
+  `selected-perk` classes and its hover card. A side-by-side 2× screenshot of the same tree differs by a mean
+  0.8/255 per pixel.
+- **Accessibility and loading.** A background has no `alt`, so each cell is `role="img"` with the rune's name as
+  `aria-label`. The sheet loads once through an `Image` (`layers/common/app/utils/sheet-image.ts`), and its icons
+  keep the usual skeleton until it is in, then appear together. This is the all-or-nothing reveal #999 weighed:
+  per style it is at most 13 icons. If the sheet fails, each rune falls back to its own `/_ipx` icon inside the
+  same tooltip trigger.
+- **Site only.** The desktop app builds its rune tree from CommunityDragon itself (`static-endpoints.ts`), has no
+  image server and runs under a `default-src 'self'` CSP. Its trees carry no `sheets`, so its runes draw icon by
+  icon as before.
+- **Only the full tree.** Other perk icons, like a build tab's keystone or the match-row runes, are a few per
+  surface and stay single icons.

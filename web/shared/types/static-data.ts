@@ -146,4 +146,25 @@ export interface RuneTreeResponse {
   perkStyles: Record<number, StaticPerkStyleData>
   /** 3 rows × 3 perks — fixed across all styles (offense / flex / defense). */
   shardSlots: number[][]
+  /**
+   * The tree's perk icons drawn on a few images (#999) — one per style, one for
+   * the shards — so a full rune tree costs the browser three requests instead of
+   * ~30. Set by the site's server only: the desktop app builds its tree itself
+   * and has no sheets, so its rune trees draw icon by icon.
+   */
+  sheets?: RuneSheet[]
+}
+
+/**
+ * Where each perk sits on one of {@link RuneTreeResponse.sheets}: a grid of square
+ * `cell` px icons, `gap` px apart, filled row by row in `perkIds` order.
+ */
+export interface RuneSheet {
+  /** Root-relative and immutable: a different tree is a different URL. */
+  url: string
+  cell: number
+  gap: number
+  columns: number
+  rows: number
+  perkIds: number[]
 }
