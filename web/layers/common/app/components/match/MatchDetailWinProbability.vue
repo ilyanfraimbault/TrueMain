@@ -14,8 +14,11 @@ import {
 /**
  * A finished game's win-probability curve and the moments that swung it
  * (#1911), read for `perspectiveTeamId`: the chance above even tinted ally,
- * below it enemy, each turning point a tick on the time axis and a row in the
- * list underneath — hovering a row lights its tick. Every figure is the model
+ * below it enemy, each turning point a tick on the time axis. What happened is
+ * read on the curve itself: hovering a minute lists that stretch of the game's
+ * turning points and objectives in the tooltip and lights their ticks — no list
+ * under the chart (the product owner's call on the refreshed match detail).
+ * Every figure is the model
  * applied to the game's timeline (`win-probability-timeline.ts`); a monster
  * the model does not weigh is a tick with no figure.
  */
@@ -74,10 +77,9 @@ const minuteTicks = computed(() => {
   return Array.from({ length: Math.floor(minutes / step) + 1 }, (_, i) => i * step * 60_000)
 })
 
-// ─── Hover: the nearest point on the curve, or a list row's tick ─────────────
+// ─── Hover: the nearest point on the curve and what happened around it ───────
 const plot = ref<HTMLElement | null>(null)
 const hoverMs = ref<number | null>(null)
-const highlighted = ref<number | null>(null)
 
 const hovered = computed(() => {
   if (hoverMs.value === null) return null
@@ -87,6 +89,14 @@ const hovered = computed(() => {
   }
   return best ?? null
 })
+
+// The curve is sampled about once a minute, so a hovered point stands for the
+// half-minute either side of it: the events in that window are its story.
+const HOVER_WINDOW_MS = 30_000
+const nearHover = (ms: number) => hovered.value !== null && Math.abs(ms - hovered.value.ms) <= HOVER_WINDOW_MS
+const hoveredSwings = computed(() => swings.value.filter(swing => nearHover(swing.ms)))
+const hoveredObjectives = computed(() => objectives.value.filter(objective => nearHover(objective.ms)))
+const highlighted = computed(() => new Set(hoveredSwings.value.map(swing => swing.index)))
 
 function onMove(event: PointerEvent) {
   const box = plot.value?.getBoundingClientRect()
@@ -166,7 +176,7 @@ const summary = computed(() => `Win probability over the game, ending at ${final
               :x2="x(swing.ms)"
               y1="0"
               :y2="HEIGHT"
-              :class="highlighted === swing.index ? (swing.ours ? 'stroke-ally' : 'stroke-enemy') : 'stroke-transparent'"
+              :class="highlighted.has(swing.index) ? (swing.ours ? 'stroke-ally' : 'stroke-enemy') : 'stroke-transparent'"
               stroke-width="1.5"
               vector-effect="non-scaling-stroke"
             />
@@ -187,11 +197,30 @@ const summary = computed(() => `Win probability over the game, ending at ${final
           />
           <div
             v-if="hovered"
-            class="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded bg-default px-2 py-1 text-xs tabular-nums shadow ring-1 ring-default"
-            :style="{ left: `${Math.min(90, Math.max(10, x(hovered.ms)))}%` }"
+            class="pointer-events-none absolute top-0 z-10 flex w-max max-w-72 -translate-x-1/2 flex-col gap-1 rounded-md bg-default px-2.5 py-1.5 text-xs shadow-lg ring-1 ring-default"
+            :style="{ left: `${Math.min(80, Math.max(20, x(hovered.ms)))}%` }"
           >
-            <span class="text-muted">{{ formatGameClock(hovered.ms) }}</span>
-            <span class="ml-1.5 font-semibold text-highlighted">{{ Math.round(hovered.p * 100) }}%</span>
+            <span class="tabular-nums">
+              <span class="text-muted">{{ formatGameClock(hovered.ms) }}</span>
+              <span class="ml-1.5 font-semibold text-highlighted">{{ Math.round(hovered.p * 100) }}%</span>
+            </span>
+            <span
+              v-for="swing in hoveredSwings"
+              :key="`hover-swing-${swing.index}`"
+              class="flex items-center gap-2"
+            >
+              <span class="size-1.5 shrink-0 rounded-full" :class="swing.ours ? 'bg-ally' : 'bg-enemy'" />
+              <span class="min-w-0 flex-1 text-default">{{ swing.label }}</span>
+              <span class="shrink-0 font-semibold tabular-nums text-highlighted">{{ formatSwingPoints(swing.delta) }}<span class="font-normal text-dimmed"> pts</span></span>
+            </span>
+            <span
+              v-for="objective in hoveredObjectives"
+              :key="`hover-objective-${objective.ms}`"
+              class="flex items-center gap-2"
+            >
+              <span class="size-1.5 shrink-0 rounded-full bg-[var(--ui-text-dimmed)]" />
+              <span class="text-muted">{{ objective.label }}</span>
+            </span>
           </div>
         </div>
       </div>
@@ -203,7 +232,7 @@ const summary = computed(() => `Win probability over the game, ending at ${final
             v-for="swing in swings"
             :key="`tick-${swing.index}`"
             class="absolute top-0 h-3 w-0.5 -translate-x-1/2 rounded-full transition-opacity"
-            :class="[swing.ours ? 'bg-ally' : 'bg-enemy', highlighted === null || highlighted === swing.index ? 'opacity-100' : 'opacity-30']"
+            :class="[swing.ours ? 'bg-ally' : 'bg-enemy', highlighted.size === 0 || highlighted.has(swing.index) ? 'opacity-100' : 'opacity-30']"
             :style="{ left: `${x(swing.ms)}%` }"
             :title="`${formatGameClock(swing.ms)} · ${swing.label}`"
           />
@@ -224,31 +253,6 @@ const summary = computed(() => `Win probability over the game, ending at ${final
           >{{ tick / 60_000 }}'</span>
         </div>
       </div>
-    </div>
-
-    <div>
-      <h4 class="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
-        Turning points
-      </h4>
-      <ol class="divide-y divide-default/40">
-        <li
-          v-for="swing in swings"
-          :key="swing.index"
-          class="flex items-center gap-3 py-1.5 text-sm"
-          @pointerenter="highlighted = swing.index"
-          @pointerleave="highlighted = null"
-        >
-          <span class="w-10 shrink-0 text-xs tabular-nums text-muted">{{ formatGameClock(swing.ms) }}</span>
-          <span class="size-1.5 shrink-0 rounded-full" :class="swing.ours ? 'bg-ally' : 'bg-enemy'" />
-          <span class="min-w-0 flex-1 text-pretty text-default">{{ swing.label }}</span>
-          <span v-if="swing.gold !== null" class="inline-flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted">
-            <UIcon name="i-lucide-coins" class="size-3 text-amber-400/80" />{{ swing.gold }}
-          </span>
-          <span class="w-12 shrink-0 text-right text-xs font-semibold tabular-nums text-highlighted">
-            {{ formatSwingPoints(swing.delta) }}<span class="font-normal text-dimmed"> pts</span>
-          </span>
-        </li>
-      </ol>
     </div>
   </section>
 </template>

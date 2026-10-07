@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ActivityBucket, ActivityMode, TruemainActivityResponse } from '~~/shared/types/activity'
+import type { ActivityBucket, ActivityMode, TruemainActivityResponse } from '#shared/types/activity'
 import {
   ACTIVITY_EMPTY_FILL,
   activityBucketLabel,
@@ -7,7 +7,7 @@ import {
   activityCellFill,
   activityCellsAreGames,
   activityMaxGames,
-} from '~/utils/activity-heatmap'
+} from '#common/utils/activity-heatmap'
 
 /**
  * dpm.lol-style activity grid under the LP curve (#927, reshaped in #1473).
@@ -47,8 +47,15 @@ import {
 const props = withDefaults(defineProps<{
   data: TruemainActivityResponse | null
   loading?: boolean
+  /**
+   * The windows on offer, a subset of `MODES`. The desktop dashboard folds the
+   * grid from the games its client returned, which carry no patch, so it offers
+   * day, week and month only and opens on month.
+   */
+  modes?: ActivityMode[]
 }>(), {
   loading: false,
+  modes: () => ['day', 'week', 'month', 'patch'],
 })
 
 /**
@@ -75,7 +82,8 @@ const GAP = 4
 
 // Patch is the default: it is the widest window the retained data can back, and
 // the one an idle cell carries the most meaning in.
-const mode = ref<ActivityMode>('patch')
+const offered = computed(() => MODES.filter(option => props.modes.includes(option.key)))
+const mode = ref<ActivityMode>(props.modes.includes('patch') ? 'patch' : 'month')
 
 const series = computed(() => props.data?.[mode.value] ?? null)
 
@@ -196,7 +204,7 @@ const isEmpty = computed(() => cells.value.length === 0)
            choice, and the shared inset strip is what says so. -->
       <div class="flex gap-0.5 rounded-md bg-elevated p-0.5">
         <button
-          v-for="option in MODES"
+          v-for="option in offered"
           :key="option.key"
           type="button"
           class="rounded px-2 py-1 text-xs font-medium transition-colors"

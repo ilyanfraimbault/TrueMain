@@ -1,4 +1,4 @@
-import type { RankHistoryResponse } from '~~/shared/types/rank-history'
+import type { RankHistoryResponse } from '#shared/types/rank-history'
 
 /**
  * Fetch the rank-history payload for the given <c>nameTag</c>. Mirrors the
@@ -12,12 +12,13 @@ export function useTruemainRankHistory(
 ) {
   const daysRef = computed(() => toValue(options.days) ?? 90)
 
+  const apiFetch = useApiFetch()
   const data = ref<RankHistoryResponse | null>(null)
 
   const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<RankHistoryResponse>(nameTag, {
     watch: [daysRef],
-    request: (tag, signal) => $fetch<RankHistoryResponse | null>(
-      `/api/truemains/${encodeURIComponent(tag)}/rank-history`,
+    request: (tag, signal) => apiFetch<RankHistoryResponse | null>(
+      `/truemains/${encodeURIComponent(tag)}/rank-history`,
       {
         query: { days: daysRef.value },
         ignoreResponseError: true,

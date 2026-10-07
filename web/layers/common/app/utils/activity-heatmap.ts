@@ -1,4 +1,4 @@
-import type { ActivityBucket, ActivityMode, ActivitySeries } from '~~/shared/types/activity'
+import type { ActivityBucket, ActivityMode, ActivitySeries } from '#shared/types/activity'
 
 /**
  * The activity heatmap's presentation rules (#927, reshaped in #1473). Pure

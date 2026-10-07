@@ -255,26 +255,30 @@ function scoreClass(score: number) {
             two accolades stay distinguishable *and* track the theme — `gold` is
             declared alongside `rosegold` in theme.css for exactly this
             "rose GOLD" read, and is the closest token to the crown's meaning.
+            A game read from the desktop client was never scored (placement 0):
+            the column stays, empty, rather than ranking ten players 0th.
           -->
           <div class="flex w-[3.25rem] shrink-0 flex-col items-end gap-0.5">
-            <UTooltip :text="`Performance score ${p.performanceScore}/100`">
-              <span
-                class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold leading-none tabular-nums ring-1"
-                :class="scoreClass(p.performanceScore)"
-              >
-                <UIcon
-                  v-if="p.isMvp || p.isAce"
-                  :name="p.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
-                  class="size-3"
-                  :class="p.isMvp ? 'text-gold' : 'text-primary'"
-                  :aria-label="p.isMvp ? 'MVP' : 'ACE'"
-                />
-                {{ p.performanceScore }}
+            <template v-if="p.placement > 0">
+              <UTooltip :text="`Performance score ${p.performanceScore}/100`">
+                <span
+                  class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold leading-none tabular-nums ring-1"
+                  :class="scoreClass(p.performanceScore)"
+                >
+                  <UIcon
+                    v-if="p.isMvp || p.isAce"
+                    :name="p.isMvp ? 'i-lucide-crown' : 'i-lucide-award'"
+                    class="size-3"
+                    :class="p.isMvp ? 'text-gold' : 'text-primary'"
+                    :aria-label="p.isMvp ? 'MVP' : 'ACE'"
+                  />
+                  {{ p.performanceScore }}
+                </span>
+              </UTooltip>
+              <span class="text-[10px] leading-none text-muted tabular-nums">
+                {{ ordinal(p.placement) }}
               </span>
-            </UTooltip>
-            <span class="text-[10px] leading-none text-muted tabular-nums">
-              {{ ordinal(p.placement) }}
-            </span>
+            </template>
           </div>
         </div>
       </li>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ProfilePositionStat } from '~~/shared/types/profile'
-import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
+import type { ProfilePositionStat } from '#shared/types/profile'
+import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 
 const props = defineProps<{
   positions: ProfilePositionStat[]
