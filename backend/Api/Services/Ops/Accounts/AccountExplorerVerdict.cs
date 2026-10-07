@@ -165,8 +165,8 @@ internal static class AccountExplorerVerdict
 
     /// <summary>
     /// Every distinct candidate status, in funnel order. Deliberately not a
-    /// "furthest status": <c>Rejected</c> is the highest enum value but the worst
-    /// outcome, so reducing the set to one label would read backwards.
+    /// "furthest status": an account's champions sit at different stages, and one
+    /// label would hide the rows still short of Validated.
     /// </summary>
     private static string DescribeStatuses(IReadOnlyList<AccountExplorerCandidateReadModel> candidates)
         => string.Join(", ", candidates

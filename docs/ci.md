@@ -16,7 +16,7 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; typecheck, unit tests and static build of its Nuxt app (below) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; lint, typecheck, unit tests and static build of its Nuxt app (below) |
 | `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
 | `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
@@ -99,6 +99,25 @@ files are generated with (`npx npm@11.13.0 install` locally, see `CLAUDE.md`).
 `nuxt typecheck` can pass on stale `.nuxt` types while `nuxt build` fails, so
 the job runs typecheck, the vitest suite and a fresh build.
 
+Before those, `npm run lint` runs ESLint (#1440). Each app — `web/`, `admin/`
+and the desktop app's `desktop/app` (in `desktop.yml`, below) — registers the
+`@nuxt/eslint` module, which writes a flat config aware of the app's
+auto-imports and its `app/` / `server/` / `shared/` split into
+`.nuxt/eslint.config.mjs` during `nuxt prepare` (the `postinstall` that `npm
+ci` runs). `eslint.config.mjs` extends it with the recommended preset, Vue's
+rules and `eslint-plugin-vuejs-accessibility`. `web/` lints `web/layers/common`
+along with the rest of its tree; the desktop app lints its own directory only,
+so the shared layer is linted once.
+
+The severities are a ratchet, like the file sizes below: a rule nothing breaks
+stays an error and fails the job, and each rule that was already broken when
+the linter landed is listed in its app's `ratchet` and demoted to a warning,
+which the job prints without failing. The accessibility rules are all warnings
+for now, an owner's call on the noisiest plugin of the set. The config demotes a
+rule's severity where `@nuxt/eslint` set it rather than overriding the rule
+globally, so each rule keeps the files and options it was given. Once a rule's
+last warning is fixed, the rule is taken off the list, so it fails the job again.
+
 The web app's vitest config holds two projects (#1620), both run by the one
 `npm run test` step: `unit`, the pure-function tests in a bare happy-dom
 environment, and `nuxt`, the tests under `web/tests/nuxt/` that boot the real
@@ -108,9 +127,9 @@ covers them.
 
 ### File sizes
 
-The frontends carry no linter and the backend analyzers have no file-length
-rule, so nothing stopped a controller from reaching 869 lines or an admin page
-from carrying a 700-line template (#1429). `check-file-size.sh` is a **ratchet**
+The frontends had no linter before #1440, and neither ESLint nor the backend
+analyzers have a file-length rule, so nothing stopped a controller from
+reaching 869 lines or an admin page from carrying a 700-line template (#1429). `check-file-size.sh` is a **ratchet**
 rather than a style rule: it lists every file over its limit — 500 lines for
 backend `.cs`, 400 for `.vue`, 300 for frontend `.ts` — and diffs that list
 against `.github/file-size-baseline.txt`. A new file over the limit or an
@@ -404,7 +423,8 @@ prerelease and not build metadata.
 The desktop app renders the site's shared pages from `web/layers/common` and
 reads the site's `web/shared` types (#1732), so a change on the site's side can
 break the app without touching `desktop/`. `desktop.yml` therefore also runs on
-those two paths, and its `Nuxt app` job typechecks the app and builds its static
+those two paths, and its `Nuxt app` job lints the app (`npm run lint`, set up
+as on the site, see Frontend), typechecks it and builds its static
 bundle (`npm run generate`, what `tauri build` runs) with only the app's own
 dependencies installed — the same conditions as `desktop-release.yml`, where a
 shared file importing a package the app lacks would otherwise fail first.

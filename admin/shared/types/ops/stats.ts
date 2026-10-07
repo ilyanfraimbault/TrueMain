@@ -7,7 +7,6 @@ export interface CandidatesByStatus {
   Queued: number
   Processing: number
   Validated: number
-  Rejected: number
 }
 
 /** `GET /api/ops/stats/overview`. */

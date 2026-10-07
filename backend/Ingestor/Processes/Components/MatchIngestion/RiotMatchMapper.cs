@@ -7,6 +7,27 @@ namespace Ingestor.Processes.Components.MatchIngestion;
 
 internal static class RiotMatchMapper
 {
+    /// <summary>Riot's <c>endOfGameResult</c> for a game that was actually played.</summary>
+    internal const string GameCompleteResult = "GameComplete";
+
+    /// <summary>
+    /// Whether the payload is a game rather than a shell (#1364). Riot records a lobby that
+    /// never became a game — <c>Abort_Unexpected</c>, <c>Abort_TooFewPlayers</c>,
+    /// <c>Abort_AntiCheat</c> — as a match like any other, with participants and a duration;
+    /// only <c>endOfGameResult</c> tells it apart. A payload without the field predates it and
+    /// is taken as the game it was always taken for.
+    /// </summary>
+    internal static bool IsCompletedGame(RiotMatchDto matchDto)
+        => string.IsNullOrEmpty(matchDto.Info.EndOfGameResult)
+            || string.Equals(matchDto.Info.EndOfGameResult, GameCompleteResult, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Riot's remake flag, lifted to the match. Riot repeats it on all ten participants; any
+    /// one of them saying so is enough, so a partial payload cannot hide a remake.
+    /// </summary>
+    internal static bool EndedInEarlySurrender(RiotMatchDto matchDto)
+        => matchDto.Info.Participants.Any(participant => participant.GameEndedInEarlySurrender);
+
     public static MappedMatch Map(
         RiotMatchDto matchDto,
         string platformId,
@@ -27,6 +48,10 @@ internal static class RiotMatchMapper
             GameStartTimeUtc = gameStartUtc ?? nowUtc,
             GameDurationSeconds = RiotValueConverters.ToIntSafe(matchDto.Info.GameDuration),
             GameVersion = matchDto.Info.GameVersion,
+            GameCreationUtc = RiotValueConverters.ToUtcDateTime(matchDto.Info.GameCreation),
+            GameEndTimestampUtc = RiotValueConverters.ToUtcDateTime(matchDto.Info.GameEndTimestamp),
+            EndOfGameResult = string.IsNullOrEmpty(matchDto.Info.EndOfGameResult) ? null : matchDto.Info.EndOfGameResult,
+            EndedInEarlySurrender = EndedInEarlySurrender(matchDto),
             CreatedAtUtc = nowUtc,
             TimelineIngested = false
         };

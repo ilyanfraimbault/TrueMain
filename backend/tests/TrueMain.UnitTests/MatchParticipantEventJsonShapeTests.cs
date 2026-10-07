@@ -30,7 +30,7 @@ public sealed class MatchParticipantEventJsonShapeTests
         """{"ItemId": 0, "AfterId": 1055, "BeforeId": 1036, "EventType": "ITEM_UNDO", "TimestampMs": 61234}""";
 
     [Fact]
-    public void Stored_item_event_document_still_deserializes()
+    public void StoredItemEventDocumentStillDeserializes()
     {
         var itemEvent = JsonSerializer.Deserialize<ItemEvent>(StoredItemEventJson);
 
@@ -43,7 +43,7 @@ public sealed class MatchParticipantEventJsonShapeTests
     }
 
     [Fact]
-    public void Stored_item_undo_document_still_deserializes()
+    public void StoredItemUndoDocumentStillDeserializes()
     {
         var itemEvent = JsonSerializer.Deserialize<ItemEvent>(StoredItemUndoEventJson);
 
@@ -56,7 +56,7 @@ public sealed class MatchParticipantEventJsonShapeTests
     }
 
     [Fact]
-    public void Stored_skill_event_document_still_deserializes()
+    public void StoredSkillEventDocumentStillDeserializes()
     {
         var skillEvent = JsonSerializer.Deserialize<SkillEvent>(StoredSkillEventJson);
 
@@ -67,7 +67,7 @@ public sealed class MatchParticipantEventJsonShapeTests
     }
 
     [Fact]
-    public void Item_event_round_trips_through_the_stored_shape()
+    public void ItemEventRoundTripsThroughTheStoredShape()
     {
         var original = new ItemEvent
         {
@@ -89,7 +89,7 @@ public sealed class MatchParticipantEventJsonShapeTests
     }
 
     [Fact]
-    public void Skill_event_round_trips_through_the_stored_shape()
+    public void SkillEventRoundTripsThroughTheStoredShape()
     {
         var original = new SkillEvent
         {
@@ -110,7 +110,7 @@ public sealed class MatchParticipantEventJsonShapeTests
     [InlineData(null)]
     [InlineData("camelCase")]
     [InlineData("snake_case")]
-    public void Item_event_keeps_its_stored_keys_under_any_naming_policy(string? policy)
+    public void ItemEventKeepsItsStoredKeysUnderAnyNamingPolicy(string? policy)
     {
         var json = JsonSerializer.Serialize(
             new ItemEvent { TimestampMs = 4122, EventType = "ITEM_PURCHASED", ItemId = 3340 },
@@ -123,7 +123,7 @@ public sealed class MatchParticipantEventJsonShapeTests
     [InlineData(null)]
     [InlineData("camelCase")]
     [InlineData("snake_case")]
-    public void Skill_event_keeps_its_stored_keys_under_any_naming_policy(string? policy)
+    public void SkillEventKeepsItsStoredKeysUnderAnyNamingPolicy(string? policy)
     {
         var json = JsonSerializer.Serialize(
             new SkillEvent { TimestampMs = 77582, SkillSlot = 2, LevelUpType = "NORMAL" },
@@ -135,7 +135,7 @@ public sealed class MatchParticipantEventJsonShapeTests
     [Theory]
     [InlineData("camelCase")]
     [InlineData("snake_case")]
-    public void Stored_documents_still_deserialize_under_any_naming_policy(string policy)
+    public void StoredDocumentsStillDeserializeUnderAnyNamingPolicy(string policy)
     {
         var options = OptionsWith(policy);
 

@@ -10,7 +10,7 @@ public sealed class StarterItemAnalyzerTests
     private static IReadOnlyDictionary<int, ItemMetadata> Metadata => ItemMetadataFixtures.ItemMetadataById;
 
     [Fact]
-    public void BuildStarterItems_keeps_early_purchases_within_500_gold()
+    public void BuildStarterItems_KeepsEarlyPurchasesWithin500Gold()
     {
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
         [
@@ -23,7 +23,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_keeps_the_valid_subset_when_later_early_purchases_would_exceed_500_gold()
+    public void BuildStarterItems_KeepsTheValidSubsetWhenLaterEarlyPurchasesWouldExceed500Gold()
     {
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
         [
@@ -35,7 +35,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_respects_undo_and_keeps_the_final_starter_basket()
+    public void BuildStarterItems_RespectsUndoAndKeepsTheFinalStarterBasket()
     {
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
         [
@@ -49,7 +49,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_ignores_starter_trinkets_instead_of_dropping_the_whole_basket()
+    public void BuildStarterItems_IgnoresStarterTrinketsInsteadOfDroppingTheWholeBasket()
     {
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
         [
@@ -62,7 +62,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_keeps_purchased_potions_even_if_they_are_consumed_before_two_minutes()
+    public void BuildStarterItems_KeepsPurchasedPotionsEvenIfTheyAreConsumedBeforeTwoMinutes()
     {
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
         [
@@ -76,7 +76,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_ignores_purchases_that_would_push_the_starter_above_500_gold()
+    public void BuildStarterItems_IgnoresPurchasesThatWouldPushTheStarterAbove500Gold()
     {
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
         [
@@ -92,7 +92,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_keeps_the_current_valid_basket_when_a_later_purchase_would_overflow()
+    public void BuildStarterItems_KeepsTheCurrentValidBasketWhenALaterPurchaseWouldOverflow()
     {
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
         [
@@ -106,7 +106,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_ignores_a_second_shop_batch_after_a_large_gap()
+    public void BuildStarterItems_IgnoresASecondShopBatchAfterALargeGap()
     {
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
         [
@@ -119,7 +119,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_infers_support_starter_when_quest_chain_exists_without_initial_purchase_event()
+    public void BuildStarterItems_InfersSupportStarterWhenQuestChainExistsWithoutInitialPurchaseEvent()
     {
         var starterItems = StarterItemAnalyzer.BuildStarterItems(
         [
@@ -135,7 +135,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void Analyze_does_not_count_inferred_support_starter_toward_paid_starter_cost()
+    public void Analyze_DoesNotCountInferredSupportStarterTowardPaidStarterCost()
     {
         var analysis = StarterItemAnalyzer.Analyze(
         [
@@ -149,7 +149,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_prefers_completion_over_root_when_quest_finished_during_match()
+    public void BuildStarterItems_PrefersCompletionOverRootWhenQuestFinishedDuringMatch()
     {
         // Player completed the support quest mid-match: events show the
         // chain (root destroyed, intermediates destroyed) plus the final
@@ -171,7 +171,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_falls_back_to_root_when_quest_chain_appears_without_completion()
+    public void BuildStarterItems_FallsBackToRootWhenQuestChainAppearsWithoutCompletion()
     {
         // Player surrendered early or the quest didn't finish: only the
         // root / intermediates show up in the events. We surface the root
@@ -187,7 +187,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_keeps_completion_already_present_without_inferring_root()
+    public void BuildStarterItems_KeepsCompletionAlreadyPresentWithoutInferringRoot()
     {
         // Completion observed directly in events as a purchase. Don't
         // double-add the root on top — the player already has the right
@@ -203,7 +203,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_detects_completion_via_final_inventory_when_event_missing()
+    public void BuildStarterItems_DetectsCompletionViaFinalInventoryWhenEventMissing()
     {
         // Real Riot timelines often omit the ITEM_PURCHASED for the support
         // quest completion choice — only the intermediates' ITEM_DESTROYED
@@ -230,7 +230,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_falls_back_to_root_when_final_inventory_still_holds_intermediate()
+    public void BuildStarterItems_FallsBackToRootWhenFinalInventoryStillHoldsIntermediate()
     {
         // Game ended mid-quest: final inventory still shows the
         // intermediate (Bounty of Worlds, 3867) rather than a completion.
@@ -251,7 +251,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_ignores_a_support_completion_the_player_only_saw_destroyed()
+    public void BuildStarterItems_IgnoresASupportCompletionThePlayerOnlySawDestroyed()
     {
         // The production bug behind #923's report. A jungler's timeline carries six to
         // eight ITEM_DESTROYED events naming a support completion they never owned —
@@ -272,7 +272,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void Analyze_keeps_a_jungle_basket_within_budget_despite_destroyed_completions()
+    public void Analyze_KeepsAJungleBasketWithinBudgetDespiteDestroyedCompletions()
     {
         var analysis = StarterItemAnalyzer.Analyze(
             [
@@ -289,7 +289,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_still_surfaces_a_completion_the_player_bought()
+    public void BuildStarterItems_StillSurfacesACompletionThePlayerBought()
     {
         // The other side of the same rule: a real support buys the completion, so the
         // ownership signal is there and the starter must still show it.
@@ -306,7 +306,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_ignores_a_completion_named_only_as_an_undos_before_side()
+    public void BuildStarterItems_IgnoresACompletionNamedOnlyAsAnUndosBeforeSide()
     {
         // Flagged in review: EnumerateRelevantItemIds used to prove ownership of every
         // candidate an ITEM_UNDO touched — ItemId, BeforeId and AfterId alike. BeforeId is
@@ -328,7 +328,7 @@ public sealed class StarterItemAnalyzerTests
     }
 
     [Fact]
-    public void BuildStarterItems_still_surfaces_a_completion_kept_after_an_unrelated_undo()
+    public void BuildStarterItems_StillSurfacesACompletionKeptAfterAnUnrelatedUndo()
     {
         // The other side of the same rule: an undo elsewhere in the sequence must not
         // blind the scan to a completion the player legitimately bought and kept.

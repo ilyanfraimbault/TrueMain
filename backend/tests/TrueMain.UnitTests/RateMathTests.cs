@@ -12,13 +12,13 @@ namespace TrueMain.UnitTests;
 public sealed class RateMathTests
 {
     [Fact]
-    public void Kda_divides_takedowns_by_deaths()
+    public void Kda_DividesTakedownsByDeaths()
     {
         RateMath.Kda(kills: 10, deaths: 4, assists: 6, games: 3).Should().Be(4d);
     }
 
     [Fact]
-    public void Kda_falls_back_to_a_per_game_figure_when_the_sample_never_died()
+    public void Kda_FallsBackToAPerGameFigureWhenTheSampleNeverDied()
     {
         // The bug this pins (#871): the fallback used to return kills + assists
         // as a raw career sum, printing e.g. 150 next to per-game averages.
@@ -27,7 +27,7 @@ public sealed class RateMathTests
     }
 
     [Fact]
-    public void Kda_deathless_fallback_stays_on_the_same_scale_as_a_played_sample()
+    public void Kda_DeathlessFallbackStaysOnTheSameScaleAsAPlayedSample()
     {
         // A deathless pool must not dwarf a merely excellent one by an order of
         // magnitude just because it is aggregated over many games.
@@ -41,20 +41,20 @@ public sealed class RateMathTests
     }
 
     [Fact]
-    public void Kda_returns_zero_for_an_empty_sample()
+    public void Kda_ReturnsZeroForAnEmptySample()
     {
         RateMath.Kda(kills: 0, deaths: 0, assists: 0, games: 0).Should().Be(0d);
     }
 
     [Fact]
-    public void Rate_returns_zero_on_an_empty_denominator()
+    public void Rate_ReturnsZeroOnAnEmptyDenominator()
     {
         RateMath.Rate(3, 0).Should().Be(0d);
         RateMath.Rate(3, 12).Should().Be(0.25d);
     }
 
     [Fact]
-    public void RateOrNull_keeps_an_unmeasured_sample_apart_from_a_measured_zero()
+    public void RateOrNull_KeepsAnUnmeasuredSampleApartFromAMeasuredZero()
     {
         // The two conventions used to share one name (#1224): a private copy in the
         // live build aggregator returned 0 for an empty denominator while the
@@ -66,7 +66,7 @@ public sealed class RateMathTests
     }
 
     [Fact]
-    public void WinRate_is_null_when_a_counter_is_unknown_or_no_games_were_played()
+    public void WinRate_IsNullWhenACounterIsUnknownOrNoGamesWerePlayed()
     {
         RateMath.WinRate(null, 4).Should().BeNull();
         RateMath.WinRate(4, null).Should().BeNull();
@@ -75,7 +75,7 @@ public sealed class RateMathTests
     }
 
     [Fact]
-    public void WilsonInterval_brackets_the_observed_rate_and_stays_a_probability()
+    public void WilsonInterval_BracketsTheObservedRateAndStaysAProbability()
     {
         var (lower, upper) = RateMath.WilsonInterval(wins: 12, games: 20);
 
@@ -86,7 +86,7 @@ public sealed class RateMathTests
     }
 
     [Fact]
-    public void WilsonInterval_stays_inside_zero_to_one_at_the_extremes()
+    public void WilsonInterval_StaysInsideZeroToOneAtTheExtremes()
     {
         // The reason this is Wilson and not the textbook normal interval: a perfect
         // record puts the normal upper bound past 1.0, which is not a probability.
@@ -100,7 +100,7 @@ public sealed class RateMathTests
     }
 
     [Fact]
-    public void WilsonInterval_narrows_as_the_sample_grows()
+    public void WilsonInterval_NarrowsAsTheSampleGrows()
     {
         // The whole point of ranking on the bound: the same rate measured on more
         // games claims more, so a thin sample cannot out-rank a thick one on
@@ -113,7 +113,7 @@ public sealed class RateMathTests
     }
 
     [Fact]
-    public void WilsonInterval_on_an_empty_sample_constrains_nothing()
+    public void WilsonInterval_OnAnEmptySampleConstrainsNothing()
     {
         RateMath.WilsonInterval(wins: 0, games: 0).Should().Be((0d, 1d));
     }

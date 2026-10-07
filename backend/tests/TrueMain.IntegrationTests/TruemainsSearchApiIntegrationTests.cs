@@ -23,7 +23,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Search_matches_game_name_substring_case_insensitively_and_ranks_exact_first()
+    public async Task Search_MatchesGameNameSubstringCaseInsensitivelyAndRanksExactFirst()
     {
         var now = DateTime.UtcNow;
 
@@ -66,7 +66,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Search_with_tag_narrows_to_the_matching_tag_line()
+    public async Task Search_WithTagNarrowsToTheMatchingTagLine()
     {
         var now = DateTime.UtcNow;
 
@@ -102,7 +102,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Search_excludes_unranked_and_non_main_accounts()
+    public async Task Search_ExcludesUnrankedAndNonMainAccounts()
     {
         var now = DateTime.UtcNow;
 
@@ -136,7 +136,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Search_hydrates_top_champions_and_positions()
+    public async Task Search_HydratesTopChampionsAndPositions()
     {
         var now = DateTime.UtcNow;
 
@@ -181,7 +181,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     // smuggle the query past the min-length guard.
     [InlineData("/truemains/search?q=a%23NA1")]
     [InlineData("/truemains/search?q=%20%20")]
-    public async Task Search_returns_empty_200_for_too_short_or_missing_query(string url)
+    public async Task Search_ReturnsEmpty200ForTooShortOrMissingQuery(string url)
     {
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -194,7 +194,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Search_returns_empty_200_for_an_over_long_query()
+    public async Task Search_ReturnsEmpty200ForAnOverLongQuery()
     {
         // A query far longer than any real Riot id is rejected before it reaches
         // EscapeLike / the ILIKE — a normal empty 200, never a 500.
@@ -210,7 +210,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Search_treats_like_metacharacters_as_literals()
+    public async Task Search_TreatsLikeMetacharactersAsLiterals()
     {
         var now = DateTime.UtcNow;
 
@@ -244,7 +244,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Search_treats_underscore_metacharacter_as_literal()
+    public async Task Search_TreatsUnderscoreMetacharacterAsLiteral()
     {
         var now = DateTime.UtcNow;
 
@@ -277,7 +277,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Search_tag_metacharacters_are_treated_as_literals()
+    public async Task Search_TagMetacharactersAreTreatedAsLiterals()
     {
         var now = DateTime.UtcNow;
 
@@ -315,7 +315,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Search_clamps_the_result_limit()
+    public async Task Search_ClampsTheResultLimit()
     {
         var now = DateTime.UtcNow;
 

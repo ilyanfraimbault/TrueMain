@@ -41,7 +41,7 @@ public sealed class BoundedReadPathSqlTests
     }
 
     [Fact]
-    public void Retention_observed_patches_are_grouped_by_postgres_not_by_the_client()
+    public void RetentionObservedPatchesAreGroupedByPostgresNotByTheClient()
     {
         using var db = CreateContext();
 
@@ -57,7 +57,7 @@ public sealed class BoundedReadPathSqlTests
     }
 
     [Fact]
-    public void Retention_observed_patches_do_not_project_one_row_per_match()
+    public void RetentionObservedPatchesDoNotProjectOneRowPerMatch()
     {
         using var db = CreateContext();
 
@@ -69,7 +69,7 @@ public sealed class BoundedReadPathSqlTests
     }
 
     [Fact]
-    public void Rank_snapshot_lookup_pushes_the_window_into_sql()
+    public void RankSnapshotLookupPushesTheWindowIntoSql()
     {
         using var db = CreateContext();
         var accountIds = new List<Guid> { Guid.NewGuid() };
@@ -86,7 +86,7 @@ public sealed class BoundedReadPathSqlTests
     }
 
     [Fact]
-    public void Rank_snapshot_fallback_drops_the_window_predicates()
+    public void RankSnapshotFallbackDropsTheWindowPredicates()
     {
         using var db = CreateContext();
         var accountIds = new List<Guid> { Guid.NewGuid() };
@@ -103,7 +103,7 @@ public sealed class BoundedReadPathSqlTests
     }
 
     [Fact]
-    public void Perk_selection_lookup_filters_on_the_participant_slot_too()
+    public void PerkSelectionLookupFiltersOnTheParticipantSlotToo()
     {
         using var db = CreateContext();
 

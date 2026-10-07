@@ -23,6 +23,7 @@ Last verified against `develop` on 2026-09-02.
 - The account explorer (#1032) reports raw score inputs, not score components — and never calls Riot
 - `MainActivity` deactivation carries no persisted reason, so the account explorer says so rather than guessing — #900
 - A main whose matches expired is dated, not deleted and not hidden (2026-08-24) — #825, #466
+- A candidate has no rejection verdict: it is in the pipeline, demoted back into the pool, or pruned (2026-10-06) — #1029, #1024, #1535
 
 ## Population and rank scope of the champion pages (#1346) — [`decisions/product-population.md`](decisions/product-population.md)
 
@@ -91,6 +92,7 @@ Last verified against `develop` on 2026-09-02.
 - The lane win rate carries its own floor, because it is its own sample — #1087
 - The matchup folds count mains of the champion, not every account we know — #1087
 - Every champion-page fold takes its cohort from one place, and a remake is not a game — #1365, #1087, #922
+- The live champion reads compose that same cohort; a read whose champion side differs on purpose (one player, the full build pool) still takes its matches from it, so no read counts a remake (2026-10-06) — #1365
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
@@ -203,9 +205,11 @@ Last verified against `develop` on 2026-09-02.
 - Measured on held-out games before shipping: composition moves boots (right 400 vs 215 where it overrides the base order), barely legendaries (534 vs 509) — enemy builds are the lever; correlated axes are summed, grouping measured no better (2026-10-01) — #1749, #1750
 - No pick+ban "presence" figure, despite it being standard elsewhere — #920
 - A dimension's identity is enforced by the schema (canonical UNIQUE index, CHECK, generated key), not repaired afterwards (2026-09-03) — #1418, #911
+- A champion stat row's invariants are write-time CHECKs added `NOT VALID` — `Wins <= Games` on every stat table by convention, `LaneGames <= Games`, canonical lanes, a real opponent; the one lane sentinel is pinned to `''`, not made `NULL` (2026-10-06) — #1365
 - Rank snapshots are capped at one row per account per UTC day (DB-level unique index) — #907
 - `(GameName, TagLine, PlatformId)` on `riot_accounts` is a plain, NON-unique index. PUUID is the only real identity — #901, #902
 - PUUID indexing is intentional — do not propose dropping it or migrating to `RiotAccountId`-only — #123, #124
+- `ItemEvents`/`SkillEvents` use LZ4 TOAST compression per column; old rows are rewritten by the #1946 repack, not a migration (2026-10-06) — #123
 - Pattern aggregates use a junction model (`champion_aggregate_patterns` + globally deduplicated `champion_dim_*`)
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
 - A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
@@ -224,6 +228,7 @@ Last verified against `develop` on 2026-09-02.
 - Ingestor options: bounds are attributes checked by a generated validator, cross-field rules stay lambdas (2026-10-04) — #271
 - A role is a string from `LanePositions` (no enum, `MID`/`BOT` accepted on input); timeline marks live once in `Data` (2026-10-04) — #1232
 - Integration test classes reset their stores in `InitializeAsync`; migration replays get a scratch database; clocks are frozen through the factory (2026-10-05) — #1246
+- Test methods are named `MethodName_State_ExpectedBehavior` (PascalCase segments, never snake_case), enforced by an `IDE1006` rule on `backend/tests` (2026-10-06) — #1246, #290
 - Threading + Roslynator analyzers run on every project: async-correctness rules are errors, JTF-only and false-positive rules are off, Roslynator style stays IDE hints (2026-10-05) — #294
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
@@ -254,6 +259,7 @@ Last verified against `develop` on 2026-09-02.
 - A lease is only kept if something reaps it (2026-09-01) — #1344
 - A redeploy is an outcome the pipeline records, not an accident it absorbs (2026-09-07) — #1513
 - Jungle first-clear tracking was built, then removed entirely (2026-08-24) — #1186, #1195, #535
+- A shell match (`endOfGameResult` ≠ `GameComplete`) is refused at ingest; a remake is Riot's flag *or* the 5-minute floor (2026-10-06) — #1364, #1365
 
 ## Performance, caching and incidents — [`decisions/performance-and-incidents.md`](decisions/performance-and-incidents.md)
 
@@ -307,7 +313,7 @@ Last verified against `develop` on 2026-09-02.
 - A step change in what is measured is not growth, so the forecast restarts at it — #1023
 - Ingestion throughput is measured from the run summaries, not from `matches.CreatedAtUtc` — #1025, #982, #988
 - The counters are summed in memory because the summary is stored as opaque JSON text — #1025, #990
-- The candidate funnel measures Validated and Demoted, because Rejected is a status nothing assigns — #1024, #1029
+- The candidate funnel measures Validated and Demoted — its only exit and only negative outcome — #1024, #1029
 - A forward-only counter renders as absent, not as zero, and key presence is what says which — #1024, #924
 - `ValidatedAtUtc` had never been written in production, and the queue-latency snapshot is why that surfaced — #1024
 - Queue latency is a snapshot over retained rows and is labelled as one, rather than being faked into a series — #1024
@@ -327,6 +333,7 @@ Last verified against `develop` on 2026-09-02.
 - Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
 - The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
 - A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
+- The Ingestor's own meter is folded into Mongo per minute and shown on the Riot API tab — no OpenTelemetry pipeline, no tracing (2026-10-05) — #1636
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
@@ -353,7 +360,7 @@ Last verified against `develop` on 2026-09-02.
 - The app follows the reference client's layout — a sidebar to every site section; the gameflow phase still opens the draft — #1671
 - No win probability: the draft strip carries the clock, the middle the lane duel (lane win rate only) — #1671
 - One selected card on the draft board, ringed in the primary colour: the player's by default, any placed champion on click (build + lane duel); its lane opponent faintly ringed (2026-09-28) — #1671
-- The draft shows each team's damage mix (weighted like `DraftAxisEvaluator`, no figure with two unmeasured picks), a non-scoring chip on a pick that answers a one-sided team, and the boots / first item the draft moves (next-item read at draft time); runes not yet (2026-10-05) — #1907
+- The draft shows each team's damage mix (weighted like `DraftAxisEvaluator`, no figure with two unmeasured picks), a non-scoring chip on a pick that answers a one-sided team, and the boots / first item the draft clearly moves (next-item read at draft time, ≥5 pts and ×1.25, enemy/lane reasons only); runes not yet (2026-10-05) — #1907
 - Champion select is the live draft only; a draft played by hand is a dev tool (`/dev/draft-sim`) feeding the shell the client's payloads (2026-09-28) — #1671
 - An enemy's lane is corrected from its lane icon (a menu of lanes); guessed lanes carry no "?"; build header = icon, name, lane icon (2026-09-29) — #1671
 - No browser chrome in the app: no back/forward arrows, no patch label (2026-09-28) — #1671
@@ -413,6 +420,7 @@ Last verified against `develop` on 2026-09-02.
 - CI traps — #1236
 - API wire conventions
 - Every issue goes on GitHub Project #2
+- The frontends lint with ESLint (`@nuxt/eslint` + vue + a11y); already-broken rules and all a11y rules are warnings, the rest errors (2026-10-06) — #1440
 - Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 - Agent disciplines (debugging, grilling, glossary, retro) adapted from mattpocock/skills; review split into Spec and Standards axes; PR bodies carry a merge-danger call (2026-10-05) — #1938
 

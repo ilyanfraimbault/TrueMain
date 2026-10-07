@@ -1,5 +1,5 @@
 // Badge presentation for the intake pipeline's two status enums, shared by every
-// panel that shows one. Colors trace New → Validated/Rejected and Pending →
+// panel that shows one. Colors trace New → Validated and Pending →
 // Ingested/Failed, and stay close to the Overview candidate-pipeline palette —
 // so a status never looks like two different things on two pages.
 import type { BadgeColor, MainCandidateStatus, SeedRequestStatus } from '~~/shared/types/ops'
@@ -10,7 +10,6 @@ export const CANDIDATE_STATUSES: MainCandidateStatus[] = [
   'Queued',
   'Processing',
   'Validated',
-  'Rejected',
 ]
 
 export const CANDIDATE_STATUS_COLOR: Record<MainCandidateStatus, BadgeColor> = {
@@ -19,7 +18,6 @@ export const CANDIDATE_STATUS_COLOR: Record<MainCandidateStatus, BadgeColor> = {
   Queued: 'warning',
   Processing: 'warning',
   Validated: 'success',
-  Rejected: 'error',
 }
 
 export const CANDIDATE_STATUS_ICON: Record<MainCandidateStatus, string> = {
@@ -28,7 +26,6 @@ export const CANDIDATE_STATUS_ICON: Record<MainCandidateStatus, string> = {
   Queued: 'i-lucide-list-ordered',
   Processing: 'i-lucide-loader',
   Validated: 'i-lucide-circle-check',
-  Rejected: 'i-lucide-circle-x',
 }
 
 export function candidateStatusColor(status: MainCandidateStatus): BadgeColor {

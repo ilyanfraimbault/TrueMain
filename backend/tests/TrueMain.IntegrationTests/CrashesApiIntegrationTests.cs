@@ -37,7 +37,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Requires_the_ops_api_key()
+    public async Task RequiresTheOpsApiKey()
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -51,7 +51,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Returns_crashes_newest_first_with_a_stable_shape_and_its_filter_catalogs()
+    public async Task ReturnsCrashesNewestFirstWithAStableShapeAndItsFilterCatalogs()
     {
         await SeedAsync();
 
@@ -96,7 +96,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Filters_by_process()
+    public async Task FiltersByProcess()
     {
         await SeedAsync();
 
@@ -110,7 +110,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Filters_by_source_case_insensitively_and_returns_nothing_for_an_unknown_one()
+    public async Task FiltersBySourceCaseInsensitivelyAndReturnsNothingForAnUnknownOne()
     {
         await SeedAsync();
 
@@ -131,7 +131,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Searches_message_and_stack_trace_case_insensitively_with_literal_metacharacters()
+    public async Task SearchesMessageAndStackTraceCaseInsensitivelyWithLiteralMetacharacters()
     {
         await SeedAsync();
 
@@ -150,7 +150,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Treats_since_as_an_inclusive_lower_bound()
+    public async Task TreatsSinceAsAnInclusiveLowerBound()
     {
         await SeedAsync();
 
@@ -169,7 +169,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Pages_the_list_while_reporting_the_unpaged_total_and_clamping_the_page_size()
+    public async Task PagesTheListWhileReportingTheUnpagedTotalAndClampingThePageSize()
     {
         await SeedAsync();
 
@@ -194,7 +194,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Carries_the_whole_report_so_the_panel_needs_no_detail_call()
+    public async Task CarriesTheWholeReportSoThePanelNeedsNoDetailCall()
     {
         await SeedAsync();
 
@@ -223,7 +223,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Explains_an_unclean_shutdown_that_carries_no_exception_at_all()
+    public async Task ExplainsAnUncleanShutdownThatCarriesNoExceptionAtAll()
     {
         await SeedAsync();
 

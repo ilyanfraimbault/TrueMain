@@ -13,7 +13,7 @@ public sealed class LanePositionsTests
     [InlineData("  middle  ", "MIDDLE")]
     [InlineData("mid", "MIDDLE")]
     [InlineData("BOT", "BOTTOM")]
-    public void Normalize_canonicalises_known_positions_and_short_forms(string input, string expected)
+    public void Normalize_CanonicalisesKnownPositionsAndShortForms(string input, string expected)
         => LanePositions.Normalize(input).Should().Be(expected);
 
     [Theory]
@@ -23,7 +23,7 @@ public sealed class LanePositionsTests
     [InlineData("INVALID")]
     [InlineData("ADC")]
     [InlineData("SUPPORT")]
-    public void Normalize_returns_null_for_unknown(string? input)
+    public void Normalize_ReturnsNullForUnknown(string? input)
         => LanePositions.Normalize(input).Should().BeNull();
 
     [Theory]
@@ -34,10 +34,10 @@ public sealed class LanePositionsTests
     [InlineData(" TOP", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
-    public void IsLane_is_an_exact_match_on_stored_values(string? input, bool expected)
+    public void IsLane_IsAnExactMatchOnStoredValues(string? input, bool expected)
         => LanePositions.IsLane(input).Should().Be(expected);
 
     [Fact]
-    public void Cohort_positions_are_the_lane_positions()
+    public void CohortPositionsAreTheLanePositions()
         => ChampionCohort.CanonicalPositions.Should().Equal(LanePositions.All);
 }

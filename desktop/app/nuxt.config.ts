@@ -32,7 +32,7 @@ export default defineNuxtConfig({
   // the draft simulator's relay, and `server/routes/__dev/recording-file.ts`,
   // which serves the recordings fixtures' video.
   ssr: false,
-  modules: ['@nuxt/ui'],
+  modules: ['@nuxt/ui', '@nuxt/eslint'],
   css: ['~/assets/css/main.css'],
   devServer: { port: 3003 },
   // Tauri serves the bundle from a custom protocol; hashed asset names at the

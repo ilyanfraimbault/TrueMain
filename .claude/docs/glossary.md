@@ -45,7 +45,9 @@ A Riot account the pipeline knows and ingests, identified by its PUUID (name#tag
 
 **Candidate**:
 A (player, champion) pair proposed as a possible true main, found on the apex ladder, added by an operator, or
-harvested from games already stored. It moves New → Scored → Queued → Processing → Validated.
+harvested from games already stored. It moves New → Scored → Queued → Processing → Validated, and leaves only
+by demotion (back to Scored, into the pool) or by being pruned when stale; no candidate is ever rejected.
+_Avoid_: rejected candidate
 
 **Main analysis**:
 The decision, per account, champion and platform, of whether the player is a true main or an OTP.
@@ -55,7 +57,12 @@ Whose games count in a champion page's figures: a tracked true main of the champ
 position, in a game that is not a remake.
 
 **Remake**:
-A game ended in its first minutes; never counted as a game.
+A game ended in its first minutes by the remake vote — Riot's `gameEndedInEarlySurrender`, or shorter than five
+minutes for the matches ingested before that flag was stored; never counted as a game.
+
+**Shell match**:
+A match Riot recorded although no game was played (`endOfGameResult` is an `Abort_*` value rather than
+`GameComplete`). Refused at ingest, never stored. Not a remake: a remake was played, briefly.
 
 ## Ranks and populations
 

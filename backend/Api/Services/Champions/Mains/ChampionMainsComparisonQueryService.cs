@@ -1,6 +1,6 @@
-using System.Linq.Expressions;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -23,8 +23,8 @@ public interface IChampionMainsComparisonQueryService
     ///
     /// A non-blank <paramref name="target"/> resolves to any account we hold —
     /// it is deliberately not required to be flagged a main of the champion, so
-    /// a caller can measure against a specific rival. Only the pool branch
-    /// filters on <c>IsMain</c>.
+    /// a caller can measure against a specific rival. Only the pool branch is
+    /// the champion's cohort (<c>Data.Aggregation.ChampionCohort</c>).
     ///
     /// Never throws for unknown input: an unresolvable
     /// <paramref name="account"/> yields
@@ -138,7 +138,7 @@ public sealed class ChampionMainsComparisonQueryService(
             position,
             queueId,
             normalizedPatch,
-            p => p.RiotAccountId == playerAccount.Id,
+            OneAccount(playerAccount.Id),
             ct);
         var player = ToSide(playerTotals, Identity(playerAccount), minGames);
 
@@ -159,32 +159,26 @@ public sealed class ChampionMainsComparisonQueryService(
             };
         }
 
-        // The mains pool is every tracked main of this champion *except* the
-        // account being compared: leaving them in would fold their own games
-        // into the yardstick they are measured against, which flatters a thin
-        // pool. A targeted comparison narrows to that single main instead.
+        // The mains pool is the champion's cohort — the population the header above
+        // this panel counts — *except* the account being compared: leaving them in
+        // would fold their own games into the yardstick they are measured against,
+        // which flatters a thin pool. A targeted comparison narrows to that single
+        // account instead.
         var mainsTotals = targetAccount is null
             ? await AggregateAsync(
                 championId,
                 position,
                 queueId,
                 normalizedPatch,
-                p => p.RiotAccountId != playerAccount.Id
-                     && db.RiotAccounts.Any(a =>
-                         a.Id == p.RiotAccountId
-                         && db.MainChampionStats.Any(m =>
-                             m.PlatformId == a.PlatformId
-                             && m.Puuid == a.Puuid
-                             && m.ChampionId == championId
-                             && m.IsMain
-                             && m.IsActive)),
+                ChampionCohort.Members(db, queueId, normalizedPatch)
+                    .Where(p => p.RiotAccountId != playerAccount.Id),
                 ct)
             : await AggregateAsync(
                 championId,
                 position,
                 queueId,
                 normalizedPatch,
-                p => p.RiotAccountId == targetAccount.Id,
+                OneAccount(targetAccount.Id),
                 ct);
 
         var mains = ToSide(mainsTotals, targetAccount is null ? null : Identity(targetAccount), minGames);
@@ -204,6 +198,15 @@ public sealed class ChampionMainsComparisonQueryService(
     }
 
     /// <summary>
+    /// One account's own rows — a side chosen by identity, not by the cohort: the player
+    /// being compared, or the rival they named, main of the champion or not.
+    /// </summary>
+    private IQueryable<MatchParticipant> OneAccount(Guid accountId)
+        => db.MatchParticipants
+            .AsNoTracking()
+            .Where(p => p.RiotAccountId == accountId);
+
+    /// <summary>
     /// Sums one side's games in a single grouped round trip. Grouping by account
     /// (rather than folding everything in SQL) is what yields the distinct-player
     /// count for the aggregate column; every match maps to exactly one row per
@@ -214,15 +217,10 @@ public sealed class ChampionMainsComparisonQueryService(
         string? position,
         int queueId,
         string? normalizedPatch,
-        Expression<Func<MatchParticipant, bool>> accountFilter,
+        IQueryable<MatchParticipant> side,
         CancellationToken ct)
     {
-        // Only tracked rows carry an account, and the untracked players who
-        // merely shared a truemain's game are never part of either side.
-        var participants = db.MatchParticipants
-            .AsNoTracking()
-            .Where(p => p.ChampionId == championId && p.RiotAccountId != null)
-            .Where(accountFilter);
+        var participants = side.Where(p => p.ChampionId == championId);
 
         if (position is not null)
         {
@@ -231,9 +229,9 @@ public sealed class ChampionMainsComparisonQueryService(
 
         var rows = await participants
             .Join(
-                db.Matches.Where(m =>
-                    m.QueueId == queueId
-                    && (normalizedPatch == null || m.Patch == normalizedPatch)),
+                // Both sides count games, not remakes — the cohort's match rule — so
+                // the player is measured over the same kind of game as the pool.
+                ChampionCohort.Games(db, queueId, normalizedPatch),
                 participant => participant.MatchId,
                 match => match.Id,
                 (participant, match) => new

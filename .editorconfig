@@ -141,6 +141,20 @@ dotnet_diagnostic.VSTHRD200.severity = none
 # RCS1194 (standard exception constructors, #294): test-only exception types are thrown
 # from one place and never constructed by anyone else.
 dotnet_diagnostic.RCS1194.severity = none
+# Test method names are MethodName_State_ExpectedBehavior: PascalCase segments joined by
+# underscores, never snake_case (#1246, TEST-10). The style splits a name on '_' and wants
+# every segment to start upper-case, so `Kda_divides_takedowns` fails and
+# `Kda_DividesTakedownsByDeaths` passes. Rationale in decisions/backend-conventions.md.
+# IDE1006 needs its own severity: the naming rule's severity alone is not reported by a
+# command-line build.
+dotnet_naming_rule.test_methods_are_pascal_case_segments.severity = warning
+dotnet_naming_rule.test_methods_are_pascal_case_segments.symbols = test_methods
+dotnet_naming_rule.test_methods_are_pascal_case_segments.style = pascal_case_segments
+dotnet_naming_symbols.test_methods.applicable_kinds = method, local_function
+dotnet_naming_symbols.test_methods.applicable_accessibilities = *
+dotnet_naming_style.pascal_case_segments.capitalization = pascal_case
+dotnet_naming_style.pascal_case_segments.word_separator = _
+dotnet_diagnostic.IDE1006.severity = warning
 
 # Migrations EF : code auto-généré, on n'applique pas les règles de style.
 # Les migrations sont générées par `dotnet ef migrations add ...` et ne sont pas
