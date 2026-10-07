@@ -287,7 +287,7 @@ public sealed class ChampionPatternSourceRowReader(
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyCollection<(DateTime, string?)>)group
-                    .Select(snapshot => (snapshot.CapturedAtUtc, (string?)snapshot.Tier))
+                    .Select(snapshot => (snapshot.CapturedAtUtc, (string?)snapshot.Tier.ToRiotName()))
                     .ToList());
 
         foreach (var row in sourceRows)

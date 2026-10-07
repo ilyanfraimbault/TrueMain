@@ -182,6 +182,19 @@ trace itself is fixed in `web/nuxt.config.ts` (`nitro.externals.traceInclude`);
 the assertion is there so a regression fails the build instead of the next
 tweet.
 
+### No build downloads a font
+
+The web image, the desktop bundle and their CI builds resolve every font from
+the repo (#1106): Inter and Geist Mono from `web/layers/common/public/fonts/`
+through a repo-local @nuxt/fonts provider, with every remote provider switched
+off, and the share cards' static Inter from `web/public/fonts/og/`. Before, the
+Docker build's `npm run build` downloaded the faces from the hashed
+`fonts.gstatic.com` URLs Google's CSS API hands out; they rotate, and a cold
+build failed on a 404 that a re-run cleared. The CI frontend job never saw it,
+its runner's font cache was warm. A build log that mentions `fonts.google.com`,
+`fonts.gstatic.com` or `Could not fetch from` means something brought a remote
+provider back.
+
 ### The web server runs one worker per core
 
 `web/nuxt.config.ts` builds with Nitro's `node-cluster` preset (#1579): the container's entry forks

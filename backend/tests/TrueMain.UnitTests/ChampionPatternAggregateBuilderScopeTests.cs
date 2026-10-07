@@ -115,7 +115,7 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
         int StatDefense);
 
     [Fact]
-    public async Task DualWrite_produces_one_scope_per_account_champion_patch_platform_queue_position()
+    public async Task DualWrite_ProducesOneScopePerAccountChampionPatchPlatformQueuePosition()
     {
         var metadataProvider = Substitute.For<IItemMetadataProvider>();
         metadataProvider

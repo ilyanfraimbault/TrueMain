@@ -1,6 +1,7 @@
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
@@ -22,8 +23,9 @@ public interface IChampionScalingQueryService
 /// <summary>
 /// Win rate bucketed by game duration for a champion at a position, plus a single
 /// scaling index (win rate of the longest qualifying bucket minus the shortest).
-/// Same queue / patch / tracked-account population as the sibling champion reads;
-/// computed live from match participants — no timeline or aggregation table.
+/// Counts the champion's cohort (<see cref="ChampionCohort"/>) — the population of the
+/// header and of every other panel on the page — computed live from match participants,
+/// no timeline or aggregation table.
 /// </summary>
 public sealed class ChampionScalingQueryService(
     TrueMainDbContext db,
@@ -70,13 +72,10 @@ public sealed class ChampionScalingQueryService(
         // its win rate to mean anything, same threshold the sibling reads use.
         var minGames = championsOptions.Value.MinMatchupGames;
 
-        // The champion side: tracked rows for this champion + lane, optionally
+        // The champion side: the cohort's rows for this champion + lane, optionally
         // narrowed to the requested elo bands.
-        var participants = db.MatchParticipants
-            .AsNoTracking()
-            .Where(p => p.ChampionId == championId
-                && p.TeamPosition == position
-                && p.RiotAccountId != null);
+        var participants = ChampionCohort.Members(db, queueId, normalizedPatch)
+            .Where(p => p.ChampionId == championId && p.TeamPosition == position);
         if (bands is not null)
         {
             participants = participants.Where(p => bands.Contains(p.EloBracket));
@@ -86,9 +85,7 @@ public sealed class ChampionScalingQueryService(
         // bucket, drop thin buckets — one SQL round-trip.
         var rows = await participants
             .Join(
-                db.Matches.Where(m =>
-                    m.QueueId == queueId
-                    && (normalizedPatch == null || m.Patch == normalizedPatch)),
+                ChampionCohort.Games(db, queueId, normalizedPatch),
                 participant => participant.MatchId,
                 match => match.Id,
                 (participant, match) => new { participant.Win, match.GameDurationSeconds })

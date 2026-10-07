@@ -68,6 +68,13 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasMaxLength(32);
 
+        entity.Property(e => e.EndOfGameResult)
+            .HasMaxLength(32);
+
+        entity.Property(e => e.EndedInEarlySurrender)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         // Stored, not virtual: the point of the column is to be indexed, and Postgres
         // cannot index a virtual generated column. The database writes it on every
         // insert and on every update of GameVersion; the application never does, hence

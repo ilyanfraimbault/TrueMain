@@ -43,7 +43,8 @@ internal static partial class MatchIngestionLog
     [LoggerMessage(
         Level = LogLevel.Information,
         Message = "Match ingestion for {Platform}/{Puuid}: inserted={Inserted}, skipped={Skipped}, "
-            + "skippedWrongQueue={SkippedWrongQueue}, timelinesUpdated={Timelines}, mainsReactivated={MainsReactivated}.")]
+            + "skippedWrongQueue={SkippedWrongQueue}, skippedShell={SkippedShell}, timelinesUpdated={Timelines}, "
+            + "mainsReactivated={MainsReactivated}.")]
     public static partial void AccountIngested(
         this ILogger logger,
         string platform,
@@ -51,6 +52,7 @@ internal static partial class MatchIngestionLog
         int inserted,
         int skipped,
         int skippedWrongQueue,
+        int skippedShell,
         int timelines,
         int mainsReactivated);
 

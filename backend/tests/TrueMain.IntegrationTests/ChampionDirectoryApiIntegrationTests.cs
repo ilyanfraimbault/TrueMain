@@ -31,7 +31,7 @@ public sealed class ChampionDirectoryApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task GetDirectoryPageAsync_defaults_to_the_first_fifty_lines_by_pick_rate()
+    public async Task GetDirectoryPageAsync_DefaultsToTheFirstFiftyLinesByPickRate()
     {
         await SeedLinesAsync();
         await using var factory = CreateFactory();
@@ -48,7 +48,7 @@ public sealed class ChampionDirectoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetDirectoryPageAsync_pages_through_every_line_once()
+    public async Task GetDirectoryPageAsync_PagesThroughEveryLineOnce()
     {
         await SeedLinesAsync();
         await using var factory = CreateFactory();
@@ -67,7 +67,7 @@ public sealed class ChampionDirectoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetDirectoryPageAsync_orders_by_the_requested_column_and_direction()
+    public async Task GetDirectoryPageAsync_OrdersByTheRequestedColumnAndDirection()
     {
         await SeedLinesAsync();
         await using var factory = CreateFactory();
@@ -80,7 +80,7 @@ public sealed class ChampionDirectoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetDirectoryPageAsync_falls_back_to_the_default_order_on_an_unknown_sort()
+    public async Task GetDirectoryPageAsync_FallsBackToTheDefaultOrderOnAnUnknownSort()
     {
         await SeedLinesAsync();
         await using var factory = CreateFactory();
@@ -92,7 +92,7 @@ public sealed class ChampionDirectoryApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetDirectoryPageAsync_narrows_to_a_lane_and_to_a_champion()
+    public async Task GetDirectoryPageAsync_NarrowsToALaneAndToAChampion()
     {
         await SeedLinesAsync();
         await using var factory = CreateFactory();
@@ -114,7 +114,7 @@ public sealed class ChampionDirectoryApiIntegrationTests : IAsyncLifetime
     [InlineData("championId=0")]
     [InlineData("position=FOO")]
     [InlineData("eloBracket=JUNK")]
-    public async Task GetDirectoryPageAsync_rejects_an_invalid_parameter(string query)
+    public async Task GetDirectoryPageAsync_RejectsAnInvalidParameter(string query)
     {
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);

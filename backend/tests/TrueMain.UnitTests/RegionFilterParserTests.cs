@@ -10,21 +10,21 @@ namespace TrueMain.UnitTests;
 public sealed class RegionFilterParserTests
 {
     [Fact]
-    public void Parse_europe_returns_the_european_shards()
+    public void Parse_EuropeReturnsTheEuropeanShards()
     {
         RegionFilterParser.Parse("europe")
             .Should().BeEquivalentTo(["EUW1", "EUN1", "RU", "TR1"]);
     }
 
     [Fact]
-    public void Parse_americas_returns_the_american_shards()
+    public void Parse_AmericasReturnsTheAmericanShards()
     {
         RegionFilterParser.Parse("americas")
             .Should().BeEquivalentTo(["NA1", "BR1", "LA1", "LA2", "OC1"]);
     }
 
     [Fact]
-    public void Parse_korea_returns_only_KR_not_JP1()
+    public void Parse_KoreaReturnsOnlyKRNotJP1()
     {
         // Riot groups KR + JP1 under RegionalRoute.Asia but the leaderboard
         // surfaces Korea as its own pill — JP1 is intentionally excluded in
@@ -38,7 +38,7 @@ public sealed class RegionFilterParserTests
     [InlineData("Europe")]
     [InlineData("  europe  ")]
     [InlineData("KOREA")]
-    public void Parse_is_case_insensitive_and_trims_whitespace(string input)
+    public void Parse_IsCaseInsensitiveAndTrimsWhitespace(string input)
     {
         RegionFilterParser.Parse(input).Should().NotBeEmpty();
     }
@@ -50,13 +50,13 @@ public sealed class RegionFilterParserTests
     [InlineData("asia")] // intentionally not exposed in V1
     [InlineData("sea")] // intentionally not exposed in V1
     [InlineData("not-a-region")]
-    public void Parse_returns_null_for_missing_or_unknown_slug(string? input)
+    public void Parse_ReturnsNullForMissingOrUnknownSlug(string? input)
     {
         RegionFilterParser.Parse(input).Should().BeNull();
     }
 
     [Fact]
-    public void AllExposedPlatforms_is_union_of_the_three_pills_without_JP1_or_SEA()
+    public void AllExposedPlatforms_IsUnionOfTheThreePillsWithoutJP1OrSEA()
     {
         var platforms = RegionFilterParser.AllExposedPlatforms();
 
@@ -79,7 +79,7 @@ public sealed class RegionFilterParserTests
     [InlineData("LA1", "americas")]
     [InlineData("OC1", "americas")]
     [InlineData("KR", "korea")]
-    public void RouteToSlug_maps_exposed_platforms_to_their_pill(string platform, string expectedSlug)
+    public void RouteToSlug_MapsExposedPlatformsToTheirPill(string platform, string expectedSlug)
     {
         RegionFilterParser.RouteToSlug(platform).Should().Be(expectedSlug);
     }
@@ -89,7 +89,7 @@ public sealed class RegionFilterParserTests
     [InlineData("PH2")] // SEA — not exposed
     [InlineData("VN2")] // SEA — not exposed
     [InlineData("not-a-platform")]
-    public void RouteToSlug_returns_null_for_unexposed_or_unknown_platform(string platform)
+    public void RouteToSlug_ReturnsNullForUnexposedOrUnknownPlatform(string platform)
     {
         RegionFilterParser.RouteToSlug(platform).Should().BeNull();
     }

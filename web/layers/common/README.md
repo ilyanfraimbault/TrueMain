@@ -29,6 +29,8 @@ set up:
   builds. Both carry only emit options; type checking still runs through each app's `nuxt typecheck`.
 - The app maps unresolved bare imports to its own `node_modules` (`desktop/app/nuxt.config.ts`), since TypeScript
   would look for them under `web/`.
+- The typefaces — Inter and Geist Mono, every subset — are files in `public/fonts/`, resolved for both apps' @nuxt/fonts
+  by the provider in `fonts.ts`, which imports nothing for the same reason; no build downloads a font (#1106).
 - `desktop.yml` builds the app in exactly those conditions whenever this layer or `web/shared` changes.
 
 ## What each app provides

@@ -23,7 +23,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task List_orders_by_rank_score_LP_aware_and_skips_unranked()
+    public async Task List_OrdersByRankScoreLPAwareAndSkipsUnranked()
     {
         var now = DateTime.UtcNow;
 
@@ -86,7 +86,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_excludes_mains_retired_for_inactivity()
+    public async Task List_ExcludesMainsRetiredForInactivity()
     {
         // #900: the leaderboard used to show mains who had stopped playing entirely
         // — the "0 games" rows at the top of the board. Once MainActivityProcess flips
@@ -127,7 +127,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_serves_games_kda_from_aggregate_scopes_and_winrate_from_rank_snapshot()
+    public async Task List_ServesGamesKdaFromAggregateScopesAndWinrateFromRankSnapshot()
     {
         // Regression for #719: the Games / KDA cell used to COUNT over live
         // match_participants, which retention hard-deletes beyond the last few
@@ -179,7 +179,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_serves_winrate_from_rank_snapshot_when_player_has_no_aggregate_scopes()
+    public async Task List_ServesWinrateFromRankSnapshotWhenPlayerHasNoAggregateScopes()
     {
         // #824: a main whose tracked-champion games have all aged out of
         // champion_aggregate_scopes (or whose displayed main is a stale snapshot
@@ -219,7 +219,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_filters_by_region_and_maps_platform_to_region_slug()
+    public async Task List_FiltersByRegionAndMapsPlatformToRegionSlug()
     {
         var now = DateTime.UtcNow;
 
@@ -279,7 +279,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_filters_by_position_and_champion_via_main_champion_stats()
+    public async Task List_FiltersByPositionAndChampionViaMainChampionStats()
     {
         var now = DateTime.UtcNow;
 
@@ -334,7 +334,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_position_filter_uses_position_breakdown_share_threshold()
+    public async Task List_PositionFilterUsesPositionBreakdownShareThreshold()
     {
         var now = DateTime.UtcNow;
 
@@ -399,7 +399,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_exposes_primary_and_secondary_position_from_position_share()
+    public async Task List_ExposesPrimaryAndSecondaryPositionFromPositionShare()
     {
         var now = DateTime.UtcNow;
 
@@ -478,7 +478,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_resolves_tied_lanes_deterministically_by_ordinal_position()
+    public async Task List_ResolvesTiedLanesDeterministicallyByOrdinalPosition()
     {
         var now = DateTime.UtcNow;
 
@@ -516,7 +516,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_derives_positions_from_only_the_top_mains_like_the_profile()
+    public async Task List_DerivesPositionsFromOnlyTheTopMainsLikeTheProfile()
     {
         var now = DateTime.UtcNow;
 
@@ -572,7 +572,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_paginates_with_server_computed_rank()
+    public async Task List_PaginatesWithServerComputedRank()
     {
         var now = DateTime.UtcNow;
 
@@ -619,7 +619,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_filters_out_accounts_below_min_ranked_games_threshold()
+    public async Task List_FiltersOutAccountsBelowMinRankedGamesThreshold()
     {
         var now = DateTime.UtcNow;
 
@@ -670,7 +670,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_excludes_accounts_without_truemain_main_champion_stat()
+    public async Task List_ExcludesAccountsWithoutTruemainMainChampionStat()
     {
         // The /truemains page is, by definition, the list of truemains: an
         // account that has rank data but no IsMain=true row in
@@ -711,7 +711,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_surfaces_otp_flag_and_filters_by_otp_only()
+    public async Task List_SurfacesOtpFlagAndFiltersByOtpOnly()
     {
         var now = DateTime.UtcNow;
 
@@ -753,7 +753,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_otp_only_composes_with_champion_filter()
+    public async Task List_OtpOnlyComposesWithChampionFilter()
     {
         var now = DateTime.UtcNow;
 
@@ -790,7 +790,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task List_caches_response_for_identical_request_shape()
+    public async Task List_CachesResponseForIdenticalRequestShape()
     {
         // Proves the 30s response cache short-circuits the four SQL queries
         // for the same (page, filters) shape. We can't easily wait the TTL
@@ -876,8 +876,8 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
             // arrange phase to a single round trip.
             RiotAccount = account,
             CapturedAtUtc = now,
-            Tier = tier,
-            Division = division,
+            Tier = RankTiers.ParseTier(tier),
+            Division = RankTiers.ParseDivision(division),
             LeaguePoints = leaguePoints,
             // The leaderboard WR is sourced from these split totals (League-V4),
             // not the champion aggregate; overridable so a test can prove the WR

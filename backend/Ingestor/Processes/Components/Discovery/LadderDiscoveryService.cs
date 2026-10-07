@@ -125,9 +125,7 @@ public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClien
             return null;
         }
 
-        var rank = !string.IsNullOrWhiteSpace(tier) && !string.IsNullOrWhiteSpace(entry.Rank)
-            ? new RankSnapshotInput(tier!, entry.Rank!, entry.LeaguePoints, entry.Wins, entry.Losses)
-            : null;
+        var rank = RankSnapshotInput.TryCreate(tier, entry.Rank, entry.LeaguePoints, entry.Wins, entry.Losses);
 
         return new LadderEntry(
             SummonerId: string.IsNullOrWhiteSpace(entry.SummonerId) ? null : entry.SummonerId,

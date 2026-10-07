@@ -2,6 +2,8 @@
 using System;
 using System.Reflection;
 using Core.Lol.Pace;
+using Core.Lol.Ranking;
+using Data.Configurations;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -95,10 +97,12 @@ namespace Data.CompiledModels
 
             var tier = runtimeEntityType.AddProperty(
                 "Tier",
-                typeof(string),
+                typeof(RankTier),
                 propertyInfo: typeof(PaceBenchmarkStat).GetProperty("Tier", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(PaceBenchmarkStat).GetField("<Tier>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                maxLength: 20);
+                maxLength: 20,
+                valueConverter: new RankTierConverter());
+            tier.SetSentinelFromProviderValue("IRON");
             tier.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var key = runtimeEntityType.AddKey(

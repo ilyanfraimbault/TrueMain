@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 20,
+                propertyCount: 24,
                 navigationCount: 1,
                 unnamedIndexCount: 4,
                 namedIndexCount: 7,
@@ -55,6 +55,33 @@ namespace Data.CompiledModels
             createdAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             createdAtUtc.AddAnnotation("Relational:DefaultValueSql", "now()");
 
+            var endOfGameResult = runtimeEntityType.AddProperty(
+                "EndOfGameResult",
+                typeof(string),
+                propertyInfo: typeof(Match).GetProperty("EndOfGameResult", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<EndOfGameResult>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                maxLength: 32);
+            endOfGameResult.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var endedInEarlySurrender = runtimeEntityType.AddProperty(
+                "EndedInEarlySurrender",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("EndedInEarlySurrender", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<EndedInEarlySurrender>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            endedInEarlySurrender.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            endedInEarlySurrender.AddAnnotation("Relational:DefaultValue", false);
+
+            var gameCreationUtc = runtimeEntityType.AddProperty(
+                "GameCreationUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(Match).GetProperty("GameCreationUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<GameCreationUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            gameCreationUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var gameDurationSeconds = runtimeEntityType.AddProperty(
                 "GameDurationSeconds",
                 typeof(int),
@@ -62,6 +89,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(Match).GetField("<GameDurationSeconds>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             gameDurationSeconds.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var gameEndTimestampUtc = runtimeEntityType.AddProperty(
+                "GameEndTimestampUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(Match).GetProperty("GameEndTimestampUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<GameEndTimestampUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            gameEndTimestampUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var gameMode = runtimeEntityType.AddProperty(
                 "GameMode",

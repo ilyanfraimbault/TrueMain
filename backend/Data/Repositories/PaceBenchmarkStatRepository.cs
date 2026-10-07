@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Microsoft.EntityFrameworkCore;
 
 namespace Data.Repositories;
@@ -15,7 +16,7 @@ public sealed class PaceBenchmarkStatRepository(TrueMainDbContext db) : IPaceBen
         }
 
         var patches = counts.Select(count => count.Key.Patch).ToArray();
-        var tiers = counts.Select(count => count.Key.Tier).ToArray();
+        var tiers = counts.Select(count => count.Key.Tier.ToRiotName()).ToArray();
         var positions = counts.Select(count => count.Key.Position).ToArray();
         var minutes = counts.Select(count => count.Key.Minute).ToArray();
         var metrics = counts.Select(count => count.Key.Metric.ToString()).ToArray();

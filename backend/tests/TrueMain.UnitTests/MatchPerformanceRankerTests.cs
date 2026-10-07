@@ -38,7 +38,7 @@ public sealed class MatchPerformanceRankerTests
     ];
 
     [Fact]
-    public void Rank_assigns_a_strict_1_to_N_placement_ordered_by_score()
+    public void Rank_AssignsAStrict1ToNPlacementOrderedByScore()
     {
         var placements = MatchPerformanceRanker.Rank(FullMatch());
 
@@ -54,7 +54,7 @@ public sealed class MatchPerformanceRankerTests
     }
 
     [Fact]
-    public void Rank_marks_the_best_winner_as_MVP_and_the_best_loser_as_ACE()
+    public void Rank_MarksTheBestWinnerAsMVPAndTheBestLoserAsACE()
     {
         var placements = MatchPerformanceRanker.Rank(FullMatch());
 
@@ -65,7 +65,7 @@ public sealed class MatchPerformanceRankerTests
     }
 
     [Fact]
-    public void Rank_can_place_the_ACE_above_most_of_the_winning_side()
+    public void Rank_CanPlaceTheACEAboveMostOfTheWinningSide()
     {
         // A hard-carrying loser is allowed to out-place four of the five
         // winners — the score grades the individual, not the outcome.
@@ -76,7 +76,7 @@ public sealed class MatchPerformanceRankerTests
     }
 
     [Fact]
-    public void Rank_is_independent_of_the_input_order()
+    public void Rank_IsIndependentOfTheInputOrder()
     {
         var forward = MatchPerformanceRanker.Rank(FullMatch());
         var reversed = MatchPerformanceRanker.Rank(Enumerable.Reverse(FullMatch()));
@@ -88,7 +88,7 @@ public sealed class MatchPerformanceRankerTests
     }
 
     [Fact]
-    public void Rank_breaks_score_ties_on_takedowns_then_deaths_then_participant_id()
+    public void Rank_BreaksScoreTiesOnTakedownsThenDeathsThenParticipantId()
     {
         var tied = new[]
         {
@@ -110,7 +110,7 @@ public sealed class MatchPerformanceRankerTests
     }
 
     [Fact]
-    public void Rank_marks_no_ACE_when_every_participant_won()
+    public void Rank_MarksNoACEWhenEveryParticipantWon()
     {
         var placements = MatchPerformanceRanker.Rank(
         [
@@ -123,13 +123,13 @@ public sealed class MatchPerformanceRankerTests
     }
 
     [Fact]
-    public void Rank_returns_nothing_for_an_empty_match()
+    public void Rank_ReturnsNothingForAnEmptyMatch()
     {
         MatchPerformanceRanker.Rank([]).Should().BeEmpty();
     }
 
     [Fact]
-    public void Rank_rejects_a_null_sequence()
+    public void Rank_RejectsANullSequence()
     {
         var act = () => MatchPerformanceRanker.Rank(null!);
 

@@ -1,4 +1,5 @@
 using Core.Lol.Performance;
+using Core.Lol.Ranking;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
@@ -201,8 +202,8 @@ public sealed class MatchDetailQueryService(
                             .First();
                         return new MatchDetailRankReadModel
                         {
-                            Tier = nearest.Tier,
-                            Division = nearest.Division,
+                            Tier = nearest.Tier.ToRiotName(),
+                            Division = nearest.Division.ToRiotName(),
                             LeaguePoints = nearest.LeaguePoints,
                         };
                     });
@@ -287,7 +288,7 @@ public sealed class MatchDetailQueryService(
     internal sealed record RankSnapshotRow(
         Guid RiotAccountId,
         DateTime CapturedAtUtc,
-        string Tier,
-        string Division,
+        RankTier Tier,
+        RankDivision Division,
         int LeaguePoints);
 }

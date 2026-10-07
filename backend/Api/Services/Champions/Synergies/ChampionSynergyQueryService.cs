@@ -300,16 +300,12 @@ public sealed class ChampionSynergyQueryService(
         // from the same population as the duo aggregate it extends.
         var queueId = (int)options.Value.QueueId;
 
-        // The champion side: tracked rows for this champion at this lane, on the
-        // configured queue and patch, optionally narrowed to a set of elo bands.
+        // The champion side: the cohort's rows for this champion at this lane, on the
+        // configured queue and patch, optionally narrowed to a set of elo bands — the
+        // population the duo aggregate this extends was folded over.
         // IX_match_participants_champion_position_tracked serves this seek.
-        var championRows = db.MatchParticipants
-            .AsNoTracking()
-            .Where(p1 => p1.ChampionId == championId && p1.TeamPosition == position && p1.RiotAccountId != null)
-            .Where(p1 => db.Matches.Any(m =>
-                m.Id == p1.MatchId
-                && m.QueueId == queueId
-                && (normalizedPatch == null || m.Patch == normalizedPatch)));
+        var championRows = ChampionCohort.Members(db, queueId, normalizedPatch)
+            .Where(p1 => p1.ChampionId == championId && p1.TeamPosition == position);
 
         if (bands is not null)
         {

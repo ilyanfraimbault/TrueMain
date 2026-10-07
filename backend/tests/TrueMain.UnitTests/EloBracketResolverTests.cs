@@ -8,13 +8,13 @@ public sealed class EloBracketResolverTests
     private static readonly DateTime GameStart = new(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void FromNearestSnapshot_no_snapshots_is_unranked()
+    public void FromNearestSnapshot_NoSnapshotsIsUnranked()
     {
         EloBracketResolver.FromNearestSnapshot([], GameStart).Should().Be(EloBracket.Unranked);
     }
 
     [Fact]
-    public void FromNearestSnapshot_picks_the_capture_closest_to_the_game()
+    public void FromNearestSnapshot_PicksTheCaptureClosestToTheGame()
     {
         (DateTime, string?)[] snapshots =
         [
@@ -27,14 +27,14 @@ public sealed class EloBracketResolverTests
     }
 
     [Fact]
-    public void FromNearestSnapshot_maps_apex_tiers_to_their_own_bucket()
+    public void FromNearestSnapshot_MapsApexTiersToTheirOwnBucket()
     {
         (DateTime, string?)[] snapshots = [(GameStart, "GRANDMASTER")];
         EloBracketResolver.FromNearestSnapshot(snapshots, GameStart).Should().Be(EloBracket.Grandmaster);
     }
 
     [Fact]
-    public void FromNearestSnapshot_breaks_ties_toward_the_earlier_capture()
+    public void FromNearestSnapshot_BreaksTiesTowardTheEarlierCapture()
     {
         // Two captures equidistant from the game start; the earlier one wins so the
         // bucket is deterministic across re-runs.
