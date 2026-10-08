@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { StaticItemData } from '#shared/types/static-data'
+import type { BuildItemSet, CompositionBuildResponse } from '~/types/build'
 import { sampleGame } from '~/utils/overlay-sample'
-import { basketName, starterBought, starterCost, starterRequest } from '~/utils/next-item'
+import { basketName, compositionStarter, starterBought, starterCost, starterRequest } from '~/utils/next-item'
 
 function item(id: number, totalGold: number, tags: string[]): StaticItemData {
   return { id, name: `Item ${id}`, iconUrl: '', totalGold, tags }
@@ -74,5 +75,30 @@ describe('starterRequest', () => {
     const game = sampleGame()
     game.players.find(player => player.isMe)!.position = ''
     expect(starterRequest(game, championIdOf)).toBeNull()
+  })
+})
+
+describe('compositionStarter', () => {
+  const basket: BuildItemSet = { itemIds: [1056, 2003, 2003], games: 1214, pickRate: 0.99, winRate: 0.55 }
+  function answer(overrides: Partial<CompositionBuildResponse>, starterItems: BuildItemSet | null = basket): CompositionBuildResponse {
+    return {
+      championId: 103,
+      position: 'MIDDLE',
+      matchupRequested: true,
+      matchupFound: true,
+      ...overrides,
+      build: { starterItems } as CompositionBuildResponse['build'],
+    } as CompositionBuildResponse
+  }
+
+  it('reads the basket the draft build opens with', () => {
+    expect(compositionStarter(answer({}))).toEqual(basket)
+    expect(compositionStarter(answer({ matchupRequested: false, matchupFound: false }))).toEqual(basket)
+  })
+
+  it('leaves it to the lane build when the matchup was never recorded or no basket was measured', () => {
+    expect(compositionStarter(answer({ matchupFound: false }))).toBeNull()
+    expect(compositionStarter(answer({}, null))).toBeNull()
+    expect(compositionStarter(answer({}, { ...basket, itemIds: [] }))).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 import type { StaticItemData } from '#shared/types/static-data'
-import type { CompositionBuildRequest } from '~/types/build'
+import type { BuildItemSet, CompositionBuildRequest, CompositionBuildResponse } from '~/types/build'
 import type { GamePlayer, GameState } from '~/types/game'
 
 /** `POST /champions/{id}/next-item` (#1749), as the app sends it. */
@@ -106,6 +106,17 @@ export function starterRequest(
     .filter((slot): slot is { championId: number, position: string } => slot.championId !== null)
 
   return { championId, body: { position: me.position, allies: side(true), enemies: side(false) } }
+}
+
+/**
+ * The composition build's starter basket, or null when the lane's standard
+ * build has to answer instead: the lane opponent was never recorded against
+ * us (the build is then empty), or the sample measured no basket.
+ */
+export function compositionStarter(answer: CompositionBuildResponse): BuildItemSet | null {
+  if (answer.matchupRequested && !answer.matchupFound) return null
+  const starter = answer.build.starterItems
+  return starter?.itemIds.length ? starter : null
 }
 
 /**

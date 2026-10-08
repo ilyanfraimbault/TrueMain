@@ -1,7 +1,7 @@
 import type { Ref } from 'vue'
 import type { BuildItemSet, ChampionBuildResponse, CompositionBuildResponse } from '~/types/build'
 import type { GameState } from '~/types/game'
-import { starterBought, starterRequest } from '~/utils/next-item'
+import { compositionStarter, starterBought, starterRequest } from '~/utils/next-item'
 
 /**
  * The starter to buy in the running game, until one is bought: the basket the
@@ -41,8 +41,7 @@ export function useStarter(game: Ref<GameState>) {
     const mine = ++generation
     try {
       const composition = await apiPost<CompositionBuildResponse>(`/champions/${current.championId}/composition-build`, current.body, {}, { background: true })
-      const recorded = !(composition.matchupRequested && !composition.matchupFound)
-      const starter = (recorded ? composition.build.starterItems : null) ?? await laneStarter(current.championId, current.body.position)
+      const starter = compositionStarter(composition) ?? await laneStarter(current.championId, current.body.position)
       if (mine === generation) answer.value = starter?.itemIds.length ? starter : null
     }
     catch {
@@ -56,12 +55,11 @@ export function useStarter(game: Ref<GameState>) {
     () => (bought.value || !request.value ? '' : JSON.stringify(request.value)),
     (key, previous) => {
       if (key === previous) return
-      if (!key) {
-        ++generation
-        if (bought.value) answer.value = null
-        return
-      }
-      ask(request.value!)
+      // A starter read for another game, or another draft, must not stand in
+      // while this one's is asked.
+      answer.value = null
+      ++generation
+      if (key) ask(request.value!)
     },
     { immediate: true },
   )
