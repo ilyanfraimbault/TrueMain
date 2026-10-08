@@ -15,7 +15,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use capture_helper::{media, HelperCapture};
 use game_recording::anchor::ClockSample;
-use game_recording::{Change, GameInfo, GameOutcome, MomentKind, RecordingDir, Session};
+use game_recording::{
+    Change, GameInfo, GameOutcome, MomentKind, RecordingDir, RecordingMeta, Session,
+};
 use lcu::detail::GameTimeline;
 use lcu::live::LiveClient;
 use lcu::record::HistoryGame;
@@ -222,15 +224,18 @@ async fn record_game(
     Ok(done)
 }
 
-/// A recording of a loading screen alone: the game clock never ran under it,
-/// and it is too short to be a game. Without the length, a game the live feed
-/// never answered for would go too.
+/// Whether the recording in `dir` holds a loading screen alone (`is_loading_only`).
 fn loading_only(dir: &Path) -> bool {
     RecordingDir::new(dir.to_path_buf())
         .read_meta()
-        .is_ok_and(|meta| {
-            meta.anchor.is_none() && meta.duration_ms.is_some_and(|ms| ms < LOADING_ONLY_MS)
-        })
+        .is_ok_and(|meta| is_loading_only(&meta))
+}
+
+/// A recording of a loading screen alone: the game clock never ran under it,
+/// and it is too short to be a game. Without the length, a game the live feed
+/// never answered for would go too; without a known length, nothing goes.
+fn is_loading_only(meta: &RecordingMeta) -> bool {
+    meta.anchor.is_none() && meta.duration_ms.is_some_and(|ms| ms < LOADING_ONLY_MS)
 }
 
 fn lock(session: &SharedSession) -> std::sync::MutexGuard<'_, Session<HelperCapture>> {
@@ -397,5 +402,39 @@ async fn thumbnail(helper: &Path, dir: &Path) {
     .await;
     if let Ok(Err(error)) = result {
         tracing::warn!(%error, "no thumbnail for the recording");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use game_recording::anchor::Segment;
+    use game_recording::{Anchor, RecordingMeta, RecordingSettings};
+
+    use super::is_loading_only;
+
+    fn meta(duration_ms: Option<u64>, clock_ran: bool) -> RecordingMeta {
+        let mut meta = RecordingMeta::new(1, 420, RecordingSettings::default().quality, 0);
+        meta.duration_ms = duration_ms;
+        meta.anchor = clock_ran.then(|| Anchor {
+            segments: vec![Segment {
+                from_game_ms: 0,
+                offset_ms: 50_000,
+            }],
+        });
+        meta
+    }
+
+    #[test]
+    fn a_short_recording_the_clock_never_ran_under_is_a_loading_screen() {
+        assert!(is_loading_only(&meta(Some(13_464), false)));
+    }
+
+    #[test]
+    fn a_game_is_kept_once_its_clock_ran_or_it_lasts() {
+        assert!(!is_loading_only(&meta(Some(13_464), true)));
+        // A long game the live feed never answered for.
+        assert!(!is_loading_only(&meta(Some(1_822_647), false)));
+        // The video's length unknown: a stop that failed keeps what was written.
+        assert!(!is_loading_only(&meta(None, false)));
     }
 }
