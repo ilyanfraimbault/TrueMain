@@ -11,17 +11,19 @@
 // Cursor-reactive: the corona surges on the side of the orb facing the
 // mouse while it moves, and settles a few seconds after it rests.
 //
+// `variant="stars"`: the star field alone, at the hero's density on any height —
+// the home page under its hero, so its cards' blur has something to show.
+//
 // Degrades gracefully: no WebGL → the static CSS wash below; reduced-motion or
 // a very small viewport → a single rendered frame, no loop; tab hidden /
 // off-screen → the loop parks.
 // Output is premultiplied additive-over-transparent (colour scaled to its
 // luminance-derived alpha) so only the light composites onto the page surface.
 
+const props = withDefaults(defineProps<{ variant?: 'eclipse' | 'stars' }>(), { variant: 'eclipse' })
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
-// Assigned by onMounted once the WebGL context + listeners exist; invoked by
-// the setup-level onBeforeUnmount below. Null when WebGL never initialised
-// (nothing to tear down).
+// Set by onMounted once WebGL is up; null when it never was (nothing to tear down).
 let teardown: (() => void) | null = null
 
 const VERTEX_SHADER = `
@@ -41,6 +43,8 @@ uniform vec2 u_resolution;
 uniform float u_time;
 uniform vec2 u_pointer;   // smoothed cursor, viewport fractions (0..1, y up)
 uniform float u_pointerK; // 0 = ambient drift, 1 = cursor-driven
+uniform float u_starsOnly; // 1 = variant="stars"
+uniform float u_refH;      // the height space is normalised by (device px)
 
 float hash2(vec2 p) {
   return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
@@ -68,7 +72,7 @@ float fbm(vec2 p) {
 // the eclipse relative to the text. In landscape this equals min(w,h), so
 // the common case is unchanged.
 vec2 anchor(vec2 uv) {
-  return (uv * 2.0 - 1.0) * u_resolution / u_resolution.y;
+  return (uv * 2.0 - 1.0) * u_resolution / u_refH;
 }
 
 vec2 starPos(vec2 g) {
@@ -76,7 +80,7 @@ vec2 starPos(vec2 g) {
 }
 
 void main() {
-  vec2 p = (gl_FragCoord.xy * 2.0 - u_resolution) / u_resolution.y;
+  vec2 p = (gl_FragCoord.xy * 2.0 - u_resolution) / u_refH;
   float t = u_time;
 
   const vec3 WINE = vec3(0.30, 0.09, 0.15);
@@ -109,15 +113,16 @@ void main() {
   cor *= 0.6 + 1.5 * u_pointerK * facing;
   rim *= 0.75 + 0.8 * u_pointerK * facing;
 
-  float inside = smoothstep(R, R - 0.025, d);
-  vec3 col = (ROSE * 0.7 + CHAMPAGNE * 0.5) * rim * (1.0 - inside * 0.6);
-  col += (WINE * 0.7 + ROSE * 0.55) * cor * 1.5;
+  float eclipse = 1.0 - u_starsOnly;
+  float inside = smoothstep(R, R - 0.025, d) * eclipse;
+  vec3 col = (ROSE * 0.7 + CHAMPAGNE * 0.5) * rim * eclipse * (1.0 - inside * 0.6);
+  col += (WINE * 0.7 + ROSE * 0.55) * cor * eclipse * 1.5;
 
   // Natural aura: a wide, very soft atmosphere breathing out from the disc,
   // slower and calmer than the corona streams. Outward only — the disc's
   // interior is the hero's reading surface and must stay dark.
   float breathe = 0.85 + 0.15 * sin(t * 0.25);
-  col += (WINE * 0.75 + ROSE * 0.3) * exp(-outer * 5.5) * step(R, d) * 0.2 * breathe;
+  col += (WINE * 0.75 + ROSE * 0.3) * exp(-outer * 5.5) * step(R, d) * 0.2 * breathe * eclipse;
   // Earthshine: the sphere's limb catches a whisper of that light just
   // inside the rim — hugging the edge so it never veils the text.
   col += (WINE * 0.6 + ROSE * 0.3) * exp(-(R - d) * 18.0) * inside * 0.3 * breathe;
@@ -139,7 +144,7 @@ void main() {
   // Reading shield: gently dim whatever crosses the hero text zone, so the
   // title keeps its contrast whichever way the rim lands on this screen.
   vec2 hz = (p - anchor(vec2(0.5, 0.55))) / vec2(0.72, 0.34);
-  col *= 1.0 - 0.6 * (1.0 - smoothstep(0.75, 1.3, length(hz)));
+  col *= 1.0 - 0.6 * (1.0 - smoothstep(0.75, 1.3, length(hz))) * eclipse;
 
   // Fine animated grain keeps the soft gradients from banding.
   col += (hash2(gl_FragCoord.xy + fract(t) * 61.0) - 0.5) * 0.02;
@@ -231,6 +236,9 @@ onMounted(() => {
   const uTime = gl.getUniformLocation(program, 'u_time')
   const uPointer = gl.getUniformLocation(program, 'u_pointer')
   const uPointerK = gl.getUniformLocation(program, 'u_pointerK')
+  const uStarsOnly = gl.getUniformLocation(program, 'u_starsOnly')
+  // The eclipse scales with its section; the stars keep a fixed 900 px height.
+  const uRefH = gl.getUniformLocation(program, 'u_refH')
 
   // Cursor state, in viewport fractions (0..1, y up) to match the shader.
   // `pointer` trails `pointerTarget` and `pointerK` eases toward 1 while the
@@ -244,25 +252,19 @@ onMounted(() => {
   let pointerK = 0
   let lastPointerMoveAt = -Infinity
 
-  // The handler only records raw viewport coordinates — no layout read.
-  // `pointermove` fires at the device's poll rate (often several hundred hertz),
-  // and `getBoundingClientRect()` forces a synchronous layout, so converting
-  // here would pay for a reflow per sample to feed a loop that consumes the
-  // result 24 times a second. Caching the rect instead would be wrong rather
-  // than slow: it is viewport-relative, so it goes stale the moment the hero
-  // scrolls, and a ResizeObserver never fires on scroll.
+  // The handler only records raw viewport coordinates — no layout read:
+  // `pointermove` fires at the poll rate and `getBoundingClientRect()` forces a
+  // reflow, so the conversion runs once per frame instead. A cached rect would
+  // be wrong, not just stale: it is viewport-relative and scrolling moves it.
   function onPointerMove(event: PointerEvent) {
     pointerClient.x = event.clientX
     pointerClient.y = event.clientY
     lastPointerMoveAt = performance.now()
   }
 
-  // Viewport → canvas-normalised, run once per frame from draw(). The backdrop
-  // is bounded by the hero section, so raw viewport fractions would put the
-  // flare somewhere other than under the cursor and would keep dragging it
-  // while the pointer moved far below the hero. Clamped so a cursor outside the
-  // hero parks the highlight at the nearest edge rather than flying off the
-  // shader's 0-1 domain.
+  // Viewport → canvas-normalised, once per frame from draw(): the backdrop is
+  // bounded by its section, so viewport fractions would misplace the flare.
+  // Clamped so a cursor outside parks it at the nearest edge.
   function syncPointerTarget() {
     if (lastPointerMoveAt === -Infinity) return
     const bounds = canvas!.getBoundingClientRect()
@@ -298,6 +300,8 @@ onMounted(() => {
     gl!.uniform1f(uTime, timeSeconds)
     gl!.uniform2f(uPointer, pointer.x, pointer.y)
     gl!.uniform1f(uPointerK, pointerK)
+    gl!.uniform1f(uStarsOnly, props.variant === 'stars' ? 1 : 0)
+    gl!.uniform1f(uRefH, props.variant === 'stars' ? 900 * Math.min(window.devicePixelRatio || 1, MAX_DPR) : canvas!.height)
     gl!.clearColor(0, 0, 0, 0)
     gl!.clear(gl!.COLOR_BUFFER_BIT)
     gl!.drawArrays(gl!.TRIANGLES, 0, 3)
@@ -399,22 +403,18 @@ onBeforeUnmount(() => teardown?.())
 </script>
 
 <template>
-  <!-- `absolute`, not `fixed`: the backdrop is mounted inside the home hero and
-       is bounded by it. It used to sit in `app.vue` as a viewport-fixed layer
-       behind every route, which meant the eclipse's corona passed *through* the
-       champion and leaderboard tables — rows near the glow rendered a visibly
-       different luminance from the ones outside it, and a table that changes
-       brightness down its own length cannot be scanned. Scoping it to the one
-       page whose job is atmosphere keeps the signature without taxing the data
-       pages. The host element owns the bounds and `overflow-hidden`. -->
+  <!-- `absolute`, not `fixed`: bounded by the home section that mounts it. As a
+       viewport-fixed layer behind every route the corona passed through the
+       data tables and rows changed luminance down their length, which cannot
+       be scanned. The host element owns the bounds and `overflow-hidden`. -->
   <div
     aria-hidden="true"
     class="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
   >
-    <!-- Static wash: the no-WebGL / pre-first-frame baseline only. Kept very
-         faint and short so it doesn't bleed up through the shader's
-         transparent troughs and wash out the shadow zones. -->
+    <!-- Static wash: the no-WebGL / pre-first-frame baseline only, faint and
+         short so it never bleeds through the shader's transparent troughs. -->
     <div
+      v-if="variant === 'eclipse'"
       class="absolute inset-0"
       style="background: linear-gradient(180deg, color-mix(in oklch, var(--ui-color-primary-500) 5%, transparent), transparent 35%);"
     />

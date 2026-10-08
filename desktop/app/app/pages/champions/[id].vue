@@ -3,7 +3,7 @@ import type { Lane } from '~/types/draft'
 import { LANES, LANE_LABELS } from '~/types/draft'
 
 /**
- * One champion: its splash, its numbers on a lane, and its builds on that lane
+ * One champion: its banner (the site's `PageHero`) with its numbers on a lane, and its builds on that lane
  * in the same view the draft opens after a pick. The lanes offered are the
  * ones the site tiers it on, most played first.
  */
@@ -35,39 +35,32 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
 
 <template>
   <div class="flex h-full flex-col">
-    <section class="relative shrink-0 overflow-hidden border-b border-default">
-      <ChampionArt :champion-id="championId" fade="x" position="70% 22%" />
-      <div class="relative flex items-end gap-5 px-6 pb-4 pt-8">
-        <ChampionPortrait :champion-id="championId" size="lg" class="size-16! rounded-xl! ring-2! ring-primary/50!" />
-        <div class="min-w-0">
-          <h1 class="truncate text-3xl font-semibold tracking-tight text-highlighted">{{ nameOf(championId) }}</h1>
-          <div class="mt-2 flex items-center gap-3">
-            <RolePicker v-if="lanes.length" v-model:position="lane" hide-all />
-            <span v-else class="text-sm text-dimmed">Not tiered on any lane this patch</span>
-          </div>
-        </div>
-
-        <div v-if="entry" class="ml-auto flex items-end gap-6 rounded-xl border border-default bg-ink-950/75 px-4 py-2.5 backdrop-blur">
+    <!-- The site's banner (`PageHero`): splash, portrait, the lanes it is
+         tiered on, and its numbers on the chosen lane. The app reads the tier
+         list, which has no patch before this one, so the tiles carry no move. -->
+    <div class="shrink-0 px-4 pt-4">
+      <PageHero :splash-url="aliasOf(championId) ? splashOfAlias(aliasOf(championId)!) : null" splash-position="60% 20%">
+        <template #portrait>
+          <ChampionPortrait :champion-id="championId" size="lg" class="size-[72px]! shrink-0 rounded-lg! shadow-lg ring-1 ring-white/10" />
+        </template>
+        <template #title>
+          <h1 class="truncate text-[28px] font-semibold leading-tight text-highlighted">{{ nameOf(championId) }}</h1>
+        </template>
+        <template #subtitle>
+          <RolePicker v-if="lanes.length" v-model:position="lane" hide-all />
+          <span v-else class="text-dimmed">Not tiered on any lane this patch</span>
+        </template>
+        <template v-if="entry" #actions>
           <TierMark :tier="entry.tier" />
-          <div class="flex flex-col gap-1">
-            <span class="stat-label">Win rate</span>
-            <span class="text-lg font-semibold tabular-nums" :class="winRateTone(entry.winRate)">{{ percent(entry.winRate) }}</span>
-          </div>
-          <div class="flex flex-col gap-1">
-            <span class="stat-label">Pick rate</span>
-            <span class="stat-value text-lg">{{ percent(entry.pickRate) }}</span>
-          </div>
-          <div class="flex flex-col gap-1">
-            <span class="stat-label">Ban rate</span>
-            <span class="stat-value text-lg">{{ percent(entry.banRate) }}</span>
-          </div>
-          <div class="flex flex-col gap-1">
-            <span class="stat-label">Games</span>
-            <span class="stat-value text-lg">{{ entry.games.toLocaleString('en-US') }}</span>
-          </div>
-        </div>
-      </div>
-    </section>
+        </template>
+        <template v-if="entry">
+          <KpiTile label="Win rate" :value="percent(entry.winRate)" />
+          <KpiTile label="Pick rate" :value="percent(entry.pickRate)" />
+          <KpiTile label="Ban rate" :value="percent(entry.banRate)" />
+          <KpiTile label="Games" :value="entry.games.toLocaleString('en-US')" />
+        </template>
+      </PageHero>
+    </div>
 
     <div class="min-h-0 flex-1 p-4">
       <BuildView v-if="lane" :champion-id="championId" :position="lane">

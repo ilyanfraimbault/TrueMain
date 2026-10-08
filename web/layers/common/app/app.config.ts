@@ -11,18 +11,14 @@ export default defineAppConfig({
       primary: 'rosegold',
       neutral: 'ink',
     },
-    // Give every UCard the app-wide `surface` material (opaque fill, neutral
-    // hairline — see theme.css) and trim the default padding a notch.
+    // Give every UCard the app-wide `surface` material (the dashboard tile's
+    // translucent pane — see theme.css) and trim the default padding a notch.
     //
     // Nuxt UI *appends* per-variant `root` classes rather than replacing them,
     // and a plain utility out-cascades a `@utility` declaration. That is why
     // `soft`'s stock `bg-elevated/50` has to be overridden here: left alone it
-    // wins over `surface`'s background-color and every card renders at 50%.
-    //
-    // The override is the *opaque* `bg-elevated`, not `bg-transparent` — the
-    // cascade cuts both ways, so a transparent utility would win just as hard
-    // and leave every card in the app with no fill at all. The literal simply
-    // restates the value `surface` was going to paint.
+    // wins over `surface`'s background-color and every card turns grey. The
+    // override restates the fill `surface` was going to paint.
     card: {
       slots: {
         root: 'surface rounded-2xl',
@@ -33,7 +29,7 @@ export default defineAppConfig({
       variants: {
         variant: {
           soft: {
-            root: 'bg-elevated divide-y divide-default',
+            root: 'bg-(--ui-bg-surface) divide-y divide-default',
           },
         },
       },
@@ -61,8 +57,7 @@ export default defineAppConfig({
     //
     // `soft` is the default and carries the app-wide `surface` material — and,
     // exactly like `card` above, its stock `bg-elevated/50` has to be restated
-    // opaque here or the plain utility out-cascades `surface`'s background and
-    // every empty state renders at 50%. Only `soft` is overridden: the one
+    // here or the plain utility out-cascades `surface`'s background. Only `soft` is overridden: the one
     // place that wants a *placeholder* rather than a surface — the matchup
     // draft stage — asks for `naked` and paints its own dashed, recessed frame
     // at the call site. `description` drops Nuxt UI's `text-toned` for the
@@ -74,7 +69,7 @@ export default defineAppConfig({
       variants: {
         variant: {
           soft: {
-            root: 'surface bg-elevated',
+            root: 'surface bg-(--ui-bg-surface)',
             description: 'text-muted',
           },
         },

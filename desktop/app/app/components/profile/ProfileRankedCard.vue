@@ -178,7 +178,7 @@ const xFormatter = (tick: number): string => {
 }
 
 // ─── LP deltas ────────────────────────────────────────────────────────────
-// "Last 30d / 7d" badges compare the latest rank score to the last snapshot
+// "Last 7d / 30d" badges compare the latest rank score to the last snapshot
 // at-or-before the cutoff, falling back to the earliest tracked snapshot
 // when the player has no older data. Returns null when there's no
 // meaningful comparison (≤1 snapshot, or the cutoff snapshot is the
@@ -224,33 +224,34 @@ const showEmptyChart = computed(
         :size="48"
       />
 
-      <div v-if="hasDeltas" class="flex flex-wrap gap-2">
-        <span
-          v-if="delta30d !== null"
-          class="inline-flex items-center gap-1.5 rounded-md bg-elevated px-2 py-1 text-xs"
-        >
-          <span class="text-muted">Last 30d</span>
-          <UIcon
-            :name="delta30d >= 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
-            class="size-3.5"
-            :class="delta30d >= 0 ? 'text-data-good' : 'text-data-bad'"
-          />
-          <span class="font-semibold tabular-nums text-default">
-            {{ Math.abs(delta30d) }} LP
-          </span>
-        </span>
+      <!-- Side by side in the profile's narrow column, 7 days then 30, each in half its width. -->
+      <div v-if="hasDeltas" class="grid grid-cols-2 gap-1.5">
         <span
           v-if="delta7d !== null"
-          class="inline-flex items-center gap-1.5 rounded-md bg-elevated px-2 py-1 text-xs"
+          class="inline-flex min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-md bg-elevated px-1.5 py-1 text-[11px]"
         >
           <span class="text-muted">Last 7d</span>
           <UIcon
             :name="delta7d >= 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
-            class="size-3.5"
+            class="size-3 shrink-0"
             :class="delta7d >= 0 ? 'text-data-good' : 'text-data-bad'"
           />
           <span class="font-semibold tabular-nums text-default">
             {{ Math.abs(delta7d) }} LP
+          </span>
+        </span>
+        <span
+          v-if="delta30d !== null"
+          class="inline-flex min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-md bg-elevated px-1.5 py-1 text-[11px]"
+        >
+          <span class="text-muted">Last 30d</span>
+          <UIcon
+            :name="delta30d >= 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'"
+            class="size-3 shrink-0"
+            :class="delta30d >= 0 ? 'text-data-good' : 'text-data-bad'"
+          />
+          <span class="font-semibold tabular-nums text-default">
+            {{ Math.abs(delta30d) }} LP
           </span>
         </span>
       </div>

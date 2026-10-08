@@ -1,4 +1,4 @@
-import type { TruemainActivityResponse } from '~~/shared/types/activity'
+import type { TruemainActivityResponse } from '#shared/types/activity'
 
 /**
  * Fetch the activity-grid payload for the given <c>nameTag</c> (#927). Same
@@ -13,11 +13,12 @@ import type { TruemainActivityResponse } from '~~/shared/types/activity'
  * different snapshots of the same afternoon.
  */
 export function useTruemainActivity(nameTag: MaybeRefOrGetter<string>) {
+  const apiFetch = useApiFetch()
   const data = ref<TruemainActivityResponse | null>(null)
 
   const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<TruemainActivityResponse>(nameTag, {
-    request: (tag, signal) => $fetch<TruemainActivityResponse | null>(
-      `/api/truemains/${encodeURIComponent(tag)}/activity`,
+    request: (tag, signal) => apiFetch<TruemainActivityResponse | null>(
+      `/truemains/${encodeURIComponent(tag)}/activity`,
       { ignoreResponseError: true, signal },
     ),
     // `ignoreResponseError` turns a 404 into a null body, so the shape check is

@@ -27,6 +27,8 @@ read as one flat warm mass. What replaced it:
   broke twice over once amber meant "bad": A and C read as warnings, and `tier-s` was *literally*
   `rosegold-400`, giving the best tier the brand colour and no comparative meaning at all.
 
+> ⚠️ **`surface` replacing `glass` was itself revisited on 2026-10-07** — see "The UI refresh" at the end.
+>
 > ⚠️ **The two bullets above were reversed on 2026-08-11 — see the entry below.** The cold→warm data axis and
 > the teal tier ladder are gone; measurements are rose gold again and the medal ladder is back. Everything
 > else in this entry (ink surfaces, the four-step opaque elevation, `surface` replacing `glass`, dark-only)
@@ -435,3 +437,35 @@ site and the desktop app alike — #1106.**
   the licence texts ship beside the files.
 - **Updating a family** means replacing the files by hand (fetch Google's CSS with a modern user agent for
   the variable WOFF2 per subset); nothing refreshes them on its own, which is the point.
+
+## The UI refresh: every page in the dashboard's language, Nuxt UI only (2026-10-07)
+
+**Decided by the product owner, page by page on a before/after mock (#1983).** The desktop dashboard
+read as modern and the other pages of both apps did not. Option A was chosen over a redesign: keep the identity
+(rose gold on ink, Inter, the logo) and every page's structure, and carry the dashboard's language over.
+
+- **`surface` is the dashboard KPI tile's material, exactly** — `bg-ink-950/55 ring-1 ring-white/5
+  backdrop-blur-md` (the hairline as a border so boxes keep their size). This revisits #1060's "`surface` replaces
+  `glass`": the opaque grey read as flat next to the dashboard. The blur only shows where something moves behind
+  a pane, so on a flat route a card reads as a dark pane with a hairline — accepted after seeing it. The `UCard`,
+  `UEmpty` and `UTable` themes name the fill as `--ui-bg-surface`.
+- **Stars under the home page only.** The eclipse stays in the hero; `AppBackdrop variant="stars"` runs its star
+  field — no orb, corona or reading shield — under the rest of the home page, so its translucent cards have
+  something to blur. Every other route stays flat: tried and declined. Even luminance keeps "the eclipse is scoped
+  to the home hero" intact: no glow passes behind a table.
+- **Nuxt UI components only, themed in `app.config.ts`; no hand-rolled controls, no decorative accent bars** (a
+  rose-gold stripe on a card or row was rejected). Colour goes on the data — the win rate, the tier letter. On the
+  champion directory the pick and ban rates lose their tint; only the win rate keeps its scale.
+- **Detail pages open on a splash banner** (`PageHero` + `KpiTile`, from the dashboard). The champion page: the
+  champion's splash, tier, and win/pick/ban rate against the previous patch plus games; the patch left the sample
+  line under the name (filters show it), reversing #1498's placement. The tier list keeps its page as it was — a
+  banner there was declined.
+- **One profile page for both apps** (`page/PlayerProfile.vue`): the site's `/truemains/{nameTag}`, the app's
+  dashboard and the app's own profile route (other players open in the app, no longer on the site). Banner on the
+  champion the player truemains (the client's chosen skin on the dashboard: Riot's API does not serve it); four form
+  tiles — KDA, kill participation, CS/min, deaths; damage, gold and vision were dropped since the list endpoint does
+  not serve them; comparing to the player's elo was tried and set aside, sparklines kept; the dashboard's match row;
+  and the activity grid on both apps (the app folds it from its own games, without a patch window).
+- **One match detail** (`MatchDetailPanel`): full-width tabs Overview / Timeline / Build / Runes. The timeline's
+  turning points are read on the curve — the hovered minute's events in the tooltip — never as a list under it.
+  Build keeps the site's skill-order grid; Runes shows all ten players. The app's own copies were removed.

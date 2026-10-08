@@ -8,12 +8,15 @@ import type {
 } from '#shared/types/static-data'
 import { getPositionIconUrl } from '#shared/utils/ddragon'
 import { resolveWinProbability } from '#common/utils/win-probability-swing'
+import { MATCH_DETAIL_SOURCE } from '#common/utils/match-detail-source'
 
 /**
- * Inline match-detail body rendered inside an expanded `MatchRow` accordion.
- * Owns the single-match fetch (lazy, client-only) and lays out the scoreboard,
- * a per-player build/skill breakdown (behind a player selector) and the rune
- * pages across three tabs. Static-data maps are passed down from the
+ * Inline match-detail body rendered inside an expanded match row, on the site's
+ * profile and the desktop dashboard alike. Reads the game through the page's
+ * `MATCH_DETAIL_SOURCE` (TrueMain's copy by default) and lays out the
+ * scoreboard, the win-probability timeline, a per-player build and skill order
+ * (behind a player selector) and every player's rune page, across full-width
+ * tabs. Static-data maps are passed down from the
  * surrounding page so they hit the shared caches instead of being re-fetched
  * per open row.
  */
@@ -28,7 +31,8 @@ const props = defineProps<{
   selfChampionId?: number | null
 }>()
 
-const { data: detail, isLoading, notFound } = useMatchDetail(
+const readDetail = inject(MATCH_DETAIL_SOURCE, useMatchDetail)
+const { data: detail, isLoading, notFound } = readDetail(
   () => props.nameTag,
   () => props.matchId,
 )
@@ -76,9 +80,9 @@ const ownerTeamId = computed(() => {
 })
 
 const tabItems = computed(() => [
-  { value: 'general', label: 'General', slot: 'general' as const },
+  { value: 'general', label: 'Overview', slot: 'general' as const },
   ...(winProbability.value ? [{ value: 'timeline', label: 'Timeline', slot: 'timeline' as const }] : []),
-  { value: 'details', label: 'Details', slot: 'details' as const },
+  { value: 'details', label: 'Build', slot: 'details' as const },
   { value: 'runes', label: 'Runes', slot: 'runes' as const },
 ])
 </script>
@@ -105,13 +109,21 @@ const tabItems = computed(() => [
       description="Match details unavailable."
     />
 
+    <!-- Full-width pills, one per tab: the dashboard's segmented control. -->
     <UTabs
       v-else
       :items="tabItems"
       default-value="general"
-      variant="link"
+      variant="pill"
+      color="neutral"
+      size="sm"
       class="w-full"
       :unmount-on-hide="false"
+      :ui="{
+        list: 'w-full ring ring-default',
+        indicator: 'rounded-md bg-accented shadow-none',
+        trigger: 'flex-1 data-[state=active]:text-highlighted',
+      }"
     >
       <!-- ── General: scoreboard ─────────────────────────────────────── -->
       <template #general>

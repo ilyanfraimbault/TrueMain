@@ -1,13 +1,13 @@
 <!--
-  The dashboard's match row: the site's `MatchRow` (web/app/components/match)
-  laid out for the app — one line of 54 px instead of the site's stacked
-  columns, the queue beside the result, and an edge mark for the result in
-  place of a full tint. The build reads as on the site: spells over each other,
-  keystone over the secondary tree, the site's item grid. Same data (the site's
-  `MatchSummaryResponse`) and the same accordion, which opens a compact detail
-  (`DashboardMatchDetail`) read from the client. The product owner asked for
-  rows that sit with the rest of the page and a sober inside (2026-09-30). No
-  performance score: TrueMain never scored these games.
+  The match row of a player's history — the desktop dashboard's, now shared by
+  the site's profile and the app: one line of 54 px, the result as
+  an edge mark and a wash rather than a full tint, the queue beside it, the build
+  as on the site (spells over each other, keystone over the secondary tree, the
+  item grid), both compositions, and the performance score where TrueMain scored
+  the game (the client's own games carry none). The accordion opens the shared
+  `MatchDetailPanel`, which reads the game through the page's
+  `MATCH_DETAIL_SOURCE`. Host-specific controls (the app's "Watch") go in the
+  `actions` slot.
 -->
 <script setup lang="ts">
 import type { MatchSummaryResponse } from '#shared/types/matches'
@@ -72,10 +72,6 @@ const kdaColor = computed(() => {
   if (ratio >= 3) return 'text-data-good'
   return 'text-muted'
 })
-
-// "Watch" when this game was recorded: its recap, or its clips once the full game is gone.
-const { watchTarget } = useRecordings()
-const watchTo = computed(() => watchTarget(Number(props.match.matchId)))
 
 const csPerMin = computed(() => (self.value.cs / Math.max(props.match.gameDurationSeconds / 60, 1)).toFixed(1))
 const lp = computed(() => self.value.lpDelta)
@@ -171,32 +167,25 @@ const lp = computed(() => self.value.lpDelta)
         </div>
       </div>
 
-      <UButton
-        v-if="watchTo"
-        :to="watchTo"
-        icon="i-lucide-play"
-        label="Watch"
-        color="neutral"
-        variant="soft"
-        size="xs"
-        class="relative shrink-0"
+      <MatchRowPerformance
+        v-if="self.performanceScore"
+        :self="self"
+        class="shrink-0"
         :class="match.participants.length ? 'ml-auto @[38rem]:ml-0' : 'ml-auto'"
-        :aria-label="`Watch the recording of this game`"
-        @click.stop
-        @keydown.enter.stop
-        @keydown.space.stop
       />
+
+      <slot name="actions" />
 
       <UIcon
         name="i-lucide-chevron-down"
         class="size-4 shrink-0 text-dimmed transition-transform duration-200"
-        :class="[expanded ? 'rotate-180' : '', match.participants.length || watchTo ? '' : 'ml-auto']"
+        :class="[expanded ? 'rotate-180' : '', match.participants.length || self.performanceScore || $slots.actions ? '' : 'ml-auto']"
       />
     </div>
 
     <div class="grid transition-[grid-template-rows] duration-300 ease-out" :class="expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
       <div class="min-h-0 overflow-hidden" :inert="!expanded">
-        <DashboardMatchDetail
+        <MatchDetailPanel
           v-if="hasOpened"
           :name-tag="nameTag"
           :match-id="match.matchId"
@@ -205,7 +194,6 @@ const lp = computed(() => self.value.lpDelta)
           :summoner-spells="summonerSpells"
           :rune-tree="runeTree"
           :self-champion-id="self.championId"
-          :self-team-id="self.teamId"
         />
       </div>
     </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { TruemainDedication } from '~~/shared/types/dedication'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { TruemainDedication } from '#shared/types/dedication'
+import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { TRUEMAIN_SCORE_LABEL, dedicationParts, formatDedicationLastPlayed, formatDedicationScore } from '#common/utils/dedication'
 
 // TrueMain's signature metric — the Truemain score (#1701) — on the player's

@@ -7,6 +7,7 @@ import { toMatchSummary } from '~/utils/match-summary'
 import { lpDeltaOf } from '~/utils/lp-history'
 import { groupMatchesByDay } from '~/utils/match-history'
 import { getQueueLabel } from '~/utils/queues'
+import { MATCH_DETAIL_SOURCE } from '#common/utils/match-detail-source'
 
 /**
  * The player's match history, ten games a page with the site's pagination,
@@ -35,6 +36,13 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ loadOlder: [] }>()
+
+// An open row reads its game from TrueMain's copy when there is one, else from
+// the player's own client — the shared detail panel asks through this.
+provide(MATCH_DETAIL_SOURCE, usePlayerGameDetail)
+
+// "Watch" when this game was recorded: its recap, or its clips once the full game is gone.
+const { watchTarget } = useRecordings()
 
 const PAGE_SIZE = 10
 const page = ref(1)
@@ -83,7 +91,7 @@ const loadingPage = computed(() => props.pending || (listed.value.length > 0 && 
     <template v-for="day in days" v-else :key="day.key">
       <MatchDayHeading v-if="day.label" :label="day.label" class="pt-1.5" />
       <div class="flex flex-col gap-1.5">
-        <DashboardMatchRow
+        <MatchHistoryRow
           v-for="match in day.matches"
           :key="match.matchId"
           :match="match"
@@ -93,7 +101,24 @@ const loadingPage = computed(() => props.pending || (listed.value.length > 0 && 
           :rune-tree="runeTree!"
           :queue-label="getQueueLabel(match.queueId, match.gameMode)"
           :name-tag="nameTag"
-        />
+        >
+          <template #actions>
+            <UButton
+              v-if="watchTarget(Number(match.matchId))"
+              :to="watchTarget(Number(match.matchId))!"
+              icon="i-lucide-play"
+              label="Watch"
+              color="neutral"
+              variant="soft"
+              size="xs"
+              class="relative shrink-0"
+              aria-label="Watch the recording of this game"
+              @click.stop
+              @keydown.enter.stop
+              @keydown.space.stop
+            />
+          </template>
+        </MatchHistoryRow>
       </div>
     </template>
 
