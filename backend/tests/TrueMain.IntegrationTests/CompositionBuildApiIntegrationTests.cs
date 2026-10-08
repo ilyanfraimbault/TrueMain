@@ -90,6 +90,56 @@ public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PostCompositionBuild_WithAPlayer_SamplesOnlyTheirGames()
+    {
+        // Three games of the matchup, one of them by the player: their draft build is read
+        // from that one game alone (#1987), the two others' losses never counted.
+        await SeedGameAsync("COMPP_MINE", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
+        await SeedGameAsync("COMPP_THEIRS1", win: false, enemyMid: RoleOpponent, buildOrder: [3072, 3026]);
+        await SeedGameAsync("COMPP_THEIRS2", win: false, enemyMid: RoleOpponent, buildOrder: [3072, 3026]);
+        await SeedPilotAsync("COMPP_MINE", gameName: "Sheiden", tagLine: "1234", isMain: false);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.PostAsJsonAsync(
+            $"/champions/{Champion}/composition-build",
+            new
+            {
+                position = Position,
+                enemies = new[] { new { championId = RoleOpponent, position = "MIDDLE" } },
+                player = "sheiden-1234", // the slug, matched like every player route: case aside
+            });
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>();
+        result!.MatchupFound.Should().BeTrue();
+        result.Confidence.CandidatePoolSize.Should().Be(1, "the other players' games never enter the pool");
+        result.Build.GamesConsidered.Should().Be(1);
+        result.Build.Wins.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task PostCompositionBuild_WithAnUnknownPlayer_Returns404()
+    {
+        await SeedGameAsync("COMPP_ANY", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.PostAsJsonAsync(
+            $"/champions/{Champion}/composition-build",
+            new
+            {
+                position = Position,
+                enemies = new[] { new { championId = RoleOpponent, position = "MIDDLE" } },
+                player = "Nobody-0000",
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task PostCompositionBuildGames_ListsTheSelectionWithScoresAndPilots()
     {
         await SeedGameAsync("COMPG_MAIN", win: true, enemyMid: RoleOpponent, buildOrder: [3031, 3153]);

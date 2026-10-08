@@ -169,6 +169,6 @@ public sealed class CompositionRecommendationQueryService(
 
         return "champions:composition-build:"
             + $"{criteria.ChampionId}:{criteria.Position}:{criteria.Patch ?? "all"}:{bracketToken}:"
-            + $"A[{Slots(criteria.Allies)}]:E[{Slots(criteria.Enemies)}]";
+            + $"A[{Slots(criteria.Allies)}]:E[{Slots(criteria.Enemies)}]:P[{criteria.Puuid}]";
     }
 }

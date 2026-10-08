@@ -100,7 +100,9 @@ const showPanel = computed(() => open.value && term.value.trim().length > 0)
       @keydown.escape="open = false"
     />
 
-    <div v-if="showPanel" class="surface absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg p-1 shadow-xl">
+    <!-- A press in the panel keeps the field focused. WebKit (the app's webview on macOS) does not
+         focus a clicked button, so the blur would close the panel before the click lands (#1985). -->
+    <div v-if="showPanel" class="surface absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg p-1 shadow-xl" @mousedown.prevent>
       <template v-if="championMatches.length">
         <p class="stat-label px-2 pb-1 pt-1.5">Champions</p>
         <button

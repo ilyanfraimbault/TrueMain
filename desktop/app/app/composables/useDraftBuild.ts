@@ -28,6 +28,21 @@ export interface DraftBuild {
   source: 'draft' | 'standard'
 }
 
+/** A composition build as the panel draws it, for `championId`. */
+export function draftBuildOf(championId: number, answer: CompositionBuildResponse): DraftBuild {
+  const { corePath, firstItemId, buildTree, gamesConsidered, wins, ...rest } = answer.build
+  return {
+    championId,
+    core: { ...rest, itemPath: corePath },
+    firstItemId,
+    buildTree,
+    games: gamesConsidered,
+    wins,
+    lane: answer.lane,
+    source: 'draft',
+  }
+}
+
 /**
  * Picks landing in quick succession — a double lock, the lane answer following
  * an enemy pick — collapse into one request instead of one each.
@@ -113,17 +128,7 @@ export function useDraftBuild(subject: Ref<BuildSubject | null>) {
         next = await standard(championId, request.position, signal)
       }
       else {
-        const { corePath, firstItemId, buildTree, gamesConsidered, wins, ...rest } = answer.build
-        next = {
-          championId,
-          core: { ...rest, itemPath: corePath },
-          firstItemId,
-          buildTree,
-          games: gamesConsidered,
-          wins,
-          lane: answer.lane,
-          source: 'draft',
-        }
+        next = draftBuildOf(championId, answer)
       }
       if (id === latest) build.value = next
     }

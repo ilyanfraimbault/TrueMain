@@ -38,4 +38,10 @@ public sealed record CompositionSearchCriteria
     /// its bands by the service; null means every bracket.
     /// </summary>
     public string? EloBracket { get; init; }
+
+    /// <summary>
+    /// Optional player the games are restricted to, by PUUID (#1987); null means
+    /// every player. A hard filter like the champion and position, not a ranking signal.
+    /// </summary>
+    public string? Puuid { get; init; }
 }

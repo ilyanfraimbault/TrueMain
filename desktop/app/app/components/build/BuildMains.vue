@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LeaderboardResponse, LeaderboardRowResponse, RegionSlug } from '#shared/types/leaderboard'
 import type { ProfileIdentity } from '#shared/types/profile'
+import type { SearchResult } from '#shared/types/search'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
 import { isApexTier } from '#common/utils/tiers'
 
@@ -17,7 +18,8 @@ import { isApexTier } from '#common/utils/tiers'
  *
  * The mains the player follows come first, starred (#1733): their keystone and
  * first item are read from their own build on the champion, which a click then
- * shows without another request.
+ * shows without another request. A main picked in the search joins the top of
+ * the list while the view is open (#1985), read the same way.
  */
 const props = defineProps<{
   championId: number
@@ -55,9 +57,23 @@ const { perk, item } = useBuildResolvers(runeTree, items)
 const favoriteMains = useFavoriteMains(() => props.championId)
 const truemainBuilds = useTruemainBuild()
 
-// A followed main's own build gives their row its keystone and first item.
-watch([favoriteMains, () => props.position], ([mains, position]) => {
+/** The mains picked in the search, per champion, latest first — kept while the view is open, never saved. */
+const searched = ref<Record<number, SearchResult[]>>({})
+const searchedHere = computed(() => searched.value[props.championId] ?? [])
+
+const nameTagOf = (identity: ProfileIdentity) => favoriteNameTag(identity.gameName, identity.tagLine)
+
+function pickSearched(result: SearchResult) {
+  const key = nameTagOf(result.identity).toLowerCase()
+  const others = searchedHere.value.filter(entry => nameTagOf(entry.identity).toLowerCase() !== key)
+  searched.value = { ...searched.value, [props.championId]: [result, ...others] }
+  emit('select', result)
+}
+
+// A followed or searched main's own build gives their row its keystone and first item.
+watch([favoriteMains, searchedHere, () => props.position], ([mains, picked, position]) => {
   for (const { favorite } of mains) truemainBuilds.load(favorite.nameTag, props.championId, position)
+  for (const result of picked) truemainBuilds.load(nameTagOf(result.identity), props.championId, position)
 }, { immediate: true })
 
 /** One row of the list, whichever source it comes from. */
@@ -70,8 +86,6 @@ interface MainRow {
   firstItemId: number | null
   followed: boolean
 }
-
-const nameTagOf = (identity: ProfileIdentity) => favoriteNameTag(identity.gameName, identity.tagLine)
 
 const rows = computed<MainRow[] | null>(() => {
   const followed: MainRow[] = favoriteMains.value.map(({ favorite, profile }) => {
@@ -86,8 +100,24 @@ const rows = computed<MainRow[] | null>(() => {
       followed: true,
     }
   })
-  if (topRows.value === null) return followed.length ? followed : null
+  const fromSearch: MainRow[] = searchedHere.value.map((result) => {
+    const nameTag = nameTagOf(result.identity)
+    const build = truemainBuilds.answerOf(nameTag, props.championId, props.position)?.builds[0]
+    return {
+      nameTag,
+      identity: result.identity,
+      region: result.region,
+      ranked: result.ranked && { ...result.ranked, wins: null, losses: null, winRate: null },
+      keystoneId: build?.primaryKeystoneId ?? null,
+      firstItemId: build?.firstItemId ?? null,
+      followed: false,
+    }
+  })
   const followedKeys = new Set(followed.map(row => row.nameTag.toLowerCase()))
+  // A searched main already followed or in the top keeps that row: it is selected there, not repeated.
+  const listedKeys = new Set([...followedKeys, ...(topRows.value ?? []).map(row => nameTagOf(row.identity).toLowerCase())])
+  const extra = fromSearch.filter(row => !listedKeys.has(row.nameTag.toLowerCase()))
+  if (topRows.value === null) return extra.length || followed.length ? [...extra, ...followed] : null
   const top: MainRow[] = topRows.value
     .filter(row => !followedKeys.has(nameTagOf(row.identity).toLowerCase()))
     .map((row) => {
@@ -102,7 +132,7 @@ const rows = computed<MainRow[] | null>(() => {
         followed: false,
       }
     })
-  return [...followed, ...top]
+  return [...extra, ...followed, ...top]
 })
 </script>
 
@@ -113,7 +143,7 @@ const rows = computed<MainRow[] | null>(() => {
       :champion-id="championId"
       placeholder="Search a truemain…"
       class="mb-1 px-1"
-      @player="emit('select', $event)"
+      @player="pickSearched"
     />
 
     <template v-if="rows === null && !failed">

@@ -82,6 +82,12 @@ public sealed class CompositionMatchQueryService(
             participants = participants.Where(p => bands.Contains(p.EloBracket));
         }
 
+        // One player's games only (#1987): their draft build, the matchup rules below unchanged.
+        if (criteria.Puuid is { } puuid)
+        {
+            participants = participants.Where(p => p.Puuid == puuid);
+        }
+
         // The role opponent, when pinned, is a hard requirement (#563 rev): a build only
         // transfers between games of the same matchup, so a candidate without it is
         // excluded rather than merely out-scored. Since #1659 the exclusion happens in

@@ -126,6 +126,17 @@ champion endpoint, their latest patch with enough games; on the lane asked, else
 build, with a line saying whose it is and a link to their profile — the reason to list them in a draft is to copy
 what they run. The shell reads that one path pattern beside its fixed list (2026-09-28) — #1671.
 
+**In champion select, a true main's build is their draft build: the composition build read from their games alone,
+else their usual build.** A click on a main (listed, or picked in the list's search) showed their usual build on the
+champion whatever the draft; the product owner wanted the draft's answer in that main's context. So the same
+`composition-build` takes an optional `player` (a Riot ID, resolved like every player route, 404 when unknown) that
+restricts the sampled games to that player's, every other rule unchanged — the role opponent, when pinned, is still a
+hard filter. A main who never faced the lane opponent (or never played the champion on the lane) answers
+`matchupFound: false` or no game, and the view falls back to their usual build, saying "no game against this draft";
+a found one says "against this draft" with its game count, however small. The app asks it through the shell's shared
+POST rather than `composition_build`, whose single in-flight slot would cancel the draft's own build. Outside a draft
+(a champion's page) nothing changes (2026-10-08) — #1987.
+
 **Icons are bundled at build time, routes live in the hash, and images are drawn without a `load` gate.** The
 packaged app has no server to resolve an icon and a CSP that reaches only Data Dragon and Community Dragon
 (`icon.provider: 'none'` + `clientBundle.scan`); Tauri's custom protocol serves files, not an SPA fallback, so a
