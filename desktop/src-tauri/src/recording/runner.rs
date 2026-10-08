@@ -38,6 +38,9 @@ const EVENTS_EVERY: u32 = 2;
 const HISTORY_WAIT: Duration = Duration::from_secs(300);
 const HISTORY_RETRY: Duration = Duration::from_secs(10);
 const THUMBNAIL_WIDTH: u32 = 640;
+/// A video this short whose game clock never ran holds a loading screen and
+/// nothing else — a game quit or crashed before it began: not kept.
+const LOADING_ONLY_MS: u64 = 60_000;
 /// What the helper captures. On macOS, the display with only the game's
 /// windows drawn: a full-screen game is not composited, so its window alone
 /// sends nothing but idle frames — a black video that ends seconds after the
@@ -51,6 +54,19 @@ const SOURCE: &str = if cfg!(target_os = "macos") {
 
 fn in_game(phase: GameflowPhase) -> bool {
     matches!(phase, GameflowPhase::InProgress | GameflowPhase::Reconnect)
+}
+
+/// Where the runner stands once it is done with a game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Done {
+    /// The game ended while it was followed: a phase in a game from here on is
+    /// the next one — which may already be running, if it started while the
+    /// last one waited for the match history.
+    Ended,
+    /// Left while the game still runs — not recorded, or its capture failed:
+    /// nothing more until it is over, or the same game would start a second
+    /// recording over the first.
+    Running,
 }
 
 fn now_ms() -> i64 {
@@ -76,14 +92,15 @@ pub async fn run(
         {
             return;
         }
-        if let Err(error) = record_game(&app, &recorder, &helper, &mut phases).await {
-            tracing::warn!(%error, "the game was not recorded");
-        }
+        let done = record_game(&app, &recorder, &helper, &mut phases)
+            .await
+            .unwrap_or_else(|error| {
+                tracing::warn!(%error, "the game was not recorded");
+                Done::Running
+            });
         recorder.set_activity(Activity::default());
         emit_status(&app, &recorder);
-        // A game skipped (recording off, another queue) is only looked at
-        // again once it is over.
-        if phases.wait_for(|phase| !in_game(*phase)).await.is_err() {
+        if done == Done::Running && phases.wait_for(|phase| !in_game(*phase)).await.is_err() {
             return;
         }
     }
@@ -94,10 +111,10 @@ async fn record_game(
     recorder: &Recorder,
     helper: &Path,
     phases: &mut watch::Receiver<GameflowPhase>,
-) -> Result<(), String> {
+) -> Result<Done, String> {
     let settings = recorder.settings();
     if !settings.enabled {
-        return Ok(());
+        return Ok(Done::Running);
     }
     // A tape or the simulator stands in for the client's events but not its
     // API — and there is no game window to capture behind them.
@@ -107,11 +124,11 @@ async fn record_game(
         .expect("client lock poisoned")
         .clone();
     let Some(client) = client else {
-        return Ok(());
+        return Ok(Done::Running);
     };
     let game = game_info(&client).await.ok_or("the client named no game")?;
     if !settings.records(game.queue_id) {
-        return Ok(());
+        return Ok(Done::Running);
     }
     if recorder.status().availability != "ready" {
         emit_status(app, recorder);
@@ -139,6 +156,11 @@ async fn record_game(
     emit_library(app);
 
     follow(&session, &live, phases).await;
+    let done = if in_game(*phases.borrow()) {
+        Done::Running
+    } else {
+        Done::Ended
+    };
 
     let stopped = {
         let session = session.clone();
@@ -152,6 +174,14 @@ async fn record_game(
     };
     if let Err(error) = &stopped {
         tracing::warn!(%error, "the recording did not stop cleanly; keeping what was written");
+    }
+    if done == Done::Ended && loading_only(&dir) {
+        tracing::info!("the game closed on its loading screen; its recording is not kept");
+        if let Err(error) = RecordingDir::new(dir).delete() {
+            tracing::warn!(%error, "could not delete the loading-screen recording");
+        }
+        emit_library(app);
+        return Ok(done);
     }
     recorder.set_activity(Activity {
         recording: None,
@@ -189,7 +219,18 @@ async fn record_game(
     }
     thumbnail(helper, &dir).await;
     emit_library(app);
-    Ok(())
+    Ok(done)
+}
+
+/// A recording of a loading screen alone: the game clock never ran under it,
+/// and it is too short to be a game. Without the length, a game the live feed
+/// never answered for would go too.
+fn loading_only(dir: &Path) -> bool {
+    RecordingDir::new(dir.to_path_buf())
+        .read_meta()
+        .is_ok_and(|meta| {
+            meta.anchor.is_none() && meta.duration_ms.is_some_and(|ms| ms < LOADING_ONLY_MS)
+        })
 }
 
 fn lock(session: &SharedSession) -> std::sync::MutexGuard<'_, Session<HelperCapture>> {

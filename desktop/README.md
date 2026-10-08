@@ -143,7 +143,10 @@ land on the video, and when the game ends closes the video and emits
 `recording://recap` so the app opens the recap. It then waits up to five
 minutes for the match history to list the game and finalises the recording
 from its timeline: the player's kills, deaths and assists, the objectives, the
-K/D/A and the result. Recordings go to `~/Movies/TrueMain` (`Videos\TrueMain`
+K/D/A and the result. A game starting during that wait is recorded all the
+same (the wait gives up, never the next game); a game that closes on its
+loading screen — under a minute, the game clock never ran — is not kept.
+Recordings go to `~/Movies/TrueMain` (`Videos\TrueMain`
 on Windows) unless the player picked a folder; clips cut in the recap go to
 its `clips/` subfolder, each its own `clip.mp4` + `clip.json` + thumbnail. The
 helper also cuts the clips (a passthrough export, no re-encoding) and takes the

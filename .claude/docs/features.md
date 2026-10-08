@@ -402,7 +402,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   them; K/D/A and result) and a thumbnail is taken. Recordings live in `~/Movies/TrueMain` (`Videos\TrueMain` on
   Windows), clips cut in the recap in
   its `clips/` (each its own file, cut without re-encoding, outliving the full game, never deleted by the budget).
-  The disk budget deletes the oldest full games the player did not keep.
+  The disk budget deletes the oldest full games the player did not keep. A game that closes on its loading screen
+  (under a minute, the game clock never ran) is not kept; a game starting while the last one still waits for the match
+  history is recorded (the history wait gives up, the next game does not).
 - **Recordings** (`/recordings`, #1755) — the full games and clips on disk, laid out as DPM's recordings page in the
   site's materials: header with the clip count, the space used over the budget ("2.5 GB / 20.0 GB") and the settings;
   a toolbar (search over titles and champions; All / Clips / Full games; a champion; favourites only — favourite clips
