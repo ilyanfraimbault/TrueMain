@@ -27,6 +27,12 @@ public sealed record CompositionBuildRequest
 
     /// <summary>Known enemy picks. Null reads as empty, like <see cref="Allies"/>.</summary>
     public IReadOnlyList<CompositionSlotInput>? Enemies { get; init; }
+
+    /// <summary>
+    /// Optional Riot ID (<c>Name#TAG</c> or the <c>Name-TAG</c> slug): only that player's
+    /// games are sampled — a truemain's own build against this draft (#1987). Unknown → 404.
+    /// </summary>
+    public string? Player { get; init; }
 }
 
 /// <summary>One known pick of the draft: a champion at a position.</summary>

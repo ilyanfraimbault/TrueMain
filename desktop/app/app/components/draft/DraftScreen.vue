@@ -307,7 +307,7 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         v-else-if="subject"
         :champion-id="subject.championId"
         :position="subject.request.position"
-        :draft="{ build, pending: buildPending, error: buildError, opponentId: duel.opponentId, label: 'This draft' }"
+        :draft="{ build, pending: buildPending, error: buildError, opponentId: duel.opponentId, label: 'This draft', request: subject.request }"
       >
         <template #advice>
           <DraftItemAdvice :subject="subject" />

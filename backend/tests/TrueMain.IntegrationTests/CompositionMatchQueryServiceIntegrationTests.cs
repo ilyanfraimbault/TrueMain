@@ -228,6 +228,56 @@ public sealed class CompositionMatchQueryServiceIntegrationTests : IAsyncLifetim
         result.Matches.Select(m => m.MatchId).Should().Equal("COMP_ANY_0", "COMP_ANY_1");
     }
 
+    [Fact]
+    public async Task FindTopMatchesAsync_WithAPlayer_KeepsOnlyTheirGames()
+    {
+        // Two games of the matchup by the player, one by someone else — the most similar
+        // and the most recent, so only the player filter can keep it out (#1987).
+        await SeedGameAsync("COMP_PLAYER_1", daysAgo: 3, win: true, enemyMid: RoleOpponent, candidatePuuid: "puuid-player");
+        await SeedGameAsync("COMP_PLAYER_2", daysAgo: 2, win: false, enemyMid: RoleOpponent, candidatePuuid: "puuid-player");
+        await SeedGameAsync("COMP_SOMEONE_ELSE", daysAgo: 1, win: true, enemyMid: RoleOpponent, enemyTop: EnemyTop);
+
+        await using var db = _fixture.CreateDbContext();
+        var result = await CreateService(db).FindTopMatchesAsync(
+            new CompositionSearchCriteria
+            {
+                ChampionId = Champion,
+                Position = Position,
+                Enemies = new Dictionary<string, int> { ["MIDDLE"] = RoleOpponent, ["TOP"] = EnemyTop },
+                Puuid = "puuid-player",
+            },
+            CancellationToken.None);
+
+        result.CandidatePoolSize.Should().Be(2, "another player's game never enters the pool");
+        result.MatchupFound.Should().BeTrue();
+        result.Matches.Select(m => m.MatchId).Should().Equal("COMP_PLAYER_2", "COMP_PLAYER_1");
+        result.Matches.Should().OnlyContain(m => m.Puuid == "puuid-player");
+    }
+
+    [Fact]
+    public async Task FindTopMatchesAsync_WithAPlayerWhoNeverFacedTheOpponent_ReturnsEmptyWithTheFlag()
+    {
+        // The player has the champion, but not against this opponent; someone else does.
+        await SeedGameAsync("COMP_PLAYER_OTHERMID", daysAgo: 2, win: true, enemyMid: OtherOpponent, candidatePuuid: "puuid-player");
+        await SeedGameAsync("COMP_SOMEONE_ELSE", daysAgo: 1, win: true, enemyMid: RoleOpponent);
+
+        await using var db = _fixture.CreateDbContext();
+        var result = await CreateService(db).FindTopMatchesAsync(
+            new CompositionSearchCriteria
+            {
+                ChampionId = Champion,
+                Position = Position,
+                Enemies = new Dictionary<string, int> { ["MIDDLE"] = RoleOpponent },
+                Puuid = "puuid-player",
+            },
+            CancellationToken.None);
+
+        // The caller then falls back to the player's usual build and says so.
+        result.MatchupRequested.Should().BeTrue();
+        result.MatchupFound.Should().BeFalse();
+        result.Matches.Should().BeEmpty();
+    }
+
     private static CompositionMatchQueryService CreateService(Data.TrueMainDbContext db, int topK = 100)
         => new(
             db,
@@ -250,7 +300,8 @@ public sealed class CompositionMatchQueryServiceIntegrationTests : IAsyncLifetim
         int? enemyTop = null,
         int? allyJungle = null,
         string candidatePosition = Position,
-        int queueId = 420)
+        int queueId = 420,
+        string? candidatePuuid = null)
     {
         await using var db = _fixture.CreateDbContext();
 
@@ -264,7 +315,9 @@ public sealed class CompositionMatchQueryServiceIntegrationTests : IAsyncLifetim
         var participantId = 1;
 
         // Team 100 — the candidate first, fillers on the remaining lanes.
-        db.MatchParticipants.Add(Participant(matchId, participantId++, Champion, 100, candidatePosition, win));
+        var candidate = Participant(matchId, participantId++, Champion, 100, candidatePosition, win);
+        candidate.Puuid = candidatePuuid ?? candidate.Puuid;
+        db.MatchParticipants.Add(candidate);
         foreach (var position in positions.Where(p => p != candidatePosition))
         {
             var championId = position == "JUNGLE" && allyJungle is { } jungle ? jungle : 900 + participantId;
