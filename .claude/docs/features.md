@@ -251,7 +251,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   Allies' hovers are sent apart from their locks and counted at half weight. Once locked, or on a click on any placed
   champion (one selected card, its lane opponent faintly ringed): the build view — the draft's composition build and the
   lane builds as icon rows (keystone + secondary, three items, win rate), the champion's true mains — a click shows that
-  main's own build on the champion — and the site's core blocks (runes beside summoners/skills/starter/boots, no build
+  main's own build on the champion; one picked in the search above the list joins its top while the view is open
+  (#1985) — and the site's core blocks (runes beside summoners/skills/starter/boots, no build
   path) over the site's build tree drawn smaller.
 - **Damage mix** (#1907) — under each team a thin physical / magic / true bar (locked picks, plus our pick being
   weighed drawn hatched with a tick at the mix without it), the dominant type as its only figure (`64% AD`), the
