@@ -3,16 +3,18 @@ import type { ChampionItemContextAxis } from '#shared/types/item-context'
 import type { GameState } from '~/types/game'
 import type { NextItemCandidate, NextItemReason } from '~/utils/next-item'
 import { itemContextAxisPhrase } from '#shared/utils/item-context'
-import { goldToComplete, stepsToward } from '~/utils/next-item'
+import { goldToComplete, starterCost, stepsToward } from '~/utils/next-item'
 
 /**
  * What the next-item panel shows (#1751), shared by the game page's panel and
  * the overlay's (#1747) so the two can never disagree: the item the
  * champion's mains complete next from where this build stands, why when a
- * situation moved it, the purchases toward it, the runners-up and the boots.
+ * situation moved it, the purchases toward it, the runners-up and the boots —
+ * and, until one is bought, the starter.
  */
 export function useNextItemPanel(game: Ref<GameState>) {
   const { answer, pending, failed } = useNextItem(game)
+  const { starter } = useStarter(game)
   const { items: statics } = useStaticData()
 
   const me = computed(() => game.value.players.find(player => player.isMe) ?? null)
@@ -37,6 +39,7 @@ export function useNextItemPanel(game: Ref<GameState>) {
   const remaining = computed(() => (top.value ? goldToComplete(top.value.itemId, held.value, statics.value) : 0))
   const steps = computed(() => (top.value ? stepsToward(top.value.itemId, held.value, statics.value) : []))
   const affordable = (cost: number) => cost <= game.value.gold
+  const starterGold = computed(() => (starter.value ? starterCost(starter.value.itemIds, statics.value) : 0))
 
   const state = computed(() => {
     if (top.value) return 'ready'
@@ -47,5 +50,5 @@ export function useNextItemPanel(game: Ref<GameState>) {
     return 'loading'
   })
 
-  return { answer, pending, statics, build, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable }
+  return { answer, pending, statics, build, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold }
 }

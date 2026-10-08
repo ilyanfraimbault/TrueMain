@@ -74,7 +74,10 @@ Tracking issue: **#1671**.
   one (`POST /champions/{id}/next-item`, #1749), with the situation behind it,
   the gold left to finish it, the components your gold buys now, two
   runners-up and the boots while you have none. Asked again whenever anyone's
-  items change.
+  items change. Until you hold anything but potions and the trinket, the
+  starter above it — the basket the draft's build opens with for the ten
+  champions on their lanes, its price and its share of games — which the
+  overlay shows in the next item's place.
 - **Draws over the game** (#1795, macOS): three small panels, each placed on
   its own — the next item alone (the item and the gold still to earn for it, or
   that it can be bought now), a win probability estimated from the item-gold

@@ -328,8 +328,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   behind it in the site's item-context wording, the gold left to complete it and its missing components (Data Dragon
   recipe) ringed when the gold in hand buys them, the two runners-up, and the boots while none are held. Our completion
   order is noted as items land; "off the mains' path" says when the build left their tree. Our gold reaches the page in
-  50-gold steps (`GOLD_STEP`), the only gold the API exposes. Its data comes from `useNextItemPanel`, shared with the
-  overlay. A layers button by the clock (and a status line's "Customize" in the waiting state) opens the Overlay page.
+  50-gold steps (`GOLD_STEP`), the only gold the API exposes. Above it, until anything but potions and the trinket is
+  held, **the starter** (`useStarter`): the basket the composition build opens with for the ten champions on their
+  lanes (`POST /champions/{id}/composition-build`, asked once per game; the lane's standard build when the matchup was
+  never recorded), its price against the gold in hand and its share of games. Its data comes from `useNextItemPanel`,
+  shared with the overlay. A layers button by the clock (and a status line's "Customize" in the waiting state) opens the Overlay page.
 - **In-game overlay** (#1795 on macOS, window layer from the #1673 spike, `docs/desktop-overlay-spike.md`; #1798 on
   Windows) — four panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
   `CGShieldingWindowLevel` (League's Full Screen captures the display), on Windows a topmost `WS_EX_NOACTIVATE` layered
@@ -340,8 +343,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   webview) only while switched on and a game runs, from its loading screen to its end, or in the preview (#1916),
   (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
   read — from its `GameStart` event, never over the loading screen, the client or another app; ⌥⇧O (Alt+Shift+O on Windows) hides them until the game ends. **Next item** (232 pt,
-  `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — no
-  components, runners-up or boots; whole game or only while dead. **Win probability** (160 pt,
+  `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — until a
+  starter is bought, the starter basket in its place — no components, runners-up or boots; whole game or only while dead. **Win probability** (160 pt,
   `OverlayWinProbability.vue`): both sides' percentages and a bar in the sides' colours, no labels, the whole game —
   a logistic of each lane's creep-score, level and kill lead over the opposite lane, weighted by a regression fitted
   on our ranked games (interpolated between 5, 10, 15, 20 and 30 minutes; the support's lead weighs little; creep
