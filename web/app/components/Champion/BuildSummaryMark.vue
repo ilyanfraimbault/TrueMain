@@ -41,6 +41,15 @@ const props = defineProps<{
 
 const numericId = computed(() => (typeof props.token.id === 'number' ? props.token.id : null))
 
+// A champion named by id — an opponent in the matchup sentences (#1954) — links
+// to its own page. The pinned opponent of the build sentences carries no id and
+// stays plain text: it is already the page's filter, not somewhere to go.
+const { pathFor } = useChampionSlugs()
+const championPath = computed(() =>
+  props.token.source === 'champion' && numericId.value !== null ? pathFor(numericId.value) : null,
+)
+const NuxtLinkComponent = resolveComponent('NuxtLink')
+
 const item = computed(() =>
   props.token.source === 'item' && numericId.value !== null
     ? props.itemsMap?.[numericId.value] ?? null
@@ -120,10 +129,13 @@ const canonicalIcon = useCanonicalIcon()
     :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
   >
     <!-- The name and its icon never separate across a line break: an orphaned
-         icon at the end of a line reads as a bullet. -->
-    <span
+         icon at the end of a line reads as a bullet. The element never changes
+         for a given token, so the trigger-replacement note above still holds. -->
+    <component
+      :is="championPath ? NuxtLinkComponent : 'span'"
+      v-bind="championPath ? { to: championPath } : {}"
       class="whitespace-nowrap font-medium"
-      :class="[TONE_CLASS[token.tone], hasCard ? 'cursor-help' : '']"
+      :class="[TONE_CLASS[token.tone], hasCard ? 'cursor-help' : '', championPath ? 'underline-offset-2 hover:underline' : '']"
     ><img
       v-if="token.iconUrl"
       :src="canonicalIcon(token.iconUrl)"
@@ -134,7 +146,7 @@ const canonicalIcon = useCanonicalIcon()
       loading="lazy"
       class="mr-1 inline-block size-4 align-[-0.2em]"
       :class="ROUND_TONES.has(token.tone) ? 'rounded-full' : 'rounded-xs'"
-    >{{ token.text }}</span>
+    >{{ token.text }}</component>
     <template #content>
       <GameTooltipSurface>
         <GameTooltipItemBody

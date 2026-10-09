@@ -58,6 +58,7 @@ Last verified against `develop` on 2026-09-02.
 - A variation card only exists when there is a variation; a settled build says so by being short — #1466
 - The panel answers before it nuances, and the build tree is a picture, not a card — #1466
 - The build paragraph is collapsed, moved to the foot of the sidebar, and no longer restates the icon grid — #1466, #1123, #1143
+- The server HTML names the lane's best and worst matchups, and never a panel's empty state (2026-10-09) — #1954, #1538
 - A verdict chip inside its own dead zone says nothing, so it says nothing — #1466
 - The population the numbers come from is stated in the header, not hovered — #1466, #1346
 - The patch diff is gone, front and API — the trend chart already shows patch-over-patch movement — #1466, #534
@@ -129,7 +130,7 @@ Last verified against `develop` on 2026-09-02.
 
 - Share cards degrade in three steps and never print a number the API did not return — #920, #926
 - Share cards resolve their own data server-side instead of receiving it from the page — #149, #926
-- The champion link graph was server-rendered, then removed — the pages are back to zero internal champion links — #1123, #1209, #147
+- The champion link graph was server-rendered, then removed — only the matchup sentences' six links remain — #1123, #1209, #147, #1954
 - A platform-dependent `UKbd` cannot be server-rendered — #1209
 - OG image rendering is on, pinned to Satori + resvg, and deliberately reaches exactly two pages — #551, #926, #600
 - A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04) — #1545

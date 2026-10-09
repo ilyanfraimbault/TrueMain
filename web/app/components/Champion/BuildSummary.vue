@@ -7,6 +7,7 @@ import type {
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { championBuildSentenceTokens, lanePhrase } from '~~/shared/utils/champion-build-summary'
+import { championMatchupSentenceTokens } from '~~/shared/utils/champion-matchup-summary'
 
 /**
  * The champion page's build, in words (#1123), typeset (#1143).
@@ -43,6 +44,10 @@ import { championBuildSentenceTokens, lanePhrase } from '~~/shared/utils/champio
  * paragraph. #1147 then gave each mark the same hover card the icon grid shows,
  * resolved client-side by `BuildSummaryMark` from the maps the page already has.
  *
+ * #1954 closed it with the lane's best and worst matchups, each opponent a link
+ * to its own champion page (`championMatchupSentenceTokens`): the Matchups panel
+ * is client-only, so this is the only place they reach the server HTML.
+ *
  * Renders nothing at all when the summary carries no measurement — an empty
  * card saying "no data" is noise next to the page's own no-data states.
  */
@@ -63,7 +68,9 @@ const props = defineProps<{
 }>()
 
 const sentences = computed(() =>
-  props.summary ? championBuildSentenceTokens(props.summary) : [],
+  props.summary
+    ? [...championBuildSentenceTokens(props.summary), ...championMatchupSentenceTokens(props.summary)]
+    : [],
 )
 
 // Names the <section> region through the heading that lives inside the summary.
