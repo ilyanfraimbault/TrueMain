@@ -8,18 +8,35 @@ import { ITEM_CONTEXT_TONE_CLASS } from '#shared/utils/item-context'
  * can be bought with the gold in hand. Read in two seconds while dead or on
  * the walk out of base, so it carries the decision and nothing else: the
  * item, why when a situation moved it, the next purchase, the two runners-up,
- * and the boots while they are still open. The overlay draws only the item
- * and the gold it still needs (`OverlayNextItem`), from the same
- * `useNextItemPanel`.
+ * and the boots while they are still open — over it, until one is bought, the
+ * starter. The overlay draws only the item and the gold it still needs
+ * (`OverlayNextItem`), from the same `useNextItemPanel`.
  */
 const props = defineProps<{ game: GameState }>()
 
-const { answer, pending, statics, build, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable } = useNextItemPanel(toRef(props, 'game'))
+const { answer, pending, statics, build, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold } = useNextItemPanel(toRef(props, 'game'))
 </script>
 
 <template>
   <section class="surface grid grid-cols-[minmax(0,1fr)_auto] gap-6 rounded-xl px-4 py-3">
     <div class="min-w-0">
+      <div v-if="starter" class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-default pb-3">
+        <span class="stat-label">Starter</span>
+        <div class="flex gap-1.5">
+          <GameTooltipItemIcon
+            v-for="(itemId, index) in starter.itemIds"
+            :key="`${itemId}-${index}`"
+            :item="statics[itemId] ?? null"
+            :width="30"
+            :height="30"
+            class="size-[30px] rounded ring-1 ring-primary/60"
+          />
+        </div>
+        <span v-if="affordable(starterGold)" class="text-xs text-stat-gold">Can buy now</span>
+        <span v-else class="text-xs tabular-nums text-muted"><span class="text-stat-gold">{{ starterGold - game.gold }}</span> gold short</span>
+        <span class="text-xs tabular-nums text-dimmed" :title="`${starter.games} games`">{{ percent(starter.pickRate) }} of games</span>
+      </div>
+
       <div class="mb-2 flex items-center gap-2">
         <span class="stat-label">Next item</span>
         <span v-if="build && !build.onTree" class="text-xs text-dimmed" title="Your build left the path the mains take; this continues from your latest item they build.">off the mains' path</span>

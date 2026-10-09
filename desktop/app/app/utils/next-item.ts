@@ -1,4 +1,5 @@
 import type { StaticItemData } from '#shared/types/static-data'
+import type { BuildItemSet, CompositionBuildRequest, CompositionBuildResponse } from '~/types/build'
 import type { GamePlayer, GameState } from '~/types/game'
 
 /** `POST /champions/{id}/next-item` (#1749), as the app sends it. */
@@ -82,6 +83,66 @@ export function nextItemRequest(
       enemies: others(false),
     },
   }
+}
+
+/**
+ * The game as the composition build takes it (`POST /champions/{id}/composition-build`),
+ * from our side — what the starter is read from. Players the game names no
+ * lane for are left out: the endpoint places every pick on one. Null where
+ * `nextItemRequest` is.
+ */
+export function starterRequest(
+  game: GameState,
+  championIdOf: (alias: string) => number | null,
+): { championId: number, body: CompositionBuildRequest } | null {
+  const me = game.players.find(player => player.isMe)
+  if (!me || !me.position) return null
+  const championId = championIdOf(me.champion)
+  if (!championId) return null
+
+  const side = (ours: boolean) => game.players
+    .filter(player => !player.isMe && player.position && (player.team === me.team) === ours)
+    .map(player => ({ championId: championIdOf(player.champion), position: player.position }))
+    .filter((slot): slot is { championId: number, position: string } => slot.championId !== null)
+
+  return { championId, body: { position: me.position, allies: side(true), enemies: side(false) } }
+}
+
+/**
+ * The composition build's starter basket, or null when the lane's standard
+ * build has to answer instead: the lane opponent was never recorded against
+ * us (the build is then empty), or the sample measured no basket.
+ */
+export function compositionStarter(answer: CompositionBuildResponse): BuildItemSet | null {
+  if (answer.matchupRequested && !answer.matchupFound) return null
+  const starter = answer.build.starterItems
+  return starter?.itemIds.length ? starter : null
+}
+
+/**
+ * Whether the starter is behind us: the inventory holds an item that is
+ * neither a consumable nor a trinket — the starter advised, another one, or
+ * anything bought on a later back. Potions alone and the trinket every player
+ * spawns with are not one. An item the static data does not know yet says
+ * nothing either way.
+ */
+export function starterBought(held: number[], items: Record<number, StaticItemData>): boolean {
+  return held.some((id) => {
+    const tags = items[id]?.tags
+    return tags !== undefined && !tags.includes('Consumable') && !tags.includes('Trinket')
+  })
+}
+
+/** The starter's price: each item of the basket at its shop price, as many times as the basket lists it. */
+export function starterCost(itemIds: number[], items: Record<number, StaticItemData>): number {
+  return itemIds.reduce((sum, id) => sum + (items[id]?.totalGold ?? 0), 0)
+}
+
+/** A basket in one line: each item once, with how many when the basket lists it more than once — "Doran's Blade + Health Potion ×2". */
+export function basketName(itemIds: number[], name: (itemId: number) => string): string {
+  const counts = new Map<number, number>()
+  for (const id of itemIds) counts.set(id, (counts.get(id) ?? 0) + 1)
+  return [...counts].map(([id, count]) => (count > 1 ? `${name(id)} ×${count}` : name(id))).join(' + ')
 }
 
 /** What changes the answer: any player's items, and who is on which lane. */

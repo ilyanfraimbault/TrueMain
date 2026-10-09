@@ -390,6 +390,11 @@ item-context words, the gold left and the components the gold in hand buys are w
 runners-up and the boots stay small beside it. It is asked again on any item change of the ten players and never on a
 timer, because nothing else moves the answer. Our gold joins the game state in 50-gold steps — income crosses one about
 every ten seconds — rather than every reading, so the board does not become a change per poll (2026-10-01) — #1751.
+Until a starter is bought — anything held but potions and the trinket — the starter sits above it, and replaces the
+next item on the overlay: at the start the shop is open for the starter, not a legendary. It is the composition
+build's starter basket for the ten champions on their lanes, asked once per game, not a next-item model term: the
+item-context counters see a starter item by item, and a basket (Doran's Ring and two potions) is what is bought
+(2026-10-08) — #1989.
 
 **Every app version is built twice, once per site, and each site serves only its own build (2026-10-01).** The product
 owner's call: the app downloaded from preprod is a test build and must read preprod — API, the pages it opens in the
