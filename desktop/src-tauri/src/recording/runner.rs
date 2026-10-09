@@ -158,6 +158,8 @@ async fn record_game(
     emit_library(app);
 
     follow(&session, &live, phases).await;
+    // From here on a failure is logged, never returned: an error would read as
+    // a game still running and skip the next one, which may already have begun.
     let done = if in_game(*phases.borrow()) {
         Done::Running
     } else {
@@ -172,10 +174,17 @@ async fn record_game(
             lock(&session).on_phase(GameflowPhase::EndOfGame, None, &settings, &root, now_ms())
         })
         .await
-        .map_err(|e| e.to_string())?
     };
-    if let Err(error) = &stopped {
-        tracing::warn!(%error, "the recording did not stop cleanly; keeping what was written");
+    match &stopped {
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => {
+            tracing::warn!(%error, "the recording did not stop cleanly; keeping what was written");
+        }
+        Err(error) => {
+            tracing::warn!(%error, "stopping the recording failed; keeping what was written");
+            emit_library(app);
+            return Ok(done);
+        }
     }
     if done == Done::Ended && loading_only(&dir) {
         tracing::info!("the game closed on its loading screen; its recording is not kept");
@@ -208,16 +217,17 @@ async fn record_game(
             &root,
         )
     })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
-    if let Some(finalised) = finalised {
-        if !finalised.pruned.is_empty() {
+    .await;
+    match finalised {
+        Ok(Ok(Some(finalised))) if !finalised.pruned.is_empty() => {
             tracing::info!(
                 count = finalised.pruned.len(),
                 "recordings deleted to fit the budget"
             );
         }
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => tracing::warn!(%error, "the recording was not finalised"),
+        Err(error) => tracing::warn!(%error, "finalising the recording failed"),
     }
     thumbnail(helper, &dir).await;
     emit_library(app);
