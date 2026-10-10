@@ -30,6 +30,11 @@ export default defineNuxtConfig({
   // serves the /api/* proxy + auth routes.
   ssr: false,
   devtools: { enabled: true },
+  // An unresolved `<Component>` renders as an empty custom element with only a
+  // runtime warning; make `nuxt typecheck` fail on it instead.
+  typescript: {
+    tsConfig: { vueCompilerOptions: { checkUnknownComponents: true } },
+  },
   colorMode: {
     preference: 'dark',
     fallback: 'dark',
