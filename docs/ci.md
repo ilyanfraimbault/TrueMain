@@ -99,6 +99,12 @@ files are generated with (`npx npm@11.13.0 install` locally, see `CLAUDE.md`).
 `nuxt typecheck` can pass on stale `.nuxt` types while `nuxt build` fails, so
 the job runs typecheck, the vitest suite and a fresh build.
 
+Neither of them notices a template tag that resolves to no component: Vue
+renders it as an empty custom element and only warns at runtime, which is how
+the admin Logs table vanished after a split left `LogsTable.vue` uncommitted.
+The admin app sets `vueCompilerOptions.checkUnknownComponents`, so its
+typecheck fails on such a tag.
+
 Before those, `npm run lint` runs ESLint (#1440). Each app — `web/`, `admin/`
 and the desktop app's `desktop/app` (in `desktop.yml`, below) — registers the
 `@nuxt/eslint` module, which writes a flat config aware of the app's
