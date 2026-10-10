@@ -24,7 +24,7 @@ would put a backend round-trip on every human page view to serve the unfurl path
 the card's numbers are resolved at share time, so they can differ from a page the visitor left open —
 both are real, an hour apart at most (the cache TTL) — #926.
 
-**The champion link graph was server-rendered, then removed — the pages are back to zero internal champion links.**
+**The champion link graph was server-rendered, then removed — only the matchup sentences' six links remain.**
 #1123 gave the champion pages content a crawler could read. It did not give them links a crawler could
 *follow*: counted in the HTML prod actually served, `/` held 0 `/champions/{slug}` anchors, `/champions` 0,
 `/champions/tierlist` 0 and a champion page 0 — the only `/champions/*` anchor anywhere on the site was
@@ -48,6 +48,12 @@ contextual cross-links the matchups and synergies panels would give were already
 they are backend reads and the champion page's SSR round-trip budget is spent on the build summary.
 One piece of #1255 survives the revert because it was never part of the link graph: the homepage's ⌘K hint
 stays `<ClientOnly>` — see the entry below — #1209, #1275.
+**Partly answered by #1954 (2026-10-09).** The build paragraph now names the lane's three best and three
+worst matchups, each opponent linked to its own page — six contextual champion→champion links per champion
+page, in body text. The objection above (a backend read the SSR budget had no room for) is met by reading
+them inside the paragraph's existing cached route: one call per slice per five minutes, not per view
+(`decisions/product-champion-page.md`). It does not replace a link graph — a champion nobody lists among
+anyone's top three matchups still has no inbound link — which stays #1992.
 
 **A platform-dependent `UKbd` cannot be server-rendered.**
 The homepage's ⌘K hint (`<UKbd value="meta">`) resolves its modifier from the platform — `⌘` on macOS, `Ctrl`

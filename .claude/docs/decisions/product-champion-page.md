@@ -292,3 +292,21 @@ state on purpose — this number is "what people do", not a verdict, so it shoul
 win rate. Same reasoning as the pick/ban split (`product-directory-and-tiers.md`): a scale belongs to a
 denominator, not to a metric's name.
 
+**The server HTML names the lane's best and worst matchups, and never a panel's empty state (2026-10-09).**
+Fetched as a crawler, a champion page carried a sound head and the build paragraph, but also "No matchups
+with enough games on this lane yet" and "Not enough recorded games … to measure synergies" — while the API
+held dozens of measured matchups. Two causes. The panels fetch client-only, and their loading test read
+only `pending`: on the server the status is `idle`, so they fell through to the empty state. They now use
+`isLoadingStatus`, so the server renders their skeleton — which also matches the deferred hydration render,
+where the fetch has just started. And nothing measured about matchups reached the HTML at all, on exactly
+the content a "<champion> counter" search is after. The build paragraph's route now reads the matchups too
+and the paragraph closes with two sentences naming the three best and three worst, with their records.
+Not by server-rendering the panel: that reopens #149. The read happens *after* the champion fetch, on the
+lane and patch it resolved — the panel's own scope, and a matchup read without a patch spans every patch the
+aggregate still holds — so a cold slice pays one sequential call, once per cache window. The opponents are
+the panel's first rows: one `rankMatchups`, ranked at the panel's size and then sliced, because re-ranking at
+three would shrink the exclusion set and let a "best" row of the panel reappear as a worst matchup. A failed
+matchup read follows #1557 — nothing is cached and the view gets the empty summary — rather than caching a
+paragraph without its matchups for five minutes. Skipped when an opponent is pinned: the prose then
+describes that one matchup's build. Each named opponent links to its own champion page, the only
+champion→champion links in the server HTML since #1275 — #1954, #1538.

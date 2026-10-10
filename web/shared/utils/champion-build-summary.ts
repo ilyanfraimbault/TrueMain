@@ -82,7 +82,7 @@ function spellSmallNumber(value: number): string {
   return NUMBER_WORDS[value] ?? String(value)
 }
 
-function capitalise(value: string): string {
+export function capitalise(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
@@ -230,12 +230,12 @@ export function resolveChampionBuildSummary(
  */
 
 /** Connective prose. Every space in a sentence belongs to one of these. */
-function plain(text: string): BuildSummaryToken {
+export function plain(text: string): BuildSummaryToken {
   return { kind: 'text', text }
 }
 
 /** A measurement — a count, a percentage, a patch, a rank scope. */
-function figure(text: string): BuildSummaryToken {
+export function figure(text: string): BuildSummaryToken {
   return { kind: 'value', text }
 }
 
@@ -255,7 +255,7 @@ function mark(
  * and a list of *clauses* (`, and `): the clauses are long enough that the
  * unpunctuated version misreads, which is why they keep the Oxford comma.
  */
-function joinTokens(parts: BuildSummaryToken[][], lastSeparator: string): BuildSummaryToken[] {
+export function joinTokens(parts: BuildSummaryToken[][], lastSeparator: string): BuildSummaryToken[] {
   const tokens: BuildSummaryToken[] = []
   parts.forEach((part, index) => {
     if (index > 0) tokens.push(plain(index === parts.length - 1 ? lastSeparator : ', '))
