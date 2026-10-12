@@ -1,6 +1,5 @@
 import type { MatchDetailParticipant, MatchDetailResponse } from '~~/shared/types/match-detail'
 import { createError, defineEventHandler, getRouterParam } from 'h3'
-import { mockWinProbability } from '~~/server/utils/dev-api-mock'
 
 // Dev fixture backing the `/dev/match-row` playground so the MatchRow accordion
 // can be exercised against a realistic 10-player detail payload without a live
@@ -166,6 +165,5 @@ export default defineEventHandler((event): MatchDetailResponse => {
     gameDurationSeconds,
     gameVersion: '15.1.1',
     participants,
-    winProbability: mockWinProbability(participants, gameDurationSeconds * 1000),
   }
 })

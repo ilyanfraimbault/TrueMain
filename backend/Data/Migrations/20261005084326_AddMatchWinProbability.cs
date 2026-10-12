@@ -17,9 +17,9 @@ namespace Data.Migrations
                 columns: table => new
                 {
                     MatchId = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    Points = table.Column<List<MatchWinProbabilityPoint>>(type: "jsonb", nullable: false),
-                    Swings = table.Column<List<MatchWinProbabilitySwing>>(type: "jsonb", nullable: false),
-                    Objectives = table.Column<List<MatchWinProbabilityObjective>>(type: "jsonb", nullable: false)
+                    Points = table.Column<string>(type: "jsonb", nullable: false),
+                    Swings = table.Column<string>(type: "jsonb", nullable: false),
+                    Objectives = table.Column<string>(type: "jsonb", nullable: false)
                 },
                 constraints: table =>
                 {

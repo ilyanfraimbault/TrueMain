@@ -71,8 +71,9 @@ function selectPlayer(participantId: number) {
 }
 
 // ─── Timeline tab: the win-probability curve (#1911) ─────────────────────────
-// Only when the game has one — an older or short game gets no tab rather than
-// an empty chart. Read for the row owner's side.
+// Desktop only: built from the client's timeline the app attaches (the API sends
+// no curve, #2009); a short game gets no tab rather than an empty chart. Read
+// for the row owner's side.
 const winProbability = computed(() => (detail.value ? resolveWinProbability(detail.value) : null))
 const ownerTeamId = computed(() => {
   const owner = props.selfChampionId ? participants.value.find(p => p.championId === props.selfChampionId) : null

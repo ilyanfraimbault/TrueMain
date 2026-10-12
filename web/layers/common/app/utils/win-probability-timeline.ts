@@ -18,10 +18,8 @@ import {
 
 /**
  * A finished game's win-probability curve and the moments that swung it
- * (#1911), from its timeline and the shared model (`win-probability.ts`).
- * The ingestor runs the same steps in C# (`Core/Lol/WinProbability`); the
- * fixture `web/shared/fixtures/win-probability-timeline.json` keeps the two
- * identical — change one, change both.
+ * (#1911), from the client's timeline and the shared model (`win-probability.ts`).
+ * The fixture `web/shared/fixtures/win-probability-timeline.json` pins its figures.
  *
  * - The curve reads team 100's chance at every frame of the timeline (one a
  *   minute) and at the end of the game.

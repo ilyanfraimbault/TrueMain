@@ -60,16 +60,7 @@ internal static class RiotTimelineMapper
             CreatorId = evt.CreatorId,
             AssistingParticipantIds = evt.AssistingParticipantIds ?? [],
             PositionX = evt.Position?.X,
-            PositionY = evt.Position?.Y,
-            MonsterType = evt.MonsterType,
-            MonsterSubType = evt.MonsterSubType,
-            BuildingType = evt.BuildingType,
-            LaneType = evt.LaneType,
-            TowerType = evt.TowerType,
-            TeamId = evt.TeamId,
-            KillerTeamId = evt.KillerTeamId,
-            Bounty = evt.Bounty,
-            ShutdownBounty = evt.ShutdownBounty
+            PositionY = evt.Position?.Y
         };
 
     private static MatchParticipantFrameDto MapParticipantFrame(RiotTimelineParticipantFrameDto frame)
