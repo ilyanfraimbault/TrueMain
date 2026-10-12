@@ -577,11 +577,12 @@ from the client's timeline (2026-10-05).** The recording recap and the dashboard
 timeline from the client (`GET /lol-match-history/v1/game-timelines/{gameId}`), reduced by the shell to what the model
 reads (`lcu::win_probability`), and build the curve in the webview with the shared builder
 (`web/layers/common/app/utils/win-probability-timeline.ts`): it works for every game in the client's history, not only
-those TrueMain ingested, and costs nothing on our Riot key. A game TrueMain holds uses TrueMain's stored curve instead.
+those TrueMain ingested, and costs nothing on our Riot key. A game TrueMain holds is drawn from the client's timeline too: TrueMain stores no curve
+(#2009).
 The recap keeps the reduced timeline in the recording's metadata at finalisation, so it still draws once the game has
-left the client's history; a live-feed-only recording has no curve. One model, two runtimes: the ingestor runs a C#
-port (`Core/Lol/WinProbability`), and a shared fixture (`web/shared/fixtures/win-probability-timeline.json`) fails
-either side's tests when a weight or a step drifts. A turning point is a kill, a turret, an inhibitor, a drake, the
+left the client's history; a live-feed-only recording has no curve. One model, one runtime: the C# port the ingestor
+ran until #2009 is gone, and the fixture `web/shared/fixtures/win-probability-timeline.json` pins the TS builder's
+figures. A turning point is a kill, a turret, an inhibitor, a drake, the
 Elder or the Baron, weighed at its own time with only that event changing (creep score and level interpolated between
 frames, so the delta is exact under the model); the five largest are listed. The Rift Herald, Voidgrubs and Atakhan
 are shown with no figure, never "0 pts". The "slow drift" share (farm and levels building up) was left out. Post-game

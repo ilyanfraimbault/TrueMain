@@ -1791,15 +1791,15 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<List<MatchWinProbabilityObjective>>("Objectives")
+                    b.Property<string>("Objectives")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.Property<List<MatchWinProbabilityPoint>>("Points")
+                    b.Property<string>("Points")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.Property<List<MatchWinProbabilitySwing>>("Swings")
+                    b.Property<string>("Swings")
                         .IsRequired()
                         .HasColumnType("jsonb");
 

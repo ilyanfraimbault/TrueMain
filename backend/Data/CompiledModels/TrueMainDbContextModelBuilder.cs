@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("5fe27668-6c94-4fd7-9eb9-b47452563153"), entityTypeCount: 35)
+            : base(skipDetectChanges: false, modelId: new Guid("d31772b0-0c12-4343-9829-c2d463a16abc"), entityTypeCount: 34)
         {
         }
 
@@ -46,7 +46,6 @@ namespace Data.CompiledModels
             var matchBan = MatchBanEntityType.Create(this);
             var matchParticipant = MatchParticipantEntityType.Create(this);
             var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
-            var matchWinProbability = MatchWinProbabilityEntityType.Create(this);
             var paceBenchmarkStat = PaceBenchmarkStatEntityType.Create(this);
             var paceSampledMatch = PaceSampledMatchEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
@@ -65,7 +64,6 @@ namespace Data.CompiledModels
             MatchParticipantEntityType.CreateForeignKey1(matchParticipant, match);
             MatchParticipantEntityType.CreateForeignKey2(matchParticipant, riotAccount);
             MatchParticipantTimelineSnapshotEntityType.CreateForeignKey1(matchParticipantTimelineSnapshot, match);
-            MatchWinProbabilityEntityType.CreateForeignKey1(matchWinProbability, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey1(participantPerkSelection, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey2(participantPerkSelection, perkSelectionCatalog);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
@@ -98,7 +96,6 @@ namespace Data.CompiledModels
             MatchBanEntityType.CreateAnnotations(matchBan);
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
             MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);
-            MatchWinProbabilityEntityType.CreateAnnotations(matchWinProbability);
             PaceBenchmarkStatEntityType.CreateAnnotations(paceBenchmarkStat);
             PaceSampledMatchEntityType.CreateAnnotations(paceSampledMatch);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);

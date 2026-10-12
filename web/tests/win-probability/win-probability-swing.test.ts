@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { WinProbabilitySwing } from '#shared/types/win-probability'
+import type { WinProbabilitySwing, WinProbabilityTimeline } from '#shared/types/win-probability'
+import fixture from '#shared/fixtures/win-probability-timeline.json'
 import {
   describeObjective,
   describeSwing,
@@ -8,6 +9,7 @@ import {
   forTeam,
   resolveWinProbability,
 } from '#common/utils/win-probability-swing'
+import { buildWinProbability } from '#common/utils/win-probability-timeline'
 
 const names: Record<number, string> = { 3: 'Ahri', 8: 'Zed' }
 const context = { perspectiveTeamId: 100, championName: (id: number) => names[id] ?? '?' }
@@ -58,9 +60,10 @@ describe('formatting', () => {
 })
 
 describe('resolveWinProbability', () => {
-  it('prefers TrueMain\'s curve and has none without either source', () => {
-    const stored = { points: [], swings: [], objectives: [] }
-    expect(resolveWinProbability({ winProbability: stored, winProbabilityTimeline: null })).toBe(stored)
+  it('builds the curve from the client\'s timeline and has none without it', () => {
+    const timeline = fixture.timeline as WinProbabilityTimeline
+    expect(resolveWinProbability({ winProbabilityTimeline: timeline })).toEqual(buildWinProbability(timeline))
+    expect(resolveWinProbability({ winProbabilityTimeline: null })).toBeNull()
     expect(resolveWinProbability({})).toBeNull()
   })
 })
