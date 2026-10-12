@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.RiotAccount",
                 typeof(RiotAccount),
                 baseEntityType,
-                propertyCount: 23,
+                propertyCount: 24,
                 unnamedIndexCount: 4,
                 keyCount: 1);
 
@@ -192,6 +192,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(RiotAccount).GetField("<SummonerLevel>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             summonerLevel.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var summonerObservedAtUtc = runtimeEntityType.AddProperty(
+                "SummonerObservedAtUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(RiotAccount).GetProperty("SummonerObservedAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(RiotAccount).GetField("<SummonerObservedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            summonerObservedAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var tagLine = runtimeEntityType.AddProperty(
                 "TagLine",

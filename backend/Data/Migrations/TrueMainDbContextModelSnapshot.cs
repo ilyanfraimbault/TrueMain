@@ -2040,6 +2040,9 @@ namespace Data.Migrations
                     b.Property<int>("SummonerLevel")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("SummonerObservedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("TagLine")
                         .HasMaxLength(8)
                         .HasColumnType("character varying(8)");

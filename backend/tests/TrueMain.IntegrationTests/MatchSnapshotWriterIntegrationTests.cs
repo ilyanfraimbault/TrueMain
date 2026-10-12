@@ -460,6 +460,50 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
         verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-2").LastSeenInMatchAtUtc.Should().Be(FakeGameStartUtc);
     }
 
+    [Fact]
+    public async Task IngestSnapshotsAsync_ShouldGiveEveryKnownParticipantTheIconAndLevelTheMatchCarries()
+    {
+        // Harvest-created accounts: puuid + platform, no summoner-v4 read ever (#2002).
+        await SeedAccountAsync("puuid-1");
+        await SeedAccountAsync("puuid-2");
+
+        await using (var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
+        {
+            await IngestSnapshotsAsync(
+                BuildActivityWriter(FakeGameStartUtc.AddDays(2)), session, "KR", "puuid-1", RegionalRoute.Asia, 10, 10, 4, CancellationToken.None);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var tracked = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-1");
+        tracked.ProfileIconId.Should().Be(4568);
+        tracked.SummonerLevel.Should().Be(250);
+        tracked.SummonerObservedAtUtc.Should().Be(FakeGameStartUtc);
+
+        var opponent = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-2");
+        opponent.ProfileIconId.Should().Be(6021);
+        opponent.SummonerLevel.Should().Be(180);
+    }
+
+    [Fact]
+    public async Task IngestSnapshotsAsync_ShouldNotOverwriteAnIconObservedAfterTheMatch()
+    {
+        // puuid-2 was read from summoner-v4 after the game: the match's icon is older.
+        await SeedAccountAsync("puuid-1");
+        await SeedAccountAsync("puuid-2", profileIconId: 29, summonerLevel: 300, summonerObservedAtUtc: FakeGameStartUtc.AddDays(1));
+
+        await using (var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
+        {
+            await IngestSnapshotsAsync(
+                BuildActivityWriter(FakeGameStartUtc.AddDays(2)), session, "KR", "puuid-1", RegionalRoute.Asia, 10, 10, 4, CancellationToken.None);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var opponent = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-2");
+        opponent.ProfileIconId.Should().Be(29);
+        opponent.SummonerLevel.Should().Be(300);
+        opponent.SummonerObservedAtUtc.Should().Be(FakeGameStartUtc.AddDays(1));
+    }
+
     private static readonly DateTime FakeGameStartUtc = new(2026, 3, 10, 20, 15, 0, DateTimeKind.Utc);
 
     private static MatchSnapshotWriter BuildActivityWriter(DateTime nowUtc)
@@ -469,7 +513,11 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
             Microsoft.Extensions.Options.Options.Create(new MainActivityOptions { InactiveAfterDays = 30 }));
 
-    private async Task SeedAccountAsync(string puuid)
+    private async Task SeedAccountAsync(
+        string puuid,
+        int profileIconId = 0,
+        int summonerLevel = 0,
+        DateTime? summonerObservedAtUtc = null)
     {
         await using var db = _fixture.CreateDbContext();
         db.RiotAccounts.Add(new RiotAccount
@@ -478,6 +526,9 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
             GameName = puuid,
             TagLine = "KR1",
             PlatformId = "KR",
+            ProfileIconId = profileIconId,
+            SummonerLevel = summonerLevel,
+            SummonerObservedAtUtc = summonerObservedAtUtc,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         });
@@ -563,6 +614,7 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
                 Puuid = puuid,
                 SummonerName = summonerName,
                 SummonerLevel = participantId == 1 ? 250 : 180,
+                ProfileIcon = participantId == 1 ? 4568 : 6021,
                 ChampionId = championId,
                 TeamId = participantId == 1 ? 100 : 200,
                 TeamPosition = lane,

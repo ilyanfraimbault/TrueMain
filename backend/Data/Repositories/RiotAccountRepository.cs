@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Data.Repositories;
 
-public sealed class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRepository
+public sealed partial class RiotAccountRepository(TrueMainDbContext db) : IRiotAccountRepository
 {
     public Task<RiotAccount?> GetByPuuidAsync(string puuid, CancellationToken ct)
         => db.RiotAccounts.FirstOrDefaultAsync(a => a.Puuid == puuid, ct);

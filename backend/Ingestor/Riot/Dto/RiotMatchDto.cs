@@ -103,6 +103,9 @@ public sealed record RiotParticipantDto
     [JsonPropertyName("summonerLevel")]
     public int SummonerLevel { get; init; }
 
+    [JsonPropertyName("profileIcon")]
+    public int ProfileIcon { get; init; }
+
     [JsonPropertyName("championId")]
     public int ChampionId { get; init; }
 

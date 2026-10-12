@@ -86,5 +86,16 @@ public interface IRiotAccountRepository
     Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct);
     Task UpdateLastMatchIngestAtAsync(string platformId, string puuid, DateTime atUtc, CancellationToken ct);
 
+    /// <summary>
+    /// Writes the profile icon and summoner level that ingested matches carry onto the stored
+    /// accounts of <paramref name="platformId"/> (#2002), set-based. An account only takes a
+    /// game newer than its <see cref="RiotAccount.SummonerObservedAtUtc"/>; unknown PUUIDs are
+    /// ignored. Returns the number of accounts updated.
+    /// </summary>
+    Task<int> RecordMatchSummonerProfilesAsync(
+        string platformId,
+        IReadOnlyCollection<MatchSummonerObservation> observations,
+        CancellationToken ct);
+
     void Add(RiotAccount account);
 }
