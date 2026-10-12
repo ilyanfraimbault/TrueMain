@@ -14,6 +14,7 @@
 //! stands in for the client's events, not for a game window to capture.
 
 mod commands;
+mod embed;
 pub mod files;
 mod publish;
 mod runner;

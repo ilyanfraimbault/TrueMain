@@ -8,7 +8,8 @@ import { formatClock } from '~/utils/recording-moments'
  * "Publish on YouTube" (#1815): YouTube's own upload page does the upload, in
  * the player's browser and under their channel. The dialog walks the four
  * steps — open the page, drag the clip onto it, paste the prepared text, give
- * the video's link back — and keeps nothing until that link is saved.
+ * the video's link back — and keeps nothing until that link is saved. Then
+ * the file can leave this PC, the clip playing from YouTube (#2005).
  */
 const props = defineProps<{ clip: Clip }>()
 const open = defineModel<boolean>('open', { default: false })
@@ -22,6 +23,7 @@ const description = ref('')
 const tags = ref('')
 const link = ref('')
 const saving = ref(false)
+const freeing = ref(false)
 
 /** Prepared again on each opening, from the clip as it is now (a rename included). */
 watch(open, (opened) => {
@@ -130,12 +132,34 @@ async function forgetLink() {
 
         <li class="flex flex-col gap-2">
           <p class="step">Once it is up, paste its link</p>
-          <div v-if="clip.youtubeUrl" class="flex items-center gap-2 text-sm">
-            <UIcon name="i-lucide-circle-check" class="size-4 shrink-0 text-success" />
-            <span class="min-w-0 flex-1 truncate text-default">{{ clip.youtubeUrl }}</span>
-            <UButton icon="i-lucide-external-link" label="Watch" color="neutral" variant="outline" size="xs" @click="openVideo(clip.id)" />
-            <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="xs" aria-label="Forget the link" title="Forget the link" @click="forgetLink" />
-          </div>
+          <template v-if="clip.youtubeUrl">
+            <div class="flex items-center gap-2 text-sm">
+              <UIcon name="i-lucide-circle-check" class="size-4 shrink-0 text-success" />
+              <span class="min-w-0 flex-1 truncate text-default">{{ clip.youtubeUrl }}</span>
+              <UButton icon="i-lucide-external-link" label="Watch" color="neutral" variant="outline" size="xs" @click="openVideo(clip.id)" />
+              <UButton
+                v-if="clip.videoOnDisk"
+                icon="i-lucide-x"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                aria-label="Forget the link"
+                title="Forget the link"
+                @click="forgetLink"
+              />
+            </div>
+            <div v-if="clip.videoOnDisk" class="flex items-center gap-3">
+              <UButton
+                icon="i-lucide-hard-drive-download"
+                :label="`Remove from this PC · ${formatBytes(clip.sizeBytes)}`"
+                color="neutral"
+                variant="soft"
+                size="sm"
+                @click="freeing = true"
+              />
+              <span class="text-xs text-muted">The clip stays in your recordings and plays from YouTube.</span>
+            </div>
+          </template>
           <form v-else class="flex gap-2" @submit.prevent="saveLink">
             <UInput v-model="link" placeholder="https://youtu.be/…" class="flex-1" aria-label="The video's YouTube link" />
             <UButton type="submit" label="Save" color="neutral" variant="outline" :loading="saving" :disabled="!link.trim()" />
@@ -148,6 +172,8 @@ async function forgetLink() {
       <UButton label="Close" color="neutral" variant="ghost" @click="open = false" />
     </template>
   </UModal>
+
+  <RecordingsDeleteVideo v-model:open="freeing" :clip="clip" @deleted="open = false" />
 </template>
 
 <style scoped>

@@ -6,14 +6,16 @@
 //! (`decisions/desktop.md`).
 //!
 //! The player gives the video's link back once it is up; the clip keeps it and
-//! shows as published.
+//! shows as published. From then on its video file can go (#2005): the clip
+//! stays listed, with its thumbnail, and plays from YouTube.
 
-use game_recording::youtube_video_url;
+use game_recording::{youtube_video_id, youtube_video_url};
 use tauri::{AppHandle, State, Window};
 
 use crate::telemetry::{self, Feature};
 
 use super::commands::{clip_view, find_clip};
+use super::embed;
 use super::views::ClipView;
 use super::{emit_library, SharedRecorder};
 
@@ -61,6 +63,23 @@ pub fn clip_open_youtube(
     open(&app, &url)
 }
 
+/// The page the clip player frames to play a published clip from YouTube
+/// (`embed.rs`).
+#[tauri::command]
+pub fn clip_youtube_embed(
+    recorder: State<'_, SharedRecorder>,
+    id: String,
+) -> Result<String, String> {
+    let clip = find_clip(&recorder, &id)?;
+    let video = clip
+        .meta
+        .youtube_url
+        .as_deref()
+        .and_then(youtube_video_id)
+        .ok_or("this clip has no YouTube link")?;
+    embed::page_url(video)
+}
+
 /// Keep the YouTube video a clip was published as — or forget it, for an
 /// empty link. Anything but a link to a YouTube video is refused.
 #[tauri::command]
@@ -72,6 +91,11 @@ pub fn clip_set_youtube_url(
 ) -> Result<ClipView, String> {
     let clip = find_clip(&recorder, &id)?;
     let youtube_url = if url.trim().is_empty() {
+        if !clip.dir.video_path().is_file() {
+            return Err(
+                "this clip is only on YouTube now: its link is all that is left of it".into(),
+            );
+        }
         None
     } else {
         Some(youtube_video_url(&url).ok_or("this is not a link to a YouTube video")?)
@@ -85,6 +109,25 @@ pub fn clip_set_youtube_url(
     if newly_published {
         telemetry::feature(&app, Feature::ClipPublished);
     }
+    emit_library(&app);
+    clip_view(&recorder, &id)
+}
+
+/// Delete a published clip's video from disk, keeping the clip: it stays in the
+/// library with its thumbnail and plays from YouTube. A clip without a YouTube
+/// link keeps its file — this would leave it pointing at nothing.
+#[tauri::command]
+pub fn clip_delete_video(
+    app: AppHandle,
+    recorder: State<'_, SharedRecorder>,
+    id: String,
+) -> Result<ClipView, String> {
+    let clip = find_clip(&recorder, &id)?;
+    if clip.meta.youtube_url.is_none() {
+        return Err("only a clip published on YouTube can leave this PC".into());
+    }
+    clip.dir.delete_video().map_err(|error| error.to_string())?;
+    telemetry::feature(&app, Feature::ClipVideoDeleted);
     emit_library(&app);
     clip_view(&recorder, &id)
 }

@@ -123,10 +123,24 @@ export async function devRecordingCall(command: string, args: Record<string, unk
     case 'clip_start_drag':
       console.info('[dev] would drag', clip(current, String(args.id)).videoPath)
       return null
+    case 'clip_delete_video': {
+      const found = clip(current, String(args.id))
+      if (!found.youtubeUrl) throw new Error('only a clip published on YouTube can leave this PC')
+      found.videoOnDisk = false
+      found.sizeBytes = 64_000
+      return copy(found)
+    }
+    case 'clip_youtube_embed': {
+      // The shell serves this page on the loopback (`embed.rs`); the dev server is already http.
+      const id = new URL(clip(current, String(args.id)).youtubeUrl ?? 'https://x.invalid').searchParams.get('v')
+      if (!id) throw new Error('this clip has no YouTube link')
+      return `https://www.youtube-nocookie.com/embed/${id}?rel=0`
+    }
     case 'clip_set_youtube_url': {
       // The shell's parser (`youtube_video_url`), reduced to the two links YouTube hands out.
       const found = clip(current, String(args.id))
       const link = String(args.url).trim()
+      if (!link && !found.videoOnDisk) throw new Error('this clip is only on YouTube now: its link is all that is left of it')
       const id = /^(?:https?:\/\/)?(?:www\.)?(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})(?:[?&#].*)?$/i.exec(link)?.[1]
       if (link && !id) throw new Error('this is not a link to a YouTube video')
       found.youtubeUrl = id ? `https://www.youtube.com/watch?v=${id}` : null

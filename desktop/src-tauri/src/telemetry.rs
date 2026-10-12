@@ -86,6 +86,8 @@ pub enum Feature {
     YoutubeUploadOpened,
     /// A clip given the link of the YouTube video it was published as.
     ClipPublished,
+    /// A published clip's video deleted from disk, the clip kept (#2005).
+    ClipVideoDeleted,
 }
 
 impl Feature {
@@ -104,6 +106,7 @@ impl Feature {
             Feature::ChampSelectBan => "champSelectBan",
             Feature::YoutubeUploadOpened => "youtubeUploadOpened",
             Feature::ClipPublished => "clipPublished",
+            Feature::ClipVideoDeleted => "clipVideoDeleted",
         }
     }
 }

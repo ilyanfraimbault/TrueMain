@@ -56,6 +56,22 @@ export function useClipPublish() {
     }
   }
 
+  /** Delete a published clip's file, keeping the clip; `false` when the shell refused. */
+  async function deleteVideo(id: string): Promise<boolean> {
+    try {
+      await recordingCall<Clip>('clip_delete_video', { id })
+      await refreshLibrary()
+      return true
+    }
+    catch (error) {
+      failed('The video could not be removed', error)
+      return false
+    }
+  }
+
+  /** The page that plays a clip from YouTube (`recording/embed.rs`), or `null` when there is none. */
+  const embedUrl = (id: string) => recordingCall<string>('clip_youtube_embed', { id }).catch(() => null)
+
   async function copy(text: string, what: string) {
     try {
       await navigator.clipboard.writeText(text)
@@ -66,5 +82,5 @@ export function useClipPublish() {
     }
   }
 
-  return { openUpload, openVideo, startDrag, setYoutubeUrl, copy }
+  return { openUpload, openVideo, startDrag, setYoutubeUrl, deleteVideo, embedUrl, copy }
 }

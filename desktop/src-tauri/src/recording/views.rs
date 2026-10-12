@@ -185,6 +185,8 @@ pub struct ClipView {
     thumbnail_path: Option<PathBuf>,
     moments: Vec<Moment>,
     youtube_url: Option<String>,
+    /// Gone once a published clip's file was deleted to free space (#2005).
+    video_on_disk: bool,
 }
 
 impl ClipView {
@@ -219,6 +221,7 @@ impl ClipView {
             thumbnail_path: thumbnail.is_file().then_some(thumbnail),
             moments: meta.moments.clone(),
             youtube_url: meta.youtube_url.clone(),
+            video_on_disk: clip.dir.video_path().is_file(),
         }
     }
 }

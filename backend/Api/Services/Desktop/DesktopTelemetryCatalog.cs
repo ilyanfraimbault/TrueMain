@@ -57,6 +57,8 @@ public static partial class DesktopTelemetryCatalog
         "youtubeUploadOpened",
         // A clip given the link of the YouTube video it was published as.
         "clipPublished",
+        // A published clip's video deleted from disk, the clip kept in the library.
+        "clipVideoDeleted",
     ];
 
     private static readonly HashSet<string> PageSet = new(Pages, StringComparer.Ordinal);

@@ -33,6 +33,7 @@ async function commitRename() {
 }
 
 const publishing = ref(false)
+const freeing = ref(false)
 const { openVideo } = useClipPublish()
 
 const confirming = ref(false)
@@ -71,7 +72,7 @@ async function remove() {
           <span class="text-dimmed">·</span>
           <span>{{ dayLabel(clip.gameStartedAtMs) }}, at {{ formatClock(clip.startMs) }}</span>
           <span class="text-dimmed">·</span>
-          <span>{{ formatBytes(clip.sizeBytes) }}</span>
+          <span>{{ clip.videoOnDisk ? formatBytes(clip.sizeBytes) : 'On YouTube only' }}</span>
         </p>
       </div>
 
@@ -86,7 +87,7 @@ async function remove() {
           size="sm"
         />
         <UButton
-          v-if="clip.youtubeUrl"
+          v-if="clip.youtubeUrl && clip.videoOnDisk"
           icon="i-lucide-youtube"
           label="Watch on YouTube"
           color="neutral"
@@ -95,6 +96,17 @@ async function remove() {
           @click="openVideo(clip.id)"
         />
         <UButton
+          v-if="clip.youtubeUrl && clip.videoOnDisk"
+          icon="i-lucide-hard-drive-download"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          aria-label="Remove the video from this PC"
+          title="Remove the video from this PC — it plays from YouTube"
+          @click="freeing = true"
+        />
+        <UButton
+          v-if="clip.videoOnDisk"
           icon="i-lucide-youtube"
           :label="clip.youtubeUrl ? undefined : 'Publish on YouTube'"
           :aria-label="clip.youtubeUrl ? 'Publish on YouTube' : undefined"
@@ -114,24 +126,27 @@ async function remove() {
           :title="clip.favorite ? 'Remove from favourites' : 'Add to favourites'"
           @click="updateClip(clip.id, { favorite: !clip.favorite })"
         />
-        <UButton icon="i-lucide-folder-open" color="neutral" variant="ghost" size="sm" :aria-label="revealLabel()" :title="revealLabel()" @click="reveal(clip.videoPath)" />
+        <UButton v-if="clip.videoOnDisk" icon="i-lucide-folder-open" color="neutral" variant="ghost" size="sm" :aria-label="revealLabel()" :title="revealLabel()" @click="reveal(clip.videoPath)" />
         <UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" aria-label="Delete clip" title="Delete clip" @click="confirming = true" />
       </div>
     </header>
 
     <RecapPlayer
+      v-if="clip.videoOnDisk"
       class="mx-auto w-full max-w-[46rem]"
       :src="fileSrc(clip.videoPath)"
       :length-ms="clip.durationMs"
       :moments="clip.moments"
     />
+    <RecordingsYoutubePlayer v-else class="mx-auto w-full max-w-[46rem]" :clip="clip" />
 
     <RecordingsPublish v-model:open="publishing" :clip="clip" />
+    <RecordingsDeleteVideo v-model:open="freeing" :clip="clip" />
 
     <RecordingsConfirm
       v-model:open="confirming"
       title="Delete this clip?"
-      :description="`&quot;${clip.title}&quot; is removed from your disk.`"
+      :description="clip.videoOnDisk ? `&quot;${clip.title}&quot; is removed from your disk.` : `&quot;${clip.title}&quot; leaves your recordings; the video stays on YouTube.`"
       confirm-label="Delete clip"
       @confirm="remove"
     />
