@@ -2,6 +2,7 @@
 import type { Moment } from '~/types/recordings'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
 import { formatClock } from '~/utils/recording-moments'
+import { formatRate, PLAYBACK_RATES, stepRate } from '~/utils/recording-timeline'
 
 /**
  * A recording's video with the app's own controls and the timeline under it —
@@ -14,8 +15,12 @@ import { formatClock } from '~/utils/recording-moments'
  * and the controls and the timeline float over the video, shown while the
  * mouse moves or the video is paused.
  *
+ * The playback speed (0.25× to 4×) holds for the rest of the session, across
+ * recordings and clips.
+ *
  * Keys: Space plays, ← → move 5 s, Shift+← → the previous / next moment, M mutes,
- * F toggles full screen, Esc leaves it, I / O set in / out.
+ * < / > slow down / speed up, F toggles full screen, Esc leaves it, I / O set
+ * in / out; the timeline adds its zoom keys.
  */
 const props = withDefaults(defineProps<{
   src: string | null
@@ -89,6 +94,7 @@ function onPause() {
 function onMetadata() {
   const duration = video.value?.duration
   if (duration && Number.isFinite(duration)) videoLengthMs.value = duration * 1000
+  applyRate()
 }
 onBeforeUnmount(() => cancelAnimationFrame(raf))
 
@@ -125,6 +131,28 @@ function previousMoment() {
   if (found) jumpTo(found)
   else seek(0)
 }
+
+const rate = useState('recap-playback-rate', () => 1)
+
+/** A new source resets an element's speed to its default, so both are set, and set again once it has loaded. */
+function applyRate() {
+  if (!video.value) return
+  video.value.defaultPlaybackRate = rate.value
+  video.value.playbackRate = rate.value
+}
+
+function setRate(value: number) {
+  rate.value = value
+  applyRate()
+  if (immersive.value) wake()
+}
+
+const rateItems = computed(() => [...PLAYBACK_RATES].reverse().map(value => ({
+  label: value === 1 ? 'Normal' : formatRate(value),
+  type: 'checkbox' as const,
+  checked: rate.value === value,
+  onUpdateChecked: () => setRate(value),
+})))
 
 function toggleMute() {
   muted.value = !muted.value
@@ -193,6 +221,8 @@ defineShortcuts({
   shift_arrowleft: previousMoment,
   shift_arrowright: nextMoment,
   m: toggleMute,
+  '<': () => setRate(stepRate(rate.value, -1)),
+  '>': () => setRate(stepRate(rate.value, 1)),
   f: fullscreen,
   escape: () => immersive.value && exitFullscreen(),
   i: () => props.editable && emit('setIn', currentMs.value),
@@ -257,6 +287,18 @@ defineExpose({ seek, playRange, jumpTo, currentMs })
                   <template #trailing><UKbd value="O" size="sm" /></template>
                 </UButton>
               </template>
+              <UDropdownMenu :items="rateItems" :portal="immersive && root ? root : true" :content="{ align: 'end', side: 'top' }" :ui="{ content: 'min-w-28' }">
+                <UButton
+                  :label="formatRate(rate)"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  class="tabular-nums"
+                  :class="rate !== 1 && 'text-primary'"
+                  aria-label="Playback speed"
+                  title="Playback speed (< / >)"
+                />
+              </UDropdownMenu>
               <UButton :icon="muted ? 'i-lucide-volume-x' : 'i-lucide-volume-2'" color="neutral" variant="ghost" size="sm" :aria-label="muted ? 'Unmute' : 'Mute'" title="Mute (M)" @click="toggleMute" />
               <UButton :icon="immersive ? 'i-lucide-minimize' : 'i-lucide-maximize'" color="neutral" variant="ghost" size="sm" :aria-label="immersive ? 'Exit full screen' : 'Full screen'" :title="immersive ? 'Exit full screen (F / Esc)' : 'Full screen (F)'" @click="fullscreen" />
             </div>

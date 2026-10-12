@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TimelineView } from '~/utils/recording-timeline'
 import type { RecapCurvePoint, RecapTurningPoint } from '~/utils/recording-win-probability'
 import { formatGameClock, formatSwingPoints } from '#common/utils/win-probability-swing'
 import { curveAt } from '~/utils/recording-win-probability'
@@ -16,6 +17,8 @@ const props = defineProps<{
   curve: RecapCurvePoint[]
   turningPoints: RecapTurningPoint[]
   lengthMs: number
+  /** The window of the video the timeline shows, when zoomed in; the whole video otherwise. */
+  view?: TimelineView | null
   /** The lane's height, px. */
   height: number
 }>()
@@ -35,17 +38,21 @@ const area = computed(() => {
   return `M${x(first.videoMs)},50 ${line.value.replace(/^M/, 'L')} L${x(last.videoMs)},50 Z`
 })
 
+/** The window drawn: the SVG's view box crops the whole curve to it, so the line is never recomputed while zooming. */
+const shown = computed(() => props.view ?? { startMs: 0, spanMs: width.value })
+
 const id = useId()
-const pct = (ms: number) => `${(x(ms) / width.value) * 100}%`
+const pct = (ms: number) => `${((x(ms) - shown.value.startMs) / shown.value.spanMs) * 100}%`
 const dots = computed(() => [...props.turningPoints]
+  .filter(point => point.videoMs >= shown.value.startMs && point.videoMs <= shown.value.startMs + shown.value.spanMs)
   // The smallest drawn last, so a big swing never hides a small one beside it.
   .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
   .map(point => ({ point, top: (y(curveAt(props.curve, point.videoMs)) / 100) * props.height })))
 </script>
 
 <template>
-  <div class="pointer-events-none relative size-full">
-    <svg class="absolute inset-0 size-full overflow-visible" :viewBox="`0 0 ${width} 100`" preserveAspectRatio="none" aria-hidden="true">
+  <div class="pointer-events-none relative size-full overflow-x-clip">
+    <svg class="absolute inset-0 size-full overflow-visible" :viewBox="`${shown.startMs} 0 ${shown.spanMs} 100`" preserveAspectRatio="none" aria-hidden="true">
       <defs>
         <clipPath :id="`${id}-ally`"><rect x="0" y="0" :width="width" height="50" /></clipPath>
         <clipPath :id="`${id}-enemy`"><rect x="0" y="50" :width="width" height="50" /></clipPath>
