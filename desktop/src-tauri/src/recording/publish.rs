@@ -149,6 +149,13 @@ pub async fn clip_set_youtube_url(
         check_video(&url, &clip.meta.title).await?;
         Some(url)
     };
+    // Read again after the check's wait, so a rename or a favourite made
+    // meanwhile is not overwritten — and the title checked is still the clip's.
+    let checked_title = clip.meta.title;
+    let clip = find_clip(&recorder, &id)?;
+    if youtube_url.is_some() && clip.meta.title != checked_title {
+        return Err("the clip was renamed while its video was checked: save the link again".into());
+    }
     let newly_published = clip.meta.youtube_url.is_none() && youtube_url.is_some();
     let mut meta = clip.meta;
     meta.youtube_url = youtube_url;
