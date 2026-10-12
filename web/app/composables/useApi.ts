@@ -45,7 +45,7 @@ export function normalizeApiError(error: unknown): unknown {
  * Errors come out normalised (`normalizeApiError`) after ofetch's own retry has run.
  */
 export function useApiFetch(): ApiFetch {
-  const requestFetch = useRequestFetch()
+  const requestFetch = useRequestFetch() as unknown as <T>(path: string, options?: object) => Promise<T>
   return async <T>(path: string, options?: ApiFetchOptions) => {
     try {
       return await requestFetch<T>(path, { ...options, baseURL: API_BASE_URL })
