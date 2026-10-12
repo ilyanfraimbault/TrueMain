@@ -52,6 +52,10 @@ pub struct ClipMeta {
     pub favorite: bool,
     /// The recording's moments inside the range, relative to the clip.
     pub moments: Vec<Moment>,
+    /// The YouTube video the player published it as, once they gave its link
+    /// back to the app (#1815). Absent from a clip saved before then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub youtube_url: Option<String>,
 }
 
 impl ClipMeta {
@@ -90,6 +94,7 @@ impl ClipMeta {
             duration_ms: end_ms.saturating_sub(start_ms),
             favorite: false,
             moments,
+            youtube_url: None,
         }
     }
 }
@@ -103,6 +108,55 @@ pub fn clean_title(title: &str) -> String {
     } else {
         title.trim_end().to_string()
     }
+}
+
+/// A YouTube video's link, as the player pasted it, in the one form the app
+/// keeps (`https://www.youtube.com/watch?v=<id>`) — or `None` when it is not a
+/// link to a YouTube video. Accepts the watch page, the short `youtu.be` link
+/// YouTube's upload form hands out, Shorts and the video's YouTube Studio page.
+pub fn youtube_video_url(link: &str) -> Option<String> {
+    let link = link.trim();
+    let rest = ["https://", "http://"]
+        .iter()
+        .find(|scheme| {
+            link.get(..scheme.len())
+                .is_some_and(|start| start.eq_ignore_ascii_case(scheme))
+        })
+        .map_or(link, |scheme| &link[scheme.len()..]);
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let host = host.to_ascii_lowercase();
+    let host = host.strip_prefix("www.").unwrap_or(&host);
+    let (path, query) = path.split_once('?').unwrap_or((path, ""));
+    let path = path.split('#').next().unwrap_or_default();
+    let id = match host {
+        "youtu.be" => path.split('/').next(),
+        "youtube.com" | "m.youtube.com" | "music.youtube.com" => {
+            match path.split('/').collect::<Vec<_>>()[..] {
+                ["watch"] => query
+                    .split('#')
+                    .next()
+                    .unwrap_or_default()
+                    .split('&')
+                    .find_map(|pair| pair.strip_prefix("v=")),
+                ["shorts" | "live" | "embed", id, ..] => Some(id),
+                _ => None,
+            }
+        }
+        "studio.youtube.com" => match path.split('/').collect::<Vec<_>>()[..] {
+            ["video", id, ..] => Some(id),
+            _ => None,
+        },
+        _ => None,
+    }?;
+    is_video_id(id).then(|| format!("https://www.youtube.com/watch?v={id}"))
+}
+
+/// YouTube's video ids: eleven characters of its URL-safe base64.
+fn is_video_id(id: &str) -> bool {
+    id.len() == 11
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
 /// One clip's folder.
@@ -328,6 +382,50 @@ mod tests {
             clean_title(&"a".repeat(200)).chars().count(),
             MAX_TITLE_CHARS
         );
+    }
+
+    #[test]
+    fn youtube_links_are_kept_in_one_form() {
+        let kept = Some("https://www.youtube.com/watch?v=dQw4w9WgXcQ".to_string());
+        for link in [
+            "https://youtu.be/dQw4w9WgXcQ",
+            "  https://youtu.be/dQw4w9WgXcQ?si=abc  ",
+            "youtu.be/dQw4w9WgXcQ",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://youtube.com/watch?feature=share&v=dQw4w9WgXcQ#t=3",
+            "http://m.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+            "https://studio.youtube.com/video/dQw4w9WgXcQ/edit",
+            "HTTPS://WWW.YOUTUBE.COM/watch?v=dQw4w9WgXcQ",
+        ] {
+            assert_eq!(youtube_video_url(link), kept, "{link}");
+        }
+        for link in [
+            "",
+            "https://www.youtube.com/",
+            "https://www.youtube.com/watch?v=short",
+            "https://www.youtube.com/@channel",
+            "https://evil.example/watch?v=dQw4w9WgXcQ",
+            "https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ",
+            "https://youtu.be/dQw4w9WgXc<",
+            "javascript:alert(1)",
+        ] {
+            assert_eq!(youtube_video_url(link), None, "{link}");
+        }
+    }
+
+    #[test]
+    fn a_clip_saved_before_youtube_links_still_reads() {
+        let mut meta = ClipMeta::cut_from(&recording(), "7100000001", 0, 5_000, "Old", 10);
+        let mut body = serde_json::to_value(&meta).unwrap();
+        assert!(body.get("youtubeUrl").is_none());
+        body.as_object_mut().unwrap().remove("youtubeUrl");
+        let read: ClipMeta = serde_json::from_value(body).unwrap();
+        assert_eq!(read, meta);
+
+        meta.youtube_url = youtube_video_url("https://youtu.be/dQw4w9WgXcQ");
+        let read: ClipMeta = serde_json::from_value(serde_json::to_value(&meta).unwrap()).unwrap();
+        assert_eq!(read.youtube_url, meta.youtube_url);
     }
 
     #[test]

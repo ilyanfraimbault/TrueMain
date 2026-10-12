@@ -384,6 +384,18 @@ only over `/` or `/game` — the pages the game's own navigation would have take
 they opened by hand, the game page's rule. The Recordings page follows DPM's layout (the product owner's reference) in
 the site's materials; its settings are the short list of #1744 — no OBS (2026-10-01) — #1755, #1777.
 
+**A clip is published on YouTube through YouTube's own upload page, never its Data API (2026-10-12).** The product
+owner's call: the app opens `youtube.com/upload` in the player's browser, drags the clip's file onto it from the app
+and hands over a prepared title, description and tags; the player gives the video's link back and the clip keeps it.
+The API was the first plan and is dropped for what it would make the app depend on: the upload quota belongs to one
+Google Cloud project shared by every install (historically 1,600 units an upload out of 10,000 a day — about six
+uploads a day for all players together), raised only through the YouTube API Services audit; `youtube.upload` is a
+sensitive scope, so an unverified app is capped at 100 users behind an "unverified app" warning (in testing mode each
+account is added by hand and refresh tokens expire after 7 days); and an unaudited project's uploads are forced
+private. The browser flow has none of these limits and lets the player pick the visibility in YouTube's form. The file
+drag is the shell's (the `drag` crate, path resolved from the clip id, never taken from the webview). Revisit only
+with a real user base and telemetry showing the manual steps are the bottleneck — #1815.
+
 **The next item sits over the game board and answers one purchase: what to complete, and what to buy now.** The mains'
 choice from where our build stands (#1749) is the decision; its share of the mains, one reason in the site's own
 item-context words, the gold left and the components the gold in hand buys are what turns it into a purchase. Two

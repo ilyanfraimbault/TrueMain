@@ -5,8 +5,9 @@ import { getQueueLabel } from '~/utils/queues'
 
 /**
  * A saved clip's player: the clip's own file with the moments inside it on its
- * timeline, its title (renamed in place), favourite, the file, delete — and
- * the way back to the full game it was cut from, while that still exists.
+ * timeline, its title (renamed in place), favourite, publishing on YouTube,
+ * the file, delete — and the way back to the full game it was cut from, while
+ * that still exists.
  */
 const route = useRoute()
 const router = useRouter()
@@ -30,6 +31,9 @@ async function commitRename() {
   const title = draftTitle.value.trim()
   if (clip.value && title && title !== clip.value.title) await updateClip(clip.value.id, { title })
 }
+
+const publishing = ref(false)
+const { openVideo } = useClipPublish()
 
 const confirming = ref(false)
 async function remove() {
@@ -82,6 +86,25 @@ async function remove() {
           size="sm"
         />
         <UButton
+          v-if="clip.youtubeUrl"
+          icon="i-lucide-youtube"
+          label="Watch on YouTube"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          @click="openVideo(clip.id)"
+        />
+        <UButton
+          icon="i-lucide-youtube"
+          :label="clip.youtubeUrl ? undefined : 'Publish on YouTube'"
+          :aria-label="clip.youtubeUrl ? 'Publish on YouTube' : undefined"
+          :title="clip.youtubeUrl ? 'Publish on YouTube' : undefined"
+          :color="clip.youtubeUrl ? 'neutral' : 'primary'"
+          :variant="clip.youtubeUrl ? 'ghost' : 'soft'"
+          size="sm"
+          @click="publishing = true"
+        />
+        <UButton
           icon="i-lucide-star"
           :color="clip.favorite ? 'primary' : 'neutral'"
           :variant="clip.favorite ? 'soft' : 'ghost'"
@@ -102,6 +125,8 @@ async function remove() {
       :length-ms="clip.durationMs"
       :moments="clip.moments"
     />
+
+    <RecordingsPublish v-model:open="publishing" :clip="clip" />
 
     <RecordingsConfirm
       v-model:open="confirming"

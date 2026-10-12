@@ -7,13 +7,15 @@
 //! (`follow`, called on each publish); the runner (`runner.rs`) owns the
 //! session and does the slow work — starting the helper, following the game
 //! clock, waiting for the match history — on its own task. The commands
-//! (`commands.rs`) read and change what is on disk.
+//! (`commands.rs`) read and change what is on disk; `publish.rs` hands a clip
+//! to YouTube's upload page.
 //!
 //! Recording only happens against a real client: a tape or the simulator
 //! stands in for the client's events, not for a game window to capture.
 
 mod commands;
 pub mod files;
+mod publish;
 mod runner;
 mod views;
 
@@ -28,6 +30,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::watch;
 
 pub use commands::*;
+pub use publish::*;
 pub use views::RecordingStatusView;
 
 /// The recording state changed: started, stopped, finalised.

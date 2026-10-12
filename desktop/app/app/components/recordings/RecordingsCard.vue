@@ -8,12 +8,14 @@ import { getQueueLabel } from '~/utils/queues'
  * One card of the Recordings page, laid out as the reference's: the picture,
  * then the champion, the kind and the title, then the game's line — K / D / A,
  * KDA ratio, queue. A full game opens its recap, a clip its player. The menu
- * pins (a favourite clip, a kept game), shows the file and deletes.
+ * pins (a favourite clip, a kept game), publishes a clip on YouTube, shows the
+ * file and deletes.
  */
 const props = defineProps<{ item: LibraryItem }>()
 
 const { nameOf } = useChampionStatics()
-const { setKept, updateClip, deleteClip, deleteRecording, reveal } = useRecordings()
+const { library, setKept, updateClip, deleteClip, deleteRecording, reveal } = useRecordings()
+const { openVideo } = useClipPublish()
 
 const title = computed(() => itemTitle(props.item, nameOf))
 const kda = computed(() => recordingKda(props.item))
@@ -23,6 +25,8 @@ const to = computed(() => isClip.value
   : `/recordings/${encodeURIComponent(props.item.id)}`)
 
 const confirming = ref(false)
+const publishing = ref(false)
+const clip = computed(() => (isClip.value ? library.value?.clips.find(entry => entry.id === props.item.id) ?? null : null))
 
 function togglePin() {
   if (isClip.value) void updateClip(props.item.id, { favorite: !props.item.pinned })
@@ -36,6 +40,12 @@ const menu = computed<DropdownMenuItem[][]>(() => [
       : { label: props.item.pinned ? 'Stop keeping' : 'Keep full game', icon: 'i-lucide-pin', onSelect: togglePin },
     { label: revealLabel(), icon: 'i-lucide-folder-open', onSelect: () => void reveal(props.item.videoPath) },
   ],
+  ...(isClip.value
+    ? [[
+        { label: 'Publish on YouTube', icon: 'i-lucide-youtube', onSelect: () => (publishing.value = true) },
+        ...(props.item.youtubeUrl ? [{ label: 'Watch on YouTube', icon: 'i-lucide-external-link', onSelect: () => void openVideo(props.item.id) }] : []),
+      ]]
+    : []),
   [{ label: isClip.value ? 'Delete clip' : 'Delete full game', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => (confirming.value = true) }],
 ])
 
@@ -63,6 +73,7 @@ async function remove() {
             :title="isClip ? 'Clip' : 'Full game'"
           />
           <p class="truncate text-[13px] font-semibold text-highlighted" :title="title">{{ title }}</p>
+          <UIcon v-if="item.youtubeUrl" name="i-lucide-youtube" class="ml-auto size-3.5 shrink-0 text-muted" title="Published on YouTube" />
         </div>
         <p class="flex items-baseline gap-1.5 truncate text-[11px] tabular-nums">
           <template v-if="kda">
@@ -85,6 +96,8 @@ async function remove() {
         aria-label="More actions"
       />
     </UDropdownMenu>
+
+    <RecordingsPublish v-if="clip" v-model:open="publishing" :clip="clip" />
 
     <RecordingsConfirm
       v-model:open="confirming"

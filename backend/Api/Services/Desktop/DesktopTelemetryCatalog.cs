@@ -53,6 +53,10 @@ public static partial class DesktopTelemetryCatalog
         "champSelectLock",
         // A ban made from the app's draft screen.
         "champSelectBan",
+        // YouTube's upload page opened from a clip's publish dialog.
+        "youtubeUploadOpened",
+        // A clip given the link of the YouTube video it was published as.
+        "clipPublished",
     ];
 
     private static readonly HashSet<string> PageSet = new(Pages, StringComparer.Ordinal);
