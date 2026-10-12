@@ -17,6 +17,16 @@ export default defineNuxtConfig({
     '#common': fileURLToPath(new URL('./app', import.meta.url)),
     '#shared': fileURLToPath(new URL('../../shared', import.meta.url)),
   },
+  // Region flags as a local icon collection (`i-region-europe`, …), so a
+  // USelectMenu item takes one through its native `icon` and Nuxt UI sizes it
+  // to the label's line height. The SVGs are square with the 3:2 flag centred,
+  // to fit the square icon slots without stretching. The site's server serves
+  // them; the desktop app, with no icon server, bundles them into the client.
+  icon: {
+    customCollections: [
+      { prefix: 'region', dir: fileURLToPath(new URL('./app/assets/icons/region', import.meta.url)) },
+    ],
+  },
   // The design system is dark-only (`theme.css` defines no light surfaces), so
   // neither app may follow a light system preference.
   colorMode: {

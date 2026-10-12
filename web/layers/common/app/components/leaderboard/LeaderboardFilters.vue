@@ -30,14 +30,14 @@ interface RegionItem {
 }
 
 // `null` value = "All regions" — keeps the select tri-state without
-// needing an extra affordance to clear the field. Flags go through the
-// items' native `icon`, so Nuxt UI sizes them to the label's line height
-// in both the trigger and the menu rows.
+// needing an extra affordance to clear the field. Flags come from the
+// layer's `region` icon collection through the items' native `icon`, so
+// Nuxt UI sizes them to the label's line height in the trigger and rows.
 const REGION_OPTIONS: RegionItem[] = [
   { label: 'All regions', value: null, icon: 'i-lucide-globe' },
-  { label: 'Europe', value: 'europe', icon: 'i-circle-flags-european-union' },
-  { label: 'Americas', value: 'americas', icon: 'i-circle-flags-us' },
-  { label: 'Korea', value: 'korea', icon: 'i-circle-flags-kr' },
+  { label: 'Europe', value: 'europe', icon: 'i-region-europe' },
+  { label: 'Americas', value: 'americas', icon: 'i-region-americas' },
+  { label: 'Korea', value: 'korea', icon: 'i-region-korea' },
 ]
 
 const selectedRegion = computed<RegionItem>(() =>
