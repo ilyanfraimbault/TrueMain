@@ -435,6 +435,14 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   by `recording://recap` from the dashboard or the game page only, by a card, or by "Watch".
 - **Clip player** (`/recordings/clips/:id`) — the clip's own file with its moments on the same timeline, its title
   renamed in place, favourite, show in Finder, delete, and a link to the full game while it exists.
+- **Publish on YouTube** (clip player and the clip cards' menu, #1815) — a dialog in four steps, with no YouTube API:
+  open YouTube's upload page in the player's browser; drag the clip's file straight from the dialog onto it (a native
+  OS file drag started by the shell, `recording/publish.rs`; "Show in Finder / Explorer" beside it); copy the prepared
+  title (the clip's own), description (champion · result · K/D/A · queue, and the champion's page on truemain.lol —
+  always production, the video is public) and tags (`League of Legends`, the champion), each editable; then paste the
+  video's link once it is up. The link is checked to be a YouTube video's and kept on the clip (`clip.json`): the card
+  shows a YouTube mark and the player "Watch on YouTube". Counted in the usage telemetry (`youtubeUploadOpened`,
+  `clipPublished`).
 - **Recording settings** (slideover from the Recordings header) — capture status with the permission button, on/off,
   ranked only / every game, resolution (Native, 1440p, 1080p, 720p) and 30 / 60 fps with the shell's estimated size of
   an hour (labelled an estimate; none for Native), the disk budget (slider from the shell's minimum, space used) and the

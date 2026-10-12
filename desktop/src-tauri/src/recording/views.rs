@@ -184,6 +184,7 @@ pub struct ClipView {
     video_path: PathBuf,
     thumbnail_path: Option<PathBuf>,
     moments: Vec<Moment>,
+    youtube_url: Option<String>,
 }
 
 impl ClipView {
@@ -217,6 +218,7 @@ impl ClipView {
             video_path: clip.dir.video_path(),
             thumbnail_path: thumbnail.is_file().then_some(thumbnail),
             moments: meta.moments.clone(),
+            youtube_url: meta.youtube_url.clone(),
         }
     }
 }

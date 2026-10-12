@@ -133,6 +133,8 @@ export interface Clip {
   thumbnailPath: string | null
   /** The moments inside it, relative to the clip's own start. */
   moments: Moment[]
+  /** The YouTube video it was published as, once the player gave its link (#1815). */
+  youtubeUrl: string | null
 }
 
 export interface RecordingLibrary {

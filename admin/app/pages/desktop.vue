@@ -45,6 +45,8 @@ const FEATURE_LABELS: Record<string, string> = {
   champSelectHover: 'Picks hovered from the app',
   champSelectLock: 'Picks locked in from the app',
   champSelectBan: 'Bans made from the app',
+  youtubeUploadOpened: 'YouTube upload opened from a clip',
+  clipPublished: 'Clips published on YouTube',
 }
 const OS_LABELS: Record<string, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
 

@@ -82,6 +82,10 @@ pub enum Feature {
     ChampSelectLock,
     /// A ban made from the draft screen.
     ChampSelectBan,
+    /// YouTube's upload page opened from a clip's publish dialog (#1815).
+    YoutubeUploadOpened,
+    /// A clip given the link of the YouTube video it was published as.
+    ClipPublished,
 }
 
 impl Feature {
@@ -98,6 +102,8 @@ impl Feature {
             Feature::ChampSelectHover => "champSelectHover",
             Feature::ChampSelectLock => "champSelectLock",
             Feature::ChampSelectBan => "champSelectBan",
+            Feature::YoutubeUploadOpened => "youtubeUploadOpened",
+            Feature::ClipPublished => "clipPublished",
         }
     }
 }

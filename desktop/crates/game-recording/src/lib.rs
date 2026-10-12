@@ -28,7 +28,7 @@ pub mod store;
 pub mod win_probability;
 
 pub use anchor::{Anchor, ClockSample};
-pub use clips::{ClipDir, ClipMeta, ClipStore, StoredClip};
+pub use clips::{youtube_video_url, ClipDir, ClipMeta, ClipStore, StoredClip};
 pub use highlights::{Highlight, HighlightKind, HighlightSource};
 pub use moments::{Moment, MomentKind, Objective, ObjectiveKind};
 pub use session::{Capture, CaptureError, Change, GameInfo, GameOutcome, Session, SessionError};

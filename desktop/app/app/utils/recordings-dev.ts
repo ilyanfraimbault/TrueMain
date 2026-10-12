@@ -114,6 +114,24 @@ export async function devRecordingCall(command: string, args: Record<string, unk
     case 'reveal_recording_file':
       console.info('[dev] would reveal', args.path)
       return null
+    case 'open_youtube_upload':
+      console.info('[dev] would open YouTube\'s upload page')
+      return null
+    case 'clip_open_youtube':
+      console.info('[dev] would open', clip(current, String(args.id)).youtubeUrl)
+      return null
+    case 'clip_start_drag':
+      console.info('[dev] would drag', clip(current, String(args.id)).videoPath)
+      return null
+    case 'clip_set_youtube_url': {
+      // The shell's parser (`youtube_video_url`), reduced to the two links YouTube hands out.
+      const found = clip(current, String(args.id))
+      const link = String(args.url).trim()
+      const id = /^(?:https?:\/\/)?(?:www\.)?(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})(?:[?&#].*)?$/i.exec(link)?.[1]
+      if (link && !id) throw new Error('this is not a link to a YouTube video')
+      found.youtubeUrl = id ? `https://www.youtube.com/watch?v=${id}` : null
+      return copy(found)
+    }
     default:
       throw new Error(`Unknown recording command ${command}.`)
   }

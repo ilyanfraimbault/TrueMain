@@ -178,7 +178,7 @@ pub fn recording_delete(
     Ok(())
 }
 
-fn find_clip(recorder: &SharedRecorder, id: &str) -> Result<StoredClip, String> {
+pub(super) fn find_clip(recorder: &SharedRecorder, id: &str) -> Result<StoredClip, String> {
     let dir = recorder
         .clips()
         .get(id)
@@ -192,7 +192,7 @@ fn find_clip(recorder: &SharedRecorder, id: &str) -> Result<StoredClip, String> 
     })
 }
 
-fn clip_view(recorder: &SharedRecorder, id: &str) -> Result<ClipView, String> {
+pub(super) fn clip_view(recorder: &SharedRecorder, id: &str) -> Result<ClipView, String> {
     Ok(ClipView::new(
         &find_clip(recorder, id)?,
         &recordings(recorder)?,

@@ -155,6 +155,7 @@ export function cutClip(
     moments: game.moments
       .filter(moment => moment.videoMs >= startMs && moment.videoMs <= endMs)
       .map(moment => ({ ...moment, videoMs: moment.videoMs - startMs, endVideoMs: moment.endVideoMs - startMs })),
+    youtubeUrl: null,
   }
 }
 
@@ -175,7 +176,7 @@ export function devLibrary(now = Date.now()) {
     runClip(ahriGone!, null, 3, 'Triple kill on Ahri'),
     runClip(ahriYesterday, ahriYesterday.id, 3, 'Triple kill on Ahri'),
     runClip(ahriYesterday, ahriYesterday.id, 2, 'Double kill'),
-    runClip(syndraGone!, null, 5, 'Pentakill on Syndra', true),
+    { ...runClip(syndraGone!, null, 5, 'Pentakill on Syndra', true), youtubeUrl: 'https://www.youtube.com/watch?v=TrueMainDev' },
   ].sort((a, b) => b.gameStartedAtMs - a.gameStartedAtMs || b.startMs - a.startMs)
   return { games, clips }
 }
