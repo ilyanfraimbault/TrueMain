@@ -76,6 +76,35 @@ export interface ChampionBuildSummary {
    * varies between champions.
    */
   buildCount: number
+  /**
+   * The lane's best and worst measured matchups (#1954), for the sentences that
+   * name them. Absent when there is nothing to name: no measured matchup on the
+   * slice, an unresolved lane, or a pinned opponent — the prose then describes
+   * one matchup's build, and listing the others under it would answer a
+   * different question.
+   */
+  matchups?: ChampionBuildSummaryMatchups
+}
+
+/**
+ * An opponent a matchup sentence names. `id` is the champion id, which is also
+ * what the sentence links to: these are the champion page's only server-rendered
+ * links to other champions.
+ */
+export interface SummaryMatchup extends SummaryEntity {
+  games: number
+  /** The page's champion's win rate in this matchup, not the opponent's. */
+  winRate: number
+}
+
+/**
+ * The heads of the Matchups panel's two lists, in the panel's order —
+ * `rankMatchups` ranks both, so the prose and the panel cannot disagree on who
+ * the best and worst matchups are.
+ */
+export interface ChampionBuildSummaryMatchups {
+  best: SummaryMatchup[]
+  worst: SummaryMatchup[]
 }
 
 export interface ChampionBuildSummaryBuild {

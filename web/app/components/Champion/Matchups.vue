@@ -2,6 +2,8 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionMatchupEntry } from '~~/shared/types/champions'
 import type { ChampionPosition } from '#common/utils/positions'
+import { isLoadingStatus } from '#common/utils/async-data'
+import { rankMatchups } from '~~/shared/utils/matchup-ranking'
 
 const props = defineProps<{
   championId: number
@@ -20,8 +22,6 @@ const props = defineProps<{
    */
   patch?: string | null
 }>()
-
-const TOP_N = 5
 
 const selectedOpponentId = ref<number | null>(null)
 
@@ -42,8 +42,11 @@ const { data, status, error } = useChampionMatchups(
 )
 
 // Skeleton only on the first load — keep the table on screen while an opponent
-// search refetches so the rows don't flash out.
-const isLoading = computed(() => status.value === 'pending' && !data.value)
+// search refetches so the rows don't flash out. `idle` counts as loading: the
+// fetch is client-only, so the server renders this panel before it ever ran, and
+// reading that as "no matchups" put a false empty state in the HTML a crawler
+// indexes (#1954).
+const isLoading = computed(() => isLoadingStatus(status.value) && !data.value)
 
 // Champion id → static entry for icon + name lookups.
 const championById = useChampionsById(() => props.champions)
@@ -56,30 +59,11 @@ const opponentOptions = computed(() =>
 const entries = computed<ChampionMatchupEntry[]>(() => data.value?.matchups ?? [])
 const hasAny = computed(() => entries.value.length > 0)
 
-// Best five by the *lower* Wilson bound — "at worst, this matchup is this good".
-// Ranking the raw win rate instead is what put Sett-on-eleven-games (82%) above
-// Ambessa-on-739 (57%) at the top of every jungle champion: on a field of eighty
-// opponents the biggest rate is essentially always the smallest sample, so a raw
-// sort ranks variance, not matchups. The backend's games floor drops the noise;
-// this decides the order of what survives it.
-const best = computed(() =>
-  [...entries.value]
-    .sort((a, b) => b.winRateLowerBound - a.winRateLowerBound)
-    .slice(0, TOP_N),
-)
-
-// Worst five by the *upper* bound ascending — "at best, this matchup is only this
-// good". Deliberately not the mirror of `best`: sorting the lower bound upwards
-// would put the thinnest samples at the bottom, which is the same bug pointing
-// down. Best's rows are excluded rather than clamped by index, since the two
-// sorts are different orders and could otherwise show the same opponent twice.
-const worst = computed(() => {
-  const bestIds = new Set(best.value.map(m => m.opponentChampionId))
-  return [...entries.value]
-    .filter(m => !bestIds.has(m.opponentChampionId))
-    .sort((a, b) => a.winRateUpperBound - b.winRateUpperBound)
-    .slice(0, TOP_N)
-})
+// Best / worst five on the Wilson bounds — the ranking and its rationale live in
+// `rankMatchups`, shared with the server-rendered matchup sentences (#1954).
+const ranked = computed(() => rankMatchups(entries.value))
+const best = computed(() => ranked.value.best)
+const worst = computed(() => ranked.value.worst)
 
 // Opponent search: the backend returns just this opponent's head-to-head (one
 // entry or none), so the row is that entry when the player has met them.

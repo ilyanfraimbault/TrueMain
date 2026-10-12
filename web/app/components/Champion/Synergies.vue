@@ -2,6 +2,7 @@
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionSynergyEntry } from '~~/shared/types/champions'
 import type { ChampionPosition } from '#common/utils/positions'
+import { isLoadingStatus } from '#common/utils/async-data'
 
 const props = defineProps<{
   championId: number
@@ -51,8 +52,11 @@ const {
 )
 
 // Skeleton only on the very first load — keep the rows on screen while a lane
-// filter refetches so the list doesn't flash out from under the cursor.
-const isLoading = computed(() => status.value === 'pending' && !data.value)
+// filter refetches so the list doesn't flash out from under the cursor. `idle`
+// counts as loading for the same reason as the Matchups panel (#1954): the server
+// renders this before the client-only fetch ever ran, and must not claim the
+// champion has no games.
+const isLoading = computed(() => isLoadingStatus(status.value) && !data.value)
 const isTrioLoading = computed(() => trioStatus.value === 'pending' && !trioData.value)
 
 // Defensive re-sort: the API already orders by synergy, but the "top N" slice
