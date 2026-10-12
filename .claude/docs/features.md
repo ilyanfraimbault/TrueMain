@@ -419,7 +419,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   before 10 1903), missing; and a
   banner when capture stopped working while recordings exist. `?game=<id>` narrows it to one game's clips.
 - **Recap** (`/recordings/:id`, #1777) — the full game's video with the app's controls (play, previous / next moment
-  with a 5 s lead-in, mute, full screen; Space, ← →, Shift+← →, M, F) over a timeline of the whole video — full screen
+  with a 5 s lead-in, mute, playback speed 0.25×–4× kept for the session, full screen; Space, ← →, Shift+← →, M, < / >, F)
+  over a timeline of the whole video that zooms like a video editor's (pinch or Ctrl/⌘/Alt + wheel around the pointer,
+  − / = / \ around the playhead and fit, a zoom bar to pan and resize the window down to 4 s; zoomed in, the wheel pans,
+  the view pages to follow the playhead and a drag past an edge scrolls) — full screen
   (#1865) puts the window itself in full screen with the controls and the timeline floating over the video, faded out
   while the mouse rests during playback: the player's
   kills, assists and deaths each on a lane of its own, named by a glyph beside it (#1804) — kills rose-gold chips,
@@ -432,7 +435,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   Moments tab lists every moment to jump to. "Keep full game" exempts it from the budget; "Delete full game" removes
   the video, its clips stay. A game still processing says its highlights are being finalised (live ones shown). Opened
   by `recording://recap` from the dashboard or the game page only, by a card, or by "Watch".
-- **Clip player** (`/recordings/clips/:id`) — the clip's own file with its moments on the same timeline, its title
+- **Clip player** (`/recordings/clips/:id`) — the clip's own file with its moments on the same timeline (same speed and zoom), its title
   renamed in place, favourite, show in Finder, delete, and a link to the full game while it exists.
 - **Publish on YouTube** (clip player and the clip cards' menu, #1815) — a dialog in four steps, with no YouTube API:
   open YouTube's upload page in the player's browser; drag the clip's file straight from the dialog onto it (a native
