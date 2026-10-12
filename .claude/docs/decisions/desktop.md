@@ -404,7 +404,14 @@ player refuses to play without a `Referer` (error 153) and the app's page on mac
 none — measured in a WKWebView with the app's CSP: a direct embed fails, the same embed inside a page served on
 `http://127.0.0.1` plays. So the shell serves that one page on the loopback (`GET /youtube/<id>` only, no new
 dependency) and the CSP gains `frame-src http://127.0.0.1:*`; Windows (`http://tauri.localhost`) takes the same path
-for one behaviour. A private video does not play embedded, hence "Watch on YouTube" under the player — #2005.
+for one behaviour. A private video does not play embedded, hence "Watch on YouTube" under the player.
+
+A pasted link is **checked before it is kept**, since the clip may then lose its file and show that video in its
+place: YouTube's oEmbed endpoint (public, no key, no quota) must answer for it, and its title must be the clip's
+(case and spacing aside), the dialog's title being read-only for that reason. oEmbed answers nothing for a private
+video, so publishing as Unlisted or Public is required — the same condition the embed needs. It proves the video is
+the one published with the clip's title, not who owns the channel: that needs the player's YouTube sign-in, the API
+path #1815 dropped — #2005.
 
 **The next item sits over the game board and answers one purchase: what to complete, and what to buy now.** The mains'
 choice from where our build stands (#1749) is the decision; its share of the mains, one reason in the site's own

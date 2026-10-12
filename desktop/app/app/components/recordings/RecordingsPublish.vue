@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Clip } from '~/types/recordings'
-import { clipPublishText, YOUTUBE_DESCRIPTION_MAX, YOUTUBE_TITLE_MAX } from '~/utils/clip-publish'
+import { clipPublishText, YOUTUBE_DESCRIPTION_MAX } from '~/utils/clip-publish'
 import { formatBytes, revealLabel } from '~/utils/recording-library'
 import { formatClock } from '~/utils/recording-moments'
 
@@ -8,8 +8,11 @@ import { formatClock } from '~/utils/recording-moments'
  * "Publish on YouTube" (#1815): YouTube's own upload page does the upload, in
  * the player's browser and under their channel. The dialog walks the four
  * steps — open the page, drag the clip onto it, paste the prepared text, give
- * the video's link back — and keeps nothing until that link is saved. Then
- * the file can leave this PC, the clip playing from YouTube (#2005).
+ * the video's link back — and keeps nothing until that link is saved. The
+ * shell keeps a link only once YouTube confirms it is a video anyone with the
+ * link can watch, titled as the clip: so the title is not editable here (the
+ * clip is renamed instead). Then the file can leave this PC, the clip playing
+ * from YouTube (#2005).
  */
 const props = defineProps<{ clip: Clip }>()
 const open = defineModel<boolean>('open', { default: false })
@@ -23,6 +26,7 @@ const description = ref('')
 const tags = ref('')
 const link = ref('')
 const saving = ref(false)
+const linkError = ref<string | null>(null)
 const freeing = ref(false)
 
 /** Prepared again on each opening, from the clip as it is now (a rename included). */
@@ -35,7 +39,9 @@ watch(open, (opened) => {
   description.value = text.description
   tags.value = text.tags
   link.value = props.clip.youtubeUrl ?? ''
+  linkError.value = null
 }, { immediate: true })
+watch(link, () => (linkError.value = null))
 
 const thumbnailFailed = ref(false)
 const thumbnail = computed(() => (thumbnailFailed.value ? null : fileSrc(props.clip.thumbnailPath)))
@@ -43,12 +49,13 @@ watch(() => props.clip.thumbnailPath, () => (thumbnailFailed.value = false))
 
 async function saveLink() {
   saving.value = true
-  await setYoutubeUrl(props.clip.id, link.value)
+  linkError.value = await setYoutubeUrl(props.clip.id, link.value)
   saving.value = false
 }
 
 async function forgetLink() {
-  if (await setYoutubeUrl(props.clip.id, '')) link.value = ''
+  linkError.value = await setYoutubeUrl(props.clip.id, '')
+  if (!linkError.value) link.value = ''
 }
 </script>
 
@@ -56,7 +63,7 @@ async function forgetLink() {
   <UModal
     v-model:open="open"
     title="Publish on YouTube"
-    description="YouTube uploads it from your browser, to the channel you are signed in with. Its form asks who can watch it."
+    description="YouTube uploads it from your browser, to the channel you are signed in with. Choose Unlisted or Public: TrueMain then checks the video and can play it here."
     :ui="{ content: 'max-w-xl', footer: 'justify-end' }"
   >
     <template #body>
@@ -100,8 +107,8 @@ async function forgetLink() {
 
         <li class="flex flex-col gap-2">
           <p class="step">Paste the details</p>
-          <UFormField label="Title" :hint="`${title.length}/${YOUTUBE_TITLE_MAX}`">
-            <UInput v-model="title" :maxlength="YOUTUBE_TITLE_MAX" class="w-full">
+          <UFormField label="Title" help="Keep it as is: TrueMain recognises the video by its title. Rename the clip to change it.">
+            <UInput :model-value="title" readonly class="w-full">
               <template #trailing>
                 <UButton icon="i-lucide-copy" color="neutral" variant="link" size="xs" aria-label="Copy the title" @click="copy(title, 'Title')" />
               </template>
@@ -148,6 +155,7 @@ async function forgetLink() {
                 @click="forgetLink"
               />
             </div>
+            <p v-if="linkError" class="text-xs text-error" role="alert">{{ linkError }}</p>
             <div v-if="clip.videoOnDisk" class="flex items-center gap-3">
               <UButton
                 icon="i-lucide-hard-drive-download"
@@ -160,9 +168,20 @@ async function forgetLink() {
               <span class="text-xs text-muted">The clip stays in your recordings and plays from YouTube.</span>
             </div>
           </template>
-          <form v-else class="flex gap-2" @submit.prevent="saveLink">
-            <UInput v-model="link" placeholder="https://youtu.be/…" class="flex-1" aria-label="The video's YouTube link" />
-            <UButton type="submit" label="Save" color="neutral" variant="outline" :loading="saving" :disabled="!link.trim()" />
+          <form v-else class="flex flex-col gap-1.5" @submit.prevent="saveLink">
+            <div class="flex gap-2">
+              <UInput
+                v-model="link"
+                placeholder="https://youtu.be/…"
+                class="flex-1"
+                aria-label="The video's YouTube link"
+                :color="linkError ? 'error' : undefined"
+                :highlight="Boolean(linkError)"
+              />
+              <UButton type="submit" label="Check and save" color="neutral" variant="outline" :loading="saving" :disabled="!link.trim()" />
+            </div>
+            <p v-if="linkError" class="text-xs text-error" role="alert">{{ linkError }}</p>
+            <p v-else class="text-xs text-muted">TrueMain checks with YouTube that it is this clip's video.</p>
           </form>
         </li>
       </ol>

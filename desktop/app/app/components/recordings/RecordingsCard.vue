@@ -98,7 +98,7 @@ async function remove() {
         color="neutral"
         variant="solid"
         size="xs"
-        class="absolute right-1.5 top-1.5 bg-black/70 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+        class="absolute right-1.5 top-1.5 bg-black/70 text-white opacity-0 hover:bg-black/85 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
         aria-label="More actions"
       />
     </UDropdownMenu>

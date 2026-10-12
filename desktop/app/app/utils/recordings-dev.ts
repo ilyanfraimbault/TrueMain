@@ -137,7 +137,8 @@ export async function devRecordingCall(command: string, args: Record<string, unk
       return `https://www.youtube-nocookie.com/embed/${id}?rel=0`
     }
     case 'clip_set_youtube_url': {
-      // The shell's parser (`youtube_video_url`), reduced to the two links YouTube hands out.
+      // The shell's parser (`youtube_video_url`), reduced to the two links YouTube hands out;
+      // its check with YouTube's oEmbed (`check_video`) is the shell's alone.
       const found = clip(current, String(args.id))
       const link = String(args.url).trim()
       if (!link && !found.videoOnDisk) throw new Error('this clip is only on YouTube now: its link is all that is left of it')

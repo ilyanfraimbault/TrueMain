@@ -44,15 +44,20 @@ export function useClipPublish() {
   }
 
   /** Keep the video's link (an empty one forgets it); `false` when the shell refused it. */
-  async function setYoutubeUrl(id: string, url: string): Promise<boolean> {
+  /**
+   * Keep the video's link once the shell has checked with YouTube that it is
+   * the clip's (an empty one forgets it): `null` when kept, else why not, as
+   * the shell words it — the dialog shows it under the field.
+   */
+  async function setYoutubeUrl(id: string, url: string): Promise<string | null> {
     try {
       await recordingCall<Clip>('clip_set_youtube_url', { id, url })
       await refreshLibrary()
-      return true
+      return null
     }
     catch (error) {
-      failed('The link could not be saved', error)
-      return false
+      const message = String(error).replace(/^Error: /, '')
+      return message.charAt(0).toUpperCase() + message.slice(1)
     }
   }
 

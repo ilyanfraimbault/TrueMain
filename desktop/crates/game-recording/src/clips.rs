@@ -157,6 +157,21 @@ pub fn youtube_video_id(link: &str) -> Option<&str> {
     is_video_id(id).then_some(id)
 }
 
+/// Whether a YouTube video's title is the clip's own, as the publish dialog
+/// hands it over: case, runs of spaces and the `<` `>` YouTube refuses aside.
+/// It is how a pasted link is checked to be the clip's video (#2005).
+pub fn same_youtube_title(youtube: &str, clip: &str) -> bool {
+    let normal = |title: &str| {
+        title
+            .replace(['<', '>'], "")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    normal(youtube) == normal(clip)
+}
+
 /// YouTube's video ids: eleven characters of its URL-safe base64.
 pub fn is_video_id(id: &str) -> bool {
     id.len() == 11
@@ -429,6 +444,24 @@ mod tests {
         ] {
             assert_eq!(youtube_video_url(link), None, "{link}");
         }
+    }
+
+    #[test]
+    fn a_video_matches_its_clip_by_title() {
+        assert!(same_youtube_title(
+            "Triple kill on Ahri",
+            "Triple kill on Ahri"
+        ));
+        assert!(same_youtube_title(
+            "  triple  KILL on ahri ",
+            "Triple kill on Ahri"
+        ));
+        assert!(same_youtube_title("Kill  Dragon", "Kill <> Dragon"));
+        assert!(!same_youtube_title(
+            "Triple kill on Ahri (2)",
+            "Triple kill on Ahri"
+        ));
+        assert!(!same_youtube_title("Me at the zoo", "Triple kill on Ahri"));
     }
 
     #[test]
