@@ -27,7 +27,7 @@ public sealed record PersonaReadModel
 
 public sealed record PersonaLinkReadModel
 {
-    /// <summary>Lowercase kind: <c>twitch</c>, <c>youtube</c>, <c>x</c>, <c>kick</c>, <c>tiktok</c>, <c>instagram</c>, <c>leaguepedia</c>, <c>lolpros</c>, <c>website</c>.</summary>
+    /// <summary>Lowercase kind: <c>twitch</c>, <c>youtube</c>, <c>x</c>, <c>kick</c>, <c>tiktok</c>, <c>instagram</c>, <c>soop</c>, <c>chzzk</c>, <c>leaguepedia</c>, <c>lolpros</c>, <c>deeplol</c>, <c>website</c>.</summary>
     public string Kind { get; init; } = string.Empty;
 
     public string Url { get; init; } = string.Empty;

@@ -12,4 +12,9 @@ public enum PersonaLinkKind
     Instagram,
     Leaguepedia,
     LoLPros,
+    DeepLol,
+
+    /// <summary>SOOP (formerly AfreecaTV), where most Korean pros stream.</summary>
+    Soop,
+    Chzzk,
 }

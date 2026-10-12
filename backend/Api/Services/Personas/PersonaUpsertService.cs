@@ -180,8 +180,18 @@ public sealed partial class PersonaUpsertService(
             && string.Equals(a.TagLine, tagLine, StringComparison.OrdinalIgnoreCase));
         if (listed is not null)
         {
-            listed.RiotAccountId ??= await ResolveAsync(persona, platform, nameLower, tagLower, ct);
-            listed.ResolvedAtUtc ??= listed.RiotAccountId is null ? null : DateTime.UtcNow;
+            if (listed.RiotAccountId is null
+                && await ResolveAsync(persona, platform, nameLower, tagLower, ct) is { } resolved)
+            {
+                if (await IsLinkedElsewhereAsync(persona, resolved, ct))
+                {
+                    return result with { Status = AccountStatus.Conflict };
+                }
+
+                listed.RiotAccountId = resolved;
+                listed.ResolvedAtUtc = DateTime.UtcNow;
+            }
+
             return result with { Status = listed.RiotAccountId is null ? AccountStatus.Pending : AccountStatus.Linked };
         }
 

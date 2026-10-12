@@ -37,7 +37,7 @@ public sealed record PersonaUpsertEntry
 /// <summary>One public channel or page of a persona.</summary>
 public sealed record PersonaLinkEntry
 {
-    /// <summary><c>twitch</c>, <c>youtube</c>, <c>x</c>, <c>kick</c>, <c>tiktok</c>, <c>instagram</c>, <c>leaguepedia</c>, <c>lolpros</c> or <c>website</c>.</summary>
+    /// <summary><c>twitch</c>, <c>youtube</c>, <c>x</c>, <c>kick</c>, <c>tiktok</c>, <c>instagram</c>, <c>leaguepedia</c>, <c>lolpros</c>, <c>deeplol</c>, <c>soop</c>, <c>chzzk</c> or <c>website</c>.</summary>
     public string? Kind { get; init; }
 
     public string? Url { get; init; }

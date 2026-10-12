@@ -13,7 +13,8 @@ export interface PersonaTag {
 }
 
 export type PersonaLinkKind =
-  | 'twitch' | 'youtube' | 'x' | 'kick' | 'tiktok' | 'instagram' | 'leaguepedia' | 'lolpros' | 'website'
+  | 'twitch' | 'youtube' | 'x' | 'kick' | 'tiktok' | 'instagram' | 'soop' | 'chzzk'
+  | 'leaguepedia' | 'lolpros' | 'deeplol' | 'website'
 
 export interface PersonaLink {
   kind: PersonaLinkKind

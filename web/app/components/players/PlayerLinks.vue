@@ -12,8 +12,11 @@ const KINDS: Record<PersonaLinkKind, { label: string, icon: string }> = {
   kick: { label: 'Kick', icon: 'i-simple-icons-kick' },
   tiktok: { label: 'TikTok', icon: 'i-simple-icons-tiktok' },
   instagram: { label: 'Instagram', icon: 'i-simple-icons-instagram' },
+  soop: { label: 'SOOP', icon: 'i-lucide-tv' },
+  chzzk: { label: 'CHZZK', icon: 'i-lucide-tv' },
   leaguepedia: { label: 'Leaguepedia', icon: 'i-lucide-book-open' },
   lolpros: { label: 'LoLPros', icon: 'i-lucide-trophy' },
+  deeplol: { label: 'DeepLoL', icon: 'i-lucide-bar-chart-3' },
   website: { label: 'Website', icon: 'i-lucide-globe' },
 }
 
