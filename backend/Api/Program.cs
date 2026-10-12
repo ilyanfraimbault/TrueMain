@@ -35,6 +35,7 @@ using TrueMain.Services.Ops.Diagnostics;
 using TrueMain.Services.Ops.Health;
 using TrueMain.Services.Ops.Processes;
 using TrueMain.Services.Ops.Stats;
+using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
 using TrueMain.Services.Truemains.Lookup;
@@ -357,6 +358,7 @@ builder.Services.AddScoped<IPipelineHealthQueryService>(services => new CachedPi
 builder.Services.AddScoped<IRegionBalanceQueryService, RegionBalanceQueryService>();
 builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
 builder.Services.AddTrueMainOpsStats();
+builder.Services.AddTrueMainPersonas();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IDbStorageHistoryQueryService, DbStorageHistoryQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();

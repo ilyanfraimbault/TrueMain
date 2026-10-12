@@ -2,6 +2,8 @@
 import type { RegionSlug } from '#shared/types/leaderboard'
 import type { MatchSummaryResponse } from '#shared/types/matches'
 import type { ProfileRanked } from '#shared/types/profile'
+import type { PersonaTag } from '#shared/types/players'
+import { playerPath } from '#shared/utils/player-path'
 import { formTiles, RECENT_GAMES } from '#common/utils/match-form'
 import { isApexTier } from '#common/utils/tiers'
 
@@ -28,6 +30,8 @@ const props = withDefaults(defineProps<{
   ranked?: ProfileRanked | null
   /** The champion the player truemains, named on the banner. */
   truemain?: { name: string, iconUrl: string | null } | null
+  /** The known player this account belongs to (#2016), linking to all their accounts. */
+  persona?: PersonaTag | null
   splashUrl?: string | null
   splashPosition?: string
   /** The games the form tiles read, newest first. */
@@ -40,6 +44,7 @@ const props = withDefaults(defineProps<{
   level: null,
   ranked: null,
   truemain: null,
+  persona: null,
   splashUrl: null,
   splashPosition: '68% 22%',
   loading: false,
@@ -114,6 +119,20 @@ const rankLabel = computed(() => {
             />
             {{ truemain.name }}
           </span>
+        </template>
+        <template v-if="persona">
+          <span class="text-dimmed">·</span>
+          <ULink
+            :to="playerPath(persona.slug)"
+            class="flex items-center gap-1.5 font-semibold text-highlighted hover:text-primary"
+          >
+            <UIcon
+              name="i-lucide-user-round"
+              class="size-4"
+            />
+            {{ persona.displayName }}
+            <span class="font-normal text-muted">· all accounts</span>
+          </ULink>
         </template>
       </template>
 

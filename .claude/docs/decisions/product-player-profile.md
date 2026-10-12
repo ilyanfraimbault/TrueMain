@@ -202,3 +202,22 @@ site's match detail.
 
 **Source.** #2009, #1911.
 
+## Known players: one person, several accounts, only what public sources list (2026-10-13)
+
+**Decision.** A known player — a pro, a streamer, a creator, or any notable player — is a *persona* in the code and the
+person's own name on the site, never a generic noun: `/players/{slug}` lists their public links and every Riot account
+public sources (Leaguepedia, LoLPros, …) attribute to them, each leading to the regular profile. On `/truemains` a
+linked account's row shows the person's name, which links to that page, while the rest of the row still opens the
+account's profile; the profile banner links back with "{name} · all accounts". The page sits outside `/truemains`
+because a known player need not be a true main of anything.
+
+Accounts are linked only when a public source lists them, and every link keeps its source. TrueMain infers nothing — no
+smurf detection from play patterns, no historic Riot IDs: Riot's policy forbids de-anonymising a player who cannot
+reasonably be identified from visible information. The intake is additive and never moves an account another persona
+holds (a conflict is reported for an operator to settle), and untracked accounts are seeded only on platforms the site
+shows.
+
+**Why.** Visitors reach a famous player through one of their accounts and had no way to know whose it was or find the
+others. The first `personas` table (dropped in #1244) was half-built with no consumer; this one ships with its reader.
+
+**Source.** #2016.

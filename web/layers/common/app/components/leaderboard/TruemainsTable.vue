@@ -5,6 +5,7 @@ import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '#
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 import { formatCount } from '#shared/utils/counts'
 import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
+import { playerPath } from '#shared/utils/player-path'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { isApexTier } from '#common/utils/tiers'
 import { winRateTone } from '#common/utils/rate-tone'
@@ -148,6 +149,21 @@ const TOOLTIP_UI = { content: 'p-0 h-auto max-w-none bg-transparent ring-0 shado
         tabindex="-1"
         :ui="{ avatar: '@xl:size-9', tag: 'hidden @xl:inline' }"
       >
+        <!-- A known player (#2016): their name links to their page, above the
+             overlay that opens this account's profile; the Riot ID stays beside it. -->
+        <template
+          v-if="row.original.persona"
+          #name
+        >
+          <div class="flex min-w-0 items-baseline gap-1.5">
+            <NuxtLink
+              :to="playerPath(row.original.persona.slug)"
+              class="relative truncate text-sm font-bold text-highlighted underline-offset-2 hover:text-primary hover:underline"
+              @click.stop
+            >{{ row.original.persona.displayName }}</NuxtLink>
+            <span class="hidden truncate text-[11px] text-muted @xl:inline">{{ row.original.identity.gameName }}<template v-if="row.original.identity.tagLine">#{{ row.original.identity.tagLine }}</template></span>
+          </div>
+        </template>
         <template v-if="isOtp(row.original)" #subline>
           <span
             class="rounded-full bg-amber-400/25 px-1.5 py-px text-[9px] font-bold uppercase leading-none tracking-wide text-amber-200 ring-1 ring-amber-400/50"
