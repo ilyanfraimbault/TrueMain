@@ -1,3 +1,5 @@
+using TrueMain.ReadModels.Personas;
+
 namespace TrueMain.ReadModels.Truemains;
 
 /// <summary>
@@ -34,6 +36,9 @@ public sealed record ProfileReadModel
     /// </summary>
     public IReadOnlyList<ProfilePositionStatReadModel> Positions { get; init; }
         = Array.Empty<ProfilePositionStatReadModel>();
+
+    /// <summary>The known player this account belongs to (#2016); null when none.</summary>
+    public PersonaTagReadModel? Persona { get; init; }
 }
 
 public sealed record ProfileIdentityReadModel

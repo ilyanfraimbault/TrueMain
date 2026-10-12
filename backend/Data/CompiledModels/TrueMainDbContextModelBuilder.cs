@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("d31772b0-0c12-4343-9829-c2d463a16abc"), entityTypeCount: 34)
+            : base(skipDetectChanges: false, modelId: new Guid("ffd52a3a-6673-434e-b95f-8346e5553b7c"), entityTypeCount: 37)
         {
         }
 
@@ -50,6 +50,9 @@ namespace Data.CompiledModels
             var paceSampledMatch = PaceSampledMatchEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
+            var persona = PersonaEntityType.Create(this);
+            var personaAccount = PersonaAccountEntityType.Create(this);
+            var personaLink = PersonaLinkEntityType.Create(this);
             var rankSnapshot = RankSnapshotEntityType.Create(this);
             var riotAccount = RiotAccountEntityType.Create(this);
 
@@ -66,6 +69,9 @@ namespace Data.CompiledModels
             MatchParticipantTimelineSnapshotEntityType.CreateForeignKey1(matchParticipantTimelineSnapshot, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey1(participantPerkSelection, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey2(participantPerkSelection, perkSelectionCatalog);
+            PersonaAccountEntityType.CreateForeignKey1(personaAccount, persona);
+            PersonaAccountEntityType.CreateForeignKey2(personaAccount, riotAccount);
+            PersonaLinkEntityType.CreateForeignKey1(personaLink, persona);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
 
             BanScopeTotalEntityType.CreateAnnotations(banScopeTotal);
@@ -100,6 +106,9 @@ namespace Data.CompiledModels
             PaceSampledMatchEntityType.CreateAnnotations(paceSampledMatch);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
+            PersonaEntityType.CreateAnnotations(persona);
+            PersonaAccountEntityType.CreateAnnotations(personaAccount);
+            PersonaLinkEntityType.CreateAnnotations(personaLink);
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);
             RiotAccountEntityType.CreateAnnotations(riotAccount);
 

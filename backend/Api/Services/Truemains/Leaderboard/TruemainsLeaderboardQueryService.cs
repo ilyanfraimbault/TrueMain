@@ -7,6 +7,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains.Identity;
 
 namespace TrueMain.Services.Truemains.Leaderboard;
@@ -290,7 +291,9 @@ public sealed class TruemainsLeaderboardQueryService(
                 ctx => LeaderboardTopBuilds.FetchAsync(ctx, RankedQueueId, topChampions, accountIdByPuuid, ct), ct);
         });
 
-        await Task.WhenAll(topChampionsTask, statsTask, ranksTask, buildsTask, positionsTask, dedicationTask);
+        var personasTask = WithContextAsync(ctx => PersonaTags.FetchAsync(ctx, accountIds, ct), ct);
+
+        await Task.WhenAll(topChampionsTask, statsTask, ranksTask, buildsTask, positionsTask, dedicationTask, personasTask);
 
         var (topChampionsByPuuid, topChampMs) = await topChampionsTask;
         var (statsByPuuid, statsMs) = await statsTask;
@@ -298,6 +301,7 @@ public sealed class TruemainsLeaderboardQueryService(
         var (buildsByPuuidChampion, buildsContinuationMs) = await buildsTask;
         var (positionsByPuuid, positionsMs) = await positionsTask;
         var (dedicationByAccount, dedicationMs) = await dedicationTask;
+        var personasByAccount = await personasTask;
 
         var rows = pageRows
             .Select((row, index) => LeaderboardPageHydration.BuildRow(
@@ -308,7 +312,10 @@ public sealed class TruemainsLeaderboardQueryService(
                 statsByPuuid.GetValueOrDefault(row.Puuid),
                 ranksByAccount.GetValueOrDefault(row.Id),
                 positionsByPuuid.GetValueOrDefault(row.Puuid),
-                dedicationByAccount.GetValueOrDefault(row.Id)))
+                dedicationByAccount.GetValueOrDefault(row.Id)) with
+            {
+                Persona = personasByAccount.GetValueOrDefault(row.Id),
+            })
             .ToList();
 
         var response = new LeaderboardResponse

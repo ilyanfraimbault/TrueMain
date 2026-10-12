@@ -99,6 +99,7 @@ const mockProfile: ProfileResponse = {
     { position: 'MIDDLE', games: 170, rate: 170 / 190 },
     { position: 'BOTTOM', games: 20, rate: 20 / 190 },
   ],
+  persona: null,
 }
 
 const now = new Date()

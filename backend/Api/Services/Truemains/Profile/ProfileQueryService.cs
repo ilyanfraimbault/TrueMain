@@ -4,7 +4,9 @@ using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using TrueMain.ReadModels.Personas;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
 
@@ -67,8 +69,9 @@ public sealed class ProfileQueryService(
         var snapshotTask = FetchSnapshotAsync(account.Id, ct);
         var mainsTask = FetchMainsAsync(account.PlatformId, account.Puuid, ct);
         var dedicationTask = FetchDedicationAsync(account.Id, ct);
+        var personaTask = FetchPersonaAsync(account.Id, ct);
 
-        await Task.WhenAll(snapshotTask, mainsTask, dedicationTask);
+        await Task.WhenAll(snapshotTask, mainsTask, dedicationTask, personaTask);
 
         var snapshot = await snapshotTask;
         var mains = await mainsTask;
@@ -152,6 +155,7 @@ public sealed class ProfileQueryService(
                 .ToList(),
             Dedication = dedication,
             Positions = positions,
+            Persona = await personaTask,
         };
     }
 
@@ -172,6 +176,13 @@ public sealed class ProfileQueryService(
     /// because a 0 would read as "measured and found wanting" rather than "not
     /// measured yet".
     /// </summary>
+    private async Task<PersonaTagReadModel?> FetchPersonaAsync(Guid accountId, CancellationToken ct)
+    {
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+        var personas = await PersonaTags.FetchAsync(ctx, [accountId], ct);
+        return personas.GetValueOrDefault(accountId);
+    }
+
     private async Task<DedicationReadModel?> FetchDedicationAsync(Guid accountId, CancellationToken ct)
     {
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);

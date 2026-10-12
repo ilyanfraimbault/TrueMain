@@ -1,0 +1,136 @@
+<script setup lang="ts">
+import type { PersonaResponse } from '~~/shared/types/players'
+import { parseRouteParam } from '#common/utils/route-params'
+
+// A known player's page (#2016): the person — a pro, a streamer, a creator or
+// any notable player — their public channels, and every Riot account public
+// sources list for them, each leading back to the regular profile. Server
+// rendered: the page is public and is what a search for the person should land on.
+const route = useRoute()
+const slug = computed(() => parseRouteParam(route.params.slug).toLowerCase())
+
+const apiFetch = useApiFetch()
+const { data: persona, status, error } = await useAsyncData<PersonaResponse | null>(
+  () => `player-${slug.value}`,
+  async (_nuxtApp, { signal }) => {
+    const response = await apiFetch<PersonaResponse | null>(
+      `/players/${encodeURIComponent(slug.value)}`,
+      { ignoreResponseError: true, signal },
+    )
+    // A 404 resolves to an empty body: anything without a name is "unknown".
+    return response && typeof response === 'object' && response.displayName ? response : null
+  },
+  { watch: [slug] },
+)
+
+const notFound = computed(() => status.value === 'success' && !persona.value)
+
+const { data: versions } = useDDragonVersions()
+const patch = computed(() => versions.value?.[0] ?? null)
+const { data: championsData } = useChampionStaticList()
+const championsById = computed(() => new Map((championsData.value ?? []).map(c => [c.championId, c])))
+
+const tracked = computed(() => persona.value?.accounts.filter(a => a.tracked) ?? [])
+const untracked = computed(() => persona.value?.accounts.filter(a => !a.tracked) ?? [])
+
+const accountsSummary = computed(() => {
+  const count = persona.value?.accounts.length ?? 0
+  return `${count} ${count === 1 ? 'account' : 'accounts'}`
+})
+
+const breadcrumbItems = computed(() => [
+  { label: 'Truemains', to: '/truemains' },
+  { label: persona.value?.displayName ?? slug.value },
+])
+
+useSeoMeta({
+  title: () => persona.value ? `${persona.value.displayName} — accounts` : 'Player',
+  description: () => persona.value
+    ? `Every League of Legends account of ${persona.value.displayName} — Riot IDs, ranks and mains.`
+    : 'A known League of Legends player on TrueMain.',
+})
+
+if (import.meta.server && notFound.value) {
+  setResponseStatus(useRequestEvent()!, 404)
+}
+</script>
+
+<template>
+  <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 md:p-6">
+    <UBreadcrumb :items="breadcrumbItems" />
+
+    <FetchErrorAlert
+      :error="error"
+      title="This player could not be loaded"
+    />
+
+    <UEmpty
+      v-if="notFound"
+      icon="i-lucide-user-x"
+      title="Unknown player"
+      description="No known player answers to this name."
+      :actions="[{ label: 'Back to the truemains', to: '/truemains', color: 'neutral', variant: 'subtle' }]"
+    />
+
+    <template v-else-if="persona">
+      <PageHeader
+        eyebrow="Player"
+        :title="persona.displayName"
+        :description="accountsSummary"
+      >
+        <PlayersPlayerLinks :links="persona.links" />
+      </PageHeader>
+
+      <section
+        v-if="tracked.length"
+        class="flex flex-col gap-2"
+      >
+        <h2 class="eyebrow">
+          Accounts
+        </h2>
+        <ul class="flex flex-col gap-1">
+          <PlayersPlayerAccountRow
+            v-for="account in tracked"
+            :key="`${account.platformId}:${account.gameName}#${account.tagLine}`"
+            :account="account"
+            :champions-by-id="championsById"
+            :patch="patch"
+          />
+        </ul>
+      </section>
+
+      <section
+        v-if="untracked.length"
+        class="flex flex-col gap-2"
+      >
+        <h2 class="eyebrow">
+          Not tracked yet
+        </h2>
+        <p class="text-xs text-muted">
+          Listed by public sources; their profiles appear once TrueMain has ingested their games.
+        </p>
+        <ul class="flex flex-col gap-1">
+          <PlayersPlayerAccountRow
+            v-for="account in untracked"
+            :key="`${account.platformId}:${account.gameName}#${account.tagLine}`"
+            :account="account"
+            :champions-by-id="championsById"
+            :patch="patch"
+          />
+        </ul>
+      </section>
+    </template>
+
+    <div
+      v-else-if="status === 'pending'"
+      class="flex flex-col gap-2"
+    >
+      <USkeleton class="h-9 w-64" />
+      <USkeleton
+        v-for="index in 3"
+        :key="index"
+        class="h-14 rounded-lg"
+      />
+    </div>
+  </div>
+</template>

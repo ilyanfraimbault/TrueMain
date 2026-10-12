@@ -125,6 +125,7 @@ Last verified against `develop` on 2026-09-02.
 - The "{player} vs mains" card is gone — one page, one definition of a core build (2026-09-03) — #529
 - An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
 - The site's match detail has no Timeline tab: TrueMain computes and stores no win-probability curve, the desktop app alone builds it from the client's timeline (2026-10-12, reverses 2026-10-05) — #2009, #1911
+- Known players: one person, several accounts at `/players/{slug}`, linked only from public sources, never inferred (2026-10-13) — #2016
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
 

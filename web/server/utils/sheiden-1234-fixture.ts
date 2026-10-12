@@ -64,6 +64,8 @@ export const SHEIDEN_PROFILE: ProfileResponse = {
     { position: 'MIDDLE', games: 60, rate: 60 / 600 },
     { position: 'TOP', games: 20, rate: 20 / 600 },
   ],
+  // The known player the dev mock gives this account and a smurf (#2016).
+  persona: { slug: 'sheiden', displayName: 'Sheiden TV' },
 }
 
 // Tier cutoffs we apply to LP for label purposes — Riot's actual GM/Chall

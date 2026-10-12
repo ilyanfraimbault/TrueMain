@@ -3,6 +3,7 @@
 
 import type { TruemainDedication } from './dedication'
 import type { ProfileIdentity } from './profile'
+import type { PersonaTag } from './players'
 
 /**
  * Every region slug the leaderboard exposes, as a runtime list.
@@ -58,6 +59,8 @@ export interface LeaderboardRowResponse {
   positions: LeaderboardPositions | null
   /** Dedication score for the row's signature champion — the sort key behind `?sort=dedication`, shown on every row. Null when no main-champion analysis has run. */
   dedication: TruemainDedication | null
+  /** The known player this account belongs to (#2016); null for an account no source attributes to anyone. */
+  persona: PersonaTag | null
 }
 
 export interface LeaderboardPositions {
