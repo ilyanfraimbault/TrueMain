@@ -380,6 +380,8 @@ pub fn run() {
             recording::clip_open_youtube,
             recording::clip_set_youtube_url,
             recording::clip_start_drag,
+            recording::clip_delete_video,
+            recording::clip_youtube_embed,
             overlay::overlay_view,
             overlay::set_overlay_settings,
             overlay::overlay_check_trigger,

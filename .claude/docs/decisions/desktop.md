@@ -396,6 +396,23 @@ private. The browser flow has none of these limits and lets the player pick the 
 drag is the shell's (the `drag` crate, path resolved from the clip id, never taken from the webview). Revisit only
 with a real user base and telemetry showing the manual steps are the bottleneck — #1815.
 
+**A clip published on YouTube may leave the disk and play from YouTube's embed, framed through a loopback page
+(2026-10-12).** The product owner publishes clips mainly to free space: once a clip has a YouTube link, its video file
+can be deleted while the clip stays in the library (metadata and thumbnail kept) and plays from YouTube. Only a linked
+clip can drop its file, and its link can no longer be removed, so a clip never points at nothing. YouTube's embedded
+player refuses to play without a `Referer` (error 153) and the app's page on macOS is `tauri://localhost`, which sends
+none — measured in a WKWebView with the app's CSP: a direct embed fails, the same embed inside a page served on
+`http://127.0.0.1` plays. So the shell serves that one page on the loopback (`GET /youtube/<id>` only, no new
+dependency) and the CSP gains `frame-src http://127.0.0.1:*`; Windows (`http://tauri.localhost`) takes the same path
+for one behaviour. A private video does not play embedded, hence "Watch on YouTube" under the player.
+
+A pasted link is **checked before it is kept**, since the clip may then lose its file and show that video in its
+place: YouTube's oEmbed endpoint (public, no key, no quota) must answer for it, and its title must be the clip's
+(case and spacing aside), the dialog's title being read-only for that reason. oEmbed answers nothing for a private
+video, so publishing as Unlisted or Public is required — the same condition the embed needs. It proves the video is
+the one published with the clip's title, not who owns the channel: that needs the player's YouTube sign-in, the API
+path #1815 dropped — #2005.
+
 **The next item sits over the game board and answers one purchase: what to complete, and what to buy now.** The mains'
 choice from where our build stands (#1749) is the decision; its share of the mains, one reason in the site's own
 item-context words, the gold left and the components the gold in hand buys are what turns it into a purchase. Two

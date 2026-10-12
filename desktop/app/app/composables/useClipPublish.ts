@@ -44,17 +44,38 @@ export function useClipPublish() {
   }
 
   /** Keep the video's link (an empty one forgets it); `false` when the shell refused it. */
-  async function setYoutubeUrl(id: string, url: string): Promise<boolean> {
+  /**
+   * Keep the video's link once the shell has checked with YouTube that it is
+   * the clip's (an empty one forgets it): `null` when kept, else why not, as
+   * the shell words it — the dialog shows it under the field.
+   */
+  async function setYoutubeUrl(id: string, url: string): Promise<string | null> {
     try {
       await recordingCall<Clip>('clip_set_youtube_url', { id, url })
+      await refreshLibrary()
+      return null
+    }
+    catch (error) {
+      const message = String(error).replace(/^Error: /, '')
+      return message.charAt(0).toUpperCase() + message.slice(1)
+    }
+  }
+
+  /** Delete a published clip's file, keeping the clip; `false` when the shell refused. */
+  async function deleteVideo(id: string): Promise<boolean> {
+    try {
+      await recordingCall<Clip>('clip_delete_video', { id })
       await refreshLibrary()
       return true
     }
     catch (error) {
-      failed('The link could not be saved', error)
+      failed('The video could not be removed', error)
       return false
     }
   }
+
+  /** The page that plays a clip from YouTube (`recording/embed.rs`), or `null` when there is none. */
+  const embedUrl = (id: string) => recordingCall<string>('clip_youtube_embed', { id }).catch(() => null)
 
   async function copy(text: string, what: string) {
     try {
@@ -66,5 +87,5 @@ export function useClipPublish() {
     }
   }
 
-  return { openUpload, openVideo, startDrag, setYoutubeUrl, copy }
+  return { openUpload, openVideo, startDrag, setYoutubeUrl, deleteVideo, embedUrl, copy }
 }

@@ -135,6 +135,8 @@ export interface Clip {
   moments: Moment[]
   /** The YouTube video it was published as, once the player gave its link (#1815). */
   youtubeUrl: string | null
+  /** False once a published clip's file was deleted to free space: it plays from YouTube (#2005). */
+  videoOnDisk: boolean
 }
 
 export interface RecordingLibrary {

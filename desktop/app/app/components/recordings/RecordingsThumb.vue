@@ -59,6 +59,15 @@ const ago = computed(() => formatRelativeTime(new Date(props.item.atMs).toISOStr
       <UIcon :name="item.kind === 'clip' ? 'i-lucide-star' : 'i-lucide-pin'" class="size-3 text-gold" />
     </span>
 
+    <span
+      v-if="!item.videoOnDisk"
+      class="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-highlighted"
+      title="Its video is no longer on this PC: it plays from YouTube"
+    >
+      <UIcon name="i-lucide-youtube" class="size-3" />
+      On YouTube
+    </span>
+
     <div class="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[11px] font-medium tabular-nums">
       <span class="rounded bg-black/70 px-1.5 py-0.5 text-muted">{{ ago }}</span>
       <span v-if="item.durationMs !== null" class="rounded bg-black/70 px-1.5 py-0.5 text-highlighted">{{ formatClock(item.durationMs) }}</span>

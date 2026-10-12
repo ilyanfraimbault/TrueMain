@@ -47,6 +47,7 @@ const FEATURE_LABELS: Record<string, string> = {
   champSelectBan: 'Bans made from the app',
   youtubeUploadOpened: 'YouTube upload opened from a clip',
   clipPublished: 'Clips published on YouTube',
+  clipVideoDeleted: 'Published clips removed from disk',
 }
 const OS_LABELS: Record<string, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
 

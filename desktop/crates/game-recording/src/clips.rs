@@ -115,6 +115,12 @@ pub fn clean_title(title: &str) -> String {
 /// link to a YouTube video. Accepts the watch page, the short `youtu.be` link
 /// YouTube's upload form hands out, Shorts and the video's YouTube Studio page.
 pub fn youtube_video_url(link: &str) -> Option<String> {
+    youtube_video_id(link).map(|id| format!("https://www.youtube.com/watch?v={id}"))
+}
+
+/// The id of the YouTube video a link points to, from the links
+/// [`youtube_video_url`] accepts.
+pub fn youtube_video_id(link: &str) -> Option<&str> {
     let link = link.trim();
     let rest = ["https://", "http://"]
         .iter()
@@ -148,11 +154,26 @@ pub fn youtube_video_url(link: &str) -> Option<String> {
         },
         _ => None,
     }?;
-    is_video_id(id).then(|| format!("https://www.youtube.com/watch?v={id}"))
+    is_video_id(id).then_some(id)
+}
+
+/// Whether a YouTube video's title is the clip's own, as the publish dialog
+/// hands it over: case, runs of spaces and the `<` `>` YouTube refuses aside.
+/// It is how a pasted link is checked to be the clip's video (#2005).
+pub fn same_youtube_title(youtube: &str, clip: &str) -> bool {
+    let normal = |title: &str| {
+        title
+            .replace(['<', '>'], "")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    normal(youtube) == normal(clip)
 }
 
 /// YouTube's video ids: eleven characters of its URL-safe base64.
-fn is_video_id(id: &str) -> bool {
+pub fn is_video_id(id: &str) -> bool {
     id.len() == 11
         && id
             .bytes()
@@ -214,6 +235,16 @@ impl ClipDir {
             .filter_map(|name| fs::metadata(self.path.join(name)).ok())
             .map(|metadata| metadata.len())
             .sum()
+    }
+
+    /// Delete the clip's video only, keeping its metadata and thumbnail: a
+    /// clip published on YouTube stays listed and plays from there (#2005).
+    /// Deleting a video already gone is not an error.
+    pub fn delete_video(&self) -> io::Result<()> {
+        match fs::remove_file(self.video_path()) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+            _ => Ok(()),
+        }
     }
 
     /// Delete the clip's own files, then its folder if nothing else is in it.
@@ -399,6 +430,7 @@ mod tests {
             "HTTPS://WWW.YOUTUBE.COM/watch?v=dQw4w9WgXcQ",
         ] {
             assert_eq!(youtube_video_url(link), kept, "{link}");
+            assert_eq!(youtube_video_id(link), Some("dQw4w9WgXcQ"), "{link}");
         }
         for link in [
             "",
@@ -412,6 +444,24 @@ mod tests {
         ] {
             assert_eq!(youtube_video_url(link), None, "{link}");
         }
+    }
+
+    #[test]
+    fn a_video_matches_its_clip_by_title() {
+        assert!(same_youtube_title(
+            "Triple kill on Ahri",
+            "Triple kill on Ahri"
+        ));
+        assert!(same_youtube_title(
+            "  triple  KILL on ahri ",
+            "Triple kill on Ahri"
+        ));
+        assert!(same_youtube_title("Kill  Dragon", "Kill <> Dragon"));
+        assert!(!same_youtube_title(
+            "Triple kill on Ahri (2)",
+            "Triple kill on Ahri"
+        ));
+        assert!(!same_youtube_title("Me at the zoo", "Triple kill on Ahri"));
     }
 
     #[test]
@@ -444,12 +494,20 @@ mod tests {
 
         recording_dir.delete().unwrap();
         let listed = clips.list().unwrap();
+        let with_video = listed[0].size_bytes;
         assert_eq!(listed.len(), 1);
         assert!(listed[0].size_bytes >= 300);
         // The clips folder is not a recording.
         assert!(store.list().unwrap().is_empty());
         assert!(clips.get(&dir.id()).is_some());
         assert!(clips.get("../x").is_none());
+
+        // Without its video, the clip is still listed, at its remaining size.
+        dir.delete_video().unwrap();
+        dir.delete_video().unwrap();
+        let listed = clips.list().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].size_bytes, with_video - 300);
 
         dir.delete().unwrap();
         assert!(clips.list().unwrap().is_empty());

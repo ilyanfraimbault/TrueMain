@@ -438,11 +438,21 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 - **Publish on YouTube** (clip player and the clip cards' menu, #1815) — a dialog in four steps, with no YouTube API:
   open YouTube's upload page in the player's browser; drag the clip's file straight from the dialog onto it (a native
   OS file drag started by the shell, `recording/publish.rs`; "Show in Finder / Explorer" beside it); copy the prepared
-  title (the clip's own), description (champion · result · K/D/A · queue, and the champion's page on truemain.lol —
-  always production, the video is public) and tags (`League of Legends`, the champion), each editable; then paste the
-  video's link once it is up. The link is checked to be a YouTube video's and kept on the clip (`clip.json`): the card
-  shows a YouTube mark and the player "Watch on YouTube". Counted in the usage telemetry (`youtubeUploadOpened`,
+  title (the clip's own, read-only — rename the clip to change it), description (champion · result · K/D/A · queue,
+  and the champion's page on truemain.lol — always production, the video is public) and tags (`League of Legends`,
+  the champion), the last two editable; then paste the video's link once it is up. The shell keeps it only once
+  YouTube's oEmbed endpoint (public, no key) confirms the video exists, is Unlisted or Public, and carries the clip's
+  title (case and spacing aside) — otherwise the reason shows under the field (#2005). Kept on the clip
+  (`clip.json`): the card shows a YouTube mark and the player "Watch on YouTube". Counted in the usage telemetry (`youtubeUploadOpened`,
   `clipPublished`).
+- **Remove from this PC** (published clips, #2005) — from the publish dialog once the link is saved, the clip player's
+  header and the card menu, confirmed: deletes the clip's video file only (`clip_delete_video`, refused without a
+  YouTube link). The clip stays in Recordings with its thumbnail, title and K/D/A, its card marked "On YouTube", and
+  counts only its remaining bytes. Its player becomes YouTube's embedded player (with "Watch on YouTube" under it — a
+  private video only plays on YouTube); no drag, "Show in Finder" or publish entry, and its link can no longer be
+  forgotten. The embed is framed through a page the shell serves on `127.0.0.1` (`recording/embed.rs`): YouTube's
+  player refuses to play in the app's own `tauri://` page on macOS (error 153, no `Referer`). Counted as
+  `clipVideoDeleted`.
 - **Recording settings** (slideover from the Recordings header) — capture status with the permission button, on/off,
   ranked only / every game, resolution (Native, 1440p, 1080p, 720p) and 30 / 60 fps with the shell's estimated size of
   an hour (labelled an estimate; none for Native), the disk budget (slider from the shell's minimum, space used) and the

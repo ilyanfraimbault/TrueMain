@@ -6,20 +6,32 @@
 //! (`decisions/desktop.md`).
 //!
 //! The player gives the video's link back once it is up; the clip keeps it and
-//! shows as published.
+//! shows as published. From then on its video file can go (#2005): the clip
+//! stays listed, with its thumbnail, and plays from YouTube. So a link is only
+//! kept once YouTube's oEmbed endpoint — public, no key — answers for it with
+//! the clip's own title: it is the clip's video, and it can be played here.
 
-use game_recording::youtube_video_url;
+use std::time::Duration;
+
+use game_recording::{same_youtube_title, youtube_video_id, youtube_video_url};
+use serde::Deserialize;
 use tauri::{AppHandle, State, Window};
 
 use crate::telemetry::{self, Feature};
 
 use super::commands::{clip_view, find_clip};
+use super::embed;
 use super::views::ClipView;
 use super::{emit_library, SharedRecorder};
 
 /// YouTube's upload page: it opens the channel's upload dialog, or asks the
 /// player to sign in first.
 const UPLOAD_URL: &str = "https://www.youtube.com/upload";
+
+/// YouTube's oEmbed endpoint: a video's title and channel, for a public or
+/// unlisted video only — a private one answers 401.
+const OEMBED_URL: &str = "https://www.youtube.com/oembed";
+const OEMBED_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The image under the cursor while a clip is dragged: the app's icon, small
 /// enough not to hide the page it is dropped on.
@@ -61,10 +73,64 @@ pub fn clip_open_youtube(
     open(&app, &url)
 }
 
-/// Keep the YouTube video a clip was published as — or forget it, for an
-/// empty link. Anything but a link to a YouTube video is refused.
+/// The page the clip player frames to play a published clip from YouTube
+/// (`embed.rs`).
 #[tauri::command]
-pub fn clip_set_youtube_url(
+pub fn clip_youtube_embed(
+    recorder: State<'_, SharedRecorder>,
+    id: String,
+) -> Result<String, String> {
+    let clip = find_clip(&recorder, &id)?;
+    let video = clip
+        .meta
+        .youtube_url
+        .as_deref()
+        .and_then(youtube_video_id)
+        .ok_or("this clip has no YouTube link")?;
+    embed::page_url(video)
+}
+
+#[derive(Deserialize)]
+struct OEmbed {
+    title: String,
+}
+
+/// Check with YouTube that `url` is the clip's video: one it shows to anyone
+/// with the link, under the clip's own title.
+async fn check_video(url: &str, clip_title: &str) -> Result<(), String> {
+    let response = reqwest::Client::builder()
+        .timeout(OEMBED_TIMEOUT)
+        .build()
+        .map_err(|error| error.to_string())?
+        .get(OEMBED_URL)
+        .query(&[("url", url), ("format", "json")])
+        .send()
+        .await
+        .map_err(|_| "YouTube could not be reached to check the video".to_string())?;
+    match response.status().as_u16() {
+        200 => {}
+        401 | 403 => {
+            return Err("YouTube does not show this video to others: set it to Unlisted or Public so TrueMain can check it and play it here".into())
+        }
+        _ => return Err("there is no YouTube video at this link".into()),
+    }
+    let video: OEmbed = response
+        .json()
+        .await
+        .map_err(|_| "YouTube's answer about this video could not be read".to_string())?;
+    if !same_youtube_title(&video.title, clip_title) {
+        return Err(format!(
+            "this video is titled \"{}\" on YouTube, not \"{clip_title}\": paste the link of the video you published for this clip, under the clip's title",
+            video.title
+        ));
+    }
+    Ok(())
+}
+
+/// Keep the YouTube video a clip was published as — once YouTube confirms it
+/// is the clip's (`check_video`) — or forget it, for an empty link.
+#[tauri::command]
+pub async fn clip_set_youtube_url(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
     id: String,
@@ -72,10 +138,24 @@ pub fn clip_set_youtube_url(
 ) -> Result<ClipView, String> {
     let clip = find_clip(&recorder, &id)?;
     let youtube_url = if url.trim().is_empty() {
+        if !clip.dir.video_path().is_file() {
+            return Err(
+                "this clip is only on YouTube now: its link is all that is left of it".into(),
+            );
+        }
         None
     } else {
-        Some(youtube_video_url(&url).ok_or("this is not a link to a YouTube video")?)
+        let url = youtube_video_url(&url).ok_or("this is not a link to a YouTube video")?;
+        check_video(&url, &clip.meta.title).await?;
+        Some(url)
     };
+    // Read again after the check's wait, so a rename or a favourite made
+    // meanwhile is not overwritten — and the title checked is still the clip's.
+    let checked_title = clip.meta.title;
+    let clip = find_clip(&recorder, &id)?;
+    if youtube_url.is_some() && clip.meta.title != checked_title {
+        return Err("the clip was renamed while its video was checked: save the link again".into());
+    }
     let newly_published = clip.meta.youtube_url.is_none() && youtube_url.is_some();
     let mut meta = clip.meta;
     meta.youtube_url = youtube_url;
@@ -85,6 +165,25 @@ pub fn clip_set_youtube_url(
     if newly_published {
         telemetry::feature(&app, Feature::ClipPublished);
     }
+    emit_library(&app);
+    clip_view(&recorder, &id)
+}
+
+/// Delete a published clip's video from disk, keeping the clip: it stays in the
+/// library with its thumbnail and plays from YouTube. A clip without a YouTube
+/// link keeps its file — this would leave it pointing at nothing.
+#[tauri::command]
+pub fn clip_delete_video(
+    app: AppHandle,
+    recorder: State<'_, SharedRecorder>,
+    id: String,
+) -> Result<ClipView, String> {
+    let clip = find_clip(&recorder, &id)?;
+    if clip.meta.youtube_url.is_none() {
+        return Err("only a clip published on YouTube can leave this PC".into());
+    }
+    clip.dir.delete_video().map_err(|error| error.to_string())?;
+    telemetry::feature(&app, Feature::ClipVideoDeleted);
     emit_library(&app);
     clip_view(&recorder, &id)
 }
