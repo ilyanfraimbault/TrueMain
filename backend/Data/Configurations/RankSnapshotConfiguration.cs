@@ -23,11 +23,13 @@ public sealed class RankSnapshotConfiguration : IEntityTypeConfiguration<RankSna
 
         entity.Property(e => e.Tier)
             .IsRequired()
-            .HasMaxLength(16);
+            .HasMaxLength(16)
+            .HasConversion<RankTierConverter>();
 
         entity.Property(e => e.Division)
             .IsRequired()
-            .HasMaxLength(4);
+            .HasMaxLength(4)
+            .HasConversion<RankDivisionConverter>();
 
         entity.Property(e => e.LeaguePoints)
             .IsRequired();

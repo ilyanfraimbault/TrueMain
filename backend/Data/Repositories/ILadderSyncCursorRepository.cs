@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Data.Entities;
 
 namespace Data.Repositories;
@@ -11,5 +12,5 @@ public interface ILadderSyncCursorRepository
     /// Insert or update the platform's sweep position. Written immediately with a single
     /// statement, so it does not need (and is not affected by) a later SaveChanges.
     /// </summary>
-    Task UpsertAsync(string platformId, string tier, string division, int page, DateTime nowUtc, CancellationToken ct);
+    Task UpsertAsync(string platformId, RankTier tier, RankDivision division, int page, DateTime nowUtc, CancellationToken ct);
 }

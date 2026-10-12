@@ -10,6 +10,8 @@ use game_recording::clips::clean_title;
 use game_recording::{ClipMeta, RecordingSettings, StoredClip, StoredRecording};
 use tauri::{AppHandle, State};
 
+use crate::telemetry::{self, Feature};
+
 use super::views::{ClipView, GameView, LibraryView, SettingsView, WinProbabilityView};
 use super::{emit_library, emit_status, RecordingStatusView, SharedRecorder};
 
@@ -146,8 +148,12 @@ pub fn recording_set_kept(
 ) -> Result<GameView, String> {
     let recording = find(&recorder, &id)?;
     let mut meta = recording.dir.read_meta().map_err(text)?;
+    let newly_kept = kept && !meta.pinned;
     meta.pinned = kept;
     recording.dir.write_meta(&meta).map_err(text)?;
+    if newly_kept {
+        telemetry::feature(&app, Feature::GameKept);
+    }
     emit_library(&app);
     let recording = find(&recorder, &id)?;
     Ok(GameView::new(&recording, &recorder.activity()))
@@ -167,11 +173,12 @@ pub fn recording_delete(
     }
     let recording = find(&recorder, &id)?;
     recording.dir.delete().map_err(text)?;
+    telemetry::feature(&app, Feature::RecordingDeleted);
     emit_library(&app);
     Ok(())
 }
 
-fn find_clip(recorder: &SharedRecorder, id: &str) -> Result<StoredClip, String> {
+pub(super) fn find_clip(recorder: &SharedRecorder, id: &str) -> Result<StoredClip, String> {
     let dir = recorder
         .clips()
         .get(id)
@@ -185,7 +192,7 @@ fn find_clip(recorder: &SharedRecorder, id: &str) -> Result<StoredClip, String> 
     })
 }
 
-fn clip_view(recorder: &SharedRecorder, id: &str) -> Result<ClipView, String> {
+pub(super) fn clip_view(recorder: &SharedRecorder, id: &str) -> Result<ClipView, String> {
     Ok(ClipView::new(
         &find_clip(recorder, id)?,
         &recordings(recorder)?,
@@ -253,6 +260,7 @@ pub async fn clip_save(
     })
     .await
     .map_err(text)??;
+    telemetry::feature(&app, Feature::ClipSaved);
     emit_library(&app);
     Ok(view)
 }

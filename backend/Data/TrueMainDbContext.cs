@@ -10,10 +10,8 @@ public class TrueMainDbContext : DbContext
     }
 
     public DbSet<RiotAccount> RiotAccounts => Set<RiotAccount>();
-    public DbSet<Persona> Personas => Set<Persona>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
     public DbSet<MatchParticipantTimelineSnapshot> MatchParticipantTimelineSnapshots => Set<MatchParticipantTimelineSnapshot>();
-    public DbSet<MatchWinProbability> MatchWinProbabilities => Set<MatchWinProbability>();
     public DbSet<MatchBan> MatchBans => Set<MatchBan>();
     public DbSet<ParticipantPerkSelection> ParticipantPerkSelections => Set<ParticipantPerkSelection>();
     public DbSet<PerkSelectionCatalog> PerkSelectionCatalogs => Set<PerkSelectionCatalog>();
@@ -94,11 +92,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionDimSpellPair> ChampionDimSpellPairs => Set<ChampionDimSpellPair>();
     public DbSet<ChampionDimStarterItems> ChampionDimStarterItems => Set<ChampionDimStarterItems>();
 
-    public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
-
     public DbSet<RankSnapshot> RankSnapshots => Set<RankSnapshot>();
-
-    public DbSet<SeedRequest> SeedRequests => Set<SeedRequest>();
 
     public DbSet<DiscoveryCursor> DiscoveryCursors => Set<DiscoveryCursor>();
 
@@ -108,6 +102,9 @@ public class TrueMainDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TrueMainDbContext).Assembly);
+
+        // After the configurations, because it walks the mapped tables they declare.
+        DataQuality.ChampionStatInvariants.Apply(modelBuilder);
     }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

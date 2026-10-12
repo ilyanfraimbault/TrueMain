@@ -1,4 +1,5 @@
 using Core.Lol.Performance;
+using Core.Lol.Ranking;
 using Data;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
@@ -201,8 +202,8 @@ public sealed class MatchDetailQueryService(
                             .First();
                         return new MatchDetailRankReadModel
                         {
-                            Tier = nearest.Tier,
-                            Division = nearest.Division,
+                            Tier = nearest.Tier.ToRiotName(),
+                            Division = nearest.Division.ToRiotName(),
                             LeaguePoints = nearest.LeaguePoints,
                         };
                     });
@@ -217,13 +218,6 @@ public sealed class MatchDetailQueryService(
                 .Where(a => trackedAccountIds.Contains(a.Id))
                 .Select(a => new { a.Id, a.GameName, a.TagLine })
                 .ToDictionaryAsync(a => a.Id, a => (a.GameName, a.TagLine), ct);
-
-        // The win-probability curve (#1911): one row per match, computed at ingest, absent
-        // for a game that gets none or was ingested before it existed.
-        var winProbability = await db.MatchWinProbabilities
-            .AsNoTracking()
-            .Where(w => w.MatchId == matchId)
-            .FirstOrDefaultAsync(ct);
 
         var participantModels = MatchDetailHydrator.HydrateParticipants(
             participants,
@@ -242,7 +236,6 @@ public sealed class MatchDetailQueryService(
             GameDurationSeconds = match.GameDurationSeconds,
             GameVersion = match.GameVersion,
             Participants = participantModels,
-            WinProbability = MatchDetailHydrator.HydrateWinProbability(winProbability),
         };
     }
 
@@ -287,7 +280,7 @@ public sealed class MatchDetailQueryService(
     internal sealed record RankSnapshotRow(
         Guid RiotAccountId,
         DateTime CapturedAtUtc,
-        string Tier,
-        string Division,
+        RankTier Tier,
+        RankDivision Division,
         int LeaguePoints);
 }

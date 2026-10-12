@@ -21,6 +21,8 @@ export interface CompositionBuildRequest {
   eloBracket?: string
   allies: CompositionSlotInput[]
   enemies: CompositionSlotInput[]
+  /** A Riot ID: only that player's games are sampled (#1987). */
+  player?: string
 }
 
 /**

@@ -38,10 +38,16 @@ const FEATURE_LABELS: Record<string, string> = {
   liveGame: 'Game followed live',
   overlayShown: 'Games with the overlay drawn',
   gameRecorded: 'Games recorded',
+  clipSaved: 'Clips saved',
+  gameKept: 'Full games kept',
+  recordingDeleted: 'Recordings deleted by hand',
   siteOpened: 'Site pages opened',
   champSelectHover: 'Picks hovered from the app',
   champSelectLock: 'Picks locked in from the app',
   champSelectBan: 'Bans made from the app',
+  youtubeUploadOpened: 'YouTube upload opened from a clip',
+  clipPublished: 'Clips published on YouTube',
+  clipVideoDeleted: 'Published clips removed from disk',
 }
 const OS_LABELS: Record<string, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
 

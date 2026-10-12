@@ -79,10 +79,10 @@ async function readClientDetail(matchId: string): Promise<MatchDetailResponse | 
  * scoreboard, the roles and the lane at fifteen, without those two. In
  * `npm run dev` the dev fixtures stand in for the client.
  *
- * The win-probability curve (#1911) is TrueMain's own (`winProbability`) when
- * its copy has one; a copy without — a game ingested before the curve existed —
- * borrows the client's timeline (`winProbabilityTimeline`) once the panel is
- * shown, so the Timeline tab appears in either case when the game allows it.
+ * The win-probability curve (#1911) is always built from the client's timeline
+ * (`winProbabilityTimeline`): TrueMain stores none (#2009), so its copy borrows
+ * the client's once the panel is shown, and the Timeline tab appears whenever
+ * the game allows it.
  */
 export function usePlayerGameDetail(nameTag: MaybeRefOrGetter<string>, matchId: MaybeRefOrGetter<string>) {
   const { record } = usePlayerRecord()
@@ -105,7 +105,7 @@ export function usePlayerGameDetail(nameTag: MaybeRefOrGetter<string>, matchId: 
     }
     notFound.value = !data.value
     isLoading.value = false
-    if (data.value && !data.value.winProbability && !data.value.winProbabilityTimeline && insideTauri()) {
+    if (data.value && !data.value.winProbabilityTimeline && insideTauri()) {
       const client = await readClientDetail(id).catch(() => null)
       if (client?.winProbabilityTimeline && toValue(matchId) === id && data.value) {
         data.value = { ...data.value, winProbabilityTimeline: client.winProbabilityTimeline }

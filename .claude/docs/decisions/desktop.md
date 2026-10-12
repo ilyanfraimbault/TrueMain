@@ -80,7 +80,9 @@ a one-sided team (ally magic-damage axis Low and the candidate High, or the reve
 carries a "+ Magic damage" / "+ Physical damage" chip that leaves the order untouched; a measured `damageMixDelta`
 component waits for #1906. Build advice reuses the in-game next-item read (#1749) with an empty inventory and the
 draft as the game: the boots and the first legendary a situation of this draft moves up most, with that situation in
-the site's wording — no new endpoint, the same model and axes as in game. Runes: nothing shipped; the measured route
+the site's wording — no new endpoint, the same model and axes as in game. A push is shown only past a 5-point *and*
+×1.25 shift (a "21% vs 20%" Shieldbow read as advice was noise), and only an enemy or lane-opponent axis may be its
+reason: the ally axes measure what a flex pick's team already has, which no item answers in a draft. Runes: nothing shipped; the measured route
 recommended for a follow-up is a composition-build vote weighted by damage-band similarity, not a rule — #1907.
 
 **The app draws the site's components, as labelled twin copies, not look-alikes** — superseded page by page by the shared layer above (#1732): a component that moves into the layer loses its twin. Hand-ported versions (a skill
@@ -124,12 +126,26 @@ champion endpoint, their latest patch with enough games; on the lane asked, else
 build, with a line saying whose it is and a link to their profile — the reason to list them in a draft is to copy
 what they run. The shell reads that one path pattern beside its fixed list (2026-09-28) — #1671.
 
+**In champion select, a true main's build is their draft build: the composition build read from their games alone,
+else their usual build.** A click on a main (listed, or picked in the list's search) showed their usual build on the
+champion whatever the draft; the product owner wanted the draft's answer in that main's context. So the same
+`composition-build` takes an optional `player` (a Riot ID, resolved like every player route, 404 when unknown) that
+restricts the sampled games to that player's, every other rule unchanged — the role opponent, when pinned, is still a
+hard filter. A main who never faced the lane opponent (or never played the champion on the lane) answers
+`matchupFound: false` or no game, and the view falls back to their usual build, saying "no game against this draft";
+a found one says "against this draft" with its game count, however small. The app asks it through the shell's shared
+POST rather than `composition_build`, whose single in-flight slot would cancel the draft's own build. Outside a draft
+(a champion's page) nothing changes (2026-10-08) — #1987.
+
 **Icons are bundled at build time, routes live in the hash, and images are drawn without a `load` gate.** The
 packaged app has no server to resolve an icon and a CSP that reaches only Data Dragon and Community Dragon
 (`icon.provider: 'none'` + `clientBundle.scan`); Tauri's custom protocol serves files, not an SPA fallback, so a
 history-mode path would 404 on reload; and WKWebView never reported `load` for images inserted after the first,
 which left fade-in-on-load art invisible for good — the twinned `SkeletonImage` therefore draws as soon as it
-decodes (2026-09-27).
+decodes (2026-09-27). The loading skeleton (#1949) waits for no event either: `img-skeleton` paints it as the
+opaque picture's own background, which the decoded picture covers, pulsing for a few cycles only. Transparent
+pictures (lane glyphs — bundled, so instant — runes, rank crests) get none, since it would show through them
+(2026-10-06).
 
 **The beta ships unsigned, as GitHub pre-releases resolved by the site, and updates itself.** The product owner chose
 an unsigned beta over paying for Apple notarisation and a Windows certificate before anyone has used the app; the
@@ -171,6 +187,14 @@ every player: the shell reads the ranked standing, the profile background skin a
 on demand (a Tauri command, not the pushed state — the record only moves when a game ends), each game's full
 scoreboard once per launch (kill participation, damage share, both teams), and a game's timeline when its row is
 opened (`player_game`), all cached by game.
+
+**Installing the app never feeds the ingestion pipeline (2026-10-06).** The intake #1682 was waiting on is not built:
+the dashboard (profile, history, form tiles, LP curve) and the draft's "My pool" (the client's champion mastery) are
+complete for any account from the local client alone, so an install never enters the mains population nor spends
+the regional ingestion budget — the two things a self-serve intake would have had to defend. A tracked main gets a
+link from the dashboard to their site page (#1942); an untracked player gets no prompt and no empty state. To be
+revisited once the production key (#1363) widens the budget, and in light of DevRel's answer on app-driven intake
+(#1680) — #1682.
 
 The layout went through three rounds. A DPM-style page of widgets of its own (ranked card, recent-games list,
 last-game card, champion podium, chips on the banner) was "not the site"; the site's profile components dropped in
@@ -360,12 +384,46 @@ only over `/` or `/game` — the pages the game's own navigation would have take
 they opened by hand, the game page's rule. The Recordings page follows DPM's layout (the product owner's reference) in
 the site's materials; its settings are the short list of #1744 — no OBS (2026-10-01) — #1755, #1777.
 
+**A clip is published on YouTube through YouTube's own upload page, never its Data API (2026-10-12).** The product
+owner's call: the app opens `youtube.com/upload` in the player's browser, drags the clip's file onto it from the app
+and hands over a prepared title, description and tags; the player gives the video's link back and the clip keeps it.
+The API was the first plan and is dropped for what it would make the app depend on: the upload quota belongs to one
+Google Cloud project shared by every install (historically 1,600 units an upload out of 10,000 a day — about six
+uploads a day for all players together), raised only through the YouTube API Services audit; `youtube.upload` is a
+sensitive scope, so an unverified app is capped at 100 users behind an "unverified app" warning (in testing mode each
+account is added by hand and refresh tokens expire after 7 days); and an unaudited project's uploads are forced
+private. The browser flow has none of these limits and lets the player pick the visibility in YouTube's form. The file
+drag is the shell's (the `drag` crate, path resolved from the clip id, never taken from the webview). Revisit only
+with a real user base and telemetry showing the manual steps are the bottleneck — #1815.
+
+**A clip published on YouTube may leave the disk and play from YouTube's embed, framed through a loopback page
+(2026-10-12).** The product owner publishes clips mainly to free space: once a clip has a YouTube link, its video file
+can be deleted while the clip stays in the library (metadata and thumbnail kept) and plays from YouTube. Only a linked
+clip can drop its file, and its link can no longer be removed, so a clip never points at nothing. YouTube's embedded
+player refuses to play without a `Referer` (error 153) and the app's page on macOS is `tauri://localhost`, which sends
+none — measured in a WKWebView with the app's CSP: a direct embed fails, the same embed inside a page served on
+`http://127.0.0.1` plays. So the shell serves that one page on the loopback (`GET /youtube/<id>` only, no new
+dependency) and the CSP gains `frame-src http://127.0.0.1:*`; Windows (`http://tauri.localhost`) takes the same path
+for one behaviour. A private video does not play embedded, hence "Watch on YouTube" under the player.
+
+A pasted link is **checked before it is kept**, since the clip may then lose its file and show that video in its
+place: YouTube's oEmbed endpoint (public, no key, no quota) must answer for it, and its title must be the clip's
+(case and spacing aside), the dialog's title being read-only for that reason. oEmbed answers nothing for a private
+video, so publishing as Unlisted or Public is required — the same condition the embed needs. It proves the video is
+the one published with the clip's title, not who owns the channel: that needs the player's YouTube sign-in, the API
+path #1815 dropped — #2005.
+
 **The next item sits over the game board and answers one purchase: what to complete, and what to buy now.** The mains'
 choice from where our build stands (#1749) is the decision; its share of the mains, one reason in the site's own
 item-context words, the gold left and the components the gold in hand buys are what turns it into a purchase. Two
 runners-up and the boots stay small beside it. It is asked again on any item change of the ten players and never on a
 timer, because nothing else moves the answer. Our gold joins the game state in 50-gold steps — income crosses one about
 every ten seconds — rather than every reading, so the board does not become a change per poll (2026-10-01) — #1751.
+Until a starter is bought — anything held but potions and the trinket — the starter sits above it, and replaces the
+next item on the overlay: at the start the shop is open for the starter, not a legendary. It is the composition
+build's starter basket for the ten champions on their lanes, asked once per game, not a next-item model term: the
+item-context counters see a starter item by item, and a basket (Doran's Ring and two potions) is what is bought
+(2026-10-08) — #1989.
 
 **Every app version is built twice, once per site, and each site serves only its own build (2026-10-01).** The product
 owner's call: the app downloaded from preprod is a test build and must read preprod — API, the pages it opens in the
@@ -519,11 +577,12 @@ from the client's timeline (2026-10-05).** The recording recap and the dashboard
 timeline from the client (`GET /lol-match-history/v1/game-timelines/{gameId}`), reduced by the shell to what the model
 reads (`lcu::win_probability`), and build the curve in the webview with the shared builder
 (`web/layers/common/app/utils/win-probability-timeline.ts`): it works for every game in the client's history, not only
-those TrueMain ingested, and costs nothing on our Riot key. A game TrueMain holds uses TrueMain's stored curve instead.
+those TrueMain ingested, and costs nothing on our Riot key. A game TrueMain holds is drawn from the client's timeline too: TrueMain stores no curve
+(#2009).
 The recap keeps the reduced timeline in the recording's metadata at finalisation, so it still draws once the game has
-left the client's history; a live-feed-only recording has no curve. One model, two runtimes: the ingestor runs a C#
-port (`Core/Lol/WinProbability`), and a shared fixture (`web/shared/fixtures/win-probability-timeline.json`) fails
-either side's tests when a weight or a step drifts. A turning point is a kill, a turret, an inhibitor, a drake, the
+left the client's history; a live-feed-only recording has no curve. One model, one runtime: the C# port the ingestor
+ran until #2009 is gone, and the fixture `web/shared/fixtures/win-probability-timeline.json` pins the TS builder's
+figures. A turning point is a kill, a turret, an inhibitor, a drake, the
 Elder or the Baron, weighed at its own time with only that event changing (creep score and level interpolated between
 frames, so the delta is exact under the model); the five largest are listed. The Rift Herald, Voidgrubs and Atakhan
 are shown with no figure, never "0 pts". The "slow drift" share (farm and levels building up) was left out. Post-game

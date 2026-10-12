@@ -99,15 +99,7 @@ const pipelineStages = computed(() =>
         <!-- Pipeline stage stepper -->
         <div>
           <p class="text-muted text-xs uppercase mb-2">Pipeline stage</p>
-          <UAlert
-            v-if="detail.status === 'Rejected'"
-            color="error"
-            variant="subtle"
-            icon="i-lucide-circle-x"
-            title="Rejected"
-            description="This candidate was ruled out of the pipeline (not a main)."
-          />
-          <ol v-else class="flex flex-wrap items-center gap-1.5">
+          <ol class="flex flex-wrap items-center gap-1.5">
             <li
               v-for="{ stage, reached } in pipelineStages"
               :key="stage"

@@ -29,8 +29,6 @@ describe('winProbability', () => {
 })
 
 describe('buildWinProbability', () => {
-  // The fixture is shared with the ingestor's port (WinProbabilityParityTests):
-  // a figure changed here without the C# side fails there, and the reverse.
   it('matches the shared fixture', () => {
     const built = buildWinProbability(timeline)!
     expect(built.points.length).toBe(expected.points.length)

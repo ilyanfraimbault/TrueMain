@@ -383,8 +383,8 @@ try {
     Key 0x09 $true
     Start-Sleep -Milliseconds 800
     $state = Report "2-scoreboard"
-    Key 0x09 $false
     Expect ((Shown) -eq "item-value,$InGame") "TAB held adds the item value ($(Shown))"
+    Key 0x09 $false
     $itemValue = $state.panels | Where-Object { $_.slug -eq "item-value" -and $_.visible }
     if ($itemValue) {
         Expect ($itemValue.gameShare -lt 0.5 -and $itemValue.colors -ge 6) "item-value is drawn (game colour $([Math]::Round($itemValue.gameShare * 100))%, $($itemValue.colors) colours)"
@@ -396,8 +396,8 @@ try {
     Key 0x12 $true; Key 0x10 $true; Key 0x31 $true
     Start-Sleep -Milliseconds 800
     $state = Report "2-held-chord"
-    Key 0x31 $false; Key 0x10 $false; Key 0x12 $false
     Expect ((Shown) -eq "next-item,$InGame") "Alt+Shift+1 held adds the next item ($(Shown))"
+    Key 0x31 $false; Key 0x10 $false; Key 0x12 $false
     $nextItem = $state.panels | Where-Object { $_.slug -eq "next-item" -and $_.visible }
     if ($nextItem) {
         Expect ($nextItem.gameShare -lt 0.5 -and $nextItem.colors -ge 6) "next-item is drawn (game colour $([Math]::Round($nextItem.gameShare * 100))%, $($nextItem.colors) colours)"

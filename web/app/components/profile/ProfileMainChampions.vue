@@ -60,12 +60,6 @@ const { truemainPathFor } = useChampionSlugs()
 function championLink(championId: number) {
   return truemainPathFor(props.nameTag, championId)
 }
-
-// Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,
-// minus the responsive srcset machinery a fixed 12px icon never needed. See
-// SkeletonImage.vue for the profiling rationale. The URL comes from the shared
-// helper so the glyph shares one cache entry across every size it is shown at.
-const canonicalIcon = useCanonicalIcon()
 </script>
 
 <template>
@@ -118,14 +112,13 @@ const canonicalIcon = useCanonicalIcon()
               </UTooltip>
             </div>
             <div class="flex items-center gap-1 text-[11px] text-muted tabular-nums">
-              <img
+              <SkeletonImage
                 v-if="main.primaryPosition"
-                :src="canonicalIcon(getPositionIconUrl(main.primaryPosition))"
+                :src="getPositionIconUrl(main.primaryPosition)"
                 :alt="main.primaryPosition"
                 class="size-3"
-                width="12"
-                height="12"
-              >
+                transparent
+              />
               <span>{{ formatSample(main) }}</span>
             </div>
           </div>

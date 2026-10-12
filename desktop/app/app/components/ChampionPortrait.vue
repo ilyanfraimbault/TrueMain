@@ -22,7 +22,7 @@ const box = computed(() => ({ sm: 'size-8', md: 'size-12', lg: 'size-16' }[props
     class="relative shrink-0 overflow-hidden rounded-lg bg-ink-900 ring-1 ring-default"
     :title="label"
   >
-    <img v-if="source" :src="source" :alt="label" class="size-full object-cover" loading="lazy">
+    <img v-if="source" :src="source" :alt="label" class="img-skeleton size-full object-cover" loading="lazy">
     <div v-else class="flex size-full items-center justify-center rounded-lg border border-dashed border-accented text-dimmed" aria-label="Not picked yet">
       <UIcon v-if="emptyIcon" name="i-lucide-help-circle" class="size-1/2 opacity-60" />
     </div>

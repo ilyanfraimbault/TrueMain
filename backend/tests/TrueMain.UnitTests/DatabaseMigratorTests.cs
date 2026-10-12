@@ -14,7 +14,7 @@ namespace TrueMain.UnitTests;
 public sealed class DatabaseMigratorTests
 {
     [Fact]
-    public async Task ApplyPendingMigrationsAsync_does_nothing_when_flag_disabled()
+    public async Task ApplyPendingMigrationsAsync_DoesNothingWhenFlagDisabled()
     {
         var services = BuildServiceProvider(applyOnStartup: false);
 
@@ -28,7 +28,7 @@ public sealed class DatabaseMigratorTests
     }
 
     [Fact]
-    public async Task ApplyPendingMigrationsAsync_resolves_context_when_flag_enabled()
+    public async Task ApplyPendingMigrationsAsync_ResolvesContextWhenFlagEnabled()
     {
         var services = BuildServiceProvider(applyOnStartup: true);
 
@@ -41,7 +41,7 @@ public sealed class DatabaseMigratorTests
     }
 
     [Fact]
-    public async Task Hosted_service_runs_the_migrator_on_start()
+    public async Task HostedServiceRunsTheMigratorOnStart()
     {
         var hostedService = new DatabaseMigrationHostedService(BuildServiceProvider(applyOnStartup: true));
 
@@ -53,7 +53,7 @@ public sealed class DatabaseMigratorTests
     }
 
     [Fact]
-    public async Task Hosted_service_skips_when_flag_disabled()
+    public async Task HostedServiceSkipsWhenFlagDisabled()
     {
         var hostedService = new DatabaseMigrationHostedService(BuildServiceProvider(applyOnStartup: false));
 
@@ -63,7 +63,7 @@ public sealed class DatabaseMigratorTests
     }
 
     [Fact]
-    public void AddDatabaseMigrationsOnStartup_registers_the_hosted_service()
+    public void AddDatabaseMigrationsOnStartup_RegistersTheHostedService()
     {
         var services = new ServiceCollection().AddDatabaseMigrationsOnStartup();
 

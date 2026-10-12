@@ -142,6 +142,24 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetChampionScalingAsync_CountsTheChampionCohortOnly()
+    {
+        await SeedMixedPopulationAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var scaling = await client.GetFromJsonAsync<ChampionScalingResponse>(
+            $"/champions/{Champion}/scaling?position={Position}");
+
+        // 12 of the 48 seeded games: the off-main account, the remakes and the untracked
+        // player each clear the bucket floor on their own, so any of them leaking in
+        // would show (#1365).
+        scaling!.Buckets.Should().ContainSingle()
+            .Which.Games.Should().Be(12, "only the champion's mains count, and a remake is not a game");
+    }
+
+    [Fact]
     public async Task GetChampionScalingAsync_ReturnsBadRequestForInvalidPosition()
     {
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -161,9 +179,10 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
             .WithPuuid("scaling-main-puuid")
             .Build();
         db.RiotAccounts.Add(account);
+        db.MainChampionStats.Add(MainChampionStatSeed.Row(account.PlatformId, account.Puuid, Champion, Position));
 
-        AddGames(db, "short", ShortGameSeconds, shortGames, shortWins, account.Id);
-        AddGames(db, "long", LongGameSeconds, longGames, longWins, account.Id);
+        AddGames(db, "short", ShortGameSeconds, shortGames, shortWins, account);
+        AddGames(db, "long", LongGameSeconds, longGames, longWins, account);
 
         await db.SaveChangesAsync();
     }
@@ -183,17 +202,56 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
             .WithPuuid("scaling-bracket-puuid")
             .Build();
         db.RiotAccounts.Add(account);
+        db.MainChampionStats.Add(MainChampionStatSeed.Row(account.PlatformId, account.Puuid, Champion, Position));
 
-        AddGames(db, "gold", ShortGameSeconds, games: 12, wins: 8, account.Id, EloBracket.Gold);
-        AddGames(db, "iron", ShortGameSeconds, games: 12, wins: 6, account.Id, EloBracket.Iron);
+        AddGames(db, "gold", ShortGameSeconds, games: 12, wins: 8, account, EloBracket.Gold);
+        AddGames(db, "iron", ShortGameSeconds, games: 12, wins: 6, account, EloBracket.Iron);
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// The cohort's main (12 short games), plus three populations the panel must not
+    /// count beside it: a tracked account that does not main the champion, the main's
+    /// own remakes, and an untracked player on the champion.
+    /// </summary>
+    private async Task SeedMixedPopulationAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var main = new RiotAccountBuilder()
+            .WithGameName("ScalingCohortMain")
+            .WithTagLine("KR1")
+            .WithPuuid("scaling-cohort-main-puuid")
+            .Build();
+        var offMain = new RiotAccountBuilder()
+            .WithGameName("ScalingOffMain")
+            .WithTagLine("KR1")
+            .WithPuuid("scaling-off-main-puuid")
+            .Build();
+        db.RiotAccounts.AddRange(main, offMain);
+        db.MainChampionStats.Add(MainChampionStatSeed.Row(main.PlatformId, main.Puuid, Champion, Position));
+        db.MainChampionStats.Add(
+            MainChampionStatSeed.Row(offMain.PlatformId, offMain.Puuid, Champion, Position, isMain: false));
+
+        AddGames(db, "cohort", ShortGameSeconds, games: 12, wins: 6, main);
+        AddGames(db, "remake", ShortGameSeconds, games: 12, wins: 6, main, remake: true);
+        AddGames(db, "offmain", ShortGameSeconds, games: 12, wins: 6, offMain);
+        AddGames(db, "untracked", ShortGameSeconds, games: 12, wins: 6, account: null);
 
         await db.SaveChangesAsync();
     }
 
     private static void AddGames(
-        Data.TrueMainDbContext db, string prefix, int durationSeconds, int games, int wins, Guid accountId,
-        string eloBracket = "")
+        Data.TrueMainDbContext db, string prefix, int durationSeconds, int games, int wins, RiotAccount? account,
+        string eloBracket = "", bool remake = false)
     {
+        // A remake is the cohort's rule, not this suite's: one second under its floor.
+        if (remake)
+        {
+            durationSeconds = Data.Aggregation.ChampionCohort.MinimumGameDurationSeconds - 1;
+        }
+
         for (var i = 0; i < games; i++)
         {
             var matchId = $"m-scaling-{prefix}-{i}";
@@ -205,18 +263,18 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
                 .Build());
 
             db.MatchParticipants.Add(
-                Participant(matchId, Champion, win: i < wins, riotAccountId: accountId, eloBracket));
+                Participant(matchId, Champion, win: i < wins, account, eloBracket));
         }
     }
 
     private static MatchParticipant Participant(
-        string matchId, int championId, bool win, Guid? riotAccountId, string eloBracket = "")
+        string matchId, int championId, bool win, RiotAccount? account, string eloBracket = "")
         => new()
         {
             MatchId = matchId,
             ParticipantId = 1,
-            Puuid = $"puuid-{matchId}",
-            RiotAccountId = riotAccountId,
+            Puuid = account?.Puuid ?? $"puuid-{matchId}",
+            RiotAccountId = account?.Id,
             SummonerName = "seed",
             SummonerLevel = 100,
             ChampionId = championId,

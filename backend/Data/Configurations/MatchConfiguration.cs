@@ -68,6 +68,13 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasMaxLength(32);
 
+        entity.Property(e => e.EndOfGameResult)
+            .HasMaxLength(32);
+
+        entity.Property(e => e.EndedInEarlySurrender)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         // Stored, not virtual: the point of the column is to be indexed, and Postgres
         // cannot index a virtual generated column. The database writes it on every
         // insert and on every update of GameVersion; the application never does, hence
@@ -117,8 +124,7 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
-        entity.HasIndex(e => e.PlatformId);
-
+        // PlatformId has no index of its own: it is the leading prefix of this one (#1244).
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
             .HasDatabaseName("IX_matches_platform_queue_game_start");
 

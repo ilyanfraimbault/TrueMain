@@ -55,6 +55,24 @@
   animation: tm-pulse 2.2s ease-in-out infinite;
 }
 
+/*
+ * The loading skeleton of a picture, painted as the <img>'s own background:
+ * the skeleton fill (`ui.skeleton.base`), pulsing like `animate-pulse`, until
+ * the decoded picture covers it. It never waits for `load`, which WKWebView
+ * does not reliably report (see `ChampionArt.vue`), so it belongs on opaque
+ * pictures only — a transparent one would let it show through for good. The
+ * pulse animates the background, never the picture, and stops after a few
+ * cycles so a covered skeleton does not repaint for the rest of the session.
+ */
+@keyframes tm-skeleton {
+  50% { background-color: color-mix(in oklab, var(--color-ink-700) 50%, transparent); }
+}
+
+@utility img-skeleton {
+  background-color: var(--color-ink-700);
+  animation: tm-skeleton 2s cubic-bezier(0.4, 0, 0.6, 1) 8;
+}
+
 /* The pending bar: a highlight sweeping across, left to right. */
 @keyframes tm-scan {
   from { transform: translateX(-100%); }

@@ -87,7 +87,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_should_flag_support_quest_family_for_world_atlas_chain()
+    public async Task GetItemsAsync_ShouldFlagSupportQuestFamilyForWorldAtlasChain()
     {
         // Patch-16.10-shaped payload: one in-store root with the
         // SupportItemPurchaseBuff marker, two not-in-store transitional
@@ -162,7 +162,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_should_leave_all_support_quest_flags_false_when_marker_is_absent()
+    public async Task GetItemsAsync_ShouldLeaveAllSupportQuestFlagsFalseWhenMarkerIsAbsent()
     {
         // Older patches (before 15.10) don't carry the SupportItemPurchaseBuff
         // marker — detection must gracefully fall back to all-false on each
@@ -192,7 +192,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_should_skip_detection_when_multiple_candidate_roots_exist()
+    public async Task GetItemsAsync_ShouldSkipDetectionWhenMultipleCandidateRootsExist()
     {
         // Safety net: if Riot data ever has more than one in-store item with
         // the SupportItemPurchaseBuff marker, we don't try to guess which
@@ -232,7 +232,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_should_flag_starter_class_items_by_lane_or_jungle_category()
+    public async Task GetItemsAsync_ShouldFlagStarterClassItemsByLaneOrJungleCategory()
     {
         // Patch-16.10-shaped payloads covering the three starter-class
         // families captured by the dynamic detector: a Doran's (Lane), Cull
@@ -280,7 +280,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_should_not_flag_regular_build_items_as_starter_class()
+    public async Task GetItemsAsync_ShouldNotFlagRegularBuildItemsAsStarterClass()
     {
         // Discriminator must not catch items that share some structural
         // properties with starters but aren't (boots have the recipe of a
@@ -337,7 +337,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_should_fall_back_to_latest_when_the_patch_branch_is_not_published_yet()
+    public async Task GetItemsAsync_ShouldFallBackToLatestWhenThePatchBranchIsNotPublishedYet()
     {
         // Patch day: Riot has shipped 16.16 and games are already flowing, but
         // CommunityDragon has not mirrored that branch yet (#1107).
@@ -354,7 +354,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_should_reprobe_the_patch_branch_once_the_fallback_goes_stale()
+    public async Task GetItemsAsync_ShouldReprobeThePatchBranchOnceTheFallbackGoesStale()
     {
         var published = false;
         using var handler = new RoutingHttpMessageHandler(branch =>
@@ -382,7 +382,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_should_not_cache_a_faulted_load()
+    public async Task GetItemsAsync_ShouldNotCacheAFaultedLoad()
     {
         // A transient outage must not poison the patch entry for the life of the
         // process: the next caller has to get a fresh attempt.
@@ -409,7 +409,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_should_surface_a_non_404_failure_rather_than_falling_back()
+    public async Task GetItemsAsync_ShouldSurfaceANon404FailureRatherThanFallingBack()
     {
         // An outage is not an unpublished branch — it must not be papered over
         // with the previous patch's metadata.

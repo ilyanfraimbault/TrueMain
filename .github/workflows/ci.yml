@@ -51,8 +51,6 @@ jobs:
             backend:
               - "backend/**"
               - "global.json"
-              - "web/shared/fixtures/win-probability-timeline.json"
-              - "web/layers/common/app/utils/win-probability*.ts"
             data:
               - "backend/Data/**"
             web:
@@ -65,6 +63,8 @@ jobs:
             scripts:
               - ".github/scripts/**"
               - ".github/file-size-baseline.txt"
+              - "compose.preprod.yaml"
+              - "compose.prod.yaml"
 
       - name: Plan the jobs
         id: plan
@@ -237,6 +237,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck Nuxt app
         run: npm run typecheck
 
@@ -262,6 +265,15 @@ jobs:
 
       - name: Rollout verification
         run: .github/scripts/verify-rollout.test.sh
+
+      - name: Migration over SSH
+        run: .github/scripts/apply-migration.test.sh
+
+      - name: Edge verification
+        run: .github/scripts/verify-edge.test.sh
+
+      - name: Ingestor job mode preflight
+        run: .github/scripts/check-job-mode.test.sh
 
       - name: Desktop app versions
         run: .github/scripts/desktop-version.test.sh

@@ -2,7 +2,9 @@
 import type { Moment } from '~/types/recordings'
 import type { PlayerLane } from '~/utils/recording-moments'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
+import type { TimelineView } from '~/utils/recording-timeline'
 import { formatClock, isPlayerMoment, isStructure, LANE_NAMES, momentLabel, momentMark, momentTone, PLAYER_LANES } from '~/utils/recording-moments'
+import { clampView, fullView, isZoomed, panView, revealInView, viewTicks, ZOOM_STEP, zoomView } from '~/utils/recording-timeline'
 
 /**
  * The recap's timeline (#1777): the video's length with the player's kills,
@@ -14,6 +16,12 @@ import { formatClock, isPlayerMoment, isStructure, LANE_NAMES, momentLabel, mome
  * seeking like moments. When `editable`, a drag across the track draws a new
  * range and a range's handles move its ends. Read-only (a clip's player), a
  * drag scrubs.
+ *
+ * It zooms like a video editor's timeline: a pinch or Ctrl/⌘/Alt + wheel zooms
+ * around the pointer, − / = / \ zoom out, in around the playhead and fit the
+ * video back, and the zoom bar under the clock pans and resizes the window.
+ * Zoomed in, a wheel pans, the view pages to follow the playhead, and a drag
+ * past an edge scrolls it.
  */
 interface Range { key: string, startMs: number, endMs: number }
 
@@ -40,15 +48,75 @@ const emit = defineEmits<{
 }>()
 
 const track = ref<HTMLElement | null>(null)
-const pct = (ms: number) => `${(Math.min(Math.max(ms, 0), props.lengthMs) / Math.max(props.lengthMs, 1)) * 100}%`
+
+/** The window of the video across the track: the whole of it until zoomed. */
+const view = ref<TimelineView>(fullView(props.lengthMs))
+const zoomed = computed(() => isZoomed(view.value, props.lengthMs))
+const viewEnd = computed(() => view.value.startMs + view.value.spanMs)
+watch(() => props.lengthMs, length => { view.value = fullView(length) })
+
+const pct = (ms: number) => `${(Math.min(Math.max(ms, view.value.startMs), viewEnd.value) - view.value.startMs) / view.value.spanMs * 100}%`
+const inView = (ms: number) => ms >= view.value.startMs && ms <= viewEnd.value
 
 function msAt(clientX: number): number {
   const rect = track.value?.getBoundingClientRect()
   if (!rect || !rect.width) return 0
-  return Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1) * props.lengthMs
+  return view.value.startMs + Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1) * view.value.spanMs
 }
 
-const visible = computed(() => props.moments.filter(moment => moment.videoMs <= props.lengthMs))
+/** A pan or zoom by hand holds the view where it was put this long before it pages to the playhead again. */
+const HOLD_MS = 2_000
+let heldUntil = 0
+
+function setView(next: TimelineView, byHand = true) {
+  view.value = clampView(next, props.lengthMs)
+  if (byHand) heldUntil = performance.now() + HOLD_MS
+}
+
+/** A zoom step from the keys or the buttons, around the playhead when it is in view, else the window's middle. */
+function zoomStep(direction: 1 | -1) {
+  const anchor = inView(props.currentMs) ? props.currentMs : view.value.startMs + view.value.spanMs / 2
+  setView(zoomView(view.value, props.lengthMs, anchor, direction === 1 ? 1 / ZOOM_STEP : ZOOM_STEP))
+}
+
+watch(() => props.currentMs, (ms) => {
+  if (!zoomed.value || drag.value || performance.now() < heldUntil) return
+  setView(revealInView(view.value, props.lengthMs, ms), false)
+})
+
+function onWheel(event: WheelEvent) {
+  const rect = track.value?.getBoundingClientRect()
+  if (!rect?.width) return
+  // A trackpad pinch arrives as a wheel with Ctrl held.
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    event.preventDefault()
+    const delta = Math.min(Math.max(event.deltaY, -50), 50)
+    setView(zoomView(view.value, props.lengthMs, msAt(event.clientX), Math.exp(delta * 0.01)))
+    return
+  }
+  if (!zoomed.value) return
+  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+  if (!delta) return
+  event.preventDefault()
+  setView(panView(view.value, props.lengthMs, (delta / rect.width) * view.value.spanMs))
+}
+
+/** Dragging past an edge while zoomed scrolls the view that way, faster the further out. */
+function scrollPastEdge(clientX: number) {
+  const rect = track.value?.getBoundingClientRect()
+  if (!rect?.width || !zoomed.value) return
+  const overshoot = clientX < rect.left ? clientX - rect.left : clientX > rect.right ? clientX - rect.right : 0
+  if (overshoot) setView(panView(view.value, props.lengthMs, (Math.max(Math.min(overshoot, 80), -80) / rect.width) * view.value.spanMs * 0.5))
+}
+
+defineShortcuts({
+  '=': () => zoomStep(1),
+  '+': () => zoomStep(1),
+  '-': () => zoomStep(-1),
+  '\\': () => setView(fullView(props.lengthMs)),
+})
+
+const visible = computed(() => props.moments.filter(moment => moment.videoMs <= props.lengthMs && inView(moment.videoMs)))
 const lanes = computed(() => PLAYER_LANES.map(lane => ({
   lane,
   // Bigger multi-kills drawn last, so a penta is never hidden under a single kill.
@@ -68,14 +136,8 @@ const trackHeight = computed(() => `${PANEL_TOP + panelHeight.value}px`)
 const laneCenter = (lane: PlayerLane) => PANEL_TOP + PLAYER_LANES.indexOf(lane) * LANE_HEIGHT + LANE_HEIGHT / 2
 const LANE_TONES: Record<PlayerLane, string> = { kill: 'text-data-good', assist: 'text-ink-400', death: 'text-red-400' }
 
-// Minute labels: the smallest step that keeps them to about eight.
-const ticks = computed(() => {
-  const steps = [10_000, 30_000, 60_000, 120_000, 300_000, 600_000, 900_000]
-  const step = steps.find(value => props.lengthMs / value <= 8) ?? 1_800_000
-  const list: number[] = []
-  for (let at = step; at < props.lengthMs - step / 3; at += step) list.push(at)
-  return list
-})
+// Clock labels: the smallest step that keeps about eight across the window.
+const ticks = computed(() => viewTicks(view.value))
 
 type Drag =
   | { mode: 'press', x: number, ms: number, range: string | null }
@@ -112,6 +174,7 @@ function onMove(event: PointerEvent) {
   hoverMs.value = msAt(event.clientX)
   const current = drag.value
   if (!current) return
+  if (current.mode !== 'press') scrollPastEdge(event.clientX)
   const ms = msAt(event.clientX)
   if (current.mode === 'press' && Math.abs(event.clientX - current.x) > 4) drag.value = { mode: 'create', anchor: current.ms, ms }
   else if (current.mode === 'create') drag.value = { ...current, ms }
@@ -167,8 +230,9 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
       <div
         ref="track"
         class="relative min-w-0 flex-1 touch-none"
-        :class="editable ? 'cursor-crosshair' : 'cursor-pointer'"
+        :class="[editable ? 'cursor-crosshair' : 'cursor-pointer', zoomed && 'overflow-x-clip']"
         :style="{ height: trackHeight }"
+        @wheel="onWheel"
         @pointerdown="onDown"
         @pointermove="onMove"
         @pointerup="onUp"
@@ -220,12 +284,12 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
           :style="{ top: `${PANEL_TOP}px`, height: `${panelHeight}px`, left: pct(range.startMs), width: `calc(${pct(range.endMs)} - ${pct(range.startMs)})` }"
         >
           <template v-if="editable">
-            <span data-handle="start" :data-key="range.key" class="absolute -left-1 inset-y-0 w-2 cursor-ew-resize rounded-sm bg-primary" :class="range.key !== selected && 'opacity-50'" />
-            <span data-handle="end" :data-key="range.key" class="absolute -right-1 inset-y-0 w-2 cursor-ew-resize rounded-sm bg-primary" :class="range.key !== selected && 'opacity-50'" />
+            <span v-if="inView(range.startMs)" data-handle="start" :data-key="range.key" class="absolute -left-1 inset-y-0 w-2 cursor-ew-resize rounded-sm bg-primary" :class="range.key !== selected && 'opacity-50'" />
+            <span v-if="inView(range.endMs)" data-handle="end" :data-key="range.key" class="absolute -right-1 inset-y-0 w-2 cursor-ew-resize rounded-sm bg-primary" :class="range.key !== selected && 'opacity-50'" />
           </template>
         </div>
         <div v-if="ghost" class="pointer-events-none absolute rounded-md bg-primary/20 ring-1 ring-primary" :style="{ top: `${PANEL_TOP}px`, height: `${panelHeight}px`, left: pct(ghost.startMs), width: `calc(${pct(ghost.endMs)} - ${pct(ghost.startMs)})` }" />
-        <div v-if="pendingIn !== null" class="pointer-events-none absolute bottom-0 border-l-2 border-dashed border-primary" :style="{ top: `${PANEL_TOP - 4}px`, left: pct(pendingIn) }" title="In point" />
+        <div v-if="pendingIn !== null && inView(pendingIn)" class="pointer-events-none absolute bottom-0 border-l-2 border-dashed border-primary" :style="{ top: `${PANEL_TOP - 4}px`, left: pct(pendingIn) }" title="In point" />
 
         <RecapWinProbabilityLane
           v-if="winProbability"
@@ -234,6 +298,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
           :curve="winProbability.curve"
           :turning-points="winProbability.turningPoints"
           :length-ms="lengthMs"
+          :view="view"
           :height="CURVE_HEIGHT"
           @jump="onMoment"
         />
@@ -257,7 +322,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
           </button>
         </template>
 
-        <div data-playhead class="absolute bottom-0 z-20 w-0.5 -translate-x-1/2 cursor-ew-resize bg-inverted" :style="{ top: `${PANEL_TOP - 6}px`, left: pct(currentMs) }">
+        <div v-if="inView(currentMs)" data-playhead class="absolute bottom-0 z-20 w-0.5 -translate-x-1/2 cursor-ew-resize bg-inverted" :style="{ top: `${PANEL_TOP - 6}px`, left: pct(currentMs) }">
           <span class="absolute -left-[5px] -top-1.5 size-3 rounded-full bg-inverted ring-2 ring-(--ui-bg)" />
         </div>
       </div>
@@ -271,5 +336,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
         :style="{ left: pct(hoverMs) }"
       >{{ formatClock(hoverMs) }}</span>
     </div>
+
+    <RecapTimelineNavigator class="mt-1.5" :view="view" :length-ms="lengthMs" :current-ms="currentMs" @update:view="setView" @zoom="zoomStep" />
   </div>
 </template>

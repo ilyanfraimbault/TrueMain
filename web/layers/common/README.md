@@ -29,6 +29,8 @@ set up:
   builds. Both carry only emit options; type checking still runs through each app's `nuxt typecheck`.
 - The app maps unresolved bare imports to its own `node_modules` (`desktop/app/nuxt.config.ts`), since TypeScript
   would look for them under `web/`.
+- The typefaces — Inter and Geist Mono, every subset — are files in `public/fonts/`, resolved for both apps' @nuxt/fonts
+  by the provider in `fonts.ts`, which imports nothing for the same reason; no build downloads a font (#1106).
 - `desktop.yml` builds the app in exactly those conditions whenever this layer or `web/shared` changes.
 
 ## What each app provides
@@ -46,8 +48,14 @@ typecheck.
 | `useCanonicalIcon()` | `composables/useCanonicalIcon.ts` — IPX | `composables/useSiteShims.ts` — the CDN URL as given |
 
 Shared pages link to the site's routes as they are (`truemainProfilePath`, …). A route the app does not have — a
-player's profile — opens on truemain.lol in the browser (`desktop/app/app/plugins/site-routes.ts`), so the shared
-code never asks which app it runs in.
+player's champion page — opens on truemain.lol in the browser (`desktop/app/app/plugins/site-routes.ts`), so the
+shared code never asks which app it runs in. A player's profile is a route both have, on the same page
+(`page/PlayerProfile.vue`).
+
+What a host must supply rather than a name: the banner art of `PageHero` (`splashUrl` — the site through IPX,
+`useCanonicalSplash`, the app straight from Data Dragon), and where an open match row reads its game. The match detail
+asks `MATCH_DETAIL_SOURCE` (`utils/match-detail-source.ts`); unprovided it reads TrueMain (`useMatchDetail`), and the
+desktop dashboard provides its own reader, which falls back to the player's client.
 
 Two components are host-provided the same way, because neither can draw the site's way in the app: `SkeletonImage`
 (the site's goes through IPX and fades in on `load`, which WKWebView never reports for late images) and `RankIcon`

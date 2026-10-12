@@ -61,6 +61,30 @@ public sealed class MatchSummariesQueryServiceIntegrationTests : IAsyncLifetime
         response.Page.Should().Be(3, "matches the zero-total case so pagination never disagrees about the page shown");
     }
 
+    [Fact]
+    public async Task GetAsync_MatchesSharingAStartTime_PageInAStableIdOrder()
+    {
+        await SeedAccountAsync();
+        var startedAt = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+        foreach (var matchId in new[] { "MATCH_B", "MATCH_C", "MATCH_A" })
+        {
+            await SeedMatchAsync(matchId, startedAt);
+        }
+
+        var seen = new List<string>();
+        for (var page = 1; page <= 3; page++)
+        {
+            await using var db = _fixture.CreateDbContext();
+            var response = await CreateService(db).GetAsync(
+                NameTag, page, pageSize: 1, position: null, championId: null, CancellationToken.None);
+            seen.AddRange(response!.Matches.Select(m => m.MatchId));
+        }
+
+        seen.Should().Equal(
+            ["MATCH_C", "MATCH_B", "MATCH_A"],
+            "a start-time tie is broken by match id, so offset pages never repeat or skip a match (#1635)");
+    }
+
     private static MatchSummariesQueryService CreateService(Data.TrueMainDbContext db)
         => new(
             db,
@@ -79,10 +103,16 @@ public sealed class MatchSummariesQueryServiceIntegrationTests : IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    private async Task SeedMatchAsync(string matchId)
+    private async Task SeedMatchAsync(string matchId, DateTime? gameStartTimeUtc = null)
     {
         await using var db = _fixture.CreateDbContext();
-        db.Matches.Add(new MatchBuilder().WithId(matchId).Build());
+        var match = new MatchBuilder().WithId(matchId);
+        if (gameStartTimeUtc is { } startedAt)
+        {
+            match = match.WithGameStartTimeUtc(startedAt);
+        }
+
+        db.Matches.Add(match.Build());
         db.MatchParticipants.Add(new MatchParticipant
         {
             MatchId = matchId,

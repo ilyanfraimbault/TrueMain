@@ -105,6 +105,23 @@ public sealed class ChampionItemTimingsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetChampionItemTimingsAsync_CountsTheChampionCohortOnly()
+    {
+        await SeedMixedPopulationAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var timings = await client.GetFromJsonAsync<ChampionItemTimingsResponse>(
+            $"/champions/{Champion}/item-timings?position={Position}");
+
+        // 12 of the 36 games seeded: the off-main account's and the remakes would each
+        // clear the floor on their own (#1365).
+        timings!.Items.Single(i => i.ItemId == Boots).Games
+            .Should().Be(12, "only the champion's mains count, and a remake is not a game");
+    }
+
+    [Fact]
     public async Task GetChampionItemTimingsAsync_ReturnsEmptyWhenNoGames()
     {
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -136,6 +153,7 @@ public sealed class ChampionItemTimingsApiIntegrationTests : IAsyncLifetime
             .WithPuuid("timings-main-puuid")
             .Build();
         db.RiotAccounts.Add(account);
+        db.MainChampionStats.Add(MainChampionStatSeed.Row(account.PlatformId, account.Puuid, Champion, Position));
 
         for (var i = 0; i < games; i++)
         {
@@ -166,7 +184,7 @@ public sealed class ChampionItemTimingsApiIntegrationTests : IAsyncLifetime
                 events.Add(Purchase(RareItem, 120_000));
             }
 
-            db.MatchParticipants.Add(Participant(matchId, account.Id, events));
+            db.MatchParticipants.Add(Participant(matchId, account, events));
         }
 
         await db.SaveChangesAsync();
@@ -187,15 +205,48 @@ public sealed class ChampionItemTimingsApiIntegrationTests : IAsyncLifetime
             .WithPuuid("timings-bracket-puuid")
             .Build();
         db.RiotAccounts.Add(account);
+        db.MainChampionStats.Add(MainChampionStatSeed.Row(account.PlatformId, account.Puuid, Champion, Position));
 
-        AddTimingGames(db, "gold", 12, account.Id, EloBracket.Gold);
-        AddTimingGames(db, "iron", 12, account.Id, EloBracket.Iron);
+        AddTimingGames(db, "gold", 12, account, EloBracket.Gold);
+        AddTimingGames(db, "iron", 12, account, EloBracket.Iron);
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// The cohort's main (12 games) beside a tracked account that does not main the
+    /// champion (12 games) and the main's own remakes (12) — each clears the floor alone.
+    /// </summary>
+    private async Task SeedMixedPopulationAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var main = new RiotAccountBuilder()
+            .WithGameName("TimingsCohortMain")
+            .WithTagLine("KR1")
+            .WithPuuid("timings-cohort-main-puuid")
+            .Build();
+        var offMain = new RiotAccountBuilder()
+            .WithGameName("TimingsOffMain")
+            .WithTagLine("KR1")
+            .WithPuuid("timings-off-main-puuid")
+            .Build();
+        db.RiotAccounts.AddRange(main, offMain);
+        db.MainChampionStats.Add(MainChampionStatSeed.Row(main.PlatformId, main.Puuid, Champion, Position));
+        db.MainChampionStats.Add(
+            MainChampionStatSeed.Row(offMain.PlatformId, offMain.Puuid, Champion, Position, isMain: false));
+
+        AddTimingGames(db, "cohort", 12, main, EloBracket.Gold);
+        AddTimingGames(db, "remake", 12, main, EloBracket.Gold,
+            durationSeconds: Data.Aggregation.ChampionCohort.MinimumGameDurationSeconds - 1);
+        AddTimingGames(db, "offmain", 12, offMain, EloBracket.Gold);
 
         await db.SaveChangesAsync();
     }
 
     private static void AddTimingGames(
-        Data.TrueMainDbContext db, string prefix, int games, Guid accountId, string eloBracket)
+        Data.TrueMainDbContext db, string prefix, int games, RiotAccount account, string eloBracket,
+        int durationSeconds = 1800)
     {
         for (var i = 0; i < games; i++)
         {
@@ -204,10 +255,11 @@ public sealed class ChampionItemTimingsApiIntegrationTests : IAsyncLifetime
                 .WithId(matchId)
                 .WithQueueId(QueueId)
                 .WithGameVersion("16.4.521.123")
+                .WithGameDurationSeconds(durationSeconds)
                 .Build());
 
             var events = new List<ItemEvent> { Purchase(Boots, 300_000), Purchase(CoreItem, 600_000) };
-            db.MatchParticipants.Add(Participant(matchId, accountId, events, eloBracket));
+            db.MatchParticipants.Add(Participant(matchId, account, events, eloBracket));
         }
     }
 
@@ -215,13 +267,13 @@ public sealed class ChampionItemTimingsApiIntegrationTests : IAsyncLifetime
         => new() { TimestampMs = timestampMs, EventType = "ITEM_PURCHASED", ItemId = itemId };
 
     private static MatchParticipant Participant(
-        string matchId, Guid accountId, List<ItemEvent> itemEvents, string eloBracket = "")
+        string matchId, RiotAccount account, List<ItemEvent> itemEvents, string eloBracket = "")
         => new()
         {
             MatchId = matchId,
             ParticipantId = 1,
-            Puuid = $"puuid-{matchId}",
-            RiotAccountId = accountId,
+            Puuid = account.Puuid,
+            RiotAccountId = account.Id,
             SummonerName = "seed",
             SummonerLevel = 100,
             ChampionId = Champion,

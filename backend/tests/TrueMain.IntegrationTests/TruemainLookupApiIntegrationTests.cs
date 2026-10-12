@@ -28,7 +28,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Finds_a_true_main_of_the_champion_and_leaves_everyone_else_out()
+    public async Task FindsATrueMainOfTheChampionAndLeavesEveryoneElseOut()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -62,7 +62,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Matches_the_riot_id_case_insensitively()
+    public async Task MatchesTheRiotIdCaseInsensitively()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -80,7 +80,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_riot_id_on_another_platform_is_not_matched()
+    public async Task ARiotIdOnAnotherPlatformIsNotMatched()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -100,7 +100,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task An_inactive_or_unranked_main_is_not_marked()
+    public async Task AnInactiveOrUnrankedMainIsNotMarked()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -123,7 +123,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_most_recently_active_holder_of_a_riot_id_decides()
+    public async Task TheMostRecentlyActiveHolderOfARiotIdDecides()
     {
         var now = DateTime.UtcNow;
         await using (var db = _fixture.CreateDbContext())
@@ -151,7 +151,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
     [InlineData("/truemains/lookup?platformId=EUW1")]
     [InlineData("/truemains/lookup?platformId=EUW1&player=NoTag:1")]
     [InlineData("/truemains/lookup?platformId=EUW1&player=A%23EUW:0")]
-    public async Task Rejects_a_malformed_request(string url)
+    public async Task RejectsAMalformedRequest(string url)
     {
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
@@ -162,7 +162,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Rejects_more_than_ten_players()
+    public async Task RejectsMoreThanTenPlayers()
     {
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);

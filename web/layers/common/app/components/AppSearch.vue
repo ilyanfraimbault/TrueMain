@@ -104,15 +104,6 @@ const championsById = useChampionsById(champions)
 // change, so a row never shows someone else's picture.
 type SearchItem = CommandPaletteItem & { truemain?: SearchResult, iconUrl?: string | null }
 
-// The trailing lane/champion glyphs stay plain <img> — they are keyed by id in
-// a v-for, so a changing result set replaces the node rather than repainting
-// one, and the stale-picture problem the leading slots solve does not arise.
-// They do need the canonical URL though: the champion icons were previously
-// bound to the raw Data Dragon `iconUrl`, i.e. a 120×120 PNG (30 267 B) fetched
-// from Riot's CDN, uncached by us, to fill a 20 px box. The same icon through
-// the proxy is 306 B, and it is the URL every other page has already cached.
-const canonicalIcon = useCanonicalIcon()
-
 // Primary / secondary lane icons for a result row — same visual contract as
 // the leaderboard row (primary brighter than secondary, label tooltips from
 // the canonical POSITION_BY_VALUE map).
@@ -499,29 +490,26 @@ defineShortcuts(computed(() => ({
           <template #truemain-trailing="{ item }">
             <div class="flex items-center gap-3">
               <div v-if="positionIconsFor(item.truemain).length > 0" class="flex items-center gap-1">
-                <img
+                <SkeletonImage
                   v-for="role in positionIconsFor(item.truemain)"
                   :key="role.position"
-                  :src="canonicalIcon(role.iconUrl)"
+                  :src="role.iconUrl"
                   :alt="role.title"
                   :title="role.title"
                   class="size-4 shrink-0"
                   :class="role.primary ? 'opacity-70' : 'opacity-40'"
-                  width="16"
-                  height="16"
-                >
+                  transparent
+                />
               </div>
               <div v-if="championIconsFor(item.truemain).length > 0" class="flex items-center gap-1">
-                <img
+                <SkeletonImage
                   v-for="champion in championIconsFor(item.truemain)"
                   :key="champion.id"
-                  :src="canonicalIcon(champion.iconUrl)"
+                  :src="champion.iconUrl"
                   :alt="champion.name"
                   :title="champion.name"
                   class="size-5 shrink-0 rounded"
-                  width="20"
-                  height="20"
-                >
+                />
               </div>
               <span
                 v-if="item.truemain?.ranked"

@@ -8,12 +8,15 @@ import type {
 } from '#shared/types/static-data'
 import { getPositionIconUrl } from '#shared/utils/ddragon'
 import { resolveWinProbability } from '#common/utils/win-probability-swing'
+import { MATCH_DETAIL_SOURCE } from '#common/utils/match-detail-source'
 
 /**
- * Inline match-detail body rendered inside an expanded `MatchRow` accordion.
- * Owns the single-match fetch (lazy, client-only) and lays out the scoreboard,
- * a per-player build/skill breakdown (behind a player selector) and the rune
- * pages across three tabs. Static-data maps are passed down from the
+ * Inline match-detail body rendered inside an expanded match row, on the site's
+ * profile and the desktop dashboard alike. Reads the game through the page's
+ * `MATCH_DETAIL_SOURCE` (TrueMain's copy by default) and lays out the
+ * scoreboard, the win-probability timeline, a per-player build and skill order
+ * (behind a player selector) and every player's rune page, across full-width
+ * tabs. Static-data maps are passed down from the
  * surrounding page so they hit the shared caches instead of being re-fetched
  * per open row.
  */
@@ -28,14 +31,11 @@ const props = defineProps<{
   selfChampionId?: number | null
 }>()
 
-const { data: detail, isLoading, notFound } = useMatchDetail(
+const readDetail = inject(MATCH_DETAIL_SOURCE, useMatchDetail)
+const { data: detail, isLoading, notFound } = readDetail(
   () => props.nameTag,
   () => props.matchId,
 )
-
-// Lane glyph badges are plain <img> (ten of them per scoreboard), so they need
-// the canonical URL built explicitly rather than the raw `/positions/*.png`.
-const canonicalIcon = useCanonicalIcon()
 
 const participants = computed(() => detail.value?.participants ?? [])
 const blueTeam = computed(() => participants.value.filter(p => p.teamId === 100))
@@ -71,8 +71,9 @@ function selectPlayer(participantId: number) {
 }
 
 // ─── Timeline tab: the win-probability curve (#1911) ─────────────────────────
-// Only when the game has one — an older or short game gets no tab rather than
-// an empty chart. Read for the row owner's side.
+// Desktop only: built from the client's timeline the app attaches (the API sends
+// no curve, #2009); a short game gets no tab rather than an empty chart. Read
+// for the row owner's side.
 const winProbability = computed(() => (detail.value ? resolveWinProbability(detail.value) : null))
 const ownerTeamId = computed(() => {
   const owner = props.selfChampionId ? participants.value.find(p => p.championId === props.selfChampionId) : null
@@ -80,9 +81,9 @@ const ownerTeamId = computed(() => {
 })
 
 const tabItems = computed(() => [
-  { value: 'general', label: 'General', slot: 'general' as const },
+  { value: 'general', label: 'Overview', slot: 'general' as const },
   ...(winProbability.value ? [{ value: 'timeline', label: 'Timeline', slot: 'timeline' as const }] : []),
-  { value: 'details', label: 'Details', slot: 'details' as const },
+  { value: 'details', label: 'Build', slot: 'details' as const },
   { value: 'runes', label: 'Runes', slot: 'runes' as const },
 ])
 </script>
@@ -109,13 +110,21 @@ const tabItems = computed(() => [
       description="Match details unavailable."
     />
 
+    <!-- Full-width pills, one per tab: the dashboard's segmented control. -->
     <UTabs
       v-else
       :items="tabItems"
       default-value="general"
-      variant="link"
+      variant="pill"
+      color="neutral"
+      size="sm"
       class="w-full"
       :unmount-on-hide="false"
+      :ui="{
+        list: 'w-full ring ring-default',
+        indicator: 'rounded-md bg-accented shadow-none',
+        trigger: 'flex-1 data-[state=active]:text-highlighted',
+      }"
     >
       <!-- ── General: scoreboard ─────────────────────────────────────── -->
       <template #general>
@@ -189,13 +198,14 @@ const tabItems = computed(() => [
                     :alt="champName(p.championId)"
                     class="size-11 rounded @sm:size-14"
                   />
-                  <img
+                  <SkeletonImage
                     v-if="p.teamPosition"
-                    :src="canonicalIcon(getPositionIconUrl(p.teamPosition))"
+                    :src="getPositionIconUrl(p.teamPosition)"
                     :alt="p.teamPosition"
                     class="absolute -bottom-1 -left-1 size-5 rounded-full bg-default p-0.5 ring-1 ring-default"
                     aria-hidden="true"
-                  >
+                    transparent
+                  />
                 </button>
               </div>
 

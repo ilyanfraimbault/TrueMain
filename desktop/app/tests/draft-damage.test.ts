@@ -101,4 +101,17 @@ describe('draftPush', () => {
     expect(draftPush('build', { candidates: [{ itemId: 1, share: 0.3, baseShare: 0.4, reasons: [reason] }, { itemId: 2, share: 0.6, baseShare: 0.5, reasons: [] }] })).toBeNull()
     expect(draftPush('build', null)).toBeNull()
   })
+
+  it('ignores a shift too small to be advice', () => {
+    expect(draftPush('build', { candidates: [{ itemId: 6673, share: 0.21, baseShare: 0.2, reasons: [reason] }] })).toBeNull()
+    // Five points, but on an item already taken most of the time: not a quarter more often.
+    expect(draftPush('build', { candidates: [{ itemId: 1, share: 0.65, baseShare: 0.6, reasons: [reason] }] })).toBeNull()
+  })
+
+  it('gives only an enemy or lane situation as the reason', () => {
+    const ally = { axis: 'AllyMagicDamage', bucket: 'High' as const }
+    expect(draftPush('build', { candidates: [{ itemId: 6673, share: 0.4, baseShare: 0.2, reasons: [ally] }] })).toBeNull()
+    expect(draftPush('build', { candidates: [{ itemId: 6673, share: 0.4, baseShare: 0.2, reasons: [ally, reason] }] }))
+      .toEqual({ slot: 'build', itemId: 6673, share: 0.4, baseShare: 0.2, reason })
+  })
 })

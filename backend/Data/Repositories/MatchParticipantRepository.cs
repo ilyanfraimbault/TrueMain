@@ -165,7 +165,6 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
         var safeMinGames = Math.Max(1, minObservedGames);
         var safeMaxRows = Math.Max(1, maxRowsPerBucket);
         var harvestSource = (int)MainCandidateSource.Harvest;
-        var rejectedStatus = (int)MainCandidateStatus.Rejected;
         var queuedStatus = (int)MainCandidateStatus.Queued;
 
         // Aggregate one platform at a time instead of PlatformId = ANY(...) (#632). The
@@ -204,7 +203,7 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
             // gets a sargable leading-column predicate. Pairs whose candidate exists but is
             // NOT refreshable are dropped from both classes: a ladder/manual-seed candidate is
             // left untouched by the harvest on purpose (observed stats stay 0 outside Harvest),
-            // a Rejected one must not be resurrected, and a Queued one is already past scoring
+            // and a Queued one is already past scoring
             // (#1361) — refreshing its observed stats rewrites a row whose score nothing will
             // read again before the claim reaches it, which is what made this the pipeline's
             // single largest write source. Returning any of them would only burn budget on a
@@ -245,7 +244,6 @@ public sealed class MatchParticipantRepository(TrueMainDbContext db) : IMatchPar
                            AND c."ChampionId" = o.champion_id
                         WHERE c."Id" IS NULL
                            OR (c."Source" = {harvestSource}
-                               AND c."Status" <> {rejectedStatus}
                                AND c."Status" <> {queuedStatus})
                     ),
                     ranked AS (

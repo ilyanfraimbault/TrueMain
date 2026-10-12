@@ -2,6 +2,7 @@
 import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { ELO_BRACKET_ALL, eloBracketLabel } from '#common/utils/elo-brackets'
 import { isLoadingStatus } from '#common/utils/async-data'
+import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 
 // Layout plus wiring: the fetching and derivation live in composables
 // (`useChampionBuildSummary`, `useChampionPageSeo`, `useChampionSliceControls`,
@@ -90,6 +91,13 @@ const { data: championTrend, pending: trendPending } = useChampionTrend(champion
 // SSR-safe champion name for `<head>` — see useChampionSeoName for why this
 // page can't use `displayName` there, and why the fetch is awaited on the
 // server only. Shared verbatim with the player-scoped champion page.
+// The banner's splash, through the image proxy at banner width.
+const splashOf = useCanonicalSplash()
+const splashUrl = computed(() => {
+  const raw = championSplashUrlFromIcon(displayIconUrl.value)
+  return splashOf(raw)
+})
+
 const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
 
@@ -126,6 +134,14 @@ const {
 // trend chart, but is patch-scoped: the active patch filter narrows the slice.
 // Gated on the champion fetch so it fires once with the resolved lane — hence
 // `pending` rather than `status`, same reason as the trend chart above.
+const tier = useChampionTier({
+  championId,
+  position: trendPosition,
+  patch: selectedPatch,
+  eloBracket: eloBracketParam,
+  truemainsOnly: () => filters.value.truemainsOnly,
+})
+
 const { data: championScaling, pending: scalingPending } = useChampionScaling(
   championId,
   trendPosition,
@@ -158,7 +174,28 @@ const {
   <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
     <!-- Champions > {champion}, mirroring the schema.org breadcrumb. Shown
          across every state (error / no-data / normal) as the first child. -->
-    <UBreadcrumb :items="breadcrumbItems" />
+    <div class="flex flex-wrap items-center gap-3">
+      <UBreadcrumb :items="breadcrumbItems" />
+      <!-- The filters share the breadcrumb's row (the dashboard's header line):
+           shown wherever the page has a slice to change. The no-data-for-rank
+           state keeps its own rank select below, next to its explanation. -->
+      <ChampionFilters
+        v-if="!championError && !noDataForRank"
+        class="ml-auto"
+        :selected-patch="selectedPatch"
+        :selected-position="selectedPosition"
+        :selected-elo-bracket="selectedEloBracket"
+        :patch-options="patchOptions"
+        :opponent-options="opponentOptions"
+        :selected-opponent-id="filters.opponentChampionId ?? null"
+        :truemains-only="filters.truemainsOnly"
+        @update:patch="value => setFilter({ patch: value })"
+        @update:position="value => setFilter({ position: value })"
+        @update:elo-bracket="value => setFilter({ eloBracket: value })"
+        @update:truemains-only="value => setFilter({ truemainsOnly: value })"
+        @update:opponent-champion-id="onOpponentChange"
+      />
+    </div>
 
     <FetchErrorAlert
       v-if="championError"
@@ -211,41 +248,20 @@ const {
     </div>
 
     <!--
-      No-data empty state: the API returned 404 for this champion (and, if a
-      patch/position was pinned, the fallback 404'd too) — we simply don't hold
-      any aggregate for them yet (a brand-new champion, or one nobody in the
-      dataset has played). This is deliberately distinct from the error alert
-      above: a 404 is "no data", not a transient failure to retry. We still
-      render the base header (name + patch/position/rank pickers) so the user
-      can switch slice from here instead of hitting a dead end, and show a plain
-      "Not enough data" notice below.
+      No-data state: the API returned 404 for this champion (and its fallback
+      too) — no aggregate yet, a brand-new champion or one nobody played. Not
+      the error alert: a 404 is "no data", not a failure to retry. The banner and
+      the filter row stay so the user can switch slice instead of a dead end.
     -->
     <template v-else-if="notEnoughData">
-      <header class="flex flex-wrap items-center gap-4">
-        <!-- No `loading` here: this state is settled — the champion has no
-             aggregate at all, so the zeroes below are the answer, not a
-             placeholder. -->
-        <ChampionHeader
-          :champion-name="seoDisplayName"
-          :champion-icon-url="displayIconUrl"
-          :champion-id="championId"
-          :position="champion?.position || selectedPosition || ''"
-          :total-games="champion?.totalGames ?? 0"
-          :total-wins="champion?.totalWins ?? 0"
-        />
-        <ChampionFilters
-          :selected-patch="selectedPatch"
-          :selected-position="selectedPosition"
-          :selected-elo-bracket="selectedEloBracket"
-          :patch-options="patchOptions"
-          :opponent-options="opponentOptions"
-          :selected-opponent-id="filters.opponentChampionId ?? null"
-          @update:patch="value => setFilter({ patch: value })"
-          @update:position="value => setFilter({ position: value })"
-          @update:elo-bracket="value => setFilter({ eloBracket: value })"
-          @update:opponent-champion-id="onOpponentChange"
-        />
-      </header>
+      <ChampionHero
+        :champion-name="seoDisplayName"
+        :champion-icon-url="displayIconUrl"
+        :champion-id="championId"
+        :splash-url="splashUrl"
+        :position="champion?.position || selectedPosition || ''"
+        :total-games="0"
+      />
 
       <UEmpty
         icon="i-lucide-chart-no-axes-column"
@@ -254,53 +270,38 @@ const {
     </template>
 
     <!--
-      Everything below renders immediately and independently — no gate on
-      `champion`/`staticData` resolving. Header/filters already fall back to
-      the URL filters and the static champion list; the charts already accept
-      a `loading` flag and skeleton themselves. Only the build tabs need real
-      champion + static data, so that section alone shows a dedicated skeleton
-      until both resolve.
+      Everything below renders immediately — no gate on `champion`/`staticData`.
+      The banner and filters fall back to the URL filters and the static list;
+      the charts skeleton themselves. Only the build tabs wait for real data.
     -->
     <template v-else>
-      <header class="flex flex-wrap items-center gap-4">
-        <!-- `seoDisplayName`, not the client-only `displayName`: it's already
-             resolved at SSR, so the h1 carries the real champion name in the
-             server HTML instead of `Champion {id}` — and the title only
-             skeletons on a client-side navigation, where nothing is known yet. -->
-        <ChampionHeader
-          :champion-name="seoDisplayName"
-          :champion-icon-url="displayIconUrl"
-          :champion-id="championId"
-          :position="champion?.position || selectedPosition || ''"
-          :patch="selectedPatch"
-          :total-games="champion?.totalGames ?? 0"
-          :total-wins="champion?.totalWins ?? 0"
-          :low-sample-message="bracketNoticeText"
-          :truemains-only="filters.truemainsOnly"
-          :loading="!champion"
-        />
-        <ChampionFilters
-          :selected-patch="selectedPatch"
-          :selected-position="selectedPosition"
-          :selected-elo-bracket="selectedEloBracket"
-          :patch-options="patchOptions"
-          :opponent-options="opponentOptions"
-          :selected-opponent-id="filters.opponentChampionId ?? null"
-          :truemains-only="filters.truemainsOnly"
-          @update:patch="value => setFilter({ patch: value })"
-          @update:position="value => setFilter({ position: value })"
-          @update:elo-bracket="value => setFilter({ eloBracket: value })"
-          @update:truemains-only="value => setFilter({ truemainsOnly: value })"
-          @update:opponent-champion-id="onOpponentChange"
-        />
-        <!-- Share affordance (#926). Only on the populated state: the two
-             degraded headers above have nothing worth putting in someone's
-             Discord, and the card they'd unfurl to is the branded fallback. -->
-        <ShareButtons
-          :title="shareTitle"
-          :description="shareDescription"
-        />
-      </header>
+      <!-- `seoDisplayName` is resolved at SSR, so the h1 carries the real
+           champion name in the server HTML; the title only skeletons on a
+           client-side navigation, where nothing is known yet. -->
+      <ChampionHero
+        :champion-name="seoDisplayName"
+        :champion-icon-url="displayIconUrl"
+        :champion-id="championId"
+        :splash-url="splashUrl"
+        :position="champion?.position || selectedPosition || ''"
+        :patch="selectedPatch"
+        :total-games="champion?.totalGames ?? 0"
+        :low-sample-message="bracketNoticeText"
+        :truemains-only="filters.truemainsOnly"
+        :tier="tier"
+        :trend="championTrend?.points ?? null"
+        :trend-loading="trendPending"
+        :loading="!champion"
+      >
+        <!-- Share controls (#926) ride the banner; the degraded states above
+             have nothing worth putting in someone's Discord. -->
+        <template #actions>
+          <ShareButtons
+            :title="shareTitle"
+            :description="shareDescription"
+          />
+        </template>
+      </ChampionHero>
 
       <!-- A failed filter change: the previous slice stays, marked stale (#1668). -->
       <StaleContentNotice
@@ -402,17 +403,9 @@ const {
           />
 
           <!--
-            The build in words (#1123). Rendered plainly — not `Lazy`, not
-            `hydrate-on-visible` — because being present in the server HTML is
-            the entire point; a lazy wrapper would put it back behind the same
-            JS gate as everything else.
-
-            Last in the column and collapsed (#1466). #1143 put it at the top as
-            the caption for the icon grid beside it; the feedback was that it
-            reads as the same build said a second time, which is exactly what it
-            is. At the foot of the sidebar it is still in the server HTML and
-            still one click from a reader who wants the prose version, without
-            spending the top of the column on a restatement.
+            The build in words (#1123). Not lazy: being in the server HTML is the
+            point. Last and collapsed (#1466): at the top it read as the same
+            build said twice; here it is one click away for the prose reader.
           -->
           <ChampionBuildSummary
             :summary="buildSummary"

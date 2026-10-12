@@ -10,7 +10,7 @@ public sealed class PuuidTests
     private static string ValidPuuid => new('a', 78);
 
     [Fact]
-    public void Parse_accepts_a_valid_puuid()
+    public void Parse_AcceptsAValidPuuid()
     {
         var puuid = Puuid.Parse(ValidPuuid);
 
@@ -20,7 +20,7 @@ public sealed class PuuidTests
     }
 
     [Fact]
-    public void TryParse_accepts_valid_and_rejects_malformed()
+    public void TryParse_AcceptsValidAndRejectsMalformed()
     {
         Puuid.TryParse(ValidPuuid, out var ok).Should().BeTrue();
         ok.Value.Should().Be(ValidPuuid);
@@ -33,7 +33,7 @@ public sealed class PuuidTests
     }
 
     [Fact]
-    public void Parse_throws_on_malformed_input()
+    public void Parse_ThrowsOnMalformedInput()
     {
         var act = () => Puuid.Parse("too-short");
 
@@ -41,7 +41,7 @@ public sealed class PuuidTests
     }
 
     [Fact]
-    public void Default_is_invalid_on_both_Value_and_ToString()
+    public void Default_IsInvalidOnBothValueAndToString()
     {
         var puuid = default(Puuid);
 
@@ -53,7 +53,7 @@ public sealed class PuuidTests
     }
 
     [Fact]
-    public void CompareTo_orders_ordinally()
+    public void CompareTo_OrdersOrdinally()
     {
         var a = Puuid.Parse(new string('a', 78));
         var b = Puuid.Parse(new string('b', 78));
@@ -64,7 +64,7 @@ public sealed class PuuidTests
     }
 
     [Fact]
-    public void Json_round_trips_as_a_bare_string()
+    public void Json_RoundTripsAsABareString()
     {
         var puuid = Puuid.Parse(ValidPuuid);
 
@@ -75,7 +75,7 @@ public sealed class PuuidTests
     }
 
     [Fact]
-    public void Json_rejects_null_rather_than_yielding_the_invalid_default()
+    public void Json_RejectsNullRatherThanYieldingTheInvalidDefault()
     {
         // A null would otherwise deserialize to default(Puuid), whose Value and
         // ToString both throw — the converter rejects it at the boundary.
@@ -85,7 +85,7 @@ public sealed class PuuidTests
     }
 
     [Fact]
-    public void Json_nullable_puuid_still_accepts_null()
+    public void Json_NullablePuuidStillAcceptsNull()
     {
         // STJ short-circuits null for Nullable<T> before the converter runs, so
         // rejecting null in the converter must not break optional Puuid? fields.

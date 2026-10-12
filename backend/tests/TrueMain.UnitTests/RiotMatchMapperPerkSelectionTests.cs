@@ -8,7 +8,7 @@ namespace TrueMain.UnitTests;
 public sealed class RiotMatchMapperPerkSelectionTests
 {
     [Fact]
-    public void BuildPerkSelectionRows_returns_six_rows_for_single_participant()
+    public void BuildPerkSelectionRows_ReturnsSixRowsForSingleParticipant()
     {
         var match = new RiotMatchDto
         {

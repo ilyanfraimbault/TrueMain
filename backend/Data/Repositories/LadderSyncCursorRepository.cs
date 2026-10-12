@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,11 +20,11 @@ public sealed class LadderSyncCursorRepository(TrueMainDbContext db) : ILadderSy
     /// therefore the conflict target. Nothing tracks this entity, so bypassing the tracker
     /// leaves no stale instance behind.
     /// </remarks>
-    public Task UpsertAsync(string platformId, string tier, string division, int page, DateTime nowUtc, CancellationToken ct)
+    public Task UpsertAsync(string platformId, RankTier tier, RankDivision division, int page, DateTime nowUtc, CancellationToken ct)
         => db.Database.ExecuteSqlAsync(
             $"""
             INSERT INTO "ladder_sync_cursors" ("PlatformId", "Tier", "Division", "Page", "UpdatedAtUtc")
-            VALUES ({platformId}, {tier}, {division}, {page}, {nowUtc})
+            VALUES ({platformId}, {tier.ToRiotName()}, {division.ToRiotName()}, {page}, {nowUtc})
             ON CONFLICT ("PlatformId") DO UPDATE
                 SET "Tier" = EXCLUDED."Tier",
                     "Division" = EXCLUDED."Division",

@@ -20,9 +20,9 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 20,
+                propertyCount: 24,
                 navigationCount: 1,
-                unnamedIndexCount: 5,
+                unnamedIndexCount: 4,
                 namedIndexCount: 7,
                 keyCount: 1);
 
@@ -55,6 +55,33 @@ namespace Data.CompiledModels
             createdAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             createdAtUtc.AddAnnotation("Relational:DefaultValueSql", "now()");
 
+            var endOfGameResult = runtimeEntityType.AddProperty(
+                "EndOfGameResult",
+                typeof(string),
+                propertyInfo: typeof(Match).GetProperty("EndOfGameResult", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<EndOfGameResult>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                maxLength: 32);
+            endOfGameResult.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var endedInEarlySurrender = runtimeEntityType.AddProperty(
+                "EndedInEarlySurrender",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("EndedInEarlySurrender", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<EndedInEarlySurrender>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            endedInEarlySurrender.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            endedInEarlySurrender.AddAnnotation("Relational:DefaultValue", false);
+
+            var gameCreationUtc = runtimeEntityType.AddProperty(
+                "GameCreationUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(Match).GetProperty("GameCreationUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<GameCreationUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            gameCreationUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var gameDurationSeconds = runtimeEntityType.AddProperty(
                 "GameDurationSeconds",
                 typeof(int),
@@ -62,6 +89,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(Match).GetField("<GameDurationSeconds>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             gameDurationSeconds.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var gameEndTimestampUtc = runtimeEntityType.AddProperty(
+                "GameEndTimestampUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(Match).GetProperty("GameEndTimestampUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<GameEndTimestampUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            gameEndTimestampUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var gameMode = runtimeEntityType.AddProperty(
                 "GameMode",
@@ -218,23 +253,20 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
-                new[] { platformId });
+                new[] { timelineIngested });
+            index.AddAnnotation("Relational:Name", "IX_matches_timeline_ingested");
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { timelineIngested });
-            index0.AddAnnotation("Relational:Name", "IX_matches_timeline_ingested");
+                new[] { patch, queueId });
+            index0.AddAnnotation("Relational:Name", "IX_matches_patch_queue");
 
             var index1 = runtimeEntityType.AddIndex(
-                new[] { patch, queueId });
-            index1.AddAnnotation("Relational:Name", "IX_matches_patch_queue");
+                new[] { platformId, queueId, gameStartTimeUtc });
+            index1.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
 
             var index2 = runtimeEntityType.AddIndex(
-                new[] { platformId, queueId, gameStartTimeUtc });
-            index2.AddAnnotation("Relational:Name", "IX_matches_platform_queue_game_start");
-
-            var index3 = runtimeEntityType.AddIndex(
                 new[] { queueId, patch, platformId });
-            index3.AddAnnotation("Relational:Name", "IX_matches_queue_patch_platform");
+            index2.AddAnnotation("Relational:Name", "IX_matches_queue_patch_platform");
 
             var iX_matches_bans_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

@@ -1,13 +1,15 @@
 import type { H3Event } from 'h3'
 import type { ChampionBuildSummary } from '~~/shared/types/champion-build-summary'
-import type { ChampionResponse } from '~~/shared/types/champions'
+import type { ChampionMatchups, ChampionResponse } from '~~/shared/types/champions'
 import type {
   ChampionStaticData,
+  ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
 import { resolveChampionBuildSummary } from '~~/shared/utils/champion-build-summary'
+import { resolveSummaryMatchups } from '~~/shared/utils/champion-matchup-summary'
 
 /**
  * The champion page's build, resolved to names, for server-side rendering
@@ -35,6 +37,13 @@ import { resolveChampionBuildSummary } from '~~/shared/utils/champion-build-summ
  * Every upstream degrades on its own: no backend means no numbers, no DDragon
  * means no names, and the block simply renders less. None substitutes for
  * another, and nothing is invented — see `resolveChampionBuildSummary`.
+ *
+ * **The lane's matchups ride along** (#1954): the Matchups panel is client-only,
+ * so without them the server HTML held its "no matchups" empty state. They are
+ * read *after* the champion, on the lane and patch it resolved — the panel's own
+ * scope, which an unfiltered request does not know up front, and a matchup read
+ * without a patch spans every patch the aggregate still holds. One more call per
+ * cache miss, not per view; skipped when an opponent is pinned.
  *
  * **Only an absence is cached** (#1557). A 404 describes the slice — the champion
  * has no aggregate there — and is as true in five minutes as now. A 429, a 5xx or
@@ -155,20 +164,23 @@ const loadChampionBuildSummary = defineCachedFunction<ChampionBuildSummary, [num
     const patch = query.patch ?? undefined
     const headers = forwardedFor ? { 'x-forwarded-for': forwardedFor } : undefined
 
-    const [champion, championStatic, itemsMap, runeTree, summonersMap, opponentStatic] = await Promise.all([
-      // A 404 here is meaningful rather than exceptional — the champion simply
-      // has no aggregate for this slice — and `resolveChampionBuildSummary`
-      // renders that as an empty summary, the same "no data" the page shows.
-      $fetch<ChampionResponse>(`/api/champions/${championId}`, {
-        query: {
-          patch,
-          position: query.position ?? undefined,
-          eloBracket: query.eloBracket ?? undefined,
-          truemainsOnly: query.truemainsOnly ? undefined : 'false',
-          opponentChampionId: query.opponentChampionId ?? undefined,
-        },
-        headers,
-      }).catch(absentOnlyWhenNotFound),
+    // A 404 here is meaningful rather than exceptional — the champion simply
+    // has no aggregate for this slice — and `resolveChampionBuildSummary`
+    // renders that as an empty summary, the same "no data" the page shows.
+    const championFetch = $fetch<ChampionResponse>(`/api/champions/${championId}`, {
+      query: {
+        patch,
+        position: query.position ?? undefined,
+        eloBracket: query.eloBracket ?? undefined,
+        truemainsOnly: query.truemainsOnly ? undefined : 'false',
+        opponentChampionId: query.opponentChampionId ?? undefined,
+      },
+      headers,
+    }).catch(absentOnlyWhenNotFound)
+    const withMatchups = query.opponentChampionId === null
+
+    const [champion, championStatic, itemsMap, runeTree, summonersMap, opponentStatic, matchups, champions] = await Promise.all([
+      championFetch,
       $fetch<ChampionStaticData>(`/api/static/${championId}`, { query: { patch }, headers }).catch(absentOnlyWhenNotFound),
       $fetch<Record<number, StaticItemData>>('/api/static/items', { query: { patch }, headers }).catch(absentOnlyWhenNotFound),
       $fetch<RuneTreeResponse>('/api/static/rune-tree', { query: { patch }, headers }).catch(absentOnlyWhenNotFound),
@@ -178,9 +190,22 @@ const loadChampionBuildSummary = defineCachedFunction<ChampionBuildSummary, [num
       query.opponentChampionId === null
         ? Promise.resolve(null)
         : $fetch<ChampionStaticData>(`/api/static/${query.opponentChampionId}`, { query: { patch }, headers }).catch(absentOnlyWhenNotFound),
+      // The panel's exact query: resolved lane and patch, the page's bracket.
+      // No lane resolved means no matchup to read — the endpoint 400s without one.
+      withMatchups
+        ? championFetch.then(resolved => resolved?.position
+          ? $fetch<ChampionMatchups>(`/api/champions/${championId}/matchups`, {
+              query: { position: resolved.position, patch: resolved.patch, eloBracket: query.eloBracket ?? undefined },
+              headers,
+            }).catch(absentOnlyWhenNotFound)
+          : null)
+        : Promise.resolve(null),
+      withMatchups
+        ? $fetch<ChampionStaticListItem[]>('/api/static/champions', { query: { patch }, headers }).catch(absentOnlyWhenNotFound)
+        : Promise.resolve(null),
     ])
 
-    return resolveChampionBuildSummary({
+    const summary = resolveChampionBuildSummary({
       championId,
       champion,
       championStatic,
@@ -191,6 +216,8 @@ const loadChampionBuildSummary = defineCachedFunction<ChampionBuildSummary, [num
       opponentName: opponentStatic?.championName ?? null,
       opponentIconUrl: opponentStatic?.championIconUrl ?? null,
     })
+    const named = resolveSummaryMatchups(matchups?.matchups, champions)
+    return named ? { ...summary, matchups: named } : summary
   },
   {
     maxAge: SUMMARY_CACHE_SECONDS,

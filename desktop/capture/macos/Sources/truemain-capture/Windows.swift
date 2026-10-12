@@ -45,8 +45,11 @@ func isGameWindow(_ window: SCWindow) -> Bool {
     if excludedApps.contains(where: { app.contains($0) || bundle.contains($0.replacingOccurrences(of: " ", with: "")) }) {
         return false
     }
-    let mentionsLeague = [app, bundle, title].contains { $0.contains("league") }
-    return mentionsLeague && window.frame.width >= 640 && window.frame.height >= 360
+    // The app, or the game's own render-window title: any window's title
+    // could mention League — a browser tab on a build page — and one picked
+    // before the game's window exists records that page instead of the game.
+    let isLeague = app.contains("league") || bundle.contains("league") || title.contains("(tm) client")
+    return isLeague && window.frame.width >= 640 && window.frame.height >= 360
 }
 
 /// The game's own render window is titled "League of Legends (TM) Client";

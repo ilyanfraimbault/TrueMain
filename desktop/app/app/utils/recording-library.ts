@@ -26,6 +26,10 @@ export interface LibraryItem {
   videoPath: string
   thumbnailPath: string | null
   sizeBytes: number
+  /** A clip published on YouTube, once the player gave its link (#1815). */
+  youtubeUrl: string | null
+  /** False for a published clip whose file was deleted: it lives on YouTube only (#2005). */
+  videoOnDisk: boolean
 }
 
 export const gameItem = (game: GameRecording): LibraryItem => ({
@@ -46,6 +50,8 @@ export const gameItem = (game: GameRecording): LibraryItem => ({
   videoPath: game.videoPath,
   thumbnailPath: game.thumbnailPath,
   sizeBytes: game.sizeBytes,
+  youtubeUrl: null,
+  videoOnDisk: true,
 })
 
 export const clipItem = (clip: Clip): LibraryItem => ({
@@ -66,6 +72,8 @@ export const clipItem = (clip: Clip): LibraryItem => ({
   videoPath: clip.videoPath,
   thumbnailPath: clip.thumbnailPath,
   sizeBytes: clip.sizeBytes,
+  youtubeUrl: clip.youtubeUrl,
+  videoOnDisk: clip.videoOnDisk,
 })
 
 /** Why the page has nothing to list (`RecordingsEmpty`). */

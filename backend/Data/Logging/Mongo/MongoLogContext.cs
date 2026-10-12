@@ -311,7 +311,7 @@ public sealed class MongoLogContext : IDisposable
 
         // #1023 widened the upsert key with the engine, so the pre-existing
         // (snapshotDateUtc, tableName) unique index has to go: process_runs and
-        // seed_requests are both a Postgres table and a Mongo collection, and under
+        // seed_requests were both a Postgres table and a Mongo collection, and under
         // the old index the second engine written each day would collide with the
         // first. Dropped before the new one is created so the collection is never
         // left with a constraint the writer cannot satisfy.

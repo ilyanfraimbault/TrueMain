@@ -29,6 +29,7 @@ const hasPerk = computed(() => Boolean(props.perk))
     <SkeletonImage
       v-bind="$attrs"
       :src="perk?.iconUrl"
+      transparent
       :alt="perk?.name"
       :width="width"
       :height="height"

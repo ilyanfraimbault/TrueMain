@@ -6,7 +6,7 @@ namespace TrueMain.UnitTests;
 public sealed class PlatformIdTests
 {
     [Fact]
-    public void Default_throws_on_route_access()
+    public void Default_ThrowsOnRouteAccess()
     {
         var act = () => _ = default(PlatformId).Route;
 
@@ -14,7 +14,7 @@ public sealed class PlatformIdTests
     }
 
     [Fact]
-    public void Default_throws_on_implicit_string_conversion()
+    public void Default_ThrowsOnImplicitStringConversion()
     {
         var act = () => _ = (string)default(PlatformId);
 
@@ -25,7 +25,7 @@ public sealed class PlatformIdTests
     [InlineData("EUW1", PlatformRoute.EUW1)]
     [InlineData("euw1", PlatformRoute.EUW1)]
     [InlineData("  KR  ", PlatformRoute.KR)]
-    public void TryParse_trims_and_is_case_insensitive(string input, PlatformRoute expected)
+    public void TryParse_TrimsAndIsCaseInsensitive(string input, PlatformRoute expected)
     {
         var parsed = PlatformId.TryParse(input, out var platformId);
 
@@ -38,7 +38,7 @@ public sealed class PlatformIdTests
     [InlineData("3")]
     [InlineData("-1")]
     [InlineData("12345")]
-    public void TryParse_rejects_numeric_strings(string input)
+    public void TryParse_RejectsNumericStrings(string input)
     {
         var parsed = PlatformId.TryParse(input, out _);
 
@@ -50,7 +50,7 @@ public sealed class PlatformIdTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("ZZZ9")]
-    public void TryParse_rejects_invalid(string? input)
+    public void TryParse_RejectsInvalid(string? input)
     {
         var parsed = PlatformId.TryParse(input, out _);
 
@@ -58,7 +58,7 @@ public sealed class PlatformIdTests
     }
 
     [Fact]
-    public void Default_does_not_equal_BR1()
+    public void Default_DoesNotEqualBR1()
     {
         // The +1 backing-field encoding exists so default(PlatformId) stays
         // structurally distinct from a real BR1 (the zero-value route).
@@ -71,7 +71,7 @@ public sealed class PlatformIdTests
     [InlineData(PlatformRoute.BR1, "BR1")]   // zero-value route — the tricky case
     [InlineData(PlatformRoute.EUW1, "EUW1")]
     [InlineData(PlatformRoute.KR, "KR")]
-    public void Value_and_ToString_return_the_canonical_route_name(PlatformRoute route, string expected)
+    public void ValueAndToStringReturnTheCanonicalRouteName(PlatformRoute route, string expected)
     {
         var platformId = new PlatformId(route);
 

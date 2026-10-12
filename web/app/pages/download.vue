@@ -179,13 +179,12 @@ const FEATURES = [
         class="pointer-events-none absolute inset-x-[10%] -top-8 -z-10 h-2/3 rounded-full bg-primary/10 blur-3xl"
       />
       <div class="overflow-hidden rounded-xl ring-1 ring-white/15 shadow-[0_30px_80px_-20px_rgb(0_0_0/0.8)] [mask-image:linear-gradient(to_bottom,black_70%,transparent)]">
-        <img
+        <SkeletonPicture
           src="/desktop/champion-select.webp"
-          width="1180"
-          height="760"
+          :width="1180"
+          :height="760"
           alt="The TrueMain app during champion select: both teams with their tiers, the lane duel, and the build for Ahri against the draft."
-          class="block h-auto w-full"
-        >
+        />
       </div>
     </figure>
 

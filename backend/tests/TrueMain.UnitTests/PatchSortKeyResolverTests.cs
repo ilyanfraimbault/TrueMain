@@ -16,7 +16,7 @@ public sealed class PatchSortKeyResolverTests
     private const string Surface = "champions-trend";
 
     [Fact]
-    public void Resolve_returns_major_minor_and_stays_silent_on_a_valid_patch()
+    public void Resolve_ReturnsMajorMinorAndStaysSilentOnAValidPatch()
     {
         var logger = new CapturingLogger<PatchSortKeyResolver>();
         var resolver = new PatchSortKeyResolver(logger, Surface, championId: 157);
@@ -28,7 +28,7 @@ public sealed class PatchSortKeyResolverTests
     }
 
     [Fact]
-    public void Resolve_warns_once_for_a_malformed_value_repeated_across_rows()
+    public void Resolve_WarnsOnceForAMalformedValueRepeatedAcrossRows()
     {
         var logger = new CapturingLogger<PatchSortKeyResolver>();
         var resolver = new PatchSortKeyResolver(logger, Surface, championId: 157);
@@ -50,7 +50,7 @@ public sealed class PatchSortKeyResolverTests
     }
 
     [Fact]
-    public void Resolve_warns_once_per_distinct_malformed_value()
+    public void Resolve_WarnsOncePerDistinctMalformedValue()
     {
         var logger = new CapturingLogger<PatchSortKeyResolver>();
         var resolver = new PatchSortKeyResolver(logger, Surface, championId: 157);
@@ -71,7 +71,7 @@ public sealed class PatchSortKeyResolverTests
     }
 
     [Fact]
-    public void Resolve_scopes_the_warned_set_to_one_instance()
+    public void Resolve_ScopesTheWarnedSetToOneInstance()
     {
         var logger = new CapturingLogger<PatchSortKeyResolver>();
 

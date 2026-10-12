@@ -50,12 +50,12 @@ const number = (gold: number) => gold.toLocaleString('en-US')
 
     <ul class="flex flex-col gap-1 border-t border-default pt-2">
       <li v-for="row in rows" :key="row.key" class="grid grid-cols-[1.25rem_1fr_auto_1fr_1.25rem] items-center gap-2">
-        <img v-if="portrait(row.ally)" :src="portrait(row.ally)!" :alt="row.ally?.championName" class="size-5 rounded">
+        <img v-if="portrait(row.ally)" :src="portrait(row.ally)!" :alt="row.ally?.championName" class="img-skeleton size-5 rounded">
         <span v-else />
         <span class="justify-self-end text-[11px] tabular-nums text-muted">{{ number(row.ours) }}</span>
         <OverlayGoldGap :ours="row.ours" :theirs="row.theirs" />
         <span class="text-[11px] tabular-nums text-muted">{{ number(row.theirs) }}</span>
-        <img v-if="portrait(row.enemy)" :src="portrait(row.enemy)!" :alt="row.enemy?.championName" class="size-5 rounded">
+        <img v-if="portrait(row.enemy)" :src="portrait(row.enemy)!" :alt="row.enemy?.championName" class="img-skeleton size-5 rounded">
         <span v-else />
       </li>
     </ul>

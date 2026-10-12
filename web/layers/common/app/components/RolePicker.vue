@@ -51,6 +51,7 @@ function select(value: ChampionPosition | null) {
     >
       <SkeletonImage
         :src="FILL_ICON_URL"
+        transparent
         alt="All positions"
         :width="18"
         :height="18"
@@ -68,6 +69,7 @@ function select(value: ChampionPosition | null) {
     >
       <SkeletonImage
         :src="option.iconUrl"
+        transparent
         :alt="option.label"
         :width="18"
         :height="18"

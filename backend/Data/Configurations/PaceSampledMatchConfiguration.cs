@@ -12,7 +12,7 @@ public sealed class PaceSampledMatchConfiguration : IEntityTypeConfiguration<Pac
 
         entity.HasKey(e => e.MatchId);
         entity.Property(e => e.MatchId).HasMaxLength(64);
-        entity.Property(e => e.Tier).IsRequired().HasMaxLength(20);
+        entity.Property(e => e.Tier).IsRequired().HasMaxLength(20).HasConversion<RankTierConverter>();
         entity.Property(e => e.SampledAtUtc).IsRequired();
 
         // The prune deletes by age.

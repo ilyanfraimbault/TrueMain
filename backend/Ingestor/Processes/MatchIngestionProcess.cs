@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using Core;
 using Core.Lol.Identifiers;
-using Data.Logging;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -148,10 +147,7 @@ public sealed class MatchIngestionProcess(
                     // slots on every single cycle (#1223). Still inside the try: a failure
                     // of the release itself must not abort the rest of the batch.
                     result.Errors++;
-                    logger.LogError(
-                        "Unknown platform {Platform} on claimed account {Puuid}; releasing the claim without ingesting.",
-                        account.PlatformId,
-                        account.Puuid);
+                    logger.UnknownPlatformClaimed(account.PlatformId, account.Puuid);
                     await accountValidationService.ReleaseUningestableAsync(account, ct);
                     continue;
                 }
@@ -162,11 +158,7 @@ public sealed class MatchIngestionProcess(
             catch (Exception ex)
             {
                 result.Errors++;
-                logger.LogError(
-                    ex,
-                    "Match ingestion failed for {Platform}/{Puuid}. Reverting to queued.",
-                    account.PlatformId,
-                    account.Puuid);
+                logger.AccountIngestionFailed(ex, account.PlatformId, account.Puuid);
                 await RevertClaimAsync(account, ex, ct);
             }
         }
@@ -194,11 +186,8 @@ public sealed class MatchIngestionProcess(
             // now stays Processing until its lease expires with no other signal, so we
             // surface it as a named ops event (#263) carrying both the revert failure
             // and the original ingestion failure as its cause.
-            logger.LogError(
-                OpsEvents.MatchRevertFailed,
+            logger.MatchRevertFailed(
                 new AggregateException(revertException, ingestionException),
-                "Failed to revert claim for {Platform}/{Puuid} after ingestion error; "
-                + "candidates remain Processing until the claim lease expires.",
                 account.PlatformId,
                 account.Puuid);
         }
@@ -267,13 +256,13 @@ public sealed class MatchIngestionProcess(
 
         var validated = await accountValidationService.ValidateAsync(account, ct);
 
-        logger.LogInformation(
-            "Match ingestion for {Platform}/{Puuid}: inserted={Inserted}, skipped={Skipped}, skippedWrongQueue={SkippedWrongQueue}, timelinesUpdated={Timelines}, mainsReactivated={MainsReactivated}.",
+        logger.AccountIngested(
             platformId,
             account.Puuid,
             snapshotResult.Inserted,
             snapshotResult.Skipped,
             snapshotResult.SkippedWrongQueue,
+            snapshotResult.SkippedShell,
             timelineUpdated,
             snapshotResult.MainsReactivated);
 
@@ -296,8 +285,7 @@ public sealed class MatchIngestionProcess(
                 continue;
             }
 
-            logger.LogInformation(
-                "Match ingestion summary for {Platform}: accounts={Accounts}, matchesInserted={Inserted}, matchesSkipped={Skipped}, matchesSkippedWrongQueue={SkippedWrongQueue}, timelinesUpdated={Timelines}.",
+            logger.PlatformIngested(
                 platformId,
                 summary.AccountsProcessed,
                 summary.MatchesInserted,

@@ -19,13 +19,6 @@ defineProps<{
   position: string | null
   championLevel: number
 }>()
-
-// The lane glyph overlaying the portrait renders as a plain <img> (one
-// component instance per icon is not worth it at this count), so it needs the
-// canonical URL built explicitly — without it the raw `/positions/*.png` was
-// served full-size for a 12 px box, and as a fourth distinct cache entry for a
-// glyph the rest of the page already had.
-const canonicalIcon = useCanonicalIcon()
 </script>
 
 <template>
@@ -44,13 +37,14 @@ const canonicalIcon = useCanonicalIcon()
         : 'size-3.5 text-[9px] font-bold leading-none @2xl:size-4 @2xl:text-[10px]'"
       :title="position ? (POSITION_BY_VALUE.get(position)?.label ?? position) : undefined"
     >
-      <img
+      <SkeletonImage
         v-if="position"
-        :src="canonicalIcon(getPositionIconUrl(position))"
+        :src="getPositionIconUrl(position)"
         loading="lazy"
         :alt="POSITION_BY_VALUE.get(position)?.label ?? position"
         class="size-3 @2xl:size-3.5"
-      >
+        transparent
+      />
       <template v-else>{{ championLevel }}</template>
     </span>
   </div>

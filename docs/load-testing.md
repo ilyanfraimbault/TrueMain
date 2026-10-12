@@ -100,6 +100,9 @@ panel firewall and DDoS protection have not been inspected yet.
 The workflow's first network step tries five times, 20 seconds apart, before it gives up. When it does, dispatch
 the run again: it lands on another runner, and usually another address.
 
+The same drop hits the deploys: the rollout's migration step reaches the VPS over SSH from a runner too, and
+retries the connection on its own (`docs/ci.md`, *Migration over SSH*).
+
 ## The rate limit and a single runner
 
 The API allows each visitor `RateLimit:PermitLimit` requests per window (500 a minute by default). Every virtual

@@ -1,3 +1,4 @@
+using System.Globalization;
 using AwesomeAssertions;
 using Ingestor;
 using Ingestor.Options;
@@ -30,6 +31,7 @@ public sealed class WorkerHeartbeatTests : IDisposable
 {
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan ReAdvanceAfter = TimeSpan.FromMilliseconds(100);
 
     private readonly string heartbeatPath =
         Path.Combine(Path.GetTempPath(), $"ingestor-heartbeat-{Guid.NewGuid():N}");
@@ -122,16 +124,34 @@ public sealed class WorkerHeartbeatTests : IDisposable
     }
 
     /// <summary>
-    /// Advance one interval and wait for the beat it triggers. The write is asynchronous, so
+    /// Advance the fake clock and wait for the beat it triggers. The write is asynchronous, so
     /// the advance only schedules it — polling for the change is what makes the assertion
     /// about the beat rather than about the scheduler's timing.
+    /// <para>
+    /// A single advance is not enough (#1903). The new stamp becomes readable as soon as the
+    /// write lands, but the loop only re-arms its <c>Task.Delay</c> on the fake clock once that
+    /// write has <em>returned</em> and its continuation has run. An advance issued in between
+    /// fires nothing, and the delay armed afterwards is anchored at the already-advanced time,
+    /// so no further beat ever comes. Re-advancing while waiting closes that window without
+    /// weakening the assertion: every beat still takes a move of the clock, and a beat tied to
+    /// the never-ending pass would still never arrive.
+    /// </para>
     /// </summary>
     private async Task<string> AdvanceAndWaitAsync(FakeTimeProvider time, string previous)
     {
-        time.Advance(HeartbeatInterval);
-        return await WaitForBeatAfterAsync(previous);
-    }
+        var deadline = DateTime.UtcNow + Patience;
+        while (DateTime.UtcNow < deadline)
+        {
+            time.Advance(HeartbeatInterval);
+            var beat = await WaitForBeatAfterAsync(previous, ReAdvanceAfter);
+            if (beat is not null)
+            {
+                return beat;
+            }
+        }
 
+        throw new TimeoutException($"No heartbeat written to {heartbeatPath} within {Patience}.");
+    }
     /// <summary>
     /// The file's content once two consecutive reads agree. The writer truncates before it
     /// writes, so a single read can catch a half-written stamp — which is a race in the test,
@@ -164,17 +184,23 @@ public sealed class WorkerHeartbeatTests : IDisposable
         throw new TimeoutException($"Heartbeat at {heartbeatPath} never settled within {Patience}.");
     }
 
-    private async Task<string> WaitForBeatAfterAsync(string? previous)
+    private async Task<string> WaitForBeatAfterAsync(string? previous) =>
+        await WaitForBeatAfterAsync(previous, Patience)
+        ?? throw new TimeoutException($"No heartbeat written to {heartbeatPath} within {Patience}.");
+
+    /// <summary>The next complete stamp that differs from <paramref name="previous"/>, or null after <paramref name="within"/>.</summary>
+    private async Task<string?> WaitForBeatAfterAsync(string? previous, TimeSpan within)
     {
-        var deadline = DateTime.UtcNow + Patience;
+        var deadline = DateTime.UtcNow + within;
         while (DateTime.UtcNow < deadline)
         {
             try
             {
                 var current = await File.ReadAllTextAsync(heartbeatPath, CancellationToken.None);
-                // A partially written file reads as a short string; only a complete,
-                // different stamp counts as a beat.
-                if (current.Length > 0 && current != previous)
+                // The writer truncates before it writes, so a read can catch a half-written
+                // stamp. Only one that round-trips counts as a beat — otherwise the tail of a
+                // single write could pass for a second beat.
+                if (current != previous && IsCompleteStamp(current))
                 {
                     return current;
                 }
@@ -187,8 +213,11 @@ public sealed class WorkerHeartbeatTests : IDisposable
             await Task.Delay(10, CancellationToken.None);
         }
 
-        throw new TimeoutException($"No heartbeat written to {heartbeatPath} within {Patience}.");
+        return null;
     }
+
+    private static bool IsCompleteStamp(string value) =>
+        DateTimeOffset.TryParseExact(value, "O", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
 
     private static async Task StopAsync(Worker worker)
     {

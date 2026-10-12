@@ -1,6 +1,7 @@
 using Core;
 using Core.Lol.Identifiers;
 using Core.Lol.Patches;
+using Core.Lol.Ranking;
 using Data.Aggregation;
 using Data.Entities;
 using Data.Ops.Mongo;
@@ -185,13 +186,13 @@ public sealed class PaceSamplingProcess(
             }
 
             // The seed's own tier: a page can straddle a promotion, and the entry is the truth.
-            var seedTier = string.IsNullOrWhiteSpace(seed.Tier) ? tier : seed.Tier!.Trim().ToUpperInvariant();
+            var seedTier = RankTiers.TryParseTier(seed.Tier, out var entryTier) ? entryTier : RankTiers.ParseTier(tier);
             var ids = await CallAsync(
                 run,
                 () => riotMatchClient.GetMatchIdsAsync(
                     new MatchIdQuery(seed.Puuid!, region, run.Options.MatchesPerSeed, RankedSoloQueueId, run.LookbackStartUtc),
                     ct),
-                $"match ids of a {seedTier} seed on {platform}",
+                $"match ids of a {seedTier.ToRiotName()} seed on {platform}",
                 ct);
             if (ids is null)
             {
@@ -242,7 +243,7 @@ public sealed class PaceSamplingProcess(
         IDataSession session,
         string matchId,
         RegionalRoute region,
-        string tier,
+        RankTier tier,
         SamplingRun run,
         CancellationToken ct)
     {
@@ -254,8 +255,10 @@ public sealed class PaceSamplingProcess(
 
         var info = match.Info;
         var durationSeconds = RiotValueConverters.ToIntSafe(info.GameDuration);
+        var endedInEarlySurrender = RiotMatchMapper.EndedInEarlySurrender(match);
         if (info.QueueId != RankedSoloQueueId
-            || ChampionCohort.IsRemake(durationSeconds)
+            || !RiotMatchMapper.IsCompletedGame(match)
+            || ChampionCohort.IsRemake(durationSeconds, endedInEarlySurrender)
             || !PatchVersion.TryParse(info.GameVersion, out var version))
         {
             // Not worth its timeline call; remembered so no later run pays for the match again.
@@ -275,11 +278,11 @@ public sealed class PaceSamplingProcess(
             .GroupBy(participant => participant.ParticipantId)
             .ToDictionary(group => group.Key, group => group.First().TeamPosition);
 
-        var keys = PaceBenchmarkBuilder.BuildAtTier(version.ToMajorMinor(), durationSeconds, tier, positions, timeline);
+        var keys = PaceBenchmarkBuilder.BuildAtTier(version.ToMajorMinor(), durationSeconds, endedInEarlySurrender, tier, positions, timeline);
         await RecordAsync(session, matchId, tier, keys, run, ct);
 
         run.MatchesSampled++;
-        run.AddTier(tier, keys.Count / 2);
+        run.AddTier(tier.ToRiotName(), keys.Count / 2);
     }
 
     /// <summary>
@@ -289,7 +292,7 @@ public sealed class PaceSamplingProcess(
     private static async Task RecordAsync(
         IDataSession session,
         string matchId,
-        string tier,
+        RankTier tier,
         IReadOnlyCollection<PaceBenchmarkKey> keys,
         SamplingRun run,
         CancellationToken ct)

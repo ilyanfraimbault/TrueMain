@@ -15,7 +15,7 @@ namespace TrueMain.UnitTests;
 public sealed class ChampionOverviewQueryServiceTests
 {
     [Fact]
-    public async Task GetOverviewAsync_reports_the_lifetime_total_not_the_served_patch_total()
+    public async Task GetOverviewAsync_ReportsTheLifetimeTotalNotTheServedPatchTotal()
     {
         // The homepage chip carries no patch qualifier, so it must not be a patch's
         // figure: it is every game the aggregate table holds. The served patch's own
@@ -37,7 +37,7 @@ public sealed class ChampionOverviewQueryServiceTests
     }
 
     [Fact]
-    public async Task GetOverviewAsync_orders_rows_by_tier_then_games_and_truncates_to_the_limit()
+    public async Task GetOverviewAsync_OrdersRowsByTierThenGamesAndTruncatesToTheLimit()
     {
         var rows = new List<ChampionSummaryReadModel>
         {
@@ -56,7 +56,7 @@ public sealed class ChampionOverviewQueryServiceTests
     }
 
     [Fact]
-    public async Task GetOverviewAsync_clamps_an_unrecognised_tier_to_the_bottom()
+    public async Task GetOverviewAsync_ClampsAnUnrecognisedTierToTheBottom()
     {
         var rows = new List<ChampionSummaryReadModel>
         {

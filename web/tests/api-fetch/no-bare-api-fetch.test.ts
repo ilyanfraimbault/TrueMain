@@ -17,10 +17,6 @@ const LEGACY = new Set([
   // Server-rendered OG cards: Nitro handlers that already forward the visitor.
   'components/OgImage/Champion.satori.vue',
   'components/OgImage/Truemain.satori.vue',
-  // Hand-rolled per-viewer fetchers, client-only by construction — never through the
-  // shared SSR payload (decisions/web-frontend-rules.md).
-  'composables/useTruemainActivity.ts',
-  'composables/useTruemainRankHistory.ts',
   // Reads a Nitro static route, not the backend, and is being reworked for the
   // prerendered pages (#1617) — migrate it once that lands.
   'plugins/champion-slugs.ts',

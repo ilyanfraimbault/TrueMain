@@ -1,4 +1,5 @@
 using Core.Lol.Pace;
+using Core.Lol.Ranking;
 
 namespace Data.Entities;
 
@@ -29,8 +30,8 @@ public class PaceBenchmarkStat
     /// <summary>Canonical major.minor patch (e.g. "16.4").</summary>
     public string Patch { get; set; } = string.Empty;
 
-    /// <summary>A ranked tier of the <c>EloBracket</c> ladder (never <c>UNRANKED</c> or <c>ALL</c>).</summary>
-    public string Tier { get; set; } = string.Empty;
+    /// <summary>A ranked tier — never <c>UNRANKED</c> or <c>ALL</c>, which the type cannot hold.</summary>
+    public RankTier Tier { get; set; }
 
     /// <summary>One of the five canonical <c>TeamPosition</c> values.</summary>
     public string Position { get; set; } = string.Empty;

@@ -19,7 +19,7 @@ public class LaneOutcomeRulesTests
     [InlineData(301)]
     [InlineData(500)]
     [InlineData(10_000)]
-    public void Judge_calls_a_lane_won_only_strictly_above_the_threshold(int goldDiff)
+    public void Judge_CallsALaneWonOnlyStrictlyAboveTheThreshold(int goldDiff)
     {
         LaneOutcomeRules.Judge(goldDiff, LaneOutcomeRules.DefaultGoldLeadThreshold)
             .Should().Be(LaneStanding.Won);
@@ -29,7 +29,7 @@ public class LaneOutcomeRulesTests
     [InlineData(-301)]
     [InlineData(-500)]
     [InlineData(-10_000)]
-    public void Judge_calls_a_lane_lost_only_strictly_below_the_negated_threshold(int goldDiff)
+    public void Judge_CallsALaneLostOnlyStrictlyBelowTheNegatedThreshold(int goldDiff)
     {
         LaneOutcomeRules.Judge(goldDiff, LaneOutcomeRules.DefaultGoldLeadThreshold)
             .Should().Be(LaneStanding.Lost);
@@ -41,7 +41,7 @@ public class LaneOutcomeRulesTests
     [InlineData(-1)]
     [InlineData(299)]
     [InlineData(-299)]
-    public void Judge_leaves_the_band_in_the_middle_undecided(int goldDiff)
+    public void Judge_LeavesTheBandInTheMiddleUndecided(int goldDiff)
     {
         // The band is a third outcome on purpose: folding it into losses would print
         // "lane lost" where nothing was settled.
@@ -54,7 +54,7 @@ public class LaneOutcomeRulesTests
     /// strict, so a gap of exactly the threshold is even, not won.
     /// </summary>
     [Fact]
-    public void Judge_treats_exactly_the_threshold_as_even_rather_than_won()
+    public void Judge_TreatsExactlyTheThresholdAsEvenRatherThanWon()
     {
         LaneOutcomeRules.Judge(300, 300).Should().Be(LaneStanding.Even);
         LaneOutcomeRules.Judge(1, 1).Should().Be(LaneStanding.Even);
@@ -65,14 +65,14 @@ public class LaneOutcomeRulesTests
     /// exactly minus the threshold is even, not lost.
     /// </summary>
     [Fact]
-    public void Judge_treats_exactly_minus_the_threshold_as_even_rather_than_lost()
+    public void Judge_TreatsExactlyMinusTheThresholdAsEvenRatherThanLost()
     {
         LaneOutcomeRules.Judge(-300, 300).Should().Be(LaneStanding.Even);
         LaneOutcomeRules.Judge(-1, 1).Should().Be(LaneStanding.Even);
     }
 
     [Fact]
-    public void Judge_is_symmetric_so_neither_side_of_a_lane_is_favoured()
+    public void Judge_IsSymmetricSoNeitherSideOfALaneIsFavoured()
     {
         // The same lane read from the opponent's seat must give the mirrored verdict;
         // an asymmetric band would let both players' pages call the lane won.
@@ -91,7 +91,7 @@ public class LaneOutcomeRulesTests
     }
 
     [Fact]
-    public void Judge_with_a_zero_threshold_decides_every_non_zero_gap()
+    public void Judge_WithAZeroThresholdDecidesEveryNonZeroGap()
     {
         // A deployment that zeroes the threshold gets a two-outcome rule, and a dead-even
         // lane is still the one case that belongs in neither counter.
@@ -108,7 +108,7 @@ public class LaneOutcomeRulesTests
     /// the matchup tool would start meaning different things by "the lane was won".
     /// </summary>
     [Fact]
-    public void Both_consumers_default_to_the_shared_threshold()
+    public void BothConsumersDefaultToTheSharedThreshold()
     {
         new LaneOutcomeAggregationOptions().GoldLeadThreshold
             .Should().Be(LaneOutcomeRules.DefaultGoldLeadThreshold);

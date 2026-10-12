@@ -91,13 +91,13 @@ public sealed class PaceBenchmarkQueryService(TrueMainDbContext db, IMemoryCache
 
     internal static List<PaceBenchmarkTierReadModel> Build(IReadOnlyCollection<PaceBin> bins)
     {
-        var byTier = bins.ToLookup(bin => bin.Tier, StringComparer.Ordinal);
+        var byTier = bins.ToLookup(bin => bin.Tier);
 
-        return EloBracket.Ladder
+        return Enum.GetValues<RankTier>()
             .Where(byTier.Contains)
             .Select(tier => new PaceBenchmarkTierReadModel
             {
-                Tier = tier,
+                Tier = tier.ToRiotName(),
                 Minutes = byTier[tier]
                     .GroupBy(bin => bin.Minute)
                     .OrderBy(minute => minute.Key)
@@ -145,5 +145,5 @@ public sealed class PaceBenchmarkQueryService(TrueMainDbContext db, IMemoryCache
         };
     }
 
-    internal sealed record PaceBin(string Tier, int Minute, PaceMetric Metric, int Bucket, long Count);
+    internal sealed record PaceBin(RankTier Tier, int Minute, PaceMetric Metric, int Bucket, long Count);
 }

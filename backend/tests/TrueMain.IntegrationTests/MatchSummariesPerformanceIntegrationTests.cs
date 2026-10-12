@@ -16,8 +16,8 @@ namespace TrueMain.IntegrationTests;
 /// and kill-position bulk loads, and the performance score / placement /
 /// MVP / ACE the collapsed row is badged from.
 ///
-/// <para>The headline case is <see cref="GetAsync_agrees_with_the_match_detail_service_on_the_same_game"/>
-/// plus <see cref="GetAsync_denies_the_accolade_to_the_best_raw_kda_on_the_winning_side"/>: the feed used to
+/// <para>The headline case is <see cref="GetAsync_AgreesWithTheMatchDetailServiceOnTheSameGame"/>
+/// plus <see cref="GetAsync_DeniesTheAccoladeToTheBestRawKdaOnTheWinningSide"/>: the feed used to
 /// derive MVP/ACE from a raw KDA proxy while the detail payload behind the very
 /// same row used the real scorer, so a row could badge a player MVP and the
 /// expanded panel disagree. Those two tests pin that both services now read the
@@ -42,7 +42,7 @@ public sealed class MatchSummariesPerformanceIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task GetAsync_scores_and_places_the_row_from_a_full_match()
+    public async Task GetAsync_ScoresAndPlacesTheRowFromAFullMatch()
     {
         await SeedAccountAsync();
         await SeedMatchAsync();
@@ -59,7 +59,7 @@ public sealed class MatchSummariesPerformanceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetAsync_agrees_with_the_match_detail_service_on_the_same_game()
+    public async Task GetAsync_AgreesWithTheMatchDetailServiceOnTheSameGame()
     {
         await SeedAccountAsync();
         await SeedMatchAsync();
@@ -81,7 +81,7 @@ public sealed class MatchSummariesPerformanceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetAsync_denies_the_accolade_to_the_best_raw_kda_on_the_winning_side()
+    public async Task GetAsync_DeniesTheAccoladeToTheBestRawKdaOnTheWinningSide()
     {
         await SeedAccountAsync();
         await SeedMatchAsync();
@@ -107,7 +107,7 @@ public sealed class MatchSummariesPerformanceIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetAsync_still_scores_a_match_with_no_timeline_at_all()
+    public async Task GetAsync_StillScoresAMatchWithNoTimelineAtAll()
     {
         await SeedAccountAsync();
         await SeedMatchAsync(withTimeline: false);

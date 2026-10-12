@@ -19,7 +19,7 @@ namespace TrueMain.UnitTests;
 public sealed class ScoringProcessMaxCandidatesPerRunTests
 {
     [Fact]
-    public async Task An_unset_cap_still_drains_every_new_candidate()
+    public async Task AnUnsetCapStillDrainsEveryNewCandidate()
     {
         // 0 is the shipped default, so nothing changes until the key is set.
         var read = await RunAndCountRowsReadAsync(pendingCandidates: 250, batchSize: 100, maxCandidatesPerRun: 0);
@@ -28,7 +28,7 @@ public sealed class ScoringProcessMaxCandidatesPerRunTests
     }
 
     [Fact]
-    public async Task The_cap_stops_the_drain_and_bounds_the_rows_read()
+    public async Task TheCapStopsTheDrainAndBoundsTheRowsRead()
     {
         var read = await RunAndCountRowsReadAsync(pendingCandidates: 250, batchSize: 100, maxCandidatesPerRun: 120);
 
@@ -38,7 +38,7 @@ public sealed class ScoringProcessMaxCandidatesPerRunTests
     }
 
     [Fact]
-    public async Task A_cap_larger_than_the_backlog_changes_nothing()
+    public async Task ACapLargerThanTheBacklogChangesNothing()
     {
         var read = await RunAndCountRowsReadAsync(pendingCandidates: 40, batchSize: 100, maxCandidatesPerRun: 5000);
 

@@ -6,6 +6,5 @@ public enum MainCandidateStatus
     Scored = 1,
     Queued = 2,
     Processing = 3,
-    Validated = 4,
-    Rejected = 5
+    Validated = 4
 }

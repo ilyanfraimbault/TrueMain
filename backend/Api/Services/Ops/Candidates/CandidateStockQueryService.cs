@@ -68,8 +68,9 @@ public sealed class CandidateStockQueryService(
         {
             ct.ThrowIfCancellationRequested();
 
-            // An unparseable status is a document from a future enum this build does not
-            // know: skip it rather than folding it into a bucket it does not belong to.
+            // An unparseable status is a document from an enum this build does not know —
+            // a future status, or the removed Rejected one (#1029), whose older snapshots
+            // only ever recorded 0: skip it rather than folding it into another bucket.
             if (!Enum.TryParse<MainCandidateStatus>(point.Status, ignoreCase: false, out var status))
             {
                 continue;
@@ -109,7 +110,6 @@ public sealed class CandidateStockQueryService(
                 entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.Queued),
                 entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.Processing),
                 entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.Validated),
-                entry.Value.Reading.Rows.GetValueOrDefault(MainCandidateStatus.Rejected),
                 entry.Value.SampledAt,
                 entry.Value.Reading.ToAccounts()))],
             EarliestSnapshotAtUtc = hourly.Keys.First(),
@@ -150,8 +150,7 @@ public sealed class CandidateStockQueryService(
                     _accounts.GetValueOrDefault(MainCandidateStatus.Scored),
                     _accounts.GetValueOrDefault(MainCandidateStatus.Queued),
                     _accounts.GetValueOrDefault(MainCandidateStatus.Processing),
-                    _accounts.GetValueOrDefault(MainCandidateStatus.Validated),
-                    _accounts.GetValueOrDefault(MainCandidateStatus.Rejected))
+                    _accounts.GetValueOrDefault(MainCandidateStatus.Validated))
                 : null;
     }
 }

@@ -74,7 +74,10 @@ Tracking issue: **#1671**.
   one (`POST /champions/{id}/next-item`, #1749), with the situation behind it,
   the gold left to finish it, the components your gold buys now, two
   runners-up and the boots while you have none. Asked again whenever anyone's
-  items change.
+  items change. Until you hold anything but potions and the trinket, the
+  starter above it — the basket the draft's build opens with for the ten
+  champions on their lanes, its price and its share of games — which the
+  overlay shows in the next item's place.
 - **Draws over the game** (#1795, macOS): three small panels, each placed on
   its own — the next item alone (the item and the gold still to earn for it, or
   that it can be bought now), a win probability estimated from the item-gold
@@ -143,7 +146,10 @@ land on the video, and when the game ends closes the video and emits
 `recording://recap` so the app opens the recap. It then waits up to five
 minutes for the match history to list the game and finalises the recording
 from its timeline: the player's kills, deaths and assists, the objectives, the
-K/D/A and the result. Recordings go to `~/Movies/TrueMain` (`Videos\TrueMain`
+K/D/A and the result. A game starting during that wait is recorded all the
+same (the wait gives up, never the next game); a game that closes on its
+loading screen — under a minute, the game clock never ran — is not kept.
+Recordings go to `~/Movies/TrueMain` (`Videos\TrueMain`
 on Windows) unless the player picked a folder; clips cut in the recap go to
 its `clips/` subfolder, each its own `clip.mp4` + `clip.json` + thumbnail. The
 helper also cuts the clips (a passthrough export, no re-encoding) and takes the

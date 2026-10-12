@@ -157,6 +157,9 @@ builder.Services.AddEffectiveConfigurationPublisher(IngestorEffectiveConfigurati
 // and keeps the registration visible next to its consumer.
 builder.Services.AddMetrics();
 builder.Services.AddSingleton<IngestorMetrics>();
+// Folds that meter into per-minute Mongo rollups the admin reads (#1636). Ahead of the
+// Worker so it stops after it, and the final flush holds the last pass's measurements.
+builder.Services.AddHostedService<IngestorMeterExporter>();
 
 // Resolved once at construction from INGESTOR_HEARTBEAT_PATH, rather than read from the
 // environment on every beat: the environment is process-global and a worker is not (#1348).

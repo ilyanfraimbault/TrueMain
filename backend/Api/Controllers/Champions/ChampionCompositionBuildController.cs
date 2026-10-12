@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Requests.Champions;
 using TrueMain.Services.Champions.Composition;
+using TrueMain.Services.Truemains.Identity;
 
 namespace TrueMain.Controllers.Champions;
 
@@ -12,7 +13,8 @@ namespace TrueMain.Controllers.Champions;
 /// the only two that read a draft rather than a scope.
 /// </summary>
 public sealed class ChampionCompositionBuildController(
-    ICompositionRecommendationQueryService compositionRecommendationQueryService) : ChampionsControllerBase
+    ICompositionRecommendationQueryService compositionRecommendationQueryService,
+    TruemainAccountResolver accountResolver) : ChampionsControllerBase
 {
     /// <summary>
     /// Build recommendation for a (possibly partial) draft: the player's
@@ -20,11 +22,14 @@ public sealed class ChampionCompositionBuildController(
     /// composition ranks historical games, it never hard-filters — a sparse
     /// draft degrades to the champion's recent games at the position and the
     /// confidence block says so. POST because the input — up to nine
-    /// champion/position slots — is too rich for query parameters.
+    /// champion/position slots — is too rich for query parameters. With a
+    /// <c>player</c>, only that player's games are sampled; 404 when we hold no
+    /// such account.
     /// </summary>
     [HttpPost("{championId:int}/composition-build")]
     [ProducesResponseType(typeof(CompositionBuildResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CompositionBuildResponse>> PostCompositionBuildAsync(
         int championId,
         [FromBody] CompositionBuildRequest request,
@@ -35,7 +40,13 @@ public sealed class ChampionCompositionBuildController(
             return problem;
         }
 
-        return Ok(await compositionRecommendationQueryService.GetAsync(criteria, ct));
+        var scoped = await ScopeToPlayerAsync(criteria, request.Player, ct);
+        if (scoped is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(await compositionRecommendationQueryService.GetAsync(scoped, ct));
     }
 
     /// <summary>
@@ -50,6 +61,7 @@ public sealed class ChampionCompositionBuildController(
     [HttpPost("{championId:int}/composition-build/games")]
     [ProducesResponseType(typeof(CompositionBuildGamesResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CompositionBuildGamesResponse>> PostCompositionBuildGamesAsync(
         int championId,
         [FromBody] CompositionBuildRequest request,
@@ -62,6 +74,31 @@ public sealed class ChampionCompositionBuildController(
             return problem;
         }
 
-        return Ok(await compositionRecommendationQueryService.GetGamesAsync(criteria, page, pageSize, ct));
+        var scoped = await ScopeToPlayerAsync(criteria, request.Player, ct);
+        if (scoped is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(await compositionRecommendationQueryService.GetGamesAsync(scoped, page, pageSize, ct));
+    }
+
+    /// <summary>
+    /// The criteria narrowed to the request's player (#1987), resolved like every other
+    /// player-scoped route; the criteria unchanged without one, null when the Riot ID
+    /// names no account we hold.
+    /// </summary>
+    private async Task<CompositionSearchCriteria?> ScopeToPlayerAsync(
+        CompositionSearchCriteria criteria,
+        string? player,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(player))
+        {
+            return criteria;
+        }
+
+        var account = await accountResolver.ResolveAsync(player, ct);
+        return account is null ? null : criteria with { Puuid = account.Puuid };
     }
 }

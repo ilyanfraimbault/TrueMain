@@ -5,8 +5,7 @@
 //! Serialised in the shape of the site's `WinProbabilityTimeline`
 //! (`web/shared/types/win-probability.ts`), which the app hands to the shared
 //! `buildWinProbability` to draw the curve and its turning points — the model
-//! itself lives on the TypeScript side only, so the app and the site never
-//! disagree on a game.
+//! itself lives on the TypeScript side only, its one implementation.
 //!
 //! The roles come from `HistoryGame::position_of`, so a queue without roles
 //! leaves them empty and the curve is not drawn (the model pairs the lanes).

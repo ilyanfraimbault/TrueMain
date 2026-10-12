@@ -150,6 +150,9 @@ public sealed class CandidateQueryService(
         var rows = await query
             // Most-relevant first: highest score, then most recently discovered.
             // Id breaks ties so paging is stable when rows share a score + time.
+            // Offset rather than keyset on purpose (#1635): the operator's page
+            // numbers need the count above, which reads the whole filtered set
+            // anyway, and the free-text search can't seek an index.
             .OrderByDescending(row => row.candidate.Score)
             .ThenByDescending(row => row.candidate.DiscoveredAtUtc)
             .ThenByDescending(row => row.candidate.Id)

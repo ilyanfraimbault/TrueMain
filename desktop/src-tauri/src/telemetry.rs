@@ -68,6 +68,12 @@ pub enum Feature {
     OverlayShown,
     /// A game the app recorded.
     GameRecorded,
+    /// A clip cut from a recording and saved, from the recap (#1952).
+    ClipSaved,
+    /// A full game the player chose to keep, exempt from the storage budget.
+    GameKept,
+    /// A full game the player deleted by hand.
+    RecordingDeleted,
     /// A page of the site opened in the browser.
     SiteOpened,
     /// A pick hovered from the draft screen, on the player's click (#1909).
@@ -76,6 +82,12 @@ pub enum Feature {
     ChampSelectLock,
     /// A ban made from the draft screen.
     ChampSelectBan,
+    /// YouTube's upload page opened from a clip's publish dialog (#1815).
+    YoutubeUploadOpened,
+    /// A clip given the link of the YouTube video it was published as.
+    ClipPublished,
+    /// A published clip's video deleted from disk, the clip kept (#2005).
+    ClipVideoDeleted,
 }
 
 impl Feature {
@@ -85,10 +97,16 @@ impl Feature {
             Feature::LiveGame => "liveGame",
             Feature::OverlayShown => "overlayShown",
             Feature::GameRecorded => "gameRecorded",
+            Feature::ClipSaved => "clipSaved",
+            Feature::GameKept => "gameKept",
+            Feature::RecordingDeleted => "recordingDeleted",
             Feature::SiteOpened => "siteOpened",
             Feature::ChampSelectHover => "champSelectHover",
             Feature::ChampSelectLock => "champSelectLock",
             Feature::ChampSelectBan => "champSelectBan",
+            Feature::YoutubeUploadOpened => "youtubeUploadOpened",
+            Feature::ClipPublished => "clipPublished",
+            Feature::ClipVideoDeleted => "clipVideoDeleted",
         }
     }
 }
@@ -391,6 +409,19 @@ mod tests {
         let counters = telemetry.counters.lock().unwrap().clone();
         assert_eq!(counters.features.get("overlayShown"), Some(&2));
         assert_eq!(counters.features.get("liveGame"), Some(&2));
+    }
+
+    #[test]
+    fn counts_what_the_player_does_with_a_recording() {
+        let telemetry = telemetry(true);
+        telemetry.feature(Feature::ClipSaved);
+        telemetry.feature(Feature::ClipSaved);
+        telemetry.feature(Feature::GameKept);
+        telemetry.feature(Feature::RecordingDeleted);
+        let counters = telemetry.counters.lock().unwrap().clone();
+        assert_eq!(counters.features.get("clipSaved"), Some(&2));
+        assert_eq!(counters.features.get("gameKept"), Some(&1));
+        assert_eq!(counters.features.get("recordingDeleted"), Some(&1));
     }
 
     #[test]

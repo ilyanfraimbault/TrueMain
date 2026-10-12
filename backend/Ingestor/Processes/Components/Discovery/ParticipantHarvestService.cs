@@ -12,7 +12,7 @@ namespace Ingestor.Processes.Components.Discovery;
 /// The observed (puuid, champion) play sample is a biased prior — we only see a
 /// player's games when they shared a lobby with a tracked account — so harvested
 /// candidates are NOT marked as mains here. They are queued like any other
-/// candidate and only confirmed/rejected later by real history ingestion +
+/// candidate and only confirmed (or not) later by real history ingestion +
 /// <c>MainAnalysis</c>.
 ///
 /// Match ingestion claims <see cref="RiotAccount"/> rows (not raw puuids), so each
@@ -371,13 +371,6 @@ public sealed class ParticipantHarvestService : IParticipantHarvestService
         // stored score is stale otherwise). Reset to New so the same-pass ScoringProcess
         // re-scores it. In-flight (Queued/Processing) and Validated candidates keep their
         // state — they are already in or through the pipeline.
-        //
-        // Rejected stays rejected by design: a rejection is a verdict from real history
-        // ingestion + MainAnalysis (play-rate over the account's actual ~50 games), not from
-        // this biased participant sample. A bigger observed sample here is still a prior, so
-        // it must not resurrect an account real history already ruled out — re-queuing would
-        // just re-ingest and re-reject. (If we ever want to reconsider rejections past a much
-        // higher observed threshold, that is a separate, explicit policy change.)
         if (existing.Status == MainCandidateStatus.Scored)
         {
             existing.Status = MainCandidateStatus.New;

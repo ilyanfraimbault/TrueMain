@@ -38,7 +38,7 @@ public sealed class SchemaNamingConventionTests
         new("^[a-z][a-z0-9_]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     [Fact]
-    public void Every_table_is_snake_case()
+    public void EveryTableIsSnakeCase()
     {
         using TrueMainDbContext context = CreateContext();
 
@@ -56,7 +56,7 @@ public sealed class SchemaNamingConventionTests
     }
 
     [Fact]
-    public void Every_column_is_pascal_case_apart_from_the_documented_exception()
+    public void EveryColumnIsPascalCaseApartFromTheDocumentedException()
     {
         using TrueMainDbContext context = CreateContext();
 

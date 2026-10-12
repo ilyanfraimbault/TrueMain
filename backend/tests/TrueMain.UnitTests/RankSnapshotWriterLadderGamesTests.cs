@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Ranking;
@@ -20,7 +21,7 @@ public sealed class RankSnapshotWriterLadderGamesTests
     {
         var account = NewAccount();
 
-        Write(account, new RankSnapshotInput("DIAMOND", "II", 45, Wins: 120, Losses: 96), latest: null);
+        Write(account, new RankSnapshotInput(RankTier.Diamond, RankDivision.II, 45, Wins: 120, Losses: 96), latest: null);
 
         account.LadderGames.Should().Be(216);
     }
@@ -34,8 +35,8 @@ public sealed class RankSnapshotWriterLadderGamesTests
             Id = Guid.NewGuid(),
             RiotAccountId = account.Id,
             CapturedAtUtc = Now.AddDays(-1),
-            Tier = "DIAMOND",
-            Division = "II",
+            Tier = RankTier.Diamond,
+            Division = RankDivision.II,
             LeaguePoints = 45,
             Wins = 120,
             Losses = 96
@@ -43,7 +44,7 @@ public sealed class RankSnapshotWriterLadderGamesTests
 
         // A win and a loss return to the same LP: nothing about the rank moved, but two
         // games were played, and those are exactly the games the claim must not miss.
-        var outcome = Write(account, new RankSnapshotInput("DIAMOND", "II", 45, Wins: 121, Losses: 97), latest);
+        var outcome = Write(account, new RankSnapshotInput(RankTier.Diamond, RankDivision.II, 45, Wins: 121, Losses: 97), latest);
 
         outcome.Should().Be(RankSnapshotOutcome.Unchanged);
         account.LadderGames.Should().Be(218);
@@ -55,7 +56,7 @@ public sealed class RankSnapshotWriterLadderGamesTests
         var account = NewAccount();
         account.LadderGames = 216;
 
-        Write(account, new RankSnapshotInput("DIAMOND", "II", 50, Wins: null, Losses: null), latest: null);
+        Write(account, new RankSnapshotInput(RankTier.Diamond, RankDivision.II, 50, Wins: null, Losses: null), latest: null);
 
         // An apex ladder entry without a record must not read as "zero games played",
         // which would make the account look permanently up to date.
@@ -69,7 +70,7 @@ public sealed class RankSnapshotWriterLadderGamesTests
         account.LadderGames = 500;
         account.LadderGamesAtLastIngest = 500;
 
-        Write(account, new RankSnapshotInput("DIAMOND", "I", 60, Wins: 300, Losses: 260), latest: null);
+        Write(account, new RankSnapshotInput(RankTier.Diamond, RankDivision.I, 60, Wins: 300, Losses: 260), latest: null);
 
         // Only a completed ingestion moves the baseline; a rank reading moves the other side
         // of the subtraction, which is what makes the difference mean "owed".

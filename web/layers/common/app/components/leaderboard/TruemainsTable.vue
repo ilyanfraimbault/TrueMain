@@ -76,7 +76,6 @@ function openProfile(event: Event, row: { original: Row }) {
 const { perk, perkStyle, item } = useBuildResolvers(() => props.runeTree, () => props.itemsMap)
 const championName = (id: number) => props.championsById.get(id)?.name ?? `#${id}`
 const championIcon = (id: number) => props.championsById.get(id)?.iconUrl ?? null
-const canonicalIcon = useCanonicalIcon()
 
 function lanesOf(row: Row) {
   const positions = row.positions
@@ -160,18 +159,17 @@ const TOOLTIP_UI = { content: 'p-0 h-auto max-w-none bg-transparent ring-0 shado
 
     <template #lanes-cell="{ row }">
       <div class="flex items-center justify-center gap-1">
-        <img
+        <SkeletonImage
           v-for="lane in lanesOf(row.original)"
           :key="lane.position"
-          :src="canonicalIcon(getPositionIconUrl(lane.position))"
+          :src="getPositionIconUrl(lane.position)"
           :alt="lane.title"
           :title="lane.title"
           class="size-5 shrink-0"
           :class="lane.primary ? undefined : 'opacity-40'"
-          width="20"
-          height="20"
           loading="lazy"
-        >
+          transparent
+        />
       </div>
     </template>
 

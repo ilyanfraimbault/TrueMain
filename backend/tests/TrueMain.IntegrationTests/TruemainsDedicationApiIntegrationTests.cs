@@ -32,7 +32,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Profile_scores_the_signature_champion_from_its_play_rate_and_mastery()
+    public async Task Profile_ScoresTheSignatureChampionFromItsPlayRateAndMastery()
     {
         var now = DateTime.UtcNow;
 
@@ -89,7 +89,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Profile_scores_a_main_with_unread_mastery_on_play_rate_alone()
+    public async Task Profile_ScoresAMainWithUnreadMasteryOnPlayRateAlone()
     {
         var now = DateTime.UtcNow;
 
@@ -118,7 +118,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Leaderboard_sorted_by_dedication_reorders_the_rank_ladder()
+    public async Task Leaderboard_SortedByDedicationReordersTheRankLadder()
     {
         var now = DateTime.UtcNow;
 
@@ -168,7 +168,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Leaderboard_scores_the_filtered_champion_not_the_top_main()
+    public async Task Leaderboard_ScoresTheFilteredChampionNotTheTopMain()
     {
         var now = DateTime.UtcNow;
 
@@ -207,7 +207,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
     /// main under both orderings.
     /// </summary>
     [Fact]
-    public async Task Leaderboard_scores_the_same_champion_under_both_sorts_with_a_position_filter()
+    public async Task Leaderboard_ScoresTheSameChampionUnderBothSortsWithAPositionFilter()
     {
         var now = DateTime.UtcNow;
 
@@ -262,7 +262,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
     /// the second page still reflects the snapshot the first one ranked.
     /// </summary>
     [Fact]
-    public async Task Leaderboard_pages_a_dedication_sort_from_one_cached_ranking()
+    public async Task Leaderboard_PagesADedicationSortFromOneCachedRanking()
     {
         var now = DateTime.UtcNow;
 
@@ -321,7 +321,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Leaderboard_falls_back_to_the_rank_order_for_an_unknown_sort()
+    public async Task Leaderboard_FallsBackToTheRankOrderForAnUnknownSort()
     {
         var now = DateTime.UtcNow;
 
@@ -376,8 +376,8 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
             Id = Guid.NewGuid(),
             RiotAccount = account,
             CapturedAtUtc = now,
-            Tier = tier,
-            Division = division,
+            Tier = RankTiers.ParseTier(tier),
+            Division = RankTiers.ParseDivision(division),
             LeaguePoints = leaguePoints,
             Wins = 50,
             Losses = 50,

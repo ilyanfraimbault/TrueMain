@@ -61,7 +61,7 @@ const respawnIn = computed(() => {
         class="relative size-12 overflow-hidden rounded-lg bg-elevated ring-1 ring-white/10"
         :title="player.championName"
       >
-        <img v-if="portrait" :src="portrait" :alt="player.championName" class="size-full object-cover transition" :class="player.dead && 'opacity-40 grayscale'">
+        <img v-if="portrait" :src="portrait" :alt="player.championName" class="img-skeleton size-full object-cover transition" :class="player.dead && 'opacity-40 grayscale'">
         <span v-if="respawnIn" class="absolute inset-0 flex items-center justify-center stat-value text-base text-highlighted drop-shadow-[0_1px_2px_rgb(0_0_0/0.9)]">{{ respawnIn }}</span>
       </div>
       <span

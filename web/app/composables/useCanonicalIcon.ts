@@ -24,3 +24,18 @@ export function useCanonicalIcon() {
       ? ipx(src, { width: ICON_FETCH_SIZE, height: ICON_FETCH_SIZE, format: 'webp' })
       : undefined
 }
+
+/** The width a banner's splash art is fetched at: the hero is at most ~1280 px wide. */
+export const SPLASH_FETCH_WIDTH = 1280
+
+/**
+ * The canonical `/_ipx/…` URL for a banner's splash art (`PageHero`): the
+ * champion page's and the profile's, built here beside the icon shape so the
+ * one place that owns IPX URLs owns this one too. WebP, banner width.
+ */
+export function useCanonicalSplash() {
+  const ipx = useImage()
+
+  return (src: string | null | undefined): string | null =>
+    src ? ipx(src, { width: SPLASH_FETCH_WIDTH, format: 'webp' }) : null
+}

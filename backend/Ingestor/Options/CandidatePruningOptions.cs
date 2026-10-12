@@ -15,7 +15,7 @@ public class CandidatePruningOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// A never-promoted candidate (New/Scored/Rejected, never validated) is pruned once its
+    /// A never-promoted candidate (New/Scored, never validated) is pruned once its
     /// last activity (mastery last-play for ladder, last observed game for harvest) is older
     /// than this. Should exceed the match-retention window so an actively-observed player is
     /// not pruned only to be re-harvested next run.

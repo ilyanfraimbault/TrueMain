@@ -131,3 +131,14 @@ export function getProfileIconUrl(profileIconId: number, patch?: string | null):
 
   return `https://ddragon.leagueoflegends.com/cdn/${normalizedPatch}/img/profileicon/${profileIconId}.png`
 }
+
+/**
+ * A champion's default splash art, from the Data Dragon key its square icon is
+ * named after (`…/img/champion/Ahri.png` → `Ahri`). Splash art is not
+ * versioned, so the patch in the icon URL does not matter. Null when the URL is
+ * not a Data Dragon champion icon.
+ */
+export function championSplashUrlFromIcon(iconUrl: string | null | undefined): string | null {
+  const key = iconUrl?.match(/\/img\/champion\/([^/.]+)\.png$/)?.[1]
+  return key ? `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${key}_0.jpg` : null
+}

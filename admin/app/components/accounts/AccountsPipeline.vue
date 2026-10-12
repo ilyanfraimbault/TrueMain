@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Pipeline tab of the Accounts hub (#1410) — the read-only view over
-// `main_candidates`: New → Scored → Queued → Processing → Validated (or
-// Rejected), on top of the throughput charts that say whether the funnel is
+// `main_candidates`: New → Scored → Queued → Processing → Validated, on top
+// of the throughput charts that say whether the funnel is
 // moving at all. Searchable by Riot ID / PUUID / champion id, filterable by
 // status + region, server-paged; a row click opens a slide-over with the exact
 // pipeline stage, timestamps, ingested match count and the linked manual seed

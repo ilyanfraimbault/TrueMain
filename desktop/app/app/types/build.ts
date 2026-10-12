@@ -85,6 +85,8 @@ export interface CompositionBuildRequest {
   position: string
   allies: CompositionSlot[]
   enemies: CompositionSlot[]
+  /** A Riot ID: only that player's games are sampled — a true main's own draft build (#1987). */
+  player?: string
 }
 
 /** The slice of `CompositionBuildResponse` the draft reads. */

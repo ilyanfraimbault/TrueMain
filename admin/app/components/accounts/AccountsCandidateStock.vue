@@ -41,7 +41,7 @@ const unitItems: { label: string, value: Unit }[] = [
 ]
 const unit = ref<Unit>('rows')
 
-type Level = Omit<CandidateStockAccounts, 'rejected'>
+type Level = CandidateStockAccounts
 
 /** One bucket's level in the selected unit; undefined when it was not measured in it. */
 function levelOf(bucket: CandidateStock['buckets'][number] | undefined): Level | undefined {

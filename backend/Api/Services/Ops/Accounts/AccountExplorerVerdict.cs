@@ -29,7 +29,7 @@ internal static class AccountExplorerVerdict
             return AccountPipelineState.Invalidated;
         }
 
-        if (HasActiveMain(mainRows) || HasQueuedCandidate(candidates))
+        if (HasActiveMain(mainRows) || IsInNewCandidateArm(account, candidates))
         {
             return AccountPipelineState.Tracked;
         }
@@ -53,9 +53,18 @@ internal static class AccountExplorerVerdict
     internal static bool HasActiveMain(IReadOnlyList<AccountExplorerMainRowReadModel> mainRows)
         => mainRows.Any(m => m is { IsMain: true, IsActive: true });
 
-    /// <summary>The other membership arm of the real ingest claim.</summary>
+    /// <summary>Whether any candidate sits at <c>Queued</c> — on its own, not a claim arm (#1535).</summary>
     internal static bool HasQueuedCandidate(IReadOnlyList<AccountExplorerCandidateReadModel> candidates)
         => candidates.Any(c => c.Status == nameof(MainCandidateStatus.Queued));
+
+    /// <summary>
+    /// The other membership arm of the real ingest claim: a <c>Queued</c> candidate on an
+    /// account never ingested. An ingested account is the established-main arm's (#1535).
+    /// </summary>
+    internal static bool IsInNewCandidateArm(
+        RiotAccount account,
+        IReadOnlyList<AccountExplorerCandidateReadModel> candidates)
+        => account.LastMatchIngestAtUtc is null && HasQueuedCandidate(candidates);
 
     internal static string DescribeState(
         AccountPipelineState state,
@@ -156,8 +165,8 @@ internal static class AccountExplorerVerdict
 
     /// <summary>
     /// Every distinct candidate status, in funnel order. Deliberately not a
-    /// "furthest status": <c>Rejected</c> is the highest enum value but the worst
-    /// outcome, so reducing the set to one label would read backwards.
+    /// "furthest status": an account's champions sit at different stages, and one
+    /// label would hide the rows still short of Validated.
     /// </summary>
     private static string DescribeStatuses(IReadOnlyList<AccountExplorerCandidateReadModel> candidates)
         => string.Join(", ", candidates

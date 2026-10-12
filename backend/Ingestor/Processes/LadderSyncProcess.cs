@@ -1,4 +1,5 @@
 using Core.Lol.Identifiers;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Ops.Mongo;
 using Data.Repositories;
@@ -237,7 +238,7 @@ public sealed class LadderSyncProcess(
             var cursor = await cursorSession.LadderSyncCursors.GetAsync(platformString, ct);
             var slotIndex = LadderSweepPlan.IndexOfOrStart(
                 slots,
-                cursor is null ? null : new LadderSweepSlot(cursor.Tier, cursor.Division));
+                cursor is null ? null : new LadderSweepSlot(cursor.Tier.ToRiotName(), cursor.Division.ToRiotName()));
 
             states.Add(new PlatformSweepState(platformString, platform.Route, slotIndex, Math.Max(1, cursor?.Page ?? 1)));
         }
@@ -333,8 +334,8 @@ public sealed class LadderSyncProcess(
         var slot = slots[state.SlotIndex];
         return session.LadderSyncCursors.UpsertAsync(
             state.PlatformId,
-            slot.Tier,
-            slot.Division,
+            RankTiers.ParseTier(slot.Tier),
+            RankTiers.ParseDivision(slot.Division),
             state.Page,
             timeProvider.GetUtcNow().UtcDateTime,
             ct);
@@ -374,11 +375,17 @@ public sealed class LadderSyncProcess(
                 continue;
             }
 
+            var input = RankSnapshotInput.TryCreate(entry.Tier, entry.Division, entry.LeaguePoints, entry.Wins, entry.Losses);
+            if (input is null)
+            {
+                continue;
+            }
+
             latestByAccountId.TryGetValue(account.Id, out var latest);
             var result = rankSnapshotWriter.Ingest(
                 session,
                 account,
-                new RankSnapshotInput(entry.Tier, entry.Division, entry.LeaguePoints, entry.Wins, entry.Losses),
+                input,
                 latest,
                 nowUtc);
 

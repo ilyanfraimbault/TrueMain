@@ -11,7 +11,7 @@ namespace TrueMain.UnitTests;
 public sealed class ChampionDirectoryLinesTests
 {
     [Fact]
-    public void Fold_sums_the_scope_rows_behind_one_champion_lane_line()
+    public void Fold_SumsTheScopeRowsBehindOneChampionLaneLine()
     {
         // A scope row is per (account, champion, patch, platform, queue, lane, elo),
         // so a line is many rows: counting rows instead of folding them would report a
@@ -31,7 +31,7 @@ public sealed class ChampionDirectoryLinesTests
     }
 
     [Fact]
-    public void Fold_keeps_patches_apart()
+    public void Fold_KeepsPatchesApart()
     {
         ChampionDirectoryLine[] rows =
         [
@@ -49,7 +49,7 @@ public sealed class ChampionDirectoryLinesTests
     [Theory]
     [InlineData("")]
     [InlineData(" ")]
-    public void Fold_drops_the_lane_less_sentinel(string position)
+    public void Fold_DropsTheLaneLessSentinel(string position)
     {
         // Position is non-nullable, so "no lane" is a blank string. Such a row reaches
         // no public page, so counting it as coverage would let a patch clear the bar on
@@ -68,7 +68,7 @@ public sealed class ChampionDirectoryLinesTests
     [InlineData(9, false)]
     [InlineData(10, true)]
     [InlineData(11, true)]
-    public void ClearsFloor_is_inclusive(long games, bool expected)
+    public void ClearsFloor_IsInclusive(long games, bool expected)
     {
         ChampionDirectoryLines
             .ClearsFloor(new ChampionDirectoryLine("16.16", 1, "TOP", games), floor: 10)
@@ -76,7 +76,7 @@ public sealed class ChampionDirectoryLinesTests
     }
 
     [Fact]
-    public void ClearsFloor_with_no_floor_keeps_a_single_game_line()
+    public void ClearsFloor_WithNoFloorKeepsASingleGameLine()
     {
         ChampionDirectoryLines
             .ClearsFloor(new ChampionDirectoryLine("16.16", 1, "TOP", 1), floor: 0)
@@ -84,7 +84,7 @@ public sealed class ChampionDirectoryLinesTests
     }
 
     [Fact]
-    public void BelowFloorOnPrimaryLane_keeps_the_champions_own_lane_and_drops_the_off_role_tail()
+    public void BelowFloorOnPrimaryLane_KeepsTheChampionsOwnLaneAndDropsTheOffRoleTail()
     {
         // Champion 1 is a MIDDLE played twice on UTILITY, champion 2 a TOP that is simply
         // short of games. Naming the UTILITY line would send an operator chasing games that
@@ -102,7 +102,7 @@ public sealed class ChampionDirectoryLinesTests
     }
 
     [Fact]
-    public void BelowFloorOnPrimaryLane_keeps_a_champion_whose_only_lane_is_short()
+    public void BelowFloorOnPrimaryLane_KeepsAChampionWhoseOnlyLaneIsShort()
     {
         // One lane makes that lane the champion's own by construction — a champion nobody
         // has enough games on anywhere is exactly the gap the list is for.
@@ -114,7 +114,7 @@ public sealed class ChampionDirectoryLinesTests
     }
 
     [Fact]
-    public void BelowFloorOnPrimaryLane_orders_the_lines_closest_to_the_floor_first()
+    public void BelowFloorOnPrimaryLane_OrdersTheLinesClosestToTheFloorFirst()
     {
         // The question a thin patch raises is "how far off is it", so the lines about to
         // clear lead. Equal games break on champion then lane, so the order is stable.

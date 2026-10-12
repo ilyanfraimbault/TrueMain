@@ -82,8 +82,15 @@ const src = computed(() => (hasIcon.value
 // back to the user glyph, like an account with no icon at all — not to an
 // empty square that reads as still loading.
 const failed = ref(false)
+// Until the picture has loaded, a skeleton pulses *behind* it rather than in
+// its place: profile icons are opaque, so the picture covers it as soon as it
+// decodes even when `load` is missed (an icon cached before hydration, or the
+// app's WKWebView, which does not reliably report it).
+const loaded = ref(false)
+const pending = computed(() => hasIcon.value && !failed.value && !loaded.value)
 watch(src, () => {
   failed.value = false
+  loaded.value = false
 })
 
 const region = computed(() => (props.region !== undefined
@@ -120,7 +127,12 @@ const riotId = computed(() => (props.identity.tagLine
         :as="{ img: 'img' }"
         :loading="loading"
         :icon="hasIcon && !failed ? undefined : 'i-lucide-user'"
-        :ui="{ root: ['bg-accented', sized.avatar, ui.avatar], icon: 'size-1/2 text-dimmed' }"
+        :ui="{
+          root: ['bg-accented', sized.avatar, ui.avatar, pending && 'relative before:absolute before:inset-0 before:animate-pulse before:bg-ink-700'],
+          image: 'relative',
+          icon: 'size-1/2 text-dimmed',
+        }"
+        @load="loaded = true"
         @error="failed = true"
       />
     </template>

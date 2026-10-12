@@ -155,6 +155,8 @@ export function cutClip(
     moments: game.moments
       .filter(moment => moment.videoMs >= startMs && moment.videoMs <= endMs)
       .map(moment => ({ ...moment, videoMs: moment.videoMs - startMs, endVideoMs: moment.endVideoMs - startMs })),
+    youtubeUrl: null,
+    videoOnDisk: true,
   }
 }
 
@@ -175,7 +177,8 @@ export function devLibrary(now = Date.now()) {
     runClip(ahriGone!, null, 3, 'Triple kill on Ahri'),
     runClip(ahriYesterday, ahriYesterday.id, 3, 'Triple kill on Ahri'),
     runClip(ahriYesterday, ahriYesterday.id, 2, 'Double kill'),
-    runClip(syndraGone!, null, 5, 'Pentakill on Syndra', true),
+    // Published, then its file deleted: it plays from YouTube.
+    { ...runClip(syndraGone!, null, 5, 'Pentakill on Syndra', true), youtubeUrl: 'https://www.youtube.com/watch?v=jNQXAC9IVRw', videoOnDisk: false, sizeBytes: 64_000 },
   ].sort((a, b) => b.gameStartedAtMs - a.gameStartedAtMs || b.startMs - a.startMs)
   return { games, clips }
 }

@@ -1,6 +1,7 @@
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
@@ -287,16 +288,15 @@ public sealed class ChampionMatchupQueryService(
             : championsOptions.Value.MinPlayerMatchupGames;
 
         // The champion side of the lane: rows for this champion at this
-        // position, on the configured queue (matched via the correlated
-        // EXISTS over matches), narrowed to the one account asked for.
+        // position, narrowed to the one account asked for, in the games the cohort
+        // counts on the configured queue and patch (matched via the correlated
+        // EXISTS over matches) — one player's own games, but never a remake.
+        var games = ChampionCohort.Games(db, queueId, normalizedPatch);
         var championRows = db.MatchParticipants
             .AsNoTracking()
             .Where(p1 => p1.ChampionId == championId && p1.TeamPosition == position)
             .Where(p1 => p1.RiotAccountId == riotAccountId)
-            .Where(p1 => db.Matches.Any(m =>
-                m.Id == p1.MatchId
-                && m.QueueId == queueId
-                && (normalizedPatch == null || m.Patch == normalizedPatch)));
+            .Where(p1 => games.Any(m => m.Id == p1.MatchId));
 
         // Narrow to the requested elo bands (null = every band).
         if (bands is not null)

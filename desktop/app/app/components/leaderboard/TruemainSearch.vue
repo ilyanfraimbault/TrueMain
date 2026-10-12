@@ -100,7 +100,9 @@ const showPanel = computed(() => open.value && term.value.trim().length > 0)
       @keydown.escape="open = false"
     />
 
-    <div v-if="showPanel" class="surface absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg p-1 shadow-xl">
+    <!-- A press in the panel keeps the field focused. WebKit (the app's webview on macOS) does not
+         focus a clicked button, so the blur would close the panel before the click lands (#1985). -->
+    <div v-if="showPanel" class="surface absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg p-1 shadow-xl" @mousedown.prevent>
       <template v-if="championMatches.length">
         <p class="stat-label px-2 pb-1 pt-1.5">Champions</p>
         <button
@@ -110,7 +112,7 @@ const showPanel = computed(() => open.value && term.value.trim().length > 0)
           class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accented"
           @click="pickChampion(champion.id)"
         >
-          <img v-if="portraitOf(champion.id)" :src="portraitOf(champion.id)!" alt="" class="size-6 rounded">
+          <img v-if="portraitOf(champion.id)" :src="portraitOf(champion.id)!" alt="" class="img-skeleton size-6 rounded">
           <span class="text-highlighted">{{ champion.name }}</span>
           <span class="ml-auto text-[11px] text-dimmed">Filter</span>
         </button>
@@ -144,7 +146,7 @@ const showPanel = computed(() => open.value && term.value.trim().length > 0)
             :key="id"
             :src="championById.get(id)?.iconUrl"
             :alt="championById.get(id)?.name"
-            class="size-5 rounded-sm"
+            class="img-skeleton size-5 rounded-sm"
             :class="id === championId ? 'ring-1 ring-primary' : ''"
           >
         </span>

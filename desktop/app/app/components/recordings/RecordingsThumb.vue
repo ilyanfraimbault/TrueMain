@@ -32,12 +32,12 @@ const ago = computed(() => formatRelativeTime(new Date(props.item.atMs).toISOStr
       v-if="thumbnail"
       :src="thumbnail"
       alt=""
-      class="size-full object-cover"
+      class="img-skeleton size-full object-cover"
       loading="lazy"
       @error="failed = true"
     >
     <template v-else>
-      <img v-if="splash" :src="splash" alt="" class="size-full object-cover object-[70%_20%] opacity-35" loading="lazy">
+      <img v-if="splash" :src="splash" alt="" class="img-skeleton size-full object-cover object-[70%_20%] opacity-35" loading="lazy">
       <UIcon v-else name="i-lucide-film" class="absolute left-1/2 top-1/2 size-7 -translate-1/2 text-ink-700" />
     </template>
 
@@ -57,6 +57,15 @@ const ago = computed(() => formatRelativeTime(new Date(props.item.atMs).toISOStr
 
     <span v-if="item.pinned" class="absolute left-2 top-2 flex size-5 items-center justify-center rounded-md bg-black/70" :class="item.status !== 'ready' && 'hidden'">
       <UIcon :name="item.kind === 'clip' ? 'i-lucide-star' : 'i-lucide-pin'" class="size-3 text-gold" />
+    </span>
+
+    <span
+      v-if="!item.videoOnDisk"
+      class="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-highlighted"
+      title="Its video is no longer on this PC: it plays from YouTube"
+    >
+      <UIcon name="i-lucide-youtube" class="size-3" />
+      On YouTube
     </span>
 
     <div class="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[11px] font-medium tabular-nums">

@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Core.Lol.Map;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Ops.Mongo;
 using Ingestor.Options;
@@ -61,7 +62,7 @@ public sealed class PaceSamplingProcessIntegrationTests : IAsyncLifetime
         await using var db = _fixture.CreateDbContext();
         var stats = await db.PaceBenchmarkStats.AsNoTracking().ToListAsync();
         stats.Sum(stat => stat.Count).Should().Be(10 * GameMinutes * 2);
-        stats.Should().OnlyContain(stat => stat.Tier == "GOLD" && stat.Patch == "16.19");
+        stats.Should().OnlyContain(stat => stat.Tier == RankTier.Gold && stat.Patch == "16.19");
         (await db.PaceSampledMatches.Select(match => match.MatchId).ToListAsync()).Should().BeEquivalentTo(["EUW1_1", "EUW1_2"]);
         (await db.Matches.AnyAsync()).Should().BeFalse();
         (await db.MatchParticipants.AnyAsync()).Should().BeFalse();

@@ -261,7 +261,10 @@ public sealed record AccountExplorerTrackingReadModel
     /// <summary>True when an <c>IsMain</c> + <c>IsActive</c> row exists.</summary>
     public bool HasActiveMain { get; init; }
 
-    /// <summary>True when a candidate sits at <c>Queued</c>.</summary>
+    /// <summary>
+    /// True when a candidate sits at <c>Queued</c>. It is the claim's new-candidate arm only
+    /// while the account was never ingested (#1535) — <see cref="TrackedVia"/> applies that rule.
+    /// </summary>
     public bool HasQueuedCandidate { get; init; }
 
     /// <summary>The <c>MatchIngestStatus</c> name: "Idle" or "Processing".</summary>

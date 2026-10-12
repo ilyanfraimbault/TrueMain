@@ -21,6 +21,7 @@ const parsed = computed(() => {
     <header class="mb-2 flex items-center gap-3">
       <SkeletonImage
         :src="perk.iconUrl"
+        transparent
         :alt="perk.name"
         :width="36"
         :height="36"

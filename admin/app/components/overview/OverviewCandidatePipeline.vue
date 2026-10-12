@@ -10,7 +10,7 @@ const props = defineProps<{
 }>()
 
 // Candidate pipeline buckets as ordered (label, count) pairs. The colors trace
-// the New -> Validated/Rejected flow using the semantic status vocabulary.
+// the New -> Validated flow using the semantic status vocabulary.
 const candidateBuckets = computed(() => {
   const c = props.stats?.candidatesByStatus
   if (!c) {
@@ -22,7 +22,6 @@ const candidateBuckets = computed(() => {
     { label: 'Queued', count: c.Queued, color: 'warning' as const },
     { label: 'Processing', count: c.Processing, color: 'warning' as const },
     { label: 'Validated', count: c.Validated, color: 'success' as const },
-    { label: 'Rejected', count: c.Rejected, color: 'error' as const },
   ]
 })
 

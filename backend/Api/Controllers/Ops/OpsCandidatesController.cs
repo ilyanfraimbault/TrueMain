@@ -19,14 +19,14 @@ public sealed class OpsCandidatesController(
 {
     /// <summary>
     /// Lists main candidates (the ingestion pipeline: New → Scored → Queued →
-    /// Processing → Validated, or Rejected), most-relevant first, paged. Filterable
+    /// Processing → Validated), most-relevant first, paged. Filterable
     /// by <paramref name="status"/> and <paramref name="region"/> (PlatformId), and
     /// searchable by <paramref name="search"/> over the joined Riot ID
     /// (gameName/tagLine), PUUID, or — when numeric — champion id. Read-only.
     /// </summary>
     /// <param name="status">
     /// Restrict to a single <c>MainCandidateStatus</c> (case-insensitive name:
-    /// new, scored, queued, processing, validated, rejected). Omit for all.
+    /// new, scored, queued, processing, validated). Omit for all.
     /// </param>
     /// <param name="region">Restrict to one PlatformId (e.g. "EUW1"). Omit for all.</param>
     /// <param name="search">Riot ID / PUUID / champion-id search. Omit for none.</param>

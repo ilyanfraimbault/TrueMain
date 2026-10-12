@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("e7100d80-1b32-4a08-8043-cad5dce9b95a"), entityTypeCount: 38)
+            : base(skipDetectChanges: false, modelId: new Guid("d31772b0-0c12-4343-9829-c2d463a16abc"), entityTypeCount: 34)
         {
         }
 
@@ -46,16 +46,12 @@ namespace Data.CompiledModels
             var matchBan = MatchBanEntityType.Create(this);
             var matchParticipant = MatchParticipantEntityType.Create(this);
             var matchParticipantTimelineSnapshot = MatchParticipantTimelineSnapshotEntityType.Create(this);
-            var matchWinProbability = MatchWinProbabilityEntityType.Create(this);
             var paceBenchmarkStat = PaceBenchmarkStatEntityType.Create(this);
             var paceSampledMatch = PaceSampledMatchEntityType.Create(this);
             var participantPerkSelection = ParticipantPerkSelectionEntityType.Create(this);
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
-            var persona = PersonaEntityType.Create(this);
-            var processRun = ProcessRunEntityType.Create(this);
             var rankSnapshot = RankSnapshotEntityType.Create(this);
             var riotAccount = RiotAccountEntityType.Create(this);
-            var seedRequest = SeedRequestEntityType.Create(this);
 
             ChampionAggregatePatternEntityType.CreateForeignKey1(championAggregatePattern, championDimBuild);
             ChampionAggregatePatternEntityType.CreateForeignKey2(championAggregatePattern, championDimRunePage);
@@ -68,11 +64,9 @@ namespace Data.CompiledModels
             MatchParticipantEntityType.CreateForeignKey1(matchParticipant, match);
             MatchParticipantEntityType.CreateForeignKey2(matchParticipant, riotAccount);
             MatchParticipantTimelineSnapshotEntityType.CreateForeignKey1(matchParticipantTimelineSnapshot, match);
-            MatchWinProbabilityEntityType.CreateForeignKey1(matchWinProbability, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey1(participantPerkSelection, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey2(participantPerkSelection, perkSelectionCatalog);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
-            RiotAccountEntityType.CreateForeignKey1(riotAccount, persona);
 
             BanScopeTotalEntityType.CreateAnnotations(banScopeTotal);
             ChampionAggregatePatternEntityType.CreateAnnotations(championAggregatePattern);
@@ -102,16 +96,12 @@ namespace Data.CompiledModels
             MatchBanEntityType.CreateAnnotations(matchBan);
             MatchParticipantEntityType.CreateAnnotations(matchParticipant);
             MatchParticipantTimelineSnapshotEntityType.CreateAnnotations(matchParticipantTimelineSnapshot);
-            MatchWinProbabilityEntityType.CreateAnnotations(matchWinProbability);
             PaceBenchmarkStatEntityType.CreateAnnotations(paceBenchmarkStat);
             PaceSampledMatchEntityType.CreateAnnotations(paceSampledMatch);
             ParticipantPerkSelectionEntityType.CreateAnnotations(participantPerkSelection);
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
-            PersonaEntityType.CreateAnnotations(persona);
-            ProcessRunEntityType.CreateAnnotations(processRun);
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);
             RiotAccountEntityType.CreateAnnotations(riotAccount);
-            SeedRequestEntityType.CreateAnnotations(seedRequest);
 
             AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
             AddAnnotation("ProductVersion", "10.0.12");

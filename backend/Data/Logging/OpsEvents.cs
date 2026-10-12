@@ -31,7 +31,7 @@ public static class OpsEvents
     public const LogLevel PersistedFloor = LogLevel.Information;
 
     /// <summary>A main candidate finished match ingestion and was promoted to Validated.</summary>
-    public static readonly EventId CandidateValidated = new(1000, nameof(CandidateValidated));
+    public static readonly EventId CandidateValidated = new(Ids.CandidateValidated, nameof(CandidateValidated));
 
     /// <summary>A manual seed request resolved to a Riot account and its candidates were queued.</summary>
     public static readonly EventId SeedRequestResolved = new(1001, nameof(SeedRequestResolved));
@@ -49,7 +49,7 @@ public static class OpsEvents
     /// Reverting a claim back to Queued after an ingestion failure itself failed, so
     /// the account's candidates remain Processing until the claim lease expires (#263).
     /// </summary>
-    public static readonly EventId MatchRevertFailed = new(1005, nameof(MatchRevertFailed));
+    public static readonly EventId MatchRevertFailed = new(Ids.MatchRevertFailed, nameof(MatchRevertFailed));
 
     /// <summary>
     /// A recorded ingestor process run finished successfully (#722): every pipeline
@@ -122,6 +122,18 @@ public static class OpsEvents
     /// cancelled with it, so the API side shows up as <see cref="RequestAborted"/>.
     /// </summary>
     public static readonly EventId FrontendRequestAborted = new(1016, nameof(FrontendRequestAborted));
+
+    /// <summary>
+    /// The ids of the events logged through source-generated <c>[LoggerMessage]</c> methods
+    /// (#1636), whose attribute takes a constant rather than an <see cref="EventId"/>. The
+    /// method names the event after the field it mirrors, so <see cref="Resolve"/> matches
+    /// both halves.
+    /// </summary>
+    public static class Ids
+    {
+        public const int CandidateValidated = 1000;
+        public const int MatchRevertFailed = 1005;
+    }
 
     // Single source for the lookup + the UI-facing list, so a new event only has
     // to be added in two places (its field above and this array).

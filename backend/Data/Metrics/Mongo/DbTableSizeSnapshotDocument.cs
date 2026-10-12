@@ -39,10 +39,10 @@ public sealed class DbTableSizeSnapshotDocument
     /// <summary>
     /// Which engine the row measures — <c>postgres</c> or <c>mongo</c> (see
     /// <see cref="StorageEngines"/>). Part of the day-keyed upsert key, because the
-    /// two engines genuinely share names: <c>process_runs</c> and
-    /// <c>seed_requests</c> exist as both a (frozen) Postgres table and a Mongo
-    /// collection, so without the discriminator one would silently overwrite the
-    /// other's reading every day.
+    /// two engines can share names: <c>process_runs</c> and <c>seed_requests</c>
+    /// existed as both a (frozen) Postgres table and a Mongo collection until #1244
+    /// dropped the tables — and the retained history still holds both readings — so
+    /// without the discriminator one would silently overwrite the other's every day.
     ///
     /// <para>
     /// Documents written before #1023 carry no field at all; they are Postgres rows

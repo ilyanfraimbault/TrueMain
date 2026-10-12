@@ -115,3 +115,27 @@ Not in scope, and deliberately so: the empty champion page is **preprod behaving
 `compose.preprod.yaml` sets `MatchDataRetention__AggregateRetainedPatchCount: "2"` while prod leaves it at
 the default `0` (disabled — old-patch aggregates are the site's patch history, #466), so that build renders
 in prod. Preprod stays on its diet by choice; remember it when auditing preprod for missing data.
+
+## A candidate has no rejection verdict: it is in the pipeline, demoted back into the pool, or pruned (2026-10-06)
+
+`MainCandidateStatus.Rejected` existed on the entity, the admin filter and the overview breakdown, and five
+guards branched on it — and **no process ever assigned it**. The product owner settled #1029 by removing it
+rather than implementing it. A candidate's only exits are the ones the pipeline actually takes:
+
+- **Demotion** — `MainAnalysis` moves a Validated row back to `Scored` when its play rate falls below the
+  critical threshold; the row re-enters the promotion ranking instead of being ruled out.
+- **Settling** — since #1535 a `Queued` row of an account already ingested goes back to `Scored` and is no
+  longer promoted; the account comes back through depth, on its ingest history, when it is due.
+- **Pruning** — a never-promoted (`New`/`Scored`) row whose last activity is older than
+  `CandidatePruning:PruneAfterDays` is deleted.
+
+Implementing the verdict — "real history shows this account was never a main on any tracked champion" — was
+the alternative. It was not taken because it would need a second, permanent judgement beside demotion that a
+later game can contradict (the harvest sample keeps growing), and because the stale prune deleted the row
+anyway, so a verdict worth having would also have needed a new retention rule to keep the pipeline from
+rediscovering the account. #1535 already answers the cost a rejection would have saved: an ingested account
+no longer re-enters the breadth class, whatever its candidates' status.
+
+The migration moves any stored `5` to `Scored` (it matches zero rows: nothing wrote it). Older hourly
+candidate-stock snapshots in Mongo still carry a `Rejected` reading of 0; the read side skips a status the
+enum no longer defines. Reintroducing a terminal status is a new decision, not a revert — #1029, #1024, #1535.

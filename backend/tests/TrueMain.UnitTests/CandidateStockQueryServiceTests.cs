@@ -130,14 +130,16 @@ public sealed class CandidateStockQueryServiceTests
         var hour = new DateTime(2026, 8, 5, 9, 0, 0, DateTimeKind.Utc);
         var store = StoreWith(
             Point(hour, "EUW1", "Queued", 300),
-            Point(hour, "EUW1", "Quarantined", 999));
+            Point(hour, "EUW1", "Quarantined", 999),
+            // Rejected was removed from the enum (#1029); snapshots older than that still carry it.
+            Point(hour, "EUW1", "Rejected", 7));
 
         var result = await CreateService(store).GetAsync(
             IngestionTimeGranularity.Hour, windowDays: 7, CancellationToken.None);
 
         var bucket = result.Buckets.Should().ContainSingle().Subject;
         bucket.Queued.Should().Be(300);
-        (bucket.New + bucket.Scored + bucket.Processing + bucket.Validated + bucket.Rejected).Should()
+        (bucket.New + bucket.Scored + bucket.Processing + bucket.Validated).Should()
             .Be(0, "an unknown status must not be folded into a series it does not belong to");
     }
 

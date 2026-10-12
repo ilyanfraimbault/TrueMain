@@ -51,20 +51,6 @@ public sealed class MatchRepository(TrueMainDbContext db) : IMatchRepository
                 ct);
     }
 
-    public async Task<Dictionary<string, int>> GetGameDurationSecondsAsync(IReadOnlyCollection<string> matchIds, CancellationToken ct)
-    {
-        if (matchIds.Count == 0)
-        {
-            return new Dictionary<string, int>(StringComparer.Ordinal);
-        }
-
-        return await db.Matches
-            .AsNoTracking()
-            .Where(m => matchIds.Contains(m.Id))
-            .Select(m => new { m.Id, m.GameDurationSeconds })
-            .ToDictionaryAsync(m => m.Id, m => m.GameDurationSeconds, StringComparer.Ordinal, ct);
-    }
-
     public void Add(Match match)
         => db.Matches.Add(match);
 
@@ -84,7 +70,7 @@ public sealed class MatchRepository(TrueMainDbContext db) : IMatchRepository
                  UPDATE matches
                  SET "PaceBenchmarkAggregated" = true
                  WHERE "Id" = ANY({ids}) AND NOT "PaceBenchmarkAggregated"
-                 RETURNING "Id", "Patch", "GameStartTimeUtc", "GameDurationSeconds"
+                 RETURNING "Id", "Patch", "GameStartTimeUtc", "GameDurationSeconds", "EndedInEarlySurrender"
                  """)
             .ToListAsync(ct);
     }

@@ -7,8 +7,8 @@ import type { MatchDetailResponse } from '#shared/types/match-detail'
 import { buildWinProbability } from './win-probability-timeline'
 
 /**
- * How the post-game curve's turning points read (#1911), shared by the site's
- * match detail, the desktop dashboard and the recording recap. Everything the
+ * How the post-game curve's turning points read (#1911), shared by the desktop
+ * dashboard's match detail and the recording recap. Everything the
  * curve stores reads for team 100; these turn it to the viewer's side.
  */
 
@@ -16,12 +16,10 @@ import { buildWinProbability } from './win-probability-timeline'
 export const SWINGS_SHOWN = 5
 
 /**
- * The detail's curve: TrueMain's own (computed at ingest) when it has one,
- * else the one the desktop builds from the client's timeline; null for a game
- * that gets none.
+ * The detail's curve, built from the client's timeline the desktop app attaches;
+ * null on the site (the API sends none, #2009) and for a game that gets none.
  */
-export function resolveWinProbability(detail: Pick<MatchDetailResponse, 'winProbability' | 'winProbabilityTimeline'>): MatchWinProbability | null {
-  if (detail.winProbability) return detail.winProbability
+export function resolveWinProbability(detail: Pick<MatchDetailResponse, 'winProbabilityTimeline'>): MatchWinProbability | null {
   return detail.winProbabilityTimeline ? buildWinProbability(detail.winProbabilityTimeline) : null
 }
 

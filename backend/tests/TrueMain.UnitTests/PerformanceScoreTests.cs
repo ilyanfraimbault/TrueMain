@@ -29,7 +29,7 @@ public sealed class PerformanceScoreTests
     };
 
     [Fact]
-    public void Compute_matches_the_hand_computed_reference_vector()
+    public void Compute_MatchesTheHandComputedReferenceVector()
     {
         // Golden vector — the whole point of the model being documented is that
         // a reader can reproduce it by hand. MIDDLE weights are combat 20 / kp 20 /
@@ -52,7 +52,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_is_deterministic_across_calls()
+    public void Compute_IsDeterministicAcrossCalls()
     {
         var first = PerformanceScore.Compute(Reference());
         var second = PerformanceScore.Compute(Reference());
@@ -61,7 +61,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_drops_the_laning_component_when_no_mark_is_covered()
+    public void Compute_DropsTheLaningComponentWhenNoMarkIsCovered()
     {
         // Missing data must never be scored as a zero — the laning weight is
         // redistributed over the surviving components instead. For this
@@ -74,7 +74,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_scores_an_even_lane_below_a_missing_lane_for_a_strong_player()
+    public void Compute_ScoresAnEvenLaneBelowAMissingLaneForAStrongPlayer()
     {
         // A dead-even lane is worth 0.5 on a component where the rest of this
         // player's game sits well above 0.5, so it drags the average down —
@@ -89,7 +89,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_grades_each_mark_against_a_span_proportional_to_its_minute()
+    public void Compute_GradesEachMarkAgainstASpanProportionalToItsMinute()
     {
         // The saturation span is 100 gold / 2 cs / 100 xp per elapsed minute, so
         // half the span is the same *relative* lead at any mark and must grade
@@ -108,7 +108,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_rates_the_same_absolute_lead_higher_the_earlier_it_was_taken()
+    public void Compute_RatesTheSameAbsoluteLeadHigherTheEarlierItWasTaken()
     {
         // 750 gold at 5 minutes is a dominant lane; the same 750 at 15 is a good
         // one. The proportional span is what makes the model say so.
@@ -120,7 +120,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_weights_a_later_laning_mark_above_an_earlier_one()
+    public void Compute_WeightsALaterLaningMarkAboveAnEarlierOne()
     {
         // Within the laning component each mark carries its own minute as its
         // weight, so where the lane *ended up* counts more than where it started.
@@ -138,7 +138,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_splits_the_lead_curve_into_a_laning_and_a_mid_game_component()
+    public void Compute_SplitsTheLeadCurveIntoALaningAndAMidGameComponent()
     {
         // Marks past minute 15 feed a component of their own, so a player who
         // won lane and then let it evaporate scores below one who kept extending.
@@ -170,7 +170,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_ignores_a_non_positive_mark_minute()
+    public void Compute_IgnoresANonPositiveMarkMinute()
     {
         // A minute of 0 would divide the span by zero. Such a row is skipped, so
         // a curve made only of them grades as no curve at all.
@@ -181,7 +181,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_is_monotonic_in_deaths()
+    public void Compute_IsMonotonicInDeaths()
     {
         var clean = Reference() with { Deaths = 1 };
         var feeding = Reference() with { Deaths = 12 };
@@ -197,7 +197,7 @@ public sealed class PerformanceScoreTests
     [InlineData("UTILITY")]
     [InlineData("")]
     [InlineData("SOMETHING_RIOT_INVENTED")]
-    public void Compute_stays_inside_the_0_to_100_range(string position)
+    public void Compute_StaysInsideThe0To100Range(string position)
     {
         var dominant = new[]
         {
@@ -247,7 +247,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_grades_a_support_stat_line_on_the_support_profile()
+    public void Compute_GradesASupportStatLineOnTheSupportProfile()
     {
         // 1.6 cs/min and 2.5 vision/min is an excellent support game and a
         // dreadful mid one. Same numbers, different role → different score.
@@ -275,7 +275,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_falls_back_to_the_neutral_profile_for_an_unknown_position()
+    public void Compute_FallsBackToTheNeutralProfileForAnUnknownPosition()
     {
         var blank = Reference() with { TeamPosition = string.Empty };
         var garbage = Reference() with { TeamPosition = "NONE" };
@@ -284,7 +284,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_is_case_and_whitespace_insensitive_on_the_position()
+    public void Compute_IsCaseAndWhitespaceInsensitiveOnThePosition()
     {
         var padded = Reference() with { TeamPosition = "  middle  " };
 
@@ -292,7 +292,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_survives_a_remake_shaped_input_with_no_usable_denominators()
+    public void Compute_SurvivesARemakeShapedInputWithNoUsableDenominators()
     {
         // Zero-length game, no team kills, no team damage or gold, no timeline:
         // every component except combat drops out, and combat alone still yields
@@ -317,7 +317,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_clamps_kill_participation_above_one()
+    public void Compute_ClampsKillParticipationAboveOne()
     {
         // Shared assists let (kills + assists) exceed the team's kill total.
         // The component must clamp to 1 rather than inflating the average.
@@ -329,7 +329,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Compute_rejects_a_null_input()
+    public void Compute_RejectsANullInput()
     {
         var act = () => PerformanceScore.Compute(null!);
 
@@ -337,7 +337,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Explain_returns_every_component_in_enum_order()
+    public void Explain_ReturnsEveryComponentInEnumOrder()
     {
         var breakdown = PerformanceScore.Explain(Reference());
 
@@ -346,7 +346,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Explain_agrees_with_compute_and_reproduces_the_score_from_its_parts()
+    public void Explain_AgreesWithComputeAndReproducesTheScoreFromItsParts()
     {
         var breakdown = PerformanceScore.Explain(Reference());
 
@@ -360,7 +360,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Explain_marks_a_dropped_component_null_and_gives_it_no_effective_weight()
+    public void Explain_MarksADroppedComponentNullAndGivesItNoEffectiveWeight()
     {
         var breakdown = PerformanceScore.Explain(Reference());
 
@@ -374,7 +374,7 @@ public sealed class PerformanceScoreTests
     }
 
     [Fact]
-    public void Explain_reports_the_role_weights_of_the_position()
+    public void Explain_ReportsTheRoleWeightsOfThePosition()
     {
         var support = PerformanceScore.Explain(Reference() with { TeamPosition = "UTILITY" });
         var mid = PerformanceScore.Explain(Reference());

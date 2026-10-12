@@ -29,6 +29,7 @@ const hasStyle = computed(() => Boolean(props.style))
     <SkeletonImage
       v-bind="$attrs"
       :src="style?.iconUrl"
+      transparent
       :alt="style?.name"
       :width="width"
       :height="height"

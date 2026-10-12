@@ -61,7 +61,7 @@ public sealed class TableStatsApiIntegrationTests : IAsyncLifetime
 
         // The core mapped tables must be present in the public schema.
         rows.Select(row => row.TableName).Should().Contain(
-            ["matches", "match_participants", "main_champion_stats", "process_runs", "riot_accounts"]);
+            ["matches", "match_participants", "main_champion_stats", "champion_aggregate_scopes", "riot_accounts"]);
 
         // Every reported table has sane, non-negative byte figures and total >=
         // table + index (TOAST makes it >=, never <).

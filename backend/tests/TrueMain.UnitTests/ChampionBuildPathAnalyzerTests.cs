@@ -15,7 +15,7 @@ public sealed class ChampionBuildPathAnalyzerTests
     private const int FirstItemId = 3742;
 
     [Fact]
-    public void WalkPath_picks_the_popular_sibling_over_a_deeper_subtree()
+    public void WalkPath_PicksThePopularSiblingOverADeeperSubtree()
     {
         var sequences = new[]
         {
@@ -33,7 +33,7 @@ public sealed class ChampionBuildPathAnalyzerTests
     }
 
     [Fact]
-    public void WalkPath_picks_the_popular_sibling_at_deeper_levels_too()
+    public void WalkPath_PicksThePopularSiblingAtDeeperLevelsToo()
     {
         var sequences = new[]
         {
@@ -49,7 +49,7 @@ public sealed class ChampionBuildPathAnalyzerTests
     }
 
     [Fact]
-    public void WalkPath_breaks_ties_by_subtree_depth_when_games_are_equal()
+    public void WalkPath_BreaksTiesBySubtreeDepthWhenGamesAreEqual()
     {
         var sequences = new[]
         {
@@ -65,7 +65,7 @@ public sealed class ChampionBuildPathAnalyzerTests
     }
 
     [Fact]
-    public void WalkPath_breaks_ties_by_wins_when_games_and_depth_are_equal()
+    public void WalkPath_BreaksTiesByWinsWhenGamesAndDepthAreEqual()
     {
         var sequences = new[]
         {
@@ -81,7 +81,7 @@ public sealed class ChampionBuildPathAnalyzerTests
     }
 
     [Fact]
-    public void WalkPath_stops_when_the_best_child_is_below_the_20_percent_threshold()
+    public void WalkPath_StopsWhenTheBestChildIsBelowThe20PercentThreshold()
     {
         var sequences = new[]
         {
@@ -100,7 +100,7 @@ public sealed class ChampionBuildPathAnalyzerTests
     }
 
     [Fact]
-    public void WalkPath_returns_the_first_item_alone_when_the_tree_is_empty()
+    public void WalkPath_ReturnsTheFirstItemAloneWhenTheTreeIsEmpty()
     {
         var tree = ChampionBuildPathAnalyzer.BuildItemTree([], sliceGames: 0);
 
@@ -113,7 +113,7 @@ public sealed class ChampionBuildPathAnalyzerTests
     }
 
     [Fact]
-    public void WalkPath_walks_the_full_six_item_chain_when_every_step_passes_the_threshold()
+    public void WalkPath_WalksTheFullSixItemChainWhenEveryStepPassesTheThreshold()
     {
         var sequences = new[]
         {

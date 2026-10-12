@@ -7,7 +7,7 @@ namespace TrueMain.UnitTests;
 public sealed class SkillOrderBuilderTests
 {
     [Fact]
-    public void Build_reflects_the_order_basic_spells_reach_their_second_point()
+    public void Build_ReflectsTheOrderBasicSpellsReachTheirSecondPoint()
     {
         var key = SkillOrderBuilder.Build(
         [
@@ -36,7 +36,7 @@ public sealed class SkillOrderBuilderTests
     }
 
     [Fact]
-    public void Build_falls_back_to_remaining_spell_when_only_two_spells_reached_second_point()
+    public void Build_FallsBackToRemainingSpellWhenOnlyTwoSpellsReachedSecondPoint()
     {
         var key = SkillOrderBuilder.Build(
         [
@@ -53,7 +53,7 @@ public sealed class SkillOrderBuilderTests
     }
 
     [Fact]
-    public void Build_returns_empty_when_there_are_no_normal_basic_skill_events()
+    public void Build_ReturnsEmptyWhenThereAreNoNormalBasicSkillEvents()
     {
         var key = SkillOrderBuilder.Build(
         [

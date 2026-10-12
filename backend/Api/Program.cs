@@ -356,17 +356,13 @@ builder.Services.AddScoped<IPipelineHealthQueryService>(services => new CachedPi
     services.GetRequiredService<IMemoryCache>()));
 builder.Services.AddScoped<IRegionBalanceQueryService, RegionBalanceQueryService>();
 builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
-builder.Services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
-builder.Services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQueryService>();
-builder.Services.AddScoped<IMatchesIngestedQueryService, MatchesIngestedQueryService>();
+builder.Services.AddTrueMainOpsStats();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IDbStorageHistoryQueryService, DbStorageHistoryQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
-builder.Services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
-builder.Services.AddScoped<IRiotQuotaQueryService, RiotQuotaQueryService>();
 builder.Services.AddScoped<IIncompleteMatchesQueryService, IncompleteMatchesQueryService>();
 builder.Services.AddScoped<IMatchDataQualityDetailQueryService, MatchDataQualityDetailQueryService>();
 builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService>();
@@ -380,13 +376,13 @@ builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
 builder.Services.AddScoped<ICandidateFunnelQueryService, CandidateFunnelQueryService>();
 builder.Services.AddScoped<ICandidateStockQueryService, CandidateStockQueryService>();
 builder.Services.AddScoped<ICandidateQueueLatencyQueryService, CandidateQueueLatencyQueryService>();
-builder.Services.AddScoped<IAggregationStatsQueryService, AggregationStatsQueryService>();
 // AddTrueMainData registers the IDbContextFactory<TrueMainDbContext> — which
 // services that fire concurrent queries (e.g. ProfileQueryService) use to create
 // short-lived, independently owned contexts per parallel branch — and, in the
 // same call, the scoped TrueMainDbContext for the common request-scoped
 // injection. Both share the one NpgsqlDataSource built inside the extension.
-builder.Services.AddTrueMainData(builder.Configuration);
+// Read-only and idempotent, so the API alone retries transient failures (#1634).
+builder.Services.AddTrueMainData(builder.Configuration, retryTransientFailures: true);
 // Startup migrations run as a hosted service (#258); the web server only starts listening
 // once every hosted service has started, so no request reaches a stale schema. Gated on
 // Database:ApplyMigrationsOnStartup, which prod and preprod keep disabled.

@@ -134,7 +134,8 @@ public sealed class DbStorageHistoryQueryServiceTests
     [Fact]
     public async Task GetAsync_KeepsSameNamedObjectsOfDifferentEnginesApart()
     {
-        // process_runs is both a (frozen) Postgres table and a Mongo collection.
+        // process_runs was both a (frozen) Postgres table and a Mongo collection until #1244,
+        // and the retained history still holds both readings.
         // Collapsing them on name alone would add one's size to the other's.
         var day = DateTime.UtcNow.Date.AddDays(-1);
         var points = new List<DbTableSizeSnapshotPoint>

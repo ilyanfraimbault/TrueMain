@@ -142,13 +142,6 @@ const subChampions = computed(() => {
   return Array.from({ length: SUB_CHAMPION_SLOTS }, (_, index) => subs[index] ?? null)
 })
 
-// Plain <img> + a URL built here instead of <NuxtImg> — same `_ipx/…` URL,
-// minus the responsive srcset machinery a fixed 22px icon never needed. See
-// SkeletonImage.vue for the profiling rationale. The URL itself comes from the
-// shared helper so this glyph resolves to the same cache entry as every other
-// place that renders it, at whatever size they display it.
-const canonicalIcon = useCanonicalIcon()
-
 // Primary + secondary lane icons. Each entry carries its icon URL and a
 // tooltip. The list is empty when the backend has no position data (no main
 // analysis yet), so the slot collapses without shifting the row.
@@ -248,18 +241,17 @@ const positionIcons = computed(() => {
          whether a player has a secondary lane, or no position data at all.
          Hidden on narrow rows to keep them readable. -->
     <div class="hidden w-16 shrink-0 items-center gap-1 @xl:flex">
-      <img
+      <SkeletonImage
         v-for="role in positionIcons"
         :key="role.position"
-        :src="canonicalIcon(role.iconUrl)"
+        :src="role.iconUrl"
         :alt="role.title"
         :title="role.title"
         class="size-[22px] shrink-0"
         :class="role.primary ? undefined : 'opacity-40'"
-        width="22"
-        height="22"
         loading="lazy"
-      >
+        transparent
+      />
     </div>
 
     <!-- Left spacer: with the right spacer below, the two centre the champion

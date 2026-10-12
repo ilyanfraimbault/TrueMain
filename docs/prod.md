@@ -126,9 +126,52 @@ the moving `:latest`, which is already present locally and would otherwise be
 silently reused (#765). The CI rollout passes an immutable `IMAGE_TAG`, so a
 pull is implied there anyway.
 
+## The edge (Caddy)
+
+Caddy is the only public entry point: it listens on 80/443, terminates TLS and
+proxies to web, admin and Umami over the internal compose network. Its
+configuration is **inline in `compose.prod.yaml`**, under
+`configs.edge_caddyfile`, mounted at `/etc/caddy/Caddyfile` — there is no
+`Caddyfile` in the repository and none on the host. Edit the compose file to
+change the edge; the change reaches prod with the release that contains it.
+
+It used to be a tracked `Caddyfile` bind-mounted from the deployment directory,
+but the deploy only ever writes the compose file and the `.env` (`docs/ci.md`,
+*What the deploy writes on the VPS*), so the host copy stayed whatever was last
+copied by hand. Compression (#1583) and the security headers (#1696) were both
+released green and absent from prod until someone copied the file over —
+#1598. The `edge` job of `deploy-prod.yml` now checks the live site after every
+rollout (`docs/ci.md`, *Verifying the edge*).
+
+- **Certificates.** Caddy obtains and auto-renews a Let's Encrypt certificate
+  for every site address. Certificates and the ACME account live in the
+  `truemain_caddy_data` volume so they survive restarts; re-issuing on every
+  boot would hit Let's Encrypt rate limits. Ports 80 and 443 must be open to
+  the internet (HTTP-01 / TLS-ALPN-01), and the A records of `truemain.lol`,
+  `www`, `admin` and `analytics` must point at the VPS, DNS-only.
+- **Sites.** `truemain.lol` proxies to web, `www.truemain.lol` redirects
+  permanently to the apex, `admin.truemain.lol` proxies to admin and
+  `analytics.truemain.lol` to Umami.
+- **Access logs.** Caddy writes none unless a site asks, so `log` is opted
+  into on the public site (bot crawls, 404s, upstream errors) and the admin
+  (authentication attempts) only. Output goes to stderr, capped by Docker's
+  json-file driver at 3 x 10 MB per container, so it cannot fill the disk and
+  `docker logs` on the Caddy container shows it. That budget is shared, which
+  is why the analytics site stays silent: the Umami tracker fires on every page
+  view and would evict everything else.
+- **Admin `X-Forwarded-For`.** The admin site sets `X-Forwarded-For` to the
+  real peer, dropping any client-supplied value. Caddy does this by default
+  (the browser is an untrusted peer); stating it keeps the invariant the
+  admin's per-IP login throttle relies on (it trusts the header only when
+  `NUXT_TRUST_PROXY` is set) robust across Caddy versions.
+- **Umami framing.** Umami bakes `frame-ancestors 'self'` into its CSP at
+  image build time (`ALLOWED_FRAME_URLS` only applies to source builds), which
+  would block the admin's Analytics iframe, so the analytics site rewrites that
+  directive on the way out to also allow the admin origin.
+
 ## Compression at the edge
 
-Caddy compresses what it proxies for the public site and the admin (`encode zstd gzip` in the `Caddyfile`, #1583),
+Caddy compresses what it proxies for the public site and the admin (`encode zstd gzip` in the edge configuration, #1583),
 choosing zstd or gzip from the browser's `Accept-Encoding`. Nothing upstream compresses: until then a champion
 page's HTML (about 200 KB), each JS bundle (up to about 290 KB) and `/api/static/items` (about 500 KB) went out
 raw. Images from `/_ipx` are already WebP and gain little. Preprod's edge Caddy carries the same directive, so its
@@ -136,7 +179,7 @@ page-load measurements stay comparable.
 
 ## Security response headers
 
-The edge sets the response security headers the app frameworks do not (the public site and admin shipped none). A shared `(security_headers)` snippet in the `Caddyfile` carries `Strict-Transport-Security` (one year, `includeSubDomains`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy` that turns off camera/microphone/geolocation/topics, and strips the upstream `X-Powered-By`. It is imported into the two app-owned vhosts only — never the `analytics` vhost, where Umami ships its own CSP and an `X-Frame-Options` here would fight the admin Analytics iframe that block deliberately allows.
+The edge sets the response security headers the app frameworks do not (the public site and admin shipped none). A shared `(security_headers)` snippet in the edge configuration carries `Strict-Transport-Security` (one year, `includeSubDomains`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy` that turns off camera/microphone/geolocation/topics, and strips the upstream `X-Powered-By`. It is imported into the two app-owned vhosts only — never the `analytics` vhost, where Umami ships its own CSP and an `X-Frame-Options` here would fight the admin Analytics iframe that block deliberately allows.
 
 Each app vhost then adds its own `Content-Security-Policy`, because the allowed origins differ: the public site loads the Umami tracker (so its host is in `script-src`/`connect-src`), while the admin embeds the Umami dashboard in an iframe (so its host is in `frame-src` instead). Both keep `'unsafe-inline'` for scripts and styles — Nuxt's hydration and the charts' inline styles need it, and there is no nonce pipeline — and allow the two game-asset CDNs (`ddragon.leagueoflegends.com`, `raw.communitydragon.org`) under `img-src` for the icons that do not arrive same-origin through `/_ipx`. Preprod's inline edge carries the same snippet minus HSTS (it is plain HTTP) and minus the CSP (its analytics host is an operator env value, not a fixed origin); the CSP is prod-only, where the origins are static.
 
@@ -185,15 +228,29 @@ them.
 
 ## Connection pools
 
-Every service reaches Postgres through PgBouncer in transaction mode: 25 server connections (`DEFAULT_POOL_SIZE`)
-plus 5 in reserve, shared by the API and both ingestor lanes, which all connect as the same user. The same values
-run in every compose file, preprod included.
+Every service reaches Postgres through PgBouncer in transaction mode, configured by the `pgbouncer_ini` config
+inline in each compose file. All services connect as the same user, to two PgBouncer databases that point at the
+same Postgres database: the API to `${POSTGRES_DB}_api`, both ingestor lanes to `${POSTGRES_DB}`. Each has its own
+pool of 25 server connections (`default_pool_size`) plus 5 in reserve, and `max_user_connections = 30` caps the two
+together at what the single shared pool allowed before the split; PgBouncer closes an idle connection of one pool
+to open one for the other. The same values run in every compose file, preprod included.
 
 | Setting | Value | Why |
 | --- | --- | --- |
 | API `Maximum Pool Size` | 30 | what PgBouncer can actually serve (25 + 5 reserve). At 100, a load test queued 74 API clients at PgBouncer, with waits up to 11 s and requests hanging until the visitor gave up (#1570). Excess requests now wait in Npgsql and fail after its 15 s connection timeout, with a logged error |
 | Ingestors' `Maximum Pool Size` | 40 each | unchanged; their batches hold a connection across a pass |
-| PgBouncer `QUERY_WAIT_TIMEOUT` | 30 s | ends a client's wait for a server connection. The longest wait measured under overload was 11 s, so it only cuts a wait that would otherwise last minutes; it applies to the ingestors too |
+| PgBouncer `query_wait_timeout` | 30 s | ends a client's wait for a server connection. The longest wait measured under overload was 11 s, so it only cuts a wait that would otherwise last minutes; it applies to the ingestors too |
+| `statement_timeout`, API only | 60 s | set by the `connect_query` of `${POSTGRES_DB}_api`, so Postgres itself cancels a runaway API read. 60 s is the visitor's own timeout in the #1570 load test, past which nobody is waiting for the answer (#1631) |
+| API `Command Timeout` | 65 s | just above the server-side limit, so the server's `canceling statement due to statement timeout` is the error that gets logged, not Npgsql's client-side timeout |
+| `idle_in_transaction_session_timeout`, every pooled session | 60 s | ends a session left idle inside an open transaction, which would keep its locks and hold back vacuum. Every ingestor transaction wraps writes only: the folds and Riot calls run before `BEGIN`, so the idle gaps inside one are milliseconds |
+| Ingestors' `Command Timeout` | 300 s, no `statement_timeout` | the chunked folds legitimately run long (#603, #632, #988) |
+
+These settings are applied per server connection by `connect_query`, not by a plain `SET`: in transaction mode a
+session `SET` lands on whichever server connection the transaction borrowed and leaks to the next client. The
+startup `options` route does not work either, since PgBouncer only accepts parameters it tracks, and
+`statement_timeout` is not one. Nothing in the backend resets them: Npgsql runs with `No Reset On Close=true`, and
+PgBouncer only sends its `server_reset_query` in session mode. To check them, connect with `psql` through PgBouncer (port 6432)
+to `${POSTGRES_DB}_api` or `${POSTGRES_DB}` and run `SHOW statement_timeout; SHOW idle_in_transaction_session_timeout;`.
 
 ## Ingestor tuning knobs
 

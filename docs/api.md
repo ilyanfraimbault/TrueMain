@@ -57,6 +57,13 @@ renvoient.
   `seed-requests`, les itérations et runs de process), `pageSize=0` ou négatif est
   clampé au plancher `[1, …]`, pas ramené au défaut — ce n'est pas la même
   convention partout, à vérifier par endpoint plutôt que supposée générale.
+  Toute la pagination est par **offset** (numéros de page), pas de curseur
+  keyset : le `total` que chaque réponse renvoie lit déjà l'ensemble filtré, et
+  les pages numérotées restent adressables par URL. Le passage au keyset n'est
+  envisagé que sur un coût mesuré (`.claude/docs/decisions/performance-and-incidents.md`,
+  #1635). L'historique de matchs, les candidats et le leaderboard trié par rang trient sur un
+  ordre **unique** (départage par id) : une ligne ne s'y répète ni n'y disparaît
+  d'une page à l'autre tant que les données ne changent pas.
 
 ## Endpoints d'infrastructure
 
@@ -975,6 +982,10 @@ candidats — ne tient pas dans une query string, et qu'elle change à chaque pi
   côté allié plutôt que la table des scopes, qui ne couvre que les champions que
   notre population *main* — un champion que personne ne main n'aurait sinon aucune
   distribution de lane, précisément sur les picks rares où le devin sert le plus.
+  Ce prior **ignore `eloBracket`** et agrège toutes les tranches d'elo, alors que
+  les deltas des candidats (matchup, blind, force, synergie, équipe ennemie)
+  respectent la tranche demandée : la lane d'un champion bouge à peine avec le
+  rang, et découper par tranche aveuglerait le prior sur les picks rares (#1707).
 - `confidence` ∈ [0, 1] mesure de combien la draft se lit moins bien si le champion
   change de lane ; **0,5 est un pile ou face** entre deux lectures, pas "à moitié
   juste". `laneOpponentChampionId` est `null` tant qu'aucun ennemi n'est placé sur
@@ -1610,7 +1621,7 @@ Compteurs globaux du corpus.
   "trackedAccounts": 12000,
   "totalMatches": 1500000,
   "totalParticipants": 15000000,
-  "candidatesByStatus": { "New": 200, "Scored": 80, "Queued": 15, "Processing": 3, "Validated": 9000, "Rejected": 1200 },
+  "candidatesByStatus": { "New": 200, "Scored": 80, "Queued": 15, "Processing": 3, "Validated": 9000 },
   "totalMains": 9000,
   "totalOtps": 1300,
   "distinctChampionsWithGames": 168,
@@ -1867,8 +1878,8 @@ d'un moteur. Triée par `totalBytes` décroissant, tous moteurs confondus.
 ]
 ```
 
-- `engine` : `postgres` ou `mongo`. Nécessaire et pas cosmétique — `process_runs` et
-  `seed_requests` existent des deux côtés (table Postgres gelée + collection Mongo).
+- `engine` : `postgres` ou `mongo`. Nécessaire et pas cosmétique — un même nom peut
+  exister des deux côtés (`process_runs` et `seed_requests` l'ont fait jusqu'à #1244).
 - `rowEstimate` : estimation du planner côté Postgres, **compte exact** côté Mongo.
 - Les collections Mongo sont absentes de la réponse si Mongo n'est pas configuré : le
   moteur n'est alors pas mesuré, ce qui n'est pas la même chose que vide.
@@ -2274,6 +2285,48 @@ les hosts régionaux.
 - `lanes` : part du temps mural où au moins un process de la lane (le `jobMode` de
   l'hôte, `unassigned` sans) tournait — union des runs bornés à la fenêtre, jamais leur
   somme, donc ≤ 1. Un run encore `Running` s'arrête à son dernier heartbeat.
+
+## `GET /ops/ingestor-metrics`
+
+Le meter `TrueMain.Ingestor` de l'ingestor (#1636) : échecs de run avalés par le worker,
+attentes de permis du rate limiter Riot et 429, chaque instrument découpé par jeu de tags.
+Un `MeterListener` dans l'ingestor les replie par minute dans la collection Mongo
+`meter_rollups` (rétention `MongoLogging:MeterRollupsRetention`, 30 jours) ; cet endpoint
+somme ces rollups sur la fenêtre.
+
+**Query** — `window` : `1h` / `24h` (défaut) / `7d` / `30d`, même repli silencieux que
+`/ops/riot-usage`.
+
+**Réponse `200`** — `IngestorMetricsReadModel`
+
+```json
+{
+  "window": "24h",
+  "sinceUtc": "2026-06-25T10:00:00Z",
+  "generatedAtUtc": "2026-06-26T10:00:00Z",
+  "retentionDays": 30.0,
+  "oldestRetainedUtc": "2026-06-20T08:41:00Z",
+  "instruments": [
+    {
+      "name": "ingestor.riot.ratelimit.wait", "kind": "histogram", "unit": "ms",
+      "description": "Time a Riot API call spent waiting for a rate-limit permit, tagged by routing value and endpoint.",
+      "count": 1200, "sum": 96000.0, "max": 2400.0,
+      "series": [
+        {
+          "tags": { "endpoint": "match-v5.getMatch", "routing_value": "europe" },
+          "count": 900, "sum": 81000.0, "mean": 90.0, "max": 2400.0,
+          "lastRecordedAtUtc": "2026-06-26T09:59:41Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `instruments` par nom ; leurs `series` par `sum` décroissant. Un compteur se lit à
+  `sum` (son total), un histogramme à `count` / `mean` / `max`.
+- Un instrument absent n'a rien enregistré sur la fenêtre. `oldestRetainedUtc` vaut `null`
+  quand aucun rollup n'a jamais été écrit : rien de mesuré, pas une fenêtre calme.
 
 ## `GET /ops/data-quality/detectors`
 
@@ -2805,14 +2858,14 @@ dans l'admin comme une panne plutôt que comme un verdict.
 
 ## `GET /ops/candidates`
 
-Candidats « main » du pipeline (New → Scored → Queued → Processing → Validated,
-ou Rejected), paginés.
+Candidats « main » du pipeline (New → Scored → Queued → Processing → Validated),
+paginés.
 
 **Query**
 
 | Param      | Type | Requis | Description |
 |------------|------|--------|-------------|
-| `status`   | string | non | Un `MainCandidateStatus` (new/scored/queued/processing/validated/rejected). |
+| `status`   | string | non | Un `MainCandidateStatus` (new/scored/queued/processing/validated). |
 | `region`   | string | non | PlatformId (ex. `EUW1`). |
 | `search`   | string | non | Riot ID / PUUID / champion-id. |
 | `page`     | int  | non | 1-based. |
@@ -2903,8 +2956,9 @@ découvert. La série est donc bornée par le TTL de `process_runs`.
 - `validated` est `null` — et non `0` — pour les périodes antérieures à
   `validatedFirstMeasuredAtUtc` : le compteur n'existait pas encore, et un panneau
   de santé ne présente pas ce qu'il n'a pas mesuré comme un zéro mesuré (#924).
-- `demoted` est aujourd'hui la seule sortie négative du funnel : le statut
-  `Rejected` existe sur l'entité mais aucun process ne l'assigne.
+- `demoted` est la seule sortie négative du funnel : il n'existe pas de statut de
+  rejet (retiré par #1029), un candidat est dans le pipeline, rétrogradé dans le
+  pool ou purgé.
 - `runs` compte les runs des six process contributeurs ; `0` distingue « le
   pipeline n'a pas tourné » de « il a tourné et n'a rien bougé ».
 - Les périodes creuses *à l'intérieur* de la plage observée valent zéro ; rien n'est

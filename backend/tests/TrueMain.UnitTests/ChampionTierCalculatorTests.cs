@@ -16,13 +16,13 @@ public sealed class ChampionTierCalculatorTests
     private const string Lane = "MIDDLE";
 
     [Fact]
-    public void Evaluate_returns_empty_for_no_inputs()
+    public void Evaluate_ReturnsEmptyForNoInputs()
     {
         ChampionTierCalculator.Evaluate([], DefaultOptions()).Should().BeEmpty();
     }
 
     [Fact]
-    public void Evaluate_preserves_input_order()
+    public void Evaluate_PreservesInputOrder()
     {
         var inputs = MakeInputs(20);
 
@@ -40,7 +40,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Evaluate_gives_a_single_row_the_top_tier()
+    public void Evaluate_GivesASingleRowTheTopTier()
     {
         var results = ChampionTierCalculator.Evaluate(
             [new ChampionTierCalculator.TierInput(Lane, Games: 100, Wins: 50, PickRate: 0.1, BanRate: 0.05)],
@@ -50,7 +50,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Shrinkage_keeps_a_micro_sample_out_of_the_top_tier()
+    public void Shrinkage_KeepsAMicroSampleOutOfTheTopTier()
     {
         // The exact bug report (#971): a handful of games at a flattering raw win
         // rate must not fluke into S ahead of a well-played, average-winrate field.
@@ -75,7 +75,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Shrinkage_favours_the_larger_sample_at_equal_raw_winrate()
+    public void Shrinkage_FavoursTheLargerSampleAtEqualRawWinrate()
     {
         // 8 filler rows anchor the field's prior below 0.60. Two candidate rows
         // share the exact same *raw* 0.60 win rate and the exact same pick/ban
@@ -96,7 +96,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Pick_rate_outweighs_win_rate()
+    public void PickRateOutweighsWinRate()
     {
         // Ban rate held equal between the two rows so it contributes identically
         // to both scores and cannot be the deciding factor.
@@ -110,7 +110,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Ban_rate_outweighs_win_rate()
+    public void BanRateOutweighsWinRate()
     {
         // Pick rate held equal between the two rows so it contributes identically
         // to both scores and cannot be the deciding factor.
@@ -124,7 +124,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Pick_rate_outweighs_ban_rate()
+    public void PickRateOutweighsBanRate()
     {
         // Identical games/wins on both rows ties their (post-shrinkage) win
         // percentile exactly, isolating the pick-vs-ban comparison.
@@ -138,7 +138,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Null_ban_rate_renormalizes_weights_to_sum_to_one()
+    public void NullBanRateRenormalizesWeightsToSumToOne()
     {
         // The field's top row (best pick rate, best win rate) should score
         // exactly 1.0 when ban data is absent — proof the ban weight was folded
@@ -154,7 +154,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void A_single_missing_ban_rate_disables_the_ban_term_for_the_whole_call()
+    public void ASingleMissingBanRateDisablesTheBanTermForTheWholeCall()
     {
         // Ban data is populated per-patch, not per-champion, so a mix of
         // null/non-null within one call is scored the same as fully-null
@@ -169,7 +169,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void A_ban_only_configuration_falls_back_to_an_even_pick_win_split_without_ban_data()
+    public void ABanOnlyConfigurationFallsBackToAnEvenPickWinSplitWithoutBanData()
     {
         // Degenerate but valid configuration (weights still sum to 1):
         // BanRateWeight=1, the other two 0. With no ban data at all, dropping
@@ -195,7 +195,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Pick_rate_is_ranked_within_its_own_lane_not_patch_wide()
+    public void PickRateIsRankedWithinItsOwnLaneNotPatchWide()
     {
         // MIDDLE has more playable champions than UTILITY, so a support's raw
         // pick share is mechanically higher for the same "how central is this
@@ -225,7 +225,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Evaluate_produces_a_pyramid_across_a_full_lane()
+    public void Evaluate_ProducesAPyramidAcrossAFullLane()
     {
         // 100 rows on one lane, win rate climbing, pick/ban rate held constant
         // (so those two terms contribute equally to every row and only win
@@ -255,7 +255,7 @@ public sealed class ChampionTierCalculatorTests
     }
 
     [Fact]
-    public void Evaluate_stays_finite_when_every_row_has_zero_games()
+    public void Evaluate_StaysFiniteWhenEveryRowHasZeroGames()
     {
         var inputs = new List<ChampionTierCalculator.TierInput>
         {

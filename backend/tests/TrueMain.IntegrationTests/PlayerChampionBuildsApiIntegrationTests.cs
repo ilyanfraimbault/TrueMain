@@ -34,7 +34,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task GetPlayerChampion_scopes_aggregates_to_the_requested_player()
+    public async Task GetPlayerChampion_ScopesAggregatesToTheRequestedPlayer()
     {
         await SeedAsync();
 
@@ -65,7 +65,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetPlayerChampion_returns_the_same_contract_as_the_global_page()
+    public async Task GetPlayerChampion_ReturnsTheSameContractAsTheGlobalPage()
     {
         await SeedAsync();
 
@@ -93,7 +93,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetPlayerChampion_below_the_floor_renders_a_thin_low_confidence_build()
+    public async Task GetPlayerChampion_BelowTheFloorRendersAThinLowConfidenceBuild()
     {
         await SeedAsync();
 
@@ -116,7 +116,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetPlayerChampion_returns_404_for_unknown_player()
+    public async Task GetPlayerChampion_Returns404ForUnknownPlayer()
     {
         await SeedAsync();
 
@@ -128,7 +128,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetPlayerChampion_returns_404_for_champion_the_player_never_mained()
+    public async Task GetPlayerChampion_Returns404ForChampionThePlayerNeverMained()
     {
         await SeedAsync();
 
@@ -141,7 +141,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetPlayerChampion_with_no_patch_falls_back_to_the_latest_patch_above_the_floor()
+    public async Task GetPlayerChampion_WithNoPatchFallsBackToTheLatestPatchAboveTheFloor()
     {
         var now = DateTime.UtcNow;
         await using (var db = _fixture.CreateDbContext())

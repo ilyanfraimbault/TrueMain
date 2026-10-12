@@ -1,8 +1,7 @@
 // The post-game win-probability curve and its turning points (#1911).
-// `MatchWinProbability` mirrors backend/Api/ReadModels/Truemains/MatchDetailReadModel.cs
-// (computed at ingest by Core/Lol/WinProbability) and is what the desktop builds
-// from the client's timeline with `buildWinProbability`
-// (`web/layers/common/app/utils/win-probability-timeline.ts`).
+// `MatchWinProbability` is what the desktop app builds from the client's timeline
+// with `buildWinProbability` (`web/layers/common/app/utils/win-probability-timeline.ts`);
+// the API sends none (#2009).
 // Every probability and delta reads for team 100 (blue side); the UI turns it
 // to the viewer's side.
 

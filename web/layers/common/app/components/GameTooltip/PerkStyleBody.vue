@@ -14,6 +14,7 @@ defineProps<{
     >
       <SkeletonImage
         :src="perkStyle.iconUrl"
+        transparent
         :alt="perkStyle.name"
         :width="36"
         :height="36"

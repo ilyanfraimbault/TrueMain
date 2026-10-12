@@ -73,7 +73,7 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Every_panel_on_the_champion_page_counts_the_same_games()
+    public async Task EveryPanelOnTheChampionPageCountsTheSameGames()
     {
         await SeedCorpusAsync();
 
@@ -118,7 +118,7 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task No_fold_counts_a_remake()
+    public async Task NoFoldCountsARemake()
     {
         await SeedCorpusAsync();
 

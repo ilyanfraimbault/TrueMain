@@ -165,8 +165,9 @@ const READABLE_PATHS: &[&str] = &[
 
 /// A path the app may read: one of `READABLE_PATHS`, or one true main's
 /// reads under `/truemains/{nameTag}` — their build on a champion
-/// (`/champions/{championId}`), their profile, their match list and one of
-/// their matches (`/matches/{matchId}`), which the favorites page shows. The
+/// (`/champions/{championId}`), their profile, its LP curve (`/rank-history`)
+/// and activity grid (`/activity`), their match list and one of their matches
+/// (`/matches/{matchId}`): the favorites page and the in-app profile page. The
 /// Riot ID is percent-encoded into one segment, the champion a number and the
 /// match a Riot match id (`EUW1_7123456789`).
 fn readable(path: &str) -> bool {
@@ -195,7 +196,7 @@ fn readable(path: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"-_.~%".contains(&b));
     let tail_ok = match tail {
-        ["profile"] | ["matches"] => true,
+        ["profile"] | ["matches"] | ["rank-history"] | ["activity"] => true,
         ["champions", champion_id] => {
             !champion_id.is_empty() && champion_id.bytes().all(|b| b.is_ascii_digit())
         }
@@ -375,6 +376,12 @@ pub fn run() {
             recording::clip_update,
             recording::clip_delete,
             recording::reveal_recording_file,
+            recording::open_youtube_upload,
+            recording::clip_open_youtube,
+            recording::clip_set_youtube_url,
+            recording::clip_start_drag,
+            recording::clip_delete_video,
+            recording::clip_youtube_embed,
             overlay::overlay_view,
             overlay::set_overlay_settings,
             overlay::overlay_check_trigger,
@@ -437,6 +444,8 @@ mod tests {
         assert!(readable("/truemains/Faker-KR1/champions/7"));
         assert!(readable("/truemains/Faker-KR1/profile"));
         assert!(readable("/truemains/Faker-KR1/matches"));
+        assert!(readable("/truemains/Faker-KR1/rank-history"));
+        assert!(readable("/truemains/Faker-KR1/activity"));
         assert!(readable("/truemains/Faker-KR1/matches/KR_7123456789"));
         assert!(readable("/champions/103/item-context"));
         assert!(readable("/champions/234/matchups"));
@@ -462,7 +471,7 @@ mod tests {
         assert!(!readable("/champions/x/matchups"));
         assert!(!readable("/champions/234/matchups/1"));
         assert!(!readable("/champions/8/item-context/1"));
-        assert!(!readable("/truemains/Faker-KR1/activity"));
+        assert!(!readable("/truemains/Faker-KR1/activity/day"));
         assert!(!readable("/truemains/lookup/1"));
         assert!(!readable("/truemains/Faker-KR1/matches/KR_1/timeline"));
         assert!(!readable("/truemains/Faker-KR1/matches/KR-1"));

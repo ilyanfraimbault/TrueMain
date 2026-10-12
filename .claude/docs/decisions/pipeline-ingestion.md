@@ -158,3 +158,27 @@ Two general rules the episode paid for, and they outlive the feature:
   never captured.
 - **Do not store what you can derive.** The full-clear time was stored *and* derivable; when the rule behind it
   changed, the derived side healed and 35 % of the stored side silently did not.
+
+## A shell match is refused at ingest, and Riot's remake flag joins the duration floor (2026-10-06)
+
+**Decision (#1364, scope cut to its part C by the owner on 2026-10-06):** `matches` stores how a game ended —
+`EndOfGameResult`, `GameCreationUtc`, `GameEndTimestampUtc` and `EndedInEarlySurrender` — and a payload whose
+`endOfGameResult` is anything but `GameComplete` (`Abort_Unexpected`, `Abort_TooFewPlayers`,
+`Abort_AntiCheat`) is never written. A remake is now *Riot flagged it* **or** *shorter than five minutes*, both
+held in `ChampionCohort.IsRemake`.
+
+Why refuse rather than flag: a shell carries participants, a duration and a win flag like any game, so once
+stored it is counted by every fold, every profile and every activity observation, and each reader would have to
+remember to exclude it. Nothing reads a shell. The fetch is already paid by then, so the refusal is counted —
+`skippedShell` on the account's log line, beside `skippedWrongQueue` — but kept apart from it: no request
+parameter can avoid a shell, so a small non-zero count is expected where the wrong-queue one should be zero.
+
+Why keep the duration floor beside the flag: every match ingested before #1364 has `EndedInEarlySurrender =
+false` (the column ships with that default, not backfilled — Riot payloads are not kept), so the floor is
+still the only signal for the retained history. A payload with no `endOfGameResult` at all predates the field
+and is taken as a game, as it always was.
+
+`gameEndedInEarlySurrender` is a participant field Riot repeats on all ten; it is lifted to the match (any
+participant saying so is enough) because it describes the game, not a player. The rest of #1364 — the
+`challenges` object, `match_teams` — moved to #1955 until a feature consumes it; its timeline part was dropped
+(#1813 removes the snapshot table).

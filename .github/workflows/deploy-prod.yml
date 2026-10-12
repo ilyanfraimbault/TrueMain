@@ -42,6 +42,16 @@ jobs:
           fi
           echo "Prod deployment configuration is complete." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Require an ingestor job mode that matches the compose lanes
+        env:
+          ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+        run: .github/scripts/check-job-mode.sh compose.prod.yaml
+
   publish:
     name: Build and publish release images
     needs: preflight
@@ -70,6 +80,22 @@ jobs:
       ssh_key: ${{ secrets.PROD_SSH_KEY }}
       hostinger_api_key: ${{ secrets.HOSTINGER_PROD_API_KEY }}
       env_file: ${{ secrets.PROD_ENV_FILE }}
+
+  edge:
+    name: Verify the prod edge
+    needs: rollout
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Check compression and security headers on the public site
+        env:
+          SITE_URL: https://truemain.lol
+        run: .github/scripts/verify-edge.sh
 
   desktop:
     name: Serve the desktop app this release reads

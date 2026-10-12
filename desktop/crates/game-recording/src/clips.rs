@@ -52,6 +52,10 @@ pub struct ClipMeta {
     pub favorite: bool,
     /// The recording's moments inside the range, relative to the clip.
     pub moments: Vec<Moment>,
+    /// The YouTube video the player published it as, once they gave its link
+    /// back to the app (#1815). Absent from a clip saved before then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub youtube_url: Option<String>,
 }
 
 impl ClipMeta {
@@ -90,6 +94,7 @@ impl ClipMeta {
             duration_ms: end_ms.saturating_sub(start_ms),
             favorite: false,
             moments,
+            youtube_url: None,
         }
     }
 }
@@ -103,6 +108,76 @@ pub fn clean_title(title: &str) -> String {
     } else {
         title.trim_end().to_string()
     }
+}
+
+/// A YouTube video's link, as the player pasted it, in the one form the app
+/// keeps (`https://www.youtube.com/watch?v=<id>`) — or `None` when it is not a
+/// link to a YouTube video. Accepts the watch page, the short `youtu.be` link
+/// YouTube's upload form hands out, Shorts and the video's YouTube Studio page.
+pub fn youtube_video_url(link: &str) -> Option<String> {
+    youtube_video_id(link).map(|id| format!("https://www.youtube.com/watch?v={id}"))
+}
+
+/// The id of the YouTube video a link points to, from the links
+/// [`youtube_video_url`] accepts.
+pub fn youtube_video_id(link: &str) -> Option<&str> {
+    let link = link.trim();
+    let rest = ["https://", "http://"]
+        .iter()
+        .find(|scheme| {
+            link.get(..scheme.len())
+                .is_some_and(|start| start.eq_ignore_ascii_case(scheme))
+        })
+        .map_or(link, |scheme| &link[scheme.len()..]);
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let host = host.to_ascii_lowercase();
+    let host = host.strip_prefix("www.").unwrap_or(&host);
+    let (path, query) = path.split_once('?').unwrap_or((path, ""));
+    let path = path.split('#').next().unwrap_or_default();
+    let id = match host {
+        "youtu.be" => path.split('/').next(),
+        "youtube.com" | "m.youtube.com" | "music.youtube.com" => {
+            match path.split('/').collect::<Vec<_>>()[..] {
+                ["watch"] => query
+                    .split('#')
+                    .next()
+                    .unwrap_or_default()
+                    .split('&')
+                    .find_map(|pair| pair.strip_prefix("v=")),
+                ["shorts" | "live" | "embed", id, ..] => Some(id),
+                _ => None,
+            }
+        }
+        "studio.youtube.com" => match path.split('/').collect::<Vec<_>>()[..] {
+            ["video", id, ..] => Some(id),
+            _ => None,
+        },
+        _ => None,
+    }?;
+    is_video_id(id).then_some(id)
+}
+
+/// Whether a YouTube video's title is the clip's own, as the publish dialog
+/// hands it over: case, runs of spaces and the `<` `>` YouTube refuses aside.
+/// It is how a pasted link is checked to be the clip's video (#2005).
+pub fn same_youtube_title(youtube: &str, clip: &str) -> bool {
+    let normal = |title: &str| {
+        title
+            .replace(['<', '>'], "")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    normal(youtube) == normal(clip)
+}
+
+/// YouTube's video ids: eleven characters of its URL-safe base64.
+pub fn is_video_id(id: &str) -> bool {
+    id.len() == 11
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
 /// One clip's folder.
@@ -160,6 +235,16 @@ impl ClipDir {
             .filter_map(|name| fs::metadata(self.path.join(name)).ok())
             .map(|metadata| metadata.len())
             .sum()
+    }
+
+    /// Delete the clip's video only, keeping its metadata and thumbnail: a
+    /// clip published on YouTube stays listed and plays from there (#2005).
+    /// Deleting a video already gone is not an error.
+    pub fn delete_video(&self) -> io::Result<()> {
+        match fs::remove_file(self.video_path()) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+            _ => Ok(()),
+        }
     }
 
     /// Delete the clip's own files, then its folder if nothing else is in it.
@@ -331,6 +416,69 @@ mod tests {
     }
 
     #[test]
+    fn youtube_links_are_kept_in_one_form() {
+        let kept = Some("https://www.youtube.com/watch?v=dQw4w9WgXcQ".to_string());
+        for link in [
+            "https://youtu.be/dQw4w9WgXcQ",
+            "  https://youtu.be/dQw4w9WgXcQ?si=abc  ",
+            "youtu.be/dQw4w9WgXcQ",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://youtube.com/watch?feature=share&v=dQw4w9WgXcQ#t=3",
+            "http://m.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+            "https://studio.youtube.com/video/dQw4w9WgXcQ/edit",
+            "HTTPS://WWW.YOUTUBE.COM/watch?v=dQw4w9WgXcQ",
+        ] {
+            assert_eq!(youtube_video_url(link), kept, "{link}");
+            assert_eq!(youtube_video_id(link), Some("dQw4w9WgXcQ"), "{link}");
+        }
+        for link in [
+            "",
+            "https://www.youtube.com/",
+            "https://www.youtube.com/watch?v=short",
+            "https://www.youtube.com/@channel",
+            "https://evil.example/watch?v=dQw4w9WgXcQ",
+            "https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ",
+            "https://youtu.be/dQw4w9WgXc<",
+            "javascript:alert(1)",
+        ] {
+            assert_eq!(youtube_video_url(link), None, "{link}");
+        }
+    }
+
+    #[test]
+    fn a_video_matches_its_clip_by_title() {
+        assert!(same_youtube_title(
+            "Triple kill on Ahri",
+            "Triple kill on Ahri"
+        ));
+        assert!(same_youtube_title(
+            "  triple  KILL on ahri ",
+            "Triple kill on Ahri"
+        ));
+        assert!(same_youtube_title("Kill  Dragon", "Kill <> Dragon"));
+        assert!(!same_youtube_title(
+            "Triple kill on Ahri (2)",
+            "Triple kill on Ahri"
+        ));
+        assert!(!same_youtube_title("Me at the zoo", "Triple kill on Ahri"));
+    }
+
+    #[test]
+    fn a_clip_saved_before_youtube_links_still_reads() {
+        let mut meta = ClipMeta::cut_from(&recording(), "7100000001", 0, 5_000, "Old", 10);
+        let mut body = serde_json::to_value(&meta).unwrap();
+        assert!(body.get("youtubeUrl").is_none());
+        body.as_object_mut().unwrap().remove("youtubeUrl");
+        let read: ClipMeta = serde_json::from_value(body).unwrap();
+        assert_eq!(read, meta);
+
+        meta.youtube_url = youtube_video_url("https://youtu.be/dQw4w9WgXcQ");
+        let read: ClipMeta = serde_json::from_value(serde_json::to_value(&meta).unwrap()).unwrap();
+        assert_eq!(read.youtube_url, meta.youtube_url);
+    }
+
+    #[test]
     fn clips_are_listed_once_written_and_survive_their_recording() {
         let root = tempfile::tempdir().unwrap();
         let store = Store::new(root.path());
@@ -346,12 +494,20 @@ mod tests {
 
         recording_dir.delete().unwrap();
         let listed = clips.list().unwrap();
+        let with_video = listed[0].size_bytes;
         assert_eq!(listed.len(), 1);
         assert!(listed[0].size_bytes >= 300);
         // The clips folder is not a recording.
         assert!(store.list().unwrap().is_empty());
         assert!(clips.get(&dir.id()).is_some());
         assert!(clips.get("../x").is_none());
+
+        // Without its video, the clip is still listed, at its remaining size.
+        dir.delete_video().unwrap();
+        dir.delete_video().unwrap();
+        let listed = clips.list().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].size_bytes, with_video - 300);
 
         dir.delete().unwrap();
         assert!(clips.list().unwrap().is_empty());

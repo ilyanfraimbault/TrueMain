@@ -39,7 +39,8 @@ public sealed class AccountUpsertService : IAccountUpsertService
                 ProfileIconId = summoner.ProfileIconId,
                 SummonerLevel = RiotValueConverters.ToIntSafe(summoner.SummonerLevel),
                 UpdatedAtUtc = nowUtc,
-                LastProfileSyncAtUtc = nowUtc
+                LastProfileSyncAtUtc = nowUtc,
+                SummonerObservedAtUtc = nowUtc
             };
             session.RiotAccounts.Add(created);
             return new AccountUpsertResult(IsNew: true, Account: created);
@@ -61,6 +62,7 @@ public sealed class AccountUpsertService : IAccountUpsertService
         existing.ProfileIconId = summoner.ProfileIconId;
         existing.SummonerLevel = RiotValueConverters.ToIntSafe(summoner.SummonerLevel);
         existing.LastProfileSyncAtUtc = nowUtc;
+        existing.SummonerObservedAtUtc = nowUtc;
         return new AccountUpsertResult(IsNew: false, Account: existing);
     }
 }

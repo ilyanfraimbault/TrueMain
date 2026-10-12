@@ -68,6 +68,28 @@ public sealed class CompositionRecommendationQueryServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_DifferentPlayer_MissesTheCache()
+    {
+        var matchQuery = new CountingMatchQueryService();
+        var buildQuery = new CountingBuildQueryService();
+        using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 16 });
+        var service = new CompositionRecommendationQueryService(
+            matchQuery, buildQuery, new CountingGamesQueryService(), new StubLaneQueryService(), TestChampionReadCache.Wrapping(cache));
+
+        var draft = new CompositionSearchCriteria
+        {
+            ChampionId = 157,
+            Position = "MIDDLE",
+            Enemies = new Dictionary<string, int> { ["MIDDLE"] = 238 },
+        };
+        await service.GetAsync(draft, CancellationToken.None);
+        await service.GetAsync(draft with { Puuid = "puuid-a" }, CancellationToken.None);
+        await service.GetAsync(draft with { Puuid = "puuid-b" }, CancellationToken.None);
+
+        matchQuery.Calls.Should().Be(3, "the same draft for another player — or for every player — is another sample");
+    }
+
+    [Fact]
     public async Task GetAsync_SlotOrder_DoesNotChangeTheCacheKey()
     {
         var matchQuery = new CountingMatchQueryService();

@@ -1,3 +1,4 @@
+using Core.Lol.Ranking;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -60,7 +61,7 @@ public sealed class RankSnapshotRepository(TrueMainDbContext db) : IRankSnapshot
             .GroupBy(capture => capture.RiotAccountId)
             .ToDictionary(
                 group => group.Key,
-                group => group.Select(capture => (capture.CapturedAtUtc, (string?)capture.Tier)).ToList());
+                group => group.Select(capture => (capture.CapturedAtUtc, (string?)capture.Tier.ToRiotName())).ToList());
     }
 
     public Task<List<RankSnapshot>> GetHistoryAsync(

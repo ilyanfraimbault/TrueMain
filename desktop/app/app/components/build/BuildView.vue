@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ProfileIdentity } from '#shared/types/profile'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
-import type { BuildOption } from '~/types/build'
+import type { BuildOption, CompositionBuildRequest } from '~/types/build'
 import type { Lane } from '~/types/draft'
 import type { DraftBuild } from '~/composables/useDraftBuild'
 import { LANE_LABELS } from '~/types/draft'
@@ -15,13 +15,15 @@ import { LANE_LABELS } from '~/types/draft'
  * With a draft, its own build (computed against the draft as it stands) is the
  * first row and the default; the champion's lane builds follow, so the player
  * can compare the draft's answer with what the lane usually runs. A true main
- * clicked in the list shows that player's own build on the champion instead.
+ * clicked in the list shows that player's own build on the champion instead —
+ * in a draft, their build against it, read from their games alone (#1987), or
+ * their usual one when they have no game of it.
  */
 const props = defineProps<{
   championId: number
   position: string
   /** The build computed for the draft, when there is one. */
-  draft?: { build: DraftBuild | null, pending: boolean, error: string | null, opponentId?: number | null, label?: string } | null
+  draft?: { build: DraftBuild | null, pending: boolean, error: string | null, opponentId?: number | null, label?: string, request?: CompositionBuildRequest | null } | null
 }>()
 
 const { response, pending: lanePending } = useChampionBuilds(toRef(props, 'championId'), toRef(props, 'position'))
@@ -91,8 +93,35 @@ const mainAnswer = computed(() => (onMain.value ? truemainBuilds.answerOf(mainNa
 const mainPending = computed(() => onMain.value && truemainBuilds.isPending(mainNameTag.value!, props.championId, props.position))
 const mainFailed = computed(() => onMain.value && truemainBuilds.hasFailed(mainNameTag.value!, props.championId, props.position))
 
-/** Their most played build, the one their page opens on. */
+// In a draft, their build against it (#1987), asked again when the draft moves under them.
+const truemainDraftBuilds = useTruemainDraftBuild()
+const draftRequest = computed(() => props.draft?.request ?? null)
+watch([onMain, mainNameTag, () => JSON.stringify(draftRequest.value)], () => {
+  if (onMain.value && draftRequest.value) truemainDraftBuilds.load(mainNameTag.value!, props.championId, draftRequest.value)
+}, { immediate: true })
+
+/** Their draft build: `undefined` while asked, `null` outside a draft or when they have none (a failed ask too). */
+const mainDraft = computed(() => {
+  const request = draftRequest.value
+  if (!onMain.value || !request || truemainDraftBuilds.hasFailed(mainNameTag.value!, props.championId, request)) return null
+  return truemainDraftBuilds.answerOf(mainNameTag.value!, props.championId, request)
+})
+
+/** Their build against this draft, else their most played build, the one their page opens on. */
 const mainOption = computed<BuildOption | null>(() => {
+  const draft = mainDraft.value
+  if (draft === undefined) return null
+  if (draft) {
+    return {
+      key: 'main',
+      core: draft.core,
+      firstItemId: draft.firstItemId,
+      keystoneId: draft.core.runePage?.primaryKeystoneId ?? null,
+      buildTree: draft.buildTree,
+      games: draft.games,
+      winRate: draft.games > 0 ? draft.wins / draft.games : null,
+    }
+  }
   const build = mainAnswer.value?.builds[0]
   if (!build) return null
   return {
@@ -106,12 +135,14 @@ const mainOption = computed<BuildOption | null>(() => {
   }
 })
 
-/** Where their build was read: a patch, and a lane when it is not the one asked for. */
+/** Where their build was read: this draft, or a patch and a lane when it is not the one asked for. */
 const mainScope = computed(() => {
+  if (mainDraft.value) return 'against this draft'
   const answer = mainAnswer.value
   if (!answer) return null
   const lane = answer.position && answer.position !== props.position ? LANE_LABELS[answer.position as Lane] ?? answer.position : null
-  return [answer.patch ? `Patch ${answer.patch}` : null, lane ? `on ${lane}` : null].filter(Boolean).join(' · ')
+  const elsewhere = draftRequest.value ? 'no game against this draft' : null
+  return [answer.patch ? `Patch ${answer.patch}` : null, lane ? `on ${lane}` : null, elsewhere].filter(Boolean).join(' · ')
 })
 
 const shown = computed(() => {
@@ -123,7 +154,7 @@ const itemSetSubject = computed(() => {
   const name = championStatic(props.championId)?.championName
   return shown.value && name ? { championId: props.championId, champion: name, position: props.position, build: shown.value } : null
 })
-const waiting = computed(() => !shown.value && (onMain.value ? mainPending.value : lanePending.value || props.draft?.pending))
+const waiting = computed(() => !shown.value && (onMain.value ? mainPending.value || mainDraft.value === undefined : lanePending.value || props.draft?.pending))
 const emptyMessage = computed(() => {
   if (onMain.value && main.value) {
     return mainFailed.value ? `${main.value.identity.gameName}'s build could not be loaded` : `No build of ${main.value.identity.gameName} on this champion yet`

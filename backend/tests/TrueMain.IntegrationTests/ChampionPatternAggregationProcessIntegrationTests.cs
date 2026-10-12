@@ -1,9 +1,9 @@
+using AwesomeAssertions;
 using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data.BuildFacts;
 using Data.Entities;
-using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.PatternAggregation;
@@ -343,16 +343,16 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             {
                 RiotAccountId = _riotAccountId,
                 CapturedAtUtc = gameStarts["KR_AGG_1"],
-                Tier = "SILVER",
-                Division = "II",
+                Tier = RankTier.Silver,
+                Division = RankDivision.II,
                 LeaguePoints = 50
             },
             new RankSnapshot
             {
                 RiotAccountId = _riotAccountId,
                 CapturedAtUtc = gameStarts["KR_AGG_2"],
-                Tier = "MASTER",
-                Division = "I",
+                Tier = RankTier.Master,
+                Division = RankDivision.I,
                 LeaguePoints = 200
             });
 

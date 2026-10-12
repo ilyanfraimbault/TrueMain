@@ -62,7 +62,7 @@ public sealed record ParticipantRow(int ChampionId, string TeamPosition);
 /// already exists for it — the harvest would only refresh its observed stats — and
 /// <c>false</c> for a pair that never produced a candidate, i.e. genuinely new discovery.
 /// Pairs whose existing candidate is not refreshable at all (a ladder / manual-seed
-/// candidate the harvest must not touch, or a Rejected one it must not resurrect) are
+/// candidate the harvest must not touch, or a Queued one already past scoring) are
 /// returned in neither class.
 /// </summary>
 public sealed record HarvestedCandidateRow(

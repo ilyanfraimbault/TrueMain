@@ -33,7 +33,8 @@ public sealed class MatchDataRetentionProcess(
         // candidates, so it could not touch the 773 k rows sitting in Queued — a queue the
         // claim drains at ~22 accounts per cycle, i.e. faster than the pipeline could ever
         // consume even if nothing else were added.
-        var demotedCandidates = await DemoteExcessQueuedCandidatesAsync(ct);
+        var demotedCandidates = await SettleQueuedForIngestedAccountsAsync(ct)
+                                + await DemoteExcessQueuedCandidatesAsync(ct);
 
         var retentionPlan = await LoadRetentionPlanAsync(ct);
 
@@ -174,6 +175,42 @@ public sealed class MatchDataRetentionProcess(
         }
 
         return pruned;
+    }
+
+    /// <summary>
+    /// Returns to <c>Scored</c> the <c>Queued</c> rows of accounts already ingested (#1535):
+    /// breadth no longer claims those accounts, so the rows would hold a queue place for good.
+    /// Bounded like the depth cap below, so a backlog settles over several runs.
+    /// </summary>
+    private async Task<int> SettleQueuedForIngestedAccountsAsync(CancellationToken ct)
+    {
+        var options = intakeOptions.Value;
+        var batchSize = Math.Max(1, options.QueueDepthDemotionBatchSize);
+
+        await using var session = await sessionFactory.CreateAsync(ct);
+        var depths = await session.MainCandidates.GetQueuedDepthByPlatformAsync(ct);
+
+        var settled = 0;
+        foreach (var platformId in depths.Keys.Order(StringComparer.Ordinal))
+        {
+            for (var batch = 0; batch < options.MaxDemotionBatchesPerRun; batch++)
+            {
+                var moved = await session.MainCandidates.SettleQueuedForIngestedAccountsAsync(platformId, batchSize, ct);
+                settled += moved;
+                if (moved < batchSize)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (settled > 0)
+        {
+            logger.LogInformation(
+                "Returned {Settled} queued candidate(s) of already-ingested accounts to Scored.", settled);
+        }
+
+        return settled;
     }
 
     /// <summary>

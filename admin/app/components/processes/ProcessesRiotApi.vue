@@ -4,10 +4,12 @@
 // own. Quota per routing host and lane duty cycle from `GET /api/ops/riot-quota`
 // (#1458), then call counts per endpoint, status codes and call volume from
 // `GET /api/ops/riot-usage`, over one relative window. Both read the per-minute
-// `riot_api_call_rollups` the Ingestor writes via its HTTP metrics handler.
+// `riot_api_call_rollups` the Ingestor writes via its HTTP metrics handler. Last, the
+// Ingestor's own meter from `GET /api/ops/ingestor-metrics` (#1636), read from the
+// `meter_rollups` its MeterListener writes.
 //
-// This component owns both fetches and the filters; the cards below it
-// (`ProcessesRiot*`) only draw what they are handed.
+// This component owns every fetch and the filters; the cards below it
+// (`ProcessesRiot*`, `ProcessesIngestorMeter`) only draw what they are handed.
 import type {
   RiotCallerUsage,
   RiotEndpointUsage,
@@ -44,6 +46,10 @@ const usage = useLastGoodPayload(data, () => JSON.stringify(filters.value))
 // a host's budget is shared by every endpoint it serves.
 const { data: quotaData, pending: quotaPending, error: quotaError, refresh: refreshQuota } = useRiotQuota(selectedWindow)
 const quota = useLastGoodPayload(quotaData, () => selectedWindow.value)
+// The Ingestor's own meter (#1636): rate-limit waits and 429s as the limiter saw them, and
+// the run failures the worker swallowed. Window-scoped like the quota.
+const { data: meterData, pending: meterPending, error: meterError, refresh: refreshMeter } = useIngestorMetrics(selectedWindow)
+const meter = useLastGoodPayload(meterData, () => selectedWindow.value)
 
 const endpoints = computed<RiotEndpointUsage[]>(() => usage.value?.endpoints ?? [])
 const statusCodes = computed<RiotStatusCount[]>(() => usage.value?.statusCodes ?? [])
@@ -56,9 +62,9 @@ const headroom = computed(() => usage.value?.headroom ?? null)
 const sorting = ref([{ id: 'calls', desc: true }])
 
 // The page's single navbar refresh button drives whichever tab is open; it re-reads both.
-const anyPending = computed(() => pending.value || quotaPending.value)
+const anyPending = computed(() => pending.value || quotaPending.value || meterPending.value)
 defineExpose({
-  refresh: () => Promise.all([refresh(), refreshQuota()]),
+  refresh: () => Promise.all([refresh(), refreshQuota(), refreshMeter()]),
   pending: anyPending,
 })
 </script>
@@ -128,5 +134,14 @@ defineExpose({
 
     <!-- Endpoint breakdown -->
     <ProcessesRiotEndpoints v-model:sorting="sorting" :endpoints="endpoints" :pending="pending" />
+
+    <!-- The Ingestor's own meter (#1636) -->
+    <FetchErrorAlert
+      v-if="meterError"
+      :error="meterError"
+      title="Failed to load the Ingestor meter"
+      class="mb-6"
+    />
+    <ProcessesIngestorMeter v-if="meter" :metrics="meter" />
   </template>
 </template>

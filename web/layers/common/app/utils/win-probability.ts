@@ -3,9 +3,7 @@
  * lead and what each side holds on the map. One implementation, read by the
  * desktop overlay during a game (through `item-value.ts`'s adapter over the
  * live client) and by the post-game curve (`win-probability-timeline.ts`).
- * The ingestor runs a C# port of it (`Core/Lol/WinProbability`); the fixture
- * `web/shared/fixtures/win-probability-timeline.json` holds both to the same
- * figures, so a weight changed on one side fails the other's tests.
+ * It runs in the desktop app only: TrueMain computes and stores no curve (#2009).
  */
 
 /** The lanes the lead weights are fitted for, in the draft's order. */

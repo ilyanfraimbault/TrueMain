@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SEARCH_MIN_LENGTH, isQueryTooShort, searchNamePart } from '#common/composables/useTruemainSearch'
 
-// Mirror of the backend's Search_returns_empty_200_for_too_short_or_missing_query:
+// Mirror of the backend's Search_ReturnsEmpty200ForTooShortOrMissingQuery:
 // the frontend's "too short" guard measures the game-name part only, against
 // SEARCH_MIN_LENGTH. SEARCH_MIN_LENGTH must stay in lock-step with
 // MinQueryLength in SearchQueryService.cs — this asserts the value so a silent

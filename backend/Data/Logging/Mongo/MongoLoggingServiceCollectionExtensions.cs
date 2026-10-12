@@ -89,6 +89,10 @@ public static class MongoLoggingServiceCollectionExtensions
         // for the admin candidates panel.
         services.TryAddSingleton<ICandidateStockSnapshotStore, CandidateStockSnapshotStore>();
 
+        // Per-minute rollups of a process's own meter (#1636): the Ingestor's meter exporter
+        // writes, the Api reads for the admin Riot API tab. Direct-call like the snapshots.
+        services.TryAddSingleton<IMeterRollupStore, MeterRollupStore>();
+
         // Admin-portal data moved off Postgres: recorded process runs (written by
         // the Ingestor's ProcessRunRecorder, read by the admin process panels) and
         // the seed-request queue (written by the API, claimed by ManualSeedProcess).

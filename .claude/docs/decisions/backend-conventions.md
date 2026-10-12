@@ -281,6 +281,20 @@ re-migration happened to be complete (TEST-5).
 `TrueMainWebApplicationFactory.TimeProvider = new FixedTimeProvider(...)` (TestKit) rather than tuning offsets,
 so a run straddling UTC midnight cannot seed one day and query the next (TEST-9).
 
+## Test methods are named `MethodName_State_ExpectedBehavior`, enforced by a naming rule (2026-10-06)
+
+**A test method name is PascalCase segments joined by underscores — `Kda_DividesTakedownsByDeaths`,
+`GetProfile_Returns404ForUnknownNameTag` — never snake_case predicates (`Kda_divides_takedowns_by_deaths`).** It
+was the majority style (~1,190 methods against ~470 snake_case ones) and the only one that keeps the subject
+readable as a unit. A name written as a sentence about the class under test (`AGameUnderFiveMinutesIsARemake`)
+is a single segment, which the rule accepts.
+
+**`.editorconfig` enforces it for `backend/tests/**`** with an `IDE1006` naming rule (`word_separator = _`,
+`capitalization = pascal_case`: every underscore-separated word must start upper-case), so a snake_case name
+fails the Release build. `IDE1006` needs its own `dotnet_diagnostic` severity: the rule's `severity` alone does
+not surface in a command-line build. The ~470 snake_case names were renamed in one mechanical PR (#1246, TEST-10;
+convention settled in #290).
+
 ## Analyzers: VS Threading and Roslynator on every project, tuned for bugs not style (2026-10-05)
 
 **`Microsoft.VisualStudio.Threading.Analyzers` and `Roslynator.Analyzers` are referenced once, from

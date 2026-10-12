@@ -82,7 +82,6 @@ public sealed record CandidateStockBucket(
     long Queued,
     long Processing,
     long Validated,
-    long Rejected,
     DateTime SampledAtUtc,
     CandidateStockAccounts? Accounts = null);
 
@@ -98,5 +97,4 @@ public sealed record CandidateStockAccounts(
     long Scored,
     long Queued,
     long Processing,
-    long Validated,
-    long Rejected);
+    long Validated);

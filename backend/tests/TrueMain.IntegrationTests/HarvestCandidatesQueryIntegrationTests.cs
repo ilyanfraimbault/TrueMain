@@ -208,15 +208,12 @@ public sealed class HarvestCandidatesQueryIntegrationTests : IAsyncLifetime
 
         await using (var db = _fixture.CreateDbContext())
         {
-            SeedGames(db, "REJECTED", gameCount: 30, now);
             SeedGames(db, "QUEUED", gameCount: 25, now);
             SeedGames(db, "LADDER", gameCount: 20, now);
             SeedGames(db, "SEEDED", gameCount: 15, now);
             SeedGames(db, "REFRESHABLE", gameCount: 10, now);
-            // A rejection is a verdict from real history + MainAnalysis, and ladder /
-            // manual-seed candidates must keep their own stats — the harvest can do nothing
-            // with either, so they must not consume the run's budget (#495).
-            AddCandidate(db, "REJECTED", MainCandidateSource.Harvest, MainCandidateStatus.Rejected, now);
+            // Ladder / manual-seed candidates must keep their own stats — the harvest can do
+            // nothing with them, so they must not consume the run's budget (#495).
             // A Queued candidate is past scoring (#1361): refreshing its observed stats would
             // rewrite a row whose score nothing reads again before the claim reaches it.
             AddCandidate(db, "QUEUED", MainCandidateSource.Harvest, MainCandidateStatus.Queued, now);

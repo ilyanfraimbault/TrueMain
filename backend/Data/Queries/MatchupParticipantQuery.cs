@@ -1,3 +1,4 @@
+using Data.Aggregation;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -48,7 +49,8 @@ public static class MatchupParticipantQuery
     /// <summary>
     /// Narrows <paramref name="participants"/> to those whose match also holds
     /// <paramref name="opponentChampionId"/> at <paramref name="position"/> on the other
-    /// team, in <paramref name="queueId"/> and — when given — on <paramref name="patch"/>.
+    /// team, in a game (not a remake) of <paramref name="queueId"/> and — when given — on
+    /// <paramref name="patch"/>.
     /// </summary>
     /// <param name="db">Context the opponent and match sides are read from.</param>
     /// <param name="participants">
@@ -76,8 +78,9 @@ public static class MatchupParticipantQuery
                 (p, o) => new { Participant = p, Opponent = o })
             .Where(pair => pair.Opponent.TeamId != pair.Participant.TeamId)
             .Join(
-                db.Matches.AsNoTracking().Where(m => m.QueueId == queueId
-                    && (patch == null || m.Patch == patch)),
+                // Games, not remakes: the readers choose their own champion side, but a
+                // pre-5-minute vote carries no build and no matchup (ChampionCohort).
+                ChampionCohort.Games(db, queueId, patch),
                 pair => pair.Participant.MatchId,
                 m => m.Id,
                 (pair, m) => new MatchupParticipantRow

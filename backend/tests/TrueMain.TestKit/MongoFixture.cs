@@ -24,6 +24,7 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string EffectiveConfigurationCollection = "effective_configuration";
     public const string DesktopUsageCollection = "desktop_usage_days";
     public const string DesktopDownloadsCollection = "desktop_download_days";
+    public const string MeterRollupsCollection = "meter_rollups";
 
     private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0")
         // Match PostgresFixture's reasoning: keep Testcontainers' Ryuk reaper
@@ -89,5 +90,7 @@ public sealed class MongoFixture : IAsyncLifetime
         // The desktop telemetry (#1805): both carry the unique upsert key its store creates on first write.
         await db.DropCollectionAsync(DesktopUsageCollection);
         await db.DropCollectionAsync(DesktopDownloadsCollection);
+        // The meter rollups (#1636): unique (minute, meter, instrument, series) key.
+        await db.DropCollectionAsync(MeterRollupsCollection);
     }
 }

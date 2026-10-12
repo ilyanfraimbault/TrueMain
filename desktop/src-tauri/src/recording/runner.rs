@@ -15,7 +15,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use capture_helper::{media, HelperCapture};
 use game_recording::anchor::ClockSample;
-use game_recording::{Change, GameInfo, GameOutcome, MomentKind, RecordingDir, Session};
+use game_recording::{
+    Change, GameInfo, GameOutcome, MomentKind, RecordingDir, RecordingMeta, Session,
+};
 use lcu::detail::GameTimeline;
 use lcu::live::LiveClient;
 use lcu::record::HistoryGame;
@@ -38,6 +40,9 @@ const EVENTS_EVERY: u32 = 2;
 const HISTORY_WAIT: Duration = Duration::from_secs(300);
 const HISTORY_RETRY: Duration = Duration::from_secs(10);
 const THUMBNAIL_WIDTH: u32 = 640;
+/// A video this short whose game clock never ran holds a loading screen and
+/// nothing else — a game quit or crashed before it began: not kept.
+const LOADING_ONLY_MS: u64 = 60_000;
 /// What the helper captures. On macOS, the display with only the game's
 /// windows drawn: a full-screen game is not composited, so its window alone
 /// sends nothing but idle frames — a black video that ends seconds after the
@@ -51,6 +56,19 @@ const SOURCE: &str = if cfg!(target_os = "macos") {
 
 fn in_game(phase: GameflowPhase) -> bool {
     matches!(phase, GameflowPhase::InProgress | GameflowPhase::Reconnect)
+}
+
+/// Where the runner stands once it is done with a game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Done {
+    /// The game ended while it was followed: a phase in a game from here on is
+    /// the next one — which may already be running, if it started while the
+    /// last one waited for the match history.
+    Ended,
+    /// Left while the game still runs — not recorded, or its capture failed:
+    /// nothing more until it is over, or the same game would start a second
+    /// recording over the first.
+    Running,
 }
 
 fn now_ms() -> i64 {
@@ -76,14 +94,15 @@ pub async fn run(
         {
             return;
         }
-        if let Err(error) = record_game(&app, &recorder, &helper, &mut phases).await {
-            tracing::warn!(%error, "the game was not recorded");
-        }
+        let done = record_game(&app, &recorder, &helper, &mut phases)
+            .await
+            .unwrap_or_else(|error| {
+                tracing::warn!(%error, "the game was not recorded");
+                Done::Running
+            });
         recorder.set_activity(Activity::default());
         emit_status(&app, &recorder);
-        // A game skipped (recording off, another queue) is only looked at
-        // again once it is over.
-        if phases.wait_for(|phase| !in_game(*phase)).await.is_err() {
+        if done == Done::Running && phases.wait_for(|phase| !in_game(*phase)).await.is_err() {
             return;
         }
     }
@@ -94,10 +113,10 @@ async fn record_game(
     recorder: &Recorder,
     helper: &Path,
     phases: &mut watch::Receiver<GameflowPhase>,
-) -> Result<(), String> {
+) -> Result<Done, String> {
     let settings = recorder.settings();
     if !settings.enabled {
-        return Ok(());
+        return Ok(Done::Running);
     }
     // A tape or the simulator stands in for the client's events but not its
     // API — and there is no game window to capture behind them.
@@ -107,11 +126,11 @@ async fn record_game(
         .expect("client lock poisoned")
         .clone();
     let Some(client) = client else {
-        return Ok(());
+        return Ok(Done::Running);
     };
     let game = game_info(&client).await.ok_or("the client named no game")?;
     if !settings.records(game.queue_id) {
-        return Ok(());
+        return Ok(Done::Running);
     }
     if recorder.status().availability != "ready" {
         emit_status(app, recorder);
@@ -139,6 +158,13 @@ async fn record_game(
     emit_library(app);
 
     follow(&session, &live, phases).await;
+    // From here on a failure is logged, never returned: an error would read as
+    // a game still running and skip the next one, which may already have begun.
+    let done = if in_game(*phases.borrow()) {
+        Done::Running
+    } else {
+        Done::Ended
+    };
 
     let stopped = {
         let session = session.clone();
@@ -148,10 +174,25 @@ async fn record_game(
             lock(&session).on_phase(GameflowPhase::EndOfGame, None, &settings, &root, now_ms())
         })
         .await
-        .map_err(|e| e.to_string())?
     };
-    if let Err(error) = &stopped {
-        tracing::warn!(%error, "the recording did not stop cleanly; keeping what was written");
+    match &stopped {
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => {
+            tracing::warn!(%error, "the recording did not stop cleanly; keeping what was written");
+        }
+        Err(error) => {
+            tracing::warn!(%error, "stopping the recording failed; keeping what was written");
+            emit_library(app);
+            return Ok(done);
+        }
+    }
+    if done == Done::Ended && loading_only(&dir) {
+        tracing::info!("the game closed on its loading screen; its recording is not kept");
+        if let Err(error) = RecordingDir::new(dir).delete() {
+            tracing::warn!(%error, "could not delete the loading-screen recording");
+        }
+        emit_library(app);
+        return Ok(done);
     }
     recorder.set_activity(Activity {
         recording: None,
@@ -176,20 +217,35 @@ async fn record_game(
             &root,
         )
     })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
-    if let Some(finalised) = finalised {
-        if !finalised.pruned.is_empty() {
+    .await;
+    match finalised {
+        Ok(Ok(Some(finalised))) if !finalised.pruned.is_empty() => {
             tracing::info!(
                 count = finalised.pruned.len(),
                 "recordings deleted to fit the budget"
             );
         }
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => tracing::warn!(%error, "the recording was not finalised"),
+        Err(error) => tracing::warn!(%error, "finalising the recording failed"),
     }
     thumbnail(helper, &dir).await;
     emit_library(app);
-    Ok(())
+    Ok(done)
+}
+
+/// Whether the recording in `dir` holds a loading screen alone (`is_loading_only`).
+fn loading_only(dir: &Path) -> bool {
+    RecordingDir::new(dir.to_path_buf())
+        .read_meta()
+        .is_ok_and(|meta| is_loading_only(&meta))
+}
+
+/// A recording of a loading screen alone: the game clock never ran under it,
+/// and it is too short to be a game. Without the length, a game the live feed
+/// never answered for would go too; without a known length, nothing goes.
+fn is_loading_only(meta: &RecordingMeta) -> bool {
+    meta.anchor.is_none() && meta.duration_ms.is_some_and(|ms| ms < LOADING_ONLY_MS)
 }
 
 fn lock(session: &SharedSession) -> std::sync::MutexGuard<'_, Session<HelperCapture>> {
@@ -356,5 +412,39 @@ async fn thumbnail(helper: &Path, dir: &Path) {
     .await;
     if let Ok(Err(error)) = result {
         tracing::warn!(%error, "no thumbnail for the recording");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use game_recording::anchor::Segment;
+    use game_recording::{Anchor, RecordingMeta, RecordingSettings};
+
+    use super::is_loading_only;
+
+    fn meta(duration_ms: Option<u64>, clock_ran: bool) -> RecordingMeta {
+        let mut meta = RecordingMeta::new(1, 420, RecordingSettings::default().quality, 0);
+        meta.duration_ms = duration_ms;
+        meta.anchor = clock_ran.then(|| Anchor {
+            segments: vec![Segment {
+                from_game_ms: 0,
+                offset_ms: 50_000,
+            }],
+        });
+        meta
+    }
+
+    #[test]
+    fn a_short_recording_the_clock_never_ran_under_is_a_loading_screen() {
+        assert!(is_loading_only(&meta(Some(13_464), false)));
+    }
+
+    #[test]
+    fn a_game_is_kept_once_its_clock_ran_or_it_lasts() {
+        assert!(!is_loading_only(&meta(Some(13_464), true)));
+        // A long game the live feed never answered for.
+        assert!(!is_loading_only(&meta(Some(1_822_647), false)));
+        // The video's length unknown: a stop that failed keeps what was written.
+        assert!(!is_loading_only(&meta(None, false)));
     }
 }

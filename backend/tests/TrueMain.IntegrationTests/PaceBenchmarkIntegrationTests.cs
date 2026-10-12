@@ -4,6 +4,7 @@ using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Core.Lol.Map;
 using Core.Lol.Pace;
+using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -50,7 +51,7 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
             var stats = await db.PaceBenchmarkStats.AsNoTracking().ToListAsync();
             // Two laners (one tracked, one not), minutes 1..25, two metrics, one sample per bin.
             stats.Sum(stat => stat.Count).Should().Be(2 * GameMinutes * 2);
-            stats.Should().OnlyContain(stat => stat.Patch == "16.19" && stat.Tier == "DIAMOND");
+            stats.Should().OnlyContain(stat => stat.Patch == "16.19" && stat.Tier == RankTier.Diamond);
             stats.Select(stat => stat.Position).Distinct().Should().BeEquivalentTo(["TOP", "MIDDLE"]);
             stats.Max(stat => stat.Minute).Should().Be(GameMinutes);
             stats.Should().ContainSingle(stat => stat.Position == "MIDDLE" && stat.Minute == 10 && stat.Metric == PaceMetric.Cs)
@@ -170,8 +171,8 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
                 Id = Guid.NewGuid(),
                 RiotAccountId = account.Id,
                 CapturedAtUtc = gameStart.AddHours(-3),
-                Tier = trackedTier,
-                Division = "II",
+                Tier = RankTiers.ParseTier(trackedTier),
+                Division = RankDivision.II,
             });
         }
 
@@ -220,7 +221,7 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
         string position = "MIDDLE") => new()
     {
         Patch = patch,
-        Tier = tier,
+        Tier = RankTiers.ParseTier(tier),
         Position = position,
         Minute = minute,
         Metric = metric,

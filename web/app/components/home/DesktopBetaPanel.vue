@@ -55,14 +55,14 @@
           aria-hidden="true"
           class="pointer-events-none absolute inset-x-[10%] top-[15%] -z-10 h-3/4 rounded-full bg-primary/12 blur-3xl"
         />
-        <img
+        <SkeletonPicture
           src="/desktop/dashboard.webp"
-          width="1180"
-          height="760"
+          :width="1180"
+          :height="760"
           alt="The TrueMain app's dashboard: rank, recent form, match history and champions."
           loading="lazy"
-          class="block h-auto w-full rounded-xl shadow-[0_30px_80px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/15"
-        >
+          class="rounded-xl shadow-[0_30px_80px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/15"
+        />
       </div>
     </div>
   </section>

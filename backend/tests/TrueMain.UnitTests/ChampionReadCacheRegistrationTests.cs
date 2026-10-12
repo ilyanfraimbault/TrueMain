@@ -43,7 +43,7 @@ public sealed class ChampionReadCacheRegistrationTests
 
     [Theory]
     [MemberData(nameof(ChampionQueryServices))]
-    public void Every_champion_query_service_takes_the_shared_read_cache(Type implementation)
+    public void EveryChampionQueryServiceTakesTheSharedReadCache(Type implementation)
     {
         ConstructorParameters(implementation)
             .Should().Contain(parameter => parameter.ParameterType == typeof(IChampionReadCache),
@@ -54,7 +54,7 @@ public sealed class ChampionReadCacheRegistrationTests
 
     [Theory]
     [MemberData(nameof(ChampionQueryServices))]
-    public void No_champion_query_service_caches_on_its_own(Type implementation)
+    public void NoChampionQueryServiceCachesOnItsOwn(Type implementation)
     {
         ConstructorParameters(implementation)
             .Should().NotContain(parameter => parameter.ParameterType == typeof(IMemoryCache),
@@ -64,7 +64,7 @@ public sealed class ChampionReadCacheRegistrationTests
     }
 
     [Fact]
-    public void The_controllers_really_do_expose_the_champion_reads()
+    public void TheControllersReallyDoExposeTheChampionReads()
     {
         // Guards the guard: if the controllers stopped taking their reads by interface —
         // resolving them from IServiceProvider, say — or if the namespace scan below stopped

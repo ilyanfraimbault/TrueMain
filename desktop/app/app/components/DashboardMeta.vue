@@ -21,7 +21,7 @@ const columns = computed(() => LANES.map(lane => ({ lane, top: laneEntries(lane)
         :to="`/champions/${entry.championId}?position=${column.lane}`"
         class="-mx-1 flex items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-accented"
       >
-        <img v-if="portraitOf(entry.championId)" :src="portraitOf(entry.championId)!" alt="" class="size-8 rounded-md">
+        <img v-if="portraitOf(entry.championId)" :src="portraitOf(entry.championId)!" alt="" class="img-skeleton size-8 rounded-md">
         <span class="min-w-0 flex-1 leading-tight">
           <span class="block truncate text-[13px] font-semibold text-highlighted">{{ nameOf(entry.championId) }}</span>
           <span class="text-[11px] font-medium tabular-nums" :class="winRateTone(entry.winRate)">{{ (entry.winRate * 100).toFixed(1) }}%</span>

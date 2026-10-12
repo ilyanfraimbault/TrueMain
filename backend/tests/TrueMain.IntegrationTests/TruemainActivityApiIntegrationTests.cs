@@ -46,7 +46,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Returns_404_for_an_unknown_or_malformed_name_tag()
+    public async Task Returns404ForAnUnknownOrMalformedNameTag()
     {
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
@@ -58,7 +58,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Draws_every_day_of_the_patch_including_the_ones_before_the_player_joined_it()
+    public async Task DrawsEveryDayOfThePatchIncludingTheOnesBeforeThePlayerJoinedIt()
     {
         var midday = Midday;
 
@@ -122,7 +122,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Clamps_the_month_window_to_the_oldest_game_retention_still_holds()
+    public async Task ClampsTheMonthWindowToTheOldestGameRetentionStillHolds()
     {
         var midday = Midday;
 
@@ -151,7 +151,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Draws_the_full_month_when_the_retained_history_reaches_back_far_enough()
+    public async Task DrawsTheFullMonthWhenTheRetainedHistoryReachesBackFarEnough()
     {
         var midday = Midday;
 
@@ -181,7 +181,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Folds_the_same_games_three_ways_over_three_windows_of_one_unit()
+    public async Task FoldsTheSameGamesThreeWaysOverThreeWindowsOfOneUnit()
     {
         var midday = Midday;
 
@@ -226,7 +226,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Leaves_the_day_window_empty_on_a_rest_day_without_emptying_the_others()
+    public async Task LeavesTheDayWindowEmptyOnARestDayWithoutEmptyingTheOthers()
     {
         var midday = Midday;
 
@@ -259,7 +259,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Draws_the_patch_for_a_player_who_has_not_queued_a_single_game_on_it()
+    public async Task DrawsThePatchForAPlayerWhoHasNotQueuedASingleGameOnIt()
     {
         var midday = Midday;
 
@@ -297,7 +297,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Measures_the_window_on_the_current_patch_not_on_the_whole_retained_history()
+    public async Task MeasuresTheWindowOnTheCurrentPatchNotOnTheWholeRetainedHistory()
     {
         var midday = Midday;
 
@@ -328,7 +328,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Counts_only_the_tracked_ranked_queue_so_the_windows_share_one_population()
+    public async Task CountsOnlyTheTrackedRankedQueueSoTheWindowsShareOnePopulation()
     {
         var midday = Midday;
 
@@ -357,7 +357,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Reports_an_empty_patch_series_when_no_tracked_match_carries_a_patch()
+    public async Task ReportsAnEmptyPatchSeriesWhenNoTrackedMatchCarriesAPatch()
     {
         // A known account and an empty match table: there is no patch to measure,
         // and inventing a window from nothing would be a fabricated claim.

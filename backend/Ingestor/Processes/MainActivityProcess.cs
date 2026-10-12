@@ -140,10 +140,7 @@ public sealed class MainActivityProcess(
                     unusableAccount.LastActivityCheckAtUtc = nowUtc;
                 }
 
-                logger.LogWarning(
-                    "Skipping activity check for {Puuid}: invalid platform {PlatformId}.",
-                    account.Puuid,
-                    account.PlatformId);
+                logger.ActivityInvalidPlatform(account.Puuid, account.PlatformId);
                 summary.Skipped++;
                 continue;
             }
@@ -162,11 +159,7 @@ public sealed class MainActivityProcess(
                 // A failed mastery lookup is not evidence of inactivity: leave the account
                 // untouched — including its LastActivityCheckAtUtc, so it stays at the head
                 // of the selection — and retry it next run.
-                logger.LogWarning(
-                    ex,
-                    "Failed mastery activity check for {Platform}/{Puuid}.",
-                    account.PlatformId,
-                    account.Puuid);
+                logger.ActivityCheckFailed(ex, account.PlatformId, account.Puuid);
                 summary.Failed++;
                 continue;
             }

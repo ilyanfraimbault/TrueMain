@@ -1,4 +1,4 @@
-import type { MatchWinProbability, WinProbabilityTimeline } from './win-probability'
+import type { WinProbabilityTimeline } from './win-probability'
 
 // Mirrors backend/Api/ReadModels/Truemains/MatchDetailReadModel.cs.
 // Single-match detail payload for GET /truemains/{nameTag}/matches/{matchId}.
@@ -15,15 +15,10 @@ export interface MatchDetailResponse {
   gameVersion: string
   participants: MatchDetailParticipant[]
   /**
-   * The game's win-probability curve and turning points (#1911), computed at
-   * ingest. Null for a game ingested before it existed, under fifteen minutes,
-   * or without the five lanes — the detail then shows no Timeline tab.
-   */
-  winProbability?: MatchWinProbability | null
-  /**
-   * Desktop only: the client's own timeline, reduced to what the model reads,
-   * when the game is the client's copy rather than TrueMain's — the app builds
-   * the curve from it (`buildWinProbability`). Never sent by the API.
+   * Desktop only: the client's own timeline, reduced to what the model reads —
+   * the app builds the win-probability curve from it (`buildWinProbability`,
+   * #1911). Never sent by the API: TrueMain stores no curve (#2009), so the
+   * site's match detail has no Timeline tab.
    */
   winProbabilityTimeline?: WinProbabilityTimeline | null
 }

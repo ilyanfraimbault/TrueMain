@@ -68,11 +68,10 @@ public sealed class OverviewApiIntegrationTests : IAsyncLifetime
         payload.DistinctChampionsWithMains.Should().Be(2);
 
         // Every defined status is present (zero-filled) and the seeded ones match.
-        payload.CandidatesByStatus.Should().ContainKeys(
-            "New", "Scored", "Queued", "Processing", "Validated", "Rejected");
+        payload.CandidatesByStatus.Keys.Should().BeEquivalentTo(
+            "New", "Scored", "Queued", "Processing", "Validated");
         payload.CandidatesByStatus["New"].Should().Be(2);
         payload.CandidatesByStatus["Validated"].Should().Be(1);
-        payload.CandidatesByStatus["Rejected"].Should().Be(0);
 
         // Two of the three matches start inside the last 7 days; all three inside 30.
         payload.MatchesLast7Days.Should().Be(2);

@@ -34,7 +34,7 @@ public class TruemainActivityBucketsTests
     // ─── Calendar window ───────────────────────────────────────────────────
 
     [Fact]
-    public void ByDay_draws_every_day_of_the_window_including_the_ones_before_the_first_game()
+    public void ByDay_DrawsEveryDayOfTheWindowIncludingTheOnesBeforeTheFirstGame()
     {
         // The player's first game of the window is on its fourth day. The three days
         // before it are days of the patch they sat out, and the whole reason the
@@ -51,7 +51,7 @@ public class TruemainActivityBucketsTests
     }
 
     [Fact]
-    public void ByDay_ignores_games_outside_the_window()
+    public void ByDay_IgnoresGamesOutsideTheWindow()
     {
         var games = new[]
         {
@@ -67,7 +67,7 @@ public class TruemainActivityBucketsTests
     }
 
     [Fact]
-    public void ByDay_marks_an_idle_day_as_empty_and_a_lost_day_as_zero()
+    public void ByDay_MarksAnIdleDayAsEmptyAndALostDayAsZero()
     {
         var games = new[]
         {
@@ -100,7 +100,7 @@ public class TruemainActivityBucketsTests
     }
 
     [Fact]
-    public void ByDay_buckets_on_the_utc_day_not_on_the_elapsed_24_hours()
+    public void ByDay_BucketsOnTheUtcDayNotOnTheElapsed24Hours()
     {
         // 23:50 and 00:10 are 20 minutes apart but belong to different UTC days.
         var games = new[]
@@ -116,7 +116,7 @@ public class TruemainActivityBucketsTests
     }
 
     [Fact]
-    public void ByDay_draws_an_untouched_window_rather_than_nothing()
+    public void ByDay_DrawsAnUntouchedWindowRatherThanNothing()
     {
         // A patch the player has not queued a single game on is still a patch, and
         // its days are still days. An empty grid of real days is the answer; an
@@ -128,13 +128,13 @@ public class TruemainActivityBucketsTests
     }
 
     [Fact]
-    public void ByDay_returns_nothing_when_the_window_is_inverted()
+    public void ByDay_ReturnsNothingWhenTheWindowIsInverted()
     {
         TruemainActivityBuckets.ByDay([Game(Wednesday)], Day(2026, 7, 10), Day(2026, 7, 1)).Should().BeEmpty();
     }
 
     [Fact]
-    public void ByDay_cells_are_utc_so_the_wire_carries_an_instant_not_a_local_date()
+    public void ByDay_CellsAreUtcSoTheWireCarriesAnInstantNotALocalDate()
     {
         var buckets = TruemainActivityBuckets.ByDay([Game(Wednesday)], Day(2026, 7, 29), Day(2026, 7, 29));
 
@@ -144,7 +144,7 @@ public class TruemainActivityBucketsTests
     // ─── Day window (one cell per game) ────────────────────────────────────
 
     [Fact]
-    public void ByGame_emits_one_decided_cell_per_game_of_that_day_oldest_first()
+    public void ByGame_EmitsOneDecidedCellPerGameOfThatDayOldestFirst()
     {
         // Newest first, the order the query returns.
         var games = new[]
@@ -166,7 +166,7 @@ public class TruemainActivityBucketsTests
     }
 
     [Fact]
-    public void ByGame_keeps_only_the_games_of_the_requested_utc_day()
+    public void ByGame_KeepsOnlyTheGamesOfTheRequestedUtcDay()
     {
         var games = new[]
         {
@@ -183,7 +183,7 @@ public class TruemainActivityBucketsTests
     }
 
     [Fact]
-    public void ByGame_returns_nothing_on_a_rest_day()
+    public void ByGame_ReturnsNothingOnARestDay()
     {
         TruemainActivityBuckets.ByGame([Game(Wednesday.AddDays(-1))], Wednesday).Should().BeEmpty();
         TruemainActivityBuckets.ByGame([], Wednesday).Should().BeEmpty();
@@ -192,7 +192,7 @@ public class TruemainActivityBucketsTests
     // ─── Window defaults ───────────────────────────────────────────────────
 
     [Fact]
-    public void The_calendar_windows_are_the_spans_they_are_named_after()
+    public void TheCalendarWindowsAreTheSpansTheyAreNamedAfter()
     {
         TruemainActivityBuckets.WeekWindowDays.Should().Be(7);
         // Thirty days, not a calendar month: every window ends on today and counts

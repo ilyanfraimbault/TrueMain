@@ -19,10 +19,6 @@ public class RiotAccount
 
     public required string PlatformId { get; set; }
 
-    public Guid? PersonaId { get; set; }
-
-    public Persona? Persona { get; set; }
-
     public string? SummonerId { get; set; }
 
     public int ProfileIconId { get; set; }
@@ -78,6 +74,14 @@ public class RiotAccount
     /// mastery check skips it until its mastery facts are themselves that old.
     /// </summary>
     public DateTime? LastSeenInMatchAtUtc { get; set; }
+
+    /// <summary>
+    /// When <see cref="ProfileIconId"/> and <see cref="SummonerLevel"/> were last observed:
+    /// the summoner-v4 read time, or the start of the ingested match that carried them (#2002).
+    /// Match ingestion only overwrites them from a game newer than this, so replaying an old
+    /// match never brings back a stale icon. Null until either source has seen the account.
+    /// </summary>
+    public DateTime? SummonerObservedAtUtc { get; set; }
 
     public MatchIngestStatus MatchIngestStatus { get; set; } = MatchIngestStatus.Idle;
 

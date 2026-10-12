@@ -15,7 +15,7 @@ namespace TrueMain.UnitTests;
 public sealed class ChampionDominantLaneFilterTests
 {
     [Fact]
-    public void KeepDominantLanes_keeps_the_two_most_played_lanes()
+    public void KeepDominantLanes_KeepsTheTwoMostPlayedLanes()
     {
         // A flexed champion: mid is the identity, top is a real secondary, the
         // other three are off-role picks that made the directory 5 rows long.
@@ -34,7 +34,7 @@ public sealed class ChampionDominantLaneFilterTests
     }
 
     [Fact]
-    public void KeepDominantLanes_drops_a_second_lane_below_the_dominance_floor()
+    public void KeepDominantLanes_DropsASecondLaneBelowTheDominanceFloor()
     {
         // 96 / 4: the second lane is an off-role pick, not a second identity,
         // so this champion appears once — the cap alone would have kept it.
@@ -50,7 +50,7 @@ public sealed class ChampionDominantLaneFilterTests
     }
 
     [Fact]
-    public void KeepDominantLanes_keeps_a_second_lane_sitting_exactly_on_the_floor()
+    public void KeepDominantLanes_KeepsASecondLaneSittingExactlyOnTheFloor()
     {
         // The boundary is the contract of a threshold: a lane holding exactly
         // the configured share is dominant, not "almost".
@@ -72,7 +72,7 @@ public sealed class ChampionDominantLaneFilterTests
     }
 
     [Fact]
-    public void KeepDominantLanes_keeps_the_main_lane_however_thin_its_share()
+    public void KeepDominantLanes_KeepsTheMainLaneHoweverThinItsShare()
     {
         // A genuine five-lane flex: no lane clears the 10% floor on its own
         // once the champion is spread evenly. The champion still belongs in a
@@ -93,7 +93,7 @@ public sealed class ChampionDominantLaneFilterTests
     }
 
     [Fact]
-    public void KeepDominantLanes_breaks_ties_on_lane_name_so_the_cached_payload_is_stable()
+    public void KeepDominantLanes_BreaksTiesOnLaneNameSoTheCachedPayloadIsStable()
     {
         // Two lanes on identical games: whichever wins, it must win on every
         // request — this payload is cached and served to everyone.
@@ -110,7 +110,7 @@ public sealed class ChampionDominantLaneFilterTests
     }
 
     [Fact]
-    public void KeepDominantLanes_caps_each_champion_independently()
+    public void KeepDominantLanes_CapsEachChampionIndependently()
     {
         var rows = new[]
         {
@@ -129,7 +129,7 @@ public sealed class ChampionDominantLaneFilterTests
     }
 
     [Fact]
-    public void KeepDominantLanes_returns_every_row_when_the_cap_is_disabled()
+    public void KeepDominantLanes_ReturnsEveryRowWhenTheCapIsDisabled()
     {
         var rows = new[]
         {

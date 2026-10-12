@@ -42,7 +42,7 @@ public sealed class MatchPatchColumnIntegrationTests(PostgresFixture fixture) : 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task The_generated_patch_column_agrees_with_PatchVersion_on_every_shape()
+    public async Task TheGeneratedPatchColumnAgreesWithPatchVersionOnEveryShape()
     {
         await using (var seed = fixture.CreateDbContext())
         {
@@ -80,7 +80,7 @@ public sealed class MatchPatchColumnIntegrationTests(PostgresFixture fixture) : 
     }
 
     [Fact]
-    public async Task The_generated_patch_column_follows_an_updated_game_version()
+    public async Task TheGeneratedPatchColumnFollowsAnUpdatedGameVersion()
     {
         // STORED means "recomputed on write", not "computed once": a match whose
         // version is corrected must not keep the old patch, or it would sit in the

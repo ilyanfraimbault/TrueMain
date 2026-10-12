@@ -9,32 +9,33 @@ const ROW_COUNT = 8
 
 <template>
   <section
-    class="surface flex flex-col rounded-2xl p-3 sm:p-4"
+    class="flex flex-col gap-3"
     aria-hidden="true"
   >
-    <header class="pb-2">
-      <span class="text-sm font-semibold text-default">Tier list</span>
+    <header class="flex min-h-6 items-center justify-between">
+      <span class="text-xs font-semibold uppercase tracking-wide text-muted">Strongest picks</span>
+      <UButton
+        to="/champions"
+        color="primary"
+        variant="link"
+        size="xs"
+        trailing-icon="i-lucide-arrow-right"
+        label="Full tier list"
+      />
     </header>
-    <div class="space-y-0.5">
+    <div class="surface flex flex-col rounded-2xl py-1.5">
+      <div class="px-4 py-2">
+        <USkeleton class="h-2.5 w-40" />
+      </div>
       <div
         v-for="i in ROW_COUNT"
         :key="i"
-        class="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2"
+        class="flex items-center gap-3 px-4 py-2"
       >
-        <USkeleton class="size-9 rounded-lg" />
+        <USkeleton class="size-8 rounded-md" />
         <USkeleton class="h-4 w-32" />
         <USkeleton class="ml-auto h-4 w-24" />
       </div>
     </div>
-    <footer class="mt-auto flex justify-end pt-2">
-      <UButton
-        to="/champions"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        trailing-icon="i-lucide-arrow-right"
-        label="Full tier list"
-      />
-    </footer>
   </section>
 </template>

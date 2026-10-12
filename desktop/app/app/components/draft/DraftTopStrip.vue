@@ -45,7 +45,7 @@ const urgent = computed(() => props.secondsLeft > 0 && props.secondsLeft <= 10)
           :src="portraitOf(champion)!"
           :alt="`${nameOf(champion)} banned`"
           :title="`${nameOf(champion)} banned`"
-          class="size-8 rounded-md object-cover opacity-60 grayscale"
+          class="img-skeleton size-8 rounded-md object-cover opacity-60 grayscale"
         >
         <span v-else class="flex size-8 items-center justify-center rounded-md bg-elevated ring-1 ring-inset ring-default">
           <UIcon name="i-lucide-ban" class="size-3.5 text-ink-700" />

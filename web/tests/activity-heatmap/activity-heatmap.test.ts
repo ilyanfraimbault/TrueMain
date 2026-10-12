@@ -9,7 +9,7 @@ import {
   activityCellLevel,
   activityCellsAreGames,
   activityMaxGames,
-} from '~/utils/activity-heatmap'
+} from '#common/utils/activity-heatmap'
 import type { ActivityBucket, ActivitySeries } from '~~/shared/types/activity'
 
 /**

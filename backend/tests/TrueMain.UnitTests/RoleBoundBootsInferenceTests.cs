@@ -16,7 +16,7 @@ public sealed class RoleBoundBootsInferenceTests
         => new() { TimestampMs = timestampMs, EventType = eventType, ItemId = itemId, BeforeId = beforeId };
 
     [Fact]
-    public void Infer_returns_the_last_boots_bought()
+    public void Infer_ReturnsTheLastBootsBought()
     {
         var boots = RoleBoundBootsInference.Infer(
         [
@@ -29,7 +29,7 @@ public sealed class RoleBoundBootsInferenceTests
     }
 
     [Fact]
-    public void Infer_returns_nothing_when_the_inventory_already_holds_boots()
+    public void Infer_ReturnsNothingWhenTheInventoryAlreadyHoldsBoots()
     {
         var boots = RoleBoundBootsInference.Infer(
             [Event(400_000, ItemEventTypes.Purchased, Greaves)],
@@ -40,7 +40,7 @@ public sealed class RoleBoundBootsInferenceTests
     }
 
     [Fact]
-    public void Infer_drops_an_undone_purchase()
+    public void Infer_DropsAnUndonePurchase()
     {
         var boots = RoleBoundBootsInference.Infer(
         [
@@ -53,7 +53,7 @@ public sealed class RoleBoundBootsInferenceTests
     }
 
     [Fact]
-    public void Infer_falls_back_to_boots_the_player_never_bought()
+    public void Infer_FallsBackToBootsThePlayerNeverBought()
     {
         // Slightly Magical Footwear: granted by a rune, so the timeline only ever
         // destroys it when it upgrades.
@@ -66,7 +66,7 @@ public sealed class RoleBoundBootsInferenceTests
     }
 
     [Fact]
-    public void Infer_returns_nothing_when_the_timeline_names_no_boots()
+    public void Infer_ReturnsNothingWhenTheTimelineNamesNoBoots()
     {
         var boots = RoleBoundBootsInference.Infer(
             [Event(600_000, ItemEventTypes.Purchased, 3153)],

@@ -48,7 +48,7 @@ public sealed class SummonerSpellPairTests
 
     [Theory]
     [MemberData(nameof(DisplayOrderingCases))]
-    public void OrderedForDisplay_applies_flash_then_smite_then_numeric(
+    public void OrderedForDisplay_AppliesFlashThenSmiteThenNumeric(
         int input1,
         int input2,
         int expected1,
@@ -61,7 +61,7 @@ public sealed class SummonerSpellPairTests
     }
 
     [Fact]
-    public void OrderedForDisplay_is_idempotent()
+    public void OrderedForDisplay_IsIdempotent()
     {
         var first = new SummonerSpellPair(Heal, Smite).OrderedForDisplay();
         var second = first.OrderedForDisplay();
@@ -70,7 +70,7 @@ public sealed class SummonerSpellPairTests
     }
 
     [Fact]
-    public void OrderedForDisplay_is_order_invariant()
+    public void OrderedForDisplay_IsOrderInvariant()
     {
         int[] spells = [Flash, Smite, Heal, Ignite, Teleport, Ghost, Cleanse, Exhaust];
 
@@ -92,7 +92,7 @@ public sealed class SummonerSpellPairTests
     [InlineData(Heal, Smite, Heal, Smite)]
     [InlineData(Smite, Heal, Heal, Smite)]
     [InlineData(Ignite, Heal, Heal, Ignite)]
-    public void Canonical_orders_by_min_then_max(int input1, int input2, int expected1, int expected2)
+    public void Canonical_OrdersByMinThenMax(int input1, int input2, int expected1, int expected2)
     {
         var canonical = new SummonerSpellPair(input1, input2).Canonical();
 

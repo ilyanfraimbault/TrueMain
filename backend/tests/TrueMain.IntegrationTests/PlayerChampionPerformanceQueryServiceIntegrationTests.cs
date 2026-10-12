@@ -50,7 +50,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
     }
 
     [Fact]
-    public async Task GetAsync_returns_null_for_an_unknown_account()
+    public async Task GetAsync_ReturnsNullForAnUnknownAccount()
     {
         await using var db = _fixture.CreateDbContext();
         var response = await CreateService(db).GetAsync(
@@ -60,7 +60,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
     }
 
     [Fact]
-    public async Task GetAsync_suppresses_the_averages_below_the_sample_floor()
+    public async Task GetAsync_SuppressesTheAveragesBelowTheSampleFloor()
     {
         await SeedAccountAsync();
         await SeedGamesAsync(count: MinGames - 1);
@@ -77,7 +77,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
     }
 
     [Fact]
-    public async Task GetAsync_grades_the_sample_and_reports_per_component_coverage()
+    public async Task GetAsync_GradesTheSampleAndReportsPerComponentCoverage()
     {
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6, timelineOnFirstGamesOnly: 4);
@@ -109,7 +109,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
     }
 
     [Fact]
-    public async Task GetAsync_scopes_the_sample_to_the_requested_position()
+    public async Task GetAsync_ScopesTheSampleToTheRequestedPosition()
     {
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6);
@@ -125,7 +125,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
     }
 
     [Fact]
-    public async Task GetAsync_canonicalises_the_patch_before_it_queries_or_caches_on_it()
+    public async Task GetAsync_CanonicalisesThePatchBeforeItQueriesOrCachesOnIt()
     {
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6);
@@ -150,7 +150,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
     }
 
     [Fact]
-    public async Task GetAsync_canonicalises_the_lane_before_it_queries_or_caches_on_it()
+    public async Task GetAsync_CanonicalisesTheLaneBeforeItQueriesOrCachesOnIt()
     {
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6);
@@ -172,7 +172,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
     }
 
     [Fact]
-    public async Task GetAsync_does_not_widen_a_lane_it_cannot_canonicalise()
+    public async Task GetAsync_DoesNotWidenALaneItCannotCanonicalise()
     {
         await SeedAccountAsync();
         await SeedGamesAsync(count: 6);
@@ -190,7 +190,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
     }
 
     [Fact]
-    public async Task GetAsync_breaks_window_ties_on_the_match_id()
+    public async Task GetAsync_BreaksWindowTiesOnTheMatchId()
     {
         await SeedAccountAsync();
         // Twenty-one games sharing one start instant, so the window boundary falls

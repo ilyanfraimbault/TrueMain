@@ -241,7 +241,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
             $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
 
         var talon = matchups!.Matchups.Should().ContainSingle().Subject;
-        talon.Games.Should().Be(3, "both tracked mains' games are in the aggregate row");
+        talon.Games.Should().Be(12, "the games and the lane counters are read off the same aggregate row");
         talon.LaneWinRate.Should().BeApproximately(9d / 12d, 1e-9);
         talon.DecidedLaneGames.Should().Be(12);
         talon.AverageGoldDiffAt15.Should().BeApproximately(275d, 1e-9);
@@ -992,6 +992,11 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
             && s.TeamPosition == Position
             && s.OpponentChampionId == opponentChampionId);
 
+        // A judged lane is one of the row's games, and the schema refuses a row where
+        // lanes outnumber games (CK_champion_matchup_stats_LaneGamesWithinGames, #1365).
+        // Every lane stamped here therefore comes with its game, as the fold writes them:
+        // in one pass, off one flag (#1445).
+        row.Games = Math.Max(row.Games, laneWins + laneLosses);
         row.LaneGames = laneWins + laneLosses;
         row.LaneWins = laneWins;
         row.LaneLosses = laneLosses;

@@ -12,7 +12,7 @@ public sealed class PatchVersionTests
     [InlineData("16.4.x", 16, 4, null)]
     [InlineData(" 16 . 4 ", 16, 4, null)]
     [InlineData(" 16 . 4 . 521 ", 16, 4, 521)]
-    public void Parse_returns_major_minor_build(string input, int major, int minor, int? build)
+    public void Parse_ReturnsMajorMinorBuild(string input, int major, int minor, int? build)
     {
         var version = PatchVersion.Parse(input);
 
@@ -29,7 +29,7 @@ public sealed class PatchVersionTests
     [InlineData("16")]
     [InlineData("abc.def")]
     [InlineData("16.x")]
-    public void Parse_throws_on_invalid(string? input)
+    public void Parse_ThrowsOnInvalid(string? input)
     {
         var act = () => PatchVersion.Parse(input!);
 
@@ -42,7 +42,7 @@ public sealed class PatchVersionTests
     [InlineData("   ")]
     [InlineData("16")]
     [InlineData("abc.def")]
-    public void TryParse_returns_false_on_invalid(string? input)
+    public void TryParse_ReturnsFalseOnInvalid(string? input)
     {
         var parsed = PatchVersion.TryParse(input, out var version);
 
@@ -58,13 +58,13 @@ public sealed class PatchVersionTests
     [InlineData("16.4", "16.4")]
     [InlineData("16.4.521", "16.4")]
     [InlineData("16.4.521.123", "16.4")]
-    public void Normalize_mirrors_legacy_behaviour(string? input, string expected)
+    public void Normalize_MirrorsLegacyBehaviour(string? input, string expected)
     {
         PatchVersion.Normalize(input).Should().Be(expected);
     }
 
     [Fact]
-    public void Comparison_orders_by_major_then_minor()
+    public void Comparison_OrdersByMajorThenMinor()
     {
         var a = new PatchVersion(15, 12);
         var b = new PatchVersion(16, 1);
@@ -80,7 +80,7 @@ public sealed class PatchVersionTests
     }
 
     [Fact]
-    public void Comparison_orders_base_patch_before_its_hotfix()
+    public void Comparison_OrdersBasePatchBeforeItsHotfix()
     {
         var basePatch = new PatchVersion(16, 4);
         var hotfix = new PatchVersion(16, 4, 521);
@@ -93,7 +93,7 @@ public sealed class PatchVersionTests
     }
 
     [Fact]
-    public void Equality_distinguishes_build_segment()
+    public void Equality_DistinguishesBuildSegment()
     {
         var basePatch = new PatchVersion(16, 4);
         var hotfix = new PatchVersion(16, 4, 521);

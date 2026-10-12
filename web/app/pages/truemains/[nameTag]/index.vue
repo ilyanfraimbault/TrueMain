@@ -2,6 +2,9 @@
 import type { ChampionPosition } from '#common/utils/positions'
 import { parseRouteParam } from '#common/utils/route-params'
 import { groupMatchesByDay } from '~/utils/match-history'
+import { getQueueLabel } from '~/utils/queues'
+import { championSplashUrlFromIcon, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { platformIdToRegion } from '~~/shared/utils/region'
 
 const route = useRoute()
 
@@ -137,6 +140,23 @@ const staticBundleReady = computed(() =>
   && (runeTree.value?.styles.length ?? 0) > 0,
 )
 
+// The banner: the champion this player truemains — the dedication's champion,
+// else their first main — on its splash, through the image proxy at banner width.
+const splashOf = useCanonicalSplash()
+const truemainChampion = computed(() => {
+  const id = profile.value?.dedication?.championId ?? profile.value?.mains[0]?.championId
+  const champion = id ? champions.value.find(entry => entry.championId === id) : null
+  return champion ? { name: champion.name, iconUrl: champion.iconUrl } : null
+})
+const splashUrl = computed(() => {
+  const raw = championSplashUrlFromIcon(truemainChampion.value?.iconUrl)
+  return splashOf(raw)
+})
+const profileIconUrl = computed(() => {
+  const identity = profile.value?.identity
+  return identity ? getProfileIconUrl(identity.profileIconId, latestPatch.value) : null
+})
+
 const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
 
 // A client-side navigation keeps the outgoing page under the loading bar until
@@ -147,42 +167,134 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
 
 <template>
   <div class="mx-auto w-full max-w-7xl p-4 md:p-6">
-    <!--
-      Two-column layout on lg+. Left rail (20rem) collects the player-level
-      summary (identity, ranked, mains, roles); the right rail is the match
-      feed and stretches into the rest of the viewport. On smaller screens
-      everything stacks naturally — the grid collapses to a single column.
-
-      The container caps at 7xl (1280px); going wider starts to feel sparse
-      on ultrawide screens where the match rows can't get any denser without
-      more data per row.
-    -->
-    <!-- Truemains > {player}, linking back to the OTP leaderboard. The share
-         controls (#926) sit on the same row so they stay above the fold on
-         mobile, where the left rail pushes everything else down. Rendered in
-         every state, including "not found": the URL is shareable regardless of
-         whether the profile resolved, and the card degrades on its own. -->
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <UBreadcrumb :items="breadcrumbItems" />
-      <ShareButtons
-        :title="shareTitle"
-        :description="SHARE_DESCRIPTION"
-      />
-    </div>
-
     <template v-if="profileNotFound">
+      <!-- Truemains > {player}. Share controls (#926) stay in every state:
+           the URL is shareable whether or not the profile resolved. -->
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <UBreadcrumb :items="breadcrumbItems" />
+        <ShareButtons
+          :title="shareTitle"
+          :description="SHARE_DESCRIPTION"
+        />
+      </div>
       <ProfileNotFound :name-tag="nameTag" />
     </template>
-    <div v-else class="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-      <!-- Left rail: identity + ranked + mains + roles -->
-      <aside class="flex flex-col gap-4">
-        <ProfileHeaderSkeleton v-if="profileLoading || !profile" />
-        <ProfileHeader
-          v-else
-          :identity="profile.identity"
-          :patch="latestPatch"
-        />
 
+    <!-- The shared profile (the desktop dashboard's layout): banner on the
+         champion this player truemains, the form tiles, the history, and the
+         player-level cards in the 18rem column. -->
+    <PagePlayerProfile
+      v-else
+      :game-name="profile?.identity.gameName ?? playerLabel"
+      :tag-line="profile?.identity.tagLine ?? null"
+      :profile-icon-url="profileIconUrl"
+      :region="platformIdToRegion(profile?.identity.platformId)"
+      :level="profile?.identity.summonerLevel ?? null"
+      :ranked="profile?.ranked ?? null"
+      :truemain="truemainChampion"
+      :splash-url="splashUrl"
+      splash-position="62% 22%"
+      :matches="matches"
+      :loading="matchesInitialLoading"
+    >
+      <template #header>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <UBreadcrumb :items="breadcrumbItems" />
+          <MatchHistoryFilters
+            :champions="champions"
+            :position="filterPosition"
+            :champion-id="filterChampionId"
+            @update:position="setFilterPosition"
+            @update:champion-id="setFilterChampionId"
+          />
+        </div>
+      </template>
+
+      <template
+        v-if="profile"
+        #title-actions
+      >
+        <FavoriteToggle
+          :game-name="profile.identity.gameName"
+          :tag-line="profile.identity.tagLine"
+          :region="platformIdToRegion(profile.identity.platformId)"
+          :profile-icon-id="profile.identity.profileIconId"
+        />
+      </template>
+
+      <template #actions>
+        <ShareButtons
+          :title="shareTitle"
+          :description="SHARE_DESCRIPTION"
+        />
+      </template>
+
+      <template #history>
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
+          Match history
+        </h2>
+        <!--
+          The empty / not-found state must not wait on the static bundle:
+          rendering it needs no item, spell or rune data, and a failing
+          static fetch (e.g. CDragon lagging a new patch) would otherwise
+          keep the skeletons up forever on a perfectly valid empty result.
+        -->
+        <template v-if="matchesInitialLoading || (!staticBundleReady && matches.length)">
+          <USkeleton
+            v-for="i in 8"
+            :key="`match-skel-${i}`"
+            class="h-[54px] rounded-lg"
+          />
+        </template>
+        <MatchHistoryEmpty
+          v-else-if="matchesNotFound || matches.length === 0"
+          :not-found="matchesNotFound"
+          :filtered="hasActiveFilters"
+        />
+        <template v-else>
+          <!-- Grouped by the local day the games were played, newest first —
+               the API order is preserved, the headings only cut it. -->
+          <template
+            v-for="day in matchDays"
+            :key="day.key"
+          >
+            <MatchDayHeading
+              v-if="day.label"
+              :label="day.label"
+              class="pt-1.5"
+            />
+            <MatchHistoryRow
+              v-for="match in day.matches"
+              :key="match.matchId"
+              :match="match"
+              :champions="champions"
+              :items="items"
+              :summoner-spells="summonerSpells"
+              :rune-tree="runeTree!"
+              :queue-label="getQueueLabel(match.queueId, match.gameMode)"
+              :name-tag="nameTag"
+            />
+          </template>
+          <div
+            v-if="matchesTotal > matchesPageSize"
+            class="flex justify-center pt-2"
+          >
+            <UPagination
+              :page="currentMatchesPage"
+              :total="matchesTotal"
+              :items-per-page="matchesPageSize"
+              :sibling-count="1"
+              color="neutral"
+              variant="ghost"
+              active-color="primary"
+              active-variant="soft"
+              @update:page="setMatchesPage"
+            />
+          </div>
+        </template>
+      </template>
+
+      <template #aside>
         <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
         <ProfileRankedCard
           v-else
@@ -191,10 +303,9 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
           :history-loading="rankHistoryLoading"
         />
 
-        <!-- Sits directly under the ranked card: the LP curve says how the climb
-             went, the grid says how much was played to get there. Rendered as
-             soon as the profile resolves — its own loading state is internal, so
-             the mode switch is usable while the payload lands. -->
+        <!-- Under the ranked card: the LP curve says how the climb went, the
+             grid how much was played to get there. Its own loading state is
+             internal, so the window switch is usable while the payload lands. -->
         <ProfileActivityHeatmap
           v-if="!profileLoading && profile"
           :data="activity"
@@ -222,72 +333,7 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
           v-else
           :positions="profile.positions"
         />
-      </aside>
-
-      <!-- Right rail: paginated match history -->
-      <section class="flex min-w-0 flex-col gap-3">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-            Match history
-          </h2>
-          <MatchHistoryFilters
-            :champions="champions"
-            :position="filterPosition"
-            :champion-id="filterChampionId"
-            @update:position="setFilterPosition"
-            @update:champion-id="setFilterChampionId"
-          />
-        </div>
-
-        <!--
-          The empty / not-found state must not wait on the static bundle:
-          rendering it needs no item, spell or rune data, and a failing
-          static fetch (e.g. CDragon lagging a new patch) would otherwise
-          keep the skeletons up forever on a perfectly valid empty result.
-        -->
-        <template v-if="matchesInitialLoading">
-          <MatchRowSkeleton v-for="i in MATCHES_PAGE_SIZE" :key="`match-skel-${i}`" />
-        </template>
-        <template v-else-if="matchesNotFound || matches.length === 0">
-          <MatchHistoryEmpty :not-found="matchesNotFound" :filtered="hasActiveFilters" />
-        </template>
-        <template v-else-if="!staticBundleReady">
-          <MatchRowSkeleton v-for="i in MATCHES_PAGE_SIZE" :key="`match-skel-${i}`" />
-        </template>
-        <template v-else>
-          <!-- Grouped by the local day the games were played, newest first —
-               the API order is preserved, the headings only cut it. -->
-          <template v-for="day in matchDays" :key="day.key">
-            <MatchDayHeading v-if="day.label" :label="day.label" />
-            <MatchRow
-              v-for="match in day.matches"
-              :key="match.matchId"
-              :match="match"
-              :champions="champions"
-              :items="items"
-              :summoner-spells="summonerSpells"
-              :rune-tree="runeTree!"
-              :name-tag="nameTag"
-            />
-          </template>
-          <div
-            v-if="matchesTotal > matchesPageSize"
-            class="flex justify-center pt-2"
-          >
-            <UPagination
-              :page="currentMatchesPage"
-              :total="matchesTotal"
-              :items-per-page="matchesPageSize"
-              :sibling-count="1"
-              color="neutral"
-              variant="ghost"
-              active-color="primary"
-              active-variant="soft"
-              @update:page="setMatchesPage"
-            />
-          </div>
-        </template>
-      </section>
-    </div>
+      </template>
+    </PagePlayerProfile>
   </div>
 </template>

@@ -44,7 +44,7 @@ public sealed class PatchFilterTests
     }
 
     [Fact]
-    public void The_patch_filter_reads_the_generated_column_rather_than_a_like_prefix()
+    public void ThePatchFilterReadsTheGeneratedColumnRatherThanALikePrefix()
     {
         // The reason PatchFilter lost its Prefix()/NormalizedPrefix() helpers: the
         // narrowing is an equality against matches."Patch" now, and that only holds
@@ -59,7 +59,7 @@ public sealed class PatchFilterTests
     }
 
     [Fact]
-    public void The_generated_column_is_indexed_for_the_champion_reads()
+    public void TheGeneratedColumnIsIndexedForTheChampionReads()
     {
         using var db = SqlShapeContext();
         var indexes = db.Model.FindEntityType(typeof(Match))!.GetIndexes()

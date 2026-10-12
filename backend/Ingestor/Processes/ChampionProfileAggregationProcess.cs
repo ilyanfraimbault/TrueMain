@@ -144,7 +144,7 @@ public sealed class ChampionProfileAggregationProcess(
         var matches = await db.Matches
             .AsNoTracking()
             .Where(m => matchIds.Contains(m.Id))
-            .Select(m => new { m.Id, m.GameVersion, m.GameDurationSeconds })
+            .Select(m => new { m.Id, m.GameVersion, m.GameDurationSeconds, m.EndedInEarlySurrender })
             .ToDictionaryAsync(m => m.Id, ct);
 
         // Slim projection on purpose: never the ItemEvents/SkillEvents jsonb. The final
@@ -204,7 +204,7 @@ public sealed class ChampionProfileAggregationProcess(
         {
             var match = matches[matchId];
             var patch = PatchVersion.Normalize(match.GameVersion);
-            if (string.IsNullOrEmpty(patch) || ChampionCohort.IsRemake(match.GameDurationSeconds))
+            if (string.IsNullOrEmpty(patch) || ChampionCohort.IsRemake(match.GameDurationSeconds, match.EndedInEarlySurrender))
             {
                 continue;
             }

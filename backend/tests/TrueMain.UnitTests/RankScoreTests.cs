@@ -15,13 +15,13 @@ public sealed class RankScoreTests
     [InlineData("MASTER", "I", 2625, 5425)]
     [InlineData("GRANDMASTER", "I", 800, 3600)]
     [InlineData("CHALLENGER", "I", 1389, 4189)]
-    public void Compute_returns_expected_score(string tier, string division, int lp, int expected)
+    public void Compute_ReturnsExpectedScore(string tier, string division, int lp, int expected)
     {
         RankScore.Compute(tier, division, lp).Should().Be(expected);
     }
 
     [Fact]
-    public void Compute_orders_Master_above_DiamondI()
+    public void Compute_OrdersMasterAboveDiamondI()
     {
         // Acceptance criterion from the leaderboard spec:
         // a Master 20 LP must sit above a Diamond I 90 LP.
@@ -32,7 +32,7 @@ public sealed class RankScoreTests
     }
 
     [Fact]
-    public void Compute_orders_high_LP_Master_above_low_LP_Challenger()
+    public void Compute_OrdersHighLPMasterAboveLowLPChallenger()
     {
         // The screenshot ladder lists Master 2625 LP above Challenger 800 LP
         // because LP at the apex is unbounded and ladders break ties on raw
@@ -44,7 +44,7 @@ public sealed class RankScoreTests
     }
 
     [Fact]
-    public void Compute_is_case_insensitive()
+    public void Compute_IsCaseInsensitive()
     {
         var canonical = RankScore.Compute("DIAMOND", "II", 50);
         var lower = RankScore.Compute("diamond", "ii", 50);
@@ -55,7 +55,7 @@ public sealed class RankScoreTests
     }
 
     [Fact]
-    public void Compute_trims_whitespace()
+    public void Compute_TrimsWhitespace()
     {
         var canonical = RankScore.Compute("PLATINUM", "IV", 75);
         var padded = RankScore.Compute("  PLATINUM  ", "  IV  ", 75);
@@ -69,13 +69,13 @@ public sealed class RankScoreTests
     [InlineData("   ")]
     [InlineData("UNRANKED")]
     [InlineData("BRONZ")]
-    public void Compute_returns_null_for_missing_or_unknown_tier(string? tier)
+    public void Compute_ReturnsNullForMissingOrUnknownTier(string? tier)
     {
         RankScore.Compute(tier, "I", 50).Should().BeNull();
     }
 
     [Fact]
-    public void Compute_treats_apex_division_as_zero_even_if_blank()
+    public void Compute_TreatsApexDivisionAsZeroEvenIfBlank()
     {
         // Riot returns Division="I" for Master/GM/Challenger but ingestor
         // history has a few rows where the column was blank. Either way the

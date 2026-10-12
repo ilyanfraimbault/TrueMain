@@ -158,12 +158,18 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         entity.Property(e => e.Summoner2Id)
             .IsRequired();
 
+        // The two event payloads are the bulk of the table's TOAST (#123): LZ4 compresses
+        // them smaller than the cluster's default PGLZ and decompresses faster. SET
+        // COMPRESSION only affects values written after it; existing rows are rewritten by
+        // the match_participants repack (#1946), not by the migration.
         entity.Property(e => e.ItemEvents)
             .HasColumnType("jsonb")
+            .UseCompressionMethod("lz4")
             .IsRequired();
 
         entity.Property(e => e.SkillEvents)
             .HasColumnType("jsonb")
+            .UseCompressionMethod("lz4")
             .IsRequired();
 
         entity.HasIndex(e => new { e.Puuid, e.MatchId })

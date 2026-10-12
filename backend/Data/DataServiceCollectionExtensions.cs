@@ -25,7 +25,16 @@ public static class DataServiceCollectionExtensions
     /// and the context itself as a scoped service (for the common request-scoped
     /// injection), so it is the only registration the hosts need.
     /// </summary>
-    public static IServiceCollection AddTrueMainData(this IServiceCollection services, IConfiguration configuration)
+    /// <param name="services">The host's service collection.</param>
+    /// <param name="configuration">The host configuration holding <c>ConnectionStrings:TrueMain</c>.</param>
+    /// <param name="retryTransientFailures">When true, the context runs with
+    /// <see cref="TransientConnectionRetryStrategy"/>. Only the API opts in: a retrying
+    /// strategy rejects unwrapped user-initiated transactions, which the Ingestor relies on
+    /// (#1634).</param>
+    public static IServiceCollection AddTrueMainData(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool retryTransientFailures = false)
     {
         // Registered as a singleton so the pool and its type mappings are shared
         // process-wide and the source is disposed with the container. The connection
@@ -37,10 +46,30 @@ public static class DataServiceCollectionExtensions
             GetRequiredConnectionString(configuration),
             serviceProvider.GetService<ILoggerFactory>()));
         services.AddDbContextFactory<TrueMainDbContext>(
-            (serviceProvider, options) => options.UseNpgsql(serviceProvider.GetRequiredService<NpgsqlDataSource>()));
+            (serviceProvider, options) => ConfigureNpgsql(
+                options,
+                serviceProvider.GetRequiredService<NpgsqlDataSource>(),
+                retryTransientFailures));
 
         return services;
     }
+
+    /// <summary>
+    /// Points <paramref name="options"/> at <paramref name="dataSource"/> the way
+    /// <see cref="AddTrueMainData"/> does, so a test can build the exact runtime wiring
+    /// (execution strategy included) around its own data source.
+    /// </summary>
+    public static DbContextOptionsBuilder ConfigureNpgsql(
+        DbContextOptionsBuilder options,
+        NpgsqlDataSource dataSource,
+        bool retryTransientFailures)
+        => options.UseNpgsql(dataSource, npgsql =>
+        {
+            if (retryTransientFailures)
+            {
+                npgsql.ExecutionStrategy(dependencies => new TransientConnectionRetryStrategy(dependencies));
+            }
+        });
 
     /// <summary>
     /// Builds an <see cref="NpgsqlDataSource"/> with <c>EnableDynamicJson</c> for

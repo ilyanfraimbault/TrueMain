@@ -94,7 +94,7 @@ public sealed class MatchParticipantEloBracketEnrichmentProcess(
                 .ToDictionary(
                     group => group.Key,
                     group => (IReadOnlyCollection<(DateTime, string?)>)group
-                        .Select(snapshot => (snapshot.CapturedAtUtc, (string?)snapshot.Tier))
+                        .Select(snapshot => (snapshot.CapturedAtUtc, (string?)snapshot.Tier.ToRiotName()))
                         .ToList());
 
             // Resolve each row's band, then group ids by band so the writes are a

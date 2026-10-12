@@ -1,3 +1,5 @@
+using Core.Lol.Ranking;
+
 namespace Data.Entities;
 
 public class RankSnapshot
@@ -10,9 +12,9 @@ public class RankSnapshot
 
     public DateTime CapturedAtUtc { get; set; }
 
-    public string Tier { get; set; } = string.Empty;
+    public RankTier Tier { get; set; }
 
-    public string Division { get; set; } = string.Empty;
+    public RankDivision Division { get; set; }
 
     public int LeaguePoints { get; set; }
 
