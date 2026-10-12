@@ -209,6 +209,10 @@ public sealed class MatchSnapshotWriter(
         }
 
         var activity = await RecordMainActivityAsync(session, plan, platformId, ct);
+        await session.RiotAccounts.RecordMatchSummonerProfilesAsync(
+            platformId,
+            BuildSummonerObservations(plan),
+            ct);
 
         return new SnapshotIngestionResult(
             plan.AllMatchIds,
@@ -252,6 +256,32 @@ public sealed class MatchSnapshotWriter(
             .AddDays(-Math.Max(0, mainActivityOptions.Value.InactiveAfterDays));
 
         return await session.MainChampionStats.RecordMatchActivityAsync(platformId, observations, activeSinceUtc, ct);
+    }
+
+    /// <summary>
+    /// Every match-v5 participant carries its profile icon and summoner level, so the accounts
+    /// a fresh match names get them at no Riot cost (#2002). Without this, an account the
+    /// harvest created never has an icon: account-v1 does not return one, and summoner-v4 is
+    /// only called by ladder discovery and the manual seed.
+    /// </summary>
+    private static List<MatchSummonerObservation> BuildSummonerObservations(SnapshotIngestionPlan plan)
+    {
+        var observations = new List<MatchSummonerObservation>(plan.TargetMatches.Count * 10);
+        foreach (var (_, dto) in plan.TargetMatches)
+        {
+            if (RiotValueConverters.ToUtcDateTime(dto.Info.GameStartTimestamp) is not { } playedAtUtc)
+            {
+                continue;
+            }
+
+            observations.AddRange(dto.Info.Participants.Select(participant => new MatchSummonerObservation(
+                participant.Puuid,
+                participant.ProfileIcon,
+                participant.SummonerLevel,
+                playedAtUtc)));
+        }
+
+        return observations;
     }
 
     private static void PersistMatch(

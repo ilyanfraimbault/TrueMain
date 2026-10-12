@@ -75,6 +75,14 @@ public class RiotAccount
     /// </summary>
     public DateTime? LastSeenInMatchAtUtc { get; set; }
 
+    /// <summary>
+    /// When <see cref="ProfileIconId"/> and <see cref="SummonerLevel"/> were last observed:
+    /// the summoner-v4 read time, or the start of the ingested match that carried them (#2002).
+    /// Match ingestion only overwrites them from a game newer than this, so replaying an old
+    /// match never brings back a stale icon. Null until either source has seen the account.
+    /// </summary>
+    public DateTime? SummonerObservedAtUtc { get; set; }
+
     public MatchIngestStatus MatchIngestStatus { get; set; } = MatchIngestStatus.Idle;
 
     public DateTime? MatchIngestClaimedAtUtc { get; set; }
