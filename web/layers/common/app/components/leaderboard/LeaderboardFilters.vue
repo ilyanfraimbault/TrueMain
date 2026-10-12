@@ -26,15 +26,18 @@ const emit = defineEmits<{
 interface RegionItem {
   label: string
   value: RegionSlug | null
+  icon: string
 }
 
 // `null` value = "All regions" — keeps the select tri-state without
-// needing an extra affordance to clear the field.
+// needing an extra affordance to clear the field. Flags go through the
+// items' native `icon`, so Nuxt UI sizes them to the label's line height
+// in both the trigger and the menu rows.
 const REGION_OPTIONS: RegionItem[] = [
-  { label: 'All regions', value: null },
-  { label: 'Europe', value: 'europe' },
-  { label: 'Americas', value: 'americas' },
-  { label: 'Korea', value: 'korea' },
+  { label: 'All regions', value: null, icon: 'i-lucide-globe' },
+  { label: 'Europe', value: 'europe', icon: 'i-circle-flags-european-union' },
+  { label: 'Americas', value: 'americas', icon: 'i-circle-flags-us' },
+  { label: 'Korea', value: 'korea', icon: 'i-circle-flags-kr' },
 ]
 
 const selectedRegion = computed<RegionItem>(() =>
@@ -74,21 +77,14 @@ function onRegionChange(item: RegionItem | undefined) {
     </div>
 
     <!-- Region: rightmost, single dropdown so the strip stays compact and
-         each region is reachable in one click. The flag renders in both
-         the trigger and the option rows via USelectMenu slots. -->
+         each region is reachable in one click. -->
     <USelectMenu
       :model-value="selectedRegion"
       :items="REGION_OPTIONS"
+      :icon="selectedRegion.icon"
       :search-input="false"
       class="w-40"
       @update:model-value="onRegionChange"
-    >
-      <template #leading>
-        <LeaderboardRegionFlag :region="selectedRegion.value" :width="18" />
-      </template>
-      <template #item-leading="{ item }">
-        <LeaderboardRegionFlag :region="(item as RegionItem).value" :width="18" />
-      </template>
-    </USelectMenu>
+    />
   </div>
 </template>
