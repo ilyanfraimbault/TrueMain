@@ -86,7 +86,7 @@ async function remove() {
             <span class="font-medium text-default">{{ kda.line }}</span>
             <span class="text-muted">{{ kda.ratio }}</span>
           </template>
-          <span v-else-if="item.status !== 'ready'" class="text-dimmed">Waiting for the match history</span>
+          <span v-else-if="item.status === 'processing'" class="text-dimmed">Waiting for the match history</span>
           <span class="truncate text-dimmed">{{ getQueueLabel(item.queueId) }}</span>
         </p>
       </div>
