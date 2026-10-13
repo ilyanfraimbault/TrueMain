@@ -29,6 +29,18 @@ public interface IRiotAccountRepository
     Task<List<AccountKey>> GetAccountsForMainAnalysisAsync(DateTime cutoff, int batchSize, CancellationToken ct);
 
     /// <summary>
+    /// Sets <see cref="RiotAccount.LastMainCalcAtUtc"/> on <paramref name="accounts"/>, set-based:
+    /// never checked against <c>xmin</c>, which the fetch lane bumps concurrently (#2046).
+    /// </summary>
+    Task<int> StampLastMainCalcAsync(IReadOnlyCollection<AccountKey> accounts, DateTime atUtc, CancellationToken ct);
+
+    /// <summary>
+    /// Sets <see cref="RiotAccount.LastActivityCheckAtUtc"/> on <paramref name="accounts"/>,
+    /// set-based for the same reason as <see cref="StampLastMainCalcAsync"/> (#2046).
+    /// </summary>
+    Task<int> StampLastActivityCheckAsync(IReadOnlyCollection<AccountKey> accounts, DateTime atUtc, CancellationToken ct);
+
+    /// <summary>
     /// Accounts holding at least one <c>IsMain</c> stat whose champion-mastery activity
     /// check is due (never checked first, then oldest). Includes accounts already marked
     /// inactive — that check is their way back to active when no ingested match brings

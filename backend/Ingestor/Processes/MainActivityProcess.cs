@@ -116,11 +116,13 @@ public sealed class MainActivityProcess(
         var summary = new ActivitySummary();
         await using var session = await sessionFactory.CreateAsync(ct);
 
-        // Tracked on purpose: the IsActive flips, the mastery facts and the
-        // LastActivityCheckAtUtc stamps below are change-tracked mutations of these very entities, flushed once at the
-        // end of the run.
+        // Tracked on purpose: the IsActive flips and the mastery facts below are
+        // change-tracked mutations of these very entities, flushed once at the end of the
+        // run. The accounts are not loaded: held across a whole run of mastery calls, a
+        // tracked stamp lost the xmin race to any fetch-lane write to the row (#2046), so
+        // LastActivityCheckAtUtc is stamped set-based instead.
         var statsByAccount = await session.MainChampionStats.GetByAccountsAsync(accounts, ct);
-        var accountEntitiesByKey = await session.RiotAccounts.GetByKeysAsync(accounts, ct);
+        var checkedAccounts = new List<AccountKey>(accounts.Count);
         var inactiveBefore = nowUtc.AddDays(-Math.Max(0, options.InactiveAfterDays));
 
         foreach (var account in accounts)
@@ -135,10 +137,7 @@ public sealed class MainActivityProcess(
                 // and the selection is ordered by this very column, so not stamping it
                 // parks the row at the head of every batch forever, consuming the slot of
                 // an account that could actually be checked (#1223).
-                if (accountEntitiesByKey.TryGetValue(account, out var unusableAccount))
-                {
-                    unusableAccount.LastActivityCheckAtUtc = nowUtc;
-                }
+                checkedAccounts.Add(account);
 
                 logger.ActivityInvalidPlatform(account.Puuid, account.PlatformId);
                 summary.Skipped++;
@@ -167,15 +166,15 @@ public sealed class MainActivityProcess(
             var stats = statsByAccount.TryGetValue(account, out var accountStats) ? accountStats : [];
             ApplyVerdict(stats, masteries, inactiveBefore, summary);
 
-            if (accountEntitiesByKey.TryGetValue(account, out var accountEntity))
-            {
-                accountEntity.LastActivityCheckAtUtc = nowUtc;
-            }
-
+            checkedAccounts.Add(account);
             summary.Checked++;
         }
 
+        // One unit, as the single SaveChanges was: a stamp never lands without its verdict.
+        await using var transaction = await session.BeginTransactionAsync(ct);
         await session.SaveChangesAsync(ct);
+        await session.RiotAccounts.StampLastActivityCheckAsync(checkedAccounts, nowUtc, ct);
+        await transaction.CommitAsync(ct);
         return summary;
     }
 

@@ -110,13 +110,13 @@ public sealed class MainAnalysisProcess(
 
         // Reads stay outside the transaction (#264): they only feed an in-memory
         // computation and take no row locks, so running them under BEGIN extended
-        // the lock lifetime for nothing. The stats and accounts must stay TRACKED —
-        // the writes below are change-tracked mutations of these very entities
-        // (in-place stat updates, Remove, LastMainCalcAtUtc stamping) — so no
-        // AsNoTracking here; the participant rows are already an untracked raw-SQL
-        // projection, capped at MatchesToConsider rows per account.
+        // the lock lifetime for nothing. The stats must stay TRACKED — the writes
+        // below are change-tracked mutations of these very entities (in-place stat
+        // updates, Remove) — so no AsNoTracking here; the participant rows are already
+        // an untracked raw-SQL projection, capped at MatchesToConsider rows per account.
+        // The accounts are not loaded at all: their LastMainCalcAtUtc stamp is set-based
+        // (#2046), so the fetch lane's concurrent writes to the row cannot fail the run.
         var existingStatsByAccount = await session.MainChampionStats.GetByAccountsAsync(batch, ct);
-        var accountEntitiesByKey = await session.RiotAccounts.GetByKeysAsync(batch, ct);
         var participantRowsByAccount = await session.MatchParticipants
             .GetRecentParticipantsByAccountsAsync(batch, (int)options.QueueId, Math.Max(1, options.MatchesToConsider), ct);
 
@@ -130,7 +130,6 @@ public sealed class MainAnalysisProcess(
                 account,
                 participantRowsByAccount,
                 existingStatsByAccount,
-                accountEntitiesByKey,
                 options,
                 coverage,
                 nowUtc,
@@ -144,6 +143,9 @@ public sealed class MainAnalysisProcess(
         // .RunAsync_ShouldRollBackStatWrites_WhenDemotionFails.
         await using var transaction = await session.BeginTransactionAsync(ct);
         await session.SaveChangesAsync(ct);
+        // Every account of the batch is stamped, the thin-sample ones included: they
+        // wait a full recompute cycle before the next try.
+        await session.RiotAccounts.StampLastMainCalcAsync(batch, nowUtc, ct);
         summary.DemotedAccounts += await DemoteCandidatesAsync(session, accountsToDemote, ct);
         await transaction.CommitAsync(ct);
         return summary;
@@ -154,7 +156,6 @@ public sealed class MainAnalysisProcess(
         AccountKey account,
         IReadOnlyDictionary<AccountKey, List<ParticipantRow>> participantRowsByAccount,
         IReadOnlyDictionary<AccountKey, List<MainChampionStat>> existingStatsByAccount,
-        IReadOnlyDictionary<AccountKey, RiotAccount> accountEntitiesByKey,
         MainAnalysisOptions options,
         ChampionCoverageSnapshot coverage,
         DateTime nowUtc,
@@ -218,14 +219,13 @@ public sealed class MainAnalysisProcess(
             {
                 MarkSampleRetired(existingStats, summary);
             }
-            TouchAccountLastMainCalc(account, accountEntitiesByKey, nowUtc);
+
             summary.Processed++;
             return summary;
         }
 
         var newStatsByChampion = newStats.ToDictionary(stat => stat.ChampionId);
         ApplyStatsDelta(session, existingStats, newStats, summary);
-        TouchAccountLastMainCalc(account, accountEntitiesByKey, nowUtc);
 
         var shouldDemote = mainDemotionPolicy.ShouldDemote(
             existingStats,
@@ -271,17 +271,6 @@ public sealed class MainAnalysisProcess(
 
             stat.IsSampleRetired = true;
             summary.SampleRetired++;
-        }
-    }
-
-    private static void TouchAccountLastMainCalc(
-        AccountKey account,
-        IReadOnlyDictionary<AccountKey, RiotAccount> accountEntitiesByKey,
-        DateTime nowUtc)
-    {
-        if (accountEntitiesByKey.TryGetValue(account, out var accountEntity))
-        {
-            accountEntity.LastMainCalcAtUtc = nowUtc;
         }
     }
 
