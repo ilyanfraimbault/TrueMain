@@ -462,6 +462,17 @@ read as modern and the other pages of both apps did not. Option A was chosen ove
   banner there was declined. One champion banner (`ChampionHero`) on the champion page, the player-scoped champion
   page (the player's games and win rate, no figures row: the trend is every rank) and the app's champion page, and
   one tier mark (`TierBadge`, `stacked` over art) on every surface of both apps (#2026).
+- **One rank emblem, one rank label** (2026-10-13, #2025). A row that cannot write the rank draws `RankEmblem`:
+  the crest at 24 px, the division beside it below the apex (`text-xs`), the profile card's `RankSummary` on hover
+  — the truemains table, the champion page's rows, the home teaser, the app's build mains and the match scoreboard
+  (crest only, 18 px). The table's variant won where the copies had drifted (the home teaser and the champion page
+  drew a 26 px crest with a `text-sm` division). Every rank written out goes through `formatRank` /
+  `formatTierName` / `formatLeaguePoints` (`utils/tiers.ts`): **title case**, the way the client prints it —
+  `Diamond II · 1,204 LP`, `Master` with no division at the apex — on the pages, the tooltips, the crest's own
+  title and the share card; the capitals `DIAMOND II` of the old `formatTier` are gone. The truemains table and the
+  champion page's rows share their columns (`LeaderboardLanes`, `LeaderboardChampions`, `LeaderboardScore`,
+  `RankEmblem`, `OtpBadge`) and their derived values (`utils/leaderboard-row.ts`) (#2028); the one OTP pill is the
+  table's (`py-px`, `leading-none`), the profile's main champions included.
 - **One profile page for both apps** (`page/PlayerProfile.vue`): the site's `/truemains/{nameTag}`, the app's
   dashboard and the app's own profile route (other players open in the app, no longer on the site). Banner on the
   champion the player truemains (the client's chosen skin on the dashboard: Riot's API does not serve it); four form
