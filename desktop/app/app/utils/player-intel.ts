@@ -117,9 +117,6 @@ export function recentWinRate(form: PlayerForm): number | null {
 
 export const isRanked = (rank: RankedQueue) => Boolean(rank.tier) && rank.tier !== 'NONE'
 
-/** `Gold`, `Grandmaster`: the tier the way the line prints it. */
-export const tierName = (tier: string) => tier.charAt(0) + tier.slice(1).toLowerCase()
-
 /** The season's record in that queue, as a share; null with no game. */
 export function seasonWinRate(rank: RankedQueue): number | null {
   const games = rank.wins + rank.losses

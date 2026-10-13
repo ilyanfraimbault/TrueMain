@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { GameState } from '~/types/game'
 import type { PaceComparison, PaceReference, PaceStanding } from '~/utils/pace-benchmark'
-import { tierLabel } from '~/utils/pace-benchmark'
+import { formatTierName } from '#common/utils/tiers'
 
 /**
  * Our pace: CS per minute, with its curve so a glance says whether it is
@@ -24,7 +24,7 @@ const last = computed(() => samples.value.at(-1) ?? null)
 const csPerMinute = computed(() => (last.value ? last.value.cs / last.value.minute : 0))
 const goldPerMinute = computed(() => (last.value ? Math.round(last.value.gold / last.value.minute) : 0))
 
-const tier = computed(() => (props.reference ? tierLabel(props.reference.tier) : null))
+const tier = computed(() => (props.reference ? formatTierName(props.reference.tier) : null))
 
 const STANDING: Record<PaceStanding, { icon: string, tone: string }> = {
   above: { icon: 'i-lucide-arrow-up', tone: 'text-data-good' },

@@ -47,11 +47,6 @@ export interface PaceReference {
   csCurve: { minute: number, value: number }[]
 }
 
-/** The tier name as a reader writes it: `GRANDMASTER` → `Grandmaster`. */
-export function tierLabel(tier: string): string {
-  return tier.charAt(0) + tier.slice(1).toLowerCase()
-}
-
 function standing(value: number, quartiles: PaceQuartiles): PaceStanding {
   if (value < quartiles.p25) return 'below'
   if (value > quartiles.p75) return 'above'

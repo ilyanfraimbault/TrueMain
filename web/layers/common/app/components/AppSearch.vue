@@ -4,7 +4,7 @@ import { isNavigationFailure } from 'vue-router'
 import { getPositionIconUrl, getProfileIconUrl } from '#shared/utils/ddragon'
 import type { SearchResult } from '#shared/types/search'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { formatTier } from '#common/utils/tiers'
+import { formatRank } from '#common/utils/tiers'
 import { describeFetchError } from '#common/utils/errors'
 // Explicit (over Nuxt auto-import) so the template's {{ SEARCH_MIN_LENGTH }} has
 // a visible source.
@@ -513,7 +513,7 @@ defineShortcuts(computed(() => ({
               </div>
               <span
                 v-if="item.truemain?.ranked"
-                :title="formatTier(item.truemain.ranked.tier, item.truemain.ranked.division)"
+                :title="formatRank(item.truemain.ranked.tier, item.truemain.ranked.division)"
                 class="shrink-0"
               >
                 <RankIcon :tier="item.truemain.ranked.tier" :size="22" />

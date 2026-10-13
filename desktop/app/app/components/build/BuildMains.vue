@@ -3,7 +3,6 @@ import type { LeaderboardResponse, LeaderboardRowResponse, RegionSlug } from '#s
 import type { ProfileIdentity } from '#shared/types/profile'
 import type { SearchResult } from '#shared/types/search'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
-import { isApexTier } from '#common/utils/tiers'
 
 /**
  * The champion's best true mains — what the reference client lists as pro
@@ -191,29 +190,7 @@ const rows = computed<MainRow[] | null>(() => {
           <GameTooltipPerkIcon :perk="perk(row.keystoneId)" :width="22" :height="22" class="size-[22px] shrink-0 rounded-full" />
           <GameTooltipItemIcon :item="item(row.firstItemId)" :width="22" :height="22" class="size-[22px] shrink-0 rounded" />
         </div>
-        <UTooltip
-          v-if="row.ranked"
-          :delay-duration="150"
-          :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
-        >
-          <div class="relative z-10 flex shrink-0 items-center gap-0.5">
-            <RankIcon :tier="row.ranked.tier" :size="24" />
-            <span v-if="!isApexTier(row.ranked.tier)" class="text-xs font-semibold tabular-nums">{{ row.ranked.division }}</span>
-          </div>
-          <template #content>
-            <GameTooltipSurface>
-              <RankSummary
-                :tier="row.ranked.tier"
-                :division="row.ranked.division"
-                :league-points="row.ranked.leaguePoints"
-                :wins="row.ranked.wins"
-                :losses="row.ranked.losses"
-                :win-rate="row.ranked.winRate"
-                :size="32"
-              />
-            </GameTooltipSurface>
-          </template>
-        </UTooltip>
+        <RankEmblem v-if="row.ranked" :rank="row.ranked" :record="row.ranked" class="relative z-10" />
       </div>
     </template>
   </div>

@@ -3,7 +3,7 @@ import type { PersonaAccount } from '~~/shared/types/players'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { truemainNameTag } from '~~/shared/utils/truemain-path'
-import { isApexTier } from '#common/utils/tiers'
+import { formatRank } from '#common/utils/tiers'
 
 // One account of a known player (#2016). A tracked account is drawn the way
 // the leaderboard draws a truemain — identity linking to its profile, rank,
@@ -19,10 +19,7 @@ const nameTag = computed(() => truemainNameTag(props.account.gameName, props.acc
 
 const rankLabel = computed(() => {
   const ranked = props.account.ranked
-  if (!ranked) return null
-  const tier = ranked.tier.charAt(0) + ranked.tier.slice(1).toLowerCase()
-  const division = isApexTier(ranked.tier) ? '' : ` ${ranked.division}`
-  return `${tier}${division} · ${ranked.leaguePoints.toLocaleString('en-US')} LP`
+  return ranked ? formatRank(ranked.tier, ranked.division, { lp: ranked.leaguePoints }) : null
 })
 
 const winRate = computed(() => {
