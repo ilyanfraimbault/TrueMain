@@ -16,7 +16,7 @@ const props = defineProps<{
   championName: string | null
   /**
    * Why the reader is looking at the standard build instead of a matchup one.
-   * Rendered as a warning icon beside the title with this as its tooltip —
+   * Rendered as a warning dot beside the title with this as its tooltip —
    * never as prose, so the caveat never pushes the build down the page.
    */
   notice?: string | null
@@ -80,18 +80,9 @@ const itemContextIndex = computed(() => indexItemContext(itemContext.value?.item
         <h3 class="text-sm font-medium text-default">
           {{ cardTitle }}
         </h3>
-        <!-- Icon only, message in the tooltip — the same qualifier pattern the
+        <!-- Dot only, message in the tooltip — the same qualifier pattern the
              recommendation card uses for a thin sample. -->
-        <UTooltip
-          v-if="notice"
-          :text="notice"
-          :delay-duration="150"
-        >
-          <UIcon
-            name="i-lucide-triangle-alert"
-            class="size-4 text-warning"
-          />
-        </UTooltip>
+        <WarningDot v-if="notice" :text="notice" />
       </div>
     </template>
     <ChampionBuildCoreSkeleton v-if="status === 'pending'" />

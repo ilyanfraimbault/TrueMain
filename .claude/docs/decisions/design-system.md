@@ -485,3 +485,10 @@ read as modern and the other pages of both apps did not. Option A was chosen ove
 - **One match detail** (`MatchDetailPanel`): full-width tabs Overview / Timeline / Build / Runes. The timeline's
   turning points are read on the curve — the hovered minute's events in the tooltip — never as a list under it.
   Build keeps the site's skill-order grid; Runes shows all ten players. The app's own copies were removed.
+- **A qualifier is a dot, not a triangle** (2026-10-13). The thin-sample caveat on the champion banner and the
+  player's champion heading, the retired count on a profile main, the builder's thin-sample and standard-build
+  fallback notes all drew `i-lucide-triangle-alert` in the warning colour — louder than the number it qualified,
+  and repeated on every one of those surfaces. They now share `WarningDot`: a 6 px dot in `bg-warning`, an idle-status mark, the
+  explanation in its tooltip, cut to the fact itself (`Only 14 games on record`, `Last measured on 1 Aug, games
+  since aged out`) — the advisory tails ("treat it as a rough signal…") are gone. The triangle stays where it
+  heads a message of its own: alerts, toasts, error pages.

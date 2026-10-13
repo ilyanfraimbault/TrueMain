@@ -59,7 +59,7 @@ export function useChampionSliceControls(options: {
     notEnoughData.value && selectedEloBracket.value !== ELO_BRACKET_ALL,
   )
 
-  // Thin-sample qualifier, carried by the header's warning-triangle tooltip (the
+  // Thin-sample qualifier, carried by the header's warning-dot tooltip (the
   // idiom the retired-sample card and the builder panels already use) rather than
   // a full-width alert: it qualifies the numbers, it is not news.
   //
@@ -80,7 +80,7 @@ export function useChampionSliceControls(options: {
     const scope = selectedEloBracket.value === ELO_BRACKET_ALL
       ? countedGames
       : `${countedGames} in ${eloBracketLabel(selectedEloBracket.value)}`
-    return `Only ${scope}, so this build isn't very representative.`
+    return `Only ${scope}`
   })
 
   // When useChampion's 404 fallback drops the URL filters (no data for the

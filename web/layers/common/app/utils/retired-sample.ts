@@ -11,7 +11,7 @@ import { formatMatchDay } from '#common/utils/match-history'
  * champion page had nothing to show for.
  *
  * The date used to be printed inline as well, as an `as of 1 Aug` suffix beside
- * the count; #1275 dropped it. The warning glyph and this tooltip carry the
+ * the count; #1275 dropped it. The warning dot and this tooltip carry the
  * qualifier on their own, and the row's job is the count — an every-row date on
  * a card of five mains read as clutter, not as candour.
  *
@@ -28,6 +28,5 @@ export function retiredSampleTooltip(
   const day = formatMatchDay(measuredAtUtc, now)
   if (!day) return null
 
-  return `Last measured on ${day}. The games behind this count have since aged out of `
-    + `our retention window, so it reflects what we held then, not what this player has played since.`
+  return `Last measured on ${day}, games since aged out`
 }

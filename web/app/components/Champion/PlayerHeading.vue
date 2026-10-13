@@ -70,16 +70,7 @@ const winRateLabel = computed(() =>
           </UTooltip>
           <span v-if="totalGames === 0">No games on this slice</span>
           <span v-else>{{ formatCount(totalGames) }} games{{ winRateLabel }}</span>
-          <UTooltip
-            v-if="lowSampleMessage"
-            :text="lowSampleMessage"
-            :delay-duration="150"
-          >
-            <UIcon
-              name="i-lucide-triangle-alert"
-              class="size-4 text-warning"
-            />
-          </UTooltip>
+          <WarningDot v-if="lowSampleMessage" :text="lowSampleMessage" />
         </template>
       </div>
     </div>

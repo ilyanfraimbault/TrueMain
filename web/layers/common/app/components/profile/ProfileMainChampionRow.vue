@@ -42,9 +42,7 @@ defineSlots<{
         <OtpBadge v-if="isOtp" />
         <!-- Same idiom as the champion header's thin-sample qualifier: the
              explanation lives in the tooltip so it never crowds the row. -->
-        <UTooltip v-if="retiredNote" :text="retiredNote" :delay-duration="150">
-          <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0 text-warning" />
-        </UTooltip>
+        <WarningDot v-if="retiredNote" :text="retiredNote" />
       </div>
       <div class="flex items-center gap-1 text-[11px] text-muted tabular-nums">
         <SkeletonImage

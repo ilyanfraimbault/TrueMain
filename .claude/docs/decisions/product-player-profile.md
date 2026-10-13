@@ -221,3 +221,9 @@ shows.
 others. The first `personas` table (dropped in #1244) was half-built with no consumer; this one ships with its reader.
 
 **Source.** #2016.
+
+**A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
+each main's name, so the count would name its denominator next to the champion page's per-patch count. On the
+card it read as clutter: the play rate on the right already says the share of the recent window, and the
+sample line repeated it in another form. The line is gone; the app's dashboard still fills the row's `meta`
+slot with its own figures (`DashboardChampionsCard`). A retired main keeps its warning dot.
