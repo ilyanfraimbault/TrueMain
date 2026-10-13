@@ -1,29 +1,52 @@
 import { getPositionIconUrl } from '#shared/utils/ddragon'
 
-export type ChampionPosition = 'TOP' | 'JUNGLE' | 'MIDDLE' | 'BOTTOM' | 'UTILITY'
+/** The five positions, in lane order (top → support): every list of them reads in this order. */
+export const POSITIONS = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const
 
-export const POSITION_OPTIONS: Array<{ label: string, value: ChampionPosition, iconUrl: string }> = [
-  { label: 'Top', value: 'TOP', iconUrl: getPositionIconUrl('TOP') },
-  { label: 'Jungle', value: 'JUNGLE', iconUrl: getPositionIconUrl('JUNGLE') },
-  { label: 'Middle', value: 'MIDDLE', iconUrl: getPositionIconUrl('MIDDLE') },
-  { label: 'Bottom', value: 'BOTTOM', iconUrl: getPositionIconUrl('BOTTOM') },
-  { label: 'Support', value: 'UTILITY', iconUrl: getPositionIconUrl('UTILITY') },
+export type ChampionPosition = (typeof POSITIONS)[number]
+
+export interface PositionOption {
+  value: ChampionPosition
+  /** The position's name: `Middle`, `Bottom`. */
+  label: string
+  /** The short form for tight rows (the desktop app's draft, game and recap screens): `Mid`, `Bot`. */
+  shortLabel: string
+  iconUrl: string
+}
+
+export const POSITION_OPTIONS: PositionOption[] = [
+  { label: 'Top', shortLabel: 'Top', value: 'TOP', iconUrl: getPositionIconUrl('TOP') },
+  { label: 'Jungle', shortLabel: 'Jungle', value: 'JUNGLE', iconUrl: getPositionIconUrl('JUNGLE') },
+  { label: 'Middle', shortLabel: 'Mid', value: 'MIDDLE', iconUrl: getPositionIconUrl('MIDDLE') },
+  { label: 'Bottom', shortLabel: 'Bot', value: 'BOTTOM', iconUrl: getPositionIconUrl('BOTTOM') },
+  { label: 'Support', shortLabel: 'Support', value: 'UTILITY', iconUrl: getPositionIconUrl('UTILITY') },
 ]
 
 /**
  * POSITION_OPTIONS keyed by value, for O(1) lookups from row data (which
  * carries the position as a plain string).
  */
-export const POSITION_BY_VALUE: ReadonlyMap<string, typeof POSITION_OPTIONS[number]>
+export const POSITION_BY_VALUE: ReadonlyMap<string, PositionOption>
   = new Map(POSITION_OPTIONS.map(option => [option.value as string, option]))
 
 export function isChampionPosition(value: unknown): value is ChampionPosition {
-  return typeof value === 'string' && POSITION_OPTIONS.some(o => o.value === value)
+  return typeof value === 'string' && POSITION_BY_VALUE.has(value)
 }
 
-function positionIndex(position: string | null | undefined): number {
-  const index = POSITION_OPTIONS.findIndex(o => o.value === position)
-  return index === -1 ? POSITION_OPTIONS.length : index
+/**
+ * A position's name, `short` for the tight rows' form; null for a string that is
+ * no position (an empty slot, a remake's blank), so the caller decides what stands in.
+ */
+export function positionLabel(position: string | null | undefined, options: { short?: boolean } = {}): string | null {
+  const option = position ? POSITION_BY_VALUE.get(position) : undefined
+  if (!option) return null
+  return options.short ? option.shortLabel : option.label
+}
+
+/** A position's place in lane order; a missing or unknown one sorts last. */
+export function positionIndex(position: string | null | undefined): number {
+  const index = position ? (POSITIONS as readonly string[]).indexOf(position) : -1
+  return index === -1 ? POSITIONS.length : index
 }
 
 /**

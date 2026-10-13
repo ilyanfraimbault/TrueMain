@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { MatchDetailParticipant } from '#shared/types/match-detail'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
+import { championDisplayName } from '#shared/utils/champion-name'
+import { formatPercentage } from '#shared/utils/ddragon'
 import type { MatchWinProbability } from '#shared/types/win-probability'
 import {
   describeObjective,
@@ -35,11 +37,14 @@ const points = computed(() => props.winProbability.points.map((point) => {
   const p = forTeam(point.p, props.perspectiveTeamId, 'probability')
   return { ms: point.ms, p, x: x(point.ms), y: y(p) }
 }))
-const final = computed(() => Math.round((points.value.at(-1)?.p ?? 0.5) * 100))
+const final = computed(() => formatPercentage(points.value.at(-1)?.p ?? 0.5, 0))
+
+const championsById = useChampionsById(() => props.champions)
+const championIdByParticipant = computed(() => new Map(props.participants.map(p => [p.participantId, p.championId])))
 
 function championName(participantId: number) {
-  const championId = props.participants.find(p => p.participantId === participantId)?.championId
-  return props.champions.find(c => c.championId === championId)?.name ?? 'Champion'
+  const championId = championIdByParticipant.value.get(participantId) ?? 0
+  return championDisplayName(championId, championsById.value.get(championId))
 }
 
 const swings = computed(() => props.winProbability.swings.slice(0, SWINGS_SHOWN).map((swing, index) => ({
@@ -88,7 +93,7 @@ function onMove(event: PointerEvent) {
   hoverMs.value = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width)) * width.value
 }
 
-const summary = computed(() => `Win probability over the game, ending at ${final.value}% for your side`)
+const summary = computed(() => `Win probability over the game, ending at ${final.value} for your side`)
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '#shared/utils/champion-name'
 import type { MatchDetailParticipant } from '#shared/types/match-detail'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { getPositionIconUrl } from '#shared/utils/ddragon'
@@ -15,7 +16,7 @@ const props = defineProps<{
 const selected = defineModel<number | null>({ required: true })
 
 const championById = computed(() => new Map(props.champions.map(c => [c.championId, c])))
-const championName = (championId: number) => championById.value.get(championId)?.name ?? `Champion ${championId}`
+const championName = (championId: number) => championDisplayName(championId, championById.value.get(championId))
 </script>
 
 <template>

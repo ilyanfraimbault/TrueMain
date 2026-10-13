@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatCount } from '~~/shared/utils/counts'
+import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
 
@@ -44,7 +46,7 @@ const winRateLabel = computed(() =>
         v-else
         class="truncate text-lg font-semibold leading-tight text-highlighted"
       >
-        {{ championName ?? `Champion ${championId}` }} build
+        {{ championDisplayName(championId, championName) }} build
       </h2>
       <div class="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted">
         <USkeleton
@@ -67,7 +69,7 @@ const winRateLabel = computed(() =>
             />
           </UTooltip>
           <span v-if="totalGames === 0">No games on this slice</span>
-          <span v-else>{{ totalGames.toLocaleString('en-US') }} games{{ winRateLabel }}</span>
+          <span v-else>{{ formatCount(totalGames) }} games{{ winRateLabel }}</span>
           <UTooltip
             v-if="lowSampleMessage"
             :text="lowSampleMessage"

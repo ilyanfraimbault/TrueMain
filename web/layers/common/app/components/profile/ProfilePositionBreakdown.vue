@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ProfilePositionStat } from '#shared/types/profile'
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
+import { positionLabel } from '#common/utils/positions'
 
 // Each role's share of the player's games, main role first. The app's
 // dashboard adds how the player fares on each through the `games` slot
@@ -17,22 +18,13 @@ defineSlots<{
   games?: (props: { role: ProfilePositionStat }) => unknown
 }>()
 
-// Riot-stored position string → community display label. "MIDDLE" reads
-// fine but the rest are friendlier with the labels players use in chat
-// (MID / ADC / SUPPORT). Sorted by games desc so the player's main role
-// always sits at the top of the list.
-const POSITION_LABELS: Record<string, string> = {
-  TOP: 'TOP',
-  JUNGLE: 'JUNGLE',
-  MIDDLE: 'MID',
-  BOTTOM: 'ADC',
-  UTILITY: 'SUPPORT',
-}
-
+// Each position under its one name (`positions.ts`), the name the filters and
+// the match rows use. Sorted by games desc so the player's main role always
+// sits at the top of the list.
 const sorted = computed(() =>
   props.positions
     .filter(p => p.games > 0)
-    .map(stat => ({ stat, label: POSITION_LABELS[stat.position] ?? stat.position }))
+    .map(stat => ({ stat, label: positionLabel(stat.position) ?? stat.position }))
     .sort((a, b) => b.stat.games - a.stat.games),
 )
 </script>

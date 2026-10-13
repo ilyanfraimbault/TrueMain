@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPercentage } from '#shared/utils/ddragon'
 import { formatGameClock, formatSwingPoints } from '#common/utils/win-probability-swing'
 
 // What a hovered minute of the win-probability curve says: the clock and the
@@ -22,7 +23,7 @@ defineProps<{
   >
     <span class="tabular-nums">
       <span class="text-muted">{{ formatGameClock(ms) }}</span>
-      <span class="ml-1.5 font-semibold text-highlighted">{{ Math.round(chance * 100) }}%</span>
+      <span class="ml-1.5 font-semibold text-highlighted">{{ formatPercentage(chance, 0) }}</span>
     </span>
     <span v-for="swing in swings" :key="`hover-swing-${swing.index}`" class="flex items-center gap-2">
       <span class="size-1.5 shrink-0 rounded-full" :class="swing.ours ? 'bg-ally' : 'bg-enemy'" />

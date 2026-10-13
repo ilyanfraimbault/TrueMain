@@ -47,9 +47,9 @@ describe('leaderboardStatLabels', () => {
       .toEqual({ games: '1,204', kda: EMPTY_STAT, winRate: EMPTY_STAT })
   })
 
-  it('rounds the KDA to a tenth and the win rate to a percent', () => {
+  it('rounds the KDA to two decimals and the win rate to a percent', () => {
     const labels = leaderboardStatLabels({ games: 3, wins: 2, losses: 1, winRate: 2 / 3, kda: 3.456 })
-    expect(labels.kda).toBe('3.5')
+    expect(labels.kda).toBe('3.46')
     expect(labels.winRate).toBe('67%')
   })
 })

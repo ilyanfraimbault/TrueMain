@@ -151,6 +151,7 @@ Last verified against `develop` on 2026-09-02.
 - A player is drawn by one `Account` component (UUser + a canonical-URL `UAvatar`, rounded square) on both apps; the search palette is the exception; a Riot ID is written `gameName#tagLine` (2026-10-01, 2026-10-13) — #1734, #2027
 - A match is drawn by one `MatchRow` (the profile's 54 px design, one component per column, `@container` tiers from 320 px) and every list loads with `MatchRowSkeleton`; the open game reuses its columns and its result colours (`result-tone.ts`) (2026-10-13) — #2020, #2030
 - A day-grouped match list is drawn by one `MatchHistoryList` (skeletons, empty state, day headings, pager; hosts keep their headings and filters, row controls through its `actions` slot) (2026-10-13) — #2024
+- Every stat has one formatter: KDA (`kda.ts`, two decimals, `Perfect`), signed deltas (`deltas.ts`, rate moves in `pts`), percentages, counts, clocks, champion names and positions (2026-10-13) — #2031
 - A tooltip trigger keeps the same DOM element for the life of the component
 - Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698
 - A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15) — #1585

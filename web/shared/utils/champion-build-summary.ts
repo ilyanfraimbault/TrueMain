@@ -9,12 +9,8 @@ import type {
   SummaryEntity,
 } from '../types/champion-build-summary'
 import type { ChampionResponse } from '../types/champions'
-import type {
-  ChampionStaticData,
-  RuneTreeResponse,
-  StaticItemData,
-  StaticSummonerSpellData,
-} from '../types/static-data'
+import type { ChampionStaticData, RuneTreeResponse, StaticItemData, StaticSummonerSpellData } from '../types/static-data'
+import { formatCount } from './counts'
 import { formatPercentage } from './ddragon'
 
 /**
@@ -300,7 +296,7 @@ export function championBuildSentenceTokens(summary: ChampionBuildSummary): Buil
 
   const scope: BuildSummaryToken[] = [
     plain('Across '),
-    figure(summary.games.toLocaleString('en-US')),
+    figure(formatCount(summary.games)),
     plain(' ranked games'),
   ]
   if (summary.patch) scope.push(plain(' on patch '), figure(summary.patch))
@@ -346,7 +342,7 @@ export function championBuildSentenceTokens(summary: ChampionBuildSummary): Buil
     plain(' of those games and wins '),
     figure(formatPercentage(build.winRate)),
     plain(' of its '),
-    figure(build.games.toLocaleString('en-US')),
+    figure(formatCount(build.games)),
     plain(build.games === 1 ? ' game.' : ' games.'),
   ])
 

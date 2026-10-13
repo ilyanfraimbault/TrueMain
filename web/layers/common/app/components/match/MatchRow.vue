@@ -10,6 +10,7 @@
   `actions` slot.
 -->
 <script setup lang="ts">
+import { championDisplayName } from '#shared/utils/champion-name'
 import type { MatchSummaryResponse } from '#shared/types/matches'
 import type {
   ChampionStaticListItem,
@@ -42,7 +43,7 @@ function toggle() {
 const self = computed(() => props.match.self)
 const championById = computed(() => new Map(props.champions.map(c => [c.championId, c])))
 const champion = computed(() => championById.value.get(self.value.championId))
-const championName = computed(() => champion.value?.name ?? `Champion ${self.value.championId}`)
+const championName = computed(() => championDisplayName(self.value.championId, champion.value))
 
 const result = computed(() => resultTone(self.value.win))
 </script>

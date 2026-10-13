@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { ChampionComparisonSide } from '~~/shared/types/champions'
+import { formatCount } from '~~/shared/utils/counts'
 import { formatPercentage } from '~~/shared/utils/ddragon'
+import { formatPointDelta, formatSigned } from '~~/shared/utils/deltas'
+import { formatKdaRatio, KDA_DIGITS } from '~~/shared/utils/kda'
 
 // The account-vs-mains comparison's figures: one column per side, the sample
 // behind each in its header, and the account's delta under its value.
@@ -25,32 +28,30 @@ interface MetricRow {
   read: (side: ChampionComparisonSide) => number
 }
 
-const signed = (value: number, body: string) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${body}`
-
 const METRICS: MetricRow[] = [
   {
     label: 'Win rate',
     read: side => side.winRate,
     format: value => formatPercentage(value, 1),
-    formatDelta: value => signed(value, `${Math.abs(value * 100).toFixed(1)} pts`),
+    formatDelta: value => formatPointDelta(value),
   },
   {
     label: 'KDA',
     read: side => side.kda,
-    format: value => value.toFixed(2),
-    formatDelta: value => signed(value, Math.abs(value).toFixed(2)),
+    format: formatKdaRatio,
+    formatDelta: value => formatSigned(value, KDA_DIGITS),
   },
   {
     label: 'CS / min',
     read: side => side.csPerMin,
     format: value => value.toFixed(1),
-    formatDelta: value => signed(value, Math.abs(value).toFixed(1)),
+    formatDelta: value => formatSigned(value, 1),
   },
   {
     label: 'Gold / min',
     read: side => side.goldPerMin,
-    format: value => Math.round(value).toLocaleString('en-US'),
-    formatDelta: value => signed(value, Math.round(Math.abs(value)).toLocaleString('en-US')),
+    format: value => formatCount(Math.round(value)),
+    formatDelta: value => formatSigned(value),
   },
 ]
 

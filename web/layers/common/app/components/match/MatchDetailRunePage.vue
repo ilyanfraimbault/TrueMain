@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { MatchDetailParticipant } from '#shared/types/match-detail'
 import type { ChampionStaticListItem, RuneTreeResponse } from '#shared/types/static-data'
+import { championDisplayName } from '#shared/utils/champion-name'
 
 /**
  * Compact per-player rune summary tile, laid out in a 10-up grid on the Runes
@@ -9,14 +10,11 @@ import type { ChampionStaticListItem, RuneTreeResponse } from '#shared/types/sta
  */
 const props = defineProps<{
   participant: MatchDetailParticipant
-  champions: ChampionStaticListItem[]
+  champion: ChampionStaticListItem | null
   runeTree: RuneTreeResponse
 }>()
 
-const champ = computed(() =>
-  props.champions.find(c => c.championId === props.participant.championId) ?? null,
-)
-const champName = computed(() => champ.value?.name ?? `Champion ${props.participant.championId}`)
+const champName = computed(() => championDisplayName(props.participant.championId, props.champion))
 
 // Keystone is drawn as the badge on the portrait; the row below shows only the
 // three minor primary runes (selectionIndex > 0), preserving catalog order.
@@ -44,7 +42,7 @@ function perk(id: number) {
     <!-- Portrait + keystone badge -->
     <div class="relative">
       <SkeletonImage
-        :src="champ?.iconUrl"
+        :src="champion?.iconUrl"
         :alt="champName"
         :title="champName"
         class="size-12 rounded"

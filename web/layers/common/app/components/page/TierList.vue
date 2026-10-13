@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '#shared/utils/champion-name'
 // The tier list, as the site and the desktop app both render it (#1732): each
 // app's route file wraps this with its own head tags and nothing else.
 import type { ChampionTierListResponse } from '#shared/types/champions'
@@ -87,7 +88,7 @@ const tierGroups = computed(() =>
           const meta = nameById.value.get(entry.championId)
           return {
             ...entry,
-            name: meta?.name ?? `Champion ${entry.championId}`,
+            name: championDisplayName(entry.championId, meta),
             iconUrl: meta?.iconUrl ?? '',
           }
         }),

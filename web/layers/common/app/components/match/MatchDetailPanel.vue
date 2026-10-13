@@ -36,6 +36,7 @@ const { data: detail, isLoading, notFound } = readDetail(
 )
 
 const participants = computed(() => detail.value?.participants ?? [])
+const championsById = useChampionsById(() => props.champions)
 const blueTeam = computed(() => participants.value.filter(p => p.teamId === 100))
 const redTeam = computed(() => participants.value.filter(p => p.teamId === 200))
 const blueWin = computed(() => blueTeam.value[0]?.win ?? false)
@@ -154,7 +155,7 @@ const tabItems = computed(() => [
             v-for="p in participants"
             :key="`runes-${p.participantId}`"
             :participant="p"
-            :champions="champions"
+            :champion="championsById.get(p.championId) ?? null"
             :rune-tree="runeTree"
           />
         </div>

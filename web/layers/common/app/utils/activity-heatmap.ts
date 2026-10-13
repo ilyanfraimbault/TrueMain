@@ -1,4 +1,5 @@
 import type { ActivityBucket, ActivityMode, ActivitySeries } from '#shared/types/activity'
+import { formatPercentage } from '#shared/utils/ddragon'
 
 /**
  * The activity heatmap's presentation rules (#927, reshaped in #1473). Pure
@@ -160,6 +161,5 @@ export function activityBucketLabel(bucket: ActivityBucket, mode: ActivityMode):
 export function activityBucketResult(bucket: ActivityBucket): string {
   if (bucket.games <= 0 || bucket.winRate === null) return 'No games'
 
-  const rate = `${Math.round(bucket.winRate * 100)}%`
-  return `${bucket.wins}/${bucket.games} · ${rate}`
+  return `${bucket.wins}/${bucket.games} · ${formatPercentage(bucket.winRate, 0)}`
 }

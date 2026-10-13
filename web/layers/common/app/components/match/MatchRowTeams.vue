@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '#shared/utils/champion-name'
 import type { MatchSummaryParticipant } from '#shared/types/matches'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { riotIdLabel } from '#shared/utils/truemain-path'
@@ -18,7 +19,7 @@ const teams = computed(() => [
 ])
 
 function participantLabel(p: MatchSummaryParticipant): string {
-  const champion = props.championById.get(p.championId)?.name ?? `Champion ${p.championId}`
+  const champion = championDisplayName(p.championId, props.championById.get(p.championId))
   const role = p.position ? POSITION_BY_VALUE.get(p.position)?.label : null
   const who = p.gameName ? ` — ${riotIdLabel(p.gameName, p.tagLine)}` : ''
   return role ? `${champion} · ${role}${who}` : `${champion}${who}`

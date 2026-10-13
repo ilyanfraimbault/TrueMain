@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '~~/shared/utils/champion-name'
 import type { TruemainOgCard } from '~~/shared/types/og-card'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { formatDedicationScore } from '#common/utils/dedication'
@@ -188,7 +189,7 @@ const tiles = computed(() => {
             {{ main.isOtp ? 'ONE-TRICK' : 'MAIN' }}
           </div>
           <div :style="{ display: 'flex', marginTop: '4px', fontSize: '38px', fontWeight: 700, color: TEXT }">
-            {{ main.championName ?? `Champion ${main.championId}` }}
+            {{ championDisplayName(main.championId, main.championName) }}
           </div>
           <div :style="{ display: 'flex', marginTop: '4px', fontSize: '22px', color: TEXT_MUTED }">
             {{ formatPercentage(main.playRate, 0) }} of games

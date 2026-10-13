@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '#shared/utils/champion-name'
 // The champion directory, as the site and the desktop app both render it
 // (#1732): each app's route file wraps this with its own head tags and nothing
 // else.
@@ -106,7 +107,7 @@ const championsById = useChampionsById(staticList)
 const rows = computed(() =>
   summaries.value.map(summary => ({
     ...summary,
-    name: championsById.value.get(summary.championId)?.name ?? `Champion ${summary.championId}`,
+    name: championDisplayName(summary.championId, championsById.value.get(summary.championId)),
     iconUrl: championsById.value.get(summary.championId)?.iconUrl ?? '',
   })),
 )

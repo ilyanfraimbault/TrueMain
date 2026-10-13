@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPercentage } from '~~/shared/utils/ddragon'
 useSeoMeta({
   title: 'Charts playground',
   description: 'Visual review of the ChartsLineChart wrapper with mock data.',
@@ -64,7 +65,7 @@ const winrateXFormatter = (tick: number): string =>
   winrates[tick]?.patch ?? ''
 
 const winrateYFormatter = (tick: number): string =>
-  `${(tick * 100).toFixed(0)}%`
+  formatPercentage(tick, 0)
 </script>
 
 <template>

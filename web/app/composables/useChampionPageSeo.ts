@@ -1,3 +1,4 @@
+import { championDisplayName } from '~~/shared/utils/champion-name'
 type ChampionFilters = ReturnType<typeof useChampionFilters>['filters']
 
 /**
@@ -62,7 +63,7 @@ export function useChampionPageSeo(options: {
     defineBreadcrumb({
       itemListElement: [
         { name: 'Champions', item: '/champions' },
-        { name: () => seoDisplayName.value ?? `Champion ${championId.value}` },
+        { name: () => championDisplayName(championId.value, seoDisplayName.value) },
       ],
     }),
   ])
@@ -70,7 +71,7 @@ export function useChampionPageSeo(options: {
   // Visible breadcrumb, mirroring the schema.org hierarchy above.
   const breadcrumbItems = computed(() => [
     { label: 'Champions', to: '/champions' },
-    { label: seoDisplayName.value ?? `Champion ${championId.value}` },
+    { label: championDisplayName(championId.value, seoDisplayName.value) },
   ])
 
   return { shareTitle, shareDescription, breadcrumbItems }

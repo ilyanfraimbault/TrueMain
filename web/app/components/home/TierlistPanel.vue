@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '~~/shared/utils/champion-name'
 import type { ChampionOverviewRow } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
@@ -28,7 +29,7 @@ const rows = computed(() =>
     const champ = props.championsById.get(row.championId)
     return {
       ...row,
-      name: champ?.name ?? `Champion ${row.championId}`,
+      name: championDisplayName(row.championId, champ),
       iconUrl: champ?.iconUrl ?? '',
       positionOption: POSITION_BY_VALUE.get(row.position),
     }

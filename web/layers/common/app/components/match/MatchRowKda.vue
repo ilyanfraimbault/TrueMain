@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { MatchSummarySelf } from '#shared/types/matches'
+import { formatKda, kdaRatio } from '#shared/utils/kda'
 
 // K/D/A of a match row with the ratio under it. A fixed width, not a min-width:
 // a 12/2/15 game and a 4/8/8 game must take the same box, or every column to
@@ -8,12 +9,9 @@ const props = defineProps<{
   self: MatchSummarySelf
 }>()
 
-const ratio = computed(() => {
-  const { kills, deaths, assists } = props.self
-  return deaths === 0 ? Infinity : (kills + assists) / deaths
-})
-
-const ratioLabel = computed(() => Number.isFinite(ratio.value) ? `${ratio.value.toFixed(2)} KDA` : 'Perfect')
+// A deathless game is Perfect, the top of the scale whatever its kills.
+const ratio = computed(() => props.self.deaths === 0 ? Infinity : kdaRatio(props.self))
+const ratioLabel = computed(() => formatKda(props.self))
 
 // The data axis' three tones: gold for a standout (Perfect or 5+), the good end
 // for a solid game (3+), muted otherwise — gold being the MVP crown's token, a
