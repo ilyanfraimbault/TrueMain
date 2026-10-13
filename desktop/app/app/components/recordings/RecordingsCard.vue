@@ -2,7 +2,7 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 import type { LibraryItem } from '~/utils/recording-library'
 import { itemTitle, recordingKda, revealLabel } from '~/utils/recording-library'
-import { getQueueLabel } from '~/utils/queues'
+import { getQueueLabel } from '#common/utils/queues'
 
 /**
  * One card of the Recordings page, laid out as the reference's: the picture,

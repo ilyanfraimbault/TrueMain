@@ -20,3 +20,17 @@ export const POSITION_BY_VALUE: ReadonlyMap<string, typeof POSITION_OPTIONS[numb
 export function isChampionPosition(value: unknown): value is ChampionPosition {
   return typeof value === 'string' && POSITION_OPTIONS.some(o => o.value === value)
 }
+
+function positionIndex(position: string | null | undefined): number {
+  const index = POSITION_OPTIONS.findIndex(o => o.value === position)
+  return index === -1 ? POSITION_OPTIONS.length : index
+}
+
+/**
+ * Sort comparator for one team's players in lane order (TOP → SUPPORT), so two
+ * teams sorted with it pair laner against laner. A missing or unknown position
+ * goes last and otherwise keeps its original order.
+ */
+export function compareByPosition(a: { position: string | null }, b: { position: string | null }): number {
+  return positionIndex(a.position) - positionIndex(b.position)
+}

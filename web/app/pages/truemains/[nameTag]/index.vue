@@ -2,7 +2,6 @@
 import type { ChampionPosition } from '#common/utils/positions'
 import { parseRouteParam } from '#common/utils/route-params'
 import { groupMatchesByDay } from '~/utils/match-history'
-import { getQueueLabel } from '~/utils/queues'
 import { championSplashUrlFromIcon, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { platformIdToRegion } from '~~/shared/utils/region'
 
@@ -240,10 +239,9 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
           keep the skeletons up forever on a perfectly valid empty result.
         -->
         <template v-if="matchesInitialLoading || (!staticBundleReady && matches.length)">
-          <USkeleton
+          <MatchRowSkeleton
             v-for="i in 8"
             :key="`match-skel-${i}`"
-            class="h-[54px] rounded-lg"
           />
         </template>
         <MatchHistoryEmpty
@@ -263,7 +261,7 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
               :label="day.label"
               class="pt-1.5"
             />
-            <MatchHistoryRow
+            <MatchRow
               v-for="match in day.matches"
               :key="match.matchId"
               :match="match"
@@ -271,7 +269,6 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
               :items="items"
               :summoner-spells="summonerSpells"
               :rune-tree="runeTree!"
-              :queue-label="getQueueLabel(match.queueId, match.gameMode)"
               :name-tag="nameTag"
             />
           </template>

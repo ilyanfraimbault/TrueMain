@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { parseRouteParam } from '#common/utils/route-params'
 import { platformIdToRegion } from '#shared/utils/region'
-import { getQueueLabel } from '~/utils/queues'
 import { groupMatchesByDay } from '~/utils/match-history'
 
 /**
@@ -81,7 +80,7 @@ const days = computed(() => groupMatchesByDay(matches.value))
       <template #history>
         <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">Match history</h2>
         <template v-if="matchesLoading || (!runeTree && matches.length)">
-          <USkeleton v-for="index in 6" :key="index" class="h-[54px] rounded-lg" />
+          <MatchRowSkeleton v-for="index in 6" :key="index" />
         </template>
         <UEmpty
           v-else-if="matchesNotFound || !matches.length"
@@ -93,7 +92,7 @@ const days = computed(() => groupMatchesByDay(matches.value))
         />
         <template v-for="day in days" v-else :key="day.key">
           <MatchDayHeading v-if="day.label" :label="day.label" class="pt-1.5" />
-          <MatchHistoryRow
+          <MatchRow
             v-for="match in day.matches"
             :key="match.matchId"
             :match="match"
@@ -101,7 +100,6 @@ const days = computed(() => groupMatchesByDay(matches.value))
             :items="items"
             :summoner-spells="summoners"
             :rune-tree="runeTree!"
-            :queue-label="getQueueLabel(match.queueId, match.gameMode)"
             :name-tag="nameTag"
           />
         </template>
