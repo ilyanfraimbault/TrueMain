@@ -261,6 +261,7 @@ const {
         :splash-url="splashUrl"
         :position="champion?.position || selectedPosition || ''"
         :total-games="0"
+        :trend="null"
       />
 
       <UEmpty

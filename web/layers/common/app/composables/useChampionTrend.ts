@@ -1,4 +1,4 @@
-import type { ChampionTrendResponse } from '~~/shared/types/champions'
+import type { ChampionTrendResponse } from '#shared/types/champions'
 import { isLoadingStatus } from '#common/utils/async-data'
 
 /**
