@@ -159,7 +159,7 @@ watch(() => state.value.phase, (next, previous) => {
               @edit="editGoal"
               @abandon="abandon"
             />
-            <DashboardChampionsCard :champions="championLines(games)" />
+            <DashboardChampionsCard :lines="championLines(games)" :champions="champions" />
             <DashboardRolesCard :lanes="laneLines(games)" />
           </template>
         </template>

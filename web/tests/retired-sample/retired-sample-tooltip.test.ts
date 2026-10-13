@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { retiredSampleTooltip } from '~/utils/retired-sample'
+import { retiredSampleTooltip } from '#common/utils/retired-sample'
 
 const NOW = new Date('2026-08-24T12:00:00Z')
 
