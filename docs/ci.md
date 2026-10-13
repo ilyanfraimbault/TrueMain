@@ -699,7 +699,9 @@ build costs runner minutes, not wall time, since it runs beside CI.
 - `token` skips everything when `SONAR_TOKEN` is not readable — Dependabot and
   fork PRs get no secrets — with a notice instead of a red check.
 - `frontend-coverage` runs each app's vitest suite with v8 coverage (lcov) and
-  rewrites the app-relative `SF:` paths to repo-relative ones. The desktop app's
+  rewrites the app-relative `SF:` paths to repo-relative ones. It installs with
+  `--ignore-scripts` and runs only the apps' own `postinstall` (`nuxt prepare`),
+  so no dependency's lifecycle script runs in a job that sits next to the token. The desktop app's
   run only covers its own tree; the shared layer's coverage comes from `web`.
 - `analysis` wraps the Release build and both test suites between
   `dotnet-sonarscanner begin` and `end`. Coverage comes from

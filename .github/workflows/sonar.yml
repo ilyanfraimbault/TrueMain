@@ -81,13 +81,16 @@ jobs:
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
 
       - name: Pin npm
-        run: npm install -g npm@11.13.0
+        run: npm install -g --ignore-scripts npm@11.13.0
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
+
+      - name: Prepare Nuxt
+        run: npm run postinstall
 
       - name: Unit tests with coverage
-        run: npx vitest run --coverage.enabled --coverage.provider=v8 --coverage.reporter=lcov
+        run: npm run test -- --coverage.enabled --coverage.provider=v8 --coverage.reporter=lcov
 
       - name: Make paths repo-relative
         env:
