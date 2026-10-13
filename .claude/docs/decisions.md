@@ -149,6 +149,7 @@ Last verified against `develop` on 2026-09-02.
 - The full-page lists (truemains, champions) are `UTable`s with header sorting bound to the URL and served by the API; a row navigates through `@select` (2026-10-01) — #1726, #1734
 - A player is drawn by one `Account` component (UUser + a canonical-URL `UAvatar`, rounded square); the search palette is the exception (2026-10-01) — #1734
 - A match is drawn by one `MatchRow` (the profile's 54 px design, one component per column, `@container` tiers from 320 px) and every list loads with `MatchRowSkeleton` (2026-10-13) — #2020
+- A day-grouped match list is drawn by one `MatchHistoryList` (skeletons, empty state, day headings, pager; hosts keep their headings and filters, row controls through its `actions` slot) (2026-10-13) — #2024
 - A tooltip trigger keeps the same DOM element for the life of the component
 - Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698
 - A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15) — #1585

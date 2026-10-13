@@ -513,3 +513,21 @@ card and on their profile, and the loading states split three ways. The profile'
   since the edge mark already states it.
 - **A new match list uses `MatchRow` and `MatchRowSkeleton`**; a surface that needs something the row lacks adds
   it to the row.
+
+## A match list is drawn by one `MatchHistoryList` component (2026-10-13)
+
+The day-grouped list around `MatchRow` — skeletons, empty state, day headings, pager — was pasted into the site's
+profile, the app's profile, the app's dashboard and the player-scoped champion page, each with its own skeleton
+count (5, 6 or 8) and its own empty-state wording, and `MatchDayHeading`, `MatchHistoryEmpty` and
+`utils/match-history.ts` lived as web/desktop twins (#2024).
+
+- **`match/MatchHistoryList.vue` in the shared layer draws the list**; the host passes the page of games, its
+  loading flag, the pager numbers (`v-model:page`, `total`, `pageSize`) and the four statics, which the list waits
+  on itself (non-empty, so a host coercing a pending read to `{}` still gets skeletons). The empty state never
+  waits on them.
+- **Headings and filters stay with the host** ("Match history", "Recent {champion} games", the role/champion
+  filters, the dashboard's queue switch); the list is only what sits under them.
+- **One skeleton count (6), one empty state with three cases** (not found, filtered, none), and one wording
+  switch that is real: `own` — the app's dashboard lists the viewer's own client games, so it speaks to them.
+- **Host controls on a row go through the list's scoped `actions` slot** (`#actions="{ match }"`), forwarded to
+  `MatchRow`'s; the app's "Watch" is the one user.

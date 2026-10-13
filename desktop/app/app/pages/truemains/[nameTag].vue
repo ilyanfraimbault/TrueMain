@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { parseRouteParam } from '#common/utils/route-params'
 import { platformIdToRegion } from '#shared/utils/region'
-import { groupMatchesByDay } from '~/utils/match-history'
 
 /**
  * Another player's profile, in the app (#1983): the site's
@@ -37,7 +36,6 @@ const splashUrl = computed(() => {
   return alias ? splashOfAlias(alias) : null
 })
 const profileIconUrl = computed(() => (profile.value ? profileIconOf(profile.value.identity.profileIconId) : null))
-const days = computed(() => groupMatchesByDay(matches.value))
 </script>
 
 <template>
@@ -79,43 +77,19 @@ const days = computed(() => groupMatchesByDay(matches.value))
 
       <template #history>
         <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">Match history</h2>
-        <template v-if="matchesLoading || (!runeTree && matches.length)">
-          <MatchRowSkeleton v-for="index in 6" :key="index" />
-        </template>
-        <UEmpty
-          v-else-if="matchesNotFound || !matches.length"
-          icon="i-lucide-swords"
-          title="No games yet"
-          description="TrueMain has no recent game for this player."
-          variant="naked"
-          class="py-8"
+        <MatchHistoryList
+          v-model:page="page"
+          :matches="matches"
+          :loading="matchesLoading"
+          :total="total"
+          :page-size="pageSize"
+          :champions="champions"
+          :items="items"
+          :summoner-spells="summoners"
+          :rune-tree="runeTree"
+          :name-tag="nameTag"
+          :not-found="matchesNotFound"
         />
-        <template v-for="day in days" v-else :key="day.key">
-          <MatchDayHeading v-if="day.label" :label="day.label" class="pt-1.5" />
-          <MatchRow
-            v-for="match in day.matches"
-            :key="match.matchId"
-            :match="match"
-            :champions="champions"
-            :items="items"
-            :summoner-spells="summoners"
-            :rune-tree="runeTree!"
-            :name-tag="nameTag"
-          />
-        </template>
-        <div v-if="total > pageSize" class="flex justify-center pt-2">
-          <UPagination
-            v-model:page="page"
-            :total="total"
-            :items-per-page="pageSize"
-            :sibling-count="1"
-            color="neutral"
-            variant="ghost"
-            active-color="primary"
-            active-variant="soft"
-            size="sm"
-          />
-        </div>
       </template>
 
       <template #aside>
