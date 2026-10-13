@@ -24,6 +24,7 @@ Last verified against `develop` on 2026-09-02.
 - `MainActivity` deactivation carries no persisted reason, so the account explorer says so rather than guessing — #900
 - A main whose matches expired is dated, not deleted and not hidden (2026-08-24) — #825, #466
 - A candidate has no rejection verdict: it is in the pipeline, demoted back into the pool, or pruned (2026-10-06) — #1029, #1024, #1535
+- An ingested account without a main is re-analysed when a harvested game shows it playing (2026-10-13) — #2039, #1535, #825
 
 ## Population and rank scope of the champion pages (#1346) — [`decisions/product-population.md`](decisions/product-population.md)
 

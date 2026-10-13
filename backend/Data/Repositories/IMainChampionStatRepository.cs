@@ -30,7 +30,8 @@ public interface IMainChampionStatRepository
     /// <summary>
     /// Records what ingested matches say about mains (#1475): every participant played,
     /// at the game's start time, the champion it is listed on. Stamps
-    /// <see cref="RiotAccount.LastSeenInMatchAtUtc"/> on accounts holding a main, and
+    /// <see cref="RiotAccount.LastSeenInMatchAtUtc"/> on accounts holding a main or already
+    /// ingested once (#2039), and
     /// reactivates an inactive main row whose champion was played at or after
     /// <paramref name="activeSinceUtc"/>. Never deactivates anything: a match only ever
     /// adds evidence of activity, retiring a main stays the mastery check's call.

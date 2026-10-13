@@ -123,7 +123,8 @@ guards branched on it — and **no process ever assigned it**. The product owner
 rather than implementing it. A candidate's only exits are the ones the pipeline actually takes:
 
 - **Demotion** — `MainAnalysis` moves a Validated row back to `Scored` when its play rate falls below the
-  critical threshold; the row re-enters the promotion ranking instead of being ruled out.
+  critical threshold; the row is not ruled out. Since #1535 it no longer re-enters the promotion ranking (the
+  account is already ingested); since #2039 the account's verdict is recomputed from harvested games instead.
 - **Settling** — since #1535 a `Queued` row of an account already ingested goes back to `Scored` and is no
   longer promoted; the account comes back through depth, on its ingest history, when it is due.
 - **Pruning** — a never-promoted (`New`/`Scored`) row whose last activity is older than
@@ -139,3 +140,25 @@ no longer re-enters the breadth class, whatever its candidates' status.
 The migration moves any stored `5` to `Scored` (it matches zero rows: nothing wrote it). Older hourly
 candidate-stock snapshots in Mongo still carry a `Rejected` reading of 0; the read side skips a status the
 enum no longer defines. Reintroducing a terminal status is a new decision, not a revert — #1029, #1024, #1535.
+
+## An ingested account without a main is re-analysed when a harvested game shows it playing (2026-10-13)
+
+**Main analysis selects, besides Validated candidates and active mains, any account already ingested once whose
+`LastSeenInMatchAtUtc` is newer than its `LastMainCalcAtUtc`.** The stamp, written on every fresh match since
+#1475, now also covers accounts with `LastMatchIngestAtUtc` set, not only main holders.
+
+Why: an account demoted back to `Scored` (its games aged out before the #825 thin-sample guard existed, or it
+really dropped the champion) matched no selection at all. Depth revisits active mains only, breadth and promotion
+skip ingested accounts (#1535), and main analysis read Validated candidates or active mains. It froze on its last
+verdict while the harvest kept storing its games, however clearly they showed a main.
+
+- **No Riot call.** The way back is the games other tracked players' ingests already store; #1535's saving
+  (no breadth slot for an already-fetched player) is untouched. Once re-classified a main, depth refreshes the
+  account as for any active main.
+- **Gated on a new game, not on the cutoff alone.** A non-main is re-read only when a game played after its last
+  verdict was stored, so the rotation only grows by accounts that have something new to say.
+- **No backfill.** The stamp is written forward; a stuck account comes back with its next stored game. One that
+  never plays again does not need a verdict.
+- Candidates stay `Scored`: re-validation is not needed to hold a main, as with established mains since #830.
+
+Source: #2039 (follows #1535, #1029, #830, #825, #1475).
