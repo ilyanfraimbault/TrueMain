@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
+import { riotIdLabel, truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { isOneTrick } from '#common/utils/leaderboard-row'
 
 // One row of the champion page's truemains. The whole row navigates to the
@@ -34,10 +34,7 @@ const profileHref = computed(() => truemainProfilePath(rowNameTag.value))
 
 // The stretched profile link is an empty overlay (no text), so it needs an
 // explicit accessible name.
-const profileAriaLabel = computed(() => {
-  const { gameName, tagLine } = props.row.identity
-  return tagLine ? `${gameName} #${tagLine}` : gameName
-})
+const profileAriaLabel = computed(() => riotIdLabel(props.row.identity.gameName, props.row.identity.tagLine))
 
 const isOtp = computed(() => isOneTrick(props.row.topChampions))
 

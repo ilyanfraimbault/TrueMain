@@ -478,9 +478,14 @@ panel, the favorites cards, the profile header and the builder's games drawer.
   the whole identity is one target without an <a> around it, and it works inside a table row. `to` defaults to
   the profile; `false` renders no link, for a parent that is the link already (a sidebar row's overlay, the
   homepage row, the profile page itself).
-- **Sizes, not variants**: `xs` (18px, the drawer's inline chip, `layout="inline"`), `sm` (table), `md` (homepage),
-  `lg` (sidebar row, favorites), `xl` (profile header, which replaces the name line through `#name`). Slots carry
-  the per-surface extras: `#badge` (OTP), `#subline` (ranked text, level).
+- **Sizes, not variants**: `xs` (18px, the drawer's inline chip, `layout="inline"`), `sm` (table), `md` (homepage,
+  the app's build mains), `lg` (sidebar row, favorites, the app's player card), `xl` (72px, both profile headers —
+  the profile's banner and the player-scoped champion page's rail — which replace the name line through `#name`).
+  Slots carry the per-surface extras: `#badge` (OTP), `#subline` (ranked text, level, the client's status),
+  `#avatar-badge` (a mark on the picture's edge: the app's summoner level and status dot).
+- **Every player identity goes through it, on both apps** (#2027): the profile banner (`PageHero`'s `#identity`
+  slot), the app's build mains and its sidebar player card joined the list. A surface that needs something
+  `Account` cannot draw gets a size or a slot, never a hand-written icon + name + flag.
 - **Rounded squares**, not UAvatar's default circle: profile icons are square art (product owner's call).
 - **The icon is a plain `<img>` on the canonical cached URL** (`as: { img: 'img' }` + `useCanonicalIcon`):
   UAvatar would otherwise render NuxtImg with a srcset — a second cache entry for an asset the rest of the site
@@ -488,7 +493,11 @@ panel, the favorites cards, the profile header and the builder's games drawer.
   requests nothing for icon id 0 or a missing id (the API's "never resolved"; the favorites card used to request
   `profileicon/0.png`), and a missing or failed picture shows the user glyph.
 - **The search palette keeps `SkeletonImage`**: it re-fills the same row DOM on every keystroke and blanks to a
-  skeleton between two pictures, which is what a palette wants.
+  skeleton between two pictures, which is what a palette wants. Its truemain row is still one component
+  (`search/SearchTruemainItem.vue`), with the leaderboard's lanes and rank crest.
+- **A Riot ID is written one way: `gameName#tagLine`** (`riotIdLabel` in `shared/utils/truemain-path.ts`, #2027) —
+  the client's spelling and the typed form, so a title, breadcrumb, accessible name or tooltip can be pasted back into
+  a search. The bare name for an account without a tag line. `Account` draws the two halves as separate spans.
 - **Every profile link goes through `shared/utils/truemain-path.ts`** (`truemainNameTag`, `truemainProfilePath`);
   `favoriteNameTag` and `truemainChampionPath` build on it.
 

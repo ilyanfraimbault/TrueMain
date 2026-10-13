@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { RegionSlug } from '#shared/types/leaderboard'
 import type { MatchSummaryResponse } from '#shared/types/matches'
 import type { ProfileRanked } from '#shared/types/profile'
 import type { PersonaTag } from '#shared/types/players'
 import { playerPath } from '#shared/utils/player-path'
 import { formTiles, RECENT_GAMES } from '#common/utils/match-form'
 import { formatRank } from '#common/utils/tiers'
+import type { AccountIdentity } from '#common/components/Account.vue'
 
 /**
  * A player's profile, one page on both apps: the site's `/truemains/{nameTag}`
@@ -20,12 +20,12 @@ import { formatRank } from '#common/utils/tiers'
  * truemain score on the site, the goals in the app) — and the banner's art is
  * resolved by the host: the champion a true main mains on a profile, the skin
  * the player chose in the client on the dashboard (TrueMain cannot read it).
+ * The player is drawn by `Account`, at its profile-header size (#2027).
  */
 const props = withDefaults(defineProps<{
-  gameName: string
-  tagLine?: string | null
-  profileIconUrl?: string | null
-  region?: RegionSlug | null
+  identity: AccountIdentity
+  /** Data Dragon patch for the profile icon; null until the version list has loaded. */
+  patch: string | null
   level?: number | null
   ranked?: ProfileRanked | null
   /** The champion the player truemains, named on the banner. */
@@ -38,9 +38,6 @@ const props = withDefaults(defineProps<{
   matches: MatchSummaryResponse[]
   loading?: boolean
 }>(), {
-  tagLine: null,
-  profileIconUrl: null,
-  region: null,
   level: null,
   ranked: null,
   truemain: null,
@@ -67,70 +64,69 @@ const rankLabel = computed(() => {
       :splash-url="splashUrl"
       :splash-position="splashPosition"
     >
-      <template #portrait>
-        <SkeletonImage
-          :src="profileIconUrl"
-          :alt="`${gameName} profile icon`"
-          width="72"
-          height="72"
-          class="size-[72px] shrink-0 rounded-lg shadow-lg ring-1 ring-white/10"
-        />
-      </template>
+      <template #identity>
+        <Account
+          :identity="identity"
+          :patch="patch"
+          size="xl"
+          :to="false"
+          :ui="{
+            avatar: 'shadow-lg ring-1 ring-white/10',
+            body: '[text-shadow:0_1px_12px_rgb(0_0_0/0.6)]',
+            subline: 'mt-1 flex-wrap gap-2 text-sm text-muted',
+          }"
+        >
+          <template #name>
+            <div class="flex min-w-0 items-center gap-2">
+              <h1 class="truncate text-[28px] font-semibold leading-tight text-highlighted">
+                {{ identity.gameName }}<span
+                  v-if="identity.tagLine"
+                  class="font-medium text-muted"
+                >#{{ identity.tagLine }}</span>
+              </h1>
+              <slot name="title-actions" />
+            </div>
+          </template>
 
-      <template #title>
-        <div class="flex min-w-0 items-center gap-2">
-          <h1 class="truncate text-[28px] font-semibold leading-tight text-highlighted">
-            {{ gameName }}<span
-              v-if="tagLine"
-              class="font-medium text-muted"
-            >#{{ tagLine }}</span>
-          </h1>
-          <slot name="title-actions" />
-        </div>
-      </template>
-
-      <template #subtitle>
-        <LeaderboardRegionFlag
-          v-if="region"
-          :region="region"
-          :width="18"
-        />
-        <template v-if="ranked && rankLabel">
-          <RankIcon
-            :tier="ranked.tier"
-            :size="20"
-          />
-          <span class="font-semibold text-highlighted">{{ rankLabel }}</span>
-        </template>
-        <span v-else-if="level !== null">Level {{ level }}</span>
-        <template v-if="truemain">
-          <span class="text-dimmed">·</span>
-          <span class="flex items-center gap-1.5">
-            Truemain
-            <SkeletonImage
-              :src="truemain.iconUrl"
-              :alt="truemain.name"
-              width="20"
-              height="20"
-              class="size-5 rounded"
-            />
-            {{ truemain.name }}
-          </span>
-        </template>
-        <template v-if="persona">
-          <span class="text-dimmed">·</span>
-          <ULink
-            :to="playerPath(persona.slug)"
-            class="flex items-center gap-1.5 font-semibold text-highlighted hover:text-primary"
-          >
-            <UIcon
-              name="i-lucide-user-round"
-              class="size-4"
-            />
-            {{ persona.displayName }}
-            <span class="font-normal text-muted">· all accounts</span>
-          </ULink>
-        </template>
+          <template #subline>
+            <template v-if="ranked && rankLabel">
+              <RankIcon
+                :tier="ranked.tier"
+                :size="20"
+              />
+              <span class="font-semibold text-highlighted">{{ rankLabel }}</span>
+            </template>
+            <span v-else-if="level !== null">Level {{ level }}</span>
+            <template v-if="truemain">
+              <span class="text-dimmed">·</span>
+              <span class="flex items-center gap-1.5">
+                Truemain
+                <SkeletonImage
+                  :src="truemain.iconUrl"
+                  :alt="truemain.name"
+                  width="20"
+                  height="20"
+                  class="size-5 rounded"
+                />
+                {{ truemain.name }}
+              </span>
+            </template>
+            <template v-if="persona">
+              <span class="text-dimmed">·</span>
+              <ULink
+                :to="playerPath(persona.slug)"
+                class="flex items-center gap-1.5 font-semibold text-highlighted hover:text-primary"
+              >
+                <UIcon
+                  name="i-lucide-user-round"
+                  class="size-4"
+                />
+                {{ persona.displayName }}
+                <span class="font-normal text-muted">· all accounts</span>
+              </ULink>
+            </template>
+          </template>
+        </Account>
       </template>
 
       <template

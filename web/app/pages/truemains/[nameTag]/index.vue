@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChampionPosition } from '#common/utils/positions'
 import { parseRouteParam } from '#common/utils/route-params'
-import { championSplashUrlFromIcon, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 import { platformIdToRegion } from '~~/shared/utils/region'
 
 const route = useRoute()
@@ -62,7 +62,7 @@ const {
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
   if (!identity) return truemainSlugLabel(nameTag.value)
-  return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
+  return riotIdLabel(identity.gameName, identity.tagLine)
 })
 
 // Truemains > {player}. Rendered even in the loading / not-found states so the
@@ -135,10 +135,8 @@ const splashUrl = computed(() => {
   const raw = championSplashUrlFromIcon(truemainChampion.value?.iconUrl)
   return splashOf(raw)
 })
-const profileIconUrl = computed(() => {
-  const identity = profile.value?.identity
-  return identity ? getProfileIconUrl(identity.profileIconId, latestPatch.value) : null
-})
+// The player before the profile lands: the slug's Riot ID, without a picture.
+const heroIdentity = computed(() => profile.value?.identity ?? { gameName: playerLabel.value, tagLine: null })
 
 const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
 
@@ -168,10 +166,8 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
          player-level cards in the 18rem column. -->
     <PagePlayerProfile
       v-else
-      :game-name="profile?.identity.gameName ?? playerLabel"
-      :tag-line="profile?.identity.tagLine ?? null"
-      :profile-icon-url="profileIconUrl"
-      :region="platformIdToRegion(profile?.identity.platformId)"
+      :identity="heroIdentity"
+      :patch="latestPatch"
       :level="profile?.identity.summonerLevel ?? null"
       :ranked="profile?.ranked ?? null"
       :truemain="truemainChampion"
