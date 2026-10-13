@@ -17,6 +17,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '#shared/types/static-data'
+import { resultTone } from '#common/utils/result-tone'
 
 const props = defineProps<{
   match: MatchSummaryResponse
@@ -43,9 +44,7 @@ const championById = computed(() => new Map(props.champions.map(c => [c.champion
 const champion = computed(() => championById.value.get(self.value.championId))
 const championName = computed(() => champion.value?.name ?? `Champion ${self.value.championId}`)
 
-const result = computed(() => self.value.win
-  ? { label: 'Victory', edge: 'bg-sky-400', wash: 'from-sky-500/12' }
-  : { label: 'Defeat', edge: 'bg-red-400', wash: 'from-red-500/12' })
+const result = computed(() => resultTone(self.value.win))
 </script>
 
 <template>

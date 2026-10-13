@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
   StaticItemData,
   StaticSummonerSpellData,
 } from '#shared/types/static-data'
-import { getPositionIconUrl } from '#shared/utils/ddragon'
 import { resolveWinProbability } from '#common/utils/win-probability-swing'
 import { MATCH_DETAIL_SOURCE } from '#common/utils/match-detail-source'
 
@@ -27,7 +25,7 @@ const props = defineProps<{
   items: Record<number, StaticItemData>
   summonerSpells: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse
-  /** Champion of the row's owner — preselects that player in the Details tab. */
+  /** Champion of the row's owner — preselects that player in the Build tab. */
   selfChampionId?: number | null
 }>()
 
@@ -41,34 +39,6 @@ const participants = computed(() => detail.value?.participants ?? [])
 const blueTeam = computed(() => participants.value.filter(p => p.teamId === 100))
 const redTeam = computed(() => participants.value.filter(p => p.teamId === 200))
 const blueWin = computed(() => blueTeam.value[0]?.win ?? false)
-
-function champIcon(championId: number) {
-  return props.champions.find(c => c.championId === championId)?.iconUrl ?? null
-}
-function champName(championId: number) {
-  return props.champions.find(c => c.championId === championId)?.name ?? `Champion ${championId}`
-}
-
-// ─── Details tab: selected player ───────────────────────────────────────────
-// Null until the user picks someone; the computed falls back to the row owner's
-// champion (so the tab opens on "you"), then the first participant.
-const selectedId = ref<number | null>(null)
-
-const selectedParticipant = computed<MatchDetailParticipant | null>(() => {
-  const list = participants.value
-  if (!list.length) return null
-  const byId = list.find(p => p.participantId === selectedId.value)
-  if (byId) return byId
-  if (props.selfChampionId) {
-    const bySelf = list.find(p => p.championId === props.selfChampionId)
-    if (bySelf) return bySelf
-  }
-  return list[0] ?? null
-})
-
-function selectPlayer(participantId: number) {
-  selectedId.value = participantId
-}
 
 // ─── Timeline tab: the win-probability curve (#1911) ─────────────────────────
 // Desktop only: built from the client's timeline the app attaches (the API sends
@@ -162,87 +132,21 @@ const tabItems = computed(() => [
         />
       </template>
 
-      <!-- ── Details: player selector + single-player breakdown ──────── -->
+      <!-- ── Build: player selector + single-player breakdown ───────── -->
       <template #details>
-        <div class="mt-3 flex flex-col gap-3">
-          <!-- Selector: blue team · vs · red team. Sized off the *row's* width
-               (`MatchRow` is the `@container`), never the viewport: the same row
-               renders full-bleed on a profile and inside a 2xl drawer, so a
-               `sm:` here would pick the wrong layout in one of the two.
-               Ten 56px portraits plus their gaps need ~694px, so the two teams
-               only sit side by side from `@3xl`; below that they stack, which
-               is what fits the drawer. `@sm` shrinks them again on a phone. -->
-          <!-- `p-1` is load-bearing: the scroller clips on both axes, and the
-               selected portrait's `ring-2` plus the lane badge's `-bottom-1
-               -left-1` both bleed outside the button box — without the padding
-               the ring loses its top edge and the first portrait loses half its
-               lane glyph. -->
-          <div class="flex flex-col items-center gap-2 overflow-x-auto p-1 pb-2 @3xl:flex-row @3xl:justify-between @3xl:gap-3">
-            <template v-for="(team, teamIdx) in [blueTeam, redTeam]" :key="`team-${teamIdx}`">
-              <div class="flex shrink-0 items-center gap-2">
-                <button
-                  v-for="p in team"
-                  :key="`sel-${p.participantId}`"
-                  type="button"
-                  class="relative shrink-0 rounded transition-all"
-                  :class="p.participantId === selectedParticipant?.participantId
-                    ? 'ring-2 ring-primary'
-                    : 'opacity-60 hover:opacity-100'"
-                  :title="champName(p.championId)"
-                  :aria-label="`Show ${champName(p.championId)} details`"
-                  :aria-pressed="p.participantId === selectedParticipant?.participantId"
-                  @click="selectPlayer(p.participantId)"
-                >
-                  <SkeletonImage
-                    :src="champIcon(p.championId)"
-                    :alt="champName(p.championId)"
-                    class="size-11 rounded @sm:size-14"
-                  />
-                  <SkeletonImage
-                    v-if="p.teamPosition"
-                    :src="getPositionIconUrl(p.teamPosition)"
-                    :alt="p.teamPosition"
-                    class="absolute -bottom-1 -left-1 size-5 rounded-full bg-default p-0.5 ring-1 ring-default"
-                    aria-hidden="true"
-                    transparent
-                  />
-                </button>
-              </div>
-
-              <span
-                v-if="teamIdx === 0"
-                class="shrink-0 select-none text-2xl font-semibold text-muted @3xl:mx-2"
-                aria-hidden="true"
-              >vs</span>
-            </template>
-          </div>
-
-          <!-- Selected player -->
-          <div v-if="selectedParticipant" class="flex flex-col gap-2">
-            <div class="flex items-center gap-2 px-0.5">
-              <span class="text-sm font-semibold text-default">
-                {{ selectedParticipant.gameName ?? selectedParticipant.summonerName }}
-              </span>
-              <span
-                class="ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                :class="selectedParticipant.win ? 'bg-sky-500/15 text-sky-400' : 'bg-red-500/15 text-red-400'"
-              >
-                {{ selectedParticipant.win ? 'Win' : 'Loss' }}
-              </span>
-            </div>
-            <MatchDetailPlayerPanel
-              :key="selectedParticipant.participantId"
-              :participant="selectedParticipant"
-              :champions="champions"
-              :items="items"
-            />
-          </div>
-        </div>
+        <MatchDetailBuildTab
+          class="mt-3"
+          :blue-team="blueTeam"
+          :red-team="redTeam"
+          :champions="champions"
+          :items="items"
+          :self-champion-id="selfChampionId"
+        />
       </template>
 
       <!-- ── Runes: compact 10-player grid ───────────────────────────── -->
       <template #runes>
-        <!-- Container-sized for the same reason as the selector above: on a
+        <!-- Container-sized like the Build tab's selector: on a
              1440px viewport `lg:` matched inside the 2xl drawer too, packing
              five rune pages into a 624px box. -->
         <div class="mt-3 grid grid-cols-2 gap-2 @md:grid-cols-3 @2xl:grid-cols-5">
