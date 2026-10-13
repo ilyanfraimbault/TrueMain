@@ -153,6 +153,41 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RunAsync_ShouldReclassifyADemotedIngestedAccount_SeenInAGameSinceItsLastCalc()
+    {
+        // #2039: ingested once, demoted back to Scored after its games aged out, no main
+        // left — no claim class revisits it. Harvested games since its last calc are the
+        // only way back, and they show it on champion 200 only.
+        await SeedDemotedIngestedAccountAsync("puuid-demoted-1", seenSinceLastCalc: true);
+
+        await RunProcessAsync();
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var stats = verifyDb.MainChampionStats
+            .Where(s => s.PlatformId == "KR" && s.Puuid == "puuid-demoted-1")
+            .ToList();
+
+        stats.Should().ContainSingle(s => s.ChampionId == 200 && s.IsMain && s.IsActive,
+            "the harvested games are all on champion 200, so the account is a main again");
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldSkipAnIngestedAccountWithoutAMain_NotSeenSinceItsLastCalc()
+    {
+        // Same account, but no game newer than its last verdict: nothing new to read, so it
+        // stays out of the rotation instead of being recomputed every cycle.
+        await SeedDemotedIngestedAccountAsync("puuid-demoted-2", seenSinceLastCalc: false);
+
+        await RunProcessAsync();
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        verifyDb.MainChampionStats.Should().NotContain(s => s.Puuid == "puuid-demoted-2");
+        var account = verifyDb.RiotAccounts.Single(a => a.PlatformId == "KR" && a.Puuid == "puuid-demoted-2");
+        account.LastMainCalcAtUtc.Should().BeBefore(DateTime.UtcNow.AddDays(-30),
+            "the account was not selected, so its calc stamp did not move");
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldPreserveEstablishedMain_WhenRecentSampleTooSmall()
     {
         // #825 guard: the same passive-harvest path can surface an account with a
@@ -497,6 +532,27 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private async Task SeedDemotedIngestedAccountAsync(string puuid, bool seenSinceLastCalc)
+    {
+        // The established-main seed minus its main: the demotion removed the stat rows and
+        // moved the candidate back to Scored. LastMainCalcAtUtc is 40 days old.
+        await SeedEstablishedMainAsync(
+            puuid,
+            candidateStatus: MainCandidateStatus.Scored,
+            staleMainChampionId: 100,
+            recentChampionId: 200,
+            recentGameCount: 10);
+
+        await using var db = _fixture.CreateDbContext();
+        await db.MainChampionStats.Where(s => s.Puuid == puuid).ExecuteDeleteAsync();
+        var lastCalc = await db.RiotAccounts.Where(a => a.Puuid == puuid).Select(a => a.LastMainCalcAtUtc!.Value).SingleAsync();
+        await db.RiotAccounts
+            .Where(a => a.Puuid == puuid)
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(a => a.LastMatchIngestAtUtc, lastCalc.AddDays(-20))
+                .SetProperty(a => a.LastSeenInMatchAtUtc, seenSinceLastCalc ? lastCalc.AddDays(30) : lastCalc.AddDays(-1)));
     }
 
     private async Task SeedValidatedAccountWithMatchesAsync()

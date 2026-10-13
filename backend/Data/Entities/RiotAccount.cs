@@ -68,10 +68,12 @@ public class RiotAccount
 
     /// <summary>
     /// Start time of the most recent ingested match this account played, stamped by match
-    /// ingestion on the participant write path (#1475). Only stamped on accounts holding a
-    /// main, the only ones <c>MainActivityProcess</c> selects. An account seen in a match
-    /// within <c>MainActivity:InactiveAfterDays</c> is demonstrably still playing, so the
-    /// mastery check skips it until its mastery facts are themselves that old.
+    /// ingestion on the participant write path (#1475). Stamped on accounts holding a main
+    /// and on accounts already ingested once. An account seen in a match within
+    /// <c>MainActivity:InactiveAfterDays</c> is demonstrably still playing, so the mastery
+    /// check skips it until its mastery facts are themselves that old. An ingested account
+    /// with no main seen in a game newer than its <see cref="LastMainCalcAtUtc"/> is due for
+    /// main analysis again (#2039): no claim class revisits it, the harvest is its only way back.
     /// </summary>
     public DateTime? LastSeenInMatchAtUtc { get; set; }
 

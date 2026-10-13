@@ -88,9 +88,10 @@ public sealed class MainChampionStatRepository(TrueMainDbContext db) : IMainCham
             .ToArray();
 
         // Conditional on the stamp moving forward, so re-observing an account already
-        // stamped by a later game rewrites no row. Restricted to accounts holding a main:
-        // the stamp is only ever read by the main-activity selection, and most participants
-        // are not mains.
+        // stamped by a later game rewrites no row. Restricted to the two readers' populations,
+        // since most participants are neither: accounts holding a main (the main-activity
+        // selection) and accounts already ingested once (the main-analysis selection, #2039 —
+        // a demoted or never-main account has no other way back to a verdict).
         var accountsStamped = await db.Database.ExecuteSqlAsync(
             $"""
             UPDATE "riot_accounts" AS a
@@ -99,9 +100,10 @@ public sealed class MainChampionStatRepository(TrueMainDbContext db) : IMainCham
             WHERE a."PlatformId" = {platformId}
               AND a."Puuid" = o.puuid
               AND (a."LastSeenInMatchAtUtc" IS NULL OR a."LastSeenInMatchAtUtc" < o.played_at)
-              AND EXISTS (
-                  SELECT 1 FROM "main_champion_stats" AS s
-                  WHERE s."PlatformId" = a."PlatformId" AND s."Puuid" = a."Puuid" AND s."IsMain")
+              AND (a."LastMatchIngestAtUtc" IS NOT NULL
+                   OR EXISTS (
+                       SELECT 1 FROM "main_champion_stats" AS s
+                       WHERE s."PlatformId" = a."PlatformId" AND s."Puuid" = a."Puuid" AND s."IsMain"))
             """,
             ct);
 

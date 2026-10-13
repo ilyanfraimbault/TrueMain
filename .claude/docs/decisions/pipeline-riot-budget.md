@@ -290,7 +290,8 @@ and another terminal status would be one more state for the funnel charts to exp
 - An ingested account with an active main is refreshed by depth on its `LastMatchIngestAtUtc` ordering, as
   before. One without an active main is no longer re-fetched through a leftover candidate — that re-fetch was
   the cost being removed. A manual seed of such an account queues its rows, but they are settled rather than
-  claimed.
+  claimed. Its verdict comes back through main analysis instead, from the games the harvest stores (#2039, in
+  `decisions/product-mains.md`).
 - The account explorer's tracking arm applies the same rule (`AccountExplorerVerdict.IsInNewCandidateArm`).
 
 Source: #1535 (follows #1533, #1531, #1361, #900).

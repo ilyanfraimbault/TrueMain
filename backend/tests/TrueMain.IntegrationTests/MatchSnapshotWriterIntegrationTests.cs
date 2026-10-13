@@ -437,6 +437,26 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task IngestSnapshotsAsync_ShouldStampAnIngestedAccountWithoutAMain()
+    {
+        // #2039: puuid-2 was ingested once and holds no main (demoted, or never one). The
+        // stamp is what brings it back to main analysis, so the harvest must write it.
+        await SeedAccountAsync("puuid-1");
+        await SeedAccountAsync("puuid-2", lastMatchIngestAtUtc: FakeGameStartUtc.AddDays(-90));
+
+        var service = BuildActivityWriter(FakeGameStartUtc.AddDays(2));
+
+        await using (var session = await _fixture.CreateSessionFactory().CreateAsync(CancellationToken.None))
+        {
+            await IngestSnapshotsAsync(
+                service, session, "KR", "puuid-1", RegionalRoute.Asia, 10, 10, 4, CancellationToken.None);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-2").LastSeenInMatchAtUtc.Should().Be(FakeGameStartUtc);
+    }
+
+    [Fact]
     public async Task IngestSnapshotsAsync_ShouldNotReactivateAMain_FromAGameOlderThanTheActivityWindow()
     {
         await SeedAccountAsync("puuid-2");
@@ -517,11 +537,13 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
         string puuid,
         int profileIconId = 0,
         int summonerLevel = 0,
-        DateTime? summonerObservedAtUtc = null)
+        DateTime? summonerObservedAtUtc = null,
+        DateTime? lastMatchIngestAtUtc = null)
     {
         await using var db = _fixture.CreateDbContext();
         db.RiotAccounts.Add(new RiotAccount
         {
+            LastMatchIngestAtUtc = lastMatchIngestAtUtc,
             Puuid = puuid,
             GameName = puuid,
             TagLine = "KR1",
