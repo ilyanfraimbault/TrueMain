@@ -2,8 +2,19 @@
 import type { ProfilePositionStat } from '#shared/types/profile'
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 
-const props = defineProps<{
+// Each role's share of the player's games, main role first. The app's
+// dashboard adds how the player fares on each through the `games` slot
+// (`DashboardRolesCard`).
+const props = withDefaults(defineProps<{
   positions: ProfilePositionStat[]
+  title?: string
+}>(), {
+  title: 'Role distribution',
+})
+
+defineSlots<{
+  /** The figures beside the role's name. Defaults to its game count. */
+  games?: (props: { role: ProfilePositionStat }) => unknown
 }>()
 
 // Riot-stored position string → community display label. "MIDDLE" reads
@@ -18,30 +29,18 @@ const POSITION_LABELS: Record<string, string> = {
   UTILITY: 'SUPPORT',
 }
 
-interface RoleRow {
-  position: string
-  label: string
-  games: number
-  rate: number
-}
-
-const sorted = computed<RoleRow[]>(() =>
+const sorted = computed(() =>
   props.positions
     .filter(p => p.games > 0)
-    .map(p => ({
-      position: p.position,
-      label: POSITION_LABELS[p.position] ?? p.position,
-      games: p.games,
-      rate: p.rate,
-    }))
-    .sort((a, b) => b.games - a.games),
+    .map(stat => ({ stat, label: POSITION_LABELS[stat.position] ?? stat.position }))
+    .sort((a, b) => b.stat.games - a.stat.games),
 )
 </script>
 
 <template>
   <section v-if="sorted.length > 0" class="flex flex-col gap-2">
     <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-      Role distribution
+      {{ title }}
     </h2>
     <!-- No `overflow-hidden`: the rows have no edge background to clip. It used
          to be forbidden here anyway — `glass`'s backdrop-filter made WebKit clip
@@ -49,24 +48,24 @@ const sorted = computed<RoleRow[]>(() =>
          constraint. -->
     <ul class="flex flex-col divide-y divide-default/40 surface rounded-lg">
       <li
-        v-for="role in sorted"
-        :key="role.position"
+        v-for="{ stat, label } in sorted"
+        :key="stat.position"
         class="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-3 py-2"
       >
         <SkeletonImage
-          :src="getPositionIconUrl(role.position)"
-          :alt="role.label"
+          :src="getPositionIconUrl(stat.position)"
+          :alt="label"
           class="size-5"
           transparent
         />
         <span class="text-sm font-medium">
-          {{ role.label }}
+          {{ label }}
         </span>
         <span class="text-xs text-muted tabular-nums">
-          {{ role.games }} games
+          <slot name="games" :role="stat">{{ stat.games }} games</slot>
         </span>
         <span class="w-12 text-right text-sm font-semibold tabular-nums text-default">
-          {{ formatPercentage(role.rate, 0) }}
+          {{ formatPercentage(stat.rate, 0) }}
         </span>
       </li>
     </ul>

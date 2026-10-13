@@ -1,5 +1,8 @@
 // Twin of `web/app/utils/match-history.ts` — copied verbatim until the shared layer (#1687); keep the two identical.
 import type { MatchSummaryResponse } from '#shared/types/matches'
+import { formatMatchDay } from '#common/utils/match-day'
+
+export { formatMatchDay }
 
 // Day grouping for the match-history lists. A page of 20 identically-shaped
 // rows reads as one undifferentiated wall; players think in play sessions
@@ -19,32 +22,12 @@ export interface MatchDayGroup {
   matches: MatchSummaryResponse[]
 }
 
-// Shared formatter instances — rebuilding Intl.DateTimeFormat per row is
-// measurable on a long feed (same reason as the relative-time formatter).
-const dayFormatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' })
-const dayWithYearFormatter = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-})
-
 const UNKNOWN_DAY_KEY = 'unknown-day'
 
 function localDayKey(date: Date): string {
   const month = `${date.getMonth() + 1}`.padStart(2, '0')
   const day = `${date.getDate()}`.padStart(2, '0')
   return `${date.getFullYear()}-${month}-${day}`
-}
-
-/**
- * Formats a match timestamp as a day heading — see {@link MatchDayGroup.label}.
- */
-export function formatMatchDay(isoTimestamp: string, now: Date = new Date()): string {
-  const date = new Date(isoTimestamp)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.getFullYear() === now.getFullYear()
-    ? dayFormatter.format(date)
-    : dayWithYearFormatter.format(date)
 }
 
 /**
