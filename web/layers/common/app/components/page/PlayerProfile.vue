@@ -37,6 +37,8 @@ const props = withDefaults(defineProps<{
   /** The games the form tiles read, newest first. */
   matches: MatchSummaryResponse[]
   loading?: boolean
+  /** The cards column's width: wider where a card has a table to fit (a champion's matchups). */
+  asideWidth?: string
 }>(), {
   tagLine: null,
   profileIconUrl: null,
@@ -48,6 +50,7 @@ const props = withDefaults(defineProps<{
   splashUrl: null,
   splashPosition: '68% 22%',
   loading: false,
+  asideWidth: '18rem',
 })
 
 const tiles = computed(() => formTiles(props.matches))
@@ -159,7 +162,10 @@ const rankLabel = computed(() => {
       />
     </PageHero>
 
-    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+    <div
+      class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_var(--aside-width)]"
+      :style="{ '--aside-width': asideWidth }"
+    >
       <section class="flex min-w-0 flex-col gap-2">
         <slot name="history" />
       </section>

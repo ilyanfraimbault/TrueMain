@@ -316,7 +316,6 @@ const mockPage = ref(1)
       </p>
     </header>
 
-    <ProfileHeader :identity="mockProfile.identity" :patch="latestPatch" />
     <ProfileRankedCard :ranked="mockProfile.ranked" :history="mockRankHistory" />
     <ProfileActivityHeatmap :data="mockActivity" />
     <ProfileDedicationCard
