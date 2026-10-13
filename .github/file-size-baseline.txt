@@ -8,7 +8,6 @@ backend/Tools/DevSeed/SeedGenerator.cs	578	500
 web/app/components/AppBackdrop.vue	426	400
 web/app/pages/champions/[slug].vue	417	400
 web/app/pages/dev/design-system.vue	614	400
-web/app/pages/truemains/[nameTag]/champions/[slug].vue	419	400
 web/layers/common/app/utils/favorites.ts	325	300
 web/shared/types/champions.ts	473	300
 web/shared/utils/champion-build-summary.ts	400	300

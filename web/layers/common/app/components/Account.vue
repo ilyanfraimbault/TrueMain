@@ -8,7 +8,7 @@ import { riotIdLabel, truemainNameTag, truemainProfilePath } from '#shared/utils
 /**
  * A truemain as the site shows one (#1734): profile icon, name, #tag and region
  * flag — the leaderboard table, the champion-page sidebar row, the homepage
- * panel, the favorites cards, the profile headers, the builder's games drawer,
+ * panel, the favorites cards, the profile banner, the builder's games drawer,
  * the app's build mains and its sidebar player card all draw the player through
  * this, at the size their surface wants (#2027). The
  * search palette is the one exception: it re-fills the same row DOM on every

@@ -3,6 +3,8 @@ import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { parseRouteParam } from '#common/utils/route-params'
 import { ELO_BRACKET_ALL } from '#common/utils/elo-brackets'
+import type { ChampionPosition } from '#common/utils/positions'
+import { platformIdToRegion } from '~~/shared/utils/region'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[slug].vue: same static fetches,
@@ -45,8 +47,8 @@ const {
 // A 404 is the "not enough games" empty state below, never an error. A failed
 // first load is inline only (#1661); a failed filter change keeps the slice (#1668).
 
-// Identity for the breadcrumb / header fallback. Cheap and client-cached —
-// the profile page primes the same request, so this rarely hits the network.
+// Identity for the banner and the breadcrumb. Cheap and client-cached — the
+// profile page primes the same request, so this rarely hits the network.
 const { data: profile, ready: profileReady } = useTruemainProfile(nameTag)
 
 // The LP curve under the identity, same card as the profile page: about the
@@ -59,7 +61,7 @@ const {
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
   if (!identity) return truemainSlugLabel(nameTag.value) // pre-fetch: from the route alone (#948)
-  return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
+  return riotIdLabel(identity.gameName, identity.tagLine)
 })
 // Same identity, without the tag line, for inline copy ("Faker vs mains").
 // Derived from the slug while the profile fetch is in flight, like `playerLabel`.
@@ -135,8 +137,24 @@ const isRefetching = computed(() =>
   || isLoadingStatus(summonersStatus.value),
 )
 
-// Patch for the profile icon in the player header.
+// The profile's banner, on this champion's splash: the same identity line (the
+// truemain it names is the account's, whichever champion the page is on).
 const latestPatch = computed(() => versions.value?.[0] ?? null)
+const { truemainChampion, identity: heroIdentity } = useTruemainBanner(profile, staticList, playerLabel)
+
+// This player's games on the champion: the list under the build and the
+// banner's form tiles read the same page, as on the profile. Its lane filter is
+// the list's own, independent of the build's position filter.
+const matchesPage = ref(1)
+const matchesPosition = ref<ChampionPosition | null>(null)
+watch(championId, () => { matchesPage.value = 1 })
+const {
+  matches,
+  total: matchesTotal,
+  pageSize: matchesPageSize,
+  isInitialLoading: matchesLoading,
+  notFound: matchesNotFound,
+} = useTruemainMatches(nameTag, matchesPage, { championId, position: matchesPosition })
 
 // Thin-sample caution: the backend builds from any number of games, flagging
 // small samples with minSampleMet=false. Surfaced as a warning icon by the title
@@ -194,14 +212,8 @@ const matchupsSnapshot = useLazyHydrationSnapshot(
 // two display names it prints. `patch`/`position` stay live — they feed the
 // fetch key, never the SSR markup, so they can't desynchronise hydration.
 const performanceSnapshot = useLazyHydrationSnapshot(
-  {
-    playerName: nameTag.value,
-    championName: null as string | null,
-  },
-  () => ({
-    playerName: playerName.value,
-    championName: displayName.value ?? null,
-  }),
+  { playerName: nameTag.value, championName: null as string | null },
+  () => ({ playerName: playerName.value, championName: displayName.value ?? null }),
 )
 
 // A client-side navigation keeps the outgoing page under the loading bar until
@@ -210,108 +222,84 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
-    <!-- Truemains > {player} > {champion}, and the filters on the same row as on
-         the global champion page — in the degraded (no-build) state too: the
-         pickers are how the reader got here and the only way back out. -->
-    <div class="flex flex-wrap items-center gap-3">
-      <UBreadcrumb :items="breadcrumbItems" />
-      <ChampionFilters
-        v-if="!championError"
-        class="ml-auto"
-        :selected-patch="pickerPatch"
-        :selected-position="selectedPosition"
-        :patch-options="patchOptions"
-        @update:patch="value => setFilter({ patch: value })"
-        @update:position="value => setFilter({ position: value })"
-      />
-    </div>
-
-    <div class="h-0.5">
-      <UProgress
-        v-if="isRefetching"
-        size="xs"
-        color="primary"
-        aria-label="Loading champion"
-      />
-    </div>
-
-    <!--
-      Three columns from xl (#703 was two): the *player* rail on the left — who
-      this page is about and how they perform on the champion — the champion
-      itself in the middle, and the matchups rail on the right. The player
-      identity used to sit full-width above everything, which read as a page
-      banner and pushed the champion (the actual subject of the page) below the
-      fold; as a rail it stays visible next to the build instead. Below xl the
-      blocks stack in an order the rails' source position doesn't give (hence
-      `order-*`): who, the build, the games, then the two player cards and the
-      matchups — the champion stays near the top of a phone screen.
-
-      The recent-games list lives *inside* the middle column rather than
-      full-width below the grid: match rows are the same kind of content as the
-      build breakdown and read badly stretched to the full 96rem, and keeping
-      one column width means the degraded (no-build) state below doesn't reflow
-      the page. It also reserves its space from SSR — the header falls back to
-      the URL filters and the build tabs show a dedicated skeleton until real
-      champion + static data land — so the recent-games section is never shoved
-      down when the client fetch completes (#834: it used to jump ~1700px,
-      wrecking CLS, because the whole grid was gated on `champion && staticData`).
-    -->
-    <div
-      class="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,17rem)_minmax(0,1fr)_minmax(0,21rem)] xl:grid-rows-[auto_auto_minmax(0,1fr)] xl:items-start"
+  <div class="mx-auto w-full max-w-7xl p-4 md:p-6">
+    <!-- The profile's page (`PagePlayerProfile`), scoped to one champion: the
+         player's banner on this champion's splash with the form tiles read
+         from their games on it, the champion's build and those games in the
+         main column, and the player's cards beside them — 21rem rather than the
+         profile's 18, so the matchups table keeps its champion names. -->
+    <PagePlayerProfile
+      :identity="heroIdentity"
+      :patch="latestPatch"
+      :level="profile?.identity.summonerLevel ?? null"
+      :ranked="profile?.ranked ?? null"
+      :truemain="truemainChampion"
+      :persona="profile?.persona ?? null"
+      :splash-url="splashUrl"
+      splash-position="60% 20%"
+      aside-width="21rem"
+      :matches="matches"
+      :loading="matchesLoading"
     >
-      <!-- Player identity. Renders even when the champion aggregate failed: it
-           is the one thing on the page that never depended on it. -->
-      <div class="order-1 min-w-0 xl:col-start-1 xl:row-start-1">
-        <ProfileHeaderSkeleton v-if="!profile" stacked />
-        <ProfileHeader
-          v-else
-          stacked
-          :identity="profile.identity"
-          :patch="latestPatch"
-        />
-      </div>
+      <!-- Truemains > {player} > {champion}, and the build filters on the same
+           row — in the degraded (no-build) state too: the pickers are how the
+           reader got here and the only way back out. -->
+      <template #header>
+        <div class="relative flex flex-wrap items-center gap-3">
+          <UBreadcrumb :items="breadcrumbItems" />
+          <ChampionFilters
+            v-if="!championError"
+            class="ml-auto"
+            :selected-patch="pickerPatch"
+            :selected-position="selectedPosition"
+            :patch-options="patchOptions"
+            @update:patch="value => setFilter({ patch: value })"
+            @update:position="value => setFilter({ position: value })"
+          />
+          <UProgress
+            v-if="isRefetching"
+            size="xs"
+            color="primary"
+            aria-label="Loading champion"
+            class="absolute inset-x-0 -bottom-2.5"
+          />
+        </div>
+      </template>
 
-      <!-- Ranked card (identical to the profile page's): the rail is the
-           player's side of the page, and their elo is the first thing that
-           qualifies every number in the middle column. Below xl it drops under
-           the build with the performance card — see there for why. -->
-      <div class="order-3 min-w-0 xl:col-start-1 xl:row-start-2">
-        <ProfileRankedCardSkeleton v-if="!profile" />
-        <ProfileRankedCard
-          v-else
-          :ranked="profile.ranked"
-          :history="rankHistory?.entries ?? []"
-          :history-loading="rankHistoryLoading"
+      <template
+        v-if="profile"
+        #title-actions
+      >
+        <FavoriteToggle
+          :game-name="profile.identity.gameName"
+          :tag-line="profile.identity.tagLine"
+          :region="platformIdToRegion(profile.identity.platformId)"
+          :profile-icon-id="profile.identity.profileIconId"
         />
-      </div>
+      </template>
 
-      <!--
-        Champion column, resilient by design: a champion the profile lists as a
-        main must always show *something* on click. The build breakdown renders
-        whenever the backend holds any aggregate for the player (however thin);
-        when it holds none (`notEnoughData` — no timeline-complete ranked game on
-        record) we show a soft notice instead of a dead-end, and either way still
-        render the player's recent games on the champion below (a separate data
-        source that has the raw matches even when the build aggregate doesn't).
-      -->
-      <div class="order-2 min-w-0 space-y-6 xl:col-start-2 xl:row-start-1 xl:row-span-3">
+      <!-- The champion column, resilient by design: with no aggregate for the
+           player (`notEnoughData`) a soft notice replaces the build, and their
+           games on the champion — a separate source — still render below. The
+           build tabs skeleton until champion + statics land, so the games are
+           never shoved down when the client fetch completes (#834). -->
+      <template #history>
         <FetchErrorAlert
           v-if="championError"
           :error="championError"
           title="Failed to load this champion"
         />
 
-        <template v-else>
-          <!-- The champion page's banner (#2026): the player's games and win
-               rate as its sample line, no figures row (the trend is every rank).
-               The SSR-resolved name; skeletons until the aggregate lands, but an
-               empty slice is settled and says so. -->
-          <ChampionHero
+        <div
+          v-else
+          class="flex min-w-0 flex-col gap-6"
+        >
+          <!-- The SSR-resolved name; skeletons until the aggregate lands, but
+               an empty slice is settled and says so. -->
+          <ChampionPlayerHeading
             :champion-name="seoDisplayName"
             :champion-icon-url="displayIconUrl"
             :champion-id="championId"
-            :splash-url="splashUrl"
             :position="champion?.position || selectedPosition || ''"
             :total-games="champion?.totalGames ?? 0"
             :total-wins="champion?.totalWins ?? null"
@@ -333,49 +321,51 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
             :filter-labels="activeFilterLabels"
             @clear="clearFilters"
           />
+          <ChampionBuildTabs
+            v-else-if="champion && staticData"
+            :builds="champion.builds"
+            :champion-static="staticData"
+            :items-map="itemsMap ?? {}"
+            :summoners-map="summonersMap ?? {}"
+            :summoners-pending="isLoadingStatus(summonersStatus)"
+            :rune-tree="runeTree ?? null"
+          />
+          <ChampionBuildTabsSkeleton v-else />
 
-          <template v-else>
-            <ChampionBuildTabs
-              v-if="champion && staticData"
-              :builds="champion.builds"
-              :champion-static="staticData"
-              :items-map="itemsMap ?? {}"
-              :summoners-map="summonersMap ?? {}"
-              :summoners-pending="isLoadingStatus(summonersStatus)"
-              :rune-tree="runeTree ?? null"
-            />
-            <ChampionBuildTabsSkeleton v-else />
-          </template>
-
-          <!-- This player's recent games on this champion — rendered even when the
-               build breakdown above is absent (the degraded state), so clicking a
-               main always surfaces their actual games. -->
           <ChampionPlayerMatchHistory
+            v-model:page="matchesPage"
+            v-model:position="matchesPosition"
             :name-tag="nameTag"
-            :champion-id="championId"
             :champion-name="displayName"
+            :matches="matches"
+            :total="matchesTotal"
+            :page-size="matchesPageSize"
+            :loading="matchesLoading"
+            :not-found="matchesNotFound"
             :champions="staticList"
             :items="itemsMap"
             :summoner-spells="summonersMap"
             :rune-tree="runeTree"
           />
-        </template>
-      </div>
+        </div>
+      </template>
 
-      <!-- Performance score (#918): the aggregate of the per-match score over
-           this player's recent games on the champion — a statement about the
-           player, so on desktop it sits under them in the left rail. Below xl
-           it drops *below* the build instead (`order-4`, and the ranked card
-           with it): stacked, the two are ~700 px of the player's own numbers,
-           and leaving them in source order would push the champion the reader
-           actually clicked through to under a fold of them.
-           Lazy + hydrate-on-visible with the client-only display names frozen
-           until it mounts (#834/#837). -->
-      <div
-        v-if="!championError"
-        class="order-4 min-w-0 xl:col-start-1 xl:row-start-3"
-      >
+      <!-- The player's cards: the ranked card the profile opens its column on
+           (it renders even when the champion aggregate failed — it never
+           depended on it), their performance on the champion, its matchups. -->
+      <template #aside>
+        <ProfileRankedCardSkeleton v-if="!profile" />
+        <ProfileRankedCard
+          v-else
+          :ranked="profile.ranked"
+          :history="rankHistory?.entries ?? []"
+          :history-loading="rankHistoryLoading"
+        />
+
+        <!-- Performance score (#918), lazy + hydrate-on-visible with the
+             client-only display names frozen until it mounts (#834/#837). -->
         <LazyChampionPlayerPerformance
+          v-if="!championError"
           hydrate-on-visible
           :name-tag="nameTag"
           :champion-id="championId"
@@ -384,28 +374,12 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
           v-bind="performanceSnapshot.value"
           @vue:mounted="performanceSnapshot.reveal"
         />
-      </div>
 
-      <!-- Below-the-fold sidebar: lazy-load so its JS lands in its own
-           chunk and only hydrates once scrolled into view (#820).
-           `:champions` comes from `matchupsSnapshot` (frozen at its
-           SSR-matching empty value until `@vue:mounted` reveals the
-           live, already-loaded `staticList`) so the deferred hydration
-           doesn't mismatch (#834/#837) — same pattern as the global
-           champion page. -->
-      <!--
-        Deliberately cross-patch, unlike the global panel and unlike the
-        build sections above it: this slice is one player's own games, where
-        a patch filter would leave nearly every opponent under the 3-game
-        per-player floor and empty the panel. The global panel needs the
-        patch for the opposite reason — its aggregate outlives the matches
-        it was folded from, so unscoped it spans *more* history than the page.
-      -->
-      <aside
-        v-if="!championError"
-        class="order-5 min-w-0 space-y-6 xl:col-start-3 xl:row-start-1 xl:row-span-3"
-      >
+        <!-- Lazy + hydrate-on-visible (#820), `:champions` frozen (#834/#837).
+             Cross-patch on purpose: one player's games under a patch filter
+             would leave nearly every opponent under the 3-game floor. -->
         <LazyChampionMatchups
+          v-if="!championError"
           hydrate-on-visible
           :champion-id="championId"
           :position="selectedPosition"
@@ -413,7 +387,7 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
           v-bind="matchupsSnapshot.value"
           @vue:mounted="matchupsSnapshot.reveal"
         />
-      </aside>
-    </div>
+      </template>
+    </PagePlayerProfile>
   </div>
 </template>

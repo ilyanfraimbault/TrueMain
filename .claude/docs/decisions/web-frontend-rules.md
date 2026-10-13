@@ -479,8 +479,9 @@ panel, the favorites cards, the profile header and the builder's games drawer.
   the profile; `false` renders no link, for a parent that is the link already (a sidebar row's overlay, the
   homepage row, the profile page itself).
 - **Sizes, not variants**: `xs` (18px, the drawer's inline chip, `layout="inline"`), `sm` (table), `md` (homepage,
-  the app's build mains), `lg` (sidebar row, favorites, the app's player card), `xl` (72px, both profile headers —
-  the profile's banner and the player-scoped champion page's rail — which replace the name line through `#name`).
+  the app's build mains), `lg` (sidebar row, favorites, the app's player card), `xl` (72px, the profile banner of
+  `PagePlayerProfile` — the profile, the player-scoped champion page and the app's dashboard — which replaces the
+  name line through `#name`).
   Slots carry the per-surface extras: `#badge` (OTP), `#subline` (ranked text, level, the client's status),
   `#avatar-badge` (a mark on the picture's edge: the app's summoner level and status dot).
 - **Every player identity goes through it, on both apps** (#2027): the profile banner (`PageHero`'s `#identity`

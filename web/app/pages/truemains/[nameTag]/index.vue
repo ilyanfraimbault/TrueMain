@@ -123,20 +123,11 @@ const { data: items } = useStaticItems(latestPatch)
 const { data: summonerSpells } = useStaticSummonerSpells(latestPatch)
 const { data: runeTree } = useStaticRuneTree(latestPatch)
 
-// The banner: the champion this player truemains — the dedication's champion,
-// else their first main — on its splash, through the image proxy at banner width.
+// The banner: the champion this player truemains, on its splash through the
+// image proxy at banner width.
 const splashOf = useCanonicalSplash()
-const truemainChampion = computed(() => {
-  const id = profile.value?.dedication?.championId ?? profile.value?.mains[0]?.championId
-  const champion = id ? champions.value.find(entry => entry.championId === id) : null
-  return champion ? { name: champion.name, iconUrl: champion.iconUrl } : null
-})
-const splashUrl = computed(() => {
-  const raw = championSplashUrlFromIcon(truemainChampion.value?.iconUrl)
-  return splashOf(raw)
-})
-// The player before the profile lands: the slug's Riot ID, without a picture.
-const heroIdentity = computed(() => profile.value?.identity ?? { gameName: playerLabel.value, tagLine: null })
+const { truemainChampion, identity: heroIdentity } = useTruemainBanner(profile, champions, playerLabel)
+const splashUrl = computed(() => splashOf(championSplashUrlFromIcon(truemainChampion.value?.iconUrl)))
 
 const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
 
