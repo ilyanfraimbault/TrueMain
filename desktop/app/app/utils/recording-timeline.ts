@@ -3,9 +3,29 @@
  * video editor's) and the player's playback speeds. Pure, so the component only
  * holds the state.
  */
+import type { PlayerLane } from '~/utils/recording-moments'
+import { PLAYER_LANES } from '~/utils/recording-moments'
 
 /** The window of the video across the timeline's width, ms. */
 export interface TimelineView { startMs: number, spanMs: number }
+
+/** Where `ms` sits across the view, as a CSS length — pinned to the view's edges. */
+export function viewPercent(view: TimelineView, ms: number): string {
+  const end = view.startMs + view.spanMs
+  return `${(Math.min(Math.max(ms, view.startMs), end) - view.startMs) / view.spanMs * 100}%`
+}
+
+export const isInView = (view: TimelineView, ms: number) => ms >= view.startMs && ms <= view.startMs + view.spanMs
+
+/** The timeline's rows, px: the objectives' row, then the lanes' panel under it, the curve's lane last. */
+export const TIMELINE_PANEL_TOP = 28
+export const TIMELINE_LANE_HEIGHT = 20
+export const TIMELINE_CURVE_HEIGHT = 40
+export const TIMELINE_LANES_HEIGHT = TIMELINE_LANE_HEIGHT * PLAYER_LANES.length
+
+/** The middle of a player lane, from the track's top. */
+export const timelineLaneCenter = (lane: PlayerLane) =>
+  TIMELINE_PANEL_TOP + PLAYER_LANES.indexOf(lane) * TIMELINE_LANE_HEIGHT + TIMELINE_LANE_HEIGHT / 2
 
 /** The narrowest window the timeline zooms to: a few seconds across, enough to land the playhead on a frame's neighbourhood. */
 export const MIN_VIEW_SPAN_MS = 4_000

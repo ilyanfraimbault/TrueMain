@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import type { DraftSuggestionItem, Lane, TeamRow } from '~/types/draft'
+import type { DraftSuggestionItem } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 import type { ViewedPick } from '~/composables/useDraftSubject'
-import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
 
 /**
  * Champion select, laid out like the reference client: each side's bans and
@@ -16,10 +15,6 @@ const props = withDefaults(defineProps<{
   label?: string
 }>(), { label: 'Champion select' })
 
-const { nameOf } = useChampionStatics()
-const { laneEntries, entryOf } = useTierList()
-const { state: lcu } = useLcuState()
-
 const draft = toRef(props, 'draft')
 
 // Hover, lock and ban, on the player's click (#1909): one instance for every control under this screen.
@@ -27,43 +22,7 @@ const { turnLabel } = provideChampSelectActions(draft)
 
 // ─── The pool, and the answer for it ────────────────────────────────────────
 
-/** How many of the player's own champions are ranked: their ten most played on the lane. */
-const POOL_SIZE = 10
-
-/** The player's champions, most mastery first — empty until the client has said. */
-const championPool = computed(() => lcu.value.championPool ?? [])
-const hasPool = computed(() => championPool.value.length > 0)
-
-/** Rank the player's own champions, or every champion played on the lane. On by default when there is a pool. */
-const myPool = ref(true)
-
-/** Champions nobody can pick any more: banned, picked by the enemy, or locked or hovered by an ally. */
-const unavailable = computed(() => new Set([
-  ...props.draft.allyBans,
-  ...props.draft.enemyBans,
-  ...props.draft.enemyChampions,
-  ...props.draft.myTeam.filter(slot => !slot.isMe && slot.championId !== null).map(slot => slot.championId!),
-]))
-
-/** The player's most-mastered champions played on our lane and still available, the first ten. */
-const lanePool = computed(() => {
-  const position = props.draft.myPosition
-  if (!position) return []
-  return championPool.value.filter(id => !unavailable.value.has(id) && entryOf(id, position) !== null).slice(0, POOL_SIZE)
-})
-
-/**
- * What the endpoint ranks. Our pool: the player's most-mastered champions that
- * are played on our lane, the first ten still available. Otherwise every
- * champion the tier list has on the lane — split into several requests when
- * it is more than one can score.
- */
-const candidates = computed(() => {
-  const position = props.draft.myPosition
-  if (!position) return []
-  if (myPool.value && hasPool.value) return lanePool.value
-  return laneEntries(position).filter(entry => !unavailable.value.has(entry.championId)).map(entry => entry.championId)
-})
+const { myPool, hasPool, lanePool, candidates } = useDraftCandidates(draft)
 
 const pinnedLanes = ref<Record<number, string>>({})
 const { recommendation, pending: ranking, error: rankError } = useDraftRecommendation(draft, pinnedLanes, candidates)
@@ -97,43 +56,7 @@ watch(pinned, value => (pinnedLanes.value = value), { deep: true })
 
 // ─── The two teams ──────────────────────────────────────────────────────────
 
-/** Rows follow the lanes when the queue assigns them, so row n is a matchup. */
-const byLane = computed(() => props.draft.myPosition !== '')
-
-const allyRows = computed<TeamRow[]>(() => {
-  const team = props.draft.myTeam
-  const cells = byLane.value
-    ? LANES.map(lane => team.find(slot => slot.position === lane) ?? null)
-    : Array.from({ length: 5 }, (_, index) => team[index] ?? null)
-  return cells.map((slot, index) => ({
-    championId: slot?.championId ?? null,
-    lane: (slot?.position || (byLane.value ? LANES[index] : null)) as Lane | null,
-    locked: slot?.locked ?? false,
-    me: slot?.isMe ?? false,
-  }))
-})
-
-/**
- * With a lane answer the enemies follow the lanes and can be corrected by
- * drag; without one — early draft, or a queue with no lanes — they are listed
- * in the order they picked, and only an empty board carries the lanes.
- */
-const enemyRows = computed<TeamRow[]>(() => {
-  if (recommendation.value) {
-    return slots.value.map(slot => ({
-      championId: slot.championId !== null && props.draft.enemyChampions.includes(slot.championId) ? slot.championId : null,
-      lane: slot.lane,
-      locked: true,
-    }))
-  }
-  const open = byLane.value && props.draft.enemyChampions.length === 0
-  return Array.from({ length: 5 }, (_, index) => ({
-    championId: props.draft.enemyChampions[index] ?? null,
-    lane: (open ? LANES[index] ?? null : null) as Lane | null,
-    locked: true,
-  }))
-})
-
+const { byLane, allyRows, enemyRows } = useDraftTeamRows(draft, recommendation, slots)
 
 // ─── Whose build, and which half of the screen ──────────────────────────────
 
@@ -204,30 +127,7 @@ function back() {
 
 // ─── The damage mix (#1907) ─────────────────────────────────────────────────
 
-/**
- * Our side's picks for the damage bar: the locked ones, and our own pick being
- * weighed — hovered in the client, or a suggestion opened here — as a preview.
- * Other allies' hovers are not counted: they are not picks yet.
- */
-const allyDamagePicks = computed(() => {
-  const picks: { championId: number, position: string | null, preview?: boolean }[] = allyRows.value
-    .filter(row => row.championId !== null && row.locked && !(row.me && previewed.value !== null))
-    .map(row => ({ championId: row.championId!, position: row.lane }))
-  const mine = allyRows.value.find(row => row.me)
-  const weighed = previewed.value ?? (mine && !mine.locked ? mine.championId : null)
-  if (weighed !== null) picks.push({ championId: weighed, position: mine?.lane ?? (props.draft.myPosition || null), preview: true })
-  return picks
-})
-
-/** Theirs, on the lanes the guesser (and the player's corrections) put them. */
-const enemyDamagePicks = computed(() => enemyRows.value
-  .filter(row => row.championId !== null)
-  .map(row => ({ championId: row.championId!, position: row.lane })))
-
-/** Our locked allies, ourselves excluded: what a suggested pick's damage note is read against. */
-const lockedAllies = computed(() => allyRows.value
-  .filter(row => row.championId !== null && row.locked && !row.me)
-  .map(row => ({ championId: row.championId!, position: row.lane })))
+const { allyDamagePicks, enemyDamagePicks, lockedAllies } = useDraftDamagePicks(draft, allyRows, enemyRows, previewed)
 
 const suggested = computed(() => (recommendation.value?.candidates ?? []).filter(candidate => !candidate.thinSample).map(candidate => candidate.championId))
 </script>
@@ -241,17 +141,15 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
     </DraftTopStrip>
 
     <div class="grid grid-cols-[minmax(0,1fr)_8.5rem_minmax(0,1fr)] gap-3">
-      <div class="flex flex-col gap-1.5">
-        <DraftTeam
-          team="ally"
-          :rows="allyRows"
-          :selected-cell="selectedCell.ally"
-          :opponent-cell="opponentCell.ally"
-          :suggested="suggested"
-          @view="view('ally', $event)"
-        />
-        <DraftDamageBar team="ally" :picks="allyDamagePicks" />
-      </div>
+      <DraftTeamColumn
+        team="ally"
+        :rows="allyRows"
+        :selected-cell="selectedCell.ally"
+        :opponent-cell="opponentCell.ally"
+        :suggested="suggested"
+        :damage-picks="allyDamagePicks"
+        @view="view('ally', $event)"
+      />
 
       <DraftLaneDuel
         :champion-id="duel.championId"
@@ -262,30 +160,18 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         class="pb-6"
       />
 
-      <div class="flex flex-col gap-1.5">
-        <div class="relative">
-          <DraftTeam
-            team="enemy"
-            :rows="enemyRows"
-            :selected-cell="selectedCell.enemy"
-            :opponent-cell="opponentCell.enemy"
-            :correctable="recommendation !== null"
-            @view="view('enemy', $event)"
-            @swap="swap"
-          />
-          <UButton
-            v-if="hasCorrections"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-rotate-ccw"
-            label="Reset lanes"
-            class="absolute -bottom-1.5 right-0"
-            @click="reset"
-          />
-        </div>
-        <DraftDamageBar team="enemy" :picks="enemyDamagePicks" />
-      </div>
+      <DraftTeamColumn
+        team="enemy"
+        :rows="enemyRows"
+        :selected-cell="selectedCell.enemy"
+        :opponent-cell="opponentCell.enemy"
+        :correctable="recommendation !== null"
+        :has-corrections="hasCorrections"
+        :damage-picks="enemyDamagePicks"
+        @view="view('enemy', $event)"
+        @swap="swap"
+        @reset="reset"
+      />
     </div>
 
     <div class="min-h-0 flex-1">
@@ -313,19 +199,7 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
           <DraftItemAdvice :subject="subject" />
         </template>
         <template #header>
-          <div class="flex items-center gap-2.5">
-            <ChampionPortrait :champion-id="subject.championId" size="sm" class="size-10! rounded-lg!" />
-            <p class="min-w-0 truncate text-sm font-semibold text-highlighted">{{ nameOf(subject.championId) }}</p>
-            <img
-              v-if="subject.request.position in LANE_LABELS"
-              :src="laneIconUrl(subject.request.position)"
-              :alt="LANE_LABELS[subject.request.position as Lane]"
-              :title="LANE_LABELS[subject.request.position as Lane]"
-              class="size-4 shrink-0"
-            >
-            <span class="flex-1" />
-            <UButton v-if="canGoBack" size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-left" aria-label="Back" @click="back" />
-          </div>
+          <DraftBuildHeader :champion-id="subject.championId" :position="subject.request.position" :can-go-back="canGoBack" @back="back" />
         </template>
       </BuildView>
 

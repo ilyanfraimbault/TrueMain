@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/recordings'
-import type { PlayerLane } from '~/utils/recording-moments'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
-import type { TimelineView } from '~/utils/recording-timeline'
-import { formatClock, isPlayerMoment, isStructure, LANE_NAMES, momentLabel, momentMark, momentTone, PLAYER_LANES } from '~/utils/recording-moments'
-import { clampView, fullView, isZoomed, panView, revealInView, viewTicks, ZOOM_STEP, zoomView } from '~/utils/recording-timeline'
+import { isPlayerMoment, isStructure, PLAYER_LANES } from '~/utils/recording-moments'
+import {
+  TIMELINE_CURVE_HEIGHT as CURVE_HEIGHT,
+  TIMELINE_LANE_HEIGHT as LANE_HEIGHT,
+  TIMELINE_LANES_HEIGHT as LANES_HEIGHT,
+  TIMELINE_PANEL_TOP as PANEL_TOP,
+  viewTicks,
+} from '~/utils/recording-timeline'
 
 /**
  * The recap's timeline (#1777): the video's length with the player's kills,
@@ -49,71 +53,11 @@ const emit = defineEmits<{
 
 const track = ref<HTMLElement | null>(null)
 
-/** The window of the video across the track: the whole of it until zoomed. */
-const view = ref<TimelineView>(fullView(props.lengthMs))
-const zoomed = computed(() => isZoomed(view.value, props.lengthMs))
-const viewEnd = computed(() => view.value.startMs + view.value.spanMs)
-watch(() => props.lengthMs, length => { view.value = fullView(length) })
-
-const pct = (ms: number) => `${(Math.min(Math.max(ms, view.value.startMs), viewEnd.value) - view.value.startMs) / view.value.spanMs * 100}%`
-const inView = (ms: number) => ms >= view.value.startMs && ms <= viewEnd.value
-
-function msAt(clientX: number): number {
-  const rect = track.value?.getBoundingClientRect()
-  if (!rect || !rect.width) return 0
-  return view.value.startMs + Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1) * view.value.spanMs
-}
-
-/** A pan or zoom by hand holds the view where it was put this long before it pages to the playhead again. */
-const HOLD_MS = 2_000
-let heldUntil = 0
-
-function setView(next: TimelineView, byHand = true) {
-  view.value = clampView(next, props.lengthMs)
-  if (byHand) heldUntil = performance.now() + HOLD_MS
-}
-
-/** A zoom step from the keys or the buttons, around the playhead when it is in view, else the window's middle. */
-function zoomStep(direction: 1 | -1) {
-  const anchor = inView(props.currentMs) ? props.currentMs : view.value.startMs + view.value.spanMs / 2
-  setView(zoomView(view.value, props.lengthMs, anchor, direction === 1 ? 1 / ZOOM_STEP : ZOOM_STEP))
-}
-
-watch(() => props.currentMs, (ms) => {
-  if (!zoomed.value || drag.value || performance.now() < heldUntil) return
-  setView(revealInView(view.value, props.lengthMs, ms), false)
-})
-
-function onWheel(event: WheelEvent) {
-  const rect = track.value?.getBoundingClientRect()
-  if (!rect?.width) return
-  // A trackpad pinch arrives as a wheel with Ctrl held.
-  if (event.ctrlKey || event.metaKey || event.altKey) {
-    event.preventDefault()
-    const delta = Math.min(Math.max(event.deltaY, -50), 50)
-    setView(zoomView(view.value, props.lengthMs, msAt(event.clientX), Math.exp(delta * 0.01)))
-    return
-  }
-  if (!zoomed.value) return
-  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-  if (!delta) return
-  event.preventDefault()
-  setView(panView(view.value, props.lengthMs, (delta / rect.width) * view.value.spanMs))
-}
-
-/** Dragging past an edge while zoomed scrolls the view that way, faster the further out. */
-function scrollPastEdge(clientX: number) {
-  const rect = track.value?.getBoundingClientRect()
-  if (!rect?.width || !zoomed.value) return
-  const overshoot = clientX < rect.left ? clientX - rect.left : clientX > rect.right ? clientX - rect.right : 0
-  if (overshoot) setView(panView(view.value, props.lengthMs, (Math.max(Math.min(overshoot, 80), -80) / rect.width) * view.value.spanMs * 0.5))
-}
-
-defineShortcuts({
-  '=': () => zoomStep(1),
-  '+': () => zoomStep(1),
-  '-': () => zoomStep(-1),
-  '\\': () => setView(fullView(props.lengthMs)),
+const { view, zoomed, pct, inView, msAt, setView, zoomStep, onWheel, scrollPastEdge } = useTimelineZoom({
+  lengthMs: () => props.lengthMs,
+  currentMs: () => props.currentMs,
+  track,
+  dragging: () => drag.value !== null,
 })
 
 const visible = computed(() => props.moments.filter(moment => moment.videoMs <= props.lengthMs && inView(moment.videoMs)))
@@ -126,15 +70,9 @@ const lanes = computed(() => PLAYER_LANES.map(lane => ({
 const objectives = computed(() => visible.value.filter(moment => !isPlayerMoment(moment))
   .sort((a, b) => Number(!isStructure(a)) - Number(!isStructure(b))))
 
-/** Geometry, px: the objectives' row, then the lanes' panel under it, the curve's lane last. */
-const PANEL_TOP = 28
-const LANE_HEIGHT = 20
-const CURVE_HEIGHT = 40
-const LANES_HEIGHT = LANE_HEIGHT * PLAYER_LANES.length
+/** The lanes' panel, and the curve's lane under it when the game has one. */
 const panelHeight = computed(() => LANES_HEIGHT + (props.winProbability ? CURVE_HEIGHT : 0))
 const trackHeight = computed(() => `${PANEL_TOP + panelHeight.value}px`)
-const laneCenter = (lane: PlayerLane) => PANEL_TOP + PLAYER_LANES.indexOf(lane) * LANE_HEIGHT + LANE_HEIGHT / 2
-const LANE_TONES: Record<PlayerLane, string> = { kill: 'text-data-good', assist: 'text-ink-400', death: 'text-red-400' }
 
 // Clock labels: the smallest step that keeps about eight across the window.
 const ticks = computed(() => viewTicks(view.value))
@@ -207,25 +145,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
   <div class="select-none">
     <div class="flex gap-2">
       <!-- The lanes' legend. -->
-      <div class="relative w-4 shrink-0" :style="{ height: trackHeight }">
-        <div
-          v-for="lane in PLAYER_LANES"
-          :key="lane"
-          class="absolute inset-x-0 flex items-center justify-center"
-          :style="{ top: `${laneCenter(lane) - LANE_HEIGHT / 2}px`, height: `${LANE_HEIGHT}px` }"
-          :title="LANE_NAMES[lane]"
-        >
-          <RecapMomentIcon :kind="lane" class="size-3.5" :class="LANE_TONES[lane]" />
-        </div>
-        <div
-          v-if="winProbability"
-          class="absolute inset-x-0 flex items-center justify-center"
-          :style="{ top: `${PANEL_TOP + LANES_HEIGHT}px`, height: `${CURVE_HEIGHT}px` }"
-          title="Win probability"
-        >
-          <UIcon name="i-lucide-chart-spline" class="size-3.5 text-ally" />
-        </div>
-      </div>
+      <RecapTimelineLegend :height="trackHeight" :curve="!!winProbability" />
 
       <div
         ref="track"
@@ -239,26 +159,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
         @pointercancel="drag = null"
         @pointerleave="hoverMs = null"
       >
-        <!-- Objectives, above the lanes: the side that took one is its colour. -->
-        <button
-          v-for="(moment, index) in objectives"
-          :key="`objective-${index}`"
-          type="button"
-          class="absolute top-0.5 flex -translate-x-1/2 items-center justify-center rounded-md transition-transform hover:z-10 hover:scale-125"
-          :class="[
-            momentTone(moment),
-            isStructure(moment)
-              ? 'size-5 opacity-75 hover:opacity-100'
-              : ['size-5 ring-1', moment.ally === false ? 'bg-enemy/15 ring-enemy/50' : 'bg-ally/15 ring-ally/50'],
-          ]"
-          :style="{ left: pct(moment.videoMs) }"
-          :title="`${momentLabel(moment)} · ${formatClock(moment.videoMs)}`"
-          :aria-label="`${momentLabel(moment)} at ${formatClock(moment.videoMs)}`"
-          @pointerdown.stop
-          @click="onMoment(moment)"
-        >
-          <RecapMomentIcon :kind="moment.kind" :class="isStructure(moment) ? 'size-3' : 'size-3.5'" />
-        </button>
+        <RecapTimelineObjectives :objectives="objectives" :view="view" @moment="onMoment" />
 
         <div class="absolute inset-x-0 overflow-hidden rounded-md bg-muted ring-1 ring-default" :style="{ top: `${PANEL_TOP}px`, height: `${panelHeight}px` }">
           <div class="absolute inset-y-0 left-0 bg-white/[0.035]" :style="{ width: pct(currentMs) }" />
@@ -303,24 +204,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
           @jump="onMoment"
         />
 
-        <!-- The player's own moments, each kind on its lane. -->
-        <template v-for="{ lane, moments: laneMoments } in lanes" :key="lane">
-          <button
-            v-for="(moment, index) in laneMoments"
-            :key="`${lane}-${index}`"
-            type="button"
-            class="absolute flex -translate-1/2 items-center justify-center rounded-full text-[9px] font-bold leading-none transition-transform hover:z-10 hover:scale-125"
-            :class="[momentMark(moment), moment.kills > 1 && 'px-1', lane !== 'death' && 'ring-2 ring-(--ui-bg-muted)']"
-            :style="{ left: pct(moment.videoMs), top: `${laneCenter(lane)}px` }"
-            :title="`${momentLabel(moment)} · ${formatClock(moment.videoMs)}`"
-            :aria-label="`${momentLabel(moment)} at ${formatClock(moment.videoMs)}`"
-            @pointerdown.stop
-            @click="onMoment(moment)"
-          >
-            <template v-if="moment.kills > 1">×{{ moment.kills }}</template>
-            <RecapMomentIcon v-else-if="lane !== 'assist'" :kind="moment.kind" class="size-2.5" />
-          </button>
-        </template>
+        <RecapTimelineLaneMoments :lanes="lanes" :view="view" @moment="onMoment" />
 
         <div v-if="inView(currentMs)" data-playhead class="absolute bottom-0 z-20 w-0.5 -translate-x-1/2 cursor-ew-resize bg-inverted" :style="{ top: `${PANEL_TOP - 6}px`, left: pct(currentMs) }">
           <span class="absolute -left-[5px] -top-1.5 size-3 rounded-full bg-inverted ring-2 ring-(--ui-bg)" />
@@ -328,14 +212,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
       </div>
     </div>
 
-    <div class="relative ml-6 mt-1 h-3 text-[10px] tabular-nums text-dimmed">
-      <span v-for="at in ticks" :key="at" class="absolute -translate-x-1/2" :class="hoverMs !== null && 'opacity-40'" :style="{ left: pct(at) }">{{ formatClock(at) }}</span>
-      <span
-        v-if="hoverMs !== null"
-        class="pointer-events-none absolute -translate-x-1/2 rounded bg-ink-950 px-1 text-highlighted"
-        :style="{ left: pct(hoverMs) }"
-      >{{ formatClock(hoverMs) }}</span>
-    </div>
+    <RecapTimelineClock :ticks="ticks" :view="view" :hover-ms="hoverMs" />
 
     <RecapTimelineNavigator class="mt-1.5" :view="view" :length-ms="lengthMs" :current-ms="currentMs" @update:view="setView" @zoom="zoomStep" />
   </div>
