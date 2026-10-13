@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { formatCount } from '~~/shared/utils/counts'
+import { formatPointDelta } from '~~/shared/utils/deltas'
+import { championDisplayName } from '~~/shared/utils/champion-name'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
@@ -36,14 +39,10 @@ const synergyClass = computed(() => {
   return props.synergy > 0 ? 'text-data-good' : 'text-data-bad'
 })
 const gamesTooltip = computed(() =>
-  `${props.games.toLocaleString('en-US')} game(s) together — `
+  `${formatCount(props.games)} game(s) together — `
   + `${formatPercentage(props.playRate ?? 0, 1)} of this champion's games`,
 )
-const synergyLabel = computed(() => {
-  const points = props.synergy * 100
-  const rounded = Math.round(points * 10) / 10
-  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(1)}`
-})
+const synergyLabel = computed(() => formatPointDelta(props.synergy, { unit: false }))
 </script>
 
 <template>
@@ -80,7 +79,7 @@ const synergyLabel = computed(() => {
     />
 
     <span class="min-w-0 flex-1 truncate text-sm text-default">
-      {{ champion?.name ?? `Champion ${championId}` }}
+      {{ championDisplayName(championId, champion) }}
     </span>
 
     <!-- Sample size and raw win rate stay visible next to the synergy: the
@@ -91,11 +90,11 @@ const synergyLabel = computed(() => {
          teammate you see constantly or twice a month. -->
     <UTooltip v-if="playRate !== undefined" :text="gamesTooltip">
       <span class="shrink-0 text-xs tabular-nums text-muted">
-        {{ games.toLocaleString('en-US') }} games
+        {{ formatCount(games) }} games
       </span>
     </UTooltip>
     <span v-else class="shrink-0 text-xs tabular-nums text-muted">
-      {{ games.toLocaleString('en-US') }} games
+      {{ formatCount(games) }} games
     </span>
     <span class="w-12 shrink-0 text-right text-xs tabular-nums text-muted">
       {{ formatPercentage(winRate, 0) }}

@@ -48,8 +48,8 @@ const emit = defineEmits<{
 const open = ref(false)
 const term = ref('')
 
-const champion = computed(() =>
-  props.champions.find(entry => entry.championId === props.championId) ?? null)
+const championsById = useChampionsById(() => props.champions)
+const champion = computed(() => (props.championId === null ? null : championsById.value.get(props.championId) ?? null))
 
 type SlotItem = CommandPaletteItem & { iconUrl?: string | null }
 

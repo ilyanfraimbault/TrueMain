@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCount } from '~~/shared/utils/counts'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { variationShareTone } from '#common/utils/rate-tone'
 
@@ -54,7 +55,7 @@ const rows = computed(() => {
   const stats: { label: string, value: string }[] = []
 
   if (props.games !== undefined) {
-    stats.push({ label: props.games === 1 ? 'Game' : 'Games', value: props.games.toLocaleString('en-US') })
+    stats.push({ label: props.games === 1 ? 'Game' : 'Games', value: formatCount(props.games) })
   }
 
   // The tooltip keeps its decimal where the chip drops it: rounding the chip is

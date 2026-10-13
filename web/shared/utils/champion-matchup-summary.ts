@@ -1,3 +1,4 @@
+import { formatCount } from './counts'
 import type {
   BuildSummarySentence,
   BuildSummaryToken,
@@ -78,7 +79,7 @@ function opponentTokens(matchup: SummaryMatchup): BuildSummaryToken[] {
     plain(' (won '),
     figure(formatPercentage(matchup.winRate)),
     plain(' of '),
-    figure(matchup.games.toLocaleString('en-US')),
+    figure(formatCount(matchup.games)),
     plain(matchup.games === 1 ? ' game)' : ' games)'),
   ]
 }

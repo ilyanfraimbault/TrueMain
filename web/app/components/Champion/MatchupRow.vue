@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '~~/shared/utils/champion-name'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionMatchupEntry } from '~~/shared/types/champions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
@@ -70,7 +71,7 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
     />
     <div v-else class="size-8 shrink-0 rounded bg-elevated" aria-hidden="true" />
     <span class="min-w-0 flex-1 truncate text-sm text-default">
-      {{ opponent?.name ?? `Champion ${entry.opponentChampionId}` }}
+      {{ championDisplayName(entry.opponentChampionId, opponent) }}
     </span>
     <span class="shrink-0 text-xs tabular-nums text-muted">
       {{ formatCount(entry.games) }} games

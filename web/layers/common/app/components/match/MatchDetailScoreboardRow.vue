@@ -7,6 +7,8 @@ import type {
   StaticSummonerSpellData,
 } from '#shared/types/static-data'
 import { formatPercentage } from '#shared/utils/ddragon'
+import { championDisplayName } from '#shared/utils/champion-name'
+import { formatKda } from '#shared/utils/kda'
 
 // One player of the scoreboard. The portrait, the spells and runes and the
 // inventory are the match row's own columns (`MatchRowPortrait`,
@@ -22,12 +24,7 @@ const props = defineProps<{
   runeTree: RuneTreeResponse
 }>()
 
-const championName = computed(() => props.champion?.name ?? `Champion ${props.participant.championId}`)
-
-const kda = computed(() => {
-  const { kills, deaths, assists } = props.participant
-  return deaths === 0 ? 'Perfect' : ((kills + assists) / deaths).toFixed(2)
-})
+const championName = computed(() => championDisplayName(props.participant.championId, props.champion))
 </script>
 
 <template>
@@ -48,7 +45,7 @@ const kda = computed(() => {
       <span class="font-semibold tabular-nums">
         {{ participant.kills }}<span class="text-muted/70">/</span><span class="text-red-400">{{ participant.deaths }}</span><span class="text-muted/70">/</span>{{ participant.assists }}
       </span>
-      <span class="text-[10px] text-muted tabular-nums">{{ kda }} KDA</span>
+      <span class="text-[10px] text-muted tabular-nums">{{ formatKda(participant) }}</span>
     </div>
 
     <div class="flex w-[3.5rem] shrink-0 flex-col items-center text-[10px] text-muted tabular-nums">

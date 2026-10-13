@@ -1,3 +1,5 @@
+import { POSITIONS } from './positions'
+
 /**
  * The win-probability model (#1795, #1864, #1911): a logistic over each lane's
  * lead and what each side holds on the map. One implementation, read by the
@@ -6,8 +8,8 @@
  * It runs in the desktop app only: TrueMain computes and stores no curve (#2009).
  */
 
-/** The lanes the lead weights are fitted for, in the draft's order. */
-export const WIN_PROBABILITY_LANES = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const
+/** The lanes the lead weights are fitted for: the five positions, in lane order. */
+export const WIN_PROBABILITY_LANES = POSITIONS
 export type WinProbabilityLane = (typeof WIN_PROBABILITY_LANES)[number]
 
 /**

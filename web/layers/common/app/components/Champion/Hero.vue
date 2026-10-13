@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { formatCount } from '#shared/utils/counts'
+import { formatPointDelta } from '#shared/utils/deltas'
+import { championDisplayName } from '#shared/utils/champion-name'
 import type { ChampionTrendPoint } from '#shared/types/champions'
 import { formatPercentage, formatPercentageOrDash } from '#shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
@@ -46,7 +49,7 @@ const props = withDefaults(defineProps<{
   trendLoading?: boolean
 }>(), { truemainsOnly: undefined, totalWins: null, patch: null, lowSampleMessage: null, tier: null, trend: undefined })
 
-const displayName = computed(() => props.championName ?? `Champion ${props.championId}`)
+const displayName = computed(() => championDisplayName(props.championId, props.championName))
 const positionOption = computed(() => POSITION_BY_VALUE.get(props.position) ?? null)
 const populationLabel = computed(() => {
   if (props.truemainsOnly === undefined) return ''
@@ -68,11 +71,12 @@ const previous = computed(() => points.value[currentIndex.value - 1] ?? null)
 type Delta = { text: string, direction: 'up' | 'down', good: boolean | null }
 function move(now: number | null | undefined, before: number | null | undefined, higherIsGood: boolean | null): Delta | null {
   if (now == null || before == null) return null
-  const points = (now - before) * 100
+  const delta = now - before
   return {
-    text: `${Math.abs(points).toFixed(1)} pt`,
-    direction: points >= 0 ? 'up' : 'down',
-    good: higherIsGood === null ? null : (points >= 0) === higherIsGood,
+    // Unsigned: the arrow gives the direction.
+    text: formatPointDelta(delta, { signed: false }),
+    direction: delta >= 0 ? 'up' : 'down',
+    good: higherIsGood === null ? null : (delta >= 0) === higherIsGood,
   }
 }
 const hint = computed(() => previous.value ? `Every rank, against patch ${previous.value.patch}` : undefined)
@@ -84,7 +88,7 @@ const tiles = computed(() => {
     { label: 'Win rate', value: now ? formatPercentage(now.winRate) : '—', delta: move(now?.winRate, before?.winRate, true) },
     { label: 'Pick rate', value: now ? formatPercentage(now.pickRate) : '—', delta: move(now?.pickRate, before?.pickRate, true) },
     { label: 'Ban rate', value: formatPercentageOrDash(now?.banRate), delta: move(now?.banRate, before?.banRate, null) },
-    { label: 'Games', value: now ? now.games.toLocaleString('en-US') : '—', delta: null },
+    { label: 'Games', value: now ? formatCount(now.games) : '—', delta: null },
   ]
 })
 </script>
@@ -140,7 +144,7 @@ const tiles = computed(() => {
           </UTooltip>
         </slot>
         <span v-if="totalGames === 0">No games on this slice</span>
-        <span v-else>{{ totalGames.toLocaleString('en-US') }} games{{ populationLabel }}{{ winRateLabel }}</span>
+        <span v-else>{{ formatCount(totalGames) }} games{{ populationLabel }}{{ winRateLabel }}</span>
         <UTooltip
           v-if="lowSampleMessage"
           :text="lowSampleMessage"

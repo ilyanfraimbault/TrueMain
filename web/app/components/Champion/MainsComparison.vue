@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChampionPosition } from '#common/utils/positions'
 import { formatRiotId, isValidRiotId } from '~/utils/riot-id'
+import { riotIdLabel } from '~~/shared/utils/truemain-path'
 
 const props = defineProps<{
   championId: number
@@ -101,12 +102,12 @@ const mains = computed(() => comparison.value?.mains ?? null)
 const playerLabel = computed(() => {
   const identity = player.value?.identity
   if (!identity) return 'This account'
-  return formatRiotId(identity.gameName, identity.tagLine) ?? identity.gameName
+  return riotIdLabel(identity.gameName, identity.tagLine)
 })
 
 const mainsLabel = computed(() => {
   const identity = mains.value?.identity
-  if (identity) return formatRiotId(identity.gameName, identity.tagLine) ?? identity.gameName
+  if (identity) return riotIdLabel(identity.gameName, identity.tagLine)
   const players = mains.value?.players ?? 0
   return players > 0 ? `${players} mains` : 'Mains'
 })

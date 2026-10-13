@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TruemainDedication } from '#shared/types/dedication'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
+import { championDisplayName } from '#shared/utils/champion-name'
 import { TRUEMAIN_SCORE_LABEL, dedicationParts, formatDedicationLastPlayed, formatDedicationScore } from '#common/utils/dedication'
 
 // TrueMain's signature metric — the Truemain score (#1701) — on the player's
@@ -15,11 +16,9 @@ const props = defineProps<{
   nameTag: string
 }>()
 
-const champion = computed(() =>
-  props.champions.find(c => c.championId === props.dedication.championId) ?? null)
-
-const championName = computed(() =>
-  champion.value?.name ?? `Champion ${props.dedication.championId}`)
+const championsById = useChampionsById(() => props.champions)
+const champion = computed(() => championsById.value.get(props.dedication.championId) ?? null)
+const championName = computed(() => championDisplayName(props.dedication.championId, champion.value))
 
 const { truemainPathFor } = useChampionSlugs()
 

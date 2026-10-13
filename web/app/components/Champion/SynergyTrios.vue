@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCount } from '~~/shared/utils/counts'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionTrioSynergyEntry } from '~~/shared/types/champions'
 
@@ -48,7 +49,7 @@ defineProps<{
     >
       <template #description>
         {{ championName }} and {{ partnerName }} share
-        {{ pairGames.toLocaleString('en-US') }} games — not enough to suggest a third pick
+        {{ formatCount(pairGames) }} games — not enough to suggest a third pick
         (minimum {{ minGames }} games together with the same teammate).
       </template>
     </UEmpty>

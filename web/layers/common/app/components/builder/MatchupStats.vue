@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCount } from '#shared/utils/counts'
 import type { CompositionBuildResponse } from '#shared/types/composition'
 import type { ChampionPosition } from '#common/utils/positions'
 import type { RateBand } from '#common/utils/rate-tone'
@@ -82,10 +83,10 @@ const stats = computed<StatCell[]>(() => {
     {
       key: 'games',
       label: 'Games used',
-      value: sample === null ? '—' : sample.gamesConsidered.toLocaleString('en-US'),
+      value: sample === null ? '—' : formatCount(sample.gamesConsidered),
       caption: conf === null
         ? 'no build sampled'
-        : `${conf.truemainGameCount} by mains · of ${conf.candidatePoolSize.toLocaleString('en-US')} scanned`,
+        : `${conf.truemainGameCount} by mains · of ${formatCount(conf.candidatePoolSize)} scanned`,
       hint: 'The build below is computed from these games only — games piloted by a main of '
         + 'the champion first, then the most similar to your draft, out of all recent games '
         + `scanned for ${champion} at this role.`,
@@ -116,7 +117,7 @@ const stats = computed<StatCell[]>(() => {
       value: entry?.winRate == null ? '—' : formatPercentage(entry.winRate, 0),
       caption: entry?.winRate == null
         ? 'nothing decided yet'
-        : `of ${entry.decidedGames.toLocaleString('en-US')} decided`,
+        : `of ${formatCount(entry.decidedGames)} decided`,
       hint: `Share of these ${champion} vs ${opponent} games that reached 15 minutes clearly `
         + 'ahead, out of those that ended clearly ahead or behind — the same games the cells '
         + 'beside it count, so the whole line describes one sample.',

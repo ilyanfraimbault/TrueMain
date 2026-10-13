@@ -545,3 +545,21 @@ count (5, 6 or 8) and its own empty-state wording, and `MatchDayHeading`, `Match
   switch that is real: `own` — the app's dashboard lists the viewer's own client games, so it speaks to them.
 - **Host controls on a row go through the list's scoped `actions` slot** (`#actions="{ match }"`), forwarded to
   `MatchRow`'s; the app's "Watch" is the one user.
+
+## Every stat is written by one formatter (2026-10-13)
+
+The shared helpers existed but were bypassed, and some figures had none: the KDA ratio was rounded to two decimals on
+the match row and one on the leaderboard and in the app, a rate's move read `pt`, `pts` or nothing, percentages
+and counts were written by hand in ~30 places, and a missing champion name was `Champion 950`, `#950` or
+`Champion` depending on the surface (#2031).
+
+- **KDA** — `shared/utils/kda.ts`: `formatKda` writes one game's line (`3.67 KDA`, or `Perfect` when deathless);
+  `kdaRatio` / `formatKdaRatio` read a sample with deaths floored at one. Two decimals everywhere.
+- **Signed differences** — `shared/utils/deltas.ts`: `formatSigned` (`+312`, `−1,204`, the typographic minus,
+  no sign on a zero) and `formatPointDelta` for a move between two rates, always in percentage points written
+  `pts` (`+3.1 pts`). Unit, sign and decimals are options, never a hand-written copy.
+- **Percentages** `formatPercentage(OrDash)`, **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
+  recordings), **champion names** `championDisplayName` (`Champion {id}`), and lookups by id through
+  `useChampionsById`, never a linear `find`.
+- **Positions** — `utils/positions.ts` holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
+  names (`positionLabel`; `short` gives the app's `Mid` / `Bot`) and the icons (`getPositionIconUrl`).

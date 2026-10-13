@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ActivityMode, TruemainActivityResponse } from '#shared/types/activity'
+import { formatPercentage } from '#shared/utils/ddragon'
 import {
   type ActivityCell,
   ACTIVITY_EMPTY_FILL,
@@ -114,7 +115,7 @@ const summary = computed(() => {
   // Same wins-over-games shape as the tooltips, so the total and a cell are read
   // the same way rather than in two different notations one card apart.
   return {
-    rate: current.winRate === null ? null : `${Math.round(current.winRate * 100)}%`,
+    rate: current.winRate === null ? null : formatPercentage(current.winRate, 0),
     record: `${current.wins}W – ${current.games - current.wins}L`,
     // Singular matters here now that the day window routinely holds one game.
     games: `${current.games} ${current.games === 1 ? 'game' : 'games'}`,

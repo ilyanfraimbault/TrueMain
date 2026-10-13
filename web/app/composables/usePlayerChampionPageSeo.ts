@@ -1,3 +1,4 @@
+import { championDisplayName } from '~~/shared/utils/champion-name'
 /**
  * Everything the player-scoped champion page says *about itself*: `<head>`
  * meta, schema.org and the visible breadcrumb (Truemains > {player} >
@@ -15,11 +16,11 @@ export function usePlayerChampionPageSeo(options: {
   const breadcrumbItems = computed(() => [
     { label: 'Truemains', to: '/truemains' },
     { label: playerLabel.value, to: profilePath.value },
-    { label: seoDisplayName.value ?? `Champion ${championId.value}` },
+    { label: championDisplayName(championId.value, seoDisplayName.value) },
   ])
 
   useSeoMeta({
-    title: () => `${seoDisplayName.value ?? `Champion ${championId.value}`} Build by ${playerLabel.value}`,
+    title: () => `${championDisplayName(championId.value, seoDisplayName.value)} Build by ${playerLabel.value}`,
     description: () => `${playerLabel.value}'s ${seoDisplayName.value ?? `champion ${championId.value}`} build: `
       + `runes, items and skill order from their real ranked games as a ${seoDisplayName.value ?? 'this champion'} OTP.`,
   })
@@ -32,7 +33,7 @@ export function usePlayerChampionPageSeo(options: {
       itemListElement: [
         { name: 'Truemains', item: '/truemains' },
         { name: playerLabel.value, item: profilePath.value },
-        { name: () => seoDisplayName.value ?? `Champion ${championId.value}` },
+        { name: () => championDisplayName(championId.value, seoDisplayName.value) },
       ],
     }),
   ])

@@ -1,4 +1,7 @@
 import type { MatchSummaryResponse } from '#shared/types/matches'
+import { formatPercentage } from '#shared/utils/ddragon'
+import { formatPointDelta } from '#shared/utils/deltas'
+import { formatKdaRatio, kdaRatio } from '#shared/utils/kda'
 
 /** How many of the newest games a form tile weighs against the whole sample. */
 export const RECENT_GAMES = 5
@@ -20,6 +23,8 @@ interface Metric {
   label: string
   read: (match: MatchSummaryResponse) => number
   format: (value: number) => string
+  /** The move's size, unsigned (the arrow gives the direction); `format` unless the unit differs. */
+  formatDelta?: (value: number) => string
   higherIsBetter: boolean
 }
 
@@ -27,15 +32,17 @@ const METRICS: Metric[] = [
   {
     key: 'kda',
     label: 'KDA',
-    read: ({ self }) => (self.kills + self.assists) / Math.max(self.deaths, 1),
-    format: value => value.toFixed(2),
+    read: ({ self }) => kdaRatio(self),
+    format: formatKdaRatio,
     higherIsBetter: true,
   },
   {
     key: 'killParticipation',
     label: 'Kill part.',
     read: ({ self }) => self.killParticipation,
-    format: value => `${Math.round(value * 100)}%`,
+    format: value => formatPercentage(value, 0),
+    // A move between two rates is in points, not a percentage of a percentage.
+    formatDelta: value => formatPointDelta(value, { digits: 0, signed: false }),
     higherIsBetter: true,
   },
   {
@@ -78,7 +85,7 @@ export function formTiles(matches: MatchSummaryResponse[]): FormTile[] {
       delta: recent === null || diff === 0
         ? null
         : {
-            text: metric.format(Math.abs(diff)),
+            text: (metric.formatDelta ?? metric.format)(Math.abs(diff)),
             direction: diff > 0 ? 'up' : 'down',
             good: (diff > 0) === metric.higherIsBetter,
           },

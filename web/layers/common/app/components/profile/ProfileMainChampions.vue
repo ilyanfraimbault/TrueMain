@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '#shared/utils/champion-name'
 import type { RouteLocationRaw } from 'vue-router'
 import type { ProfileMainChampion } from '#shared/types/profile'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
@@ -33,7 +34,7 @@ defineSlots<{
 const championsById = computed(() => new Map(props.champions.map(c => [c.championId, c])))
 
 function championName(championId: number): string {
-  return championsById.value.get(championId)?.name ?? `Champion ${championId}`
+  return championDisplayName(championId, championsById.value.get(championId))
 }
 
 // The count is a share of the recent-ranked window the main analysis reads, not

@@ -2,6 +2,8 @@ import type { LeaderboardPositions, LeaderboardStats, LeaderboardTopChampion } f
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 import { formatCount } from '#shared/utils/counts'
+import { championDisplayName } from '#shared/utils/champion-name'
+import { formatKdaRatio } from '#shared/utils/kda'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
 
 // What a truemains leaderboard row shows beside the player, derived once for
@@ -16,9 +18,9 @@ export interface LeaderboardLane {
   primary: boolean
 }
 
-/** A champion's name, or its id when the static list has not resolved it. */
+/** A champion's name, or the shared stand-in while the static list has not resolved it. */
 export function leaderboardChampionName(championsById: ReadonlyMap<number, ChampionStaticListItem>, id: number): string {
-  return championsById.get(id)?.name ?? `#${id}`
+  return championDisplayName(id, championsById.get(id))
 }
 
 /** A champion's icon URL; null until the static list resolves it. */
@@ -71,7 +73,7 @@ export const EMPTY_STAT = '—'
 export function leaderboardStatLabels(stats: LeaderboardStats): { games: string, kda: string, winRate: string } {
   return {
     games: formatCount(stats.games),
-    kda: stats.kda === null ? EMPTY_STAT : stats.kda.toFixed(1),
+    kda: stats.kda === null ? EMPTY_STAT : formatKdaRatio(stats.kda),
     winRate: stats.winRate === null ? EMPTY_STAT : formatPercentage(stats.winRate, 0),
   }
 }

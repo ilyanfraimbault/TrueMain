@@ -4,7 +4,9 @@ import type {
   WinProbabilitySwing,
 } from '#shared/types/win-probability'
 import type { MatchDetailResponse } from '#shared/types/match-detail'
+import { formatPointDelta } from '#shared/utils/deltas'
 import { buildWinProbability } from './win-probability-timeline'
+import { formatDuration } from './relativeTime'
 
 /**
  * How the post-game curve's turning points read (#1911), shared by the desktop
@@ -29,18 +31,18 @@ export function forTeam(value: number, teamId: number, kind: 'probability' | 'de
   return kind === 'probability' ? 1 - value : -value
 }
 
-/** A delta as signed points ("+7", "−4", "+0.6" under one point). */
+/**
+ * A swing as signed points, without the unit (the lists say it once): `+7`, `−4`,
+ * and one decimal under a point (`+0.6`), where a whole number would round a
+ * real if small swing to nothing.
+ */
 export function formatSwingPoints(delta: number): string {
-  const points = delta * 100
-  const magnitude = Math.abs(points)
-  const text = magnitude < 0.95 ? magnitude.toFixed(1) : String(Math.round(magnitude))
-  return `${points < 0 ? '−' : '+'}${text}`
+  return formatPointDelta(delta, { digits: Math.abs(delta * 100) < 0.95 ? 1 : 0, unit: false })
 }
 
-/** Game time as `m:ss`. */
+/** Game time in milliseconds as `m:ss`. */
 export function formatGameClock(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1000))
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+  return formatDuration(ms / 1000)
 }
 
 const LANES: Record<string, string> = { TOP_LANE: 'top', MID_LANE: 'mid', BOT_LANE: 'bot' }

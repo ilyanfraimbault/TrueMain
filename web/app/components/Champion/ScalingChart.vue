@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCount } from '~~/shared/utils/counts'
 import type { ChampionScalingBucket } from '~~/shared/types/champions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
@@ -117,7 +118,7 @@ const winRateFormatter = (value: number): string => formatPercentage(value, 0)
             {{ winRateFormatter(values.winRate) }} win rate
           </p>
           <p class="mt-0.5 text-muted">
-            {{ values.label }} · {{ values.games.toLocaleString('en-US') }} games
+            {{ values.label }} · {{ formatCount(values.games) }} games
           </p>
         </div>
       </template>

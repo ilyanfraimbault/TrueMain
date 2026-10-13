@@ -50,12 +50,19 @@ export function formatRelativeTime(isoTimestamp: string, now: Date = new Date())
 }
 
 /**
- * Formats a duration in seconds as <c>mm:ss</c>. Used for the game-duration
- * label on each match row.
+ * A duration in seconds as `m:ss` — a game's length, a moment's game time. The
+ * one clock format of both apps (#2031).
+ *
+ * `hours` writes `h:mm:ss` past the hour, for the recordings, whose footage can
+ * run longer than any game; a game's clock keeps counting minutes (`64:12`), as
+ * the League client does.
  */
-export function formatDuration(totalSeconds: number): string {
+export function formatDuration(totalSeconds: number, options: { hours?: boolean } = {}): string {
   const safe = Math.max(0, Math.floor(totalSeconds))
-  const minutes = Math.floor(safe / 60)
-  const seconds = safe % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  const seconds = `${safe % 60}`.padStart(2, '0')
+  if (options.hours && safe >= 3600) {
+    const minutes = `${Math.floor((safe % 3600) / 60)}`.padStart(2, '0')
+    return `${Math.floor(safe / 3600)}:${minutes}:${seconds}`
+  }
+  return `${Math.floor(safe / 60)}:${seconds}`
 }

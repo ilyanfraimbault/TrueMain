@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '~~/shared/utils/champion-name'
 import { ELO_BRACKET_ALL, eloBracketLabel } from '#common/utils/elo-brackets'
 
 // The champion page's no-data-for-this-rank state: the picked rank has no games
@@ -27,7 +28,7 @@ const emit = defineEmits<{ 'update:eloBracket': [value: string] }>()
         class="size-12 rounded"
       />
       <h1 class="text-lg font-semibold text-default">
-        {{ displayName ?? `Champion ${championId}` }}
+        {{ championDisplayName(championId, displayName) }}
       </h1>
     </header>
 
