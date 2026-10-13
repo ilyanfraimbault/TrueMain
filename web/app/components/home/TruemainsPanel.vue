@@ -3,7 +3,7 @@ import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
-import { isApexTier } from '#common/utils/tiers'
+import { leaderboardChampionIcon, leaderboardChampionName } from '#common/utils/leaderboard-row'
 import { winRateTone } from '#common/utils/rate-tone'
 
 // Homepage teaser of the truemains leaderboard: the global top rows, linking
@@ -59,12 +59,8 @@ const displayRows = computed(() => props.rows.map(row => ({
   winRateLabel: winRateLabel(row),
 })))
 
-function championName(id: number): string {
-  return props.championsById.get(id)?.name ?? `#${id}`
-}
-function championIcon(id: number): string | null {
-  return props.championsById.get(id)?.iconUrl ?? null
-}
+const championName = (id: number) => leaderboardChampionName(props.championsById, id)
+const championIcon = (id: number) => leaderboardChampionIcon(props.championsById, id)
 
 // Shared with the leaderboard row — resolve build ids the same way the
 // fetching composable does.
@@ -157,40 +153,13 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMa
                 :first-item="buildItem(row.topChampions[0].firstItemId)"
               />
 
-              <!-- Rank emblem, same treatment as the full leaderboard row: crest +
-                   division only (no LP), full rank + LP + win-loss on hover. -->
-              <UTooltip
+              <!-- Rank emblem: crest + division, full rank + LP + win-loss on hover. -->
+              <RankEmblem
                 v-if="row.ranked"
-                :delay-duration="150"
-                :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
-              >
-                <div class="flex w-12 shrink-0 items-center justify-end gap-1">
-                  <RankIcon
-                    :tier="row.ranked.tier"
-                    :size="26"
-                  />
-                  <span
-                    v-if="!isApexTier(row.ranked.tier)"
-                    class="text-sm font-semibold tabular-nums"
-                  >
-                    {{ row.ranked.division }}
-                  </span>
-                </div>
-
-                <template #content>
-                  <GameTooltipSurface>
-                    <RankSummary
-                      :tier="row.ranked.tier"
-                      :division="row.ranked.division"
-                      :league-points="row.ranked.leaguePoints"
-                      :wins="row.stats.wins"
-                      :losses="row.stats.losses"
-                      :win-rate="row.stats.winRate"
-                      :size="32"
-                    />
-                  </GameTooltipSurface>
-              </template>
-            </UTooltip>
+                :rank="row.ranked"
+                :record="row.stats"
+                class="w-12 justify-end"
+              />
 
             <span
               v-if="winRateLabel"

@@ -464,9 +464,21 @@ read as modern and the other pages of both apps did not. Option A was chosen ove
   page drew that banner too until #2043 (2026-10-13): it now opens on the player's banner (`PagePlayerProfile`) on
   the champion's splash, since a main's link must land on a page that reads as the profile it came from; the
   champion is the main column's heading.
+- **One rank emblem, one rank label** (2026-10-13, #2025). A row that cannot write the rank draws `RankEmblem`:
+  the crest at 24 px, the division beside it below the apex (`text-xs`), the profile card's `RankSummary` on hover
+  — the truemains table, the champion page's rows, the home teaser, the app's build mains and the match scoreboard
+  (crest only, 18 px). The table's variant won where the copies had drifted (the home teaser and the champion page
+  drew a 26 px crest with a `text-sm` division). Every rank written out goes through `formatRank` /
+  `formatTierName` / `formatLeaguePoints` (`utils/tiers.ts`): **title case**, the way the client prints it —
+  `Diamond II · 1,204 LP`, `Master` with no division at the apex — on the pages, the tooltips, the crest's own
+  title and the share card; the capitals `DIAMOND II` of the old `formatTier` are gone. The truemains table and the
+  champion page's rows share their columns (`LeaderboardLanes`, `LeaderboardChampions`, `LeaderboardScore`,
+  `RankEmblem`, `OtpBadge`) and their derived values (`utils/leaderboard-row.ts`) (#2028); the one OTP pill is the
+  table's (`py-px`, `leading-none`), the profile's main champions included.
 - **One profile page for both apps** (`page/PlayerProfile.vue`): the site's `/truemains/{nameTag}` and its
-  player-scoped champion pages (#2043), the app's dashboard and the app's own profile route (other players open in the app, no longer on the site). Banner on the
-  champion the player truemains (the client's chosen skin on the dashboard: Riot's API does not serve it); four form
+  player-scoped champion pages (#2043), the app's dashboard and the app's own profile route (other players open in
+  the app, no longer on the site). Banner on the champion the player truemains (the client's chosen skin on the
+  dashboard: Riot's API does not serve it); four form
   tiles — KDA, kill participation, CS/min, deaths; damage, gold and vision were dropped since the list endpoint does
   not serve them; comparing to the player's elo was tried and set aside, sparklines kept; the dashboard's match row;
   and the activity grid on both apps (the app folds it from its own games, without a patch window).

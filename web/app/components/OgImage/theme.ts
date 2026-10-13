@@ -8,7 +8,7 @@
  * moves here too.
  *
  * Everything that is *already* a plain value or a pure function — `TIER_HEX`,
- * `formatTier`, `eloBracketLabel`, the position labels — is imported from where
+ * `formatRank`, `eloBracketLabel`, the position labels — is imported from where
  * the pages get it, not copied, so a rank can never read one colour on the page
  * and another on the card.
  *
@@ -18,7 +18,7 @@
  * than on what we wrote.
  */
 
-export { formatTier as formatRank, TIER_HEX as RANK_COLOR } from '#common/utils/tiers'
+export { formatRank, TIER_HEX as RANK_COLOR } from '#common/utils/tiers'
 export { eloBracketLabel as formatEloBracket } from '#common/utils/elo-brackets'
 export { formatCount } from '~~/shared/utils/counts'
 

@@ -6,7 +6,6 @@ backend/Data/Ops/Mongo/ProcessRunStore.cs	508	500
 backend/Data/Repositories/RiotAccountRepository.cs	567	500
 backend/Tools/DevSeed/SeedGenerator.cs	578	500
 web/app/components/AppBackdrop.vue	426	400
-web/app/components/leaderboard/LeaderboardRow.vue	440	400
 web/app/pages/champions/[slug].vue	417	400
 web/app/pages/dev/design-system.vue	614	400
 web/layers/common/app/components/AppSearch.vue	527	400

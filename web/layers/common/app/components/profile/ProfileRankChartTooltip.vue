@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { RankHistoryEntry } from '#shared/types/rank-history'
 import { rankChartDateLabel } from '#common/utils/rank-chart'
+import { formatLeaguePoints } from '#common/utils/tiers'
 
 // The LP curve's hover card: the snapshot's crest, LP and day.
 defineProps<{ entry: RankHistoryEntry }>()
@@ -11,7 +12,7 @@ defineProps<{ entry: RankHistoryEntry }>()
     <div class="flex items-center gap-1.5">
       <RankIcon :tier="entry.tier" :size="20" />
       <span class="font-semibold tabular-nums text-default">
-        {{ entry.leaguePoints }} LP
+        {{ formatLeaguePoints(entry.leaguePoints) }}
       </span>
     </div>
     <p class="mt-0.5 text-muted">

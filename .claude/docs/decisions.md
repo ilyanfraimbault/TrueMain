@@ -191,6 +191,7 @@ Last verified against `develop` on 2026-09-02.
 - The UI refresh: `surface` becomes the dashboard tile's translucent pane, stars under the home page only, Nuxt UI only and no accent bars, splash banners on detail pages, one profile page and one match detail for both apps (2026-10-07) — #1983, #1060, #1498, #1682
 - One champion banner (`ChampionHero`) on the champion page and the app's champion page; one tier mark (`TierBadge`) on every surface (2026-10-13) — #2026
 - The player-scoped champion page is the profile's page (`PagePlayerProfile`) on the champion's splash, no longer the champion banner (2026-10-13, revises #2026) — #2043
+- One rank emblem (`RankEmblem`) on every row, one rank label in title case (`formatRank`: `Diamond II · 42 LP`); the truemains table and the champion page's rows share their columns (2026-10-13) — #2025, #2028
 
 ## Aggregates, retention and the schema — [`decisions/data-aggregation.md`](decisions/data-aggregation.md)
 

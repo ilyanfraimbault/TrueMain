@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { LoadingPlayer } from '~/types/loading'
-import { tierColor, isApexTier } from '#common/utils/tiers'
+import { formatLeaguePoints, formatRank, tierColor } from '#common/utils/tiers'
 import { LANE_LABELS, laneIconUrl, type Lane } from '~/types/draft'
 import {
   GOOD_KDA,
@@ -10,7 +10,6 @@ import {
   roleFit,
   seasonWinRate,
   streakOf,
-  tierName,
 } from '~/utils/player-intel'
 
 /**
@@ -110,9 +109,9 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
         <template v-if="ranked">
           <RankIcon :tier="ranked.tier" :size="18" />
           <span class="text-xs font-semibold" :class="tierColor(ranked.tier)" :title="rankTitle">
-            {{ tierName(ranked.tier) }}<template v-if="!isApexTier(ranked.tier)"> {{ ranked.division }}</template>
+            {{ formatRank(ranked.tier, ranked.division) }}
           </span>
-          <span class="text-[11px] tabular-nums text-dimmed">{{ ranked.leaguePoints }} LP</span>
+          <span class="text-[11px] tabular-nums text-dimmed">{{ formatLeaguePoints(ranked.leaguePoints) }}</span>
           <span v-if="ranked.queueType === 'RANKED_FLEX_SR'" class="rounded-sm px-1 text-[9px] font-semibold uppercase tracking-wide text-dimmed ring-1 ring-default" title="No Solo/Duo standing: their Flex one">Flex</span>
         </template>
         <span v-else-if="rank" class="text-[11px] text-muted" :title="rankTitle">Placements · {{ rank.wins + rank.losses }} played</span>
