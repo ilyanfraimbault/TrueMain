@@ -7,6 +7,9 @@ on:
     branches: [develop, master]
     paths: ["desktop/**", "web/layers/**", "web/shared/**", ".github/workflows/desktop.yml"]
 
+permissions:
+  contents: read
+
 concurrency:
   group: desktop-${{ github.ref }}
   cancel-in-progress: true

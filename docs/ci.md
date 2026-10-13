@@ -11,6 +11,7 @@ two environments and the migration path in detail.
 | -------- | ------- | ------------ |
 | `ci.yml` | PRs, pushes to `develop`/`master`, manual | Build, test and sanity-check whatever the change touches |
 | `claude-review.yml` | PRs to `develop`/`master` | Automated formal code review |
+| `codeql.yml` | PRs (per language, by path), pushes to `develop`, weekly, manual | CodeQL security analysis of C#, JS/TS, Rust and the workflows themselves (below) |
 | `sonar.yml` | PRs touching `backend/`, `web/`, `admin/` or `desktop/`, pushes to `develop`, manual | SonarQube Cloud analysis with backend and frontend coverage; its quality gate is informational (below) |
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
 | `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → verify the edge, and serve a held desktop app build the release catches up with |
@@ -718,6 +719,29 @@ the "SonarCloud Code Analysis" check it posts is not required. Making it
 required, after tuning the rules that duplicate the analyzers and ESLint, is
 #2052. Automatic Analysis must stay off in the SonarQube Cloud project: the
 CI-based analysis refuses to run while it is on.
+
+## CodeQL
+
+`codeql.yml` runs GitHub's CodeQL security analysis (#2057), free on a public
+repo; alerts land in the repository's Security tab. It replaced the "default
+setup" switched on from the repository settings, which analysed every language
+it detected on every PR with no path filter: a CI-only PR paid for C#, JS/TS,
+Rust, Actions and a Swift build on a macOS runner that took over a quarter of an
+hour. Default setup must stay off: GitHub rejects an advanced workflow's
+uploads while it is on.
+
+A `changes` job, the same shape as `ci.yml`'s, picks the languages a PR can
+affect: `csharp` for `backend/`, `javascript-typescript` for `web/`, `admin/`
+and `desktop/app/`, `rust` for the desktop crates, `actions` for `.github/`.
+Pushes to `develop`, the Monday scan and a change to `codeql.yml` itself
+analyse all four, so `develop` always holds a complete baseline; a PR whose
+language was skipped is compared against it. Every language runs with
+`build-mode: none`, so no job restores or compiles anything. Tests are outside
+the analysis (`paths-ignore`), as they are for Sonar: they never ship, and
+their string fixtures read as unsanitised HTML.
+
+Swift is not analysed: its only code is the macOS capture helper and a local
+probe script, and analysing it needs a macOS runner and a full build.
 
 ## Dependabot
 

@@ -51,14 +51,15 @@ public sealed class RequestOutcomeLoggingMiddleware(
     private void Report(HttpContext context, bool threw, long durationMs)
     {
         var request = context.Request;
-        var path = request.Path.Value + request.QueryString.Value;
+        var method = LogValue.SingleLine(request.Method);
+        var path = LogValue.SingleLine(request.Path.Value + request.QueryString.Value);
 
         if (context.RequestAborted.IsCancellationRequested)
         {
             logger.LogWarning(
                 OpsEvents.RequestAborted,
                 "{RequestMethod} {RequestPath} was abandoned by the client after {DurationMs} ms (trace {TraceId})",
-                request.Method,
+                method,
                 path,
                 durationMs,
                 context.TraceIdentifier);
@@ -78,7 +79,7 @@ public sealed class RequestOutcomeLoggingMiddleware(
         logger.LogError(
             OpsEvents.RequestFailed,
             "{RequestMethod} {RequestPath} answered {StatusCode} in {DurationMs} ms (trace {TraceId})",
-            request.Method,
+            method,
             path,
             statusCode,
             durationMs,
