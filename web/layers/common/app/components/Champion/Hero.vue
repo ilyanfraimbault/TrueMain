@@ -14,6 +14,13 @@ import { POSITION_BY_VALUE } from '#common/utils/positions'
  * takes no rank filter: they describe the lane across every rank, which the
  * tooltip on each move says, while the sample line under the name is the
  * page's own slice.
+ *
+ * The one champion banner (#2026): the champion page, the player-scoped
+ * champion page and the desktop app's champion page all draw it. What differs
+ * comes in as props and slots — the player-scoped page passes its player's wins
+ * (the line then carries their win rate) and no trend, since its numbers are
+ * one player's and the trend's are every rank; the app swaps the lane icon for
+ * its lane picker through `#lane`.
  */
 const props = withDefaults(defineProps<{
   championName: string | null
@@ -24,14 +31,20 @@ const props = withDefaults(defineProps<{
   /** The patch the page reads; the trend point it names is the current one. */
   patch?: string | null
   totalGames: number
+  /** Wins on the slice: given, the sample line ends on its win rate (whole percent, #1469). */
+  totalWins?: number | null
   /** Which population the sample counts (#1466); undefined where no toggle exists. */
   truemainsOnly?: boolean
   lowSampleMessage?: string | null
   tier?: string | null
+  /**
+   * The patch figures' series. Omitted, the banner has no figures row; null
+   * while it loads (or where there is none to read), the tiles show dashes.
+   */
   trend?: ChampionTrendPoint[] | null
   loading?: boolean
   trendLoading?: boolean
-}>(), { truemainsOnly: undefined, patch: null, lowSampleMessage: null, tier: null, trend: null })
+}>(), { truemainsOnly: undefined, totalWins: null, patch: null, lowSampleMessage: null, tier: null, trend: undefined })
 
 const displayName = computed(() => props.championName ?? `Champion ${props.championId}`)
 const positionOption = computed(() => POSITION_BY_VALUE.get(props.position) ?? null)
@@ -39,6 +52,10 @@ const populationLabel = computed(() => {
   if (props.truemainsOnly === undefined) return ''
   return props.truemainsOnly ? ' played by mains' : ' across all tracked players'
 })
+// A win rate over zero games would be a fabricated 0%, so an empty slice keeps
+// its own line ("No games on this slice") and never reaches this.
+const winRateLabel = computed(() =>
+  props.totalWins == null ? '' : ` · ${formatPercentage(props.totalWins / props.totalGames, 0)} WR`)
 
 const points = computed(() => props.trend ?? [])
 const currentIndex = computed(() => {
@@ -106,22 +123,24 @@ const tiles = computed(() => {
         class="h-4 w-44"
       />
       <template v-else>
-        <UTooltip
-          v-if="positionOption"
-          :text="positionOption.label"
-          :delay-duration="150"
-        >
-          <SkeletonImage
-            :src="positionOption.iconUrl"
-            :alt="positionOption.label"
-            transparent
-            :width="16"
-            :height="16"
-            class="size-4"
-          />
-        </UTooltip>
+        <slot name="lane">
+          <UTooltip
+            v-if="positionOption"
+            :text="positionOption.label"
+            :delay-duration="150"
+          >
+            <SkeletonImage
+              :src="positionOption.iconUrl"
+              :alt="positionOption.label"
+              transparent
+              :width="16"
+              :height="16"
+              class="size-4"
+            />
+          </UTooltip>
+        </slot>
         <span v-if="totalGames === 0">No games on this slice</span>
-        <span v-else>{{ totalGames.toLocaleString('en-US') }} games{{ populationLabel }}</span>
+        <span v-else>{{ totalGames.toLocaleString('en-US') }} games{{ populationLabel }}{{ winRateLabel }}</span>
         <UTooltip
           v-if="lowSampleMessage"
           :text="lowSampleMessage"
@@ -148,14 +167,21 @@ const tiles = computed(() => {
       <slot name="actions" />
     </template>
 
-    <KpiTile
-      v-for="tile in tiles"
-      :key="tile.label"
-      :label="tile.label"
-      :value="tile.value"
-      :delta="tile.delta"
-      :hint="hint"
-      :loading="trendLoading && !current"
-    />
+    <!-- A conditional slot, not a v-if inside it: PageHero draws its figures
+         row whenever the default slot is passed at all. -->
+    <template
+      v-if="trend !== undefined"
+      #default
+    >
+      <KpiTile
+        v-for="tile in tiles"
+        :key="tile.label"
+        :label="tile.label"
+        :value="tile.value"
+        :delta="tile.delta"
+        :hint="hint"
+        :loading="trendLoading && !current"
+      />
+    </template>
   </PageHero>
 </template>
