@@ -1,4 +1,5 @@
 import { ICON_FETCH_SIZE } from '#common/utils/icon-fetch'
+import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 
 /**
  * Builds the canonical `/_ipx/…` URL for an icon: fixed {@link ICON_FETCH_SIZE}
@@ -38,4 +39,13 @@ export function useCanonicalSplash() {
 
   return (src: string | null | undefined): string | null =>
     src ? ipx(src, { width: SPLASH_FETCH_WIDTH, format: 'webp' }) : null
+}
+
+/**
+ * A champion banner's splash (`ChampionHero`), from the champion's icon URL:
+ * the champion page's and the player-scoped champion page's.
+ */
+export function useChampionSplash(iconUrl: MaybeRefOrGetter<string | null | undefined>) {
+  const splashOf = useCanonicalSplash()
+  return computed(() => splashOf(championSplashUrlFromIcon(toValue(iconUrl))))
 }

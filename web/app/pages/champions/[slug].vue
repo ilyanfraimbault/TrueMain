@@ -2,7 +2,6 @@
 import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { ELO_BRACKET_ALL, eloBracketLabel } from '#common/utils/elo-brackets'
 import { isLoadingStatus } from '#common/utils/async-data'
-import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 
 // Layout plus wiring: the fetching and derivation live in composables
 // (`useChampionBuildSummary`, `useChampionPageSeo`, `useChampionSliceControls`,
@@ -92,11 +91,7 @@ const { data: championTrend, pending: trendPending } = useChampionTrend(champion
 // page can't use `displayName` there, and why the fetch is awaited on the
 // server only. Shared verbatim with the player-scoped champion page.
 // The banner's splash, through the image proxy at banner width.
-const splashOf = useCanonicalSplash()
-const splashUrl = computed(() => {
-  const raw = championSplashUrlFromIcon(displayIconUrl.value)
-  return splashOf(raw)
-})
+const splashUrl = useChampionSplash(displayIconUrl)
 
 const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)

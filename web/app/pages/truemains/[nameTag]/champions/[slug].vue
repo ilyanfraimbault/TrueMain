@@ -4,7 +4,6 @@ import { isLoadingStatus } from '#common/utils/async-data'
 import { parseRouteParam } from '#common/utils/route-params'
 import { ELO_BRACKET_ALL } from '#common/utils/elo-brackets'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 
 // Player-scoped mirror of pages/champions/[slug].vue: same static fetches,
 // loading bar and build tabs; the ONLY difference is that useChampion is given
@@ -93,9 +92,7 @@ const {
   championSettled: () => !isLoadingStatus(championStatus.value),
 })
 
-// The banner's splash, through the image proxy, as on the global champion page.
-const splashOf = useCanonicalSplash()
-const splashUrl = computed(() => splashOf(championSplashUrlFromIcon(displayIconUrl.value)))
+const splashUrl = useChampionSplash(displayIconUrl)
 
 // SSR-safe champion name for `<head>` — same composable, same cache key as the
 // global champion page, so the two pages share the entry. See
@@ -214,12 +211,9 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
 
 <template>
   <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
-    <!-- Truemains > {player} > {champion}, linking back to the leaderboard and
-         the player's profile. -->
-    <!-- The filters share the breadcrumb's row, as on the global champion
-         page. Rendered in the degraded (no-build) state too: the pickers are
-         how the reader got here and the only way back out, so taking them off
-         the page when their slice comes back empty strands them. -->
+    <!-- Truemains > {player} > {champion}, and the filters on the same row as on
+         the global champion page — in the degraded (no-build) state too: the
+         pickers are how the reader got here and the only way back out. -->
     <div class="flex flex-wrap items-center gap-3">
       <UBreadcrumb :items="breadcrumbItems" />
       <ChampionFilters
@@ -309,13 +303,10 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
         />
 
         <template v-else>
-          <!-- The champion page's banner (#2026), with this player's games and
-               win rate on the slice as its sample line and no figures row: the
-               trend's figures are every rank, this page's are one player's.
-               `seoDisplayName` (SSR-resolved) rather than the client-only
-               `displayName`, and skeletons instead of zeroes until the player's
-               aggregate lands. An empty slice is settled, not pending, so it
-               says so instead of skeletoning. -->
+          <!-- The champion page's banner (#2026): the player's games and win
+               rate as its sample line, no figures row (the trend is every rank).
+               The SSR-resolved name; skeletons until the aggregate lands, but an
+               empty slice is settled and says so. -->
           <ChampionHero
             :champion-name="seoDisplayName"
             :champion-icon-url="displayIconUrl"
