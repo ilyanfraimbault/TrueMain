@@ -51,9 +51,13 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           EXHAUSTIVE: ${{ github.event_name != 'pull_request' }}
           CODE: ${{ steps.filter.outputs.code }}
+          BASE: ${{ github.event.pull_request.base.ref }}
         run: |
           if [ -z "$SONAR_TOKEN" ]; then
             echo "::notice::SONAR_TOKEN is not available to this run; the SonarQube Cloud analysis is skipped."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ "$BASE" = "master" ]; then
+            echo "::notice::A release PR carries code every develop push already analysed; the SonarQube Cloud analysis is skipped."
             echo "run=false" >> "$GITHUB_OUTPUT"
           elif [ "$EXHAUSTIVE" = "true" ] || [ "$CODE" = "true" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"

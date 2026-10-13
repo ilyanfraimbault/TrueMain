@@ -698,8 +698,12 @@ be the `backend` job's: the analyzer gate would silently stop failing. Its own
 build costs runner minutes, not wall time, since it runs beside CI.
 
 - `plan` decides whether there is anything to analyse: nothing when
-  `SONAR_TOKEN` is not readable (Dependabot and fork PRs get no secrets) or
-  when a PR only touches documentation (Markdown, `docs/`, `.claude/`), each
+  `SONAR_TOKEN` is not readable (Dependabot and fork PRs get no secrets),
+  when a PR only touches documentation (Markdown, `docs/`, `.claude/`), or
+  when it targets `master` — a release PR's "new code" is the whole
+  develop-vs-master diff, every line of it already analysed by the `develop`
+  push that brought it, and the gate cannot be tuned, so it would only ever
+  restate the coverage of code merged before the gate existed (#2061) — each
   with a notice instead of a red check. It filters inside the workflow, not
   with `on: paths`, so the required check below exists on every PR.
 - `frontend-coverage` runs each app's vitest suite with v8 coverage (lcov) and
