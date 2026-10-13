@@ -16,6 +16,14 @@ import type { ActivityBucket, ActivityMode, ActivitySeries } from '#shared/types
  */
 export const ACTIVITY_LEVELS = 4
 
+/** One tile of the grid, resolved for drawing: its colour and its hover text. */
+export interface ActivityCell {
+  bucket: ActivityBucket
+  fill: string
+  label: string
+  result: string
+}
+
 /**
  * The tile of a day with no games. A real fill, one step above the card
  * surface (`--ui-bg-elevated`, `#1b1b20`), not an outline and not a hole: an
