@@ -57,6 +57,18 @@ each app's job — #1440.
 - **Gate informational first**, the reasoning of the ESLint and file-size ratchets: observe a sprint of PRs,
   then tune the rules that duplicate the analyzers/ESLint and make the gate required — #2052.
 
+## CodeQL runs per language, only on the code a PR touches (2026-10-13)
+
+**Decision:** CodeQL runs from a versioned advanced-setup workflow, `codeql.yml`, not GitHub's default setup —
+#2057.
+
+- **Per language, by path**, the rule `ci.yml` already follows: default setup analysed every language on every
+  PR, including a Swift build on a macOS runner that took over a quarter of an hour on a CI-only change.
+- **Full baseline on `develop`** (every push, plus a weekly scan), so a PR that skips a language is compared
+  against current results.
+- **No Swift**: the macOS capture helper is too small to justify a macOS build per PR.
+- **Tests excluded**, as for Sonar.
+
 ## Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14)
 
 **Decision:** the load test is a k6 script in `loadtest/k6/`, started by hand from `loadtest-preprod.yml` on a

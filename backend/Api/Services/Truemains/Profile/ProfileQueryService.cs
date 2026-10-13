@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Personas;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.RequestLogging;
 using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
@@ -123,7 +124,7 @@ public sealed class ProfileQueryService(
         logger.LogInformation(
             "{Surface} nameTag={NameTag} account_id={AccountId} mains={MainCount} ranked={Ranked} dedication={Dedication}",
             Surface,
-            nameTag,
+            LogValue.SingleLine(nameTag),
             account.Id,
             mains.Count,
             ranked is null ? "none" : ranked.Tier,

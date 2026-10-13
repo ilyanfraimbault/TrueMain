@@ -6,6 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.RequestLogging;
 using TrueMain.Services.Truemains.Identity;
 
 namespace TrueMain.Services.Truemains.Lookup;
@@ -86,7 +87,7 @@ public sealed class TruemainLookupQueryService(
                 var response = await QueryAsync(request, CancellationToken.None);
                 logger.LogInformation(
                     "[truemain-lookup] platform={PlatformId} asked={Asked} found={Found}",
-                    request.PlatformId, request.Pairs.Count, response.Players.Count);
+                    LogValue.SingleLine(request.PlatformId), request.Pairs.Count, response.Players.Count);
                 return cache.Store(cacheKey, response, CacheTtl);
             },
             ct,

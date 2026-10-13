@@ -7,6 +7,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.RequestLogging;
 using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains.Identity;
 
@@ -144,7 +145,8 @@ public sealed class TruemainsLeaderboardQueryService(
             totalSw.Stop();
             logger.LogInformation(
                 "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=cache_hit",
-                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
+                Surface, clampedPage, clampedPageSize, LogValue.SingleLine(region) ?? "all", LogValue.SingleLine(normalizedPosition) ?? "any",
+                championFilter, minGames, otpOnly, sort,
                 cached.Rows.Count, cached.Total, totalSw.ElapsedMilliseconds);
             return cached;
         }
@@ -200,7 +202,8 @@ public sealed class TruemainsLeaderboardQueryService(
             totalSw.Stop();
             logger.LogInformation(
                 "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
-                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
+                Surface, clampedPage, clampedPageSize, LogValue.SingleLine(region) ?? "all", LogValue.SingleLine(normalizedPosition) ?? "any",
+                championFilter, minGames, otpOnly, sort,
                 countMs, totalSw.ElapsedMilliseconds);
             return empty;
         }
@@ -224,7 +227,8 @@ public sealed class TruemainsLeaderboardQueryService(
             totalSw.Stop();
             logger.LogInformation(
                 "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
-                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
+                Surface, clampedPage, clampedPageSize, LogValue.SingleLine(region) ?? "all", LogValue.SingleLine(normalizedPosition) ?? "any",
+                championFilter, minGames, otpOnly, sort,
                 total, countMs, pageMs, totalSw.ElapsedMilliseconds);
             return pastEnd;
         }

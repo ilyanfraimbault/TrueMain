@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Data.Logging;
+using TrueMain.RequestLogging;
 
 namespace TrueMain.RateLimiting;
 
@@ -39,9 +40,9 @@ public sealed class RateLimitRejectionRecorder(ILogger<RateLimitRejectionRecorde
             logger.LogWarning(
                 OpsEvents.RateLimitRejected,
                 "Rate limit reached for {Partition}: {RequestMethod} {RequestPath} answered {StatusCode}; further rejections in this window are counted",
-                partition,
-                method,
-                path,
+                LogValue.SingleLine(partition),
+                LogValue.SingleLine(method),
+                LogValue.SingleLine(path),
                 StatusCodes.Status429TooManyRequests);
         }
     }

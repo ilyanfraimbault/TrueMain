@@ -438,6 +438,7 @@ Last verified against `develop` on 2026-09-02.
 - Every issue goes on GitHub Project #2
 - The frontends lint with ESLint (`@nuxt/eslint` + vue + a11y); already-broken rules and all a11y rules are warnings, the rest errors (2026-10-06) — #1440
 - Code quality is measured by SonarQube Cloud from its own workflow; its quality gate is informational until tuned (2026-10-13) — #2051, #2052
+- CodeQL runs from a versioned workflow, per language and only on the paths a PR touches; full scans on `develop` and weekly; no Swift (2026-10-13) — #2057
 - Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 - Agent disciplines (debugging, grilling, glossary, retro) adapted from mattpocock/skills; review split into Spec and Standards axes; PR bodies carry a merge-danger call (2026-10-05) — #1938
 
