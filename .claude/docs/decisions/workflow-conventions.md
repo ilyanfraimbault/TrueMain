@@ -45,7 +45,7 @@ each app's job — #1440.
   the set, and the repo's a11y work (#1402) is the reason to have it at all.
 - Fixing the existing warnings is follow-up work, sized by the first run's per-rule counts in the PR.
 
-## Code quality is measured by SonarQube Cloud, its gate informational first (2026-10-13)
+## Code quality is measured by SonarQube Cloud, and its gate blocks the merge (2026-10-13)
 
 **Decision:** the monorepo is analysed by SonarQube Cloud (free on a public repo) from its own workflow,
 `sonar.yml`, with backend and frontend coverage — #2051.
@@ -54,8 +54,17 @@ each app's job — #1440.
   Postgres on a host already CPU-capped.
 - **Its own build**: the .NET scanner disables `TreatWarningsAsErrors` for the build it wraps, so it never
   replaces the `backend` job, which stays the analyzer gate.
-- **Gate informational first**, the reasoning of the ESLint and file-size ratchets: observe a sprint of PRs,
-  then tune the rules that duplicate the analyzers/ESLint and make the gate required — #2052.
+- **The gate is required on `develop`** through the workflow's own `Quality gate` job, which exists on every
+  PR, not the SonarCloud app's check, which is absent when the analysis is skipped — #2052.
+- **Built-in "Sonar way" thresholds**, the free plan's only gate. Tuning is upstream: Roslyn diagnostics are
+  not re-imported (the build owns them, #294), and Vue components count toward the 80 % new-code coverage —
+  an owner's call (2026-10-13): component logic comes with component tests.
+
+## Third-party GitHub Actions are pinned by commit SHA (2026-10-13)
+
+**Decision:** every action not published by GitHub (`actions/*`, `github/*`) is referenced by a full commit SHA,
+never a tag — #2052. A tag can be moved after review (`tj-actions/changed-files`, 2025); Dependabot still bumps
+the pins. `dtolnay/rust-toolchain` has no releases, so its pin moves by hand.
 
 ## CodeQL runs per language, only on the code a PR touches (2026-10-13)
 

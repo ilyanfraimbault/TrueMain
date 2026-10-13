@@ -12,7 +12,7 @@ two environments and the migration path in detail.
 | `ci.yml` | PRs, pushes to `develop`/`master`, manual | Build, test and sanity-check whatever the change touches |
 | `claude-review.yml` | PRs to `develop`/`master` | Automated formal code review |
 | `codeql.yml` | PRs (per language, by path), pushes to `develop`, weekly, manual | CodeQL security analysis of C#, JS/TS, Rust and the workflows themselves (below) |
-| `sonar.yml` | PRs touching `backend/`, `web/`, `admin/` or `desktop/`, pushes to `develop`, manual | SonarQube Cloud analysis with backend and frontend coverage; its quality gate is informational (below) |
+| `sonar.yml` | PRs, pushes to `develop`, manual | SonarQube Cloud analysis with backend and frontend coverage; its quality gate is a required check (below) |
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
 | `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → verify the edge, and serve a held desktop app build the release catches up with |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
@@ -697,8 +697,11 @@ turns `TreatWarningsAsErrors` off for the build it wraps, so that build cannot
 be the `backend` job's: the analyzer gate would silently stop failing. Its own
 build costs runner minutes, not wall time, since it runs beside CI.
 
-- `token` skips everything when `SONAR_TOKEN` is not readable — Dependabot and
-  fork PRs get no secrets — with a notice instead of a red check.
+- `plan` decides whether there is anything to analyse: nothing when
+  `SONAR_TOKEN` is not readable (Dependabot and fork PRs get no secrets) or
+  when a PR only touches documentation (Markdown, `docs/`, `.claude/`), each
+  with a notice instead of a red check. It filters inside the workflow, not
+  with `on: paths`, so the required check below exists on every PR.
 - `frontend-coverage` runs each app's vitest suite with v8 coverage (lcov) and
   rewrites the app-relative `SF:` paths to repo-relative ones. It installs with
   `--ignore-scripts` and runs only the apps' own `postinstall` (`nuxt prepare`),
@@ -714,11 +717,36 @@ build costs runner minutes, not wall time, since it runs beside CI.
   code is read without a second scanner. Generated code (EF migrations, the
   compiled model, `.nuxt`), tests and the dev API mock are excluded.
 
-The quality gate is **informational** for now: the job never waits for it, and
-the "SonarCloud Code Analysis" check it posts is not required. Making it
-required, after tuning the rules that duplicate the analyzers and ESLint, is
-#2052. Automatic Analysis must stay off in the SonarQube Cloud project: the
-CI-based analysis refuses to run while it is on.
+The quality gate **blocks the merge** (#2052). On a PR, `analysis` passes
+`sonar.qualitygate.wait=true`, so its `end` step fails when the gate is red, and
+the last job, `Quality gate`, is the status check `develop` requires: it fails
+when any job before it failed and passes when they succeeded or were skipped.
+The check the SonarCloud app posts on the PR carries the same verdict with the
+failing conditions, but it is not the required one — it is absent whenever the
+analysis is skipped, which would leave documentation and Dependabot PRs waiting
+forever. Pushes to `develop` never wait for the gate: they only refresh the
+baseline.
+
+The gate is SonarQube Cloud's built-in "Sonar way" — the free plan allows no
+other — on the PR's new code: ratings A for reliability, security and
+maintainability, 80 % coverage, at most 3 % duplication, every security hotspot
+reviewed. Its thresholds cannot be changed, so tuning means choosing what
+reaches it:
+
+- `sonar.cs.roslyn.ignoreIssues=true`: the build already runs the .NET,
+  Threading and Roslynator analyzers with the severities `analyzers.globalconfig`
+  sets (#294). Without it the scanner re-imports every one of their suggestions
+  as a Sonar issue — about 12,000 on the first run, 10,000 of them `IDE0008` —
+  so Sonar only reports its own rules.
+- Vue components count toward coverage, an owner's call: a PR that adds
+  component logic brings its tests (`web/tests/nuxt/` for the site). The first
+  run measured the frontends' `app/` trees at 22–26 % and the backend and
+  `web/shared` around 90 %.
+- A new security hotspot is reviewed on SonarQube Cloud (Security Hotspots →
+  Safe / Fixed) by the owner; the gate turns green on the next run.
+
+Automatic Analysis must stay off in the SonarQube Cloud project: the CI-based
+analysis refuses to run while it is on.
 
 ## CodeQL
 
@@ -742,6 +770,18 @@ their string fixtures read as unsanitised HTML.
 
 Swift is not analysed: its only code is the macOS capture helper and a local
 probe script, and analysing it needs a macOS runner and a full build.
+
+## Third-party actions are pinned by commit
+
+Every action that GitHub does not publish (`actions/*`, `github/*`) is pinned
+to a full commit SHA rather than a tag (#2052): a tag can be moved to malicious
+code after review, as `tj-actions/changed-files` was in 2025, a commit cannot.
+Dependabot's `github-actions` stream still bumps them, to the commit of the new
+release. `dtolnay/rust-toolchain` is the one exception to that: it publishes no
+releases and is used through its `stable` branch, so its pin is moved by hand,
+and its `toolchain: stable` input says which toolchain the branch name used to
+select. SonarQube Cloud flags an unpinned third-party action as a vulnerability
+(`githubactions:S7637`), which fails the gate.
 
 ## Dependabot
 
