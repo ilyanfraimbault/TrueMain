@@ -1,0 +1,191 @@
+name: SonarQube Cloud
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "backend/**"
+      - "web/**"
+      - "admin/**"
+      - "desktop/**"
+      - ".github/workflows/sonar.yml"
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonar-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  SONAR_ORGANIZATION: ilyanfraimbault
+  SONAR_PROJECT_KEY: ilyanfraimbault_TrueMain
+
+jobs:
+  token:
+    name: Token check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    outputs:
+      present: ${{ steps.check.outputs.present }}
+
+    steps:
+      - name: Check for SONAR_TOKEN
+        id: check
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::SONAR_TOKEN is not available to this run; the SonarQube Cloud analysis is skipped."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  frontend-coverage:
+    name: Frontend coverage (${{ matrix.app }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: token
+    if: needs.token.outputs.present == 'true'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: web
+            artifact: web
+          - app: admin
+            artifact: admin
+          - app: desktop/app
+            artifact: desktop-app
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - name: Pin npm
+        run: npm install -g --ignore-scripts npm@11.13.0
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prepare Nuxt
+        run: npm run postinstall
+
+      - name: Unit tests with coverage
+        run: npm run test -- --coverage.enabled --coverage.provider=v8 --coverage.reporter=lcov
+
+      - name: Make paths repo-relative
+        env:
+          APP: ${{ matrix.app }}
+        run: sed -i "s#^SF:#SF:${APP}/#" coverage/lcov.info
+
+      - name: Upload the lcov report
+        uses: actions/upload-artifact@v7
+        with:
+          name: lcov-${{ matrix.artifact }}
+          path: ${{ matrix.app }}/coverage/lcov.info
+          retention-days: 1
+
+  analysis:
+    name: Analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    needs: [token, frontend-coverage]
+    if: needs.token.outputs.present == 'true'
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Cache the SonarQube Cloud analyzers
+        uses: actions/cache@v6
+        with:
+          path: ~/.sonar/cache
+          key: sonar-${{ runner.os }}
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Download the lcov reports
+        uses: actions/download-artifact@v8
+        with:
+          pattern: lcov-*
+          path: ${{ runner.temp }}/lcov
+
+      - name: Begin analysis
+        run: >-
+          dotnet tool run dotnet-sonarscanner begin
+          /k:"$SONAR_PROJECT_KEY"
+          /o:"$SONAR_ORGANIZATION"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.projectBaseDir="$GITHUB_WORKSPACE"
+          /d:sonar.exclusions="**/Migrations/**,**/CompiledModels/**,**/tests/**,**/*.test.ts,web/server/utils/dev-api-mock.ts,**/node_modules/**,**/.nuxt/**,**/.output/**,**/coverage/**"
+          /d:sonar.cs.vscoveragexml.reportsPaths="$RUNNER_TEMP/coverage/*.xml"
+          /d:sonar.javascript.lcov.reportPaths="$RUNNER_TEMP/lcov/lcov-web/lcov.info,$RUNNER_TEMP/lcov/lcov-admin/lcov.info,$RUNNER_TEMP/lcov/lcov-desktop-app/lcov.info"
+
+      - name: Restore solution
+        run: dotnet restore TrueMain.sln
+
+      - name: Build solution
+        run: dotnet build TrueMain.sln --configuration Release --no-restore
+
+      - name: Unit tests with coverage
+        run: >-
+          dotnet test --project tests/TrueMain.UnitTests/TrueMain.UnitTests.csproj
+          --configuration Release --no-build
+          --coverage --coverage-output-format xml --coverage-output "$RUNNER_TEMP/coverage/unit.xml"
+
+      - name: Integration tests with coverage
+        run: >-
+          dotnet test --project tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj
+          --configuration Release --no-build
+          --coverage --coverage-output-format xml --coverage-output "$RUNNER_TEMP/coverage/integration.xml"
+
+      - name: End analysis
+        run: dotnet tool run dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"

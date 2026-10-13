@@ -18,6 +18,7 @@ riderModule.iml
 **/node_modules/
 **/.nuxt/
 **/.output/
+**/coverage/
 
 # Local crash sentinels/logs written by the Development MongoLogging config
 backend/*/crashes/

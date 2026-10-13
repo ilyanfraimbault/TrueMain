@@ -45,6 +45,18 @@ each app's job — #1440.
   the set, and the repo's a11y work (#1402) is the reason to have it at all.
 - Fixing the existing warnings is follow-up work, sized by the first run's per-rule counts in the PR.
 
+## Code quality is measured by SonarQube Cloud, its gate informational first (2026-10-13)
+
+**Decision:** the monorepo is analysed by SonarQube Cloud (free on a public repo) from its own workflow,
+`sonar.yml`, with backend and frontend coverage — #2051.
+
+- **Cloud, not self-hosted**: the Community Build has no PR or branch analysis and would need a JVM and
+  Postgres on a host already CPU-capped.
+- **Its own build**: the .NET scanner disables `TreatWarningsAsErrors` for the build it wraps, so it never
+  replaces the `backend` job, which stays the analyzer gate.
+- **Gate informational first**, the reasoning of the ESLint and file-size ratchets: observe a sprint of PRs,
+  then tune the rules that duplicate the analyzers/ESLint and make the gate required — #2052.
+
 ## Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14)
 
 **Decision:** the load test is a k6 script in `loadtest/k6/`, started by hand from `loadtest-preprod.yml` on a
