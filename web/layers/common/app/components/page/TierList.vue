@@ -3,23 +3,18 @@
 // app's route file wraps this with its own head tags and nothing else.
 import type { ChampionTierListResponse } from '#shared/types/champions'
 import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
-import { normalizeEloBracket } from '#common/utils/elo-brackets'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { describeStaleFetchError } from '#common/utils/errors'
 
 const { pathFor } = useChampionSlugs()
 
-const { filters, setFilter } = useChampionFilters()
+const { filters } = useChampionFilters()
 
 // null = "All positions" — same RolePicker contract as the /champions filter.
 const selectedPosition = computed<ChampionPosition | null>(() => {
   const value = filters.value.position ?? ''
   return isChampionPosition(value) ? value : null
 })
-
-// The composable always resolves a concrete bracket (Master+ by default), so
-// the picker always reflects the threshold actually being fetched.
-const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.value.eloBracket))
 
 // Tier list is computed server-side, so the fetch keys on patch + position +
 // elo bracket and the backend does the per-role tiering. Client-only
@@ -65,7 +60,6 @@ const {
   error: staticError,
   status: staticStatus,
 } = useChampionStaticList()
-const { data: versions } = useDDragonVersions()
 
 const apiPatch = computed(() => tierList.value?.patchVersion ?? '')
 const selectedPatch = computed(() => filters.value.patch || apiPatch.value || '')
@@ -75,34 +69,9 @@ const isPending = computed(() =>
   isLoadingStatus(tierListStatus.value) || isLoadingStatus(staticStatus.value),
 )
 
-
-const patchOptions = usePatchOptions(versions, apiPatch, () => filters.value.patch)
-
-// Filter changes go through the shared composable so this page handles patch /
-// position clearing exactly like the /champions directory and the champion
-// detail pages (no pagination here, so setFilter is a drop-in — see #527).
-function onPatchChange(value: unknown) {
-  if (typeof value !== 'string' || !value) return
-  void setFilter({ patch: value })
-}
-
-async function selectPosition(value: ChampionPosition | null) {
-  await setFilter({ position: value })
-}
-
 // Same `?championId=` search as the /champions directory: it narrows the tiers
 // to that champion's lines instead of refetching.
 const filterChampionId = useRouteQueryChampionId()
-
-async function selectChampion(value: number | null) {
-  await setFilter({ championId: value })
-}
-
-function onEloBracketChange(value: string) {
-  // Pass the bracket through untouched — `null` would clear the param and land
-  // back on the Master+ page default, making "All ranks" unselectable.
-  void setFilter({ eloBracket: value })
-}
 
 const nameById = useChampionsById(staticList)
 
@@ -153,43 +122,10 @@ await tierListFetch
       eyebrow="Meta"
       title="Tier List"
     >
-      <div class="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
-        <RolePicker
-          class="justify-self-start"
-          :position="selectedPosition"
-          @update:position="selectPosition"
-        />
-
-        <ChampionPicker
-          :champions="staticList ?? []"
-          :champion-id="filterChampionId"
-          placeholder="Search for a champion"
-          trigger-class="w-56"
-          @update:champion-id="selectChampion"
-        />
-
-        <div class="flex items-center gap-2 md:justify-self-end">
-          <ChampionEloFilter
-            size="sm"
-            :model-value="selectedEloBracket"
-            @update:model-value="onEloBracketChange"
-          />
-
-          <ChampionTruemainToggle
-            :model-value="filters.truemainsOnly"
-            @update:model-value="value => setFilter({ truemainsOnly: value })"
-          />
-
-          <USelect
-            :model-value="selectedPatch || undefined"
-            :items="patchOptions"
-            placeholder="Patch"
-            size="sm"
-            class="w-20"
-            @update:model-value="onPatchChange"
-          />
-        </div>
-      </div>
+      <ChampionListFilters
+        :champions="staticList ?? []"
+        :api-patch="apiPatch"
+      />
     </PageHeader>
 
     <ClientOnly>
