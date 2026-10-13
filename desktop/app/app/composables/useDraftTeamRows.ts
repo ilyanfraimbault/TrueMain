@@ -1,7 +1,7 @@
 import type { DraftRecommendation, Lane, TeamRow } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 import type { LaneSlot } from '~/composables/useLaneAssignment'
-import { LANES } from '~/types/draft'
+import { POSITIONS } from '#common/utils/positions'
 
 /** The two teams of the draft board, one row per card. */
 export function useDraftTeamRows(
@@ -15,11 +15,11 @@ export function useDraftTeamRows(
   const allyRows = computed<TeamRow[]>(() => {
     const team = draft.value.myTeam
     const cells = byLane.value
-      ? LANES.map(lane => team.find(slot => slot.position === lane) ?? null)
+      ? POSITIONS.map(lane => team.find(slot => slot.position === lane) ?? null)
       : Array.from({ length: 5 }, (_, index) => team[index] ?? null)
     return cells.map((slot, index) => ({
       championId: slot?.championId ?? null,
-      lane: (slot?.position || (byLane.value ? LANES[index] : null)) as Lane | null,
+      lane: (slot?.position || (byLane.value ? POSITIONS[index] : null)) as Lane | null,
       locked: slot?.locked ?? false,
       me: slot?.isMe ?? false,
     }))
@@ -41,7 +41,7 @@ export function useDraftTeamRows(
     const open = byLane.value && draft.value.enemyChampions.length === 0
     return Array.from({ length: 5 }, (_, index) => ({
       championId: draft.value.enemyChampions[index] ?? null,
-      lane: (open ? LANES[index] ?? null : null) as Lane | null,
+      lane: (open ? POSITIONS[index] ?? null : null) as Lane | null,
       locked: true,
     }))
   })

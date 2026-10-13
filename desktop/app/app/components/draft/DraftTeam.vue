@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { POSITIONS, positionLabel } from '#common/utils/positions'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import type { Lane, TeamRow } from '~/types/draft'
-import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
 
 /**
  * Five picks of one side, left to right, each over the lane it holds. Ours
@@ -63,9 +64,9 @@ const readable = (row: TeamRow) => row.championId !== null && (row.me || (row.lo
 
 /** The lanes an enemy can be moved to, the one it holds marked. */
 function laneChoices(row: TeamRow): DropdownMenuItem[] {
-  return LANES.map(lane => ({
-    label: LANE_LABELS[lane],
-    avatar: { src: laneIconUrl(lane), alt: '' },
+  return POSITIONS.map(lane => ({
+    label: positionLabel(lane, { short: true }),
+    avatar: { src: getPositionIconUrl(lane), alt: '' },
     type: 'checkbox' as const,
     checked: lane === row.lane,
     onSelect: () => {
@@ -76,7 +77,7 @@ function laneChoices(row: TeamRow): DropdownMenuItem[] {
 
 function label(row: TeamRow) {
   if (row.championId === null) return undefined
-  return `Build for ${nameOf(row.championId)}${row.lane ? `, ${LANE_LABELS[row.lane]}` : ''}`
+  return `Build for ${nameOf(row.championId)}${row.lane ? `, ${positionLabel(row.lane, { short: true })}` : ''}`
 }
 </script>
 
@@ -123,17 +124,17 @@ function label(row: TeamRow) {
           <button
             type="button"
             class="flex size-6 items-center justify-center rounded transition-colors hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            :aria-label="`${nameOf(row.championId)} plays ${LANE_LABELS[row.lane]} — change`"
-            :title="`${LANE_LABELS[row.lane]} — click to change`"
+            :aria-label="`${nameOf(row.championId)} plays ${positionLabel(row.lane, { short: true })} — change`"
+            :title="`${positionLabel(row.lane, { short: true })} — click to change`"
           >
-            <img :src="laneIconUrl(row.lane)" alt="" class="size-4">
+            <img :src="getPositionIconUrl(row.lane)" alt="" class="size-4">
           </button>
         </UDropdownMenu>
         <img
           v-else-if="row.lane && row.championId !== null"
-          :src="laneIconUrl(row.lane)"
-          :alt="LANE_LABELS[row.lane]"
-          :title="LANE_LABELS[row.lane]"
+          :src="getPositionIconUrl(row.lane)"
+          :alt="positionLabel(row.lane, { short: true })"
+          :title="positionLabel(row.lane, { short: true })"
           class="size-4"
         >
       </div>

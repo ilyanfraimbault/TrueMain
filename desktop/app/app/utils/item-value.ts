@@ -7,7 +7,7 @@ import {
   type SideMap,
   type WinProbabilityLane,
 } from '#common/utils/win-probability'
-import { LANES } from '~/types/draft'
+import { positionIndex } from '#common/utils/positions'
 
 /**
  * What the items in a player's inventory cost — the arithmetic the scoreboard
@@ -32,17 +32,13 @@ export function leftTeam(game: GameState): GameTeam {
   return game.myTeam ?? 'ORDER'
 }
 
-const laneIndex = (position: string) => {
-  const index = (LANES as readonly string[]).indexOf(position)
-  return index === -1 ? LANES.length : index
-}
 
 /** A side in lane order; a player on no lane keeps the game's order after the five. */
 export function sideInLaneOrder(game: GameState, team: GameTeam): GamePlayer[] {
   return game.players
     .filter(player => player.team === team)
     .map((player, order) => ({ player, order }))
-    .sort((a, b) => laneIndex(a.player.position) - laneIndex(b.player.position) || a.order - b.order)
+    .sort((a, b) => positionIndex(a.player.position) - positionIndex(b.player.position) || a.order - b.order)
     .map(({ player }) => player)
 }
 

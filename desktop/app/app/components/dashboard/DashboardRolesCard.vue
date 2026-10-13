@@ -4,6 +4,7 @@
 -->
 <script setup lang="ts">
 import type { ProfilePositionStat } from '#shared/types/profile'
+import { formatPercentage } from '#shared/utils/ddragon'
 import type { LaneLine } from '~/utils/player-form'
 import { winRateTone } from '#common/utils/rate-tone'
 
@@ -27,7 +28,7 @@ const winRate = (role: ProfilePositionStat) => (winsByPosition.value.get(role.po
         class="font-semibold"
         :class="winRateTone(winRate(role))"
         :title="`${winsByPosition.get(role.position) ?? 0}W ${role.games - (winsByPosition.get(role.position) ?? 0)}L`"
-      >{{ Math.round(winRate(role) * 100) }}% WR</span>
+      >{{ formatPercentage(winRate(role), 0) }} WR</span>
     </template>
   </ProfilePositionBreakdown>
 </template>

@@ -53,14 +53,14 @@ describe('laneEdge', () => {
   it('points at the enemy when our player keeps losing on the champion and theirs keeps winning', () => {
     const edge = laneEdge('JUNGLE', { games: 2000, wins: 1000 }, laning(10, 2, -700, -10, -500), laning(10, 8, 600, 8, 400))
     expect(edge.side).toBe('enemy')
-    expect(edge.percent).toBeGreaterThan(60)
-    expect(edge.chance).toBeCloseTo(1 - edge.percent / 100, 1)
+    expect(edge.share).toBeGreaterThan(0.6)
+    expect(edge.chance).toBeCloseTo(1 - edge.share, 1)
   })
 
   it('follows the matchup alone when no form was read', () => {
     const edge = laneEdge('TOP', { games: 5000, wins: 2850 }, null, null)
     expect(edge.side).toBe('ally')
-    expect(edge.percent).toBe(57)
+    expect(Math.round(edge.share * 100)).toBe(57)
     expect(edge.matchupGames).toBe(5000)
   })
 

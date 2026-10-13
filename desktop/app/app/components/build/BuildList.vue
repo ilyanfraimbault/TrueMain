@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatCount } from '#shared/utils/counts'
+import { formatPercentageOrDash } from '#shared/utils/ddragon'
 import type { BuildOption } from '~/types/build'
 
 /**
@@ -90,9 +92,9 @@ const groups = computed(() => [
 
         <div class="ml-auto shrink-0 text-right leading-tight">
           <p class="text-xs font-semibold tabular-nums" :class="winRateTone(option.winRate)">
-            {{ option.winRate === null ? '—' : `${Math.round(option.winRate * 100)}%` }}
+            {{ formatPercentageOrDash(option.winRate, 0) }}
           </p>
-          <p class="text-[10px] tabular-nums text-dimmed">{{ option.games.toLocaleString('en-US') }} games</p>
+          <p class="text-[10px] tabular-nums text-dimmed">{{ formatCount(option.games) }} games</p>
         </div>
       </button>
     </div>

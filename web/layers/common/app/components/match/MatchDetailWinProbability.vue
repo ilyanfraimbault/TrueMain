@@ -110,7 +110,7 @@ const summary = computed(() => `Win probability over the game, ending at ${final
     <div>
       <div class="flex gap-2">
         <div class="relative h-36 w-8 shrink-0 text-right text-[10px] tabular-nums text-dimmed">
-          <span v-for="p in [1, 0.5, 0]" :key="p" class="absolute right-0 -translate-y-1/2" :style="{ top: `${y(p)}%` }">{{ p * 100 }}%</span>
+          <span v-for="p in [1, 0.5, 0]" :key="p" class="absolute right-0 -translate-y-1/2" :style="{ top: `${y(p)}%` }">{{ formatPercentage(p, 0) }}</span>
         </div>
         <div
           ref="plot"

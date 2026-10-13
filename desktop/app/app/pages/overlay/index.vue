@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPercentage } from '#shared/utils/ddragon'
 import type { OverlayPanel, OverlayPanelSettings, OverlaySettings, OverlayShow, PanelTrigger } from '~/types/overlay'
 import type { Point } from '~/utils/overlay-layout'
 import { OVERLAY_OPACITY, OVERLAY_PANELS, OVERLAY_SCALE, PANEL_KEY } from '~/types/overlay'
@@ -141,7 +142,7 @@ onBeforeUnmount(() => void preview(false))
       <section class="flex flex-col gap-2">
         <div class="flex items-baseline justify-between">
           <h3 class="stat-label">Size</h3>
-          <span class="stat-value text-sm">{{ Math.round(scale * 100) }}%</span>
+          <span class="stat-value text-sm">{{ formatPercentage(scale, 0) }}</span>
         </div>
         <USlider
           :model-value="scale"
@@ -156,7 +157,7 @@ onBeforeUnmount(() => void preview(false))
       <section class="flex flex-col gap-2">
         <div class="flex items-baseline justify-between">
           <h3 class="stat-label">Opacity</h3>
-          <span class="stat-value text-sm">{{ Math.round(opacity * 100) }}%</span>
+          <span class="stat-value text-sm">{{ formatPercentage(opacity, 0) }}</span>
         </div>
         <USlider
           :model-value="opacity"

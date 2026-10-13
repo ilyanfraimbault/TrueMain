@@ -2,6 +2,7 @@ import type { Ref } from 'vue'
 import type { ChampionItemContextAxis } from '#shared/types/item-context'
 import type { GameState } from '~/types/game'
 import type { NextItemCandidate, NextItemReason } from '~/utils/next-item'
+import { formatPercentage } from '#shared/utils/ddragon'
 import { itemContextAxisPhrase } from '#shared/utils/item-context'
 import { goldToComplete, starterCost, stepsToward } from '~/utils/next-item'
 
@@ -26,7 +27,7 @@ export function useNextItemPanel(game: Ref<GameState>) {
   const boots = computed(() => answer.value?.boots?.candidates.slice(0, 3) ?? [])
 
   const name = (itemId: number) => statics.value[itemId]?.name ?? `Item ${itemId}`
-  const percent = (share: number) => `${Math.round(share * 100)}%`
+  const percent = (share: number) => formatPercentage(share, 0)
 
   /** The strongest situation behind an item, in the site's own wording; nothing when no situation moved it. */
   function reason(candidate: NextItemCandidate | null) {

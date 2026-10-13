@@ -115,7 +115,7 @@ describe('championRecord', () => {
 
   it('averages the games on the champion, deaths floored at one for the KDA', () => {
     const record = championRecord(form({ championGames: 3, championWins: 2, championKills: 15, championDeaths: 0, championAssists: 6 }))
-    expect(record).toMatchObject({ games: 3, winRate: 67, kda: 21, kills: 5, deaths: 0, assists: 2 })
+    expect(record).toMatchObject({ games: 3, winRate: 2 / 3, kda: 21, kills: 5, deaths: 0, assists: 2 })
   })
 })
 
@@ -131,13 +131,13 @@ describe('win rates', () => {
   it('reads the recent games, null with none', () => {
     const game = (win: boolean) => ({ championId: 1, position: 'TOP', win, kills: 0, deaths: 0, assists: 0, playedAt: 0 })
     expect(recentWinRate(form())).toBeNull()
-    expect(recentWinRate(form({ recent: [game(true), game(false), game(true)] }))).toBe(67)
+    expect(recentWinRate(form({ recent: [game(true), game(false), game(true)] }))).toBeCloseTo(2 / 3)
   })
 
   it('reads the season record, null with no game', () => {
     const rank = (wins: number, losses: number) => ({ wins, losses }) as RankedQueue
     expect(seasonWinRate(rank(0, 0))).toBeNull()
-    expect(seasonWinRate(rank(30, 10))).toBe(75)
+    expect(seasonWinRate(rank(30, 10))).toBe(0.75)
   })
 })
 

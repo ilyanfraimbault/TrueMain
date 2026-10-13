@@ -1,7 +1,6 @@
 import type { InjectionKey, Ref } from 'vue'
 import type { DraftState, TeamSlot } from '~/types/lcu'
-import type { Lane } from '~/types/draft'
-import { LANE_LABELS } from '~/types/draft'
+import { positionLabel } from '#common/utils/positions'
 
 /** The two writes the app makes to champion select — on a click, never on its own. */
 export type ChampSelectKind = 'pick' | 'ban'
@@ -99,7 +98,7 @@ function create(draft: Ref<DraftState>) {
 
   /** "your Jungle", or "an ally" in queues without lanes. */
   function allyName(slot: TeamSlot) {
-    const lane = LANE_LABELS[slot.position as Lane]
+    const lane = positionLabel(slot.position, { short: true })
     return lane ? `your ${lane}` : 'an ally'
   }
 

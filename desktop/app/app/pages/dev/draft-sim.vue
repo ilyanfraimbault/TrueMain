@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { POSITIONS, positionLabel } from '#common/utils/positions'
 import type { SimRequest, SimSlot, SimTurn } from '~/composables/useLcuSimulator'
 import type { Lane } from '~/types/draft'
 import type { ChampionPosition } from '#common/utils/positions'
-import { LANES, LANE_LABELS, laneIconUrl } from '~/types/draft'
 
 /**
  * The draft simulator — development only, dropped from builds (nuxt.config).
@@ -41,7 +42,7 @@ async function send(body: { op: 'reset' } | { op: 'push', readings: unknown[] })
  * whichever position is chosen. Neither is anyone's real data.
  */
 function lobby() {
-  const pool = LANES.flatMap(lane => laneEntries(lane).slice(0, 5).map(entry => entry.championId))
+  const pool = POSITIONS.flatMap(lane => laneEntries(lane).slice(0, 5).map(entry => entry.championId))
   const mastery = [...new Set(pool)].map((championId, index) => ({ championId, championPoints: 200000 - index * 5000 }))
   return [
     event('/lol-summoner/v1/current-summoner', { gameName: 'Simulated', tagLine: 'DEV', summonerLevel: 30, profileIconId: 29 }),
@@ -123,7 +124,7 @@ const pickerTitle = computed(() => {
   if (!slot) return ''
   if (slot.kind === 'ban') return slot.team === 'ally' ? 'Our ban' : 'Enemy ban'
   if (slot.kind === 'enemy') return `Enemy ${slot.index + 1}`
-  return slot.lane === board.value.myLane ? `Our pick · ${LANE_LABELS[slot.lane]}` : `Ally · ${LANE_LABELS[slot.lane]}`
+  return slot.lane === board.value.myLane ? `Our pick · ${positionLabel(slot.lane, { short: true })}` : `Ally · ${positionLabel(slot.lane, { short: true })}`
 })
 
 /** A slot clicked starts the champion select if it is not on yet: clicking is all it takes. */
@@ -190,7 +191,7 @@ const mine = computed(() => board.value.allies[board.value.myLane])
             >
               <img v-if="championId && portraitOf(championId)" :src="portraitOf(championId)!" :alt="nameOf(championId)" class="size-full object-cover grayscale">
               <img
-                v-else-if="team === 'ally' && index === LANES.indexOf(board.myLane) && board.myBanHover && portraitOf(board.myBanHover)"
+                v-else-if="team === 'ally' && index === POSITIONS.indexOf(board.myLane) && board.myBanHover && portraitOf(board.myBanHover)"
                 :src="portraitOf(board.myBanHover)!"
                 :alt="`${nameOf(board.myBanHover)} hovered`"
                 class="size-full object-cover opacity-50"
@@ -206,12 +207,12 @@ const mine = computed(() => board.value.allies[board.value.myLane])
         <div class="flex flex-col gap-2">
           <h2 class="stat-label">Our team</h2>
           <div
-            v-for="lane in LANES"
+            v-for="lane in POSITIONS"
             :key="lane"
             class="flex items-center gap-3 rounded-lg p-2"
             :class="lane === board.myLane ? 'bg-accented ring-1 ring-primary/60' : 'bg-elevated'"
           >
-            <img :src="laneIconUrl(lane)" :alt="LANE_LABELS[lane]" class="size-5 opacity-80">
+            <img :src="getPositionIconUrl(lane)" :alt="positionLabel(lane, { short: true })" class="size-5 opacity-80">
             <button type="button" class="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left" @click="edit({ kind: 'ally', lane })">
               <span class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted ring-1 ring-default">
                 <img v-if="championAt({ kind: 'ally', lane }) && portraitOf(championAt({ kind: 'ally', lane })!)" :src="portraitOf(championAt({ kind: 'ally', lane })!)!" alt="" class="size-full object-cover" :class="!board.allies[lane].locked && 'opacity-60'">
@@ -219,7 +220,7 @@ const mine = computed(() => board.value.allies[board.value.myLane])
               </span>
               <span class="min-w-0 leading-tight">
                 <span class="block truncate text-sm font-semibold text-highlighted">{{ championAt({ kind: 'ally', lane }) ? nameOf(championAt({ kind: 'ally', lane })!) : (lane === board.myLane ? 'Our pick' : 'Ally') }}</span>
-                <span class="text-[11px] text-dimmed">{{ LANE_LABELS[lane] }}{{ lane === board.myLane ? ' · us' : '' }}{{ board.allies[lane].championId && !board.allies[lane].locked ? ' · hovering' : '' }}</span>
+                <span class="text-[11px] text-dimmed">{{ positionLabel(lane, { short: true }) }}{{ lane === board.myLane ? ' · us' : '' }}{{ board.allies[lane].championId && !board.allies[lane].locked ? ' · hovering' : '' }}</span>
               </span>
             </button>
             <UButton v-if="lane === board.myLane && mine.championId && !mine.locked" label="Lock in" icon="i-lucide-lock" size="xs" @click="lockMine" />
