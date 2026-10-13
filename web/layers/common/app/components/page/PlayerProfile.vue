@@ -5,7 +5,7 @@ import type { ProfileRanked } from '#shared/types/profile'
 import type { PersonaTag } from '#shared/types/players'
 import { playerPath } from '#shared/utils/player-path'
 import { formTiles, RECENT_GAMES } from '#common/utils/match-form'
-import { isApexTier } from '#common/utils/tiers'
+import { formatRank } from '#common/utils/tiers'
 
 /**
  * A player's profile, one page on both apps: the site's `/truemains/{nameTag}`
@@ -55,10 +55,7 @@ const hint = computed(() => `Last ${RECENT_GAMES} games against the average over
 
 const rankLabel = computed(() => {
   const ranked = props.ranked
-  if (!ranked) return null
-  const tier = ranked.tier.charAt(0) + ranked.tier.slice(1).toLowerCase()
-  const division = isApexTier(ranked.tier) ? '' : ` ${ranked.division}`
-  return `${tier}${division} ${ranked.leaguePoints.toLocaleString('en-US')} LP`
+  return ranked ? formatRank(ranked.tier, ranked.division, { lp: ranked.leaguePoints }) : null
 })
 </script>
 

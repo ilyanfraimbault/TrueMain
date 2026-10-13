@@ -2,12 +2,9 @@
 import type { TableColumn } from '@nuxt/ui'
 import type { LeaderboardRowResponse, LeaderboardSort } from '#shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '#shared/types/static-data'
-import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
-import { formatCount } from '#shared/utils/counts'
 import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 import { playerPath } from '#shared/utils/player-path'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { isApexTier } from '#common/utils/tiers'
+import { isOneTrick, leaderboardStatLabels } from '#common/utils/leaderboard-row'
 import { winRateTone } from '#common/utils/rate-tone'
 import { leaderboardSortToSorting, sortingToLeaderboardSort, type TableSorting } from '#common/utils/table-sorting'
 import { clickSelectableRow, wantsNewTab } from '#common/utils/table-rows'
@@ -74,32 +71,17 @@ function openProfile(event: Event, row: { original: Row }) {
   void navigateTo(path, wantsNewTab(event) ? { open: { target: '_blank' } } : undefined)
 }
 
-const { perk, perkStyle, item } = useBuildResolvers(() => props.runeTree, () => props.itemsMap)
-const championName = (id: number) => props.championsById.get(id)?.name ?? `#${id}`
-const championIcon = (id: number) => props.championsById.get(id)?.iconUrl ?? null
+const { championName, mainBuild } = useLeaderboardChampions(() => props.championsById, () => props.runeTree, () => props.itemsMap)
 
-function lanesOf(row: Row) {
-  const positions = row.positions
-  if (!positions) return []
-  return [positions.primary, positions.secondary]
-    .filter((position): position is string => Boolean(position))
-    .map((position, index) => ({
-      position,
-      primary: index === 0,
-      title: `${index === 0 ? 'Primary' : 'Secondary'}: ${POSITION_BY_VALUE.get(position)?.label ?? position}`,
-    }))
-}
-
-// Always two slots: a variable count would shift the cluster beside them.
-const subChampionsOf = (row: Row) => [row.topChampions[1] ?? null, row.topChampions[2] ?? null]
-
-// A player is an OTP of at most one champion, so any flagged top champion makes the whole player one.
-const isOtp = (row: Row) => row.topChampions.some(champion => champion.isOtp)
-
-// An em dash, never an empty cell, for a figure the aggregate cannot supply yet.
-const stat = (value: number | null, format: (value: number) => string) => (value === null ? '—' : format(value))
-
-const TOOLTIP_UI = { content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }
+// Everything a row derives, once per row rather than once per cell.
+const rowView = (row: Row) => ({
+  nameTag: nameTagOf(row),
+  main: mainBuild(row),
+  otp: isOneTrick(row.topChampions),
+  stats: leaderboardStatLabels(row.stats),
+})
+const views = computed(() => new Map(props.rows.map(row => [row, rowView(row)])))
+const viewOf = (row: Row) => views.value.get(row) ?? rowView(row)
 </script>
 
 <template>
@@ -164,130 +146,58 @@ const TOOLTIP_UI = { content: 'p-0 h-auto max-w-none bg-transparent ring-0 shado
             <span class="hidden truncate text-[11px] text-muted @xl:inline">{{ row.original.identity.gameName }}<template v-if="row.original.identity.tagLine">#{{ row.original.identity.tagLine }}</template></span>
           </div>
         </template>
-        <template v-if="isOtp(row.original)" #subline>
-          <span
-            class="rounded-full bg-amber-400/25 px-1.5 py-px text-[9px] font-bold uppercase leading-none tracking-wide text-amber-200 ring-1 ring-amber-400/50"
-            title="One-trick pony"
-          >OTP</span>
+        <template v-if="viewOf(row.original).otp" #subline>
+          <OtpBadge />
         </template>
       </Account>
     </template>
 
     <template #lanes-cell="{ row }">
-      <div class="flex items-center justify-center gap-1">
-        <SkeletonImage
-          v-for="lane in lanesOf(row.original)"
-          :key="lane.position"
-          :src="getPositionIconUrl(lane.position)"
-          :alt="lane.title"
-          :title="lane.title"
-          class="size-5 shrink-0"
-          :class="lane.primary ? undefined : 'opacity-40'"
-          loading="lazy"
-          transparent
-        />
-      </div>
+      <LeaderboardLanes :positions="row.original.positions" class="flex justify-center" />
     </template>
 
     <template #main-cell="{ row }">
-      <div v-if="row.original.topChampions[0]" class="flex items-center justify-center gap-3">
-        <!-- The portrait alone where the table is narrow, the full cluster from @4xl. -->
-        <ChampionLink
-          v-if="championIcon(row.original.topChampions[0].championId)"
-          :champion-id="row.original.topChampions[0].championId"
-          :name="championName(row.original.topChampions[0].championId)"
-          :icon-url="championIcon(row.original.topChampions[0].championId)"
-          :name-tag="nameTagOf(row.original)"
-          :title="`${championName(row.original.topChampions[0].championId)} · ${row.original.topChampions[0].games} games`"
-          class="size-7 @4xl:hidden"
-        />
-        <div class="hidden w-36 shrink-0 justify-center @4xl:flex">
-          <LeaderboardChampionBuild
-            :champion="row.original.topChampions[0]"
-            :name="championName(row.original.topChampions[0].championId)"
-            :icon-url="championIcon(row.original.topChampions[0].championId)"
-            :name-tag="nameTagOf(row.original)"
-            :keystone="perk(row.original.topChampions[0].primaryKeystoneId)"
-            :secondary-style="perkStyle(row.original.topChampions[0].secondaryStyleId)"
-            :first-item="item(row.original.topChampions[0].firstItemId)"
-            reserve-slots
-            loading="lazy"
-          />
-        </div>
-        <div class="hidden w-[52px] shrink-0 items-center gap-1 @5xl:flex">
-          <template v-for="(champ, index) in subChampionsOf(row.original)" :key="champ?.championId ?? `empty-${index}`">
-            <ChampionLink
-              v-if="champ && championIcon(champ.championId)"
-              :champion-id="champ.championId"
-              :name="championName(champ.championId)"
-              :icon-url="championIcon(champ.championId)"
-              :name-tag="nameTagOf(row.original)"
-              :title="`${championName(champ.championId)} · ${champ.games} games`"
-              class="size-6"
-            />
-            <div v-else class="size-6 shrink-0" aria-hidden="true" />
-          </template>
-        </div>
-      </div>
+      <!-- The portrait alone where the table is narrow, the full cluster from @4xl. -->
+      <LeaderboardChampions
+        :main="viewOf(row.original).main"
+        :top-champions="row.original.topChampions"
+        :champions-by-id="championsById"
+        :name-tag="viewOf(row.original).nameTag"
+        portrait
+        class="flex"
+      />
     </template>
 
     <template #dedication-cell="{ row }">
-      <UTooltip v-if="row.original.dedication" :delay-duration="150" :ui="TOOLTIP_UI">
-        <span
-          class="font-semibold tabular-nums"
-          :class="{ 'underline decoration-dotted underline-offset-2': sort === 'dedication' }"
-          data-testid="truemain-score"
-        >{{ formatDedicationScore(row.original.dedication.score) }}</span>
-        <template #content>
-          <GameTooltipSurface>
-            <div class="mb-2 flex w-64 items-center gap-2">
-              <p class="min-w-0 flex-1 truncate text-xs font-semibold text-default">
-                {{ TRUEMAIN_SCORE_LABEL }} {{ formatDedicationScore(row.original.dedication.score) }} · {{ championName(row.original.dedication.championId) }}
-              </p>
-              <DedicationVerdict :dedication="row.original.dedication" />
-            </div>
-            <DedicationBreakdown :parts="dedicationParts(row.original.dedication)" />
-            <p v-if="formatDedicationLastPlayed(row.original.dedication.daysSinceLastPlayed)" class="mt-2 text-[10px] text-muted">
-              {{ formatDedicationLastPlayed(row.original.dedication.daysSinceLastPlayed) }}
-            </p>
-          </GameTooltipSurface>
-        </template>
-      </UTooltip>
+      <LeaderboardScore
+        v-if="row.original.dedication"
+        :dedication="row.original.dedication"
+        :champion-name="championName(row.original.dedication.championId)"
+        :highlighted="sort === 'dedication'"
+      />
       <span v-else class="text-dimmed">—</span>
     </template>
 
     <template #rank-cell="{ row }">
-      <UTooltip v-if="row.original.ranked" :delay-duration="150" :ui="TOOLTIP_UI">
-        <div class="flex items-center justify-center gap-1">
-          <RankIcon :tier="row.original.ranked.tier" :size="24" loading="lazy" />
-          <span v-if="!isApexTier(row.original.ranked.tier)" class="hidden text-xs font-semibold tabular-nums @xl:inline">{{ row.original.ranked.division }}</span>
-        </div>
-        <template #content>
-          <GameTooltipSurface>
-            <RankSummary
-              :tier="row.original.ranked.tier"
-              :division="row.original.ranked.division"
-              :league-points="row.original.ranked.leaguePoints"
-              :wins="row.original.stats.wins"
-              :losses="row.original.stats.losses"
-              :win-rate="row.original.stats.winRate"
-              :size="32"
-            />
-          </GameTooltipSurface>
-        </template>
-      </UTooltip>
+      <RankEmblem
+        v-if="row.original.ranked"
+        :rank="row.original.ranked"
+        :record="row.original.stats"
+        :ui="{ division: 'hidden @xl:inline' }"
+        class="justify-center"
+      />
       <span v-else class="block text-center text-dimmed">—</span>
     </template>
 
     <template #games-cell="{ row }">
-      <span class="tabular-nums">{{ formatCount(row.original.stats.games) }}</span>
+      <span class="tabular-nums">{{ viewOf(row.original).stats.games }}</span>
     </template>
     <template #kda-cell="{ row }">
-      <span class="tabular-nums">{{ stat(row.original.stats.kda, value => value.toFixed(1)) }}</span>
+      <span class="tabular-nums">{{ viewOf(row.original).stats.kda }}</span>
     </template>
     <template #winRate-cell="{ row }">
       <span class="font-semibold tabular-nums" :class="winRateTone(row.original.stats.winRate)">
-        {{ stat(row.original.stats.winRate, value => formatPercentage(value, 0)) }}
+        {{ viewOf(row.original).stats.winRate }}
       </span>
     </template>
 

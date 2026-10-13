@@ -4,6 +4,8 @@
   lets images through from raw.communitydragon.org).
 -->
 <script setup lang="ts">
+import { formatTierName } from '#common/utils/tiers'
+
 const props = defineProps<{
   tier: string | null | undefined
   size?: number
@@ -11,6 +13,7 @@ const props = defineProps<{
 }>()
 
 const dim = computed(() => props.size ?? 28)
+const tierName = computed(() => (props.tier ? formatTierName(props.tier) : undefined))
 
 const iconUrl = computed(() => {
   const tier = props.tier?.trim().toLowerCase()
@@ -23,8 +26,8 @@ const iconUrl = computed(() => {
   <img
     v-if="iconUrl"
     :src="iconUrl"
-    :alt="`${tier} rank`"
-    :title="tier ?? undefined"
+    :alt="`${tierName} rank`"
+    :title="tierName"
     :width="dim"
     :height="dim"
     :loading="loading"
