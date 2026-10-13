@@ -56,3 +56,5 @@ export function useChampionPanelSnapshots(sources: {
 
   return { trendSnapshot, scalingSnapshot, truemainsSnapshot, matchupsSnapshot, synergiesSnapshot }
 }
+
+export type ChampionPanelSnapshots = ReturnType<typeof useChampionPanelSnapshots>

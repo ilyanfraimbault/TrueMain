@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { parseRouteParam } from '#common/utils/route-params'
 import { ELO_BRACKET_ALL } from '#common/utils/elo-brackets'
 import type { ChampionPosition } from '#common/utils/positions'
 import { platformIdToRegion } from '~~/shared/utils/region'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[slug].vue: same static fetches,
 // loading bar and build tabs; the ONLY difference is that useChampion is given
@@ -101,32 +99,7 @@ const splashUrl = useChampionSplash(displayIconUrl)
 // useChampionSeoName for why `displayName` can't serve `<head>`.
 const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 
-// Truemains > {player} > {champion}, mirroring the schema.org breadcrumb below.
-// The champion crumb uses the SSR-safe `seoDisplayName`, as the global page does.
-const breadcrumbItems = computed(() => [
-  { label: 'Truemains', to: '/truemains' },
-  { label: playerLabel.value, to: profilePath.value },
-  { label: seoDisplayName.value ?? `Champion ${championId.value}` },
-])
-
-useSeoMeta({
-  title: () => `${seoDisplayName.value ?? `Champion ${championId.value}`} Build by ${playerLabel.value}`,
-  description: () => `${playerLabel.value}'s ${seoDisplayName.value ?? `champion ${championId.value}`} build: `
-    + `runes, items and skill order from their real ranked games as a ${seoDisplayName.value ?? 'this champion'} OTP.`,
-})
-
-useSchemaOrg([
-  defineWebPage({
-    name: () => `${seoDisplayName.value ?? 'Champion'} Build by ${playerLabel.value}`,
-  }),
-  defineBreadcrumb({
-    itemListElement: [
-      { name: 'Truemains', item: '/truemains' },
-      { name: playerLabel.value, item: profilePath.value },
-      { name: () => seoDisplayName.value ?? `Champion ${championId.value}` },
-    ],
-  }),
-])
+const { breadcrumbItems } = usePlayerChampionPageSeo({ championId, seoDisplayName, playerLabel, profilePath })
 
 const isRefetching = computed(() =>
   isLoadingStatus(championStatus.value)
@@ -156,65 +129,14 @@ const {
   notFound: matchesNotFound,
 } = useTruemainMatches(nameTag, matchesPage, { championId, position: matchesPosition })
 
-// Thin-sample caution: the backend builds from any number of games, flagging
-// small samples with minSampleMet=false. Surfaced as a warning icon by the title
-// so a handful of games reads as a rough personal signal, not a meta build.
-const lowSampleMessage = computed(() => {
-  if (!champion.value || champion.value.minSampleMet)
-    return null
-  const games = champion.value.totalGames
-  return `Only ${games} ${games === 1 ? 'game' : 'games'} on record — this build is inferred from a small personal sample, `
-    + 'so treat it as a rough signal rather than a reliable recommendation.'
+// An empty slice keeps its filters usable, so the reader can undo the one that
+// emptied it (see usePlayerChampionEmptySlice).
+const { activeFilterLabels, pickerPatch, clearFilters } = usePlayerChampionEmptySlice({
+  championId,
+  filters,
+  setFilter,
+  selectedPatch,
 })
-
-// ─── Empty slice ───────────────────────────────────────────────────────────
-// The build filters keep working when the slice they select is empty: a lane the
-// player never played 404s the aggregate (`notEnoughData`), and the header — its
-// pickers included — still renders over the zero-game slice, so the reader can
-// undo a filter they set in place.
-
-// Human-readable list of the filters currently narrowing the page, so the empty
-// notice can say what emptied it. Only the ones this page actually renders — it
-// has no rank or population control.
-const activeFilterLabels = computed(() => {
-  const labels: string[] = []
-  if (filters.value.patch) labels.push(filters.value.patch)
-  const position = filters.value.position
-  if (position) labels.push(POSITION_BY_VALUE.get(position)?.label ?? position)
-  return labels
-})
-
-// The patch the API last resolved for this champion. `selectedPatch` falls back
-// to the loaded aggregate's patch, which goes null the moment a filter empties
-// the slice — blanking the patch select right when it has to be usable. Reset
-// on champion change so nothing leaks across a navigation on this same route.
-const lastResolvedPatch = ref('')
-watch(championId, () => { lastResolvedPatch.value = '' })
-watch(selectedPatch, (patch) => { if (patch) lastResolvedPatch.value = patch }, { immediate: true })
-const pickerPatch = computed(() => selectedPatch.value || lastResolvedPatch.value)
-
-// The position picker hides its "all positions" button (the API always answers
-// for one lane), so clearing is the only way back from an empty lane.
-function clearFilters() {
-  void setFilter({ patch: null, position: null })
-}
-
-// Frozen prop bundle for the lazy (hydrate-on-visible) matchups sidebar — see
-// useLazyHydrationSnapshot / the identical pattern on pages/champions/[slug].vue
-// for why: `staticList` is client-only (`server: false`), so freezing it
-// until the child actually mounts avoids a hydration mismatch (#834/#837).
-const matchupsSnapshot = useLazyHydrationSnapshot(
-  { champions: [] as ChampionStaticListItem[] },
-  () => ({ champions: staticList.value ?? [] }),
-)
-
-// And for the performance card (#918), whose only client-only inputs are the
-// two display names it prints. `patch`/`position` stay live — they feed the
-// fetch key, never the SSR markup, so they can't desynchronise hydration.
-const performanceSnapshot = useLazyHydrationSnapshot(
-  { playerName: nameTag.value, championName: null as string | null },
-  () => ({ playerName: playerName.value, championName: displayName.value ?? null }),
-)
 
 // A client-side navigation keeps the outgoing page under the loading bar until
 // the API has answered, so this page opens on its data (#1689).
@@ -296,43 +218,26 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
           v-else
           class="flex min-w-0 flex-col gap-6"
         >
-          <!-- The SSR-resolved name; skeletons until the aggregate lands, but
-               an empty slice is settled and says so. -->
-          <ChampionPlayerHeading
-            :champion-name="seoDisplayName"
-            :champion-icon-url="displayIconUrl"
+          <ChampionPlayerBuild
             :champion-id="championId"
-            :position="champion?.position || selectedPosition || ''"
-            :total-games="champion?.totalGames ?? 0"
-            :total-wins="champion?.totalWins ?? null"
-            :low-sample-message="lowSampleMessage"
-            :loading="!champion && !notEnoughData"
-          />
-
-          <StaleContentNotice
-            :error="championStaleError"
-            subject="the previous slice"
-            :on-retry="() => refreshChampion()"
-          />
-
-          <ChampionPlayerBuildEmpty
-            v-if="notEnoughData"
+            :champion="champion"
+            :stale-error="championStaleError"
+            :not-enough-data="notEnoughData"
+            :champion-name="seoDisplayName"
+            :display-name="displayName"
+            :display-icon-url="displayIconUrl"
+            :position="selectedPosition"
             :player-label="playerLabel"
-            :champion-name="displayName"
             :global-build-path="pathFor(championId)"
             :filter-labels="activeFilterLabels"
+            :static-data="staticData"
+            :items-map="itemsMap"
+            :summoners-map="summonersMap"
+            :summoners-pending="isLoadingStatus(summonersStatus)"
+            :rune-tree="runeTree"
+            @retry="refreshChampion()"
             @clear="clearFilters"
           />
-          <ChampionBuildTabs
-            v-else-if="champion && staticData"
-            :builds="champion.builds"
-            :champion-static="staticData"
-            :items-map="itemsMap ?? {}"
-            :summoners-map="summonersMap ?? {}"
-            :summoners-pending="isLoadingStatus(summonersStatus)"
-            :rune-tree="runeTree ?? null"
-          />
-          <ChampionBuildTabsSkeleton v-else />
 
           <ChampionPlayerMatchHistory
             v-model:page="matchesPage"
@@ -356,38 +261,19 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
            (it renders even when the champion aggregate failed — it never
            depended on it), their performance on the champion, its matchups. -->
       <template #aside>
-        <ProfileRankedCardSkeleton v-if="!profile" />
-        <ProfileRankedCard
-          v-else
-          :ranked="profile.ranked"
+        <ChampionPlayerAside
+          :ranked="profile?.ranked"
+          :profile-loaded="!!profile"
           :history="rankHistory?.entries ?? []"
           :history-loading="rankHistoryLoading"
-        />
-
-        <!-- Performance score (#918), lazy + hydrate-on-visible with the
-             client-only display names frozen until it mounts (#834/#837). -->
-        <LazyChampionPlayerPerformance
-          v-if="!championError"
-          hydrate-on-visible
+          :champion-failed="!!championError"
           :name-tag="nameTag"
           :champion-id="championId"
           :patch="selectedPatch"
           :position="selectedPosition"
-          v-bind="performanceSnapshot.value"
-          @vue:mounted="performanceSnapshot.reveal"
-        />
-
-        <!-- Lazy + hydrate-on-visible (#820), `:champions` frozen (#834/#837).
-             Cross-patch on purpose: one player's games under a patch filter
-             would leave nearly every opponent under the 3-game floor. -->
-        <LazyChampionMatchups
-          v-if="!championError"
-          hydrate-on-visible
-          :champion-id="championId"
-          :position="selectedPosition"
-          :name-tag="nameTag"
-          v-bind="matchupsSnapshot.value"
-          @vue:mounted="matchupsSnapshot.reveal"
+          :player-name="playerName"
+          :champion-name="displayName ?? null"
+          :champions="staticList"
         />
       </template>
     </PagePlayerProfile>
