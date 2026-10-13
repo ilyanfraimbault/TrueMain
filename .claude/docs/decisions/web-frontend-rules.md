@@ -491,3 +491,25 @@ panel, the favorites cards, the profile header and the builder's games drawer.
   skeleton between two pictures, which is what a palette wants.
 - **Every profile link goes through `shared/utils/truemain-path.ts`** (`truemainNameTag`, `truemainProfilePath`);
   `favoriteNameTag` and `truemainChampionPath` build on it.
+
+## A match is drawn by one `MatchRow` component (2026-10-13)
+
+The profile pages and the app's dashboard drew a game with `MatchHistoryRow` (54 px, result edge and wash, queue,
+LP or duration, CS/min), while the favorites cards, the player-scoped champion page and the builder's games drawer
+kept the older `MatchRow` (a tinted card, no result label). The same game looked different on a player's favorites
+card and on their profile, and the loading states split three ways. The profile's design is now the only
+`MatchRow` (#2020).
+
+- **One component per column** (`MatchRowPortrait`, `MatchRowResult`, `MatchRowKda`, `MatchRowStats`,
+  `MatchRowLoadout`, `MatchRowTeams`, `MatchRowPerformance`); the row file holds the layout, the tiers and the
+  accordion. The column wrappers carry the `@container` tiers, so every tier reads in one file and
+  `MatchRowSkeleton` mirrors them.
+- **The host differences are props and a slot, never a second row**: `nameTag` is optional (a static row without
+  it), the queue label is derived inside the row, the app's "Watch" button goes in `#actions`, and a game with no
+  performance score (the client's own) shows none.
+- **Tiers, narrowest first**: the bare line (portrait, K/D/A, build, score) fits a 320 px container; the chevron
+  comes back at 22rem, compositions at 29rem, LP/duration + CS/min at 33rem, result + queue at 39rem. The
+  compositions come before the stats — they are what a drawer row is read for — and the result column last,
+  since the edge mark already states it.
+- **A new match list uses `MatchRow` and `MatchRowSkeleton`**; a surface that needs something the row lacks adds
+  it to the row.

@@ -6,7 +6,6 @@ import { counted } from '~/utils/player-form'
 import { toMatchSummary } from '~/utils/match-summary'
 import { lpDeltaOf } from '~/utils/lp-history'
 import { groupMatchesByDay } from '~/utils/match-history'
-import { getQueueLabel } from '~/utils/queues'
 import { MATCH_DETAIL_SOURCE } from '#common/utils/match-detail-source'
 
 /**
@@ -78,7 +77,7 @@ const loadingPage = computed(() => props.pending || (listed.value.length > 0 && 
     <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">Match history</h2>
 
     <template v-if="loadingPage">
-      <USkeleton v-for="index in 5" :key="index" class="h-[54px] rounded-lg" />
+      <MatchRowSkeleton v-for="index in 5" :key="index" />
     </template>
     <UEmpty
       v-else-if="!days.length"
@@ -91,7 +90,7 @@ const loadingPage = computed(() => props.pending || (listed.value.length > 0 && 
     <template v-for="day in days" v-else :key="day.key">
       <MatchDayHeading v-if="day.label" :label="day.label" class="pt-1.5" />
       <div class="flex flex-col gap-1.5">
-        <MatchHistoryRow
+        <MatchRow
           v-for="match in day.matches"
           :key="match.matchId"
           :match="match"
@@ -99,7 +98,6 @@ const loadingPage = computed(() => props.pending || (listed.value.length > 0 && 
           :items="items"
           :summoner-spells="summonerSpells"
           :rune-tree="runeTree!"
-          :queue-label="getQueueLabel(match.queueId, match.gameMode)"
           :name-tag="nameTag"
         >
           <template #actions>
@@ -118,7 +116,7 @@ const loadingPage = computed(() => props.pending || (listed.value.length > 0 && 
               @keydown.space.stop
             />
           </template>
-        </MatchHistoryRow>
+        </MatchRow>
       </div>
     </template>
 

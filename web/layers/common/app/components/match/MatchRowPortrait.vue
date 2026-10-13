@@ -2,49 +2,37 @@
 import { getPositionIconUrl } from '#shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
 
-// Champion portrait of a match-history row, badged with the player's role (or
-// the champion level when Riot assigned no position). Summoner spells and runes
-// used to sit next to it; they now live just left of the item block
-// (`MatchRowLoadout`) so the whole loadout — spells, runes, items — reads as
-// one continuous strip, matching the scoreboard layout.
-defineProps<{
+// Champion portrait of a match row, badged with the player's role — or with the
+// champion level when Riot assigned none (old rows, modes without lanes). The
+// role comes from the PUUID-matched self read-model, so it holds even in queues
+// that allow the same champion twice on a team.
+const props = defineProps<{
   iconUrl: string | null
   championName: string
-  /**
-   * The viewing player's assigned role, taken straight from the PUUID-matched
-   * self read-model. Null when Riot never assigned one (old rows, non-SR
-   * modes) — the level shows instead. Resolved server-side, so it stays
-   * correct even in queues that allow duplicate champions on a team.
-   */
   position: string | null
   championLevel: number
 }>()
+
+const positionLabel = computed(() =>
+  props.position ? (POSITION_BY_VALUE.get(props.position)?.label ?? props.position) : undefined)
 </script>
 
 <template>
-  <div class="relative shrink-0 @2xl:ml-1">
+  <div class="relative shrink-0">
     <SkeletonImage
       :src="iconUrl"
       :alt="championName"
       :title="championName"
+      :width="36"
+      :height="36"
       loading="lazy"
-      class="size-10 rounded @2xl:size-12"
+      class="size-9 rounded-md"
     />
     <span
-      class="absolute -bottom-1 -right-1 inline-flex items-center justify-center rounded-full bg-default ring-1 ring-default"
-      :class="position
-        ? 'size-4 @2xl:size-5'
-        : 'size-3.5 text-[9px] font-bold leading-none @2xl:size-4 @2xl:text-[10px]'"
-      :title="position ? (POSITION_BY_VALUE.get(position)?.label ?? position) : undefined"
+      class="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-default text-[9px] font-bold ring-1 ring-default"
+      :title="positionLabel"
     >
-      <SkeletonImage
-        v-if="position"
-        :src="getPositionIconUrl(position)"
-        loading="lazy"
-        :alt="POSITION_BY_VALUE.get(position)?.label ?? position"
-        class="size-3 @2xl:size-3.5"
-        transparent
-      />
+      <img v-if="position" :src="getPositionIconUrl(position)" :alt="positionLabel" class="size-3">
       <template v-else>{{ championLevel }}</template>
     </span>
   </div>
