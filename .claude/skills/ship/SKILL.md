@@ -47,6 +47,7 @@ Anti-churn rules (these matter as much as the fixes):
 - Never push a cosmetic-only commit to a PR that already meets the done-criteria.
 - Cap at ~3 fix iterations. If it still doesn't converge, stop pushing and report the blockers — a summary beats an endless loop.
 - Touching `.github/workflows/` for the Claude review makes that check fail on the PR itself; that is expected and passes post-merge — don't loop on it.
+- The "SonarCloud Code Analysis" check is informational until #2052 makes it required: a failed quality gate does not block the merge. Fix what it finds in the PR's own code when it is real; don't loop on the rest.
 
 ## 5. Merge — your decision, not a question
 

@@ -11,6 +11,7 @@ two environments and the migration path in detail.
 | -------- | ------- | ------------ |
 | `ci.yml` | PRs, pushes to `develop`/`master`, manual | Build, test and sanity-check whatever the change touches |
 | `claude-review.yml` | PRs to `develop`/`master` | Automated formal code review |
+| `sonar.yml` | PRs touching `backend/`, `web/`, `admin/` or `desktop/`, pushes to `develop`, manual | SonarQube Cloud analysis with backend and frontend coverage; its quality gate is informational (below) |
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
 | `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → verify the edge, and serve a held desktop app build the release catches up with |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
@@ -681,6 +682,40 @@ so its PRs get a verdict too; the prompt tells the reviewer what to check on a
 dependency bump. Editing the workflow file makes its own check fail on that
 PR; it passes again post-merge. Verdicts trail one commit behind pushes: check
 the review's `commit_id` against the head SHA before acting on it.
+
+## SonarQube Cloud
+
+`sonar.yml` sends the repo to SonarQube Cloud (#2051), free because the repo is
+public: duplication, cognitive complexity, coverage over time and a quality gate
+on the PR's new code, none of which the analyzers, ESLint or the file-size
+ratchet measure. One project covers the whole monorepo, `develop` as its main
+branch.
+
+It is a workflow of its own rather than a job in `ci.yml`. The .NET scanner
+turns `TreatWarningsAsErrors` off for the build it wraps, so that build cannot
+be the `backend` job's: the analyzer gate would silently stop failing. Its own
+build costs runner minutes, not wall time, since it runs beside CI.
+
+- `token` skips everything when `SONAR_TOKEN` is not readable — Dependabot and
+  fork PRs get no secrets — with a notice instead of a red check.
+- `frontend-coverage` runs each app's vitest suite with v8 coverage (lcov) and
+  rewrites the app-relative `SF:` paths to repo-relative ones. The desktop app's
+  run only covers its own tree; the shared layer's coverage comes from `web`.
+- `analysis` wraps the Release build and both test suites between
+  `dotnet-sonarscanner begin` and `end`. Coverage comes from
+  `Microsoft.Testing.Extensions.CodeCoverage` (`dotnet test --coverage`, XML
+  format): `dotnet-coverage collect` cannot instrument the Microsoft Testing
+  Platform test host. The scanner, pinned in `backend/.config/dotnet-tools.json`
+  where Dependabot's NuGet watch sees it, also analyses every non-MSBuild file
+  under the repo (`sonar.scanner.scanAll`), which is how the TypeScript and Vue
+  code is read without a second scanner. Generated code (EF migrations, the
+  compiled model, `.nuxt`), tests and the dev API mock are excluded.
+
+The quality gate is **informational** for now: the job never waits for it, and
+the "SonarCloud Code Analysis" check it posts is not required. Making it
+required, after tuning the rules that duplicate the analyzers and ESLint, is
+#2052. Automatic Analysis must stay off in the SonarQube Cloud project: the
+CI-based analysis refuses to run while it is on.
 
 ## Dependabot
 
