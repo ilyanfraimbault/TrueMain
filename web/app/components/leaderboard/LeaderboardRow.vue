@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
-import { formatPercentage, getPositionIconUrl } from '~~/shared/utils/ddragon'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
-import { formatCount } from '~~/shared/utils/counts'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { isApexTier } from '#common/utils/tiers'
-import { winRateTone } from '#common/utils/rate-tone'
+import { isOneTrick } from '#common/utils/leaderboard-row'
 
-// One row of the leaderboard. The whole row navigates to the player's profile
-// via a stretched overlay link, while the top-champion icons are their own
-// links to that champion's player-scoped build page — siblings of the overlay,
-// never nested <a> inside <a>.
+// One row of the champion page's truemains. The whole row navigates to the
+// player's profile via a stretched overlay link, while the top-champion icons
+// are their own links to that champion's player-scoped build page — siblings
+// of the overlay, never nested <a> inside <a>. Its columns are the `/truemains`
+// table's (#2028): the same lanes, champions, score and rank emblem.
 const props = defineProps<{
   row: LeaderboardRowResponse
   championsById: Map<number, ChampionStaticListItem>
@@ -31,7 +28,7 @@ const props = defineProps<{
 
 // Slug for this player's truemain pages — `{gameName}-{tagLine}` (or just the
 // name when untagged). Drives the profile link and the player-scoped champion
-// links below; the slug is URL-encoded by the path helper and <ChampionLink>.
+// links; the slug is URL-encoded by the path helper and <ChampionLink>.
 const rowNameTag = computed(() => truemainNameTag(props.row.identity.gameName, props.row.identity.tagLine))
 const profileHref = computed(() => truemainProfilePath(rowNameTag.value))
 
@@ -42,130 +39,10 @@ const profileAriaLabel = computed(() => {
   return tagLine ? `${gameName} #${tagLine}` : gameName
 })
 
-// One-trick pony marker next to the name. A player can be an OTP of at most one
-// champion (play rate ≥ 85% leaves no room for a second main), so any flagged
-// top champion makes the whole player an OTP — mirrors the profile page's
-// per-champion amber pill, surfaced here at the player level.
-const isOtp = computed(() => props.row.topChampions.some(champion => champion.isOtp))
+const isOtp = computed(() => isOneTrick(props.row.topChampions))
 
-// The rank cell is a fixed slot so the ordinals line up down the list, which
-// means a long ordinal has to fit the slot rather than the slot fitting the
-// ordinal — `#172` was already spilling out of it and over the avatar. Both the
-// slot and the label size come from the digit count of the *list's* deepest
-// ordinal, not this row's: a page that straddles a decade boundary (76…100)
-// would otherwise mix two slot widths and unalign the columns it was supposed
-// to hold still. The slot only grows where it has to (the champion-page sidebar
-// lists a top ten, so it keeps the tight two-digit slot that leaves its width
-// to the Riot ID), and past four digits the label steps down instead of
-// widening the column further.
-const rankClass = computed(() => {
-  const digits = String(Math.max(props.maxRank ?? 0, props.row.rank)).length
-  switch (digits) {
-    case 1:
-    case 2:
-      return 'w-6 text-xs @xl:w-8 @xl:text-sm'
-    case 3:
-      return 'w-8 text-xs @xl:w-10 @xl:text-sm'
-    case 4:
-      return 'w-9 text-[11px] @xl:w-10 @xl:text-xs'
-    case 5:
-      return 'w-10 text-[10px] @xl:w-12 @xl:text-xs'
-    default:
-      return 'w-10 text-[8px] @xl:w-12 @xl:text-[10px]'
-  }
-})
-
-const ranked = computed(() => props.row.ranked)
-const showDivision = computed(() => ranked.value !== null && !isApexTier(ranked.value.tier))
-
-// An em dash rather than a hidden cell: the stat trio is a fixed three-column
-// block, and dropping a cell for a player whose aggregate has no KDA yet
-// (accounts whose tracked games haven't been ingested — half the leaderboard's
-// eligible population at any time) widened the free space the row's spacers
-// share and slid every column left of them out of line with its neighbours.
-const EMPTY_STAT = '—'
-
-const winRateLabel = computed(() => {
-  const wr = props.row.stats.winRate
-  return wr === null ? EMPTY_STAT : formatPercentage(wr, 0)
-})
-const kdaLabel = computed(() => {
-  const kda = props.row.stats.kda
-  return kda === null ? EMPTY_STAT : kda.toFixed(1)
-})
-
-// Shared with the homepage teaser — resolve build ids the same way the
-// fetching composable does.
-const { perk, perkStyle, item: buildItem } = useBuildResolvers(() => props.runeTree, () => props.itemsMap)
-
-function championName(id: number): string {
-  return props.championsById.get(id)?.name ?? `#${id}`
-}
-function championIcon(id: number): string | null {
-  return props.championsById.get(id)?.iconUrl ?? null
-}
-
-// Riot-stored position string → label for the role-icon tooltips. Reuses the
-// canonical POSITION_BY_VALUE (shared with the role picker and tier list) so
-// the leaderboard label never drifts from the rest of the app.
-function positionLabel(position: string): string {
-  return POSITION_BY_VALUE.get(position)?.label ?? position
-}
-
-// Truemain score for the row's signature champion (#1701). Every figure here
-// comes straight from the API payload — the parts are never recomputed
-// client-side, so the tooltip can't drift from the number the backend ranked on.
-const dedicationLabel = computed(() =>
-  props.row.dedication === null ? null : formatDedicationScore(props.row.dedication.score))
-
-const dedicationChampionName = computed(() => {
-  const dedication = props.row.dedication
-  return dedication ? championName(dedication.championId) : null
-})
-
-const dedicationBreakdown = computed(() => {
-  const dedication = props.row.dedication
-  return dedication ? dedicationParts(dedication) : []
-})
-
-const dedicationLastPlayed = computed(() =>
-  props.row.dedication === null ? null : formatDedicationLastPlayed(props.row.dedication.daysSinceLastPlayed))
-
-// Sub-mains shown beside the signature champion. The API returns up to three
-// top champions, so there are always exactly two slots here — padded with
-// nulls for players who have fewer, because the column sits between the row's
-// two spacers and a variable number of icons would move everything around it.
-const SUB_CHAMPION_SLOTS = 2
-
-const subChampions = computed(() => {
-  const subs = props.row.topChampions.slice(1, SUB_CHAMPION_SLOTS + 1)
-  return Array.from({ length: SUB_CHAMPION_SLOTS }, (_, index) => subs[index] ?? null)
-})
-
-// Primary + secondary lane icons. Each entry carries its icon URL and a
-// tooltip. The list is empty when the backend has no position data (no main
-// analysis yet), so the slot collapses without shifting the row.
-const positionIcons = computed(() => {
-  const positions = props.row.positions
-  if (!positions) {
-    return []
-  }
-  const icons = [{
-    position: positions.primary,
-    iconUrl: getPositionIconUrl(positions.primary),
-    title: `Primary: ${positionLabel(positions.primary)}`,
-    primary: true,
-  }]
-  if (positions.secondary) {
-    icons.push({
-      position: positions.secondary,
-      iconUrl: getPositionIconUrl(positions.secondary),
-      title: `Secondary: ${positionLabel(positions.secondary)}`,
-      primary: false,
-    })
-  }
-  return icons
-})
+const { championName, mainBuild } = useLeaderboardChampions(() => props.championsById, () => props.runeTree, () => props.itemsMap)
+const main = computed(() => mainBuild(props.row))
 </script>
 
 <template>
@@ -174,8 +51,7 @@ const positionIcons = computed(() => {
        every data column between them (positions, champion build, dedication,
        rank, stats) holds a fixed width that lines up down the list. The row
        is its own @container so the columns respond to the width it's actually
-       given — full-width on /truemains, compact in the champion-page sidebar
-       — instead of the viewport.
+       given — compact in the champion-page sidebar — instead of the viewport.
        "Fixed" has to hold all the way down, not just at the column boundary:
        a cell that disappears (no KDA) or a cluster that shrinks (no aggregated
        build, no sub-mains) hands its width back to the growers, which then
@@ -185,33 +61,25 @@ const positionIcons = computed(() => {
   <ListRowSurface dense class="group @container relative gap-1.5">
     <!-- Stretched profile link: a sibling overlay (not a wrapper) so the
          champion icons can be their own links without nesting <a> in <a>.
-         Static content falls through to it; the top-champion links opt out
+         Static content falls through to it; the controls above it opt out
          with `relative z-10`. -->
     <NuxtLink
       :to="profileHref"
       :aria-label="profileAriaLabel"
       class="absolute inset-0 z-[1] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     />
-    <!-- Rank. Narrow rows (the champion page's sidebar) get the tighter slot:
-         the ordinal is the least informative column in the row, and every pixel
-         it gives back goes to the Riot ID, which is the column that actually
-         truncates there. Deeper ordinals widen the slot a step at a time (out
-         of the flex spacers) and then shrink the label — see `rankClass`. -->
-    <span
-      class="shrink-0 text-center font-semibold tabular-nums leading-none text-muted"
-      :class="rankClass"
-    >
-      #{{ row.rank }}
-    </span>
+    <!-- Narrow rows (the champion page's sidebar) get the tighter slot: every
+         pixel the ordinal gives back goes to the Riot ID, which is the column
+         that actually truncates there. -->
+    <LeaderboardRowPlace :rank="row.rank" :max-rank="maxRank" />
 
     <!-- The player, through the shared identity (#1734) with no link of its
          own — the stretched overlay above is the row's link. Given a heavier
          flex-grow than the centring spacers so the Riot ID claims roughly half
          the free space (fitting untruncated) while the spacers still keep the
          champion roughly centred; capped so it can't run away on ultra-wide
-         screens. The avatar now sits inside this item, so its basis and caps
-         carry the avatar's 40px + gap the bare name column never had to. The
-         tag never truncates — the name absorbs the clipping. -->
+         screens. The basis and caps carry the 40px avatar + gap. The tag never
+         truncates — the name absorbs the clipping. -->
     <Account
       :identity="row.identity"
       :region="row.region"
@@ -221,212 +89,63 @@ const positionIcons = computed(() => {
       loading="lazy"
       class="flex-[3_1_3.25rem] @2xl:max-w-[21.25rem] @4xl:max-w-[23.25rem] @5xl:max-w-[27.25rem]"
     >
-      <!-- One-trick pony marker. `relative z-10` lifts it above the stretched
-           profile-link overlay so its tooltip is reachable on hover. -->
+      <!-- Lifted above the stretched profile link so its tooltip is reachable. -->
       <template v-if="isOtp" #badge>
-        <span
-          class="relative z-10 shrink-0 self-center rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-amber-200 ring-1 ring-amber-400/50"
-          title="One-trick pony"
-        >
-          OTP
-        </span>
+        <OtpBadge class="relative z-10 self-center" />
       </template>
     </Account>
 
-    <!-- Primary / secondary lane. Same 22px icon as the champion list's
-         position column; the primary lane matches its full opacity, and only
-         the secondary lane (a concept the champion list has no equivalent of)
-         stays dimmed to read as lower priority. Fixed-width slot (room for two
-         22px icons + gap) reserved on every row so the layout never shifts
-         whether a player has a secondary lane, or no position data at all.
+    <!-- Room for two lane icons on every row, so the layout never shifts
+         whether a player has a secondary lane or no position data at all.
          Hidden on narrow rows to keep them readable. -->
-    <div class="hidden w-16 shrink-0 items-center gap-1 @xl:flex">
-      <SkeletonImage
-        v-for="role in positionIcons"
-        :key="role.position"
-        :src="role.iconUrl"
-        :alt="role.title"
-        :title="role.title"
-        class="size-[22px] shrink-0"
-        :class="role.primary ? undefined : 'opacity-40'"
-        loading="lazy"
-        transparent
-      />
-    </div>
+    <LeaderboardLanes :positions="row.positions" class="hidden w-16 shrink-0 @xl:flex" />
 
     <!-- Left spacer: with the right spacer below, the two centre the champion
          column between the name and the stat block on wide rows. -->
     <div class="hidden flex-1 @2xl:block" />
 
     <!-- Champion build (fixed-width slot, centred). Every sub-slot inside it
-         holds its width too — the build cluster via `reserve-slots`, the
-         sub-mains via the padded `subChampions` list — so the column measures
-         the same on a row whose player has one champion and no aggregated
-         build as on one with three champions and a full build. Reserving only
-         the outer 16rem was not enough: a narrower cluster centred itself
-         differently, which moved the signature champion out of line down the
-         list. -->
-    <div class="relative z-10 hidden w-64 shrink-0 items-center justify-center gap-3 overflow-hidden @2xl:flex">
-      <!-- 9rem: 30px icon + 40px play rate + two 22px build icons + the three
-           0.5rem gaps between them, i.e. the cluster at its widest. -->
-      <div class="flex w-36 shrink-0 justify-center">
-        <LeaderboardChampionBuild
-          v-if="row.topChampions[0]"
-          :champion="row.topChampions[0]"
-          :name="championName(row.topChampions[0].championId)"
-          :icon-url="championIcon(row.topChampions[0].championId)"
-          :name-tag="rowNameTag"
-          :keystone="perk(row.topChampions[0].primaryKeystoneId)"
-          :secondary-style="perkStyle(row.topChampions[0].secondaryStyleId)"
-          :first-item="buildItem(row.topChampions[0].firstItemId)"
-          reserve-slots
-          loading="lazy"
-        />
-      </div>
-
-      <!-- Two 1.5rem icons + the 0.25rem gap between them. -->
-      <div class="hidden w-[52px] shrink-0 items-center gap-1 @5xl:flex">
-        <template v-for="(champ, index) in subChampions" :key="champ?.championId ?? `empty-${index}`">
-          <ChampionLink
-            v-if="champ && championIcon(champ.championId)"
-            :champion-id="champ.championId"
-            :name="championName(champ.championId)"
-            :icon-url="championIcon(champ.championId)"
-            :name-tag="rowNameTag"
-            :title="`${championName(champ.championId)} · ${champ.games} games`"
-            class="size-6"
-          />
-          <div
-            v-else-if="champ"
-            class="size-6 shrink-0 rounded bg-elevated/60"
-            :title="`#${champ.championId} · ${champ.games} games`"
-            aria-hidden="true"
-          />
-          <!-- No sub-main in this slot: an empty box, not a placeholder tile —
-               the row has nothing to show there, and a filled square would read
-               as a champion whose icon failed to load. -->
-          <div v-else class="size-6 shrink-0" aria-hidden="true" />
-        </template>
-      </div>
-    </div>
+         holds its width too, so the column measures the same on a row whose
+         player has one champion and no aggregated build as on one with three
+         champions and a full build. -->
+    <LeaderboardChampions
+      :main="main"
+      :top-champions="row.topChampions"
+      :champions-by-id="championsById"
+      :name-tag="rowNameTag"
+      class="relative z-10 hidden w-64 shrink-0 overflow-hidden @2xl:flex"
+    />
 
     <!-- Truemain score. Always reserved (empty slot when the account has no
-         main-champion analysis yet) so the LP and stat columns never shift.
+         main-champion analysis yet) so the rank and stat columns never shift.
          Kept visible at every row width, unlike the games/KDA/WR cluster: it is
-         the leaderboard's signature column, and the sort key when the board is
-         ranked by it. No verdict word under the number: the OTP pill next to
-         the name already says it, from the same flag; the tooltip carries the
-         verdict, the facts and the points each one added. `relative z-10` lifts the trigger above the stretched
-         profile-link overlay — like the champion column below — so it actually
-         receives the hover/focus that opens it. -->
-    <UTooltip
+         the leaderboard's signature column. No verdict word under the number:
+         the OTP pill next to the name already says it, from the same flag. -->
+    <LeaderboardScore
       v-if="row.dedication"
-      :delay-duration="150"
-      :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
-    >
-      <div class="relative z-10 flex w-14 shrink-0 flex-col items-end @xl:w-16" data-testid="truemain-score">
-        <span
-          class="text-sm font-semibold tabular-nums text-default"
-          :class="{ 'underline decoration-dotted underline-offset-2': highlightDedication }"
-        >{{ dedicationLabel }}</span>
-        <span class="stat-label mt-0.5">Score</span>
-      </div>
-
-      <template #content>
-        <GameTooltipSurface>
-          <div class="mb-2 flex w-64 items-center gap-2">
-            <p class="min-w-0 flex-1 truncate text-xs font-semibold text-default">
-              {{ TRUEMAIN_SCORE_LABEL }} {{ dedicationLabel }} · {{ dedicationChampionName }}
-            </p>
-            <DedicationVerdict :dedication="row.dedication" />
-          </div>
-          <DedicationBreakdown :parts="dedicationBreakdown" />
-          <p v-if="dedicationLastPlayed" class="mt-2 text-[10px] text-muted">
-            {{ dedicationLastPlayed }}
-          </p>
-        </GameTooltipSurface>
-      </template>
-    </UTooltip>
+      :dedication="row.dedication"
+      :champion-name="championName(row.dedication.championId)"
+      :highlighted="highlightDedication"
+      labelled
+      class="relative z-10 w-14 shrink-0 text-sm text-default @xl:w-16"
+    />
     <div v-else class="w-14 shrink-0 @xl:w-16" />
 
-    <!-- Rank emblem. The tier crest carries the visual weight; the LP figure
-         is dropped (too wide for the row) and only the division survives for
-         the few non-apex rows, since the crest alone can't show it. Full
-         rank + LP + win-loss is available on hover via the tooltip, same
-         layout as the truemains profile card's ranked section (`RankSummary`).
-         `relative z-10` lifts the trigger above the stretched profile-link
-         overlay, like the dedication column above. -->
-    <UTooltip
-      v-if="ranked"
-      :delay-duration="150"
-      :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
-    >
-      <div class="relative z-10 flex w-12 shrink-0 items-center justify-end gap-1">
-        <RankIcon :tier="ranked.tier" :size="26" loading="lazy" />
-        <span v-if="showDivision" class="text-sm font-semibold tabular-nums">
-          {{ ranked.division }}
-        </span>
-      </div>
-
-      <template #content>
-        <GameTooltipSurface>
-          <RankSummary
-            :tier="ranked.tier"
-            :division="ranked.division"
-            :league-points="ranked.leaguePoints"
-            :wins="row.stats.wins"
-            :losses="row.stats.losses"
-            :win-rate="row.stats.winRate"
-            :size="32"
-          />
-        </GameTooltipSurface>
-      </template>
-    </UTooltip>
+    <!-- The crest carries the visual weight; the LP figure is dropped (too
+         wide for the row) and the full standing is on hover. -->
+    <RankEmblem
+      v-if="row.ranked"
+      :rank="row.ranked"
+      :record="row.stats"
+      class="relative z-10 w-12 justify-end"
+    />
     <div v-else class="w-12 shrink-0" />
 
     <!-- Flex spacer pushes the stat block to the far right while the columns
          above stay fixed. -->
     <div class="hidden flex-1 @xl:block" />
 
-    <!-- Games / KDA / WR (far right, fixed widths — the widths are load-bearing
-         for the @container tiers above, so they stay exactly as they were).
-         All three cells are always rendered, an em dash standing in for a
-         figure the aggregate can't supply: dropping a cell handed its width
-         back to the row's flex spacers, which the name column and both spacers
-         then re-split, nudging every column between them off the grid the rest
-         of the list sits on.
-         Only the win rate takes a colour: games is a count and KDA has no
-         agreed neutral point, so neither has a better/worse reading to encode.
-         `rate-tone` owns the win-rate band, the same as everywhere else — and
-         returns the muted tone for a null rate, which is exactly what the em
-         dash wants. -->
-    <div class="hidden shrink-0 items-center gap-4 @xl:flex">
-      <div class="flex w-12 justify-end">
-        <StatBlock
-          :value="formatCount(row.stats.games)"
-          label="games"
-          size="sm"
-          align="end"
-        />
-      </div>
-      <div class="flex w-12 justify-end">
-        <StatBlock
-          :value="kdaLabel"
-          label="KDA"
-          size="sm"
-          align="end"
-        />
-      </div>
-      <div class="flex w-12 justify-end">
-        <StatBlock
-          :value="winRateLabel"
-          label="WR"
-          size="sm"
-          align="end"
-          :value-class="winRateTone(row.stats.winRate)"
-        />
-      </div>
-    </div>
+    <LeaderboardRowStats :stats="row.stats" class="hidden @xl:flex" />
 
     <!-- Follow toggle, pinned to the row's trailing edge on every breakpoint
          (the stat block above collapses on narrow rows, the star does not). -->

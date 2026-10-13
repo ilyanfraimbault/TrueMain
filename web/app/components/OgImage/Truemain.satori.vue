@@ -57,11 +57,11 @@ const main = computed(() => card?.main ?? null)
 const rankColor = computed(() =>
   ranked.value ? RANK_COLOR[ranked.value.tier.toUpperCase()] ?? TEXT : TEXT_MUTED,
 )
-/** "DIAMOND II · 42 LP", or the honest "Unranked" when there is no snapshot. */
+/** "Diamond II · 42 LP", or the honest "Unranked" when there is no snapshot. */
 const rankLine = computed(() => {
   const r = ranked.value
   if (!r) return 'Unranked'
-  return `${formatRank(r.tier, r.division)} · ${formatCount(r.leaguePoints)} LP`
+  return formatRank(r.tier, r.division, { lp: r.leaguePoints })
 })
 /** Only rendered when Riot returned both halves of the record. */
 const recordLine = computed(() => {
