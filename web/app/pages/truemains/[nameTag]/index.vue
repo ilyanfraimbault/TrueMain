@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { ChampionPosition } from '#common/utils/positions'
 import { parseRouteParam } from '#common/utils/route-params'
-import { groupMatchesByDay } from '~/utils/match-history'
 import { championSplashUrlFromIcon, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { platformIdToRegion } from '~~/shared/utils/region'
 
@@ -109,10 +108,6 @@ const {
   championId: filterChampionId,
 })
 
-// Cut into day-runs for the dated headings between rows. Derived, not
-// fetched: the API already returns the page newest-first.
-const matchDays = computed(() => groupMatchesByDay(matches.value))
-
 // ─── Static lookups for MatchRow + identity icon ───────────────────────────
 // Shared canonical cache keys (`champion-static-list`, `static-items-*`,
 // `static-summoners-*`, `rune-tree-*`) so the payloads warmed by the
@@ -124,20 +119,9 @@ const latestPatch = computed(() => versions.value?.[0] ?? null)
 const { data: championsData } = useChampionStaticList()
 const champions = computed(() => championsData.value ?? [])
 
-const { data: itemsData } = useStaticItems(latestPatch)
-const items = computed(() => itemsData.value ?? {})
-
-const { data: summonerSpellsData } = useStaticSummonerSpells(latestPatch)
-const summonerSpells = computed(() => summonerSpellsData.value ?? {})
-
+const { data: items } = useStaticItems(latestPatch)
+const { data: summonerSpells } = useStaticSummonerSpells(latestPatch)
 const { data: runeTree } = useStaticRuneTree(latestPatch)
-
-const staticBundleReady = computed(() =>
-  champions.value.length > 0
-  && Object.keys(items.value).length > 0
-  && Object.keys(summonerSpells.value).length > 0
-  && (runeTree.value?.styles.length ?? 0) > 0,
-)
 
 // The banner: the champion this player truemains — the dedication's champion,
 // else their first main — on its splash, through the image proxy at banner width.
@@ -233,63 +217,21 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
         <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
           Match history
         </h2>
-        <!--
-          The empty / not-found state must not wait on the static bundle:
-          rendering it needs no item, spell or rune data, and a failing
-          static fetch (e.g. CDragon lagging a new patch) would otherwise
-          keep the skeletons up forever on a perfectly valid empty result.
-        -->
-        <template v-if="matchesInitialLoading || (!staticBundleReady && matches.length)">
-          <MatchRowSkeleton
-            v-for="i in 8"
-            :key="`match-skel-${i}`"
-          />
-        </template>
-        <MatchHistoryEmpty
-          v-else-if="matchesNotFound || matches.length === 0"
+        <MatchHistoryList
+          :page="currentMatchesPage"
+          :matches="matches"
+          :loading="matchesInitialLoading"
+          :total="matchesTotal"
+          :page-size="matchesPageSize"
+          :champions="champions"
+          :items="items"
+          :summoner-spells="summonerSpells"
+          :rune-tree="runeTree"
+          :name-tag="nameTag"
           :not-found="matchesNotFound"
           :filtered="hasActiveFilters"
+          @update:page="setMatchesPage"
         />
-        <template v-else>
-          <!-- Grouped by the local day the games were played, newest first —
-               the API order is preserved, the headings only cut it. -->
-          <template
-            v-for="day in matchDays"
-            :key="day.key"
-          >
-            <MatchDayHeading
-              v-if="day.label"
-              :label="day.label"
-              class="pt-1.5"
-            />
-            <MatchRow
-              v-for="match in day.matches"
-              :key="match.matchId"
-              :match="match"
-              :champions="champions"
-              :items="items"
-              :summoner-spells="summonerSpells"
-              :rune-tree="runeTree!"
-              :name-tag="nameTag"
-            />
-          </template>
-          <div
-            v-if="matchesTotal > matchesPageSize"
-            class="flex justify-center pt-2"
-          >
-            <UPagination
-              :page="currentMatchesPage"
-              :total="matchesTotal"
-              :items-per-page="matchesPageSize"
-              :sibling-count="1"
-              color="neutral"
-              variant="ghost"
-              active-color="primary"
-              active-variant="soft"
-              @update:page="setMatchesPage"
-            />
-          </div>
-        </template>
       </template>
 
       <template #aside>

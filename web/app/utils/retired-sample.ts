@@ -1,4 +1,4 @@
-import { formatMatchDay } from '~/utils/match-history'
+import { formatMatchDay } from '#common/utils/match-history'
 
 /**
  * The tooltip shown next to a main whose games have aged out of retention

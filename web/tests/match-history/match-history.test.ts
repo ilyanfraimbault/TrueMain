@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MatchSummaryResponse } from '~~/shared/types/matches'
-import { formatMatchDay, groupMatchesByDay } from '~~/app/utils/match-history'
+import { formatMatchDay, groupMatchesByDay } from '#common/utils/match-history'
 
 // Local-midnight timestamps, so the grouping assertions below don't depend on
 // the timezone the suite happens to run in — a UTC-literal fixture would land
