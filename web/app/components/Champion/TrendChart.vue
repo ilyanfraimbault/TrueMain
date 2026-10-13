@@ -57,42 +57,6 @@ const hasTrend = computed(() => rows.value.length > 1)
 // there is a real history to draw.
 const hasBanTrend = computed(() => banRows.value.length > 1)
 
-// Every series in the app primary (rosegold-400). The charts sit side by side
-// and never share a plot, so they don't need different hues to be told apart.
-const PRIMARY = defaultSeriesColor(0)
-const winRateCategories = { winRate: { name: 'Win rate', color: PRIMARY } }
-const pickRateCategories = { pickRate: { name: 'Pick rate', color: PRIMARY } }
-const banRateCategories = { banRate: { name: 'Ban rate', color: PRIMARY } }
-
-// Soft top-down fade for the filled area, matching ProfileRankedCard.
-const gradientStops = [
-  { offset: '0%', stopOpacity: 0.4 },
-  { offset: '100%', stopOpacity: 0.04 },
-]
-
-const xFormatter = (tick: number): string => rows.value[tick]?.patch ?? ''
-// The ban series is filtered, so its tick indices are its own.
-const banXFormatter = (tick: number): string => banRows.value[tick]?.patch ?? ''
-
-// Without explicit ticks the axis scale places ticks at fractional positions
-// (0, 0.5, 1, ...), and the formatter — which indexes the row array — returns an
-// empty string for every one of them but the first: the axis ended up labelled
-// with a single patch. Pin the ticks to data points instead, at most five so a
-// narrow column stays readable, always keeping the first and the last patch so
-// the range the chart covers is obvious.
-const MAX_X_TICKS = 5
-
-function patchTicks(count: number): number[] {
-  if (count <= MAX_X_TICKS) {
-    return Array.from({ length: count }, (_, i) => i)
-  }
-  const step = (count - 1) / (MAX_X_TICKS - 1)
-  const ticks = Array.from({ length: MAX_X_TICKS }, (_, i) => Math.round(i * step))
-  return [...new Set(ticks)]
-}
-
-const xTicks = computed(() => patchTicks(rows.value.length))
-const banXTicks = computed(() => patchTicks(banRows.value.length))
 const winRateFormatter = (value: number): string => formatPercentage(value, 0)
 const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
 const banRateFormatter = (value: number): string => formatPercentage(value, 1)
@@ -121,99 +85,31 @@ const chartGridClass = computed(() =>
         : 'No patch history yet for this champion and lane.'"
     />
 
-    <div v-else :class="chartGridClass">
-      <div class="flex flex-col gap-1.5">
-        <h3 class="text-xs font-medium text-muted">
-          Win rate
-        </h3>
-        <ChartsAreaChart
-          :data="rows"
-          :categories="winRateCategories"
-          :height="220"
-          :x-formatter="xFormatter"
-          :x-explicit-ticks="xTicks"
-          :y-formatter="winRateFormatter"
-          :gradient-stops="gradientStops"
-          :y-grid-line="false"
-          hide-legend
-        >
-          <template #tooltip="{ values }">
-            <div
-              v-if="values"
-              class="rounded-md border border-default bg-elevated px-2 py-1.5 text-xs shadow-md"
-            >
-              <p class="font-semibold tabular-nums text-default">
-                {{ winRateFormatter(values.winRate) }}
-              </p>
-              <p class="mt-0.5 text-muted">
-                Patch {{ values.patch }}
-              </p>
-            </div>
-          </template>
-        </ChartsAreaChart>
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <h3 class="text-xs font-medium text-muted">
-          Pick rate
-        </h3>
-        <ChartsAreaChart
-          :data="rows"
-          :categories="pickRateCategories"
-          :height="220"
-          :x-formatter="xFormatter"
-          :x-explicit-ticks="xTicks"
-          :y-formatter="pickRateFormatter"
-          :gradient-stops="gradientStops"
-          :y-grid-line="false"
-          hide-legend
-        >
-          <template #tooltip="{ values }">
-            <div
-              v-if="values"
-              class="rounded-md border border-default bg-elevated px-2 py-1.5 text-xs shadow-md"
-            >
-              <p class="font-semibold tabular-nums text-default">
-                {{ pickRateFormatter(values.pickRate) }}
-              </p>
-              <p class="mt-0.5 text-muted">
-                Patch {{ values.patch }}
-              </p>
-            </div>
-          </template>
-        </ChartsAreaChart>
-      </div>
+    <div
+      v-else
+      :class="chartGridClass"
+    >
+      <ChampionTrendSeriesChart
+        title="Win rate"
+        :rows="rows"
+        value-key="winRate"
+        :format="winRateFormatter"
+      />
+      <ChampionTrendSeriesChart
+        title="Pick rate"
+        :rows="rows"
+        value-key="pickRate"
+        :format="pickRateFormatter"
+      />
       <!-- Ban rate only appears once at least two patches have ban data (#920);
            its history starts at deploy and cannot be backfilled. -->
-      <div v-if="hasBanTrend" class="flex flex-col gap-1.5">
-        <h3 class="text-xs font-medium text-muted">
-          Ban rate
-        </h3>
-        <ChartsAreaChart
-          :data="banRows"
-          :categories="banRateCategories"
-          :height="220"
-          :x-formatter="banXFormatter"
-          :x-explicit-ticks="banXTicks"
-          :y-formatter="banRateFormatter"
-          :gradient-stops="gradientStops"
-          :y-grid-line="false"
-          hide-legend
-        >
-          <template #tooltip="{ values }">
-            <div
-              v-if="values"
-              class="rounded-md border border-default bg-elevated px-2 py-1.5 text-xs shadow-md"
-            >
-              <p class="font-semibold tabular-nums text-default">
-                {{ banRateFormatter(values.banRate) }}
-              </p>
-              <p class="mt-0.5 text-muted">
-                Patch {{ values.patch }}
-              </p>
-            </div>
-          </template>
-        </ChartsAreaChart>
-      </div>
+      <ChampionTrendSeriesChart
+        v-if="hasBanTrend"
+        title="Ban rate"
+        :rows="banRows"
+        value-key="banRate"
+        :format="banRateFormatter"
+      />
     </div>
   </SectionCard>
 </template>

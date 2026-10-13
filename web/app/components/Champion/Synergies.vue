@@ -146,20 +146,7 @@ watch(() => [props.championId, props.position], () => {
       />
 
       <template v-else>
-        <!-- Column key. "Synergy" is points of win rate above expectation, so it
-             needs naming — a bare signed number would read as a win-rate delta.
-             The definition sits in the header's tooltip, not in a footnote. -->
-        <div class="flex items-center gap-3 px-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-dimmed">
-          <span class="size-8 shrink-0" aria-hidden="true" />
-          <span class="size-4 shrink-0" aria-hidden="true" />
-          <span class="min-w-0 flex-1">Partner</span>
-          <span class="shrink-0">Sample</span>
-          <span class="w-12 shrink-0 text-right">WR</span>
-          <span
-            class="w-14 shrink-0 text-right"
-            :title="`Win rate minus what ${championName}'s and the partner's own win rates predicted, in points.`"
-          >Synergy</span>
-        </div>
+        <ChampionSynergyColumns :champion-name="championName" />
 
         <div class="flex flex-col gap-1">
           <ChampionSynergyRow
@@ -181,51 +168,17 @@ watch(() => [props.championId, props.position], () => {
       </template>
 
       <!-- Trio completions for the chosen duo. -->
-      <div v-if="selectedPartner" class="flex flex-col gap-3 border-t border-default pt-4">
-        <p class="px-2 text-xs font-semibold uppercase tracking-wide text-primary">
-          Best third pick with {{ selectedPartnerName }}
-        </p>
-
-        <template v-if="isTrioLoading">
-          <USkeleton v-for="i in 3" :key="`trio-skel-${i}`" class="h-8 w-full rounded-md" />
-        </template>
-
-        <FetchErrorAlert
-          v-else-if="trioError"
-          :error="trioError"
-          title="Failed to load the trio suggestions"
-          class="my-2"
-        />
-
-        <!-- A duo's games are the ceiling for every trio drawn from it, so a thin
-             duo cannot support a third dimension. Show the real count. -->
-        <UEmpty
-          v-else-if="completions.length === 0"
-          size="xs"
-          icon="i-lucide-users-round"
-        >
-          <template #description>
-            {{ championName }} and {{ selectedPartnerName }} share
-            {{ (trioData?.pairGames ?? 0).toLocaleString('en-US') }} games — not enough to suggest a third pick
-            (minimum {{ trioData?.minGames ?? 0 }} games together with the same teammate).
-          </template>
-        </UEmpty>
-
-        <template v-else>
-          <div class="flex flex-col gap-1">
-            <ChampionSynergyRow
-              v-for="completion in completions"
-              :key="`${completion.championId}-${completion.position}`"
-              :champion="championById.get(completion.championId) ?? null"
-              :champion-id="completion.championId"
-              :position="completion.position"
-              :games="completion.games"
-              :win-rate="completion.winRate"
-              :synergy="completion.synergy"
-            />
-          </div>
-        </template>
-      </div>
+      <ChampionSynergyTrios
+        v-if="selectedPartner"
+        :champion-name="championName"
+        :partner-name="selectedPartnerName"
+        :loading="isTrioLoading"
+        :error="trioError"
+        :completions="completions"
+        :pair-games="trioData?.pairGames ?? 0"
+        :min-games="trioData?.minGames ?? 0"
+        :champion-by-id="championById"
+      />
     </div>
   </SectionCard>
 </template>

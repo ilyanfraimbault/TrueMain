@@ -84,149 +84,105 @@ function spellByKey(key: string) {
     v-if="hasVariations"
     class="flex flex-wrap gap-4"
   >
-    <SectionCard
+    <ChampionBuildPanelVariationCard
       v-if="summonerSpells.length"
-      :level="2"
       title="Summoner spells"
-      class="grow shrink basis-64 min-w-0"
+      :options="summonerSpells"
+      :option-key="option => `spells-${option.spell1Id}-${option.spell2Id}`"
+      :pending="pending"
     >
-      <ul class="space-y-2">
-        <li
-          v-for="option in summonerSpells"
-          :key="`spells-${option.spell1Id}-${option.spell2Id}`"
-          class="flex items-center justify-between gap-3"
-        >
-          <div class="flex items-center gap-1">
-            <GameTooltipSummonerSpellIcon
-              v-for="spellId in [option.spell1Id, option.spell2Id]"
-              :key="`sum-${option.spell1Id}-${option.spell2Id}-${spellId}`"
-              :spell="summonersMap[spellId] ?? null"
-              :pending="summonersPending"
-              :settled="!summonersPending"
-              :width="32"
-              :height="32"
-              class="size-8 rounded"
-            />
-          </div>
-          <RateBadge
-            :games="option.games"
-            :pick-rate="option.pickRate"
-            :win-rate="option.winRate"
-            :pending="pending"
+      <template #default="{ option }">
+        <div class="flex items-center gap-1">
+          <GameTooltipSummonerSpellIcon
+            v-for="spellId in [option.spell1Id, option.spell2Id]"
+            :key="`sum-${option.spell1Id}-${option.spell2Id}-${spellId}`"
+            :spell="summonersMap[spellId] ?? null"
+            :pending="summonersPending"
+            :settled="!summonersPending"
+            :width="32"
+            :height="32"
+            class="size-8 rounded"
           />
-        </li>
-      </ul>
-    </SectionCard>
+        </div>
+      </template>
+    </ChampionBuildPanelVariationCard>
 
-    <SectionCard
+    <ChampionBuildPanelVariationCard
       v-if="skillOrder.length"
-      :level="2"
       title="Skill order"
-      class="grow shrink basis-64 min-w-0"
+      :options="skillOrder"
+      :option-key="(_, optionIndex) => `skill-${optionIndex}`"
+      :pending="pending"
     >
-      <ul class="space-y-2">
-        <li
-          v-for="(option, optionIndex) in skillOrder"
-          :key="`skill-${optionIndex}`"
-          class="flex items-center justify-between gap-3"
-        >
-          <div class="flex flex-wrap items-center gap-1">
-            <template
-              v-for="(key, index) in option.sequence"
-              :key="`${optionIndex}-${key}-${index}`"
-            >
-              <div class="relative size-8">
-                <GameTooltipChampionSpellIcon
-                  :spell="spellByKey(key)"
-                  :pending="pending"
-                  :settled="!pending"
-                  :width="32"
-                  :height="32"
-                  class="size-8 rounded"
-                />
-                <ItemRankBadge :value="key" />
-              </div>
-              <UIcon
-                v-if="index < option.sequence.length - 1"
-                name="i-lucide-chevron-right"
-                class="size-3 text-dimmed"
+      <template #default="{ option, index: optionIndex }">
+        <div class="flex flex-wrap items-center gap-1">
+          <template
+            v-for="(key, index) in option.sequence"
+            :key="`${optionIndex}-${key}-${index}`"
+          >
+            <div class="relative size-8">
+              <GameTooltipChampionSpellIcon
+                :spell="spellByKey(key)"
+                :pending="pending"
+                :settled="!pending"
+                :width="32"
+                :height="32"
+                class="size-8 rounded"
               />
-            </template>
-          </div>
-          <RateBadge
-            :games="option.games"
-            :pick-rate="option.pickRate"
-            :win-rate="option.winRate"
-            :pending="pending"
-          />
-        </li>
-      </ul>
-    </SectionCard>
+              <ItemRankBadge :value="key" />
+            </div>
+            <UIcon
+              v-if="index < option.sequence.length - 1"
+              name="i-lucide-chevron-right"
+              class="size-3 text-dimmed"
+            />
+          </template>
+        </div>
+      </template>
+    </ChampionBuildPanelVariationCard>
 
-    <SectionCard
+    <ChampionBuildPanelVariationCard
       v-if="boots.length"
-      :level="2"
       title="Boots"
-      class="grow shrink basis-64 min-w-0"
+      :options="boots"
+      :option-key="(option, optionIndex) => `boots-${optionIndex}-${option.itemIds.join('-')}`"
+      :pending="pending"
     >
-      <ul class="space-y-2">
-        <li
-          v-for="(option, optionIndex) in boots"
-          :key="`boots-${optionIndex}-${option.itemIds.join('-')}`"
-          class="flex items-center justify-between gap-3"
-        >
-          <div class="flex items-center gap-1">
-            <GameTooltipItemIcon
-              v-for="(slot, index) in itemsByIds(option.itemIds)"
-              :key="`boots-item-${optionIndex}-${slot.id}-${index}`"
-              :item="slot.item"
-              :context="contextFor('Boots', slot.id)"
-              :width="32"
-              :height="32"
-              class="size-8 rounded"
-            />
-          </div>
-          <RateBadge
-            :games="option.games"
-            :pick-rate="option.pickRate"
-            :win-rate="option.winRate"
-            :pending="pending"
+      <template #default="{ option, index: optionIndex }">
+        <div class="flex items-center gap-1">
+          <GameTooltipItemIcon
+            v-for="(slot, index) in itemsByIds(option.itemIds)"
+            :key="`boots-item-${optionIndex}-${slot.id}-${index}`"
+            :item="slot.item"
+            :context="contextFor('Boots', slot.id)"
+            :width="32"
+            :height="32"
+            class="size-8 rounded"
           />
-        </li>
-      </ul>
-    </SectionCard>
+        </div>
+      </template>
+    </ChampionBuildPanelVariationCard>
 
-    <SectionCard
+    <ChampionBuildPanelVariationCard
       v-if="starterItems.length"
-      :level="2"
       title="Starter"
-      class="grow shrink basis-64 min-w-0"
+      :options="starterItems"
+      :option-key="(option, optionIndex) => `starter-${optionIndex}-${option.itemIds.join('-')}`"
+      :pending="pending"
     >
-      <ul class="space-y-2">
-        <li
-          v-for="(option, optionIndex) in starterItems"
-          :key="`starter-${optionIndex}-${option.itemIds.join('-')}`"
-          class="flex items-center justify-between gap-3"
-        >
-          <div class="flex items-center gap-1">
-            <GameTooltipItemIcon
-              v-for="(slot, index) in itemsByIds(option.itemIds)"
-              :key="`starter-item-${optionIndex}-${slot.id}-${index}`"
-              :item="slot.item"
-              :context="contextFor('Starter', slot.id)"
-              :width="32"
-              :height="32"
-              class="size-8 rounded"
-            />
-          </div>
-          <RateBadge
-            :games="option.games"
-            :pick-rate="option.pickRate"
-            :win-rate="option.winRate"
-            :pending="pending"
+      <template #default="{ option, index: optionIndex }">
+        <div class="flex items-center gap-1">
+          <GameTooltipItemIcon
+            v-for="(slot, index) in itemsByIds(option.itemIds)"
+            :key="`starter-item-${optionIndex}-${slot.id}-${index}`"
+            :item="slot.item"
+            :context="contextFor('Starter', slot.id)"
+            :width="32"
+            :height="32"
+            class="size-8 rounded"
           />
-        </li>
-      </ul>
-    </SectionCard>
+        </div>
+      </template>
+    </ChampionBuildPanelVariationCard>
   </div>
 </template>
