@@ -1,6 +1,7 @@
 using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
+using Data.Repositories;
 using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -185,6 +186,37 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
         var account = verifyDb.RiotAccounts.Single(a => a.PlatformId == "KR" && a.Puuid == "puuid-demoted-2");
         account.LastMainCalcAtUtc.Should().BeBefore(DateTime.UtcNow.AddDays(-30),
             "the account was not selected, so its calc stamp did not move");
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldStampTheCalc_WhenTheFetchLaneWritesTheAccountMidRun()
+    {
+        // #2046: a raw-SQL write of the fetch lane between this batch's reads and its save
+        // bumps the account row's xmin. A tracked LastMainCalcAtUtc stamp then matched 0 rows
+        // and failed the whole run; the set-based stamp does not look at xmin.
+        await SeedEstablishedMainAsync(
+            puuid: "puuid-race-1",
+            candidateStatus: MainCandidateStatus.Validated,
+            staleMainChampionId: 100,
+            recentChampionId: 200,
+            recentGameCount: 10);
+        var seenInMatch = DateTime.UtcNow.AddHours(-1);
+        var calculator = new ConcurrentWriteCalculator(() =>
+        {
+            using var concurrent = _fixture.CreateDbContext();
+            concurrent.RiotAccounts
+                .Where(a => a.Puuid == "puuid-race-1")
+                .ExecuteUpdate(s => s.SetProperty(a => a.LastSeenInMatchAtUtc, seenInMatch));
+        });
+
+        await RunProcessAsync(calculator);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-race-1");
+        account.LastMainCalcAtUtc.Should().BeAfter(DateTime.UtcNow.AddMinutes(-5));
+        account.LastSeenInMatchAtUtc.Should().BeCloseTo(seenInMatch, TimeSpan.FromMilliseconds(1),
+            "the stamp writes its own column only, never over the fetch lane's");
+        verifyDb.MainChampionStats.Should().Contain(s => s.Puuid == "puuid-race-1" && s.ChampionId == 200 && s.IsMain);
     }
 
     [Fact]
@@ -388,12 +420,12 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
         await db.Database.ExecuteSqlRawAsync(sql);
     }
 
-    private Task<IProcessRunSummary?> RunProcessAsync()
+    private Task<IProcessRunSummary?> RunProcessAsync(IMainStatsCalculator? calculator = null)
     {
         var process = new MainAnalysisProcess(
             NullLogger<MainAnalysisProcess>.Instance,
             _fixture.CreateSessionFactory(),
-            new MainStatsCalculator(),
+            calculator ?? new MainStatsCalculator(),
             new MainDemotionPolicy(),
             new ChampionCoverageProvider(Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
             TimeProvider.System,
@@ -765,5 +797,29 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
         }
 
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>The real calculator, after a concurrent write on its first call — between the batch's reads and its save.</summary>
+    private sealed class ConcurrentWriteCalculator(Action concurrentWrite) : IMainStatsCalculator
+    {
+        private readonly MainStatsCalculator _inner = new();
+        private bool _written;
+
+        public List<MainChampionStat> Calculate(
+            string platformId,
+            string puuid,
+            IReadOnlyCollection<ParticipantRow> participantRows,
+            MainAnalysisOptions options,
+            ChampionCoverageSnapshot coverage,
+            DateTime calculatedAtUtc)
+        {
+            if (!_written)
+            {
+                _written = true;
+                concurrentWrite();
+            }
+
+            return _inner.Calculate(platformId, puuid, participantRows, options, coverage, calculatedAtUtc);
+        }
     }
 }

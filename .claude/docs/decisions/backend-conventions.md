@@ -328,3 +328,15 @@ what blocks a merge (#294).
   `await using`).
 
 Promoting another rule is a one-line `.editorconfig` change, made in the PR that fixes its findings.
+
+## A process's own timestamp on `riot_accounts` is stamped set-based, never through a tracked entity (2026-10-13)
+
+`RiotAccount` carries an `xmin` concurrency token (#231), and the fetch lane writes the same rows in raw SQL at
+any time (`LastSeenInMatchAtUtc`, the summoner profile, the ingest status). A process that loaded accounts tracked
+only to stamp its own column (`LastMainCalcAtUtc`, `LastActivityCheckAtUtc`) lost that race: the save matched 0
+rows, `DbUpdateConcurrencyException` failed the run, and its remaining batches waited for the next cycle.
+`MainActivity` was the most exposed, since it held the rows across a whole run of mastery calls.
+
+The token stays: it guards the columns two writers really share. A column with a single writer has nothing for it
+to protect, so it is stamped with `ExecuteUpdateAsync` keyed on `(PlatformId, Puuid)`
+(`RiotAccountRepository.Stamps.cs`), inside the transaction that holds the verdict it dates — #2046.
