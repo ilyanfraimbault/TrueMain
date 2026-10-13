@@ -47,7 +47,8 @@ Anti-churn rules (these matter as much as the fixes):
 - Never push a cosmetic-only commit to a PR that already meets the done-criteria.
 - Cap at ~3 fix iterations. If it still doesn't converge, stop pushing and report the blockers — a summary beats an endless loop.
 - Touching `.github/workflows/` for the Claude review makes that check fail on the PR itself; that is expected and passes post-merge — don't loop on it.
-- The "SonarCloud Code Analysis" check is informational until #2052 makes it required: a failed quality gate does not block the merge. Fix what it finds in the PR's own code when it is real; don't loop on the rest.
+- SonarQube Cloud's quality gate is required (`SonarQube Cloud / Quality gate`, #2052): the "SonarCloud Code Analysis" check lists the failing conditions. Fix the new-code findings. Missing coverage means tests, Vue components included. A new security hotspot needs the owner to mark it reviewed on SonarQube Cloud; ask, never mark it yourself. A finding that is wrong for this repo is rebutted in a PR comment and reported to the user, not silenced.
+- A new third-party action is pinned to a full commit SHA, never a tag (`docs/ci.md`).
 
 ## 5. Merge — your decision, not a question
 

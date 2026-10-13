@@ -97,7 +97,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Redeploy Docker Manager project
-        uses: hostinger/deploy-on-vps@v2
+        uses: hostinger/deploy-on-vps@b0868cec74bfa63af6bfa7bdb0dfee2f9bef13ea
         with:
           api-key: ${{ secrets.hostinger_api_key }}
           virtual-machine: ${{ inputs.vm_id }}

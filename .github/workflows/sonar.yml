@@ -3,12 +3,6 @@ name: SonarQube Cloud
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - "backend/**"
-      - "web/**"
-      - "admin/**"
-      - "desktop/**"
-      - ".github/workflows/sonar.yml"
   push:
     branches:
       - develop
@@ -26,33 +20,54 @@ env:
   SONAR_PROJECT_KEY: ilyanfraimbault_TrueMain
 
 jobs:
-  token:
-    name: Token check
+  plan:
+    name: Plan the analysis
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    timeout-minutes: 5
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      present: ${{ steps.check.outputs.present }}
+      run: ${{ steps.decide.outputs.run }}
 
     steps:
-      - name: Check for SONAR_TOKEN
-        id: check
+      - name: Filter changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - "!**/*.md"
+              - "!docs/**"
+              - "!.claude/**"
+              - "!LICENSE"
+
+      - name: Decide
+        id: decide
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          EXHAUSTIVE: ${{ github.event_name != 'pull_request' }}
+          CODE: ${{ steps.filter.outputs.code }}
         run: |
-          if [ -n "$SONAR_TOKEN" ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ -z "$SONAR_TOKEN" ]; then
             echo "::notice::SONAR_TOKEN is not available to this run; the SonarQube Cloud analysis is skipped."
-            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ "$EXHAUSTIVE" = "true" ] || [ "$CODE" = "true" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Only documentation changed; the SonarQube Cloud analysis is skipped."
+            echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
   frontend-coverage:
     name: Frontend coverage (${{ matrix.app }})
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    needs: token
-    if: needs.token.outputs.present == 'true'
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
 
     strategy:
       fail-fast: false
@@ -108,8 +123,8 @@ jobs:
     name: Analysis
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    needs: [token, frontend-coverage]
-    if: needs.token.outputs.present == 'true'
+    needs: [plan, frontend-coverage]
+    if: needs.plan.outputs.run == 'true'
 
     defaults:
       run:
@@ -117,6 +132,7 @@ jobs:
 
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      WAIT_FOR_GATE: ${{ github.event_name == 'pull_request' }}
 
     steps:
       - name: Checkout
@@ -165,6 +181,8 @@ jobs:
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.token="$SONAR_TOKEN"
           /d:sonar.projectBaseDir="$GITHUB_WORKSPACE"
+          /d:sonar.qualitygate.wait="$WAIT_FOR_GATE"
+          /d:sonar.cs.roslyn.ignoreIssues=true
           /d:sonar.exclusions="**/Migrations/**,**/CompiledModels/**,**/tests/**,**/*.test.ts,web/server/utils/dev-api-mock.ts,**/node_modules/**,**/.nuxt/**,**/.output/**,**/coverage/**"
           /d:sonar.cs.vscoveragexml.reportsPaths="$RUNNER_TEMP/coverage/*.xml"
           /d:sonar.javascript.lcov.reportPaths="$RUNNER_TEMP/lcov/lcov-web/lcov.info,$RUNNER_TEMP/lcov/lcov-admin/lcov.info,$RUNNER_TEMP/lcov/lcov-desktop-app/lcov.info"
@@ -189,3 +207,21 @@ jobs:
 
       - name: End analysis
         run: dotnet tool run dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+
+  gate:
+    name: Quality gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    needs: [plan, frontend-coverage, analysis]
+    if: always()
+
+    steps:
+      - name: Report
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          if ! jq -e '[.[].result] | all(. == "success" or . == "skipped")' <<< "$RESULTS" > /dev/null; then
+            echo "::error::The SonarQube Cloud analysis failed or its quality gate is red; open the SonarCloud Code Analysis check for the conditions."
+            exit 1
+          fi
