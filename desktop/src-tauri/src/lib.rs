@@ -176,10 +176,11 @@ fn readable(path: &str) -> bool {
     }
     if let Some(rest) = path.strip_prefix("/champions/") {
         let segments: Vec<&str> = rest.split('/').collect();
-        // A lane's matchup, for the Game page's lane chance (#1863).
+        // A lane's matchup, for the Game page's lane chance (#1863), and a
+        // lane's patch figures, for the champion page's banner (#2026).
         return matches!(
             segments.as_slice(),
-            [champion_id, "item-context" | "matchups"] if is_id(champion_id)
+            [champion_id, "item-context" | "matchups" | "trend"] if is_id(champion_id)
         );
     }
     let Some(rest) = path.strip_prefix("/truemains/") else {
@@ -449,6 +450,7 @@ mod tests {
         assert!(readable("/truemains/Faker-KR1/matches/KR_7123456789"));
         assert!(readable("/champions/103/item-context"));
         assert!(readable("/champions/234/matchups"));
+        assert!(readable("/champions/266/trend"));
     }
 
     #[test]

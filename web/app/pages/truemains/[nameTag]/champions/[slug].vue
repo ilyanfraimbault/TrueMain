@@ -92,6 +92,8 @@ const {
   championSettled: () => !isLoadingStatus(championStatus.value),
 })
 
+const splashUrl = useChampionSplash(displayIconUrl)
+
 // SSR-safe champion name for `<head>` — same composable, same cache key as the
 // global champion page, so the two pages share the entry. See
 // useChampionSeoName for why `displayName` can't serve `<head>`.
@@ -209,9 +211,21 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
 
 <template>
   <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
-    <!-- Truemains > {player} > {champion}, linking back to the leaderboard and
-         the player's profile. -->
-    <UBreadcrumb :items="breadcrumbItems" />
+    <!-- Truemains > {player} > {champion}, and the filters on the same row as on
+         the global champion page — in the degraded (no-build) state too: the
+         pickers are how the reader got here and the only way back out. -->
+    <div class="flex flex-wrap items-center gap-3">
+      <UBreadcrumb :items="breadcrumbItems" />
+      <ChampionFilters
+        v-if="!championError"
+        class="ml-auto"
+        :selected-patch="pickerPatch"
+        :selected-position="selectedPosition"
+        :patch-options="patchOptions"
+        @update:patch="value => setFilter({ patch: value })"
+        @update:position="value => setFilter({ position: value })"
+      />
+    </div>
 
     <div class="h-0.5">
       <UProgress
@@ -289,35 +303,21 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
         />
 
         <template v-else>
-          <!-- Rendered in the degraded (no-build) state too: the pickers are how
-               the reader got here and the only way back out, so taking them off
-               the page when their slice comes back empty strands them. The
-               header then stands over a zero-game slice, which the stat line
-               says plainly instead of inventing a 0.0% win rate. -->
-          <header class="flex flex-wrap items-center gap-4">
-            <!-- `seoDisplayName` (SSR-resolved) rather than the client-only
-                 `displayName`, and skeletons instead of zeroes until the
-                 player's aggregate lands — same as the global champion page. An
-                 empty slice is settled, not pending, so it must not skeleton. -->
-            <ChampionHeader
-              :champion-name="seoDisplayName"
-              :champion-icon-url="displayIconUrl"
-              :champion-id="championId"
-              :position="champion?.position || selectedPosition || ''"
-              :patch="pickerPatch"
-              :total-games="champion?.totalGames ?? 0"
-              :total-wins="champion?.totalWins ?? 0"
-              :low-sample-message="lowSampleMessage"
-              :loading="!champion && !notEnoughData"
-            />
-            <ChampionFilters
-              :selected-patch="pickerPatch"
-              :selected-position="selectedPosition"
-              :patch-options="patchOptions"
-              @update:patch="value => setFilter({ patch: value })"
-              @update:position="value => setFilter({ position: value })"
-            />
-          </header>
+          <!-- The champion page's banner (#2026): the player's games and win
+               rate as its sample line, no figures row (the trend is every rank).
+               The SSR-resolved name; skeletons until the aggregate lands, but an
+               empty slice is settled and says so. -->
+          <ChampionHero
+            :champion-name="seoDisplayName"
+            :champion-icon-url="displayIconUrl"
+            :champion-id="championId"
+            :splash-url="splashUrl"
+            :position="champion?.position || selectedPosition || ''"
+            :total-games="champion?.totalGames ?? 0"
+            :total-wins="champion?.totalWins ?? null"
+            :low-sample-message="lowSampleMessage"
+            :loading="!champion && !notEnoughData"
+          />
 
           <StaleContentNotice
             :error="championStaleError"

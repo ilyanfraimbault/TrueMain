@@ -93,7 +93,7 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
           <UIcon name="i-lucide-plus" class="size-2.5" />{{ note.adds === 'magic' ? 'Magic damage' : 'Physical damage' }}
         </span>
       </div>
-      <TierMark v-if="entry" :tier="entry.tier" class="absolute left-2 top-2 scale-75 origin-top-left" />
+      <TierBadge v-if="entry" stacked :tier="entry.tier" class="absolute left-2 top-2 scale-75 origin-top-left" />
       <div v-if="$slots.action" class="absolute right-1.5 top-1.5 z-10">
         <slot name="action" />
       </div>

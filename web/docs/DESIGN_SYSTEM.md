@@ -199,7 +199,7 @@ reaches the card. Expect the same trap on any component theme you extend with a 
 ## Component naming conventions
 
 - **`App*`** (`AppHeader`, `AppLogo`, `AppFooter`, `AppSearch`, `AppBackdrop`) — layout/shell components. One instance each, mounted from `app.vue` or a page, not meant to be reused inside a page.
-- **`Champion/*`** — feature-scoped components for the champion detail area (`Champion/Header`, `Champion/Matchups`, `Champion/BuildPanel`, ...). Each owns a section of the champion page.
+- **`Champion/*`** — feature-scoped components for the champion detail area (`Champion/Hero` — the banner, in the shared layer —, `Champion/Matchups`, `Champion/BuildPanel`, ...). Each owns a section of the champion page.
 - **`Champion/Core/*`** — low-level data-viz primitives consumed by build panels (`Champion/Core/Runes`, `Champion/Core/BuildPath`, `Champion/Core/Spells`, ...). These render a single build artifact and stay presentational — no data fetching, no page-level state.
 
 New components should sit at the narrowest scope that fits: a one-off page section goes under the feature folder (e.g. `Champion/*`); a primitive reused by multiple panels goes under `Champion/Core/*`; a component with no feature owner and used app-wide is a top-level component (see `SectionCard` below).
