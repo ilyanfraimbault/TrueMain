@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChampionPosition } from '#common/utils/positions'
 import { parseRouteParam } from '#common/utils/route-params'
-import { championSplashUrlFromIcon, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 import { platformIdToRegion } from '~~/shared/utils/region'
 
 const route = useRoute()
@@ -123,22 +123,11 @@ const { data: items } = useStaticItems(latestPatch)
 const { data: summonerSpells } = useStaticSummonerSpells(latestPatch)
 const { data: runeTree } = useStaticRuneTree(latestPatch)
 
-// The banner: the champion this player truemains — the dedication's champion,
-// else their first main — on its splash, through the image proxy at banner width.
+// The banner: the champion this player truemains, on its splash through the
+// image proxy at banner width.
 const splashOf = useCanonicalSplash()
-const truemainChampion = computed(() => {
-  const id = profile.value?.dedication?.championId ?? profile.value?.mains[0]?.championId
-  const champion = id ? champions.value.find(entry => entry.championId === id) : null
-  return champion ? { name: champion.name, iconUrl: champion.iconUrl } : null
-})
-const splashUrl = computed(() => {
-  const raw = championSplashUrlFromIcon(truemainChampion.value?.iconUrl)
-  return splashOf(raw)
-})
-const profileIconUrl = computed(() => {
-  const identity = profile.value?.identity
-  return identity ? getProfileIconUrl(identity.profileIconId, latestPatch.value) : null
-})
+const { truemainChampion, profileIconUrl } = useTruemainBanner(profile, champions, latestPatch)
+const splashUrl = computed(() => splashOf(championSplashUrlFromIcon(truemainChampion.value?.iconUrl)))
 
 const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
 

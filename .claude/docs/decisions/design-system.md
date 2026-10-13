@@ -459,11 +459,13 @@ read as modern and the other pages of both apps did not. Option A was chosen ove
 - **Detail pages open on a splash banner** (`PageHero` + `KpiTile`, from the dashboard). The champion page: the
   champion's splash, tier, and win/pick/ban rate against the previous patch plus games; the patch left the sample
   line under the name (filters show it), reversing #1498's placement. The tier list keeps its page as it was — a
-  banner there was declined. One champion banner (`ChampionHero`) on the champion page, the player-scoped champion
-  page (the player's games and win rate, no figures row: the trend is every rank) and the app's champion page, and
-  one tier mark (`TierBadge`, `stacked` over art) on every surface of both apps (#2026).
-- **One profile page for both apps** (`page/PlayerProfile.vue`): the site's `/truemains/{nameTag}`, the app's
-  dashboard and the app's own profile route (other players open in the app, no longer on the site). Banner on the
+  banner there was declined. One champion banner (`ChampionHero`) on the champion page and the app's champion page, and
+  one tier mark (`TierBadge`, `stacked` over art) on every surface of both apps (#2026). The player-scoped champion
+  page drew that banner too until #2043 (2026-10-13): it now opens on the player's banner (`PagePlayerProfile`) on
+  the champion's splash, since a main's link must land on a page that reads as the profile it came from; the
+  champion is the main column's heading.
+- **One profile page for both apps** (`page/PlayerProfile.vue`): the site's `/truemains/{nameTag}` and its
+  player-scoped champion pages (#2043), the app's dashboard and the app's own profile route (other players open in the app, no longer on the site). Banner on the
   champion the player truemains (the client's chosen skin on the dashboard: Riot's API does not serve it); four form
   tiles — KDA, kill participation, CS/min, deaths; damage, gold and vision were dropped since the list endpoint does
   not serve them; comparing to the player's elo was tried and set aside, sparklines kept; the dashboard's match row;
