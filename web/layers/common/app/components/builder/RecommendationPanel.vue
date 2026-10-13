@@ -12,7 +12,7 @@ import { isLoadingStatus } from '#common/utils/async-data'
  * with the right patch instead of on page load.
  *
  * It no longer carries a numbers strip — that merged into `BuilderMatchupStats`
- * above it (#1111). What stays here is the thin-sample warning icon beside the
+ * above it (#1111). What stays here is the thin-sample warning dot beside the
  * title, which qualifies *this card's* build rather than any single figure.
  */
 const props = defineProps<{
@@ -136,18 +136,9 @@ const gamesDrawerOpen = computed({
           :height="28"
           class="size-7 rounded-lg ring-1 ring-accented"
         />
-        <!-- Thin-data qualifier: only the icon shows next to the title; the
+        <!-- Thin-data qualifier: only the dot shows next to the title; the
              message lives in its tooltip so it never crowds the header. -->
-        <UTooltip
-          v-if="lowDataMessage"
-          :text="lowDataMessage"
-          :delay-duration="150"
-        >
-          <UIcon
-            name="i-lucide-triangle-alert"
-            class="size-4 text-warning"
-          />
-        </UTooltip>
+        <WarningDot v-if="lowDataMessage" :text="lowDataMessage" />
       </div>
     </template>
     <div class="space-y-6">

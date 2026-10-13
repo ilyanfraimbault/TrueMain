@@ -127,6 +127,7 @@ Last verified against `develop` on 2026-09-02.
 - An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
 - The site's match detail has no Timeline tab: TrueMain computes and stores no win-probability curve, the desktop app alone builds it from the client's timeline (2026-10-12, reverses 2026-10-05) — #2009, #1911
 - Known players: one person, several accounts at `/players/{slug}`, linked only from public sources, never inferred (2026-10-13) — #2016
+- A main champion row reads its lane and play rate only: the `80 of last 200` sample line is gone (2026-10-13, reverses #1498's line)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
 
@@ -193,6 +194,7 @@ Last verified against `develop` on 2026-09-02.
 - One champion banner (`ChampionHero`) on the champion page and the app's champion page; one tier mark (`TierBadge`) on every surface (2026-10-13) — #2026
 - The player-scoped champion page is the profile's page (`PagePlayerProfile`) on the champion's splash, no longer the champion banner (2026-10-13, revises #2026) — #2043
 - One rank emblem (`RankEmblem`) on every row, one rank label in title case (`formatRank`: `Diamond II · 42 LP`); the truemains table and the champion page's rows share their columns (2026-10-13) — #2025, #2028
+- A qualifier beside a figure or a title (thin sample, retired count, standard-build fallback) is a small warning-coloured dot (`WarningDot`) whose tooltip states the fact only, never a warning triangle (2026-10-13)
 
 ## Aggregates, retention and the schema — [`decisions/data-aggregation.md`](decisions/data-aggregation.md)
 

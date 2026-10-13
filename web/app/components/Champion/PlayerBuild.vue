@@ -35,14 +35,13 @@ const props = defineProps<{
 const emit = defineEmits<{ retry: [], clear: [] }>()
 
 // Thin-sample caution: the backend builds from any number of games, flagging
-// small samples with minSampleMet=false. Surfaced as a warning icon by the title
+// small samples with minSampleMet=false. Surfaced as a warning dot by the title
 // so a handful of games reads as a rough personal signal, not a meta build.
 const lowSampleMessage = computed(() => {
   if (!props.champion || props.champion.minSampleMet)
     return null
   const games = props.champion.totalGames
-  return `Only ${games} ${games === 1 ? 'game' : 'games'} on record — this build is inferred from a small personal sample, `
-    + 'so treat it as a rough signal rather than a reliable recommendation.'
+  return `Only ${games} ${games === 1 ? 'game' : 'games'} on record`
 })
 </script>
 

@@ -42,13 +42,13 @@ const matchupMissing = computed(() =>
   && props.recommendation.matchupRequested
   && !props.recommendation.matchupFound)
 
-/** Tooltip on the standard build's warning icon — the whole explanation, in one line. */
+/** Tooltip on the standard build's warning dot — the whole explanation, in one line. */
 const missingMatchupNotice = computed(() => {
   const champion = props.playedChampion?.name ?? 'this champion'
   const opponent = props.opponentChampion?.name ?? 'that champion'
   const roleLabel = POSITION_BY_VALUE.get(props.playedPosition)?.label.toLowerCase() ?? null
   const role = roleLabel ? ` at ${roleLabel}` : ''
-  return `No recorded ${champion} vs ${opponent} game${role} — showing ${champion}'s standard build.`
+  return `No ${champion} vs ${opponent} game${role}, standard build shown`
 })
 </script>
 
@@ -102,7 +102,7 @@ const missingMatchupNotice = computed(() => {
     </SectionCard>
 
     <!-- Any matchup with at least one game: shown, however thin. The panel
-         carries its own low-sample warning icon, so nothing is added here. -->
+         carries its own low-sample warning dot, so nothing is added here. -->
     <BuilderRecommendationPanel
       v-else
       v-model:games-drawer-open="gamesDrawerOpen"

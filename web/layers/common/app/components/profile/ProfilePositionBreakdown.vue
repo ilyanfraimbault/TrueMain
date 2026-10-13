@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<{
 })
 
 defineSlots<{
-  /** The figures beside the role's name. Defaults to its game count. */
+  /** The figures beside the role's icon. Defaults to its game count. */
   games?: (props: { role: ProfilePositionStat }) => unknown
 }>()
 
@@ -42,17 +42,18 @@ const sorted = computed(() =>
       <li
         v-for="{ stat, label } in sorted"
         :key="stat.position"
-        class="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-3 py-2"
+        class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2"
       >
-        <SkeletonImage
-          :src="getPositionIconUrl(stat.position)"
-          :alt="label"
-          class="size-5"
-          transparent
-        />
-        <span class="text-sm font-medium">
-          {{ label }}
-        </span>
+        <!-- The lane icon alone names the role; its name is the tooltip and the
+             alt text, never a second label beside it. -->
+        <UTooltip :text="label" :delay-duration="150">
+          <SkeletonImage
+            :src="getPositionIconUrl(stat.position)"
+            :alt="label"
+            class="size-5"
+            transparent
+          />
+        </UTooltip>
         <span class="text-xs text-muted tabular-nums">
           <slot name="games" :role="stat">{{ stat.games }} games</slot>
         </span>
