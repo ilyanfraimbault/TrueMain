@@ -36,6 +36,7 @@
     "@nuxt/eslint": "^1.17.0",
     "@nuxt/test-utils": "^4.3.3",
     "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "^5.0.4",
     "@vue/test-utils": "^2.5.1",
     "eslint": "^10.12.0",
     "eslint-plugin-vuejs-accessibility": "^2.6.2",

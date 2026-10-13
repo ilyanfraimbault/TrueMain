@@ -19,7 +19,7 @@ const emit = defineEmits<{ place: [panel: OverlayPanel, custom: Point], show: [p
 
 const screen = currentScreen()
 const canvas = ref<HTMLElement | null>(null)
-const tray = ref<HTMLElement | null>(null)
+const tray = useTemplateRef<{ $el: HTMLElement }>('tray')
 const canvasWidth = ref(0)
 let observer: ResizeObserver | undefined
 onMounted(() => {
@@ -111,7 +111,7 @@ function end() {
     }
     emit('place', current.panel, customAt(origin, sizeOf(current.panel), screen))
   }
-  else if (current.from === 'screen' && inside(tray.value, current.pointer)) {
+  else if (current.from === 'screen' && inside(tray.value?.$el ?? null, current.pointer)) {
     emit('hide', current.panel)
   }
 }
@@ -130,7 +130,7 @@ const ghost = computed(() => {
     left = Math.min(Math.max(left, rect.left), rect.right - width)
     top = Math.min(Math.max(top, rect.top), rect.bottom - height)
   }
-  const dropping = !over && current.from === 'screen' && inside(tray.value, current.pointer)
+  const dropping = !over && current.from === 'screen' && inside(tray.value?.$el ?? null, current.pointer)
   return { panel: current.panel, over, dropping, style: { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` } }
 })
 
@@ -162,11 +162,7 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
         :style="{ aspectRatio: `${screen.width} / ${screen.height}` }"
         aria-label="Your screen"
       >
-        <!-- The game's own HUD, so the panels can keep clear of it. -->
-        <div class="pointer-events-none absolute bottom-[1.5%] right-[1%] aspect-square w-[14%] rounded border border-dashed border-default/80" />
-        <div class="pointer-events-none absolute bottom-[1%] left-1/2 h-[12%] w-[30%] -translate-x-1/2 rounded border border-dashed border-default/80" />
-        <span class="pointer-events-none absolute bottom-[3%] right-[3%] text-[10px] text-dimmed">Minimap</span>
-        <span class="pointer-events-none absolute bottom-[5%] left-1/2 -translate-x-1/2 text-[10px] text-dimmed">Abilities and items</span>
+        <OverlayScreenHud />
 
         <div
           v-for="panel in shown"
@@ -193,33 +189,14 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
     </div>
 
     <aside class="flex w-60 shrink-0 flex-col gap-6">
-      <section
+      <OverlayHiddenPanels
         ref="tray"
-        class="flex flex-col gap-2 rounded-lg p-2 ring-1 transition-colors"
-        :class="ghost?.dropping ? 'bg-error/5 ring-error/50' : 'ring-transparent'"
-      >
-        <h3 class="stat-label">Hidden panels</h3>
-        <p v-if="!hidden.length" class="text-xs text-muted">
-          {{ ghost?.dropping ? 'Drop to hide it.' : 'Every panel is on your screen. Remove one with its × or drag it here.' }}
-        </p>
-        <button
-          v-for="panel in hidden"
-          :key="panel"
-          type="button"
-          class="flex cursor-grab touch-none items-start gap-2.5 rounded-md bg-elevated/60 p-2.5 text-left ring-1 ring-default transition hover:ring-primary/60"
-          :class="drag?.panel === panel && drag.moved && 'opacity-40'"
-          :title="`Drag onto the screen, or click to show ${OVERLAY_PANEL_INFO[panel].label} where it was`"
-          @pointerdown="begin(panel, 'tray', $event)"
-          @keydown.enter.prevent="emit('show', panel)"
-          @keydown.space.prevent="emit('show', panel)"
-        >
-          <OverlayPanelIcon :panel="panel" class="mt-0.5 size-4 shrink-0 text-primary" />
-          <span class="flex min-w-0 flex-col gap-0.5">
-            <span class="text-sm font-medium text-highlighted">{{ OVERLAY_PANEL_INFO[panel].label }}</span>
-            <span class="text-xs text-muted">{{ OVERLAY_PANEL_INFO[panel].description }}</span>
-          </span>
-        </button>
-      </section>
+        :hidden="hidden"
+        :dragged="drag?.moved ? drag.panel : null"
+        :dropping="!!ghost?.dropping"
+        @grab="(panel, event) => begin(panel, 'tray', event)"
+        @show="panel => emit('show', panel)"
+      />
       <slot />
     </aside>
 

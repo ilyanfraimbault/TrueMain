@@ -243,10 +243,11 @@ const staticBundleReady = computed(() =>
     <!-- Narrow containers: MatchRow is an @container, so the only honest way
          to review its compact tiers is to render it in boxes the width of the
          surfaces that use them — the games drawer (#963) gives it ~33rem, a
-         sidebar ~28rem, a phone ~21rem. One box per tier: full stats, KDA
-         only, and the wrapped two-line layout. All three used to overflow
-         into the row's `overflow-hidden` clip, because the breakpoints keyed
-         off the viewport rather than the row (#967). -->
+         sidebar ~28rem, a phone ~21rem. The drawer keeps the compositions
+         and drops CS/m; the two narrower boxes keep the bare line (portrait,
+         KDA, build, score), the phone with tighter gaps. All three used to overflow into the row's `overflow-hidden`
+         clip, because the breakpoints keyed off the viewport rather than the
+         row (#967). -->
     <section class="flex flex-col gap-2">
       <h2 class="text-lg font-semibold">
         Narrow containers

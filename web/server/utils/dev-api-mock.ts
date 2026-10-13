@@ -53,6 +53,7 @@ import type {
   MatchDetailSkillEvent,
 } from '~~/shared/types/match-detail'
 import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
+import type { PersonaAccount, PersonaResponse, PersonaTag } from '~~/shared/types/players'
 import type {
   PerformanceComponentKind,
   PlayerChampionPerformanceResponse,
@@ -1228,10 +1229,72 @@ function buildPlayers(): MockPlayer[] {
           primary: mains[0]!.position,
           secondary: mains.slice(1).map(m => m.position).find(p => p !== mains[0]!.position) ?? null,
         },
+        persona: null,
       },
     })
   }
+  // Known players (#2016): Sheiden plays a smurf further down the ladder, and a
+  // second person owns one account — enough to see a persona name on the
+  // leaderboard and a page that lists several accounts.
+  for (const [index, persona] of MOCK_PERSONA_ACCOUNTS) players[index]!.row.persona = persona
   return players
+}
+
+const MOCK_PERSONAS = {
+  sheiden: { slug: 'sheiden', displayName: 'Sheiden TV' },
+  koralis: { slug: 'koralis', displayName: 'Koralis' },
+} as const
+
+const MOCK_PERSONA_ACCOUNTS: ReadonlyArray<readonly [number, PersonaTag]> = [
+  [0, MOCK_PERSONAS.sheiden],
+  [17, MOCK_PERSONAS.sheiden],
+  [4, MOCK_PERSONAS.koralis],
+]
+
+function mockPersona(slug: string): PersonaResponse | null {
+  const owned = players().filter(p => p.row.persona?.slug === slug)
+  const persona = owned[0]?.row.persona
+  if (!persona) return null
+  const tracked: PersonaAccount[] = owned.map(({ row }) => ({
+    gameName: row.identity.gameName,
+    tagLine: row.identity.tagLine ?? '',
+    platformId: row.identity.platformId,
+    region: row.region,
+    tracked: true,
+    profileIconId: row.identity.profileIconId,
+    ranked: row.ranked && {
+      tier: row.ranked.tier,
+      division: row.ranked.division,
+      leaguePoints: row.ranked.leaguePoints,
+      wins: row.stats.wins,
+      losses: row.stats.losses,
+    },
+    topChampions: row.topChampions.map(c => ({ championId: c.championId, games: c.games, playRate: c.playRate, isOtp: c.isOtp })),
+  }))
+  // A listed account TrueMain does not track yet: shown, never linked.
+  const untracked: PersonaAccount = {
+    gameName: `${persona.displayName.split(' ')[0]}Alt`,
+    tagLine: 'KR1',
+    platformId: 'KR',
+    region: 'korea',
+    tracked: false,
+    profileIconId: null,
+    ranked: null,
+    topChampions: [],
+  }
+  return {
+    slug: persona.slug,
+    displayName: persona.displayName,
+    links: slug === 'sheiden'
+      ? [
+          { kind: 'twitch', url: 'https://www.twitch.tv/sheiden' },
+          { kind: 'youtube', url: 'https://www.youtube.com/@sheiden' },
+          { kind: 'x', url: 'https://x.com/sheiden' },
+          { kind: 'leaguepedia', url: 'https://lol.fandom.com/wiki/Sheiden' },
+        ]
+      : [],
+    accounts: slug === 'sheiden' ? [...tracked, untracked] : tracked,
+  }
 }
 
 let playersCache: MockPlayer[] | null = null
@@ -1358,6 +1421,7 @@ function mockProfile(player: MockPlayer): ProfileResponse {
     // Same payload the leaderboard row carries, so the profile card and the
     // leaderboard column agree — exactly as they do against the real backend.
     dedication: row.dedication,
+    persona: row.persona,
     positions: [
       { position: player.position, games: Math.round(stats.games * 0.78), rate: 0.78 },
       { position: player.position === 'MIDDLE' ? 'TOP' : 'MIDDLE', games: Math.round(stats.games * 0.15), rate: 0.15 },
@@ -2426,6 +2490,13 @@ export async function resolveDevApiMock(
   }
 
   if (path === '/truemains') return mockLeaderboard(query)
+
+  const personaMatch = path.match(/^\/players\/([^/]+)$/)
+  if (personaMatch) {
+    const persona = mockPersona(safeDecodeURIComponent(personaMatch[1]!) ?? '')
+    if (!persona) throw createError({ statusCode: 404, statusMessage: 'Unknown player (dev mock)' })
+    return persona
+  }
   if (path === '/truemains/search') return mockSearch(typeof query.q === 'string' ? query.q : '')
 
   // Two segments deep, so it has to come before the single-segment player

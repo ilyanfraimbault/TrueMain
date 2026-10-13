@@ -1,0 +1,117 @@
+name: CodeQL
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".claude/**"
+      - "LICENSE"
+  push:
+    branches:
+      - develop
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect languages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      languages: ${{ steps.plan.outputs.languages }}
+
+    steps:
+      - name: Filter changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          filters: |
+            codeql:
+              - ".github/workflows/codeql.yml"
+            csharp:
+              - "backend/**"
+            js:
+              - "web/**"
+              - "admin/**"
+              - "desktop/app/**"
+            rust:
+              - "desktop/Cargo.toml"
+              - "desktop/Cargo.lock"
+              - "desktop/src-tauri/**"
+              - "desktop/crates/**"
+              - "desktop/capture/windows/**"
+            actions:
+              - ".github/workflows/**"
+              - ".github/actions/**"
+
+      - name: Plan the languages
+        id: plan
+        env:
+          EXHAUSTIVE: ${{ github.event_name != 'pull_request' || steps.filter.outputs.codeql == 'true' }}
+          CSHARP: ${{ steps.filter.outputs.csharp }}
+          JS: ${{ steps.filter.outputs.js }}
+          RUST: ${{ steps.filter.outputs.rust }}
+          ACTIONS: ${{ steps.filter.outputs.actions }}
+        run: |
+          set -euo pipefail
+          languages='[]'
+          add() {
+            if [ "$EXHAUSTIVE" = "true" ] || [ "$2" = "true" ]; then
+              languages="$(jq -c --arg l "$1" '. + [$l]' <<< "$languages")"
+            fi
+          }
+          add csharp "$CSHARP"
+          add javascript-typescript "$JS"
+          add rust "$RUST"
+          add actions "$ACTIONS"
+          echo "languages=$languages" | tee -a "$GITHUB_OUTPUT"
+
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.languages != '[]'
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJSON(needs.changes.outputs.languages) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config: |
+            paths-ignore:
+              - "**/tests/**"
+              - "**/*.test.ts"
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

@@ -1,6 +1,7 @@
 import type { GamePlayer } from '~/types/game'
 import type { LoadingPlayer, PlayerForm, PositionGames } from '~/types/loading'
 import type { RankedQueue } from '~/types/record'
+import { kdaRatio } from '#shared/utils/kda'
 
 /**
  * What the Game page says about each player (#1828), read off what the
@@ -66,7 +67,7 @@ export function roleFit(position: string, positions: PositionGames[]): RoleFit |
 
 export interface ChampionRecord {
   games: number
-  /** 0..100, whole. */
+  /** 0..1. */
   winRate: number
   /** (kills + assists) / deaths over those games, deaths floored at one. */
   kda: number
@@ -81,8 +82,8 @@ export function championRecord(form: PlayerForm): ChampionRecord | null {
   const games = form.championGames
   return {
     games,
-    winRate: Math.round((form.championWins / games) * 100),
-    kda: (form.championKills + form.championAssists) / Math.max(form.championDeaths, 1),
+    winRate: form.championWins / games,
+    kda: kdaRatio({ kills: form.championKills, deaths: form.championDeaths, assists: form.championAssists }),
     kills: form.championKills / games,
     deaths: form.championDeaths / games,
     assists: form.championAssists / games,
@@ -110,20 +111,17 @@ export function streakOf(form: PlayerForm): Streak | null {
 /** Wins over the latest games read, as a share; null with none. */
 export function recentWinRate(form: PlayerForm): number | null {
   if (!form.recent.length) return null
-  return Math.round((form.recent.filter(game => game.win).length / form.recent.length) * 100)
+  return form.recent.filter(game => game.win).length / form.recent.length
 }
 
 // ─── Rank ───────────────────────────────────────────────────────────────────
 
 export const isRanked = (rank: RankedQueue) => Boolean(rank.tier) && rank.tier !== 'NONE'
 
-/** `Gold`, `Grandmaster`: the tier the way the line prints it. */
-export const tierName = (tier: string) => tier.charAt(0) + tier.slice(1).toLowerCase()
-
 /** The season's record in that queue, as a share; null with no game. */
 export function seasonWinRate(rank: RankedQueue): number | null {
   const games = rank.wins + rank.losses
-  return games ? Math.round((rank.wins / games) * 100) : null
+  return games ? rank.wins / games : null
 }
 
 // ─── True main ──────────────────────────────────────────────────────────────

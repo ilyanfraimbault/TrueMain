@@ -1,0 +1,231 @@
+name: SonarQube Cloud
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonar-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  SONAR_ORGANIZATION: ilyanfraimbault
+  SONAR_PROJECT_KEY: ilyanfraimbault_TrueMain
+
+jobs:
+  plan:
+    name: Plan the analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+
+    steps:
+      - name: Filter changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - "!**/*.md"
+              - "!docs/**"
+              - "!.claude/**"
+              - "!LICENSE"
+
+      - name: Decide
+        id: decide
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          EXHAUSTIVE: ${{ github.event_name != 'pull_request' }}
+          CODE: ${{ steps.filter.outputs.code }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::notice::SONAR_TOKEN is not available to this run; the SonarQube Cloud analysis is skipped."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ "$BASE" = "master" ]; then
+            echo "::notice::A release PR carries code every develop push already analysed; the SonarQube Cloud analysis is skipped."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ "$EXHAUSTIVE" = "true" ] || [ "$CODE" = "true" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Only documentation changed; the SonarQube Cloud analysis is skipped."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  frontend-coverage:
+    name: Frontend coverage (${{ matrix.app }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: web
+            artifact: web
+          - app: admin
+            artifact: admin
+          - app: desktop/app
+            artifact: desktop-app
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - name: Pin npm
+        run: npm install -g --ignore-scripts npm@11.13.0
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prepare Nuxt
+        run: npm run postinstall
+
+      - name: Unit tests with coverage
+        run: npm run test -- --coverage.enabled --coverage.provider=v8 --coverage.reporter=lcov
+
+      - name: Make paths repo-relative
+        env:
+          APP: ${{ matrix.app }}
+        run: sed -i "s#^SF:#SF:${APP}/#" coverage/lcov.info
+
+      - name: Upload the lcov report
+        uses: actions/upload-artifact@v7
+        with:
+          name: lcov-${{ matrix.artifact }}
+          path: ${{ matrix.app }}/coverage/lcov.info
+          retention-days: 1
+
+  analysis:
+    name: Analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    needs: [plan, frontend-coverage]
+    if: needs.plan.outputs.run == 'true'
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      WAIT_FOR_GATE: ${{ github.event_name == 'pull_request' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Cache the SonarQube Cloud analyzers
+        uses: actions/cache@v6
+        with:
+          path: ~/.sonar/cache
+          key: sonar-${{ runner.os }}
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Download the lcov reports
+        uses: actions/download-artifact@v8
+        with:
+          pattern: lcov-*
+          path: ${{ runner.temp }}/lcov
+
+      - name: Begin analysis
+        run: >-
+          dotnet tool run dotnet-sonarscanner begin
+          /k:"$SONAR_PROJECT_KEY"
+          /o:"$SONAR_ORGANIZATION"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.projectBaseDir="$GITHUB_WORKSPACE"
+          /d:sonar.qualitygate.wait="$WAIT_FOR_GATE"
+          /d:sonar.cs.roslyn.ignoreIssues=true
+          /d:sonar.exclusions="**/Migrations/**,**/CompiledModels/**,**/tests/**,**/*.test.ts,web/server/utils/dev-api-mock.ts,**/node_modules/**,**/.nuxt/**,**/.output/**,**/coverage/**"
+          /d:sonar.cs.vscoveragexml.reportsPaths="$RUNNER_TEMP/coverage/*.xml"
+          /d:sonar.javascript.lcov.reportPaths="$RUNNER_TEMP/lcov/lcov-web/lcov.info,$RUNNER_TEMP/lcov/lcov-admin/lcov.info,$RUNNER_TEMP/lcov/lcov-desktop-app/lcov.info"
+
+      - name: Restore solution
+        run: dotnet restore TrueMain.sln
+
+      - name: Build solution
+        run: dotnet build TrueMain.sln --configuration Release --no-restore
+
+      - name: Unit tests with coverage
+        run: >-
+          dotnet test --project tests/TrueMain.UnitTests/TrueMain.UnitTests.csproj
+          --configuration Release --no-build
+          --coverage --coverage-output-format xml --coverage-output "$RUNNER_TEMP/coverage/unit.xml"
+
+      - name: Integration tests with coverage
+        run: >-
+          dotnet test --project tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj
+          --configuration Release --no-build
+          --coverage --coverage-output-format xml --coverage-output "$RUNNER_TEMP/coverage/integration.xml"
+
+      - name: End analysis
+        run: dotnet tool run dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+
+  gate:
+    name: Quality gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    needs: [plan, frontend-coverage, analysis]
+    if: always()
+
+    steps:
+      - name: Report
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          if ! jq -e '[.[].result] | all(. == "success" or . == "skipped")' <<< "$RESULTS" > /dev/null; then
+            echo "::error::The SonarQube Cloud analysis failed or its quality gate is red; open the SonarCloud Code Analysis check for the conditions."
+            exit 1
+          fi

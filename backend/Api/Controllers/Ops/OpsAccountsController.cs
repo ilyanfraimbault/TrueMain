@@ -10,9 +10,10 @@ namespace TrueMain.Controllers.Ops;
 
 /// <summary>
 /// The accounts surface: the freshness batch a seeder checks before it sends anything, the seed
-/// request itself and its status, and the per-account explorer. This is the only ops controller
-/// that writes — seeding creates a row — which is reason enough to keep it apart from the
-/// read-only panels.
+/// request itself and its status, and the per-account explorer. One of the two ops controllers
+/// that write — seeding creates a row; the other is the known-players intake
+/// (<c>OpsPersonasController</c>) — which is reason enough to keep it apart from the read-only
+/// panels.
 /// </summary>
 public sealed class OpsAccountsController(
     ISeedRequestService seedRequestService,

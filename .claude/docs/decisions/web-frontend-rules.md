@@ -478,9 +478,15 @@ panel, the favorites cards, the profile header and the builder's games drawer.
   the whole identity is one target without an <a> around it, and it works inside a table row. `to` defaults to
   the profile; `false` renders no link, for a parent that is the link already (a sidebar row's overlay, the
   homepage row, the profile page itself).
-- **Sizes, not variants**: `xs` (18px, the drawer's inline chip, `layout="inline"`), `sm` (table), `md` (homepage),
-  `lg` (sidebar row, favorites), `xl` (profile header, which replaces the name line through `#name`). Slots carry
-  the per-surface extras: `#badge` (OTP), `#subline` (ranked text, level).
+- **Sizes, not variants**: `xs` (18px, the drawer's inline chip, `layout="inline"`), `sm` (table), `md` (homepage,
+  the app's build mains), `lg` (sidebar row, favorites, the app's player card), `xl` (72px, the profile banner of
+  `PagePlayerProfile` — the profile, the player-scoped champion page and the app's dashboard — which replaces the
+  name line through `#name`).
+  Slots carry the per-surface extras: `#badge` (OTP), `#subline` (ranked text, level, the client's status),
+  `#avatar-badge` (a mark on the picture's edge: the app's summoner level and status dot).
+- **Every player identity goes through it, on both apps** (#2027): the profile banner (`PageHero`'s `#identity`
+  slot), the app's build mains and its sidebar player card joined the list. A surface that needs something
+  `Account` cannot draw gets a size or a slot, never a hand-written icon + name + flag.
 - **Rounded squares**, not UAvatar's default circle: profile icons are square art (product owner's call).
 - **The icon is a plain `<img>` on the canonical cached URL** (`as: { img: 'img' }` + `useCanonicalIcon`):
   UAvatar would otherwise render NuxtImg with a srcset — a second cache entry for an asset the rest of the site
@@ -488,6 +494,72 @@ panel, the favorites cards, the profile header and the builder's games drawer.
   requests nothing for icon id 0 or a missing id (the API's "never resolved"; the favorites card used to request
   `profileicon/0.png`), and a missing or failed picture shows the user glyph.
 - **The search palette keeps `SkeletonImage`**: it re-fills the same row DOM on every keystroke and blanks to a
-  skeleton between two pictures, which is what a palette wants.
+  skeleton between two pictures, which is what a palette wants. Its truemain row is still one component
+  (`search/SearchTruemainItem.vue`), with the leaderboard's lanes and rank crest.
+- **A Riot ID is written one way: `gameName#tagLine`** (`riotIdLabel` in `shared/utils/truemain-path.ts`, #2027) —
+  the client's spelling and the typed form, so a title, breadcrumb, accessible name or tooltip can be pasted back into
+  a search. The bare name for an account without a tag line. `Account` draws the two halves as separate spans.
 - **Every profile link goes through `shared/utils/truemain-path.ts`** (`truemainNameTag`, `truemainProfilePath`);
   `favoriteNameTag` and `truemainChampionPath` build on it.
+
+## A match is drawn by one `MatchRow` component (2026-10-13)
+
+The profile pages and the app's dashboard drew a game with `MatchHistoryRow` (54 px, result edge and wash, queue,
+LP or duration, CS/min), while the favorites cards, the player-scoped champion page and the builder's games drawer
+kept the older `MatchRow` (a tinted card, no result label). The same game looked different on a player's favorites
+card and on their profile, and the loading states split three ways. The profile's design is now the only
+`MatchRow` (#2020).
+
+- **One component per column** (`MatchRowPortrait`, `MatchRowResult`, `MatchRowKda`, `MatchRowStats`,
+  `MatchRowLoadout`, `MatchRowTeams`, `MatchRowPerformance`); the row file holds the layout, the tiers and the
+  accordion. The column wrappers carry the `@container` tiers, so every tier reads in one file and
+  `MatchRowSkeleton` mirrors them.
+- **The host differences are props and a slot, never a second row**: `nameTag` is optional (a static row without
+  it), the queue label is derived inside the row, the app's "Watch" button goes in `#actions`, and a game with no
+  performance score (the client's own) shows none.
+- **Tiers, narrowest first**: the bare line (portrait, K/D/A, build, score) fits a 320 px container; the chevron
+  comes back at 22rem, compositions at 29rem, LP/duration + CS/min at 33rem, result + queue at 39rem. The
+  compositions come before the stats — they are what a drawer row is read for — and the result column last,
+  since the edge mark already states it.
+- **A new match list uses `MatchRow` and `MatchRowSkeleton`**; a surface that needs something the row lacks adds
+  it to the row.
+- **The open game reuses the row's columns** (#2030): a scoreboard line draws the portrait, the spells and runes and
+  the inventory through `MatchRowPortrait` (`size`, `championId` for the build-page link), `MatchRowSpellsRunes`
+  and `MatchItemGrid`, so a game reads the same collapsed and open. The win/loss colours of the row and the detail
+  come from one place, `utils/result-tone.ts` (blue `sky-400`, red `red-400`).
+
+## A match list is drawn by one `MatchHistoryList` component (2026-10-13)
+
+The day-grouped list around `MatchRow` — skeletons, empty state, day headings, pager — was pasted into the site's
+profile, the app's profile, the app's dashboard and the player-scoped champion page, each with its own skeleton
+count (5, 6 or 8) and its own empty-state wording, and `MatchDayHeading`, `MatchHistoryEmpty` and
+`utils/match-history.ts` lived as web/desktop twins (#2024).
+
+- **`match/MatchHistoryList.vue` in the shared layer draws the list**; the host passes the page of games, its
+  loading flag, the pager numbers (`v-model:page`, `total`, `pageSize`) and the four statics, which the list waits
+  on itself (non-empty, so a host coercing a pending read to `{}` still gets skeletons). The empty state never
+  waits on them.
+- **Headings and filters stay with the host** ("Match history", "Recent {champion} games", the role/champion
+  filters, the dashboard's queue switch); the list is only what sits under them.
+- **One skeleton count (6), one empty state with three cases** (not found, filtered, none), and one wording
+  switch that is real: `own` — the app's dashboard lists the viewer's own client games, so it speaks to them.
+- **Host controls on a row go through the list's scoped `actions` slot** (`#actions="{ match }"`), forwarded to
+  `MatchRow`'s; the app's "Watch" is the one user.
+
+## Every stat is written by one formatter (2026-10-13)
+
+The shared helpers existed but were bypassed, and some figures had none: the KDA ratio was rounded to two decimals on
+the match row and one on the leaderboard and in the app, a rate's move read `pt`, `pts` or nothing, percentages
+and counts were written by hand in ~30 places, and a missing champion name was `Champion 950`, `#950` or
+`Champion` depending on the surface (#2031).
+
+- **KDA** — `shared/utils/kda.ts`: `formatKda` writes one game's line (`3.67 KDA`, or `Perfect` when deathless);
+  `kdaRatio` / `formatKdaRatio` read a sample with deaths floored at one. Two decimals everywhere.
+- **Signed differences** — `shared/utils/deltas.ts`: `formatSigned` (`+312`, `−1,204`, the typographic minus,
+  no sign on a zero) and `formatPointDelta` for a move between two rates, always in percentage points written
+  `pts` (`+3.1 pts`). Unit, sign and decimals are options, never a hand-written copy.
+- **Percentages** `formatPercentage(OrDash)`, **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
+  recordings), **champion names** `championDisplayName` (`Champion {id}`), and lookups by id through
+  `useChampionsById`, never a linear `find`.
+- **Positions** — `utils/positions.ts` holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
+  names (`positionLabel`; `short` gives the app's `Mid` / `Bot`) and the icons (`getPositionIconUrl`).

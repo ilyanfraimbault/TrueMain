@@ -11,7 +11,6 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import { groupMatchesByDay } from '~/utils/match-history'
 
 useSeoMeta({
   title: 'Profile playground',
@@ -42,13 +41,6 @@ const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
   () => `dev-profile-rune-tree-${latestPatch.value ?? ''}`,
   () => apiFetch<RuneTreeResponse>('/static/rune-tree', { query: { patch: latestPatch.value ?? '' } }),
   { default: () => ({ styles: [], perks: {}, perkStyles: {}, shardSlots: [] }), server: false, watch: [latestPatch] },
-)
-
-const staticBundleReady = computed(() =>
-  champions.value.length > 0
-  && Object.keys(items.value).length > 0
-  && Object.keys(summonerSpells.value).length > 0
-  && (runeTree.value?.styles.length ?? 0) > 0,
 )
 
 // ─── Mock profile + matches ────────────────────────────────────────────────
@@ -99,6 +91,7 @@ const mockProfile: ProfileResponse = {
     { position: 'MIDDLE', games: 170, rate: 170 / 190 },
     { position: 'BOTTOM', games: 20, rate: 20 / 190 },
   ],
+  persona: null,
 }
 
 const now = new Date()
@@ -306,7 +299,7 @@ const mockMatches = computed<MatchSummaryResponse[]>(() => [
     participants: makeMockParticipants(),
   },
 ])
-const mockMatchDays = computed(() => groupMatchesByDay(mockMatches.value))
+const mockPage = ref(1)
 </script>
 
 <template>
@@ -323,7 +316,6 @@ const mockMatchDays = computed(() => groupMatchesByDay(mockMatches.value))
       </p>
     </header>
 
-    <ProfileHeader :identity="mockProfile.identity" :patch="latestPatch" />
     <ProfileRankedCard :ranked="mockProfile.ranked" :history="mockRankHistory" />
     <ProfileActivityHeatmap :data="mockActivity" />
     <ProfileDedicationCard
@@ -339,26 +331,20 @@ const mockMatchDays = computed(() => groupMatchesByDay(mockMatches.value))
       <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
         Recent matches
       </h2>
-      <template v-if="staticBundleReady">
-        <!-- Grouped by day exactly like the real history, so the harness shows
-             the day headings too (the two fixtures are 8h and 30h old, which
-             straddles a day boundary most of the time). -->
-        <template v-for="day in mockMatchDays" :key="day.key">
-          <MatchDayHeading v-if="day.label" :label="day.label" />
-          <MatchRow
-            v-for="match in day.matches"
-            :key="match.matchId"
-            :match="match"
-            :champions="champions"
-            :items="items"
-            :summoner-spells="summonerSpells"
-            :rune-tree="runeTree"
-          />
-        </template>
-      </template>
-      <template v-else>
-        <MatchRowSkeleton v-for="i in 2" :key="i" />
-      </template>
+      <!-- The real history's list, so the harness shows the day headings too
+           (the two fixtures are 8h and 30h old, which straddles a day boundary
+           most of the time). -->
+      <MatchHistoryList
+        v-model:page="mockPage"
+        :matches="mockMatches"
+        :loading="false"
+        :total="mockMatches.length"
+        :page-size="20"
+        :champions="champions"
+        :items="items"
+        :summoner-spells="summonerSpells"
+        :rune-tree="runeTree"
+      />
     </section>
   </div>
 </template>

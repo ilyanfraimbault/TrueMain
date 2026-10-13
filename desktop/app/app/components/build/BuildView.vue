@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import type { ProfileIdentity } from '#shared/types/profile'
-import { getProfileIconUrl } from '#shared/utils/ddragon'
 import type { BuildOption, CompositionBuildRequest } from '~/types/build'
-import type { Lane } from '~/types/draft'
 import type { DraftBuild } from '~/composables/useDraftBuild'
-import { LANE_LABELS } from '~/types/draft'
 
 /**
  * A champion's build, laid out the way the reference client does after a pick
@@ -76,73 +73,12 @@ watch(() => options.value[0]?.key, (first) => {
   if (selected.value !== 'main') selected.value = first ?? null
 })
 
-// ─── A true main's own build ────────────────────────────────────────────────
-
-const truemainBuilds = useTruemainBuild()
-const mainNameTag = computed(() => (main.value ? favoriteNameTag(main.value.identity.gameName, main.value.identity.tagLine) : null))
-const onMain = computed(() => selected.value === 'main' && mainNameTag.value !== null)
-
-function selectMain(row: { identity: ProfileIdentity }) {
-  main.value = row
-  selected.value = 'main'
-  truemainBuilds.load(mainNameTag.value!, props.championId, props.position)
-}
-
-/** Their builds on the champion: `undefined` while asked, `null` when they have none. */
-const mainAnswer = computed(() => (onMain.value ? truemainBuilds.answerOf(mainNameTag.value!, props.championId, props.position) : undefined))
-const mainPending = computed(() => onMain.value && truemainBuilds.isPending(mainNameTag.value!, props.championId, props.position))
-const mainFailed = computed(() => onMain.value && truemainBuilds.hasFailed(mainNameTag.value!, props.championId, props.position))
-
-// In a draft, their build against it (#1987), asked again when the draft moves under them.
-const truemainDraftBuilds = useTruemainDraftBuild()
-const draftRequest = computed(() => props.draft?.request ?? null)
-watch([onMain, mainNameTag, () => JSON.stringify(draftRequest.value)], () => {
-  if (onMain.value && draftRequest.value) truemainDraftBuilds.load(mainNameTag.value!, props.championId, draftRequest.value)
-}, { immediate: true })
-
-/** Their draft build: `undefined` while asked, `null` outside a draft or when they have none (a failed ask too). */
-const mainDraft = computed(() => {
-  const request = draftRequest.value
-  if (!onMain.value || !request || truemainDraftBuilds.hasFailed(mainNameTag.value!, props.championId, request)) return null
-  return truemainDraftBuilds.answerOf(mainNameTag.value!, props.championId, request)
-})
-
-/** Their build against this draft, else their most played build, the one their page opens on. */
-const mainOption = computed<BuildOption | null>(() => {
-  const draft = mainDraft.value
-  if (draft === undefined) return null
-  if (draft) {
-    return {
-      key: 'main',
-      core: draft.core,
-      firstItemId: draft.firstItemId,
-      keystoneId: draft.core.runePage?.primaryKeystoneId ?? null,
-      buildTree: draft.buildTree,
-      games: draft.games,
-      winRate: draft.games > 0 ? draft.wins / draft.games : null,
-    }
-  }
-  const build = mainAnswer.value?.builds[0]
-  if (!build) return null
-  return {
-    key: 'main',
-    core: build.core,
-    firstItemId: build.firstItemId,
-    keystoneId: build.primaryKeystoneId,
-    buildTree: build.buildTree,
-    games: build.games,
-    winRate: build.winRate,
-  }
-})
-
-/** Where their build was read: this draft, or a patch and a lane when it is not the one asked for. */
-const mainScope = computed(() => {
-  if (mainDraft.value) return 'against this draft'
-  const answer = mainAnswer.value
-  if (!answer) return null
-  const lane = answer.position && answer.position !== props.position ? LANE_LABELS[answer.position as Lane] ?? answer.position : null
-  const elsewhere = draftRequest.value ? 'no game against this draft' : null
-  return [answer.patch ? `Patch ${answer.patch}` : null, lane ? `on ${lane}` : null, elsewhere].filter(Boolean).join(' · ')
+const { mainNameTag, onMain, selectMain, mainPending, mainFailed, mainDraft, mainOption, mainScope } = useMainBuildOption({
+  championId: toRef(props, 'championId'),
+  position: toRef(props, 'position'),
+  draftRequest: computed(() => props.draft?.request ?? null),
+  selected,
+  main,
 })
 
 const shown = computed(() => {
@@ -182,28 +118,7 @@ const emptyMessage = computed(() => {
 
     <div v-if="shown" class="min-h-0 space-y-4 overflow-y-auto p-3">
       <!-- Whose build this is, when it is a true main's. -->
-      <div v-if="onMain && main" class="flex items-center gap-2.5 rounded-lg bg-elevated/60 py-1.5 pl-1.5 pr-1">
-        <SkeletonImage
-          :src="getProfileIconUrl(main.identity.profileIconId, patch)"
-          :alt="main.identity.gameName"
-          width="28"
-          height="28"
-          class="size-7 shrink-0 rounded-md"
-        />
-        <p class="min-w-0 flex-1 truncate text-[13px] leading-tight">
-          <span class="font-semibold text-highlighted">{{ main.identity.gameName }}</span>
-          <span class="text-muted">'s build</span>
-          <span class="ml-2 text-[11px] tabular-nums text-dimmed">{{ shown.games.toLocaleString('en-US') }} games{{ mainScope ? ` · ${mainScope}` : '' }}</span>
-        </p>
-        <UButton
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          trailing-icon="i-lucide-external-link"
-          label="Profile"
-          @click="openOnSite(`/truemains/${encodeURIComponent(mainNameTag!)}`)"
-        />
-      </div>
+      <BuildMainBanner v-if="onMain && main" :identity="main.identity" :name-tag="mainNameTag!" :games="shown.games" :scope="mainScope" />
 
       <!-- What the page around the view adds above the build: the draft's item advice (#1907). -->
       <slot name="advice" />
@@ -222,25 +137,7 @@ const emptyMessage = computed(() => {
         :no-runes-message="shown.key === 'draft' ? 'No rune data in the sampled games.' : null"
         :champion-name="championStatic(championId)?.championName || null"
       />
-      <!-- The site's tree, drawn smaller and tighter to fit the pane. It is the build path too,
-           item by item; a build with no branch to draw (a true main's thin sample) states the path instead.
-           The item set import button sits in its corner (#1908). -->
-      <div class="relative">
-        <BuildItemSetImport v-if="itemSetSubject" :subject="itemSetSubject" class="absolute right-0 top-0 z-10" />
-        <ChampionBuildPanelBuildTree
-          v-if="shown.buildTree.length > 0"
-          :tree="shown.buildTree"
-          :first-item-id="shown.firstItemId"
-          :item-path="shown.core.itemPath?.itemIds ?? []"
-          :items-map="items"
-          :item-size="28"
-          :h-gap="10"
-          :v-gap="20"
-        />
-        <div v-else-if="shown.core.itemPath?.itemIds.length" class="flex justify-center">
-          <ChampionCoreBuildPath :path="shown.core.itemPath" :items-map="items" />
-        </div>
-      </div>
+      <BuildTreeBlock :build="shown" :items="items" :item-set-subject="itemSetSubject" />
     </div>
 
     <div v-else class="flex flex-col items-center justify-center gap-2 p-8 text-center">

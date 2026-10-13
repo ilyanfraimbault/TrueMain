@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { parseRouteParam } from '#common/utils/route-params'
 import { platformIdToRegion } from '#shared/utils/region'
-import { getQueueLabel } from '~/utils/queues'
-import { groupMatchesByDay } from '~/utils/match-history'
+import { riotIdLabel, truemainSlugLabel } from '#shared/utils/truemain-path'
 
 /**
  * Another player's profile, in the app (#1983): the site's
@@ -26,7 +25,7 @@ const { matches, total, pageSize, isInitialLoading: matchesLoading, notFound: ma
 const championsById = useStaticChampionsById()
 const champions = computed(() => [...championsById.value.values()])
 const { items, summoners, runeTree } = useStaticData()
-const { aliasOf, profileIconOf } = useChampionStatics()
+const { aliasOf, patch } = useChampionStatics()
 
 const truemainId = computed(() => profile.value?.dedication?.championId ?? profile.value?.mains[0]?.championId ?? null)
 const truemain = computed(() => {
@@ -37,8 +36,8 @@ const splashUrl = computed(() => {
   const alias = truemainId.value ? aliasOf(truemainId.value) : null
   return alias ? splashOfAlias(alias) : null
 })
-const profileIconUrl = computed(() => (profile.value ? profileIconOf(profile.value.identity.profileIconId) : null))
-const days = computed(() => groupMatchesByDay(matches.value))
+// The player before the profile lands: the slug's Riot ID, without a picture.
+const identity = computed(() => profile.value?.identity ?? { gameName: truemainSlugLabel(nameTag.value), tagLine: null })
 </script>
 
 <template>
@@ -53,10 +52,8 @@ const days = computed(() => groupMatchesByDay(matches.value))
 
     <PagePlayerProfile
       v-else
-      :game-name="profile?.identity.gameName ?? nameTag.split('-')[0] ?? nameTag"
-      :tag-line="profile?.identity.tagLine ?? null"
-      :profile-icon-url="profileIconUrl"
-      :region="platformIdToRegion(profile?.identity.platformId)"
+      :identity="identity"
+      :patch="patch || null"
       :level="profile?.identity.summonerLevel ?? null"
       :ranked="profile?.ranked ?? null"
       :truemain="truemain"
@@ -66,7 +63,7 @@ const days = computed(() => groupMatchesByDay(matches.value))
       :loading="matchesLoading"
     >
       <template #header>
-        <UBreadcrumb :items="[{ label: 'Truemains', to: '/truemains' }, { label: profile ? `${profile.identity.gameName}#${profile.identity.tagLine}` : nameTag }]" />
+        <UBreadcrumb :items="[{ label: 'Truemains', to: '/truemains' }, { label: riotIdLabel(identity.gameName, identity.tagLine) }]" />
       </template>
 
       <template v-if="profile" #title-actions>
@@ -80,44 +77,19 @@ const days = computed(() => groupMatchesByDay(matches.value))
 
       <template #history>
         <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">Match history</h2>
-        <template v-if="matchesLoading || (!runeTree && matches.length)">
-          <USkeleton v-for="index in 6" :key="index" class="h-[54px] rounded-lg" />
-        </template>
-        <UEmpty
-          v-else-if="matchesNotFound || !matches.length"
-          icon="i-lucide-swords"
-          title="No games yet"
-          description="TrueMain has no recent game for this player."
-          variant="naked"
-          class="py-8"
+        <MatchHistoryList
+          v-model:page="page"
+          :matches="matches"
+          :loading="matchesLoading"
+          :total="total"
+          :page-size="pageSize"
+          :champions="champions"
+          :items="items"
+          :summoner-spells="summoners"
+          :rune-tree="runeTree"
+          :name-tag="nameTag"
+          :not-found="matchesNotFound"
         />
-        <template v-for="day in days" v-else :key="day.key">
-          <MatchDayHeading v-if="day.label" :label="day.label" class="pt-1.5" />
-          <MatchHistoryRow
-            v-for="match in day.matches"
-            :key="match.matchId"
-            :match="match"
-            :champions="champions"
-            :items="items"
-            :summoner-spells="summoners"
-            :rune-tree="runeTree!"
-            :queue-label="getQueueLabel(match.queueId, match.gameMode)"
-            :name-tag="nameTag"
-          />
-        </template>
-        <div v-if="total > pageSize" class="flex justify-center pt-2">
-          <UPagination
-            v-model:page="page"
-            :total="total"
-            :items-per-page="pageSize"
-            :sibling-count="1"
-            color="neutral"
-            variant="ghost"
-            active-color="primary"
-            active-variant="soft"
-            size="sm"
-          />
-        </div>
       </template>
 
       <template #aside>

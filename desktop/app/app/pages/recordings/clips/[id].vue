@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { dayLabel, formatBytes, recordingKda, revealLabel } from '~/utils/recording-library'
 import { formatClock } from '~/utils/recording-moments'
-import { getQueueLabel } from '~/utils/queues'
+import { getQueueLabel } from '#common/utils/queues'
 
 /**
  * A saved clip's player: the clip's own file with the moments inside it on its

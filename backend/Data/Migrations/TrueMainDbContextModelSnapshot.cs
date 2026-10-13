@@ -1899,6 +1899,133 @@ namespace Data.Migrations
                     b.ToTable("perk_selection_catalog", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.Persona", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("personas", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("GameName")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("PersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PlatformId")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RiotAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("TagLine")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonaId");
+
+                    b.HasIndex("RiotAccountId")
+                        .IsUnique()
+                        .HasFilter("\"RiotAccountId\" IS NOT NULL");
+
+                    b.ToTable("persona_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("PersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonaId", "Url")
+                        .IsUnique();
+
+                    b.ToTable("persona_links", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.RankSnapshot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2166,6 +2293,35 @@ namespace Data.Migrations
                     b.Navigation("Catalog");
                 });
 
+            modelBuilder.Entity("Data.Entities.PersonaAccount", b =>
+                {
+                    b.HasOne("Data.Entities.Persona", "Persona")
+                        .WithMany("Accounts")
+                        .HasForeignKey("PersonaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
+                        .WithMany()
+                        .HasForeignKey("RiotAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Persona");
+
+                    b.Navigation("RiotAccount");
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaLink", b =>
+                {
+                    b.HasOne("Data.Entities.Persona", "Persona")
+                        .WithMany("Links")
+                        .HasForeignKey("PersonaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Persona");
+                });
+
             modelBuilder.Entity("Data.Entities.RankSnapshot", b =>
                 {
                     b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
@@ -2180,6 +2336,13 @@ namespace Data.Migrations
             modelBuilder.Entity("Data.Entities.Match", b =>
                 {
                     b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("Data.Entities.Persona", b =>
+                {
+                    b.Navigation("Accounts");
+
+                    b.Navigation("Links");
                 });
 #pragma warning restore 612, 618
         }

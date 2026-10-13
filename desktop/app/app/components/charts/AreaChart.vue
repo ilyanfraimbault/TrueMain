@@ -2,9 +2,9 @@
   App-specific stand-in for `web/app/components/charts/AreaChart.vue`, which
   wraps vue-chrts (Unovis). The app draws the one area chart it has — the
   ranked card's LP curve — in plain SVG instead of shipping that stack in a
-  webview. Same props and tooltip slot, for the subset the twinned
-  `ProfileRankedCard` passes; the line and the area carry Unovis' class
-  suffixes (`-linePath`, `-area`) so the card's scoped repaint (tier gradient,
+  webview. Same props and tooltip slot, for the subset the shared layer's
+  `ProfileRankChart` passes; the line and the area carry Unovis' class
+  suffixes (`-linePath`, `-area`) so the chart's scoped repaint (tier gradient,
   vertical fade) lands on them unchanged.
 -->
 <script setup lang="ts" generic="TItem extends Record<string, unknown>">

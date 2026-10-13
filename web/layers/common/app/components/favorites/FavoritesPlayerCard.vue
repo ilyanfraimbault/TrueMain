@@ -9,7 +9,7 @@ import type { FavoriteTruemain } from '#common/utils/favorites'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { truemainProfilePath } from '#shared/utils/truemain-path'
 import { platformIdToRegion } from '#shared/utils/region'
-import { isApexTier } from '#common/utils/tiers'
+import { formatRank } from '#common/utils/tiers'
 
 // One followed player on the favorites view: identity + ranked summary from
 // the profile endpoint, then their latest games rendered with the shared
@@ -74,14 +74,9 @@ const region = computed(() =>
   platformIdToRegion(profile.value?.identity.platformId) ?? props.favorite.region)
 
 const ranked = computed(() => profile.value?.ranked ?? null)
-const showDivision = computed(() => ranked.value !== null && !isApexTier(ranked.value.tier))
-
 const rankedLabel = computed(() => {
   const value = ranked.value
-  if (!value) return null
-  const tier = value.tier.charAt(0) + value.tier.slice(1).toLowerCase()
-  const division = showDivision.value ? ` ${value.division}` : ''
-  return `${tier}${division} · ${value.leaguePoints.toLocaleString('en-US')} LP`
+  return value ? formatRank(value.tier, value.division, { lp: value.leaguePoints }) : null
 })
 
 const winRateLabel = computed(() => {

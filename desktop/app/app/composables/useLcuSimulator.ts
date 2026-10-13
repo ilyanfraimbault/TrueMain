@@ -1,5 +1,5 @@
 import type { Lane } from '~/types/draft'
-import { LANES } from '~/types/draft'
+import { POSITIONS } from '#common/utils/positions'
 
 /**
  * The draft simulator's board — development only (`/dev/draft-sim`). A
@@ -67,7 +67,7 @@ function fresh(myLane: Lane = 'MIDDLE'): Board {
     myLane,
     turn: 'pick',
     myBanHover: null,
-    allies: Object.fromEntries(LANES.map(lane => [lane, empty()])) as Record<Lane, Pick>,
+    allies: Object.fromEntries(POSITIONS.map(lane => [lane, empty()])) as Record<Lane, Pick>,
     enemies: Array(5).fill(null),
     allyBans: Array(5).fill(null),
     enemyBans: Array(5).fill(null),
@@ -88,7 +88,7 @@ export function useLcuSimulator() {
   /** Every champion picked or banned: none can be placed twice. */
   const taken = computed(() => {
     const state = board.value
-    return new Set([...LANES.map(lane => state.allies[lane].championId), ...state.enemies, ...state.allyBans, ...state.enemyBans]
+    return new Set([...POSITIONS.map(lane => state.allies[lane].championId), ...state.enemies, ...state.allyBans, ...state.enemyBans]
       .filter((id): id is number => id !== null))
   })
 
@@ -132,7 +132,7 @@ export function useLcuSimulator() {
    */
   function answer(request: SimRequest, champions: number[], inChampSelect: boolean): { status: number, body: unknown } {
     const state = board.value
-    const myCell = LANES.indexOf(state.myLane)
+    const myCell = POSITIONS.indexOf(state.myLane)
     const mine = state.allies[state.myLane]
     const refused = (status: number, message: string) => ({ status, body: { message } })
     if (!inChampSelect) return refused(404, 'No active delegate')
@@ -187,7 +187,7 @@ export function useLcuSimulator() {
 
   const session = computed(() => {
     const state = board.value
-    const myCell = LANES.indexOf(state.myLane)
+    const myCell = POSITIONS.indexOf(state.myLane)
     const mine = state.allies[state.myLane]
     const bansOf = (team: 'ally' | 'enemy') => (team === 'ally' ? state.allyBans : state.enemyBans)
     const banActions = (['ally', 'enemy'] as const).flatMap(team => bansOf(team).map((championId, index) => {
@@ -205,7 +205,7 @@ export function useLcuSimulator() {
     }))
     return {
       localPlayerCellId: myCell,
-      myTeam: LANES.map((lane, cell) => ({
+      myTeam: POSITIONS.map((lane, cell) => ({
         cellId: cell,
         championId: state.allies[lane].locked ? state.allies[lane].championId ?? 0 : 0,
         championPickIntent: state.allies[lane].locked ? 0 : state.allies[lane].championId ?? 0,

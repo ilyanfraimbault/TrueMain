@@ -2,19 +2,18 @@
 import type { LeaderboardResponse, LeaderboardRowResponse, RegionSlug } from '#shared/types/leaderboard'
 import type { ProfileIdentity } from '#shared/types/profile'
 import type { SearchResult } from '#shared/types/search'
-import { getProfileIconUrl } from '#shared/utils/ddragon'
-import { isApexTier } from '#common/utils/tiers'
+import { riotIdLabel } from '#shared/utils/truemain-path'
 
 /**
  * The champion's best true mains — what the reference client lists as pro
  * builds. The row is the site's compact one (the home page's "Top truemains",
- * `home/TruemainsPanel.vue`), fitted to the build view's narrow column — the
- * tag under the name, beside the flag, so the name keeps the width: every row mains the
- * champion on screen, so its icon gives way to the keystone and first item the
- * main runs on it, and the Riot ID keeps the width it needs. The full
- * leaderboard row does not fit here — it would leave the name 50 px. A row
- * selects that main's own build on the champion, shown like any other build.
- * The search above the list reaches any other main of the champion by name.
+ * `home/TruemainsPanel.vue`): the player through `Account` (#2027), then the
+ * keystone and first item the main runs on the champion on screen in place of
+ * its icon, and the rank crest. The full leaderboard row does not fit the build
+ * view's narrow column — it would leave the name 50 px. A row selects that
+ * main's own build on the champion, shown like any other build. The search
+ * above the list — the site's `AppSearch`, narrowed to this champion's mains —
+ * reaches any other main of the champion by name.
  *
  * The mains the player follows come first, starred (#1733): their keystone and
  * first item are read from their own build on the champion, which a click then
@@ -139,16 +138,18 @@ const rows = computed<MainRow[] | null>(() => {
 <template>
   <div class="flex flex-col gap-0.5">
     <h3 class="px-2 pb-1 stat-label">Truemains</h3>
-    <LeaderboardTruemainSearch
-      :champion-id="championId"
+    <AppSearch
+      scope="players"
+      :mains-of="championId"
+      size="sm"
       placeholder="Search a truemain…"
       class="mb-1 px-1"
-      @player="pickSearched"
+      @select-truemain="pickSearched"
     />
 
     <template v-if="rows === null && !failed">
       <div v-for="index in 3" :key="index" class="flex items-center gap-2 px-2 py-1.5">
-        <USkeleton class="size-8 rounded-lg" />
+        <USkeleton class="size-9 rounded-md" />
         <USkeleton class="h-4 w-32" />
         <USkeleton class="ml-auto h-4 w-12" />
       </div>
@@ -164,56 +165,24 @@ const rows = computed<MainRow[] | null>(() => {
         :class="selectedNameTag === row.nameTag ? 'bg-accented' : 'hover:bg-elevated'"
       >
         <span v-if="selectedNameTag === row.nameTag" class="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary" />
+        <!-- The row's control: an overlay above the identity, as on the site's sidebar row. -->
         <button
           type="button"
-          :aria-label="`Build of ${row.identity.gameName}${row.identity.tagLine ? ` #${row.identity.tagLine}` : ''}`"
+          :aria-label="`Build of ${riotIdLabel(row.identity.gameName, row.identity.tagLine)}`"
           :aria-pressed="selectedNameTag === row.nameTag"
-          class="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          class="absolute inset-0 z-[1] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           @click="emit('select', row)"
         />
-        <SkeletonImage
-          :src="getProfileIconUrl(row.identity.profileIconId, patch)"
-          :alt="row.identity.gameName"
-          width="32"
-          height="32"
-          class="size-8 shrink-0 rounded-lg"
-        />
-        <!-- The tag goes under the name, beside the flag: the narrow column keeps its width for the name. -->
-        <div class="min-w-0 flex-1 leading-tight">
-          <p class="truncate text-[13px] font-semibold text-default">{{ row.identity.gameName }}</p>
-          <div class="mt-0.5 flex items-center gap-1">
-            <UIcon v-if="row.followed" mode="svg" name="i-lucide-star" class="size-3 shrink-0 text-primary [&_path]:fill-current" aria-label="Followed" />
-            <LeaderboardRegionFlag v-if="row.region" :region="row.region" :width="14" />
-            <span v-if="row.identity.tagLine" class="truncate text-[11px] text-muted">#{{ row.identity.tagLine }}</span>
-          </div>
-        </div>
+        <Account :identity="row.identity" :region="row.region" :patch="patch || null" size="md" :to="false" class="flex-1">
+          <template v-if="row.followed" #subline>
+            <UIcon mode="svg" name="i-lucide-star" class="size-3 shrink-0 text-primary [&_path]:fill-current" aria-label="Followed" />
+          </template>
+        </Account>
         <div class="relative z-10 flex shrink-0 items-center gap-0.5">
           <GameTooltipPerkIcon :perk="perk(row.keystoneId)" :width="22" :height="22" class="size-[22px] shrink-0 rounded-full" />
           <GameTooltipItemIcon :item="item(row.firstItemId)" :width="22" :height="22" class="size-[22px] shrink-0 rounded" />
         </div>
-        <UTooltip
-          v-if="row.ranked"
-          :delay-duration="150"
-          :ui="{ content: 'p-0 h-auto max-w-none bg-transparent ring-0 shadow-none text-default' }"
-        >
-          <div class="relative z-10 flex shrink-0 items-center gap-0.5">
-            <RankIcon :tier="row.ranked.tier" :size="24" />
-            <span v-if="!isApexTier(row.ranked.tier)" class="text-xs font-semibold tabular-nums">{{ row.ranked.division }}</span>
-          </div>
-          <template #content>
-            <GameTooltipSurface>
-              <RankSummary
-                :tier="row.ranked.tier"
-                :division="row.ranked.division"
-                :league-points="row.ranked.leaguePoints"
-                :wins="row.ranked.wins"
-                :losses="row.ranked.losses"
-                :win-rate="row.ranked.winRate"
-                :size="32"
-              />
-            </GameTooltipSurface>
-          </template>
-        </UTooltip>
+        <RankEmblem v-if="row.ranked" :rank="row.ranked" :record="row.ranked" class="relative z-10" />
       </div>
     </template>
   </div>

@@ -7,6 +7,8 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.RequestLogging;
+using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains.Identity;
 
 namespace TrueMain.Services.Truemains.Leaderboard;
@@ -143,7 +145,8 @@ public sealed class TruemainsLeaderboardQueryService(
             totalSw.Stop();
             logger.LogInformation(
                 "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows={Rows} total={Total} elapsed={ElapsedMs}ms result=cache_hit",
-                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
+                Surface, clampedPage, clampedPageSize, LogValue.SingleLine(region) ?? "all", LogValue.SingleLine(normalizedPosition) ?? "any",
+                championFilter, minGames, otpOnly, sort,
                 cached.Rows.Count, cached.Total, totalSw.ElapsedMilliseconds);
             return cached;
         }
@@ -199,7 +202,8 @@ public sealed class TruemainsLeaderboardQueryService(
             totalSw.Stop();
             logger.LogInformation(
                 "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows=0 total=0 countMs={CountMs:F1} elapsed={ElapsedMs}ms result=empty",
-                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
+                Surface, clampedPage, clampedPageSize, LogValue.SingleLine(region) ?? "all", LogValue.SingleLine(normalizedPosition) ?? "any",
+                championFilter, minGames, otpOnly, sort,
                 countMs, totalSw.ElapsedMilliseconds);
             return empty;
         }
@@ -223,7 +227,8 @@ public sealed class TruemainsLeaderboardQueryService(
             totalSw.Stop();
             logger.LogInformation(
                 "{Surface} page={Page} pageSize={PageSize} region={Region} position={Position} championId={ChampionId} minGames={MinGames} otpOnly={OtpOnly} sort={Sort} rows=0 total={Total} countMs={CountMs:F1} pageMs={PageMs:F1} elapsed={ElapsedMs}ms result=past_end",
-                Surface, clampedPage, clampedPageSize, region ?? "all", normalizedPosition ?? "any", championFilter, minGames, otpOnly, sort,
+                Surface, clampedPage, clampedPageSize, LogValue.SingleLine(region) ?? "all", LogValue.SingleLine(normalizedPosition) ?? "any",
+                championFilter, minGames, otpOnly, sort,
                 total, countMs, pageMs, totalSw.ElapsedMilliseconds);
             return pastEnd;
         }
@@ -290,7 +295,9 @@ public sealed class TruemainsLeaderboardQueryService(
                 ctx => LeaderboardTopBuilds.FetchAsync(ctx, RankedQueueId, topChampions, accountIdByPuuid, ct), ct);
         });
 
-        await Task.WhenAll(topChampionsTask, statsTask, ranksTask, buildsTask, positionsTask, dedicationTask);
+        var personasTask = WithContextAsync(ctx => PersonaTags.FetchAsync(ctx, accountIds, ct), ct);
+
+        await Task.WhenAll(topChampionsTask, statsTask, ranksTask, buildsTask, positionsTask, dedicationTask, personasTask);
 
         var (topChampionsByPuuid, topChampMs) = await topChampionsTask;
         var (statsByPuuid, statsMs) = await statsTask;
@@ -298,6 +305,7 @@ public sealed class TruemainsLeaderboardQueryService(
         var (buildsByPuuidChampion, buildsContinuationMs) = await buildsTask;
         var (positionsByPuuid, positionsMs) = await positionsTask;
         var (dedicationByAccount, dedicationMs) = await dedicationTask;
+        var personasByAccount = await personasTask;
 
         var rows = pageRows
             .Select((row, index) => LeaderboardPageHydration.BuildRow(
@@ -308,7 +316,10 @@ public sealed class TruemainsLeaderboardQueryService(
                 statsByPuuid.GetValueOrDefault(row.Puuid),
                 ranksByAccount.GetValueOrDefault(row.Id),
                 positionsByPuuid.GetValueOrDefault(row.Puuid),
-                dedicationByAccount.GetValueOrDefault(row.Id)))
+                dedicationByAccount.GetValueOrDefault(row.Id)) with
+            {
+                Persona = personasByAccount.GetValueOrDefault(row.Id),
+            })
             .ToList();
 
         var response = new LeaderboardResponse

@@ -78,8 +78,8 @@ export interface LaneEdge {
   /** The ally side's chance in the lane, 0..1. */
   chance: number
   side: LaneSide
-  /** The favoured side's chance, whole percent — what the arrow carries. */
-  percent: number
+  /** The favoured side's chance, 0..1 — what the arrow carries. */
+  share: number
   /** The head-to-head it started from, and how many games it held. */
   matchup: number
   matchupGames: number
@@ -101,7 +101,7 @@ export function laneEdge(
   return {
     chance,
     side,
-    percent: Math.round((side === 'enemy' ? 1 - chance : chance) * 100),
+    share: side === 'enemy' ? 1 - chance : chance,
     matchup,
     matchupGames: record?.games ?? 0,
   }

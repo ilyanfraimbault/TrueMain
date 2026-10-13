@@ -1,3 +1,5 @@
+import type { ChampionPosition } from '#common/utils/positions'
+
 /** Mirrors `DraftEnemyLaneReadModel` on the API. */
 export interface EnemyLane {
   championId: number
@@ -114,18 +116,5 @@ export interface TeamRow {
   me?: boolean
 }
 
-export const LANES = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const
-export type Lane = (typeof LANES)[number]
-
-export const LANE_LABELS: Record<Lane, string> = {
-  TOP: 'Top',
-  JUNGLE: 'Jungle',
-  MIDDLE: 'Mid',
-  BOTTOM: 'Bot',
-  UTILITY: 'Support',
-}
-
-/** Riot's own lane icons, copied from the site's `public/positions`. */
-export function laneIconUrl(lane: string): string {
-  return `positions/icon-position-${lane.toLowerCase()}.png`
-}
+/** A draft slot's position. The order, names and icons live in the shared `utils/positions.ts`. */
+export type Lane = ChampionPosition

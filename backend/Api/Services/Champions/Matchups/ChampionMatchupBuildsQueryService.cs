@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Champions;
 
+using TrueMain.RequestLogging;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Scopes;
 
@@ -171,7 +172,8 @@ public sealed class ChampionMatchupBuildsQueryService(
         logger.LogInformation(
             "champion-matchup-builds championId={ChampionId} opponentId={OpponentId} position={Position} "
             + "patch={Patch} elo={Elo} games={Games} builds={Builds}",
-            championId, opponentChampionId, position, normalizedPatch ?? "all", resolvedBracket,
+            championId, opponentChampionId, LogValue.SingleLine(position), LogValue.SingleLine(normalizedPatch) ?? "all",
+            LogValue.SingleLine(resolvedBracket),
             facts.Count, builds.Count);
 
         return new ChampionResponse

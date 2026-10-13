@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
+import { formatKdaRatio } from '#shared/utils/kda'
+import { isChampionPosition, positionLabel } from '#common/utils/positions'
 import type { LoadingPlayer } from '~/types/loading'
-import { tierColor, isApexTier } from '#common/utils/tiers'
-import { LANE_LABELS, laneIconUrl, type Lane } from '~/types/draft'
+import { formatLeaguePoints, formatRank, tierColor } from '#common/utils/tiers'
 import {
   GOOD_KDA,
   championRecord,
@@ -10,7 +12,6 @@ import {
   roleFit,
   seasonWinRate,
   streakOf,
-  tierName,
 } from '~/utils/player-intel'
 
 /**
@@ -57,12 +58,12 @@ const rankTitle = computed(() => {
   if (!queue) return 'Unranked this season'
   const record = seasonWinRate(queue)
   const which = queue.queueType === 'RANKED_FLEX_SR' ? 'Ranked Flex' : 'Ranked Solo/Duo'
-  return record === null ? which : `${which} · ${queue.wins}W ${queue.losses}L · ${record}% this season`
+  return record === null ? which : `${which} · ${queue.wins}W ${queue.losses}L · ${formatPercentage(record, 0)} this season`
 })
 
 // ─── Role, champion, streak ─────────────────────────────────────────────────
 
-const lane = (position: string | null) => (position && position in LANE_LABELS ? position as Lane : null)
+const lane = (position: string | null) => (position && isChampionPosition(position) ? position : null)
 const fit = computed(() => {
   const position = props.position || props.line?.position || ''
   return form.value ? roleFit(position, form.value.positions) : null
@@ -70,11 +71,11 @@ const fit = computed(() => {
 const fitTitle = computed(() => {
   const value = fit.value
   if (!value) return ''
-  const here = LANE_LABELS[lane(value.position)!] ?? value.position
+  const here = positionLabel(value.position, { short: true }) ?? value.position
   const games = `${value.games} of their last ${value.roleGames} role-assigned games in ${here}`
   if (value.kind === 'main') return `Plays ${here} most · ${games}`
   const usual = lane(value.usual)
-  return usual ? `Usually ${LANE_LABELS[usual]} · ${games}` : games
+  return usual ? `Usually ${positionLabel(usual, { short: true })} · ${games}` : games
 })
 
 const champion = computed(() => (form.value ? championRecord(form.value) : null))
@@ -110,9 +111,9 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
         <template v-if="ranked">
           <RankIcon :tier="ranked.tier" :size="18" />
           <span class="text-xs font-semibold" :class="tierColor(ranked.tier)" :title="rankTitle">
-            {{ tierName(ranked.tier) }}<template v-if="!isApexTier(ranked.tier)"> {{ ranked.division }}</template>
+            {{ formatRank(ranked.tier, ranked.division) }}
           </span>
-          <span class="text-[11px] tabular-nums text-dimmed">{{ ranked.leaguePoints }} LP</span>
+          <span class="text-[11px] tabular-nums text-dimmed">{{ formatLeaguePoints(ranked.leaguePoints) }}</span>
           <span v-if="ranked.queueType === 'RANKED_FLEX_SR'" class="rounded-sm px-1 text-[9px] font-semibold uppercase tracking-wide text-dimmed ring-1 ring-default" title="No Solo/Duo standing: their Flex one">Flex</span>
         </template>
         <span v-else-if="rank" class="text-[11px] text-muted" :title="rankTitle">Placements · {{ rank.wins + rank.losses }} played</span>
@@ -128,10 +129,10 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
           :title="fitTitle"
         >
           <UIcon v-if="fit.kind === 'autofill'" name="i-lucide-shuffle" class="size-3" />
-          <img v-else-if="lane(fit.position)" :src="laneIconUrl(fit.position)" alt="" class="size-3 opacity-80">
+          <img v-else-if="lane(fit.position)" :src="getPositionIconUrl(fit.position)" alt="" class="size-3 opacity-80">
           {{ fit.kind === 'main' ? 'Main role' : fit.kind === 'secondary' ? 'Secondary role' : 'Autofill' }}
           <template v-if="fit.kind === 'autofill' && lane(fit.usual)">
-            <span class="font-normal opacity-70">· {{ LANE_LABELS[lane(fit.usual)!] }} main</span>
+            <span class="font-normal opacity-70">· {{ positionLabel(lane(fit.usual)!, { short: true }) }} main</span>
           </template>
         </span>
         <span
@@ -150,7 +151,7 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
     <div class="flex w-32 shrink-0 flex-col gap-1.5" :class="mirrored ? 'items-start' : 'items-end'">
       <template v-if="form">
         <div v-if="champion" class="flex items-baseline gap-1.5 tabular-nums" :class="mirrored && 'flex-row-reverse'" :title="championTitle">
-          <span class="text-[13px] font-semibold" :class="champion.winRate >= 50 ? 'text-data-good' : 'text-data-bad'">{{ champion.winRate }}%</span>
+          <span class="text-[13px] font-semibold" :class="champion.winRate >= 0.5 ? 'text-data-good' : 'text-data-bad'">{{ formatPercentage(champion.winRate, 0) }}</span>
           <span class="text-[11px] text-muted">{{ champion.games }} {{ champion.games === 1 ? 'game' : 'games' }}</span>
         </div>
         <span
@@ -161,11 +162,11 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
           <UIcon name="i-lucide-sparkles" class="size-3" />First time
         </span>
         <p v-if="champion" class="text-[11px] tabular-nums text-dimmed" :title="championTitle">
-          <span :class="champion.kda >= GOOD_KDA ? 'text-data-good' : 'text-muted'">{{ champion.kda.toFixed(1) }}</span> KDA
+          <span :class="champion.kda >= GOOD_KDA ? 'text-data-good' : 'text-muted'">{{ formatKdaRatio(champion.kda) }}</span> KDA
         </p>
         <div v-if="form.recent.length" class="flex items-center gap-1.5" :class="mirrored && 'flex-row-reverse'">
           <LoadingRecent :games="form.recent" />
-          <span v-if="recentRate !== null" class="text-[10px] tabular-nums text-dimmed" :title="`${recentRate}% of their last ${form.recent.length} games won`">{{ recentRate }}%</span>
+          <span v-if="recentRate !== null" class="text-[10px] tabular-nums text-dimmed" :title="`${formatPercentage(recentRate, 0)} of their last ${form.recent.length} games won`">{{ formatPercentage(recentRate, 0) }}</span>
         </div>
       </template>
       <template v-else-if="pending">

@@ -1,22 +1,20 @@
 <script setup lang="ts">
-// Filled S/A/B/C/D pill. The tier is computed server-side
-// (ChampionTierCalculator); this component only maps the letter to its colour.
+// The tier mark: the S/A/B/C/D letter in its medal colour (`--color-tier-*`,
+// theme.css), the one component every surface draws a tier with — the
+// directory and tier list, the champion banner, the home teaser, and the
+// desktop app's draft cards (#2026). The tier is computed server-side
+// (ChampionTierCalculator); this only maps the letter to its colour.
 // Lives at the top level so it auto-registers as <TierBadge>.
 //
-// A filled pill rather than the bare coloured glyph this used to be. The
-// original reason was that the teal ladder put `A` and `B` one desaturation
-// step apart and they were hard to tell apart as bare letters; the medal ladder
-// is back (gold vs silver is not a subtle difference) so that argument no
-// longer applies. The pill stays for the remaining one: it makes the tier the
-// loudest thing in the row, which is what the column a tier list is sorted by
-// should be. Reverting to the bare letter is a one-line change if that reads as
-// too much.
-//
-// Dark ink on every fill, checked rather than assumed: the medal stops give
-// 8.0 / 10.6 / 10.9 / 5.2 / 4.7 : 1 against `ink-950`, so all five clear AA.
+// A bare coloured glyph, not a filled pill: the medal ladder (gold vs silver)
+// keeps neighbouring tiers apart on its own. `stacked` is the same letter at
+// card size with "tier" under it, for a mark laid over champion art, where the
+// drop shadow keeps it readable on any splash.
 const props = defineProps<{
   /** Tier letter from the API: 'S' | 'A' | 'B' | 'C' | 'D'. */
   tier: string
+  /** The art-overlay form: a larger letter over a "tier" caption. */
+  stacked?: boolean
 }>()
 
 // Static per-letter class strings so Tailwind's scanner can see every
@@ -38,13 +36,24 @@ const isKnown = computed(() => normalized.value in TIER_CLASS)
 // as a measured one.
 const colorClass = computed(() => TIER_CLASS[normalized.value] ?? 'text-muted')
 const label = computed(() => (isKnown.value ? normalized.value : '–'))
+const ariaLabel = computed(() => (isKnown.value ? `Tier ${normalized.value}` : 'Tier unknown'))
 </script>
 
 <template>
   <span
+    v-if="stacked"
+    class="flex flex-col items-start leading-none"
+    :class="colorClass"
+    :aria-label="ariaLabel"
+  >
+    <span class="font-mono text-[22px] font-bold tracking-tight drop-shadow-[0_1px_2px_rgb(0_0_0/0.8)]">{{ label }}</span>
+    <span class="mt-0.5 text-[9px] font-medium uppercase tracking-[0.14em] text-default/80">tier</span>
+  </span>
+  <span
+    v-else
     class="inline-flex h-6 min-w-7 items-center justify-center font-mono text-sm font-bold leading-none tabular-nums"
     :class="colorClass"
-    :aria-label="isKnown ? `Tier ${normalized}` : 'Tier unknown'"
+    :aria-label="ariaLabel"
   >
     {{ label }}
   </span>

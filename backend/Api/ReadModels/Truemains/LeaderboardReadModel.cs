@@ -1,3 +1,5 @@
+using TrueMain.ReadModels.Personas;
+
 namespace TrueMain.ReadModels.Truemains;
 
 /// <summary>
@@ -40,6 +42,12 @@ public sealed record LeaderboardRowReadModel
     /// when no main-champion analysis has run for the account.
     /// </summary>
     public DedicationReadModel? Dedication { get; init; }
+
+    /// <summary>
+    /// The known player this account belongs to (#2016) — the row shows their name, linking to
+    /// <c>/players/{slug}</c>. Null for an account no source attributes to anyone.
+    /// </summary>
+    public PersonaTagReadModel? Persona { get; init; }
 }
 
 /// <summary>

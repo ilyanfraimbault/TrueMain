@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/recordings'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
-import { formatClock } from '~/utils/recording-moments'
-import { formatRate, PLAYBACK_RATES, stepRate } from '~/utils/recording-timeline'
+import { stepRate } from '~/utils/recording-timeline'
 
 /**
  * A recording's video with the app's own controls and the timeline under it —
@@ -47,9 +46,6 @@ const emit = defineEmits<{
 /** How far before a moment a jump lands. */
 const LEAD_MS = 5_000
 
-/** How long the mouse rests before the full-screen controls fade out. */
-const IDLE_MS = 2_500
-
 const root = ref<HTMLElement | null>(null)
 const video = ref<HTMLVideoElement | null>(null)
 const currentMs = ref(0)
@@ -63,6 +59,11 @@ let raf = 0
 const length = computed(() => props.lengthMs ?? videoLengthMs.value ?? 0)
 const sorted = computed(() => [...props.moments].sort((a, b) => a.videoMs - b.videoMs))
 const devHint = import.meta.dev && !insideTauri()
+
+const { immersive, hoveringControls, controlsHidden, wake, exitFullscreen, fullscreen } = useImmersivePlayer(root, playing)
+const { rate, applyRate, setRate, rateItems } = usePlaybackRate(video, () => {
+  if (immersive.value) wake()
+})
 
 watch(() => props.src, () => {
   failed.value = false
@@ -132,87 +133,10 @@ function previousMoment() {
   else seek(0)
 }
 
-const rate = useState('recap-playback-rate', () => 1)
-
-/** A new source resets an element's speed to its default, so both are set, and set again once it has loaded. */
-function applyRate() {
-  if (!video.value) return
-  video.value.defaultPlaybackRate = rate.value
-  video.value.playbackRate = rate.value
-}
-
-function setRate(value: number) {
-  rate.value = value
-  applyRate()
-  if (immersive.value) wake()
-}
-
-const rateItems = computed(() => [...PLAYBACK_RATES].reverse().map(value => ({
-  label: value === 1 ? 'Normal' : formatRate(value),
-  type: 'checkbox' as const,
-  checked: rate.value === value,
-  onUpdateChecked: () => setRate(value),
-})))
-
 function toggleMute() {
   muted.value = !muted.value
   if (video.value) video.value.muted = muted.value
 }
-
-const immersive = ref(false)
-const idle = ref(false)
-const hoveringControls = ref(false)
-const controlsHidden = computed(() => immersive.value && idle.value && playing.value && !hoveringControls.value)
-let idleTimer: ReturnType<typeof setTimeout> | undefined
-let stopWatchingWindow: (() => void) | undefined
-
-function wake() {
-  idle.value = false
-  clearTimeout(idleTimer)
-  idleTimer = setTimeout(() => { idle.value = true }, IDLE_MS)
-}
-
-async function setWindowFullscreen(on: boolean) {
-  if (insideTauri()) {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    await getCurrentWindow().setFullscreen(on)
-  }
-  else if (on) await root.value?.requestFullscreen().catch(() => {})
-  else if (document.fullscreenElement) await document.exitFullscreen()
-}
-
-async function enterFullscreen() {
-  immersive.value = true
-  wake()
-  await setWindowFullscreen(true)
-  if (insideTauri() && !stopWatchingWindow) {
-    // Leaving through the OS (the green button, a Space swipe) drops the immersive view too.
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    const appWindow = getCurrentWindow()
-    stopWatchingWindow = await appWindow.onResized(async () => {
-      if (immersive.value && !(await appWindow.isFullscreen())) immersive.value = false
-    })
-  }
-}
-
-async function exitFullscreen() {
-  immersive.value = false
-  clearTimeout(idleTimer)
-  await setWindowFullscreen(false)
-}
-
-const fullscreen = () => (immersive.value ? exitFullscreen() : enterFullscreen())
-
-function onDocumentFullscreen() {
-  if (!insideTauri() && !document.fullscreenElement) immersive.value = false
-}
-onMounted(() => document.addEventListener('fullscreenchange', onDocumentFullscreen))
-onBeforeUnmount(() => {
-  document.removeEventListener('fullscreenchange', onDocumentFullscreen)
-  clearTimeout(idleTimer)
-  stopWatchingWindow?.()
-  if (immersive.value) void setWindowFullscreen(false)
-})
 
 defineShortcuts({
   ' ': toggle,
@@ -270,39 +194,24 @@ defineExpose({ seek, playRange, jumpTo, currentMs })
           @mouseenter="hoveringControls = true"
           @mouseleave="hoveringControls = false"
         >
-          <div class="flex items-center gap-1">
-            <UButton :icon="playing ? 'i-lucide-pause' : 'i-lucide-play'" color="neutral" variant="ghost" size="sm" :aria-label="playing ? 'Pause' : 'Play'" title="Play / pause (Space)" @click="toggle" />
-            <UButton icon="i-lucide-skip-back" color="neutral" variant="ghost" size="sm" aria-label="Previous moment" title="Previous moment (Shift+←)" @click="previousMoment" />
-            <UButton icon="i-lucide-skip-forward" color="neutral" variant="ghost" size="sm" aria-label="Next moment" title="Next moment (Shift+→)" @click="nextMoment" />
-            <span class="ml-1 text-xs tabular-nums text-muted">
-              <span class="text-highlighted">{{ formatClock(currentMs) }}</span> / {{ formatClock(length) }}
-            </span>
-
-            <div class="ml-auto flex items-center gap-1">
-              <template v-if="editable">
-                <UButton label="Set in" color="neutral" variant="outline" size="xs" title="Start a clip at the playhead (I)" @click="emit('setIn', currentMs)">
-                  <template #trailing><UKbd value="I" size="sm" /></template>
-                </UButton>
-                <UButton label="Set out" color="neutral" variant="outline" size="xs" title="End a clip at the playhead (O)" @click="emit('setOut', currentMs)">
-                  <template #trailing><UKbd value="O" size="sm" /></template>
-                </UButton>
-              </template>
-              <UDropdownMenu :items="rateItems" :portal="immersive && root ? root : true" :content="{ align: 'end', side: 'top' }" :ui="{ content: 'min-w-28' }">
-                <UButton
-                  :label="formatRate(rate)"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  class="tabular-nums"
-                  :class="rate !== 1 && 'text-primary'"
-                  aria-label="Playback speed"
-                  title="Playback speed (< / >)"
-                />
-              </UDropdownMenu>
-              <UButton :icon="muted ? 'i-lucide-volume-x' : 'i-lucide-volume-2'" color="neutral" variant="ghost" size="sm" :aria-label="muted ? 'Unmute' : 'Mute'" title="Mute (M)" @click="toggleMute" />
-              <UButton :icon="immersive ? 'i-lucide-minimize' : 'i-lucide-maximize'" color="neutral" variant="ghost" size="sm" :aria-label="immersive ? 'Exit full screen' : 'Full screen'" :title="immersive ? 'Exit full screen (F / Esc)' : 'Full screen (F)'" @click="fullscreen" />
-            </div>
-          </div>
+          <RecapPlayerControls
+            :playing="playing"
+            :current-ms="currentMs"
+            :length-ms="length"
+            :editable="editable"
+            :rate="rate"
+            :rate-items="rateItems"
+            :menu-portal="immersive && root ? root : true"
+            :muted="muted"
+            :immersive="immersive"
+            @toggle="toggle"
+            @previous="previousMoment"
+            @next="nextMoment"
+            @set-in="emit('setIn', currentMs)"
+            @set-out="emit('setOut', currentMs)"
+            @mute="toggleMute"
+            @fullscreen="fullscreen"
+          />
 
           <RecapTimeline
             :length-ms="length"

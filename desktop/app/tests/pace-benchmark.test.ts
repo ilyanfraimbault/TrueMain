@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PaceBenchmarkResponse } from '~/utils/pace-benchmark'
-import { paceReference, tierLabel } from '~/utils/pace-benchmark'
+import { paceReference } from '~/utils/pace-benchmark'
 
 const quartiles = (p25: number, median: number, p75: number) => ({ p25, median, p75 })
 
@@ -43,11 +43,5 @@ describe('paceReference', () => {
     expect(paceReference(benchmark, 'DIAMOND', null)).toBeNull()
     expect(paceReference(benchmark, 'GOLD', { minute: 10, cs: 70, gold: 4000 })).toBeNull()
     expect(paceReference(null, 'DIAMOND', { minute: 10, cs: 70, gold: 4000 })).toBeNull()
-  })
-})
-
-describe('tierLabel', () => {
-  it('writes a tier as a reader would', () => {
-    expect(tierLabel('GRANDMASTER')).toBe('Grandmaster')
   })
 })

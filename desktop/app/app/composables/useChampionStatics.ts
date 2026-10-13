@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import { championDisplayName } from '#shared/utils/champion-name'
 
 export interface Champion {
   id: number
@@ -58,7 +59,7 @@ export function useChampionStatics() {
 
   const aliasOf = (id: number) => champions.value.get(id)?.alias ?? null
 
-  const nameOf = (id: number) => champions.value.get(id)?.name ?? `Champion ${id}`
+  const nameOf = (id: number) => championDisplayName(id, champions.value.get(id))
 
   const portraitOf = (id: number): string | null => {
     const champion = champions.value.get(id)

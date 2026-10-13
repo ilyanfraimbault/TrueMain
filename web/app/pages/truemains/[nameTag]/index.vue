@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import type { ChampionPosition } from '#common/utils/positions'
 import { parseRouteParam } from '#common/utils/route-params'
-import { groupMatchesByDay } from '~/utils/match-history'
-import { getQueueLabel } from '~/utils/queues'
-import { championSplashUrlFromIcon, getProfileIconUrl } from '~~/shared/utils/ddragon'
+import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 import { platformIdToRegion } from '~~/shared/utils/region'
 
 const route = useRoute()
@@ -64,7 +62,7 @@ const {
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
   if (!identity) return truemainSlugLabel(nameTag.value)
-  return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
+  return riotIdLabel(identity.gameName, identity.tagLine)
 })
 
 // Truemains > {player}. Rendered even in the loading / not-found states so the
@@ -110,10 +108,6 @@ const {
   championId: filterChampionId,
 })
 
-// Cut into day-runs for the dated headings between rows. Derived, not
-// fetched: the API already returns the page newest-first.
-const matchDays = computed(() => groupMatchesByDay(matches.value))
-
 // ─── Static lookups for MatchRow + identity icon ───────────────────────────
 // Shared canonical cache keys (`champion-static-list`, `static-items-*`,
 // `static-summoners-*`, `rune-tree-*`) so the payloads warmed by the
@@ -125,37 +119,15 @@ const latestPatch = computed(() => versions.value?.[0] ?? null)
 const { data: championsData } = useChampionStaticList()
 const champions = computed(() => championsData.value ?? [])
 
-const { data: itemsData } = useStaticItems(latestPatch)
-const items = computed(() => itemsData.value ?? {})
-
-const { data: summonerSpellsData } = useStaticSummonerSpells(latestPatch)
-const summonerSpells = computed(() => summonerSpellsData.value ?? {})
-
+const { data: items } = useStaticItems(latestPatch)
+const { data: summonerSpells } = useStaticSummonerSpells(latestPatch)
 const { data: runeTree } = useStaticRuneTree(latestPatch)
 
-const staticBundleReady = computed(() =>
-  champions.value.length > 0
-  && Object.keys(items.value).length > 0
-  && Object.keys(summonerSpells.value).length > 0
-  && (runeTree.value?.styles.length ?? 0) > 0,
-)
-
-// The banner: the champion this player truemains — the dedication's champion,
-// else their first main — on its splash, through the image proxy at banner width.
+// The banner: the champion this player truemains, on its splash through the
+// image proxy at banner width.
 const splashOf = useCanonicalSplash()
-const truemainChampion = computed(() => {
-  const id = profile.value?.dedication?.championId ?? profile.value?.mains[0]?.championId
-  const champion = id ? champions.value.find(entry => entry.championId === id) : null
-  return champion ? { name: champion.name, iconUrl: champion.iconUrl } : null
-})
-const splashUrl = computed(() => {
-  const raw = championSplashUrlFromIcon(truemainChampion.value?.iconUrl)
-  return splashOf(raw)
-})
-const profileIconUrl = computed(() => {
-  const identity = profile.value?.identity
-  return identity ? getProfileIconUrl(identity.profileIconId, latestPatch.value) : null
-})
+const { truemainChampion, identity: heroIdentity } = useTruemainBanner(profile, champions, playerLabel)
+const splashUrl = computed(() => splashOf(championSplashUrlFromIcon(truemainChampion.value?.iconUrl)))
 
 const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
 
@@ -185,13 +157,12 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
          player-level cards in the 18rem column. -->
     <PagePlayerProfile
       v-else
-      :game-name="profile?.identity.gameName ?? playerLabel"
-      :tag-line="profile?.identity.tagLine ?? null"
-      :profile-icon-url="profileIconUrl"
-      :region="platformIdToRegion(profile?.identity.platformId)"
+      :identity="heroIdentity"
+      :patch="latestPatch"
       :level="profile?.identity.summonerLevel ?? null"
       :ranked="profile?.ranked ?? null"
       :truemain="truemainChampion"
+      :persona="profile?.persona ?? null"
       :splash-url="splashUrl"
       splash-position="62% 22%"
       :matches="matches"
@@ -233,65 +204,21 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
         <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
           Match history
         </h2>
-        <!--
-          The empty / not-found state must not wait on the static bundle:
-          rendering it needs no item, spell or rune data, and a failing
-          static fetch (e.g. CDragon lagging a new patch) would otherwise
-          keep the skeletons up forever on a perfectly valid empty result.
-        -->
-        <template v-if="matchesInitialLoading || (!staticBundleReady && matches.length)">
-          <USkeleton
-            v-for="i in 8"
-            :key="`match-skel-${i}`"
-            class="h-[54px] rounded-lg"
-          />
-        </template>
-        <MatchHistoryEmpty
-          v-else-if="matchesNotFound || matches.length === 0"
+        <MatchHistoryList
+          :page="currentMatchesPage"
+          :matches="matches"
+          :loading="matchesInitialLoading"
+          :total="matchesTotal"
+          :page-size="matchesPageSize"
+          :champions="champions"
+          :items="items"
+          :summoner-spells="summonerSpells"
+          :rune-tree="runeTree"
+          :name-tag="nameTag"
           :not-found="matchesNotFound"
           :filtered="hasActiveFilters"
+          @update:page="setMatchesPage"
         />
-        <template v-else>
-          <!-- Grouped by the local day the games were played, newest first —
-               the API order is preserved, the headings only cut it. -->
-          <template
-            v-for="day in matchDays"
-            :key="day.key"
-          >
-            <MatchDayHeading
-              v-if="day.label"
-              :label="day.label"
-              class="pt-1.5"
-            />
-            <MatchHistoryRow
-              v-for="match in day.matches"
-              :key="match.matchId"
-              :match="match"
-              :champions="champions"
-              :items="items"
-              :summoner-spells="summonerSpells"
-              :rune-tree="runeTree!"
-              :queue-label="getQueueLabel(match.queueId, match.gameMode)"
-              :name-tag="nameTag"
-            />
-          </template>
-          <div
-            v-if="matchesTotal > matchesPageSize"
-            class="flex justify-center pt-2"
-          >
-            <UPagination
-              :page="currentMatchesPage"
-              :total="matchesTotal"
-              :items-per-page="matchesPageSize"
-              :sibling-count="1"
-              color="neutral"
-              variant="ghost"
-              active-color="primary"
-              active-variant="soft"
-              @update:page="setMatchesPage"
-            />
-          </div>
-        </template>
       </template>
 
       <template #aside>

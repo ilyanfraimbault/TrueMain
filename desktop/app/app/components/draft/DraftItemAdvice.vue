@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPercentage } from '#shared/utils/ddragon'
 import type { ChampionItemContextAxis } from '#shared/types/item-context'
 import type { BuildSubject } from '~/composables/useDraftBuild'
 import { ITEM_CONTEXT_TONE_CLASS, itemContextAxisPhrase } from '#shared/utils/item-context'
@@ -17,7 +18,7 @@ const { pushes } = useDraftItemAdvice(toRef(props, 'subject'))
 const { items } = useStaticData()
 
 const name = (itemId: number) => items.value[itemId]?.name ?? `Item ${itemId}`
-const percent = (share: number) => `${Math.round(share * 100)}%`
+const percent = (share: number) => formatPercentage(share, 0)
 
 /** Only the advice the site has words for: an axis without a sentence is a reason nobody could read. */
 const shown = computed(() => pushes.value.flatMap((push) => {

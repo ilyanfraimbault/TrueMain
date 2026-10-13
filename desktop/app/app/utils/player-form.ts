@@ -1,3 +1,6 @@
+import { formatPercentage } from '#shared/utils/ddragon'
+import { formatKdaRatio, kdaRatio } from '#shared/utils/kda'
+import { POSITIONS } from '#common/utils/positions'
 import type { PlayerGame } from '~/types/record'
 
 /**
@@ -69,16 +72,16 @@ const perMinute = (value: (game: PlayerGame) => number) => ({
 })
 
 const fixed = (digits: number) => (value: number) => value.toFixed(digits)
-const percent = (value: number) => `${Math.round(value * 100)}%`
+const percent = (value: number) => formatPercentage(value, 0)
 
 export const METRICS: MetricDefinition[] = [
   {
     key: 'kda',
     label: 'KDA',
-    perGame: game => (game.kills + game.assists) / Math.max(game.deaths, 1),
+    perGame: kdaRatio,
     // Deaths floored at one over the sample, as per game: a deathless stretch is a big number, not none.
-    over: games => (games.length ? kdaOf(sumLine(games)) : null),
-    format: fixed(2),
+    over: games => (games.length ? kdaRatio(sumLine(games)) : null),
+    format: formatKdaRatio,
   },
   {
     key: 'kp',
@@ -182,10 +185,6 @@ function mostCommon(values: (string | null)[]): string | null {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 }
 
-export function kdaOf(line: { kills: number, deaths: number, assists: number }) {
-  return (line.kills + line.assists) / Math.max(line.deaths, 1)
-}
-
 function sumLine(games: PlayerGame[]) {
   return games.reduce(
     (sum, game) => ({ kills: sum.kills + game.kills, deaths: sum.deaths + game.deaths, assists: sum.assists + game.assists }),
@@ -199,12 +198,10 @@ export interface LaneLine {
   wins: number
 }
 
-const LANE_ORDER = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY']
-
 /** Games and wins on each of the five lanes, in lane order — lanes never played included, at zero. */
 export function laneLines(newestFirst: PlayerGame[]): LaneLine[] {
   const games = counted(newestFirst)
-  return LANE_ORDER.map((position) => {
+  return POSITIONS.map((position) => {
     const played = games.filter(game => game.position === position)
     return { position, games: played.length, wins: played.filter(game => game.win).length }
   })

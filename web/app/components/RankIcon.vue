@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatTierName } from '#common/utils/tiers'
+
 // Mini rank emblem from Community Dragon. The `latest` channel always
 // resolves to the current LoL client assets — same source the project
 // already uses for position icons and perk imagery — and IPX caches the
@@ -15,6 +17,7 @@ const props = defineProps<{
 }>()
 
 const dim = computed(() => props.size ?? 28)
+const tierName = computed(() => (props.tier ? formatTierName(props.tier) : undefined))
 
 // Plain <img> with a URL built once instead of <NuxtImg> — same `_ipx/…`
 // proxy URL (same-origin + server-side caching preserved), minus the
@@ -53,8 +56,8 @@ onMounted(() => {
     <img
       ref="imgEl"
       :src="ipx(iconUrl, { width: dim, height: dim })"
-      :alt="`${tier} rank`"
-      :title="tier ?? undefined"
+      :alt="`${tierName} rank`"
+      :title="tierName"
       :width="dim"
       :height="dim"
       :loading="loading"

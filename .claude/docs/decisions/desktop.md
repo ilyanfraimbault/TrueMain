@@ -199,7 +199,7 @@ revisited once the production key (#1363) widens the budget, and in light of Dev
 The layout went through three rounds. A DPM-style page of widgets of its own (ranked card, recent-games list,
 last-game card, champion podium, chips on the banner) was "not the site"; the site's profile components dropped in
 verbatim then read too tall and out of step with the rest; and the site's match-detail panel, twinned into the
-accordion, was a different colour and far too big inside a row (2026-09-30). So the ranked card (LP curve, twin — its
+accordion, was a different colour and far too big inside a row (2026-09-30). So the ranked card (LP curve, shared since #2029 — its
 chart a plain-SVG stand-in for the site's vue-chrts wrapper) is the site's own, and the rest is derived from the
 site's and names its source (`components/dashboard/`): 54 px match rows as separate cards (no container around the
 history), a result edge instead of a tint, the build shown as on the site (spells over each other, keystone over the
@@ -209,8 +209,10 @@ figures, build order, the skill order centred as on the site, for any of the ten
 keystone beside the page, the name in the tooltip), five a side — fed in the site's detail shape by `player_game`. The
 history pages ten games at a time with the site's pagination; the banner and the cards read the latest 20, and a page
 past what is loaded reads the client's older pages (`player_history`, 20 at a time, up to 100 games), the pager
-offering one page more while the client still has some; champions and roles cards with the heading inside
-like the ranked card. Every card is the same `surface rounded-lg`. The champions card reads performance (games, KDA,
+offering one page more while the client still has some. Every card is the same `surface rounded-lg`. The champions
+and roles cards first carried the heading inside like the ranked card, as forks of the site's; since #2029 they are the
+site's own components (`ProfileMainChampions`, `ProfilePositionBreakdown`) with the dashboard's figures in their slots,
+so they take the site's frame (heading above the list) and the site's role labels — one design for one concept. The champions card reads performance (games, KDA,
 win rate) where the site's reads play rate: the product owner asked for how they fare on their champions. The banner
 keeps the player's skin with the site's header vocabulary (name, region flag, level) and repeats nothing the cards
 beside it say.

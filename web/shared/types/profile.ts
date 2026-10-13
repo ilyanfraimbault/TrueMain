@@ -2,6 +2,7 @@
 // See #118.
 
 import type { TruemainDedication } from './dedication'
+import type { PersonaTag } from './players'
 
 export interface ProfileResponse {
   identity: ProfileIdentity
@@ -11,6 +12,8 @@ export interface ProfileResponse {
   /** Dedication score for the player's signature champion. Null when no champion is classified as a main yet. */
   dedication: TruemainDedication | null
   positions: ProfilePositionStat[]
+  /** The known player this account belongs to (#2016); null when none. */
+  persona: PersonaTag | null
 }
 
 export interface ProfileIdentity {

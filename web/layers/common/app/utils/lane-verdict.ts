@@ -1,3 +1,5 @@
+import { formatSigned } from '#shared/utils/deltas'
+
 /**
  * Bands the average gold gap at 15 minutes into a one-phrase verdict (#976).
  *
@@ -64,9 +66,7 @@ export function laneVerdict(
 
 /** `+312` / `−184` / `0` — always signed, so the side it favours is never ambiguous. */
 export function formatGoldDiff(value: number): string {
-  const rounded = Math.round(value)
-  const sign = rounded > 0 ? '+' : rounded < 0 ? '−' : ''
-  return `${sign}${Math.abs(rounded).toLocaleString('en-US')}`
+  return formatSigned(value)
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Clip, GameRecording, RecordingLibrary, RecordingResolution } from '~/types/recordings'
+import { formatKda } from '#shared/utils/kda'
 
 /**
  * The Recordings page's list: full games and clips as one kind of card, the
@@ -213,11 +214,11 @@ export function formatBytes(bytes: number): string {
   return `${Math.max(0, Math.round(bytes / 1_000_000))} MB`
 }
 
-/** "12 / 3 / 16" and "9.3 KDA" (or "Perfect"), when the game's line is known. */
+/** "12 / 3 / 16" and "9.33 KDA" (or "Perfect"), when the game's line is known. */
 export function recordingKda(item: { kills: number | null, deaths: number | null, assists: number | null }) {
-  if (item.kills === null || item.deaths === null || item.assists === null) return null
-  const ratio = item.deaths === 0 ? 'Perfect' : `${((item.kills + item.assists) / item.deaths).toFixed(1)} KDA`
-  return { line: `${item.kills} / ${item.deaths} / ${item.assists}`, ratio }
+  const { kills, deaths, assists } = item
+  if (kills === null || deaths === null || assists === null) return null
+  return { line: `${kills} / ${deaths} / ${assists}`, ratio: formatKda({ kills, deaths, assists }) }
 }
 
 export const RESOLUTION_LABELS: Record<RecordingResolution, string> = {

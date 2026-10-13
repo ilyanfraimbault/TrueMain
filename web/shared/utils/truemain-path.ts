@@ -35,13 +35,24 @@ export function parseTruemainNameTag(nameTag: string): { gameName: string, tagLi
 }
 
 /**
+ * The one way to write a Riot ID as text (#2027): `gameName#tagLine`, the
+ * spelling the client shows and a player types, or the bare name for an
+ * account ingested before tag lines were stored. Page titles, breadcrumbs,
+ * accessible names and tooltips all go through it; `Account` draws the same
+ * two halves as separate spans.
+ */
+export function riotIdLabel(gameName: string, tagLine: string | null | undefined): string {
+  return tagLine ? `${gameName}#${tagLine}` : gameName
+}
+
+/**
  * The label a truemain page shows before its profile fetch lands:
- * `gameName#tagLine` derived from the slug alone, or the raw slug when it does
+ * {@link riotIdLabel} derived from the slug alone, or the raw slug when it does
  * not parse. Computed from the route only, so the server render and the
  * client's first render agree (the hydration trap of #862) and the SSR
  * `<title>` reads `Name#TAG` rather than `Name-TAG` (#948).
  */
 export function truemainSlugLabel(nameTag: string): string {
   const parsed = parseTruemainNameTag(nameTag)
-  return parsed ? `${parsed.gameName}#${parsed.tagLine}` : nameTag
+  return parsed ? riotIdLabel(parsed.gameName, parsed.tagLine) : nameTag
 }

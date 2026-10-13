@@ -80,10 +80,11 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: desktop/app/package-lock.json
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
+          toolchain: stable
           targets: ${{ matrix.rust-targets }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
           workspaces: desktop
       - run: npm ci

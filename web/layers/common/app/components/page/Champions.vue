@@ -1,9 +1,9 @@
 <script setup lang="ts">
+import { championDisplayName } from '#shared/utils/champion-name'
 // The champion directory, as the site and the desktop app both render it
 // (#1732): each app's route file wraps this with its own head tags and nothing
 // else.
 import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
-import { normalizeEloBracket } from '#common/utils/elo-brackets'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { firstParamValue } from '#common/utils/route-params'
 import { directoryOrderToQuery, parseDirectoryOrder, type DirectoryOrder } from '#common/utils/table-sorting'
@@ -15,7 +15,7 @@ const PAGE_SIZE = 50
 
 const { pathFor } = useChampionSlugs()
 
-const { filters, setFilter } = useChampionFilters()
+const { filters } = useChampionFilters()
 
 const { currentPage, setPage } = useRoutePage()
 
@@ -59,7 +59,6 @@ const {
   error: staticError,
   status: staticStatus,
 } = useChampionStaticList()
-const { data: versions } = useDDragonVersions()
 
 const apiPatch = computed(() => patchVersion.value)
 const selectedPatch = computed(() => filters.value.patch || apiPatch.value || '')
@@ -103,39 +102,12 @@ watch(lookupsLoading, (loading) => {
 }, { immediate: true })
 const isColdLoading = computed(() => directory.isInitialLoading.value || !lookupsSettled.value)
 
-const patchOptions = usePatchOptions(versions, apiPatch, () => filters.value.patch)
-
-
-// The composable always resolves a concrete bracket (Master+ by default), so
-// the picker always reflects the threshold actually being fetched.
-const selectedEloBracket = computed<string>(() => normalizeEloBracket(filters.value.eloBracket))
-
-
-// Filter changes go through the shared composable with `resetPage` so any
-// change anchors back on page 1 in the same atomic router.replace.
-function onPatchChange(value: unknown) {
-  if (typeof value !== 'string' || !value) return
-  void setFilter({ patch: value }, { resetPage: true })
-}
-
-async function selectPosition(value: ChampionPosition | null) {
-  await setFilter({ position: value }, { resetPage: true })
-}
-
-async function selectChampion(value: number | null) {
-  await setFilter({ championId: value }, { resetPage: true })
-}
-
-function onEloBracketChange(value: string) {
-  void setFilter({ eloBracket: value }, { resetPage: true })
-}
-
 const championsById = useChampionsById(staticList)
 
 const rows = computed(() =>
   summaries.value.map(summary => ({
     ...summary,
-    name: championsById.value.get(summary.championId)?.name ?? `Champion ${summary.championId}`,
+    name: championDisplayName(summary.championId, championsById.value.get(summary.championId)),
     iconUrl: championsById.value.get(summary.championId)?.iconUrl ?? '',
   })),
 )
@@ -176,47 +148,11 @@ await directory.ready
       eyebrow="Builds & stats"
       title="Champions"
     >
-      <!-- Position anchored left, champion search dead-center, rank + patch
-           grouped right as compact secondary filters. The 1fr side columns
-           keep the search centered regardless of how wide the flanks are;
-           below md everything stacks. -->
-      <div class="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr]">
-        <RolePicker
-          class="justify-self-start"
-          :position="selectedPosition"
-          @update:position="selectPosition"
-        />
-
-        <ChampionPicker
-          :champions="staticList ?? []"
-          :champion-id="filterChampionId"
-          placeholder="Search for a champion"
-          trigger-class="w-56"
-          @update:champion-id="selectChampion"
-        />
-
-        <div class="flex items-center gap-2 md:justify-self-end">
-          <ChampionEloFilter
-            size="sm"
-            :model-value="selectedEloBracket"
-            @update:model-value="onEloBracketChange"
-          />
-
-          <ChampionTruemainToggle
-            :model-value="filters.truemainsOnly"
-            @update:model-value="value => setFilter({ truemainsOnly: value }, { resetPage: true })"
-          />
-
-          <USelect
-            :model-value="selectedPatch || undefined"
-            :items="patchOptions"
-            placeholder="Patch"
-            size="sm"
-            class="w-20"
-            @update:model-value="onPatchChange"
-          />
-        </div>
-      </div>
+      <ChampionListFilters
+        :champions="staticList ?? []"
+        :api-patch="apiPatch"
+        paginated
+      />
     </PageHeader>
 
     <!-- Wrap the data-dependent body in `<ClientOnly>` so the four

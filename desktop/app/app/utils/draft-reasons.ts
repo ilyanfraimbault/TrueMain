@@ -1,5 +1,8 @@
 import type { DraftReason } from '~/types/draft'
-import { LANE_LABELS } from '~/types/draft'
+import { formatCount } from '#shared/utils/counts'
+import { formatPercentage } from '#shared/utils/ddragon'
+import { formatPointDelta } from '#shared/utils/deltas'
+import { positionLabel } from '#common/utils/positions'
 
 /**
  * How a draft suggestion's reasons read (#1906). The endpoint returns them as
@@ -21,25 +24,26 @@ export interface ReasonText {
 
 /** Win-rate points, signed: `+3.1 pts`. */
 export function draftPoints(delta: number): string {
-  return `${delta >= 0 ? '+' : '−'}${Math.abs(delta * 100).toFixed(1)} pts`
+  return formatPointDelta(delta)
 }
 
-/** A delta as the card's headline figure: `+3.1`. */
+/** A delta as the card's headline figure, its unit drawn apart: `+3.1`. */
 function signed(delta: number): string {
-  return draftPoints(delta).replace(' pts', '')
+  return formatPointDelta(delta, { unit: false })
 }
 
+/** A rate, with a decimal under 10% where a whole number would flatten a small share. */
 export function draftPercent(rate: number): string {
-  return `${(rate * 100).toFixed(rate < 0.1 ? 1 : 0)}%`
+  return formatPercentage(rate, rate < 0.1 ? 1 : 0)
 }
 
-const games = (count: number) => `${count.toLocaleString('en-US')} game${count === 1 ? '' : 's'}`
+const games = (count: number) => `${formatCount(count)} game${count === 1 ? '' : 's'}`
 
 /** Below this, the solver's lane guess is said to be one. */
 const SURE_OPPONENT = 0.9
 
 function laneLabel(position: string): string {
-  return LANE_LABELS[position as keyof typeof LANE_LABELS] ?? position.toLowerCase()
+  return positionLabel(position, { short: true }) ?? position.toLowerCase()
 }
 
 function signTone(value: number | null): ReasonText['tone'] {

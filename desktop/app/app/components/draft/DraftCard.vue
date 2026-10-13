@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { laneIconUrl } from '~/types/draft'
+import { getPositionIconUrl } from '#shared/utils/ddragon'
 
 /**
  * One pick of a team, as the reference client draws it: the champion's tall
@@ -65,12 +65,12 @@ const tierColor = computed(() => {
         :class="tentative && 'opacity-55 grayscale'"
       />
       <div class="card-floor pointer-events-none absolute inset-0" />
-      <TierMark v-if="tier && !tentative" :tier="tier" class="absolute bottom-2 left-2" />
+      <TierBadge v-if="tier && !tentative" stacked :tier="tier" class="absolute bottom-2 left-2" />
       <span v-if="tentative" class="absolute inset-x-0 bottom-2 text-center stat-label text-muted!">Hovering</span>
     </template>
 
     <div v-else class="flex size-full flex-col items-center justify-center">
-      <img v-if="lane" :src="laneIconUrl(lane)" alt="" class="size-7 opacity-25">
+      <img v-if="lane" :src="getPositionIconUrl(lane)" alt="" class="size-7 opacity-25">
       <div v-if="suggested.length" class="absolute inset-x-0 bottom-2 flex flex-col items-center gap-1">
         <span class="stat-label text-[9px]!">Suggested</span>
         <div class="flex -space-x-1">

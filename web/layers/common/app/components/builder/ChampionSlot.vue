@@ -48,8 +48,8 @@ const emit = defineEmits<{
 const open = ref(false)
 const term = ref('')
 
-const champion = computed(() =>
-  props.champions.find(entry => entry.championId === props.championId) ?? null)
+const championsById = useChampionsById(() => props.champions)
+const champion = computed(() => (props.championId === null ? null : championsById.value.get(props.championId) ?? null))
 
 type SlotItem = CommandPaletteItem & { iconUrl?: string | null }
 
@@ -159,15 +159,8 @@ watch(open, (isOpen) => {
           class="h-96"
           :close="{ onClick: () => { open = false } }"
         >
-          <!-- SkeletonImage over the built-in avatar: the palette re-uses the
-               same row DOM as the query narrows, so a plain <img> keeps
-               painting the previous champion until the new icon decodes. -->
           <template #champion-leading="{ item }">
-            <SkeletonImage
-              :src="item.iconUrl"
-              :alt="''"
-              class="size-5 shrink-0 rounded-full"
-            />
+            <SearchItemAvatar :src="item.iconUrl" />
           </template>
         </LazyUCommandPalette>
       </template>

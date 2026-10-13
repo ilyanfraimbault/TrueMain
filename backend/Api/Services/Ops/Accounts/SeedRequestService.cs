@@ -2,6 +2,7 @@ using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
+using TrueMain.RequestLogging;
 
 namespace TrueMain.Services.Ops.Accounts;
 
@@ -96,8 +97,8 @@ public sealed class SeedRequestService(
         {
             logger.LogWarning(
                 "Seed request for {GameName}#{TagLine} targets untracked platform {Platform}; accepting anyway.",
-                gameName,
-                tagLine,
+                LogValue.SingleLine(gameName),
+                LogValue.SingleLine(tagLine),
                 platform);
         }
 

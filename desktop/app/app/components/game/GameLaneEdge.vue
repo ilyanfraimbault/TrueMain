@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatCount } from '#shared/utils/counts'
+import { formatPercentage } from '#shared/utils/ddragon'
 import type { LaneEdge } from '~/utils/lane-edge'
 
 /**
@@ -9,12 +11,12 @@ import type { LaneEdge } from '~/utils/lane-edge'
 const props = defineProps<{ edge: LaneEdge | null | undefined }>()
 
 /** From this chance on the arrow doubles. */
-const CLEAR_EDGE = 60
+const CLEAR_EDGE = 0.6
 
 const icon = computed(() => {
   const edge = props.edge
   if (!edge || edge.side === 'even') return 'i-lucide-equal'
-  const strong = edge.percent >= CLEAR_EDGE
+  const strong = edge.share >= CLEAR_EDGE
   if (edge.side === 'ally') return strong ? 'i-lucide-chevrons-left' : 'i-lucide-chevron-left'
   return strong ? 'i-lucide-chevrons-right' : 'i-lucide-chevron-right'
 })
@@ -28,7 +30,7 @@ const tooltip = computed(() => {
   const edge = props.edge
   if (!edge) return ''
   const start = edge.matchupGames
-    ? `Matchup ${Math.round(edge.matchup * 100)}% over ${edge.matchupGames.toLocaleString()} games`
+    ? `Matchup ${formatPercentage(edge.matchup, 0)} over ${formatCount(edge.matchupGames)} games`
     : 'No matchup data: starts even'
   return `${start}, moved by each player's last games on their champion — win rate, gold, CS and XP at 15 minutes.`
 })
@@ -38,7 +40,7 @@ const tooltip = computed(() => {
   <UTooltip v-if="edge" :text="tooltip">
     <div class="flex flex-col items-center leading-none" :class="tone">
       <UIcon :name="icon" class="size-5" />
-      <span class="mt-0.5 text-[11px] font-semibold tabular-nums">{{ edge.side === 'even' ? '50' : edge.percent }}%</span>
+      <span class="mt-0.5 text-[11px] font-semibold tabular-nums">{{ formatPercentage(edge.side === 'even' ? 0.5 : edge.share, 0) }}</span>
     </div>
   </UTooltip>
 </template>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseTruemainNameTag, truemainNameTag, truemainProfilePath, truemainSlugLabel } from '~~/shared/utils/truemain-path'
+import { parseTruemainNameTag, riotIdLabel, truemainNameTag, truemainProfilePath, truemainSlugLabel } from '~~/shared/utils/truemain-path'
 import { truemainChampionPath } from '~~/shared/utils/champion-slug'
 import { favoriteNameTag } from '#common/utils/favorites'
 
@@ -53,6 +53,18 @@ describe('parseTruemainNameTag', () => {
   it('round-trips truemainNameTag', () => {
     expect(parseTruemainNameTag(truemainNameTag('Hide on bush', 'KR1')))
       .toEqual({ gameName: 'Hide on bush', tagLine: 'KR1' })
+  })
+})
+
+describe('riotIdLabel', () => {
+  it('joins the halves with a bare #', () => {
+    expect(riotIdLabel('Hide on bush', 'KR1')).toBe('Hide on bush#KR1')
+  })
+
+  it('writes the bare name for an untagged account', () => {
+    expect(riotIdLabel('Faker', null)).toBe('Faker')
+    expect(riotIdLabel('Faker', undefined)).toBe('Faker')
+    expect(riotIdLabel('Faker', '')).toBe('Faker')
   })
 })
 

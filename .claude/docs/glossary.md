@@ -43,6 +43,11 @@ A player's most-played main; the champion their Truemain score, profile and lead
 **Tracked account**:
 A Riot account the pipeline knows and ingests, identified by its PUUID (name#tag is not unique).
 
+**Known player** (code: *persona*):
+A person — a pro, a streamer, a creator, or any notable player — together with the Riot accounts public sources list
+for them. The site shows their name, never the word "persona"; their page is `/players/{slug}`. Not the same thing as a
+true main: a known player need not main anything, and a true main is usually nobody in particular.
+
 **Candidate**:
 A (player, champion) pair proposed as a possible true main, found on the apex ladder, added by an operator, or
 harvested from games already stored. It moves New → Scored → Queued → Processing → Validated, and leaves only

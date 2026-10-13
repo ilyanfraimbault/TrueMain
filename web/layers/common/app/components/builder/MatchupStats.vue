@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import { formatCount } from '#shared/utils/counts'
 import type { CompositionBuildResponse } from '#shared/types/composition'
 import type { ChampionPosition } from '#common/utils/positions'
 import type { RateBand } from '#common/utils/rate-tone'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { formatGoldDiff, formatXpDiff, laneVerdict } from '#common/utils/lane-verdict'
 import { winRateBand } from '#common/utils/rate-tone'
 
 /**
@@ -63,26 +63,6 @@ const sampleWinRate = computed(() => {
   return games > 0 ? (build.value?.wins ?? 0) / games : null
 })
 
-const goldDiff = computed(() => lane.value?.averageGoldDiffAt15 ?? null)
-const measuredLanes = computed(() => lane.value?.measuredGames ?? 0)
-const xpDiff = computed(() => lane.value?.averageXpDiffAt15 ?? null)
-const verdict = computed(() => laneVerdict(goldDiff.value, measuredLanes.value, laneNoun.value))
-
-/**
- * The two gaps on one line under the lane rate. Gold and XP sit together because
- * they are the same measurement of the same moment and are only interesting
- * *against each other*: a lead in gold over a deficit in XP is a lane won on
- * kills and lost on waves, which the next all-in reverses. Separating them across
- * two cells would have hidden exactly that.
- */
-const gapLine = computed(() => {
-  if (goldDiff.value === null && xpDiff.value === null) return null
-  const parts: string[] = []
-  if (goldDiff.value !== null) parts.push(`${formatGoldDiff(goldDiff.value)} gold`)
-  if (xpDiff.value !== null) parts.push(`${formatXpDiff(xpDiff.value)} xp`)
-  return `${parts.join(' · ')} @15`
-})
-
 interface StatCell {
   key: string
   label: string
@@ -103,10 +83,10 @@ const stats = computed<StatCell[]>(() => {
     {
       key: 'games',
       label: 'Games used',
-      value: sample === null ? '—' : sample.gamesConsidered.toLocaleString('en-US'),
+      value: sample === null ? '—' : formatCount(sample.gamesConsidered),
       caption: conf === null
         ? 'no build sampled'
-        : `${conf.truemainGameCount} by mains · of ${conf.candidatePoolSize.toLocaleString('en-US')} scanned`,
+        : `${conf.truemainGameCount} by mains · of ${formatCount(conf.candidatePoolSize)} scanned`,
       hint: 'The build below is computed from these games only — games piloted by a main of '
         + 'the champion first, then the most similar to your draft, out of all recent games '
         + `scanned for ${champion} at this role.`,
@@ -137,7 +117,7 @@ const stats = computed<StatCell[]>(() => {
       value: entry?.winRate == null ? '—' : formatPercentage(entry.winRate, 0),
       caption: entry?.winRate == null
         ? 'nothing decided yet'
-        : `of ${entry.decidedGames.toLocaleString('en-US')} decided`,
+        : `of ${formatCount(entry.decidedGames)} decided`,
       hint: `Share of these ${champion} vs ${opponent} games that reached 15 minutes clearly `
         + 'ahead, out of those that ended clearly ahead or behind — the same games the cells '
         + 'beside it count, so the whole line describes one sample.',
@@ -222,32 +202,11 @@ const emptyNotice = computed(() => {
           </UTooltip>
         </div>
 
-        <!-- The two gaps and the verdict ride under the lane rate they explain,
-             never as cells of their own: a reader comparing "+967 gold" with a
-             win rate three columns away has to be told they share a sample, and
-             they don't. -->
-        <template v-if="stat.key === 'lane'">
-          <!-- Uncoloured on purpose: one line carries two gaps that can point
-               opposite ways, and a single tone would have to pick one of them
-               to speak for both. The verdict badge below bands the gold gap,
-               which is the only one with product-defined edges. -->
-          <p
-            v-if="gapLine"
-            class="text-xs tabular-nums text-muted"
-          >
-            {{ gapLine }}
-          </p>
-          <div v-if="verdict">
-            <UBadge
-              :color="verdict.color"
-              :variant="verdict.variant"
-              size="sm"
-              class="font-semibold"
-            >
-              {{ verdict.label }}
-            </UBadge>
-          </div>
-        </template>
+        <BuilderMatchupLaneGaps
+          v-if="stat.key === 'lane'"
+          :lane="lane"
+          :lane-noun="laneNoun"
+        />
       </div>
     </div>
   </SectionCard>

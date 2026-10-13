@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { isChampionPosition, positionLabel } from '#common/utils/positions'
+import { formatDuration } from '#common/utils/relativeTime'
 import type { GamePlayer, GameState, GameTeam } from '~/types/game'
 import type { LoadingPlayer } from '~/types/loading'
-import { LANE_LABELS, laneIconUrl } from '~/types/draft'
 import { laneRows, leftTeam } from '~/utils/item-value'
 import { loadingLineOf } from '~/utils/player-intel'
 
@@ -41,11 +43,6 @@ onBeforeUnmount(() => clearInterval(ticking))
 
 const clock = computed(() => props.game.gameTime + Math.max(0, now.value - props.syncedAt) / 1000)
 
-function minutes(seconds: number) {
-  const whole = Math.floor(seconds)
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
-}
-
 const MAPS: Record<number, string> = { 11: 'Summoner\'s Rift', 12: 'Howling Abyss', 30: 'Arena' }
 const mapName = computed(() => MAPS[props.game.mapNumber] ?? 'Live game')
 
@@ -67,13 +64,13 @@ const edges = useLaneEdges(() => props.lines ?? [])
 /** Lane by lane, so each row is a lane's face-off (`utils/item-value.ts`, shared with the overlay). */
 const rows = computed(() => {
   return laneRows(props.game).map(({ ally, enemy }) => {
-    const lane = [ally?.position, enemy?.position].find(position => position && position in LANE_LABELS) ?? null
+    const lane = [ally?.position, enemy?.position].find(isChampionPosition) ?? null
     return {
       ally,
       enemy,
       allyLine: lineOf(ally),
       enemyLine: lineOf(enemy),
-      lane: lane as keyof typeof LANE_LABELS | null,
+      lane,
       key: `${ally?.riotId}-${enemy?.riotId}`,
     }
   })
@@ -105,7 +102,7 @@ const sideLabel = (team: GameTeam, ours: boolean) => {
       </div>
 
       <div class="flex items-center gap-3 justify-self-end">
-        <span class="stat-value text-xl leading-none tabular-nums" title="Game time">{{ minutes(clock) }}</span>
+        <span class="stat-value text-xl leading-none tabular-nums" title="Game time">{{ formatDuration(clock) }}</span>
         <slot name="actions" />
       </div>
     </header>
@@ -140,7 +137,7 @@ const sideLabel = (team: GameTeam, ours: boolean) => {
             :class="row.ally?.isMe && 'bg-primary/5 ring-1 ring-primary/15'"
           />
           <div class="flex flex-col items-center gap-1.5">
-            <img v-if="row.lane" :src="laneIconUrl(row.lane)" :alt="LANE_LABELS[row.lane]" :title="LANE_LABELS[row.lane]" class="size-4 opacity-60">
+            <img v-if="row.lane" :src="getPositionIconUrl(row.lane)" :alt="positionLabel(row.lane, { short: true })" :title="positionLabel(row.lane, { short: true })" class="size-4 opacity-60">
             <GameLaneEdge v-if="row.lane" :edge="edges.get(row.lane)" />
           </div>
           <GamePlayerSide

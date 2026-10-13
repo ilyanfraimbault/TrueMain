@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { POSITION_BY_VALUE } from '#common/utils/positions'
-import { ELO_BRACKET_ALL, eloBracketLabel } from '#common/utils/elo-brackets'
 import { isLoadingStatus } from '#common/utils/async-data'
-import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 
 // Layout plus wiring: the fetching and derivation live in composables
 // (`useChampionBuildSummary`, `useChampionPageSeo`, `useChampionSliceControls`,
@@ -92,11 +90,7 @@ const { data: championTrend, pending: trendPending } = useChampionTrend(champion
 // page can't use `displayName` there, and why the fetch is awaited on the
 // server only. Shared verbatim with the player-scoped champion page.
 // The banner's splash, through the image proxy at banner width.
-const splashOf = useCanonicalSplash()
-const splashUrl = computed(() => {
-  const raw = championSplashUrlFromIcon(displayIconUrl.value)
-  return splashOf(raw)
-})
+const splashUrl = useChampionSplash(displayIconUrl)
 
 const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
@@ -152,13 +146,7 @@ const { data: championScaling, pending: scalingPending } = useChampionScaling(
 
 // Each section drives its own skeleton off its own async status via the
 // shared isLoadingStatus util.
-const {
-  trendSnapshot,
-  scalingSnapshot,
-  truemainsSnapshot,
-  matchupsSnapshot,
-  synergiesSnapshot,
-} = useChampionPanelSnapshots({
+const snapshots = useChampionPanelSnapshots({
   trend: championTrend,
   trendPending,
   scaling: championScaling,
@@ -168,7 +156,6 @@ const {
   latestVersion,
 })
 </script>
-
 
 <template>
   <div class="mx-auto w-full max-w-[96rem] space-y-6 p-4 md:p-6">
@@ -203,49 +190,14 @@ const {
       title="Failed to load this champion"
     />
 
-    <!--
-      No-data-for-this-rank state: the picked rank has no games (the champion may
-      well have builds in other ranks). We keep the rank select visible so the
-      user can switch rank — a dead end otherwise — rather than silently showing
-      all-ranks data under the selected rank.
-    -->
-    <div
+    <ChampionRankEmpty
       v-else-if="noDataForRank"
-      class="space-y-6"
-    >
-      <header class="flex flex-wrap items-center gap-3">
-        <SkeletonImage
-          v-if="displayIconUrl"
-          :src="displayIconUrl"
-          :alt="displayName ?? ''"
-          width="48"
-          height="48"
-          class="size-12 rounded"
-        />
-        <h1 class="text-lg font-semibold text-default">
-          {{ displayName ?? `Champion ${championId}` }}
-        </h1>
-      </header>
-
-      <ChampionEloFilter
-        :model-value="selectedEloBracket"
-        @update:model-value="value => setFilter({ eloBracket: value })"
-      />
-
-      <UEmpty
-        icon="i-lucide-medal"
-        :title="`No ${displayName ?? 'champion'} games in ${eloBracketLabel(selectedEloBracket)} yet`"
-        description="Pick another rank above, or widen the slice to every rank."
-        :actions="[{
-          color: 'neutral',
-          variant: 'subtle',
-          size: 'sm',
-          icon: 'i-lucide-layers',
-          label: 'See all ranks',
-          onClick: () => setFilter({ eloBracket: ELO_BRACKET_ALL }),
-        }]"
-      />
-    </div>
+      :champion-id="championId"
+      :display-name="displayName"
+      :display-icon-url="displayIconUrl"
+      :elo-bracket="selectedEloBracket"
+      @update:elo-bracket="value => setFilter({ eloBracket: value })"
+    />
 
     <!--
       No-data state: the API returned 404 for this champion (and its fallback
@@ -261,6 +213,7 @@ const {
         :splash-url="splashUrl"
         :position="champion?.position || selectedPosition || ''"
         :total-games="0"
+        :trend="null"
       />
 
       <UEmpty
@@ -316,106 +269,37 @@ const {
         sidebar stacks under the main column.
       -->
       <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-        <div class="min-w-0 space-y-6">
-          <ChampionBuildTabs
-            v-if="champion && staticData && !championLoading"
-            :builds="champion.builds"
-            :champion-static="staticData"
-            :items-map="itemsMap ?? {}"
-            :summoners-map="summonersMap ?? {}"
-            :summoners-pending="isLoadingStatus(summonersStatus)"
-            :rune-tree="runeTree ?? null"
-            :champion-id="championId"
-            :position="trendPosition"
-            :patch="selectedPatch || null"
-            :elo-bracket="eloBracketParam"
-            :opponent-champion-id="filters.opponentChampionId ?? null"
-          />
-          <ChampionBuildTabsSkeleton v-else />
+        <ChampionBuildColumn
+          :champion="champion"
+          :static-data="staticData"
+          :items-map="itemsMap"
+          :summoners-map="summonersMap"
+          :summoners-pending="isLoadingStatus(summonersStatus)"
+          :rune-tree="runeTree"
+          :champion-id="championId"
+          :position="trendPosition"
+          :selected-position="selectedPosition"
+          :patch="selectedPatch || null"
+          :elo-bracket="eloBracketParam"
+          :opponent-champion-id="filters.opponentChampionId ?? null"
+          :loading="championLoading"
+          :snapshots="snapshots"
+        />
 
-          <!--
-            Everything below the build tabs is below the fold and pulls the
-            heavy charting bundle (nuxt-charts). Lazy-load each so its JS lands
-            in its own chunk and only downloads/hydrates once scrolled into
-            view — keeps the champion detail route's initial JS lean (#820).
-            Props come from the `…Snapshot` bundles above (frozen at their
-            SSR-matching value until `@vue:mounted` reveals the live data) so
-            the deferred hydration doesn't mismatch (#834/#837); `rune-tree`,
-            `from-patch` and `to-patch` are bound directly since they're
-            SSR-safe/locally-stable and don't need freezing.
-          -->
-          <LazyChampionTrendChart
-            hydrate-on-visible
-            v-bind="trendSnapshot.value"
-            @vue:mounted="trendSnapshot.reveal"
-          />
-
-          <LazyChampionScalingChart
-            hydrate-on-visible
-            v-bind="scalingSnapshot.value"
-            @vue:mounted="scalingSnapshot.reveal"
-          />
-
-          <!--
-            Duo/trio synergies (#922). In the main column rather than the
-            sidebar: the rows carry four columns plus a lane filter, and picking
-            a partner expands a second list underneath.
-          -->
-          <LazyChampionSynergies
-            hydrate-on-visible
-            :champion-id="championId"
-            :position="selectedPosition"
-            :patch="selectedPatch || null"
-            :elo-bracket="eloBracketParam"
-            v-bind="synergiesSnapshot.value"
-            @vue:mounted="synergiesSnapshot.reveal"
-          />
-        </div>
-
-        <aside class="min-w-0 space-y-6">
-          <LazyChampionTruemains
-            hydrate-on-visible
-            :champion-id="championId"
-            :rune-tree="runeTree ?? null"
-            v-bind="truemainsSnapshot.value"
-            @vue:mounted="truemainsSnapshot.reveal"
-          />
-
-          <LazyChampionMatchups
-            hydrate-on-visible
-            :champion-id="championId"
-            :position="selectedPosition"
-            :elo-bracket="eloBracketParam"
-            :patch="selectedPatch"
-            v-bind="matchupsSnapshot.value"
-            @vue:mounted="matchupsSnapshot.reveal"
-          />
-
-          <!--
-            Account-vs-mains head-to-head (#528). Not lazily hydrated: it owns a
-            form the user types into, pulls no charting bundle, and takes no
-            client-only props — so there is no SSR snapshot to freeze and
-            nothing to defer.
-          -->
-          <ChampionMainsComparison
-            :champion-id="championId"
-            :position="selectedPosition"
-          />
-
-          <!--
-            The build in words (#1123). Not lazy: being in the server HTML is the
-            point. Last and collapsed (#1466): at the top it read as the same
-            build said twice; here it is one click away for the prose reader.
-          -->
-          <ChampionBuildSummary
-            :summary="buildSummary"
-            :items-map="itemsMap"
-            :rune-tree="runeTree ?? null"
-            :summoners-map="summonersMap"
-            :champion-static="staticData ?? null"
-          />
-        </aside>
+        <ChampionSideRail
+          :champion-id="championId"
+          :position="selectedPosition"
+          :patch="selectedPatch"
+          :elo-bracket="eloBracketParam"
+          :summary="buildSummary"
+          :static-data="staticData"
+          :items-map="itemsMap"
+          :summoners-map="summonersMap"
+          :rune-tree="runeTree"
+          :snapshots="snapshots"
+        />
       </div>
     </template>
   </div>
 </template>
+

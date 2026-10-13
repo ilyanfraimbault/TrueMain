@@ -1,3 +1,4 @@
+import { formatCount } from '#shared/utils/counts'
 import { ELO_TIERS } from '#common/utils/elo-brackets'
 
 // Tier visual + label helpers shared across the profile card and the
@@ -39,10 +40,6 @@ export const TIER_HEX: Record<string, string> = {
   CHALLENGER: '#a5f3fc',  // cyan-200
 }
 
-// The ranked ladder order is owned by elo-brackets.ts (mirroring the backend
-// EloBracket enum) — alias it so the two lists can't drift.
-const TIER_ORDER = ELO_TIERS
-
 const DIVISION_ORDER: Record<string, number> = {
   IV: 0, III: 1, II: 2, I: 3,
 }
@@ -71,22 +68,22 @@ export function tierHex(tier: string | null | undefined): string {
  * skewing the chart.
  */
 export function rankScore(tier: string, division: string, leaguePoints: number): number {
+  // The ladder order is owned by elo-brackets.ts (mirroring the backend
+  // EloBracket enum). Read inside the function, never at module load:
+  // elo-brackets.ts imports this module's `formatTierName` back.
   const upperTier = tier.toUpperCase()
-  const tierIndex = TIER_ORDER.indexOf(upperTier as typeof TIER_ORDER[number])
+  const tierIndex = ELO_TIERS.indexOf(upperTier as typeof ELO_TIERS[number])
   if (tierIndex === -1) return 0
 
   // Master+ collapse to one continuous band rooted at the Master floor.
   if (isApexTier(upperTier)) {
-    const masterFloor = TIER_ORDER.indexOf('MASTER') * 400
+    const masterFloor = ELO_TIERS.indexOf('MASTER') * 400
     return masterFloor + leaguePoints
   }
 
   const divisionScore = (DIVISION_ORDER[division.toUpperCase()] ?? 0) * 100
   return tierIndex * 400 + divisionScore + leaguePoints
 }
-
-/** The ordered list of tier names — exposed so callers can iterate Y-axis bands. */
-export const TIER_NAMES: readonly string[] = TIER_ORDER
 
 /** Returns a Tailwind text-colour class for the tier, or a muted default. */
 export function tierColor(tier: string | null | undefined): string {
@@ -102,11 +99,30 @@ export function isApexTier(tier: string | null | undefined): boolean {
 }
 
 /**
- * Formats a tier+division pair the way the UI displays it. Master+ rows
- * drop the division because Riot returns "I" for them but the division has
- * no meaning at the apex.
+ * A tier as a reader writes it: `GRANDMASTER` → `Grandmaster`. Riot and the
+ * API spell tiers in capitals; every label on screen is title case, the way
+ * the client itself prints a rank.
  */
-export function formatTier(tier: string, division: string): string {
-  if (isApexTier(tier)) return tier
-  return `${tier} ${division}`
+export function formatTierName(tier: string): string {
+  return tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase()
+}
+
+/** League points as every surface writes them: `1,204 LP`. */
+export function formatLeaguePoints(leaguePoints: number): string {
+  return `${formatCount(leaguePoints)} LP`
+}
+
+/**
+ * The one way a rank is written: `Diamond II`, `Master` (Riot returns `I` at
+ * the apex, where a division means nothing), and with `lp`
+ * `Diamond II · 42 LP`.
+ */
+export function formatRank(
+  tier: string,
+  division: string | null | undefined,
+  options: { lp?: number | null } = {},
+): string {
+  const name = formatTierName(tier)
+  const rank = isApexTier(tier) || !division ? name : `${name} ${division}`
+  return options.lp == null ? rank : `${rank} · ${formatLeaguePoints(options.lp)}`
 }

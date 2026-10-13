@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { isChampionPosition, positionLabel } from '#common/utils/positions'
 import type { RecentGame } from '~/types/loading'
 import { formatRelativeTime } from '#common/utils/relativeTime'
-import { LANE_LABELS, laneIconUrl, type Lane } from '~/types/draft'
 
 /**
  * A player's latest games as bars, oldest to newest left to right: blue a
@@ -18,7 +19,7 @@ const bars = computed(() => [...props.games].reverse())
 const when = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' })
 const playedOn = (game: RecentGame) =>
   `${when.format(game.playedAt)} · ${formatRelativeTime(new Date(game.playedAt).toISOString())}`
-const lane = (game: RecentGame) => (game.position && game.position in LANE_LABELS ? game.position as Lane : null)
+const lane = (game: RecentGame) => (game.position && isChampionPosition(game.position) ? game.position : null)
 </script>
 
 <template>
@@ -50,8 +51,8 @@ const lane = (game: RecentGame) => (game.position && game.position in LANE_LABEL
               </p>
               <p class="mt-0.5 flex items-center gap-1.5 text-xs tabular-nums text-muted">
                 <template v-if="lane(game)">
-                  <img :src="laneIconUrl(lane(game)!)" :alt="LANE_LABELS[lane(game)!]" class="size-3.5 opacity-80">
-                  <span>{{ LANE_LABELS[lane(game)!] }}</span>
+                  <img :src="getPositionIconUrl(lane(game)!)" :alt="positionLabel(lane(game)!, { short: true })" class="size-3.5 opacity-80">
+                  <span>{{ positionLabel(lane(game)!, { short: true }) }}</span>
                   <span class="text-dimmed">·</span>
                 </template>
                 <span class="text-default">

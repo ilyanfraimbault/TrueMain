@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatCount } from '#shared/utils/counts'
+import { formatPercentage } from '#shared/utils/ddragon'
 import type { DraftReason } from '~/types/draft'
 import type { TierEntry } from '~/composables/useTierList'
 import type { DamageNote } from '~/utils/draft-damage'
@@ -47,20 +49,18 @@ const tone = computed(() => {
 const why = computed(() => {
   const note = props.note?.text ?? null
   if (!texts.value.length) {
-    const lane = props.entry ? `Win rate on this lane: ${percent(props.entry.winRate)} over ${props.entry.games.toLocaleString('en-US')} games` : null
+    const lane = props.entry ? `Win rate on this lane: ${formatPercentage(props.entry.winRate)} over ${formatCount(props.entry.games)} games` : null
     return [lane, note].filter(Boolean).join('\n') || undefined
   }
   return [...texts.value.map(text => text.full), props.thin ? 'Few games behind these figures' : null, note].filter(Boolean).join('\n')
 })
-
-const percent = (value: number) => `${(value * 100).toFixed(1)}%`
 </script>
 
 <template>
   <div class="relative flex h-full w-[112px] shrink-0 flex-col justify-end gap-1.5" :title="why">
     <p class="text-center font-bold tabular-nums leading-none tracking-tight" :class="[tone, focused ? 'text-[26px]' : 'text-[22px]']">
       <template v-if="lead">{{ lead.headline }}<span class="text-xs"> {{ lead.unit }}</span></template>
-      <template v-else-if="entry">{{ (entry.winRate * 100).toFixed(1) }}<span class="text-xs">% WR</span></template>
+      <template v-else-if="entry">{{ formatPercentage(entry.winRate) }}<span class="text-xs"> WR</span></template>
     </p>
 
     <div
@@ -77,11 +77,11 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
         <div v-if="focused && entry" class="grid grid-cols-2 gap-1">
           <div class="flex flex-col">
             <span class="stat-label text-[9px]!">Win rate</span>
-            <span class="stat-value text-xs">{{ percent(entry.winRate) }}</span>
+            <span class="stat-value text-xs">{{ formatPercentage(entry.winRate) }}</span>
           </div>
           <div class="flex flex-col">
             <span class="stat-label text-[9px]!">Pick rate</span>
-            <span class="stat-value text-xs">{{ percent(entry.pickRate) }}</span>
+            <span class="stat-value text-xs">{{ formatPercentage(entry.pickRate) }}</span>
           </div>
         </div>
         <UBadge v-if="lead && thin" color="neutral" variant="soft" size="sm" class="self-start">Few games</UBadge>
@@ -93,7 +93,7 @@ const percent = (value: number) => `${(value * 100).toFixed(1)}%`
           <UIcon name="i-lucide-plus" class="size-2.5" />{{ note.adds === 'magic' ? 'Magic damage' : 'Physical damage' }}
         </span>
       </div>
-      <TierMark v-if="entry" :tier="entry.tier" class="absolute left-2 top-2 scale-75 origin-top-left" />
+      <TierBadge v-if="entry" stacked :tier="entry.tier" class="absolute left-2 top-2 scale-75 origin-top-left" />
       <div v-if="$slots.action" class="absolute right-1.5 top-1.5 z-10">
         <slot name="action" />
       </div>

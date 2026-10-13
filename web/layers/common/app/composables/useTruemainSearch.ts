@@ -8,6 +8,12 @@ import type { SearchResponse, SearchResult } from '#shared/types/search'
  */
 export const SEARCH_MIN_LENGTH = 2
 
+/**
+ * The most matches the backend returns for one query. Keep in sync with
+ * `MaxLimit` in the backend's SearchQueryService.cs, like the floor above.
+ */
+export const SEARCH_MAX_LIMIT = 25
+
 /** Idle time after the last keystroke before a search fires. */
 export const SEARCH_DEBOUNCE_MS = 250
 
@@ -37,8 +43,12 @@ type SearchStatus = 'idle' | 'pending' | 'success' | 'error'
  *
  * Purely client-side — there's no SSR value to hydrate for a search box, and
  * the term only exists once the user starts typing.
+ *
+ * `limit` asks for more than the backend's default page of matches, for a host
+ * that narrows them further on its side (the app's build page keeps only the
+ * mains of the champion on screen).
  */
-export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
+export function useTruemainSearch(term: MaybeRefOrGetter<string>, options: { limit?: number } = {}) {
   const apiFetch = useApiFetch()
   const results = ref<SearchResult[]>([])
   const status = ref<SearchStatus>('idle')
@@ -63,7 +73,7 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>) {
     status.value = 'pending'
     try {
       const data = await apiFetch<SearchResponse>('/truemains/search', {
-        query: { q: query },
+        query: options.limit ? { q: query, limit: options.limit } : { q: query },
         signal,
       })
       // Drop the response if a newer keystroke has since fired — only the

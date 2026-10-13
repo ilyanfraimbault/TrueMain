@@ -67,6 +67,6 @@ composable resolves the invalid pair away so a hand-edited URL renders instead o
 **The thin-sample caveat is a header tooltip, and it counts games rather than coverage** (#1346). It used to
 be a full-width `UAlert` above the build grid, and it also fired on `eloCoverage < 0.1` — which, once Master+
 became the default, put an incident-sized banner at the top of the page for a slice that was perfectly well
-sampled. It now rides the header's warning-triangle idiom (the one the retired-sample card and the builder
+sampled. It now rides the header's warning idiom (a triangle then, a dot since 2026-10-13) (the one the retired-sample card and the builder
 panels already use) and says only what a reader deciding whether to trust the build needs: how many games it
 rests on. What share of the all-rank population the bracket covers is not that.

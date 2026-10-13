@@ -1,7 +1,8 @@
 import type { PlayerGame } from '~/types/record'
 import type { MetricDefinition, QueueFilter } from '~/utils/player-form'
 import { MIN_GAMES_FOR_DELTA, METRICS, QUEUE_FILTERS, counted, gamesIn, readMetric } from '~/utils/player-form'
-import { LANE_LABELS, type Lane } from '~/types/draft'
+import { formatPercentage } from '#shared/utils/ddragon'
+import { positionLabel } from '#common/utils/positions'
 
 /**
  * Measurable goals: a target the player sets on one of the dashboard's metrics
@@ -185,7 +186,7 @@ function settled(goal: Goal, results: GoalResult[]): 'done' | 'missed' | null {
 
 /** A threshold as the player reads it: a percentage, or the metric's format (whole deaths). */
 export function formatThreshold(key: string, threshold: number): string {
-  if (isPercent(key)) return `${Math.round(threshold * 100)}%`
+  if (isPercent(key)) return formatPercentage(threshold, 0)
   if (key === 'deaths' && Number.isInteger(threshold)) return String(threshold)
   return metricOf(key)?.format(threshold) ?? String(threshold)
 }
@@ -199,7 +200,7 @@ export function goalSentence(goal: GoalDraft, championName?: string): string {
   const queue = goal.scope.queue === 'all' ? '' : `${QUEUE_LABEL[goal.scope.queue]} `
   const where = [
     championName,
-    goal.scope.position ? LANE_LABELS[goal.scope.position as Lane] ?? goal.scope.position : null,
+    goal.scope.position ? positionLabel(goal.scope.position, { short: true }) ?? goal.scope.position : null,
   ].filter(Boolean).join(' · ')
   const plural = goal.games === 1 ? 'game' : 'games'
   const run = goal.mode === 'average'

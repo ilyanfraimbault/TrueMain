@@ -5,7 +5,6 @@ import type { GoalDraft } from '~/utils/goals'
 import { QUEUE_FILTERS, championLines, counted, gamesIn, laneLines } from '~/utils/player-form'
 import { toMatchSummary, toProfileRanked } from '~/utils/match-summary'
 import { activityFromGames } from '~/utils/activity-from-games'
-import { platformIdToRegion } from '#shared/utils/region'
 
 /**
  * Home: the player, read from their own client, on the profile page the site
@@ -21,7 +20,7 @@ const { state } = useLcuState()
 const { record, games: loadedGames, rankHistory, status, refresh, hasOlder, loadingOlder, loadOlder } = usePlayerRecord()
 const championsById = useStaticChampionsById()
 const { items, summoners, runeTree } = useStaticData()
-const { aliasOf, profileIconOf } = useChampionStatics()
+const { aliasOf, patch } = useChampionStatics()
 
 const filter = ref<QueueFilter>('all')
 const latest = computed(() => record.value?.games ?? [])
@@ -36,9 +35,12 @@ const historyGames = computed(() => gamesIn(loadedGames.value, filter.value))
 const filterLabel = computed(() => QUEUE_FILTERS.find(option => option.value === filter.value)?.label ?? 'All')
 const activity = computed(() => activityFromGames(loadedGames.value))
 
-const gameName = computed(() => state.value.riotId?.split('#')[0] ?? 'Logging in…')
-const tagLine = computed(() => state.value.riotId?.split('#')[1] ?? null)
-const profileIconUrl = computed(() => (state.value.profileIconId !== null ? profileIconOf(state.value.profileIconId) : null))
+const identity = computed(() => ({
+  gameName: state.value.riotId?.split('#')[0] ?? 'Logging in…',
+  tagLine: state.value.riotId?.split('#')[1] ?? null,
+  profileIconId: state.value.profileIconId,
+  platformId: record.value?.platformId ?? null,
+}))
 
 /** Without a chosen background the client shows the most-mastered champion; so does the app. */
 const splashUrl = computed(() => {
@@ -74,10 +76,8 @@ watch(() => state.value.phase, (next, previous) => {
   <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
     <template v-if="state.connected && state.riotId">
       <PagePlayerProfile
-        :game-name="gameName"
-        :tag-line="tagLine"
-        :profile-icon-url="profileIconUrl"
-        :region="platformIdToRegion(record?.platformId)"
+        :identity="identity"
+        :patch="patch || null"
         :level="state.summonerLevel"
         :ranked="ranked"
         :splash-url="splashUrl"
@@ -159,7 +159,7 @@ watch(() => state.value.phase, (next, previous) => {
               @edit="editGoal"
               @abandon="abandon"
             />
-            <DashboardChampionsCard :champions="championLines(games)" />
+            <DashboardChampionsCard :lines="championLines(games)" :champions="champions" />
             <DashboardRolesCard :lanes="laneLines(games)" />
           </template>
         </template>

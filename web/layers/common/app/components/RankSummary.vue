@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // Rank crest + colored tier/LP + win-loss record, shared between the
-// truemains profile card (full-size, above the fold) and the leaderboard
-// row's rank-emblem tooltip (compact, on hover) — see `ProfileRankedCard.vue`
-// and `LeaderboardRow.vue`.
+// truemains profile card (full-size, above the fold) and the rank emblem's
+// tooltip (compact, on hover) — see `ProfileRankedCard.vue` and
+// `RankEmblem.vue`.
 import { formatPercentage } from '#shared/utils/ddragon'
-import { formatTier, tierColor } from '#common/utils/tiers'
+import { formatLeaguePoints, formatRank, tierColor } from '#common/utils/tiers'
 
 const props = withDefaults(defineProps<{
   tier: string
@@ -22,7 +22,7 @@ const props = withDefaults(defineProps<{
 })
 
 const tierClass = computed(() => tierColor(props.tier))
-const tierLabel = computed(() => formatTier(props.tier, props.division))
+const tierLabel = computed(() => formatRank(props.tier, props.division))
 
 const recordLabel = computed(() => {
   if (props.wins === null && props.losses === null) return null
@@ -41,7 +41,7 @@ const recordLabel = computed(() => {
         :class="[tierClass, size >= 40 ? 'text-base' : 'text-sm']"
       >
         {{ tierLabel }}
-        <span class="text-default">{{ leaguePoints }} LP</span>
+        <span class="text-default">· {{ formatLeaguePoints(leaguePoints) }}</span>
       </span>
       <span v-if="recordLabel" class="mt-1 text-sm text-muted tabular-nums">
         {{ recordLabel }}

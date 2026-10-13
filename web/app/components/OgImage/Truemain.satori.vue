@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { championDisplayName } from '~~/shared/utils/champion-name'
 import type { TruemainOgCard } from '~~/shared/types/og-card'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { formatDedicationScore } from '#common/utils/dedication'
@@ -57,11 +58,11 @@ const main = computed(() => card?.main ?? null)
 const rankColor = computed(() =>
   ranked.value ? RANK_COLOR[ranked.value.tier.toUpperCase()] ?? TEXT : TEXT_MUTED,
 )
-/** "DIAMOND II · 42 LP", or the honest "Unranked" when there is no snapshot. */
+/** "Diamond II · 42 LP", or the honest "Unranked" when there is no snapshot. */
 const rankLine = computed(() => {
   const r = ranked.value
   if (!r) return 'Unranked'
-  return `${formatRank(r.tier, r.division)} · ${formatCount(r.leaguePoints)} LP`
+  return formatRank(r.tier, r.division, { lp: r.leaguePoints })
 })
 /** Only rendered when Riot returned both halves of the record. */
 const recordLine = computed(() => {
@@ -188,7 +189,7 @@ const tiles = computed(() => {
             {{ main.isOtp ? 'ONE-TRICK' : 'MAIN' }}
           </div>
           <div :style="{ display: 'flex', marginTop: '4px', fontSize: '38px', fontWeight: 700, color: TEXT }">
-            {{ main.championName ?? `Champion ${main.championId}` }}
+            {{ championDisplayName(main.championId, main.championName) }}
           </div>
           <div :style="{ display: 'flex', marginTop: '4px', fontSize: '22px', color: TEXT_MUTED }">
             {{ formatPercentage(main.playRate, 0) }} of games

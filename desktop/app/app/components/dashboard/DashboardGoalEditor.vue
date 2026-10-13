@@ -6,10 +6,10 @@
   before it is set.
 -->
 <script setup lang="ts">
+import { POSITIONS, positionLabel } from '#common/utils/positions'
 import type { GoalDraft, GoalMode } from '~/utils/goals'
 import type { PlayerGame } from '~/types/record'
 import type { QueueFilter } from '~/utils/player-form'
-import { LANES, LANE_LABELS } from '~/types/draft'
 import { MAX_GOAL_GAMES, defaultComparatorOf, defaultModeOf, draftGoal, goalSentence, inScope, isPercent, roundToStep, stepOf } from '~/utils/goals'
 import { METRICS, QUEUE_FILTERS, championLines, counted } from '~/utils/player-form'
 
@@ -95,7 +95,7 @@ const championItems = computed(() => [
   { label: 'Any champion', value: ANY },
   ...championLines(props.games).map(line => ({ label: nameOf(line.championId), value: line.championId })),
 ])
-const laneItems = [{ label: 'Any lane', value: ANY_LANE }, ...LANES.map(entry => ({ label: LANE_LABELS[entry], value: entry as string }))]
+const laneItems = [{ label: 'Any lane', value: ANY_LANE }, ...POSITIONS.map(entry => ({ label: positionLabel(entry, { short: true }), value: entry as string }))]
 
 const result = computed<GoalDraft>(() => ({ ...draft.value, scope: scoped.value }))
 const preview = computed(() => goalSentence(result.value, champion.value ? nameOf(champion.value) : undefined))

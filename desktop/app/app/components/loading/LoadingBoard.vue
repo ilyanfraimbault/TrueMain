@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { formatPercentage } from '#shared/utils/ddragon'
+import { positionIndex } from '#common/utils/positions'
 import type { GameTeam } from '~/types/game'
 import type { LoadingPlayer } from '~/types/loading'
-import { LANES } from '~/types/draft'
 import type { LaneEdge } from '~/utils/lane-edge'
 
 /**
@@ -25,13 +26,9 @@ const { portraitOf, nameOf } = useChampionStatics()
 const markOf = useTruemainMarkOf()
 
 const mine = computed<GameTeam>(() => props.players.find(player => player.isMe)?.team ?? 'ORDER')
-const laneIndex = (position: string) => {
-  const index = (LANES as readonly string[]).indexOf(position)
-  return index === -1 ? LANES.length : index
-}
 const side = (team: GameTeam) => props.players
   .filter(player => player.team === team)
-  .sort((a, b) => laneIndex(a.position) - laneIndex(b.position))
+  .sort((a, b) => positionIndex(a.position) - positionIndex(b.position))
 const columns = computed(() => [side(mine.value), side(mine.value === 'ORDER' ? 'CHAOS' : 'ORDER')])
 /** Lane by lane: ours, theirs and the edge between, a row each. */
 const rows = computed(() => {
@@ -46,10 +43,7 @@ const rows = computed(() => {
 })
 
 const name = (riotId: string) => riotId.split('#')[0]
-const rate = (player: LoadingPlayer) => {
-  const form = player.form!
-  return Math.round((form.championWins / form.championGames) * 100)
-}
+const rate = (player: LoadingPlayer) => player.form!.championWins / player.form!.championGames
 </script>
 
 <template>
@@ -87,7 +81,7 @@ const rate = (player: LoadingPlayer) => {
                 <TruemainMark v-if="markOf(player)" :mark="markOf(player)!" />
               </p>
               <p v-if="player.form && player.form.championGames > 0" class="text-[11px] tabular-nums text-muted">
-                {{ player.form.championGames }} · <span :class="rate(player) >= 50 ? 'text-data-good' : 'text-data-bad'">{{ rate(player) }}%</span>
+                {{ player.form.championGames }} · <span :class="rate(player) >= 0.5 ? 'text-data-good' : 'text-data-bad'">{{ formatPercentage(rate(player), 0) }}</span>
               </p>
               <p v-else-if="player.form" class="text-[11px] text-dimmed">1st</p>
               <p v-else-if="player.failed" class="text-[11px] text-dimmed">–</p>

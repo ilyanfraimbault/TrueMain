@@ -24,6 +24,7 @@ Last verified against `develop` on 2026-09-02.
 - `MainActivity` deactivation carries no persisted reason, so the account explorer says so rather than guessing — #900
 - A main whose matches expired is dated, not deleted and not hidden (2026-08-24) — #825, #466
 - A candidate has no rejection verdict: it is in the pipeline, demoted back into the pool, or pruned (2026-10-06) — #1029, #1024, #1535
+- An ingested account without a main is re-analysed when a harvested game shows it playing (2026-10-13) — #2039, #1535, #825
 
 ## Population and rank scope of the champion pages (#1346) — [`decisions/product-population.md`](decisions/product-population.md)
 
@@ -125,6 +126,8 @@ Last verified against `develop` on 2026-09-02.
 - The "{player} vs mains" card is gone — one page, one definition of a core build (2026-09-03) — #529
 - An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
 - The site's match detail has no Timeline tab: TrueMain computes and stores no win-probability curve, the desktop app alone builds it from the client's timeline (2026-10-12, reverses 2026-10-05) — #2009, #1911
+- Known players: one person, several accounts at `/players/{slug}`, linked only from public sources, never inferred (2026-10-13) — #2016
+- A main champion row reads its lane and play rate only: the `80 of last 200` sample line is gone (2026-10-13, reverses #1498's line)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
 
@@ -146,7 +149,10 @@ Last verified against `develop` on 2026-09-02.
 - `onServerPrefetch` stays in the client bundle so `useId()` agrees across hydration; a table column never renders an empty-string header (2026-10-04) — #1590
 - A row rendered on more than one surface sizes off its own width, not the viewport — #967
 - The full-page lists (truemains, champions) are `UTable`s with header sorting bound to the URL and served by the API; a row navigates through `@select` (2026-10-01) — #1726, #1734
-- A player is drawn by one `Account` component (UUser + a canonical-URL `UAvatar`, rounded square); the search palette is the exception (2026-10-01) — #1734
+- A player is drawn by one `Account` component (UUser + a canonical-URL `UAvatar`, rounded square) on both apps; the search palette is the exception; a Riot ID is written `gameName#tagLine` (2026-10-01, 2026-10-13) — #1734, #2027
+- A match is drawn by one `MatchRow` (the profile's 54 px design, one component per column, `@container` tiers from 320 px) and every list loads with `MatchRowSkeleton`; the open game reuses its columns and its result colours (`result-tone.ts`) (2026-10-13) — #2020, #2030
+- A day-grouped match list is drawn by one `MatchHistoryList` (skeletons, empty state, day headings, pager; hosts keep their headings and filters, row controls through its `actions` slot) (2026-10-13) — #2024
+- Every stat has one formatter: KDA (`kda.ts`, two decimals, `Perfect`), signed deltas (`deltas.ts`, rate moves in `pts`), percentages, counts, clocks, champion names and positions (2026-10-13) — #2031
 - A tooltip trigger keeps the same DOM element for the life of the component
 - Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698
 - A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15) — #1585
@@ -185,6 +191,10 @@ Last verified against `develop` on 2026-09-02.
 - Nuxt UI feeds Tailwind only the themes of the components the site uses (`componentDetection`): entry CSS 38.9 → 29.5 KB gzip, no visual change (2026-10-04) — #1641
 - Inter and Geist Mono are committed (variable WOFF2, every subset) and resolved by a repo-local @nuxt/fonts provider; no build fetches a font, share cards use committed static Inter (2026-10-06) — #1106, #1335
 - The UI refresh: `surface` becomes the dashboard tile's translucent pane, stars under the home page only, Nuxt UI only and no accent bars, splash banners on detail pages, one profile page and one match detail for both apps (2026-10-07) — #1983, #1060, #1498, #1682
+- One champion banner (`ChampionHero`) on the champion page and the app's champion page; one tier mark (`TierBadge`) on every surface (2026-10-13) — #2026
+- The player-scoped champion page is the profile's page (`PagePlayerProfile`) on the champion's splash, no longer the champion banner (2026-10-13, revises #2026) — #2043
+- One rank emblem (`RankEmblem`) on every row, one rank label in title case (`formatRank`: `Diamond II · 42 LP`); the truemains table and the champion page's rows share their columns (2026-10-13) — #2025, #2028
+- A qualifier beside a figure or a title (thin sample, retired count, standard-build fallback) is a small warning-coloured dot (`WarningDot`) whose tooltip states the fact only, never a warning triangle (2026-10-13)
 
 ## Aggregates, retention and the schema — [`decisions/data-aggregation.md`](decisions/data-aggregation.md)
 
@@ -232,6 +242,7 @@ Last verified against `develop` on 2026-09-02.
 - Integration test classes reset their stores in `InitializeAsync`; migration replays get a scratch database; clocks are frozen through the factory (2026-10-05) — #1246
 - Test methods are named `MethodName_State_ExpectedBehavior` (PascalCase segments, never snake_case), enforced by an `IDE1006` rule on `backend/tests` (2026-10-06) — #1246, #290
 - Threading + Roslynator analyzers run on every project: async-correctness rules are errors, JTF-only and false-positive rules are off, Roslynator style stays IDE hints (2026-10-05) — #294
+- A process's own timestamp on `riot_accounts` is stamped set-based, never through a tracked entity (2026-10-13) — #2046, #231
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
@@ -409,7 +420,7 @@ Last verified against `develop` on 2026-09-02.
 - Clips are cut by hand from the post-game recap in v1 (reverses #1744's "no trimming by hand"); saved clips are never pruned by the budget; the recap opens on its own only over the game page or the dashboard; Recordings page in DPM's layout (2026-10-01) — #1755, #1777
 - A clip is published through YouTube's upload page in the player's browser (file dragged from the app, prepared text, link given back), never the YouTube Data API: shared per-project quota, sensitive-scope verification, forced private uploads (2026-10-12) — #1815
 - A published clip may delete its video and play from YouTube's embed, framed through a page the shell serves on 127.0.0.1 (YouTube refuses `tauri://` pages, error 153); only a linked clip can drop its file; a link is kept only once oEmbed confirms an Unlisted/Public video titled as the clip (2026-10-12) — #2005
-- The dashboard reads the player's record from their own client (history, ranked, profile skin, scoreboards, timelines), not TrueMain's API; the site's ranked card as a twin; the match row, its accordion (a compact same-surface match detail), champions and roles derived from the site's; LP history noted locally; form = last 5 vs own average, no composite score (2026-09-30) — #1683
+- The dashboard reads the player's record from their own client (history, ranked, profile skin, scoreboards, timelines), not TrueMain's API; the site's ranked card, champions and roles lists (shared components since #2029, dashboard figures in slots); the match row, its accordion (a compact same-surface match detail); LP history noted locally; form = last 5 vs own average, no composite score (2026-09-30) — #1683
 - The running game is read from its Live Client Data API every 2 s while `InProgress`, sent as a snapshot then numbered changes; `/game` opens from home or the draft only, shows the scoreboard's own information; enemy visibility still to verify live (2026-10-01) — #1748
 - The Game page's player lines show standing, role fit (main ≥ ½ of recent role games, autofill < ¼), champion record, streak and recent games instead of items and K/D/A (reverses #1748's scoreboard copy); all via the client, plus one ranked request per player (2026-10-04) — #1828
 - Each Game-page lane shows an arrow + chance towards the favoured side: TrueMain's champion head-to-head (shrunk to 50 %) moved by each player's last 10 games on the champion — win rate and gold/CS/XP leads at 15 vs their lane opponent, weighted per role; figures not shown (revises #1828's no-composite rule for lanes only) (2026-10-04) — #1863
@@ -426,6 +437,9 @@ Last verified against `develop` on 2026-09-02.
 - API wire conventions
 - Every issue goes on GitHub Project #2
 - The frontends lint with ESLint (`@nuxt/eslint` + vue + a11y); already-broken rules and all a11y rules are warnings, the rest errors (2026-10-06) — #1440
+- Code quality is measured by SonarQube Cloud from its own workflow; its built-in quality gate is required on `develop` through the workflow's `Quality gate` job; Roslyn diagnostics are not re-imported; Vue components count toward coverage (2026-10-13) — #2051, #2052
+- Third-party GitHub Actions are pinned by commit SHA, never a tag (2026-10-13) — #2052
+- CodeQL runs from a versioned workflow, per language and only on the paths a PR touches; full scans on `develop` and weekly; no Swift (2026-10-13) — #2057
 - Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 - Agent disciplines (debugging, grilling, glossary, retro) adapted from mattpocock/skills; review split into Spec and Standards axes; PR bodies carry a merge-danger call (2026-10-05) — #1938
 

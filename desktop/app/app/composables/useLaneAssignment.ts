@@ -1,5 +1,5 @@
 import type { EnemyLane, Lane } from '~/types/draft'
-import { LANES } from '~/types/draft'
+import { POSITIONS } from '#common/utils/positions'
 
 /** One lane row, as the panel renders it. */
 export interface LaneSlot {
@@ -25,7 +25,7 @@ export function useLaneAssignment(lanes: Ref<EnemyLane[]>) {
   const selected = ref<Lane | null>(null)
 
   const slots = computed<LaneSlot[]>(() =>
-    LANES.map((lane) => {
+    POSITIONS.map((lane) => {
       const entry = lanes.value.find(l => l.position === lane)
       return {
         lane,

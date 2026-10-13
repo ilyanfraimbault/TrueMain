@@ -11,6 +11,8 @@ two environments and the migration path in detail.
 | -------- | ------- | ------------ |
 | `ci.yml` | PRs, pushes to `develop`/`master`, manual | Build, test and sanity-check whatever the change touches |
 | `claude-review.yml` | PRs to `develop`/`master` | Automated formal code review |
+| `codeql.yml` | PRs (per language, by path), pushes to `develop`, weekly, manual | CodeQL security analysis of C#, JS/TS, Rust and the workflows themselves (below) |
+| `sonar.yml` | PRs, pushes to `develop`, manual | SonarQube Cloud analysis with backend and frontend coverage; its quality gate is a required check (below) |
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
 | `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → verify the edge, and serve a held desktop app build the release catches up with |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
@@ -681,6 +683,109 @@ so its PRs get a verdict too; the prompt tells the reviewer what to check on a
 dependency bump. Editing the workflow file makes its own check fail on that
 PR; it passes again post-merge. Verdicts trail one commit behind pushes: check
 the review's `commit_id` against the head SHA before acting on it.
+
+## SonarQube Cloud
+
+`sonar.yml` sends the repo to SonarQube Cloud (#2051), free because the repo is
+public: duplication, cognitive complexity, coverage over time and a quality gate
+on the PR's new code, none of which the analyzers, ESLint or the file-size
+ratchet measure. One project covers the whole monorepo, `develop` as its main
+branch.
+
+It is a workflow of its own rather than a job in `ci.yml`. The .NET scanner
+turns `TreatWarningsAsErrors` off for the build it wraps, so that build cannot
+be the `backend` job's: the analyzer gate would silently stop failing. Its own
+build costs runner minutes, not wall time, since it runs beside CI.
+
+- `plan` decides whether there is anything to analyse: nothing when
+  `SONAR_TOKEN` is not readable (Dependabot and fork PRs get no secrets),
+  when a PR only touches documentation (Markdown, `docs/`, `.claude/`), or
+  when it targets `master` — a release PR's "new code" is the whole
+  develop-vs-master diff, every line of it already analysed by the `develop`
+  push that brought it, and the gate cannot be tuned, so it would only ever
+  restate the coverage of code merged before the gate existed (#2061) — each
+  with a notice instead of a red check. It filters inside the workflow, not
+  with `on: paths`, so the required check below exists on every PR.
+- `frontend-coverage` runs each app's vitest suite with v8 coverage (lcov) and
+  rewrites the app-relative `SF:` paths to repo-relative ones. It installs with
+  `--ignore-scripts` and runs only the apps' own `postinstall` (`nuxt prepare`),
+  so no dependency's lifecycle script runs in a job that sits next to the token. The desktop app's
+  run only covers its own tree; the shared layer's coverage comes from `web`.
+- `analysis` wraps the Release build and both test suites between
+  `dotnet-sonarscanner begin` and `end`. Coverage comes from
+  `Microsoft.Testing.Extensions.CodeCoverage` (`dotnet test --coverage`, XML
+  format): `dotnet-coverage collect` cannot instrument the Microsoft Testing
+  Platform test host. The scanner, pinned in `backend/.config/dotnet-tools.json`
+  where Dependabot's NuGet watch sees it, also analyses every non-MSBuild file
+  under the repo (`sonar.scanner.scanAll`), which is how the TypeScript and Vue
+  code is read without a second scanner. Generated code (EF migrations, the
+  compiled model, `.nuxt`), tests and the dev API mock are excluded.
+
+The quality gate **blocks the merge** (#2052). On a PR, `analysis` passes
+`sonar.qualitygate.wait=true`, so its `end` step fails when the gate is red, and
+the last job, `Quality gate`, is the status check `develop` requires: it fails
+when any job before it failed and passes when they succeeded or were skipped.
+The check the SonarCloud app posts on the PR carries the same verdict with the
+failing conditions, but it is not the required one — it is absent whenever the
+analysis is skipped, which would leave documentation and Dependabot PRs waiting
+forever. Pushes to `develop` never wait for the gate: they only refresh the
+baseline.
+
+The gate is SonarQube Cloud's built-in "Sonar way" — the free plan allows no
+other — on the PR's new code: ratings A for reliability, security and
+maintainability, 80 % coverage, at most 3 % duplication, every security hotspot
+reviewed. Its thresholds cannot be changed, so tuning means choosing what
+reaches it:
+
+- `sonar.cs.roslyn.ignoreIssues=true`: the build already runs the .NET,
+  Threading and Roslynator analyzers with the severities `analyzers.globalconfig`
+  sets (#294). Without it the scanner re-imports every one of their suggestions
+  as a Sonar issue — about 12,000 on the first run, 10,000 of them `IDE0008` —
+  so Sonar only reports its own rules.
+- Vue components count toward coverage, an owner's call: a PR that adds
+  component logic brings its tests (`web/tests/nuxt/` for the site). The first
+  run measured the frontends' `app/` trees at 22–26 % and the backend and
+  `web/shared` around 90 %.
+- A new security hotspot is reviewed on SonarQube Cloud (Security Hotspots →
+  Safe / Fixed) by the owner; the gate turns green on the next run.
+
+Automatic Analysis must stay off in the SonarQube Cloud project: the CI-based
+analysis refuses to run while it is on.
+
+## CodeQL
+
+`codeql.yml` runs GitHub's CodeQL security analysis (#2057), free on a public
+repo; alerts land in the repository's Security tab. It replaced the "default
+setup" switched on from the repository settings, which analysed every language
+it detected on every PR with no path filter: a CI-only PR paid for C#, JS/TS,
+Rust, Actions and a Swift build on a macOS runner that took over a quarter of an
+hour. Default setup must stay off: GitHub rejects an advanced workflow's
+uploads while it is on.
+
+A `changes` job, the same shape as `ci.yml`'s, picks the languages a PR can
+affect: `csharp` for `backend/`, `javascript-typescript` for `web/`, `admin/`
+and `desktop/app/`, `rust` for the desktop crates, `actions` for `.github/`.
+Pushes to `develop`, the Monday scan and a change to `codeql.yml` itself
+analyse all four, so `develop` always holds a complete baseline; a PR whose
+language was skipped is compared against it. Every language runs with
+`build-mode: none`, so no job restores or compiles anything. Tests are outside
+the analysis (`paths-ignore`), as they are for Sonar: they never ship, and
+their string fixtures read as unsanitised HTML.
+
+Swift is not analysed: its only code is the macOS capture helper and a local
+probe script, and analysing it needs a macOS runner and a full build.
+
+## Third-party actions are pinned by commit
+
+Every action that GitHub does not publish (`actions/*`, `github/*`) is pinned
+to a full commit SHA rather than a tag (#2052): a tag can be moved to malicious
+code after review, as `tj-actions/changed-files` was in 2025, a commit cannot.
+Dependabot's `github-actions` stream still bumps them, to the commit of the new
+release. `dtolnay/rust-toolchain` is the one exception to that: it publishes no
+releases and is used through its `stable` branch, so its pin is moved by hand,
+and its `toolchain: stable` input says which toolchain the branch name used to
+select. SonarQube Cloud flags an unpinned third-party action as a vulnerability
+(`githubactions:S7637`), which fails the gate.
 
 ## Dependabot
 

@@ -50,6 +50,26 @@ public class RequestOutcomeLoggingMiddlewareTests
     }
 
     [Fact]
+    public async Task KeepsALineBreakInThePathOutOfTheLog()
+    {
+        var logger = new CapturingLogger<RequestOutcomeLoggingMiddleware>();
+        var middleware = new RequestOutcomeLoggingMiddleware(
+            context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                return Task.CompletedTask;
+            },
+            logger);
+        var context = Context();
+        context.Request.Path = "/players/a\r\nERROR forged";
+
+        await middleware.InvokeAsync(context);
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal("/players/aERROR forged?patch=16.18", Property(entry, "RequestPath"));
+    }
+
+    [Fact]
     public async Task LogsAnEscapedExceptionAsA500AndRethrowsIt()
     {
         var logger = new CapturingLogger<RequestOutcomeLoggingMiddleware>();

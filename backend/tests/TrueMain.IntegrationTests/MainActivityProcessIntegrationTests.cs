@@ -8,6 +8,7 @@ using Ingestor.Processes.Summaries;
 using Ingestor.Processes;
 using Ingestor.Riot.Dto;
 using Ingestor.Riot;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -52,6 +53,37 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
         // check away from coming back, instead of having to be rediscovered.
         stat.IsMain.Should().BeTrue();
         db.RiotAccounts.Single(a => a.Puuid == "puuid-idle-1").LastActivityCheckAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldStampTheCheck_WhenTheFetchLaneWritesTheAccountMidRun()
+    {
+        // #2046: the fetch lane stamps LastSeenInMatchAtUtc in raw SQL while this run waits on
+        // mastery calls. That bumps the row's xmin, so a tracked stamp of LastActivityCheckAtUtc
+        // matched 0 rows and failed the whole run.
+        await SeedMainAsync("puuid-race-1", championId: 22, isActive: true, lastActivityCheckAtUtc: null);
+        var seenInMatch = DateTime.UtcNow.AddHours(-1);
+
+        var platformClient = Substitute.For<IRiotPlatformClient>();
+        platformClient
+            .GetChampionMasteriesAsync(Arg.Any<PlatformRoute>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                await using var concurrent = _fixture.CreateDbContext();
+                await concurrent.RiotAccounts
+                    .Where(a => a.Puuid == "puuid-race-1")
+                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.LastSeenInMatchAtUtc, seenInMatch));
+                return [Mastery(22, daysAgo: 1)];
+            });
+
+        var summary = await BuildProcess(platformClient).RunCoreAsync(CancellationToken.None);
+
+        summary.Should().BeOfType<MainActivitySummary>().Which.AccountsChecked.Should().Be(1);
+        await using var db = _fixture.CreateDbContext();
+        var account = db.RiotAccounts.Single(a => a.Puuid == "puuid-race-1");
+        account.LastActivityCheckAtUtc.Should().NotBeNull();
+        account.LastSeenInMatchAtUtc.Should().BeCloseTo(seenInMatch, TimeSpan.FromMilliseconds(1),
+            "the stamp writes its own column only, never over the fetch lane's");
     }
 
     [Fact]

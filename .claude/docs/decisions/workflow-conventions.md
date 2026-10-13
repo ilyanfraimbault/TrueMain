@@ -45,6 +45,39 @@ each app's job — #1440.
   the set, and the repo's a11y work (#1402) is the reason to have it at all.
 - Fixing the existing warnings is follow-up work, sized by the first run's per-rule counts in the PR.
 
+## Code quality is measured by SonarQube Cloud, and its gate blocks the merge (2026-10-13)
+
+**Decision:** the monorepo is analysed by SonarQube Cloud (free on a public repo) from its own workflow,
+`sonar.yml`, with backend and frontend coverage — #2051.
+
+- **Cloud, not self-hosted**: the Community Build has no PR or branch analysis and would need a JVM and
+  Postgres on a host already CPU-capped.
+- **Its own build**: the .NET scanner disables `TreatWarningsAsErrors` for the build it wraps, so it never
+  replaces the `backend` job, which stays the analyzer gate.
+- **The gate is required on `develop`** through the workflow's own `Quality gate` job, which exists on every
+  PR, not the SonarCloud app's check, which is absent when the analysis is skipped — #2052.
+- **Built-in "Sonar way" thresholds**, the free plan's only gate. Tuning is upstream: Roslyn diagnostics are
+  not re-imported (the build owns them, #294), and Vue components count toward the 80 % new-code coverage —
+  an owner's call (2026-10-13): component logic comes with component tests.
+
+## Third-party GitHub Actions are pinned by commit SHA (2026-10-13)
+
+**Decision:** every action not published by GitHub (`actions/*`, `github/*`) is referenced by a full commit SHA,
+never a tag — #2052. A tag can be moved after review (`tj-actions/changed-files`, 2025); Dependabot still bumps
+the pins. `dtolnay/rust-toolchain` has no releases, so its pin moves by hand.
+
+## CodeQL runs per language, only on the code a PR touches (2026-10-13)
+
+**Decision:** CodeQL runs from a versioned advanced-setup workflow, `codeql.yml`, not GitHub's default setup —
+#2057.
+
+- **Per language, by path**, the rule `ci.yml` already follows: default setup analysed every language on every
+  PR, including a Swift build on a macOS runner that took over a quarter of an hour on a CI-only change.
+- **Full baseline on `develop`** (every push, plus a weekly scan), so a PR that skips a language is compared
+  against current results.
+- **No Swift**: the macOS capture helper is too small to justify a macOS build per PR.
+- **Tests excluded**, as for Sonar.
+
 ## Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14)
 
 **Decision:** the load test is a k6 script in `loadtest/k6/`, started by hand from `loadtest-preprod.yml` on a
