@@ -2,6 +2,7 @@ import type { TruemainOgCard } from '~~/shared/types/og-card'
 import type { ProfileResponse } from '~~/shared/types/profile'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
 import { selectSignatureMain } from '~~/shared/utils/og-card'
+import { riotIdLabel } from '~~/shared/utils/truemain-path'
 
 /**
  * Card model for `/truemains/{nameTag}`'s share image (#926).
@@ -56,7 +57,7 @@ const loadTruemainOgCard = defineCachedFunction(
     return {
       // A row ingested before tag lines were stored has no addressable Riot ID;
       // the bare game name is still the honest label for it.
-      riotId: identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName,
+      riotId: riotIdLabel(identity.gameName, identity.tagLine),
       platformId: identity.platformId || null,
       ranked: ranked
         ? {

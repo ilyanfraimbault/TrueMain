@@ -3,13 +3,14 @@ import type { RouteLocationRaw } from 'vue-router'
 import type { RegionSlug } from '#shared/types/leaderboard'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
 import { platformIdToRegion } from '#shared/utils/region'
-import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
+import { riotIdLabel, truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 
 /**
  * A truemain as the site shows one (#1734): profile icon, name, #tag and region
  * flag — the leaderboard table, the champion-page sidebar row, the homepage
- * panel, the favorites cards, the profile header and the builder's games drawer
- * all draw the player through this, at the size their surface wants. The
+ * panel, the favorites cards, the profile banner, the builder's games drawer,
+ * the app's build mains and its sidebar player card all draw the player through
+ * this, at the size their surface wants (#2027). The
  * search palette is the one exception: it re-fills the same row DOM on every
  * keystroke and keeps `SkeletonImage`, which blanks between two pictures.
  *
@@ -67,7 +68,7 @@ const SIZES: Record<AccountSize, { root: string, avatar: string, name: string, t
   sm: { root: 'gap-2', avatar: 'size-7 rounded-md text-xs', name: 'text-sm font-bold', tag: 'text-[11px] text-muted', flag: 16 },
   md: { root: 'gap-2.5', avatar: 'size-9 rounded-md text-sm', name: 'text-sm font-semibold', tag: 'text-xs text-muted', flag: 16 },
   lg: { root: 'gap-2.5', avatar: 'size-10 rounded-md text-sm', name: 'text-sm font-bold', tag: 'text-[11px] text-muted', flag: 18 },
-  xl: { root: 'gap-4', avatar: 'size-20 rounded-lg text-2xl', name: 'text-2xl font-semibold', tag: 'text-2xl font-semibold', flag: 18 },
+  xl: { root: 'gap-4', avatar: 'size-[72px] rounded-lg text-2xl', name: 'text-2xl font-semibold', tag: 'text-2xl font-semibold', flag: 18 },
 }
 
 const sized = computed(() => SIZES[props.size])
@@ -102,9 +103,7 @@ const href = computed(() => (props.to === false
   : props.to ?? truemainProfilePath(truemainNameTag(props.identity.gameName, props.identity.tagLine))))
 
 // The link's accessible name: the overlay has no text of its own.
-const riotId = computed(() => (props.identity.tagLine
-  ? `${props.identity.gameName} #${props.identity.tagLine}`
-  : props.identity.gameName))
+const riotId = computed(() => riotIdLabel(props.identity.gameName, props.identity.tagLine))
 </script>
 
 <template>
@@ -119,22 +118,27 @@ const riotId = computed(() => (props.identity.tagLine
       avatar: 'shrink-0 transform-none group-hover/user:scale-100 group-has-focus-visible/user:scale-100',
     }"
   >
+    <!-- `#avatar-badge` lays a mark over the picture's edge (the app's player
+         card: the summoner level, the client's status dot). -->
     <template #avatar>
-      <UAvatar
-        :key="src ?? 'none'"
-        :src="src"
-        alt=""
-        :as="{ img: 'img' }"
-        :loading="loading"
-        :icon="hasIcon && !failed ? undefined : 'i-lucide-user'"
-        :ui="{
-          root: ['bg-accented', sized.avatar, ui.avatar, pending && 'relative before:absolute before:inset-0 before:animate-pulse before:bg-ink-700'],
-          image: 'relative',
-          icon: 'size-1/2 text-dimmed',
-        }"
-        @load="loaded = true"
-        @error="failed = true"
-      />
+      <span class="relative flex shrink-0">
+        <UAvatar
+          :key="src ?? 'none'"
+          :src="src"
+          alt=""
+          :as="{ img: 'img' }"
+          :loading="loading"
+          :icon="hasIcon && !failed ? undefined : 'i-lucide-user'"
+          :ui="{
+            root: ['bg-accented', sized.avatar, ui.avatar, pending && 'relative before:absolute before:inset-0 before:animate-pulse before:bg-ink-700'],
+            image: 'relative',
+            icon: 'size-1/2 text-dimmed',
+          }"
+          @load="loaded = true"
+          @error="failed = true"
+        />
+        <slot name="avatar-badge" />
+      </span>
     </template>
 
     <span v-if="layout === 'inline'" class="flex min-w-0 items-baseline" :class="ui.name">

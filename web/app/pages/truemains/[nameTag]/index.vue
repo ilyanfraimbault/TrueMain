@@ -62,7 +62,7 @@ const {
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
   if (!identity) return truemainSlugLabel(nameTag.value)
-  return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
+  return riotIdLabel(identity.gameName, identity.tagLine)
 })
 
 // Truemains > {player}. Rendered even in the loading / not-found states so the
@@ -126,7 +126,7 @@ const { data: runeTree } = useStaticRuneTree(latestPatch)
 // The banner: the champion this player truemains, on its splash through the
 // image proxy at banner width.
 const splashOf = useCanonicalSplash()
-const { truemainChampion, profileIconUrl } = useTruemainBanner(profile, champions, latestPatch)
+const { truemainChampion, identity: heroIdentity } = useTruemainBanner(profile, champions, playerLabel)
 const splashUrl = computed(() => splashOf(championSplashUrlFromIcon(truemainChampion.value?.iconUrl)))
 
 const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
@@ -157,10 +157,8 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
          player-level cards in the 18rem column. -->
     <PagePlayerProfile
       v-else
-      :game-name="profile?.identity.gameName ?? playerLabel"
-      :tag-line="profile?.identity.tagLine ?? null"
-      :profile-icon-url="profileIconUrl"
-      :region="platformIdToRegion(profile?.identity.platformId)"
+      :identity="heroIdentity"
+      :patch="latestPatch"
       :level="profile?.identity.summonerLevel ?? null"
       :ranked="profile?.ranked ?? null"
       :truemain="truemainChampion"

@@ -59,7 +59,7 @@ const {
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
   if (!identity) return truemainSlugLabel(nameTag.value) // pre-fetch: from the route alone (#948)
-  return identity.tagLine ? `${identity.gameName}#${identity.tagLine}` : identity.gameName
+  return riotIdLabel(identity.gameName, identity.tagLine)
 })
 // Same identity, without the tag line, for inline copy ("Faker vs mains").
 // Derived from the slug while the profile fetch is in flight, like `playerLabel`.
@@ -113,7 +113,7 @@ const isRefetching = computed(() =>
 // The profile's banner, on this champion's splash: the same identity line (the
 // truemain it names is the account's, whichever champion the page is on).
 const latestPatch = computed(() => versions.value?.[0] ?? null)
-const { truemainChampion, profileIconUrl } = useTruemainBanner(profile, staticList, latestPatch)
+const { truemainChampion, identity: heroIdentity } = useTruemainBanner(profile, staticList, playerLabel)
 
 // This player's games on the champion: the list under the build and the
 // banner's form tiles read the same page, as on the profile. Its lane filter is
@@ -151,10 +151,8 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
          main column, and the player's cards beside them — 21rem rather than the
          profile's 18, so the matchups table keeps its champion names. -->
     <PagePlayerProfile
-      :game-name="profile?.identity.gameName ?? playerLabel"
-      :tag-line="profile?.identity.tagLine ?? null"
-      :profile-icon-url="profileIconUrl"
-      :region="platformIdToRegion(profile?.identity.platformId)"
+      :identity="heroIdentity"
+      :patch="latestPatch"
       :level="profile?.identity.summonerLevel ?? null"
       :ranked="profile?.ranked ?? null"
       :truemain="truemainChampion"

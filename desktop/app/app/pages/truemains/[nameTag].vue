@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { parseRouteParam } from '#common/utils/route-params'
 import { platformIdToRegion } from '#shared/utils/region'
+import { riotIdLabel, truemainSlugLabel } from '#shared/utils/truemain-path'
 
 /**
  * Another player's profile, in the app (#1983): the site's
@@ -24,7 +25,7 @@ const { matches, total, pageSize, isInitialLoading: matchesLoading, notFound: ma
 const championsById = useStaticChampionsById()
 const champions = computed(() => [...championsById.value.values()])
 const { items, summoners, runeTree } = useStaticData()
-const { aliasOf, profileIconOf } = useChampionStatics()
+const { aliasOf, patch } = useChampionStatics()
 
 const truemainId = computed(() => profile.value?.dedication?.championId ?? profile.value?.mains[0]?.championId ?? null)
 const truemain = computed(() => {
@@ -35,7 +36,8 @@ const splashUrl = computed(() => {
   const alias = truemainId.value ? aliasOf(truemainId.value) : null
   return alias ? splashOfAlias(alias) : null
 })
-const profileIconUrl = computed(() => (profile.value ? profileIconOf(profile.value.identity.profileIconId) : null))
+// The player before the profile lands: the slug's Riot ID, without a picture.
+const identity = computed(() => profile.value?.identity ?? { gameName: truemainSlugLabel(nameTag.value), tagLine: null })
 </script>
 
 <template>
@@ -50,10 +52,8 @@ const profileIconUrl = computed(() => (profile.value ? profileIconOf(profile.val
 
     <PagePlayerProfile
       v-else
-      :game-name="profile?.identity.gameName ?? nameTag.split('-')[0] ?? nameTag"
-      :tag-line="profile?.identity.tagLine ?? null"
-      :profile-icon-url="profileIconUrl"
-      :region="platformIdToRegion(profile?.identity.platformId)"
+      :identity="identity"
+      :patch="patch || null"
       :level="profile?.identity.summonerLevel ?? null"
       :ranked="profile?.ranked ?? null"
       :truemain="truemain"
@@ -63,7 +63,7 @@ const profileIconUrl = computed(() => (profile.value ? profileIconOf(profile.val
       :loading="matchesLoading"
     >
       <template #header>
-        <UBreadcrumb :items="[{ label: 'Truemains', to: '/truemains' }, { label: profile ? `${profile.identity.gameName}#${profile.identity.tagLine}` : nameTag }]" />
+        <UBreadcrumb :items="[{ label: 'Truemains', to: '/truemains' }, { label: riotIdLabel(identity.gameName, identity.tagLine) }]" />
       </template>
 
       <template v-if="profile" #title-actions>

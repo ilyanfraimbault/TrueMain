@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { MatchSummaryParticipant } from '#shared/types/matches'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
+import { riotIdLabel } from '#shared/utils/truemain-path'
 import { compareByPosition, POSITION_BY_VALUE } from '#common/utils/positions'
 
 // Both compositions of a match row, the player's team over the enemy's, each in
@@ -19,7 +20,7 @@ const teams = computed(() => [
 function participantLabel(p: MatchSummaryParticipant): string {
   const champion = props.championById.get(p.championId)?.name ?? `Champion ${p.championId}`
   const role = p.position ? POSITION_BY_VALUE.get(p.position)?.label : null
-  const who = p.gameName ? ` — ${p.gameName}${p.tagLine ? `#${p.tagLine}` : ''}` : ''
+  const who = p.gameName ? ` — ${riotIdLabel(p.gameName, p.tagLine)}` : ''
   return role ? `${champion} · ${role}${who}` : `${champion}${who}`
 }
 </script>

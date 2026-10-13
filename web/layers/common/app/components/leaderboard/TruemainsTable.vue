@@ -2,7 +2,7 @@
 import type { TableColumn } from '@nuxt/ui'
 import type { LeaderboardRowResponse, LeaderboardSort } from '#shared/types/leaderboard'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '#shared/types/static-data'
-import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
+import { riotIdLabel, truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 import { playerPath } from '#shared/utils/player-path'
 import { isOneTrick, leaderboardStatLabels } from '#common/utils/leaderboard-row'
 import { winRateTone } from '#common/utils/rate-tone'
@@ -143,7 +143,7 @@ const viewOf = (row: Row) => views.value.get(row) ?? rowView(row)
               class="relative truncate text-sm font-bold text-highlighted underline-offset-2 hover:text-primary hover:underline"
               @click.stop
             >{{ row.original.persona.displayName }}</NuxtLink>
-            <span class="hidden truncate text-[11px] text-muted @xl:inline">{{ row.original.identity.gameName }}<template v-if="row.original.identity.tagLine">#{{ row.original.identity.tagLine }}</template></span>
+            <span class="hidden truncate text-[11px] text-muted @xl:inline">{{ riotIdLabel(row.original.identity.gameName, row.original.identity.tagLine) }}</span>
           </div>
         </template>
         <template v-if="viewOf(row.original).otp" #subline>

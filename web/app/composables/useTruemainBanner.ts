@@ -1,17 +1,18 @@
 import type { ProfileResponse } from '~~/shared/types/profile'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 
 /**
- * What a truemain's banner (`PagePlayerProfile`) names besides the Riot ID: the
- * champion they truemain — the dedication's champion, else their first main —
- * and their profile icon. Shared by the profile and the player-scoped champion
- * page, so the two banners can never name a different truemain for one account.
+ * Who a truemain's banner (`PagePlayerProfile`) draws: the player — their
+ * identity, or before the profile lands the slug's Riot ID (`fallbackName`)
+ * without a picture — and the champion they truemain, the dedication's
+ * champion, else their first main. Shared by the profile and the player-scoped
+ * champion page, so the two banners can never name a different truemain for
+ * one account.
  */
 export function useTruemainBanner(
   profile: MaybeRefOrGetter<ProfileResponse | null | undefined>,
   champions: MaybeRefOrGetter<ChampionStaticListItem[] | null | undefined>,
-  patch: MaybeRefOrGetter<string | null | undefined>,
+  fallbackName: MaybeRefOrGetter<string>,
 ) {
   const truemainChampion = computed(() => {
     const value = toValue(profile)
@@ -20,10 +21,7 @@ export function useTruemainBanner(
     return champion ? { name: champion.name, iconUrl: champion.iconUrl } : null
   })
 
-  const profileIconUrl = computed(() => {
-    const identity = toValue(profile)?.identity
-    return identity ? getProfileIconUrl(identity.profileIconId, toValue(patch) ?? null) : null
-  })
+  const identity = computed(() => toValue(profile)?.identity ?? { gameName: toValue(fallbackName), tagLine: null })
 
-  return { truemainChampion, profileIconUrl }
+  return { truemainChampion, identity }
 }

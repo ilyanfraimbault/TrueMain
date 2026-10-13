@@ -1,3 +1,5 @@
+import { riotIdLabel } from '~~/shared/utils/truemain-path'
+
 /**
  * Riot ID handling for typed input (`Name#TAG`) — the form a player pastes
  * from the client, as opposed to the `Name-TAG` slug used in our URLs.
@@ -43,11 +45,11 @@ export function isValidRiotId(input: string | null | undefined): boolean {
 }
 
 /**
- * Renders an identity back as the typed form. `tagLine` is nullable on rows
- * ingested before tag lines were stored — those can't be addressed as a Riot
- * ID at all, so they yield null rather than a half-formed `Name#`.
+ * Renders an identity back as the typed form ({@link riotIdLabel}). `tagLine`
+ * is nullable on rows ingested before tag lines were stored — those can't be
+ * addressed as a Riot ID at all, so they yield null rather than the bare name.
  */
 export function formatRiotId(gameName: string, tagLine: string | null): string | null {
   if (!gameName || !tagLine) return null
-  return `${gameName}#${tagLine}`
+  return riotIdLabel(gameName, tagLine)
 }

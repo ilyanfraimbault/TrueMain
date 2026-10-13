@@ -35,7 +35,7 @@ describe('Account', () => {
 
     const link = wrapper.find('a')
     expect(link.attributes('href')).toBe('/truemains/Hide%20on%20bush-KR1')
-    expect(link.attributes('aria-label')).toBe('Hide on bush #KR1')
+    expect(link.attributes('aria-label')).toBe('Hide on bush#KR1')
   })
 
   it('renders no link when the surface owns it', async () => {

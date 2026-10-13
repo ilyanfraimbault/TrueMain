@@ -31,13 +31,17 @@ withDefaults(defineProps<{
 
     <div class="relative flex flex-col gap-5 p-4 pt-5">
       <div class="flex items-center gap-4">
-        <slot name="portrait" />
-        <div class="min-w-0 [text-shadow:0_1px_12px_rgb(0_0_0/0.6)]">
-          <slot name="title" />
-          <div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
-            <slot name="subtitle" />
+        <!-- `#identity` draws the portrait and the title block as one: a
+             player's profile hands them to `Account`. -->
+        <slot name="identity">
+          <slot name="portrait" />
+          <div class="min-w-0 [text-shadow:0_1px_12px_rgb(0_0_0/0.6)]">
+            <slot name="title" />
+            <div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+              <slot name="subtitle" />
+            </div>
           </div>
-        </div>
+        </slot>
         <div
           v-if="$slots.actions"
           class="ml-auto flex items-center gap-2 self-start"
