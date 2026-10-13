@@ -513,3 +513,7 @@ card and on their profile, and the loading states split three ways. The profile'
   since the edge mark already states it.
 - **A new match list uses `MatchRow` and `MatchRowSkeleton`**; a surface that needs something the row lacks adds
   it to the row.
+- **The open game reuses the row's columns** (#2030): a scoreboard line draws the portrait, the spells and runes and
+  the inventory through `MatchRowPortrait` (`size`, `championId` for the build-page link), `MatchRowSpellsRunes`
+  and `MatchItemGrid`, so a game reads the same collapsed and open. The win/loss colours of the row and the detail
+  come from one place, `utils/result-tone.ts` (blue `sky-400`, red `red-400`).
