@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { POSITION_BY_VALUE } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { parseRouteParam } from '#common/utils/route-params'
 import { ELO_BRACKET_ALL } from '#common/utils/elo-brackets'
@@ -99,32 +98,7 @@ const splashUrl = useChampionSplash(displayIconUrl)
 // useChampionSeoName for why `displayName` can't serve `<head>`.
 const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 
-// Truemains > {player} > {champion}, mirroring the schema.org breadcrumb below.
-// The champion crumb uses the SSR-safe `seoDisplayName`, as the global page does.
-const breadcrumbItems = computed(() => [
-  { label: 'Truemains', to: '/truemains' },
-  { label: playerLabel.value, to: profilePath.value },
-  { label: seoDisplayName.value ?? `Champion ${championId.value}` },
-])
-
-useSeoMeta({
-  title: () => `${seoDisplayName.value ?? `Champion ${championId.value}`} Build by ${playerLabel.value}`,
-  description: () => `${playerLabel.value}'s ${seoDisplayName.value ?? `champion ${championId.value}`} build: `
-    + `runes, items and skill order from their real ranked games as a ${seoDisplayName.value ?? 'this champion'} OTP.`,
-})
-
-useSchemaOrg([
-  defineWebPage({
-    name: () => `${seoDisplayName.value ?? 'Champion'} Build by ${playerLabel.value}`,
-  }),
-  defineBreadcrumb({
-    itemListElement: [
-      { name: 'Truemains', item: '/truemains' },
-      { name: playerLabel.value, item: profilePath.value },
-      { name: () => seoDisplayName.value ?? `Champion ${championId.value}` },
-    ],
-  }),
-])
+const { breadcrumbItems } = usePlayerChampionPageSeo({ championId, seoDisplayName, playerLabel, profilePath })
 
 const isRefetching = computed(() =>
   isLoadingStatus(championStatus.value)
@@ -138,48 +112,14 @@ const isRefetching = computed(() =>
 // Patch for the profile icon in the player header.
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 
-// Thin-sample caution: the backend builds from any number of games, flagging
-// small samples with minSampleMet=false. Surfaced as a warning icon by the title
-// so a handful of games reads as a rough personal signal, not a meta build.
-const lowSampleMessage = computed(() => {
-  if (!champion.value || champion.value.minSampleMet)
-    return null
-  const games = champion.value.totalGames
-  return `Only ${games} ${games === 1 ? 'game' : 'games'} on record — this build is inferred from a small personal sample, `
-    + 'so treat it as a rough signal rather than a reliable recommendation.'
+// An empty slice keeps its filters usable, so the reader can undo the one that
+// emptied it (see usePlayerChampionEmptySlice).
+const { activeFilterLabels, pickerPatch, clearFilters } = usePlayerChampionEmptySlice({
+  championId,
+  filters,
+  setFilter,
+  selectedPatch,
 })
-
-// ─── Empty slice ───────────────────────────────────────────────────────────
-// The build filters keep working when the slice they select is empty: a lane the
-// player never played 404s the aggregate (`notEnoughData`), and the header — its
-// pickers included — still renders over the zero-game slice, so the reader can
-// undo a filter they set in place.
-
-// Human-readable list of the filters currently narrowing the page, so the empty
-// notice can say what emptied it. Only the ones this page actually renders — it
-// has no rank or population control.
-const activeFilterLabels = computed(() => {
-  const labels: string[] = []
-  if (filters.value.patch) labels.push(filters.value.patch)
-  const position = filters.value.position
-  if (position) labels.push(POSITION_BY_VALUE.get(position)?.label ?? position)
-  return labels
-})
-
-// The patch the API last resolved for this champion. `selectedPatch` falls back
-// to the loaded aggregate's patch, which goes null the moment a filter empties
-// the slice — blanking the patch select right when it has to be usable. Reset
-// on champion change so nothing leaks across a navigation on this same route.
-const lastResolvedPatch = ref('')
-watch(championId, () => { lastResolvedPatch.value = '' })
-watch(selectedPatch, (patch) => { if (patch) lastResolvedPatch.value = patch }, { immediate: true })
-const pickerPatch = computed(() => selectedPatch.value || lastResolvedPatch.value)
-
-// The position picker hides its "all positions" button (the API always answers
-// for one lane), so clearing is the only way back from an empty lane.
-function clearFilters() {
-  void setFilter({ patch: null, position: null })
-}
 
 // Frozen prop bundle for the lazy (hydrate-on-visible) matchups sidebar — see
 // useLazyHydrationSnapshot / the identical pattern on pages/champions/[slug].vue
@@ -260,107 +200,37 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
     <div
       class="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,17rem)_minmax(0,1fr)_minmax(0,21rem)] xl:grid-rows-[auto_auto_minmax(0,1fr)] xl:items-start"
     >
-      <!-- Player identity. Renders even when the champion aggregate failed: it
-           is the one thing on the page that never depended on it. -->
-      <div class="order-1 min-w-0 xl:col-start-1 xl:row-start-1">
-        <ProfileHeaderSkeleton v-if="!profile" stacked />
-        <ProfileHeader
-          v-else
-          stacked
-          :identity="profile.identity"
-          :patch="latestPatch"
-        />
-      </div>
+      <ChampionPlayerIdentityRail
+        :profile="profile"
+        :patch="latestPatch"
+        :history="rankHistory?.entries ?? []"
+        :history-loading="rankHistoryLoading"
+      />
 
-      <!-- Ranked card (identical to the profile page's): the rail is the
-           player's side of the page, and their elo is the first thing that
-           qualifies every number in the middle column. Below xl it drops under
-           the build with the performance card — see there for why. -->
-      <div class="order-3 min-w-0 xl:col-start-1 xl:row-start-2">
-        <ProfileRankedCardSkeleton v-if="!profile" />
-        <ProfileRankedCard
-          v-else
-          :ranked="profile.ranked"
-          :history="rankHistory?.entries ?? []"
-          :history-loading="rankHistoryLoading"
-        />
-      </div>
-
-      <!--
-        Champion column, resilient by design: a champion the profile lists as a
-        main must always show *something* on click. The build breakdown renders
-        whenever the backend holds any aggregate for the player (however thin);
-        when it holds none (`notEnoughData` — no timeline-complete ranked game on
-        record) we show a soft notice instead of a dead-end, and either way still
-        render the player's recent games on the champion below (a separate data
-        source that has the raw matches even when the build aggregate doesn't).
-      -->
-      <div class="order-2 min-w-0 space-y-6 xl:col-start-2 xl:row-start-1 xl:row-span-3">
-        <FetchErrorAlert
-          v-if="championError"
-          :error="championError"
-          title="Failed to load this champion"
-        />
-
-        <template v-else>
-          <!-- The champion page's banner (#2026): the player's games and win
-               rate as its sample line, no figures row (the trend is every rank).
-               The SSR-resolved name; skeletons until the aggregate lands, but an
-               empty slice is settled and says so. -->
-          <ChampionHero
-            :champion-name="seoDisplayName"
-            :champion-icon-url="displayIconUrl"
-            :champion-id="championId"
-            :splash-url="splashUrl"
-            :position="champion?.position || selectedPosition || ''"
-            :total-games="champion?.totalGames ?? 0"
-            :total-wins="champion?.totalWins ?? null"
-            :low-sample-message="lowSampleMessage"
-            :loading="!champion && !notEnoughData"
-          />
-
-          <StaleContentNotice
-            :error="championStaleError"
-            subject="the previous slice"
-            :on-retry="() => refreshChampion()"
-          />
-
-          <ChampionPlayerBuildEmpty
-            v-if="notEnoughData"
-            :player-label="playerLabel"
-            :champion-name="displayName"
-            :global-build-path="pathFor(championId)"
-            :filter-labels="activeFilterLabels"
-            @clear="clearFilters"
-          />
-
-          <template v-else>
-            <ChampionBuildTabs
-              v-if="champion && staticData"
-              :builds="champion.builds"
-              :champion-static="staticData"
-              :items-map="itemsMap ?? {}"
-              :summoners-map="summonersMap ?? {}"
-              :summoners-pending="isLoadingStatus(summonersStatus)"
-              :rune-tree="runeTree ?? null"
-            />
-            <ChampionBuildTabsSkeleton v-else />
-          </template>
-
-          <!-- This player's recent games on this champion — rendered even when the
-               build breakdown above is absent (the degraded state), so clicking a
-               main always surfaces their actual games. -->
-          <ChampionPlayerMatchHistory
-            :name-tag="nameTag"
-            :champion-id="championId"
-            :champion-name="displayName"
-            :champions="staticList"
-            :items="itemsMap"
-            :summoner-spells="summonersMap"
-            :rune-tree="runeTree"
-          />
-        </template>
-      </div>
+      <ChampionPlayerBuildColumn
+        :name-tag="nameTag"
+        :champion-id="championId"
+        :champion="champion"
+        :error="championError"
+        :stale-error="championStaleError"
+        :not-enough-data="notEnoughData"
+        :champion-name="seoDisplayName"
+        :display-name="displayName"
+        :display-icon-url="displayIconUrl"
+        :splash-url="splashUrl"
+        :position="selectedPosition"
+        :player-label="playerLabel"
+        :global-build-path="pathFor(championId)"
+        :filter-labels="activeFilterLabels"
+        :static-data="staticData"
+        :static-list="staticList"
+        :items-map="itemsMap"
+        :summoners-map="summonersMap"
+        :summoners-pending="isLoadingStatus(summonersStatus)"
+        :rune-tree="runeTree"
+        @retry="refreshChampion()"
+        @clear="clearFilters"
+      />
 
       <!-- Performance score (#918): the aggregate of the per-match score over
            this player's recent games on the champion — a statement about the

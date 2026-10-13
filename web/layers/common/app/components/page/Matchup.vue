@@ -1,9 +1,7 @@
 <script setup lang="ts">
 // The matchup page, as the site and the desktop app both render it (#1732):
 // each app's route file wraps this with its own head tags and nothing else.
-import type { CompositionBuildRequest, CompositionBuildResponse, CompositionSlotInput } from '#shared/types/composition'
-import { describeStaleFetchError } from '#common/utils/errors'
-import { POSITION_OPTIONS, POSITION_BY_VALUE, isChampionPosition, type ChampionPosition } from '#common/utils/positions'
+import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '#common/utils/positions'
 
 const route = useRoute()
 const router = useRouter()
@@ -74,54 +72,15 @@ const playedChampion = computed(() =>
 const opponentChampion = computed(() =>
   opponentChampionId.value === null ? null : championsById.value.get(opponentChampionId.value) ?? null)
 
-const roleLabel = computed(() =>
-  playedPosition.value === null
-    ? null
-    : POSITION_BY_VALUE.get(playedPosition.value)?.label.toLowerCase() ?? null)
-
 // ─── Live recommendation ─────────────────────────────────────────────────────
 
-const { data: response, isLoading, error: responseError, submit, clear } = useCompositionBuild()
-
-// What a recommendation is *for*: an ally or enemy pick refines it, a new
-// champion, role or opponent makes it another recommendation altogether.
-const matchupScope = computed(() =>
-  `${playedChampionId.value}-${playedPosition.value}-${opponentChampionId.value}`)
-
-// The request the newest answer was fetched with, and the matchup it was for.
-const submitted = shallowRef<{ scope: string, request: CompositionBuildRequest } | null>(null)
-
-function submitDraft(championId: number, request: CompositionBuildRequest) {
-  submitted.value = { scope: matchupScope.value, request }
-  return submit(championId, request)
-}
-
-// An answer paired with its request — only while it is still for the matchup
-// on screen, so a late answer to a changed matchup is never kept as its own.
-const answer = computed<{ recommendation: CompositionBuildResponse, request: CompositionBuildRequest } | null>(() =>
-  response.value && submitted.value?.scope === matchupScope.value
-    ? { recommendation: response.value, request: submitted.value.request }
-    : null)
-
-// A failed draft edit keeps the previous recommendation on screen and answers
-// with a toast (#1668); a failure with nothing to keep is the inline alert.
-const actionToast = useActionToast()
-const { data: shownAnswer, error, staleError } = useRefetchFallback({
-  data: answer,
-  status: computed(() => (isLoading.value ? 'pending' : responseError.value ? 'error' : 'success')),
-  error: responseError,
-}, {
-  scope: matchupScope,
-  onStaleFailure: failure => actionToast.failure('Could not update the recommendation', describeStaleFetchError(failure)),
+const { isLoading, error, staleError, recommendation, shownDraftRequest, retryDraft } = useMatchupRecommendation({
+  playedChampionId,
+  playedPosition,
+  opponentChampionId,
+  allySlots,
+  enemySlots,
 })
-const recommendation = computed(() => shownAnswer.value?.recommendation ?? null)
-// The provenance drawer re-lists the games behind the recommendation *shown*.
-const shownDraftRequest = computed(() => shownAnswer.value?.request ?? currentDraftRequest.value)
-
-function retryDraft() {
-  const request = currentDraftRequest.value
-  if (playedChampionId.value !== null && request !== null) void submitDraft(playedChampionId.value, request)
-}
 
 // The provenance drawer's open state lives here because the two halves of it sit
 // in different components: the button is in the stat line above (#1111), the
@@ -130,67 +89,6 @@ function retryDraft() {
 const gamesDrawerOpen = ref(false)
 
 const isDraftReady = computed(() => playedChampionId.value !== null && playedPosition.value !== null)
-
-function toSlots(
-  slots: Record<ChampionPosition, number | null>,
-  extra?: { position: ChampionPosition, championId: number } | null,
-): CompositionSlotInput[] {
-  const picks = POSITION_OPTIONS
-    .filter(option => slots[option.value] !== null)
-    .map(option => ({ position: option.value as string, championId: slots[option.value] as number }))
-  return extra ? [...picks, extra] : picks
-}
-
-/**
- * Debounce window between the last draft edit and the refetch. Long enough to
- * swallow a burst of picks, short enough that the page still feels live.
- */
-const REFETCH_DEBOUNCE_MS = 400
-
-/**
- * The exact body the recommendation was (or is about to be) fetched with —
- * reused verbatim by the provenance drawer (#940), which re-lists that same
- * selection instead of re-deriving the draft.
- */
-const currentDraftRequest = computed<CompositionBuildRequest | null>(() => {
-  if (playedChampionId.value === null || playedPosition.value === null) return null
-  const position = playedPosition.value
-  const opponent = opponentChampionId.value
-  return {
-    position,
-    allies: toSlots(allySlots.value),
-    enemies: toSlots(enemySlots.value, opponent === null ? null : { position, championId: opponent }),
-  }
-})
-
-let refetchTimer: ReturnType<typeof setTimeout> | undefined
-
-// Live mode: every draft edit re-queries after a short debounce — there is no
-// submit button. The panel and the stats strip fall back to their skeletons
-// while the next answer loads, rather than keeping the previous one dimmed
-// (the composable also drops out-of-order responses).
-watch(
-  [playedChampionId, playedPosition, opponentChampionId, allySlots, enemySlots],
-  () => {
-    clearTimeout(refetchTimer)
-    if (playedChampionId.value === null || playedPosition.value === null) {
-      clear()
-      return
-    }
-    const championId = playedChampionId.value
-    // Capture the body alongside the champion id: the drawer and the backend's
-    // 30 s cache both key on this exact object, so it is composed once and the
-    // fetch and the provenance list cannot drift apart.
-    const request = currentDraftRequest.value
-    if (request === null) return
-    refetchTimer = setTimeout(() => {
-      void submitDraft(championId, request)
-    }, REFETCH_DEBOUNCE_MS)
-  },
-  { deep: true, immediate: true },
-)
-
-onBeforeUnmount(() => clearTimeout(refetchTimer))
 
 function resetContext() {
   allySlots.value = emptySlots()
@@ -201,31 +99,6 @@ const hasContextPicks = computed(() =>
   POSITION_OPTIONS.some(option =>
     allySlots.value[option.value] !== null || enemySlots.value[option.value] !== null))
 
-// ─── Graceful degradation ────────────────────────────────────────────────────
-
-/**
- * There is exactly one degraded state left (#1075): the matchup was pinned and
- * **never recorded**, so the API returns zero games rather than relaxing the
- * filter (`CompositionMatchQueryService`: `MatchupFound = !matchupRequested ||
- * selectedMatches.Count > 0`). With no matchup build to render, the champion's
- * standard build is the only thing there is.
- *
- * A *thin* matchup is no longer a degraded state. It used to be hidden below
- * eight games behind an alert and a "Show it anyway" button — which contradicted
- * the rule the champion page has followed since #923 ("show the matchup whatever
- * its volume, with the game count on it, rather than hiding thin sections"), and
- * which mattered far more than it looks: the production measurement behind that
- * decision put the **median** champion x opponent x position pair at 4 games, so
- * the floor was withholding the matchup build for over half of all pairs. The
- * build now always renders, and `RecommendationPanel` qualifies it in place —
- * its own low-sample tooltip fires under 20 games, well above anything this
- * floor caught.
- */
-const matchupMissing = computed(() =>
-  recommendation.value !== null
-  && recommendation.value.matchupRequested
-  && !recommendation.value.matchupFound)
-
 function setAlly(position: ChampionPosition, championId: number | null) {
   allySlots.value[position] = championId
 }
@@ -233,14 +106,6 @@ function setAlly(position: ChampionPosition, championId: number | null) {
 function setEnemy(position: ChampionPosition, championId: number | null) {
   enemySlots.value[position] = championId
 }
-
-/** Tooltip on the standard build's warning icon — the whole explanation, in one line. */
-const missingMatchupNotice = computed(() => {
-  const champion = playedChampion.value?.name ?? 'this champion'
-  const opponent = opponentChampion.value?.name ?? 'that champion'
-  const role = roleLabel.value ? ` at ${roleLabel.value}` : ''
-  return `No recorded ${champion} vs ${opponent} game${role} — showing ${champion}'s standard build.`
-})
 </script>
 
 <template>
@@ -304,69 +169,18 @@ const missingMatchupNotice = computed(() => {
       :on-retry="retryDraft"
     />
 
-    <!-- Any fetch in flight, first or not (#1659 follow-up): the recommendation
-         panel's own layout with nothing resolved in it, rather than the previous
-         answer dimmed. A cold recommendation runs for tens of seconds, and over
-         that span a dimmed panel does not read as loading — it reads as a page
-         that dimmed itself, while its stale numbers stay legible enough to be
-         taken for the new ones. The header is scaffolded here because the panel
-         owning it is what we're waiting for. -->
-    <SectionCard v-if="isDraftReady && isLoading">
-      <template #title>
-        <div
-          class="flex flex-wrap items-center gap-x-2.5 gap-y-1"
-          aria-hidden="true"
-        >
-          <USkeleton class="size-7 rounded-lg" />
-          <USkeleton class="h-4 w-56" />
-          <USkeleton class="size-7 rounded-lg" />
-        </div>
-      </template>
-      <ChampionBuildCoreSkeleton />
-    </SectionCard>
-
-    <template v-else-if="recommendation && isDraftReady">
-      <!-- Matchup pinned but never recorded: there is no matchup build to
-           render, so this falls back to the champion's baseline one. The whole
-           explanation rides in the card's warning-icon tooltip — a banner here
-           was three lines of prose above a build the reader can already see. -->
-      <BuilderFallbackBuild
-        v-if="matchupMissing && playedChampionId !== null && playedPosition !== null"
-        :champion-id="playedChampionId"
-        :position="playedPosition"
-        :champion-name="playedChampion?.name ?? null"
-        :notice="missingMatchupNotice"
-      />
-
-      <SectionCard
-        v-else-if="recommendation.build.gamesConsidered === 0"
-        :title="playedChampion ? `Recommended for ${playedChampion.name}` : 'Recommendation'"
-      >
-        <!-- Description-only: this card's title is an `<h3>` and `UEmpty`'s
-             `title` prop renders an `<h2>` — see FallbackBuild.vue. -->
-        <UEmpty icon="i-lucide-search-x">
-          <template #description>
-            <span class="block font-medium text-highlighted">No similar games found</span>
-            Nothing recorded for this champion at this position yet.
-          </template>
-        </UEmpty>
-      </SectionCard>
-
-      <!-- Any matchup with at least one game: shown, however thin. The panel
-           carries its own low-sample warning icon, so nothing is added here. -->
-      <BuilderRecommendationPanel
-        v-else
-        :recommendation="recommendation"
-        :champion-name="playedChampion?.name ?? null"
-        :champion-icon-url="playedChampion?.iconUrl ?? null"
-        :opponent-name="opponentChampion?.name ?? null"
-        :opponent-icon-url="opponentChampion?.iconUrl ?? null"
-        :draft-request="shownDraftRequest"
-        :champions="champions"
-        :games-drawer-open="gamesDrawerOpen"
-        @update:games-drawer-open="gamesDrawerOpen = $event"
-      />
-    </template>
+    <BuilderMatchupRecommendation
+      v-if="playedChampionId !== null && playedPosition !== null"
+      v-model:games-drawer-open="gamesDrawerOpen"
+      :loading="isLoading"
+      :recommendation="recommendation"
+      :played-champion-id="playedChampionId"
+      :played-position="playedPosition"
+      :played-champion="playedChampion"
+      :opponent-champion="opponentChampion"
+      :draft-request="shownDraftRequest"
+      :champions="champions"
+    />
 
     <!-- Nothing picked yet. Without this the page is a stage floating over a
          screen of empty background — it reads as broken rather than as waiting
