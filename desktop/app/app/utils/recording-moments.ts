@@ -1,4 +1,5 @@
 import type { Moment, MomentKind } from '~/types/recordings'
+import { formatDuration } from '#common/utils/relativeTime'
 
 /**
  * How a recording's moments read: their names and colours on the
@@ -74,13 +75,9 @@ export function momentMark(moment: Moment): string {
 /** Epic monsters are badges above the track; towers and inhibitors, far more frequent, stay bare glyphs. */
 export const isStructure = (moment: Moment) => moment.kind === 'tower' || moment.kind === 'inhibitor'
 
-/** `mm:ss`, or `h:mm:ss` past the hour. */
+/** Footage time in milliseconds: `m:ss`, or `h:mm:ss` past the hour. */
 export function formatClock(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  const seconds = `${total % 60}`.padStart(2, '0')
-  return hours ? `${hours}:${`${minutes}`.padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`
+  return formatDuration(ms / 1000, { hours: true })
 }
 
 /** The moments that happen inside `[startMs, endMs]`, in order. */

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import tapeText from '../../../../fixtures/ranked-game.jsonl?raw'
+import { formatDuration } from '#common/utils/relativeTime'
 
 /**
  * The game simulator — development only, dropped from builds (nuxt.config).
@@ -112,11 +113,6 @@ async function togglePlay() {
 
 watch(pace, schedule)
 onBeforeUnmount(() => clearTimeout(timer))
-
-function minutes(seconds: number) {
-  const whole = Math.floor(seconds)
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
-}
 </script>
 
 <template>
@@ -160,7 +156,7 @@ function minutes(seconds: number) {
               @click="goTo(index)"
             >
               <span class="w-5 text-xs tabular-nums text-dimmed">{{ index + 1 }}</span>
-              <span class="stat-value text-sm tabular-nums" :class="index <= position ? 'text-highlighted' : 'text-muted'">{{ minutes(reading.gameTime) }}</span>
+              <span class="stat-value text-sm tabular-nums" :class="index <= position ? 'text-highlighted' : 'text-muted'">{{ formatDuration(reading.gameTime) }}</span>
               <UIcon v-if="index === position" name="i-lucide-radio" class="ml-auto size-3.5 text-primary" />
               <UIcon v-else-if="index < position" name="i-lucide-check" class="ml-auto size-3.5 text-dimmed" />
             </button>

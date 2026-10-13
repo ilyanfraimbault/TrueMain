@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
+import { positionLabel } from '#common/utils/positions'
 import type { CompositionLane } from '~/types/build'
-import type { Lane } from '~/types/draft'
-import { LANE_LABELS, laneIconUrl } from '~/types/draft'
 import { winRateTone } from '#common/utils/rate-tone'
 
 /**
@@ -20,12 +20,12 @@ const props = defineProps<{
 
 const { nameOf, portraitOf } = useChampionStatics()
 
-const laneLabel = computed(() => (props.position && props.position in LANE_LABELS ? LANE_LABELS[props.position as Lane] : null))
+const laneLabel = computed(() => positionLabel(props.position, { short: true }))
 </script>
 
 <template>
   <div class="flex flex-col items-center justify-center gap-2.5 text-center">
-    <img v-if="position" :src="laneIconUrl(position)" :alt="laneLabel ?? ''" :title="laneLabel ?? undefined" class="size-5 opacity-80">
+    <img v-if="position" :src="getPositionIconUrl(position)" :alt="laneLabel ?? ''" :title="laneLabel ?? undefined" class="size-5 opacity-80">
 
     <div class="flex items-center gap-2">
       <!-- Ringed like its card on the board: the one champion selected. -->
@@ -41,7 +41,7 @@ const laneLabel = computed(() => (props.position && props.position in LANE_LABEL
 
     <div class="flex min-h-10 flex-col items-center gap-1">
       <template v-if="lane && lane.winRate !== null">
-        <span class="text-lg font-semibold leading-none tabular-nums" :class="winRateTone(lane.winRate)">{{ (lane.winRate * 100).toFixed(1) }}%</span>
+        <span class="text-lg font-semibold leading-none tabular-nums" :class="winRateTone(lane.winRate)">{{ formatPercentage(lane.winRate) }}</span>
         <span class="stat-label">Lane win rate</span>
       </template>
       <UIcon v-else-if="pending" name="i-lucide-loader-circle" class="size-4 text-dimmed" />

@@ -1,7 +1,6 @@
 import type { ProfileIdentity } from '#shared/types/profile'
 import type { BuildOption, CompositionBuildRequest } from '~/types/build'
-import type { Lane } from '~/types/draft'
-import { LANE_LABELS } from '~/types/draft'
+import { positionLabel } from '#common/utils/positions'
 
 /**
  * A true main's own build on the champion, for `BuildView`: the main clicked in
@@ -82,7 +81,7 @@ export function useMainBuildOption(options: {
     if (mainDraft.value) return 'against this draft'
     const answer = mainAnswer.value
     if (!answer) return null
-    const lane = answer.position && answer.position !== position.value ? LANE_LABELS[answer.position as Lane] ?? answer.position : null
+    const lane = answer.position && answer.position !== position.value ? positionLabel(answer.position, { short: true }) ?? answer.position : null
     const elsewhere = draftRequest.value ? 'no game against this draft' : null
     return [answer.patch ? `Patch ${answer.patch}` : null, lane ? `on ${lane}` : null, elsewhere].filter(Boolean).join(' · ')
   })

@@ -37,6 +37,8 @@ export function isChampionPosition(value: unknown): value is ChampionPosition {
  * A position's name, `short` for the tight rows' form; null for a string that is
  * no position (an empty slot, a remake's blank), so the caller decides what stands in.
  */
+export function positionLabel(position: ChampionPosition, options?: { short?: boolean }): string
+export function positionLabel(position: string | null | undefined, options?: { short?: boolean }): string | null
 export function positionLabel(position: string | null | undefined, options: { short?: boolean } = {}): string | null {
   const option = position ? POSITION_BY_VALUE.get(position) : undefined
   if (!option) return null

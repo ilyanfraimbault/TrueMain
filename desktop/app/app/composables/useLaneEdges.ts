@@ -1,7 +1,7 @@
 import type { LoadingPlayer } from '~/types/loading'
-import { LANES } from '~/types/draft'
 import type { LaneEdge, MatchupRecord } from '~/utils/lane-edge'
 import { laneEdge } from '~/utils/lane-edge'
+import { POSITIONS } from '#common/utils/positions'
 
 interface MatchupsAnswer {
   matchups: { opponentChampionId: number, games: number, wins: number }[]
@@ -22,7 +22,7 @@ export function useLaneEdges(lines: MaybeRefOrGetter<LoadingPlayer[]>) {
   const pairs = computed(() => {
     const players = toValue(lines)
     const ours = players.find(player => player.isMe)?.team ?? 'ORDER'
-    return LANES.flatMap((position) => {
+    return POSITIONS.flatMap((position) => {
       const ally = players.find(player => player.team === ours && player.position === position)
       const enemy = players.find(player => player.team !== ours && player.position === position)
       return ally && enemy ? [{ position, ally, enemy, key: `${ally.championId}-${enemy.championId}-${position}` }] : []

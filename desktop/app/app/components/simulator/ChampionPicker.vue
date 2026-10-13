@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { positionLabel } from '#common/utils/positions'
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import type { Lane } from '~/types/draft'
-import { LANE_LABELS } from '~/types/draft'
 
 /**
  * The draft simulator's champion picker (development only): a search over
@@ -44,7 +44,7 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
     .filter(entry => !props.exclude.has(entry.championId) && champions.value.has(entry.championId))
     .map(entry => item(entry.championId, champions.value.get(entry.championId)!.name))
   return [
-    { id: 'lane', label: `Played ${LANE_LABELS[props.lane]}`, items: onLane },
+    { id: 'lane', label: `Played ${positionLabel(props.lane, { short: true })}`, items: onLane },
     { id: 'all', label: 'All champions', items: all },
   ]
 })

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCount } from '#shared/utils/counts'
 import type { GamePlayer, GameState } from '~/types/game'
 import { itemGold, laneRows, leftTeam } from '~/utils/item-value'
 
@@ -37,7 +38,7 @@ const rows = computed(() => laneRows(props.game).map(({ ally, enemy }) => ({
   key: `${ally?.riotId}-${enemy?.riotId}`,
 })))
 
-const number = (gold: number) => gold.toLocaleString('en-US')
+const number = formatCount
 </script>
 
 <template>

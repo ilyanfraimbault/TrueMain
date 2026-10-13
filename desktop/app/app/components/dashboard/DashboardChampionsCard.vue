@@ -9,7 +9,8 @@ import type { RouteLocationRaw } from 'vue-router'
 import type { ProfileMainChampion } from '#shared/types/profile'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import type { ChampionLine } from '~/utils/player-form'
-import { kdaOf } from '~/utils/player-form'
+import { formatPercentage } from '#shared/utils/ddragon'
+import { formatKdaRatio, kdaRatio } from '#shared/utils/kda'
 import { winRateTone } from '#common/utils/rate-tone'
 
 const props = defineProps<{
@@ -49,11 +50,11 @@ const winRate = (line: ChampionLine) => line.wins / line.games
 <template>
   <ProfileMainChampions :mains="mains" :champions="champions" :link-to="linkTo" title="Champions">
     <template #meta="{ main }">
-      {{ main.games }} game{{ main.games === 1 ? '' : 's' }} · {{ kdaOf(lineOf(main)).toFixed(1) }} KDA
+      {{ main.games }} game{{ main.games === 1 ? '' : 's' }} · {{ formatKdaRatio(kdaRatio(lineOf(main))) }} KDA
     </template>
     <template #value="{ main }">
       <p class="text-right leading-tight" :class="winRateTone(winRate(lineOf(main)))">
-        {{ Math.round(winRate(lineOf(main)) * 100) }}%
+        {{ formatPercentage(winRate(lineOf(main)), 0) }}
       </p>
       <p class="text-right text-[10px] font-normal leading-tight text-dimmed">
         {{ lineOf(main).wins }}W {{ main.games - lineOf(main).wins }}L

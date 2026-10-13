@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCount } from '#shared/utils/counts'
 import type { ProfileIdentity } from '#shared/types/profile'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
 
@@ -26,7 +27,7 @@ const { patch } = useChampionStatics()
     <p class="min-w-0 flex-1 truncate text-[13px] leading-tight">
       <span class="font-semibold text-highlighted">{{ identity.gameName }}</span>
       <span class="text-muted">'s build</span>
-      <span class="ml-2 text-[11px] tabular-nums text-dimmed">{{ games.toLocaleString('en-US') }} games{{ scope ? ` · ${scope}` : '' }}</span>
+      <span class="ml-2 text-[11px] tabular-nums text-dimmed">{{ formatCount(games) }} games{{ scope ? ` · ${scope}` : '' }}</span>
     </p>
     <UButton
       size="xs"

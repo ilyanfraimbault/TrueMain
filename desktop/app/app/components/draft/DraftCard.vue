@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { laneIconUrl } from '~/types/draft'
+import { getPositionIconUrl } from '#shared/utils/ddragon'
 
 /**
  * One pick of a team, as the reference client draws it: the champion's tall
@@ -70,7 +70,7 @@ const tierColor = computed(() => {
     </template>
 
     <div v-else class="flex size-full flex-col items-center justify-center">
-      <img v-if="lane" :src="laneIconUrl(lane)" alt="" class="size-7 opacity-25">
+      <img v-if="lane" :src="getPositionIconUrl(lane)" alt="" class="size-7 opacity-25">
       <div v-if="suggested.length" class="absolute inset-x-0 bottom-2 flex flex-col items-center gap-1">
         <span class="stat-label text-[9px]!">Suggested</span>
         <div class="flex -space-x-1">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import { POSITIONS, positionLabel } from '#common/utils/positions'
 import type { Lane } from '~/types/draft'
-import { LANES, LANE_LABELS } from '~/types/draft'
 
 /**
  * One champion: the site's champion banner (`ChampionHero`) on a lane, and its
@@ -19,12 +19,12 @@ const lanes = computed<Lane[]>(() => entries.value
   .filter(entry => entry.championId === championId.value)
   .sort((a, b) => b.games - a.games)
   .map(entry => entry.position as Lane)
-  .filter(lane => LANES.includes(lane)))
+  .filter(lane => POSITIONS.includes(lane)))
 
 const lane = computed<Lane | null>({
   get: () => {
     const asked = String(route.query.position ?? '').toUpperCase() as Lane
-    return LANES.includes(asked) ? asked : lanes.value[0] ?? null
+    return POSITIONS.includes(asked) ? asked : lanes.value[0] ?? null
   },
   set: value => void router.replace({ query: { ...route.query, position: value ?? undefined } }),
 })
@@ -65,7 +65,7 @@ const { data: trend, pending: trendPending } = useChampionTrend(championId, lane
       <BuildView v-if="lane" :champion-id="championId" :position="lane">
         <template #header>
           <div class="flex items-center justify-between gap-2">
-            <span class="text-sm font-semibold text-highlighted">{{ LANE_LABELS[lane] }}</span>
+            <span class="text-sm font-semibold text-highlighted">{{ positionLabel(lane, { short: true }) }}</span>
             <div class="flex items-center gap-0.5">
               <UButton
                 :to="`/matchup?champion=${championId}&position=${lane}`"

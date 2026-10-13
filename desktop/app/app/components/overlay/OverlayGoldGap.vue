@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatCount } from '#shared/utils/counts'
 /**
  * The gap between two item values, under a chevron toward the side ahead — in
  * that side's colour, ours blue on the left, theirs red on the right. Even
@@ -20,6 +21,6 @@ const gap = computed(() => props.ours - props.theirs)
     <span
       class="mt-0.5 tabular-nums font-semibold"
       :class="[large ? 'text-xs' : 'text-[10px]', gap > 0 ? 'text-ally' : gap < 0 ? 'text-enemy' : 'text-dimmed']"
-    >{{ Math.abs(gap).toLocaleString('en-US') }}</span>
+    >{{ formatCount(Math.abs(gap)) }}</span>
   </div>
 </template>

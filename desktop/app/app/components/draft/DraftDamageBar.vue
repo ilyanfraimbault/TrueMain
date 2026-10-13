@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPercentageOrDash } from '#shared/utils/ddragon'
 import type { DamageProfile } from '~/utils/damage-profile'
 import type { DamageKind } from '~/utils/draft-damage'
 import { teamDamage } from '~/utils/damage-profile'
@@ -53,7 +54,7 @@ const segments = computed(() => {
 /** Where the physical share stood before the preview, when both are stated. */
 const tick = computed(() => (preview.value && isUsable(withoutPreview.value) ? `${withoutPreview.value.physicalShare * 100}%` : null))
 
-const percent = (share: number | null) => (share === null ? '–' : `${Math.round(share * 100)}%`)
+const percent = (share: number | null) => formatPercentageOrDash(share, 0)
 
 /** A pick's line in the hover: its split, or why it has none. */
 function detail(profile: DamageProfile | null) {
