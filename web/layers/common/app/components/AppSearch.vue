@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import { isNavigationFailure } from 'vue-router'
-import type { SearchResult } from '#shared/types/search'
+import type { SearchPlayer, SearchResult } from '#shared/types/search'
+import { playerPath } from '#shared/utils/player-path'
 import { riotIdLabel, truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 import { describeFetchError } from '#common/utils/errors'
 import { SEARCH_MAX_LIMIT } from '#common/composables/useTruemainSearch'
@@ -86,7 +87,7 @@ const activeChampion = computed(() => {
 
 // Truemains — debounced server search. Narrowed to one champion's mains, it
 // asks for the backend's largest page so the narrowing has rows to keep.
-const { results, status, error: truemainSearchError, tooShort } = useTruemainSearch(term, { limit: props.mainsOf == null ? undefined : SEARCH_MAX_LIMIT })
+const { results, players, status, error: truemainSearchError, tooShort } = useTruemainSearch(term, { limit: props.mainsOf == null ? undefined : SEARCH_MAX_LIMIT })
 const matches = computed(() => (props.mainsOf == null
   ? results.value
   : results.value.filter(result => result.topChampionIds.includes(props.mainsOf!))))
@@ -117,8 +118,20 @@ function onSelectTruemain(result: SearchResult) {
   open.value = false
 }
 
-// `truemain` feeds the row component; `iconUrl` the champion rows' picture.
-type SearchItem = CommandPaletteItem & { truemain?: SearchResult, iconUrl?: string | null }
+// `truemain` / `player` feed the row components; `iconUrl` the champion rows' picture.
+type SearchItem = CommandPaletteItem & { truemain?: SearchResult, player?: SearchPlayer, iconUrl?: string | null }
+
+// Known players (#2018) — the person rather than one of their accounts, so they
+// come before the truemains. Shown only once a search has answered: their group
+// has no hint or empty row of its own, the truemains group carries those.
+const playerItems = computed<SearchItem[]>(() => (status.value === 'idle' || tooShort.value
+  ? []
+  : players.value.map(player => ({
+      label: player.persona.displayName,
+      slot: 'player',
+      player,
+      ...(status.value === 'pending' ? { disabled: true, class: 'opacity-50' } : { onSelect: () => go(playerPath(player.persona.slug)) }),
+    }))))
 
 // Sorted + mapped once, memoised: `groups` re-runs on every keystroke, and
 // re-sorting ~170 names through localeCompare each time would be needless work.
@@ -184,9 +197,13 @@ const groups = computed<CommandPaletteGroup<SearchItem>[]>(() => {
   const filter = props.championMode === 'filter' && props.activeChampionId != null
     ? [{ id: 'filter', label: 'Filter', ignoreFilter: true, items: [{ label: 'All champions', icon: 'i-lucide-x', onSelect: () => clearFilter() }] }]
     : []
+  const knownPlayers = playerItems.value.length
+    ? [{ id: 'players', label: 'Players', ignoreFilter: true, items: playerItems.value }]
+    : []
   return [
     ...filter,
     { id: 'champions', label: 'Champions', items: championItems.value },
+    ...knownPlayers,
     ...truemains,
     { id: 'browse', label: 'Browse', items: BROWSE },
   ]
@@ -256,6 +273,13 @@ defineShortcuts(computed(() => ({
         >
           <template #champion-leading="{ item }">
             <SearchItemAvatar :src="item.iconUrl" />
+          </template>
+          <template #player="{ item }">
+            <SearchPlayerItem
+              v-if="item.player"
+              :player="item.player"
+              :patch="latestPatch"
+            />
           </template>
           <template #truemain="{ item }">
             <SearchTruemainItem

@@ -58,3 +58,8 @@ export interface PersonaResponse {
   /** Tracked accounts first, best rank first; then the untracked ones. */
   accounts: PersonaAccount[]
 }
+
+/** `GET /players` (#2018): the known players worth a sitemap entry — those with a tracked account. */
+export interface PersonaDirectoryResponse {
+  players: { slug: string, updatedAtUtc: string }[]
+}

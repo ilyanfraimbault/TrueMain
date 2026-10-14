@@ -1,4 +1,4 @@
-import type { SearchResponse, SearchResult } from '#shared/types/search'
+import type { SearchPlayer, SearchResponse, SearchResult } from '#shared/types/search'
 
 /**
  * Below this many characters the backend won't search, so neither do we.
@@ -51,6 +51,8 @@ type SearchStatus = 'idle' | 'pending' | 'success' | 'error'
 export function useTruemainSearch(term: MaybeRefOrGetter<string>, options: { limit?: number } = {}) {
   const apiFetch = useApiFetch()
   const results = ref<SearchResult[]>([])
+  // Known players the same term names (#2018), answered by the same request.
+  const players = ref<SearchPlayer[]>([])
   const status = ref<SearchStatus>('idle')
   const error = ref<unknown>(null)
 
@@ -80,6 +82,7 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>, options: { lim
       // most recent request is allowed to write the results.
       if (token !== latestToken) return
       results.value = data.results
+      players.value = data.players ?? []
       error.value = null
       status.value = 'success'
     }
@@ -93,6 +96,7 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>, options: { lim
       if (token !== latestToken || signal.aborted) return
       console.error('[truemain-search] request failed', caughtError)
       results.value = []
+      players.value = []
       error.value = caughtError
       status.value = 'error'
     }
@@ -111,6 +115,7 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>, options: { lim
 
     if (namePart.value.length < SEARCH_MIN_LENGTH) {
       results.value = []
+      players.value = []
       error.value = null
       status.value = 'idle'
       return
@@ -132,5 +137,5 @@ export function useTruemainSearch(term: MaybeRefOrGetter<string>, options: { lim
     controller?.abort()
   })
 
-  return { results, status, error, tooShort }
+  return { results, players, status, error, tooShort }
 }

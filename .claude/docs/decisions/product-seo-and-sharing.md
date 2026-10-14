@@ -114,6 +114,12 @@ that list was empty"; the page-size bug fixed in #1336 then kept the list empty 
 question only if the profile page starts rendering its content server-side, not because the code once
 intended to enumerate it.
 
+**Known players are the exception, because their page is server-rendered (2026-10-14, #2018).**
+`/players/{slug}` puts the person's name, links and every account into the HTML a crawler receives, so the
+skeleton argument above does not apply to it. The sitemap lists those with at least one tracked account
+(`GET /players`), with the day of their last upsert as `lastmod`; a person whose accounts are all untracked has
+a page of bare Riot IDs and is left out. Truemain profiles stay excluded, for the reason above.
+
 **A route family that contributes no URLs warns.** Each family is fetched defensively so one upstream outage
 cannot fail the whole sitemap — that part is right, and stays. What was wrong was that an empty family still
 produced a valid, well-formed sitemap and said nothing, which is why the missing profiles sat in production

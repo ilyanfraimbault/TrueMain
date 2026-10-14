@@ -61,7 +61,7 @@ import type {
 import { PERFORMANCE_COMPONENT_KINDS } from '~~/shared/types/performance'
 import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
-import type { SearchResponse } from '~~/shared/types/search'
+import type { SearchPlayer, SearchResponse } from '~~/shared/types/search'
 
 // ─── Deterministic PRNG ──────────────────────────────────────────────────────
 // mulberry32 — every payload derives from stable seeds so repeated fetches
@@ -1251,6 +1251,23 @@ const MOCK_PERSONA_ACCOUNTS: ReadonlyArray<readonly [number, PersonaTag]> = [
   [4, MOCK_PERSONAS.koralis],
 ]
 
+// Known players whose name contains the term, with their best account's face
+// and rank — the mock's take on the backend's PersonaSearch (#2018).
+function mockPersonaSearch(needle: string): SearchPlayer[] {
+  return Object.values(MOCK_PERSONAS)
+    .filter(persona => persona.displayName.toLowerCase().includes(needle) || persona.slug.includes(needle))
+    .map((persona) => {
+      const page = mockPersona(persona.slug)!
+      const best = page.accounts.find(account => account.tracked)
+      return {
+        persona,
+        accountCount: page.accounts.length,
+        profileIconId: best?.profileIconId ?? null,
+        ranked: best?.ranked ? { tier: best.ranked.tier, division: best.ranked.division, leaguePoints: best.ranked.leaguePoints } : null,
+      }
+    })
+}
+
 function mockPersona(slug: string): PersonaResponse | null {
   const owned = players().filter(p => p.row.persona?.slug === slug)
   const persona = owned[0]?.row.persona
@@ -1368,8 +1385,9 @@ function mockLeaderboard(query: Record<string, unknown>): LeaderboardResponse {
 
 function mockSearch(q: string): SearchResponse {
   const needle = q.trim().toLowerCase()
-  if (needle.length < 2) return { results: [] }
+  if (needle.length < 2) return { results: [], players: [] }
   return {
+    players: needle.includes('#') ? [] : mockPersonaSearch(needle),
     results: players()
       .filter(p => p.row.identity.gameName.toLowerCase().includes(needle))
       .slice(0, 8)
@@ -2490,6 +2508,10 @@ export async function resolveDevApiMock(
   }
 
   if (path === '/truemains') return mockLeaderboard(query)
+
+  if (path === '/players') {
+    return { players: Object.values(MOCK_PERSONAS).map(persona => ({ slug: persona.slug, updatedAtUtc: '2026-10-13T00:00:00Z' })) }
+  }
 
   const personaMatch = path.match(/^\/players\/([^/]+)$/)
   if (personaMatch) {
