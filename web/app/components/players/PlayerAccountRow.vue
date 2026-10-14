@@ -39,12 +39,6 @@ const lastPlayedTitle = computed(() => (props.account.lastPlayedAtUtc
 
 <template>
   <li class="surface surface-hover flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg px-3 py-2.5">
-    <span
-      class="w-24 shrink-0 text-sm tabular-nums"
-      :class="lastPlayed ? 'text-muted' : 'text-dimmed'"
-      :title="lastPlayedTitle"
-    >{{ lastPlayed ?? '—' }}</span>
-
     <Account
       :identity="{ gameName: account.gameName, tagLine: account.tagLine, profileIconId: account.profileIconId, platformId: account.platformId }"
       :region="account.region"
@@ -54,31 +48,34 @@ const lastPlayedTitle = computed(() => (props.account.lastPlayedAtUtc
       class="min-w-48 flex-1"
     />
 
-    <div
-      v-if="account.ranked && rankLabel"
-      class="flex w-56 items-center gap-2"
-    >
-      <RankIcon
-        :tier="account.ranked.tier"
-        :size="28"
-        loading="lazy"
-      />
-      <div class="min-w-0 leading-tight">
-        <p class="text-sm font-semibold text-highlighted">
-          {{ rankLabel }}
-        </p>
-        <p
-          v-if="winRate !== null"
-          class="text-xs text-muted tabular-nums"
-        >
-          {{ account.ranked.wins }}W {{ account.ranked.losses }}L · {{ formatPercentage(winRate, 0) }}
-        </p>
-      </div>
+    <!-- Fixed widths, so the rank, mains and date line up from row to row. -->
+    <div class="flex w-52 items-center gap-2">
+      <template v-if="account.ranked && rankLabel">
+        <RankIcon
+          :tier="account.ranked.tier"
+          :size="28"
+          loading="lazy"
+        />
+        <div class="min-w-0 leading-tight">
+          <p class="text-sm font-semibold text-highlighted">
+            {{ rankLabel }}
+          </p>
+          <p
+            v-if="winRate !== null"
+            class="text-xs text-muted tabular-nums"
+          >
+            {{ account.ranked.wins }}W {{ account.ranked.losses }}L · {{ formatPercentage(winRate, 0) }}
+          </p>
+        </div>
+      </template>
+      <span
+        v-else
+        class="text-sm text-dimmed"
+      >Unranked</span>
     </div>
 
     <ul
-      v-if="account.topChampions.length"
-      class="flex items-center gap-1.5"
+      class="flex w-28 items-center gap-1.5"
       aria-label="Mains"
     >
       <li
@@ -96,5 +93,11 @@ const lastPlayedTitle = computed(() => (props.account.lastPlayedAtUtc
         />
       </li>
     </ul>
+
+    <span
+      class="w-24 text-right text-xs tabular-nums"
+      :class="lastPlayed ? 'text-muted' : 'text-dimmed'"
+      :title="lastPlayedTitle"
+    >{{ lastPlayed ?? '—' }}</span>
   </li>
 </template>
