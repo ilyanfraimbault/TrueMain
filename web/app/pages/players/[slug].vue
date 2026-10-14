@@ -32,11 +32,6 @@ const patch = computed(() => versions.value?.[0] ?? null)
 const { data: championsData } = useChampionStaticList()
 const championsById = computed(() => new Map((championsData.value ?? []).map(c => [c.championId, c])))
 
-const accountsSummary = computed(() => {
-  const count = persona.value?.accounts.length ?? 0
-  return `${count} ${count === 1 ? 'account' : 'accounts'}`
-})
-
 const breadcrumbItems = computed(() => [
   { label: 'Truemains', to: '/truemains' },
   { label: persona.value?.displayName ?? slug.value },
@@ -72,13 +67,27 @@ if (import.meta.server && notFound.value) {
     />
 
     <template v-else-if="persona">
-      <PageHeader
-        eyebrow="Player"
-        :title="persona.displayName"
-        :description="accountsSummary"
-      >
-        <PlayersPlayerLinks :links="persona.links" />
-      </PageHeader>
+      <!-- The person first: their picture, their name, and their channels on
+           the name's line. The picture is a placeholder slot until persona
+           images are collected (#2064). -->
+      <header class="flex items-center gap-4">
+        <UAvatar
+          :alt="persona.displayName"
+          icon="i-lucide-user-round"
+          :ui="{ root: 'size-20 shrink-0 rounded-xl bg-elevated ring-1 ring-default text-2xl', icon: 'size-9 text-dimmed' }"
+        />
+        <div class="min-w-0 flex-1">
+          <p class="eyebrow">
+            Player
+          </p>
+          <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <h1 class="truncate text-2xl font-semibold tracking-tight text-highlighted sm:text-3xl">
+              {{ persona.displayName }}
+            </h1>
+            <PlayersPlayerLinks :links="persona.links" />
+          </div>
+        </div>
+      </header>
 
       <section class="flex flex-col gap-2">
         <h2 class="eyebrow">
