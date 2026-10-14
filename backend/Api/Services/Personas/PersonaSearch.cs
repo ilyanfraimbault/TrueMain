@@ -34,9 +34,11 @@ internal static class PersonaSearch
         var matches = await db.Personas
             .AsNoTracking()
             .Where(p => EF.Functions.ILike(p.DisplayName, pattern, "\\") || EF.Functions.ILike(p.Slug, pattern, "\\"))
+            // Their page lists tracked accounts only, so a person with none has no page to open.
+            .Where(p => p.Accounts.Any(a => a.RiotAccountId != null))
             .OrderBy(p => p.Slug)
             .Take(CandidateCap)
-            .Select(p => new { p.Id, p.Slug, p.DisplayName, Accounts = p.Accounts.Count })
+            .Select(p => new { p.Id, p.Slug, p.DisplayName, Accounts = p.Accounts.Count(a => a.RiotAccountId != null) })
             .ToListAsync(ct);
 
         if (matches.Count == 0)

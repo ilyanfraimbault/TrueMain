@@ -1258,7 +1258,7 @@ function mockPersonaSearch(needle: string): SearchPlayer[] {
     .filter(persona => persona.displayName.toLowerCase().includes(needle) || persona.slug.includes(needle))
     .map((persona) => {
       const page = mockPersona(persona.slug)!
-      const best = page.accounts.find(account => account.tracked)
+      const best = page.accounts[0]
       return {
         persona,
         accountCount: page.accounts.length,
@@ -1272,13 +1272,15 @@ function mockPersona(slug: string): PersonaResponse | null {
   const owned = players().filter(p => p.row.persona?.slug === slug)
   const persona = owned[0]?.row.persona
   if (!persona) return null
-  const tracked: PersonaAccount[] = owned.map(({ row }) => ({
+  // The page lists tracked accounts only, the one played most recently first:
+  // the mock spaces their last games a day, then a month apart.
+  const accounts: PersonaAccount[] = owned.map(({ row }, index) => ({
     gameName: row.identity.gameName,
     tagLine: row.identity.tagLine ?? '',
     platformId: row.identity.platformId,
     region: row.region,
-    tracked: true,
     profileIconId: row.identity.profileIconId,
+    lastPlayedAtUtc: new Date(Date.now() - (index === 0 ? 1 : 32) * 86_400_000).toISOString(),
     ranked: row.ranked && {
       tier: row.ranked.tier,
       division: row.ranked.division,
@@ -1288,17 +1290,6 @@ function mockPersona(slug: string): PersonaResponse | null {
     },
     topChampions: row.topChampions.map(c => ({ championId: c.championId, games: c.games, playRate: c.playRate, isOtp: c.isOtp })),
   }))
-  // A listed account TrueMain does not track yet: shown, never linked.
-  const untracked: PersonaAccount = {
-    gameName: `${persona.displayName.split(' ')[0]}Alt`,
-    tagLine: 'KR1',
-    platformId: 'KR',
-    region: 'korea',
-    tracked: false,
-    profileIconId: null,
-    ranked: null,
-    topChampions: [],
-  }
   return {
     slug: persona.slug,
     displayName: persona.displayName,
@@ -1310,7 +1301,7 @@ function mockPersona(slug: string): PersonaResponse | null {
           { kind: 'leaguepedia', url: 'https://lol.fandom.com/wiki/Sheiden' },
         ]
       : [],
-    accounts: slug === 'sheiden' ? [...tracked, untracked] : tracked,
+    accounts,
   }
 }
 

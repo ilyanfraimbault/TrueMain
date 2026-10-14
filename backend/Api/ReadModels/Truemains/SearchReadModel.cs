@@ -27,13 +27,13 @@ public sealed record SearchPlayerReadModel
 {
     public PersonaTagReadModel Persona { get; init; } = new();
 
-    /// <summary>Every account sources list for the person, tracked or not.</summary>
+    /// <summary>The person's tracked accounts — the ones their page lists. Never 0: a person with none is not returned.</summary>
     public int AccountCount { get; init; }
 
-    /// <summary>The best-ranked tracked account's icon; null when none is tracked.</summary>
+    /// <summary>The best-ranked tracked account's icon.</summary>
     public int? ProfileIconId { get; init; }
 
-    /// <summary>The best-ranked tracked account's rank; null when none is tracked or ranked.</summary>
+    /// <summary>The best-ranked tracked account's rank; null when it is unranked.</summary>
     public SearchRankedReadModel? Ranked { get; init; }
 }
 

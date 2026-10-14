@@ -205,8 +205,10 @@ site's match detail.
 ## Known players: one person, several accounts, only what public sources list (2026-10-13)
 
 **Decision.** A known player — a pro, a streamer, a creator, or any notable player — is a *persona* in the code and the
-person's own name on the site, never a generic noun: `/players/{slug}` lists their public links and every Riot account
-public sources (Leaguepedia, LoLPros, …) attribute to them, each leading to the regular profile. On `/truemains` a
+person's own name on the site, never a generic noun: `/players/{slug}` lists their public links and the Riot accounts
+public sources (Leaguepedia, LoLPros, …) attribute to them that TrueMain tracks, each leading to the regular profile —
+an untracked account has no page to open, so it is not shown (2026-10-14, #2018), and the list opens on the account
+played most recently. On `/truemains` a
 linked account's row shows the person's name, which links to that page, while the rest of the row still opens the
 account's profile; the profile banner links back with "{name} · all accounts". The page sits outside `/truemains`
 because a known player need not be a true main of anything.

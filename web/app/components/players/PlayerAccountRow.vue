@@ -4,11 +4,12 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { truemainNameTag } from '~~/shared/utils/truemain-path'
 import { formatRank } from '#common/utils/tiers'
+import { formatRelativeTime } from '#common/utils/relativeTime'
 
-// One account of a known player (#2016). A tracked account is drawn the way
-// the leaderboard draws a truemain — identity linking to its profile, rank,
-// mains linking to the player's champion pages — and an account TrueMain does
-// not track yet is listed with its Riot ID alone: there is no page to open.
+// One account of a known player (#2016): when it last played, then the account
+// the way the leaderboard draws a truemain — identity linking to its profile,
+// rank, mains linking to the player's champion pages. Only tracked accounts
+// reach this row; the page lists no account it could not open.
 const props = defineProps<{
   account: PersonaAccount
   championsById: Map<number, ChampionStaticListItem>
@@ -29,15 +30,25 @@ const winRate = computed(() => {
 })
 
 const champion = (id: number) => props.championsById.get(id)
+
+const lastPlayed = computed(() => (props.account.lastPlayedAtUtc ? formatRelativeTime(props.account.lastPlayedAtUtc) : null))
+const lastPlayedTitle = computed(() => (props.account.lastPlayedAtUtc
+  ? `Last ranked game ${new Date(props.account.lastPlayedAtUtc).toUTCString()}`
+  : 'No ranked game stored for this account'))
 </script>
 
 <template>
   <li class="surface surface-hover flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg px-3 py-2.5">
+    <span
+      class="w-24 shrink-0 text-sm tabular-nums"
+      :class="lastPlayed ? 'text-muted' : 'text-dimmed'"
+      :title="lastPlayedTitle"
+    >{{ lastPlayed ?? '—' }}</span>
+
     <Account
       :identity="{ gameName: account.gameName, tagLine: account.tagLine, profileIconId: account.profileIconId, platformId: account.platformId }"
       :region="account.region"
       :patch="patch"
-      :to="account.tracked ? undefined : false"
       size="lg"
       loading="lazy"
       class="min-w-48 flex-1"
