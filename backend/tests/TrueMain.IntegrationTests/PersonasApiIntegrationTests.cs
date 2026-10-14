@@ -218,6 +218,55 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         (await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Nobody-EUW/profile"))!.Persona.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Search_FindsAKnownPlayerByName_NotByATaggedQuery_AndTheDirectoryListsOnlyTrackedOnes()
+    {
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var aileri = Account("puuid-aileri", "Aileri", "KR1", "KR");
+            db.RiotAccounts.Add(aileri);
+            db.RankSnapshots.Add(Snapshot(aileri, "CHALLENGER", "I", 900));
+            db.Personas.AddRange(
+                new Persona
+                {
+                    Slug = "irelking",
+                    DisplayName = "Irelking",
+                    Source = PersonaSource.DeepLol,
+                    Accounts =
+                    [
+                        new PersonaAccount { GameName = "Aileri", TagLine = "KR1", PlatformId = "KR", RiotAccount = aileri, Source = PersonaSource.DeepLol },
+                        new PersonaAccount { GameName = "irelklng", TagLine = "kr1", PlatformId = "KR", Source = PersonaSource.DeepLol },
+                    ],
+                },
+                new Persona
+                {
+                    Slug = "irelia-fan",
+                    DisplayName = "Irelia Fan",
+                    Source = PersonaSource.Manual,
+                    Accounts = [new PersonaAccount { GameName = "Nobody", TagLine = "EUW", PlatformId = "EUW1", Source = PersonaSource.Manual }],
+                });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory, authed: false);
+
+        // The person is found by their name although none of their Riot IDs contains it — the point.
+        var search = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=irel");
+        search!.Players.Select(p => p.Persona.Slug).Should().Equal("irelking", "irelia-fan");
+        var irelking = search.Players[0];
+        irelking.AccountCount.Should().Be(2);
+        irelking.ProfileIconId.Should().Be(1);
+        irelking.Ranked!.Tier.Should().Be("CHALLENGER");
+        search.Players[1].Ranked.Should().BeNull("no account of hers is tracked");
+
+        (await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=irel%23KR1"))!.Players
+            .Should().BeEmpty("a Name#TAG asks for one account, not a person");
+
+        var directory = await client.GetFromJsonAsync<PersonaDirectoryResponse>("/players");
+        directory!.Players.Select(p => p.Slug).Should().Equal(["irelking"], "a page of untracked Riot IDs is not advertised");
+    }
+
     private static async Task<PersonaUpsertResult> Upsert(
         HttpClient client, string slug, string displayName, params (string GameName, string TagLine)[] accounts)
     {

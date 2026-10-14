@@ -11,6 +11,20 @@ public sealed record PersonaTagReadModel
     public string DisplayName { get; init; } = string.Empty;
 }
 
+/// <summary>The known players worth a sitemap entry (<c>GET /players</c>, #2018).</summary>
+public sealed record PersonaDirectoryResponse
+{
+    public IReadOnlyList<PersonaDirectoryEntryReadModel> Players { get; init; } = Array.Empty<PersonaDirectoryEntryReadModel>();
+}
+
+public sealed record PersonaDirectoryEntryReadModel
+{
+    public string Slug { get; init; } = string.Empty;
+
+    /// <summary>The persona's last upsert — the sitemap's <c>lastmod</c>.</summary>
+    public DateTime UpdatedAtUtc { get; init; }
+}
+
 /// <summary>A known player and every account sources list for them (<c>GET /players/{slug}</c>).</summary>
 public sealed record PersonaReadModel
 {

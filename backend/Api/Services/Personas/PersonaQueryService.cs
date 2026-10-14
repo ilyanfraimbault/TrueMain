@@ -10,6 +10,12 @@ public interface IPersonaQueryService
 {
     /// <summary>The persona behind <paramref name="slug"/>, or null when none — the controller's 404.</summary>
     Task<PersonaReadModel?> GetAsync(string slug, CancellationToken ct);
+
+    /// <summary>
+    /// Every known player with at least one tracked account — the pages worth advertising to a
+    /// crawler (#2018). A person whose accounts are all untracked has a page of bare Riot IDs.
+    /// </summary>
+    Task<PersonaDirectoryResponse> ListAsync(CancellationToken ct);
 }
 
 /// <summary>
@@ -19,6 +25,18 @@ public interface IPersonaQueryService
 /// </summary>
 public sealed class PersonaQueryService(TrueMainDbContext db) : IPersonaQueryService
 {
+    public async Task<PersonaDirectoryResponse> ListAsync(CancellationToken ct)
+    {
+        var players = await db.Personas
+            .AsNoTracking()
+            .Where(p => p.Accounts.Any(a => a.RiotAccountId != null))
+            .OrderBy(p => p.Slug)
+            .Select(p => new PersonaDirectoryEntryReadModel { Slug = p.Slug, UpdatedAtUtc = p.UpdatedAtUtc })
+            .ToListAsync(ct);
+
+        return new PersonaDirectoryResponse { Players = players };
+    }
+
     public async Task<PersonaReadModel?> GetAsync(string slug, CancellationToken ct)
     {
         var key = slug.Trim().ToLowerInvariant();
