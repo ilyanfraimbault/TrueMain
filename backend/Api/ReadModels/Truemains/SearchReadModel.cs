@@ -1,3 +1,5 @@
+using TrueMain.ReadModels.Personas;
+
 namespace TrueMain.ReadModels.Truemains;
 
 /// <summary>
@@ -11,6 +13,28 @@ public sealed record SearchResponse
 {
     public IReadOnlyList<SearchResultReadModel> Results { get; init; }
         = Array.Empty<SearchResultReadModel>();
+
+    /// <summary>
+    /// Known players whose name matches the term (#2018), best first, at most five. Empty when the
+    /// query carries a tag — a <c>Name#TAG</c> asks for one account, not a person.
+    /// </summary>
+    public IReadOnlyList<SearchPlayerReadModel> Players { get; init; }
+        = Array.Empty<SearchPlayerReadModel>();
+}
+
+/// <summary>A known player in the search results, linking to <c>/players/{slug}</c>.</summary>
+public sealed record SearchPlayerReadModel
+{
+    public PersonaTagReadModel Persona { get; init; } = new();
+
+    /// <summary>The person's tracked accounts — the ones their page lists. Never 0: a person with none is not returned.</summary>
+    public int AccountCount { get; init; }
+
+    /// <summary>The best-ranked tracked account's icon.</summary>
+    public int? ProfileIconId { get; init; }
+
+    /// <summary>The best-ranked tracked account's rank; null when it is unranked.</summary>
+    public SearchRankedReadModel? Ranked { get; init; }
 }
 
 public sealed record SearchResultReadModel

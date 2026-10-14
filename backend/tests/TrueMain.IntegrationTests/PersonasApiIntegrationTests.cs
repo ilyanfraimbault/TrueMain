@@ -99,18 +99,55 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
             ("twitch", "https://www.twitch.tv/irelking"),
             ("youtube", "https://www.youtube.com/@Irelking"));
 
-        page.Accounts.Should().HaveCount(2);
-        var tracked = page.Accounts[0];
-        tracked.Tracked.Should().BeTrue("tracked accounts are listed first");
+        // The seeded IrelSmurf stays off the page until it is tracked: it has no profile to open.
+        var tracked = page.Accounts.Should().ContainSingle().Subject;
         tracked.GameName.Should().Be("Irelking", "a tracked account shows its stored Riot ID, not the source's spelling");
         tracked.Region.Should().Be("europe");
         tracked.Ranked!.Tier.Should().Be("CHALLENGER");
         tracked.TopChampions.Should().ContainSingle(c => c.ChampionId == 39);
+    }
 
-        var untracked = page.Accounts[1];
-        untracked.Tracked.Should().BeFalse();
-        untracked.GameName.Should().Be("IrelSmurf");
-        untracked.Ranked.Should().BeNull();
+    [Fact]
+    public async Task Page_OrdersAccountsByTheirLastGame_FromLiveRowsOrTheMatchStamp()
+    {
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // The better-ranked account is the dormant one: the page still opens on the account in use.
+            var dormant = Account("puuid-dormant", "Dormant", "KR1", "KR");
+            dormant.LastSeenInMatchAtUtc = now.AddDays(-60);
+            var current = Account("puuid-current", "Current", "KR2", "KR");
+            var never = Account("puuid-never", "Never", "KR3", "KR");
+            db.RiotAccounts.AddRange(dormant, current, never);
+            db.RankSnapshots.AddRange(
+                Snapshot(dormant, "CHALLENGER", "I", 1500),
+                Snapshot(current, "MASTER", "I", 100),
+                Snapshot(never, "GRANDMASTER", "I", 600));
+            db.Matches.Add(new Match { Id = "KR_1", PlatformId = "KR", QueueId = 420, GameStartTimeUtc = now.AddDays(-1) });
+            db.MatchParticipants.Add(new MatchParticipant { MatchId = "KR_1", Puuid = "puuid-current", RiotAccountId = current.Id, ParticipantId = 1 });
+            db.Personas.Add(new Persona
+            {
+                Slug = "someone",
+                DisplayName = "Someone",
+                Source = PersonaSource.Manual,
+                Accounts =
+                [
+                    new PersonaAccount { GameName = "Dormant", TagLine = "KR1", PlatformId = "KR", RiotAccount = dormant, Source = PersonaSource.Manual },
+                    new PersonaAccount { GameName = "Current", TagLine = "KR2", PlatformId = "KR", RiotAccount = current, Source = PersonaSource.Manual },
+                    new PersonaAccount { GameName = "Never", TagLine = "KR3", PlatformId = "KR", RiotAccount = never, Source = PersonaSource.Manual },
+                ],
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory, authed: false);
+
+        var page = await client.GetFromJsonAsync<PersonaReadModel>("/players/someone");
+        page!.Accounts.Select(a => a.GameName).Should().Equal("Current", "Dormant", "Never");
+        page.Accounts[0].LastPlayedAtUtc.Should().BeCloseTo(now.AddDays(-1), TimeSpan.FromSeconds(1));
+        page.Accounts[1].LastPlayedAtUtc.Should().BeCloseTo(now.AddDays(-60), TimeSpan.FromSeconds(1));
+        page.Accounts[2].LastPlayedAtUtc.Should().BeNull();
     }
 
     [Fact]
@@ -216,6 +253,56 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Streamer-EUW/profile");
         profile!.Persona!.Slug.Should().Be("streamer");
         (await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Nobody-EUW/profile"))!.Persona.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Search_FindsAKnownPlayerByName_NotByATaggedQuery_AndTheDirectoryListsOnlyTrackedOnes()
+    {
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var aileri = Account("puuid-aileri", "Aileri", "KR1", "KR");
+            db.RiotAccounts.Add(aileri);
+            db.RankSnapshots.Add(Snapshot(aileri, "CHALLENGER", "I", 900));
+            db.Personas.AddRange(
+                new Persona
+                {
+                    Slug = "irelking",
+                    DisplayName = "Irelking",
+                    Source = PersonaSource.DeepLol,
+                    Accounts =
+                    [
+                        new PersonaAccount { GameName = "Aileri", TagLine = "KR1", PlatformId = "KR", RiotAccount = aileri, Source = PersonaSource.DeepLol },
+                        new PersonaAccount { GameName = "irelklng", TagLine = "kr1", PlatformId = "KR", Source = PersonaSource.DeepLol },
+                    ],
+                },
+                new Persona
+                {
+                    Slug = "irelia-fan",
+                    DisplayName = "Irelia Fan",
+                    Source = PersonaSource.Manual,
+                    Accounts = [new PersonaAccount { GameName = "Nobody", TagLine = "EUW", PlatformId = "EUW1", Source = PersonaSource.Manual }],
+                });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory, authed: false);
+
+        // The person is found by their name although none of their Riot IDs contains it — the point.
+        var search = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=irel");
+        // "Irelia Fan" matches too, but none of her accounts is tracked: her page would be empty.
+        var irelking = search!.Players.Should().ContainSingle().Subject;
+        irelking.Persona.Slug.Should().Be("irelking");
+        irelking.AccountCount.Should().Be(1, "only the tracked account is on his page");
+        irelking.ProfileIconId.Should().Be(1);
+        irelking.Ranked!.Tier.Should().Be("CHALLENGER");
+        (await client.GetAsync("/players/irelia-fan")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        (await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=irel%23KR1"))!.Players
+            .Should().BeEmpty("a Name#TAG asks for one account, not a person");
+
+        var directory = await client.GetFromJsonAsync<PersonaDirectoryResponse>("/players");
+        directory!.Players.Select(p => p.Slug).Should().Equal(["irelking"], "a page of untracked Riot IDs is not advertised");
     }
 
     private static async Task<PersonaUpsertResult> Upsert(

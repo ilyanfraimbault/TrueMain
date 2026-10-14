@@ -4,11 +4,12 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { truemainNameTag } from '~~/shared/utils/truemain-path'
 import { formatRank } from '#common/utils/tiers'
+import { formatRelativeTime } from '#common/utils/relativeTime'
 
-// One account of a known player (#2016). A tracked account is drawn the way
-// the leaderboard draws a truemain — identity linking to its profile, rank,
-// mains linking to the player's champion pages — and an account TrueMain does
-// not track yet is listed with its Riot ID alone: there is no page to open.
+// One account of a known player (#2016): when it last played, then the account
+// the way the leaderboard draws a truemain — identity linking to its profile,
+// rank, mains linking to the player's champion pages. Only tracked accounts
+// reach this row; the page lists no account it could not open.
 const props = defineProps<{
   account: PersonaAccount
   championsById: Map<number, ChampionStaticListItem>
@@ -29,6 +30,11 @@ const winRate = computed(() => {
 })
 
 const champion = (id: number) => props.championsById.get(id)
+
+const lastPlayed = computed(() => (props.account.lastPlayedAtUtc ? formatRelativeTime(props.account.lastPlayedAtUtc) : null))
+const lastPlayedTitle = computed(() => (props.account.lastPlayedAtUtc
+  ? `Last ranked game ${new Date(props.account.lastPlayedAtUtc).toUTCString()}`
+  : 'No ranked game stored for this account'))
 </script>
 
 <template>
@@ -37,37 +43,39 @@ const champion = (id: number) => props.championsById.get(id)
       :identity="{ gameName: account.gameName, tagLine: account.tagLine, profileIconId: account.profileIconId, platformId: account.platformId }"
       :region="account.region"
       :patch="patch"
-      :to="account.tracked ? undefined : false"
       size="lg"
       loading="lazy"
       class="min-w-48 flex-1"
     />
 
-    <div
-      v-if="account.ranked && rankLabel"
-      class="flex w-56 items-center gap-2"
-    >
-      <RankIcon
-        :tier="account.ranked.tier"
-        :size="28"
-        loading="lazy"
-      />
-      <div class="min-w-0 leading-tight">
-        <p class="text-sm font-semibold text-highlighted">
-          {{ rankLabel }}
-        </p>
-        <p
-          v-if="winRate !== null"
-          class="text-xs text-muted tabular-nums"
-        >
-          {{ account.ranked.wins }}W {{ account.ranked.losses }}L · {{ formatPercentage(winRate, 0) }}
-        </p>
-      </div>
+    <!-- Fixed widths, so the rank, mains and date line up from row to row. -->
+    <div class="flex w-52 items-center gap-2">
+      <template v-if="account.ranked && rankLabel">
+        <RankIcon
+          :tier="account.ranked.tier"
+          :size="28"
+          loading="lazy"
+        />
+        <div class="min-w-0 leading-tight">
+          <p class="text-sm font-semibold text-highlighted">
+            {{ rankLabel }}
+          </p>
+          <p
+            v-if="winRate !== null"
+            class="text-xs text-muted tabular-nums"
+          >
+            {{ account.ranked.wins }}W {{ account.ranked.losses }}L · {{ formatPercentage(winRate, 0) }}
+          </p>
+        </div>
+      </template>
+      <span
+        v-else
+        class="text-sm text-dimmed"
+      >Unranked</span>
     </div>
 
     <ul
-      v-if="account.topChampions.length"
-      class="flex items-center gap-1.5"
+      class="flex w-28 items-center gap-1.5"
       aria-label="Mains"
     >
       <li
@@ -85,5 +93,11 @@ const champion = (id: number) => props.championsById.get(id)
         />
       </li>
     </ul>
+
+    <span
+      class="w-24 text-right text-xs tabular-nums"
+      :class="lastPlayed ? 'text-muted' : 'text-dimmed'"
+      :title="lastPlayedTitle"
+    >{{ lastPlayed ?? '—' }}</span>
   </li>
 </template>

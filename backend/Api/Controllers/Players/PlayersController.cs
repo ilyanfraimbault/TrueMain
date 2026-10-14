@@ -10,6 +10,16 @@ namespace TrueMain.Controllers.Players;
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
 public sealed class PlayersController(IPersonaQueryService personaQueryService) : ControllerBase
 {
+    /// <summary>Every known player with a tracked account, slug and last update — the sitemap's source (#2018).</summary>
+    [HttpGet("")]
+    [ProducesResponseType(typeof(PersonaDirectoryResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PersonaDirectoryResponse>> ListAsync(CancellationToken ct = default)
+    {
+        var response = await personaQueryService.ListAsync(ct);
+        Response.Headers.CacheControl = "public, s-maxage=3600, stale-while-revalidate=3600";
+        return Ok(response);
+    }
+
     /// <summary>The person behind <paramref name="slug"/>: name, public links, accounts. 404 when unknown.</summary>
     [HttpGet("{slug}")]
     [ProducesResponseType(typeof(PersonaReadModel), StatusCodes.Status200OK)]

@@ -2,12 +2,15 @@ import type { SitemapUrl } from '#sitemap/types'
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionSlugMap } from '~~/shared/types/static-data'
 import { defineEventHandler, setResponseHeader } from 'h3'
+import type { PersonaDirectoryResponse } from '~~/shared/types/players'
+import { playerPath } from '~~/shared/utils/player-path'
 import { championLastmodById } from '~~/shared/utils/sitemap-lastmod'
 
 /**
  * Dynamic sitemap entries for @nuxtjs/sitemap. Static pages are discovered from
- * the file-based routes automatically; this endpoint enumerates the one
- * data-driven family the sitemap advertises:
+ * the file-based routes automatically; this endpoint enumerates the two
+ * data-driven families the sitemap advertises:
+ *   - /players/{slug}   — one per known player with a tracked account (#2018)
  *   - /champions/{slug} — one per champion on the latest patch (#1124),
  *                         carrying a day-precision `lastmod` (#1256)
  *
@@ -55,6 +58,19 @@ async function championUrls(): Promise<SitemapUrl[]> {
   })
 }
 
+// Known players (#2018) — `/players/{slug}` is server-rendered (name, links and
+// every account in the HTML), unlike a truemain profile, so it is worth a
+// crawler's visit. The API lists only people with at least one tracked account:
+// a page of bare, untracked Riot IDs is not advertised. `lastmod` is the day of
+// the persona's last upsert, at the champions' day precision.
+async function playerUrls(): Promise<SitemapUrl[]> {
+  const { players } = await $fetch<PersonaDirectoryResponse>('/api/players')
+  return players.map(player => ({
+    loc: playerPath(player.slug),
+    lastmod: player.updatedAtUtc.slice(0, 10),
+  }))
+}
+
 // Cache the fan-out at the origin (not just via downstream CDNs): @nuxtjs/sitemap
 // caches the rendered sitemap, but this route is publicly reachable, so without
 // this every direct hit would pass straight through to the upstreams. Mirrors
@@ -63,14 +79,22 @@ async function championUrls(): Promise<SitemapUrl[]> {
 // header below.
 const loadSitemapUrls = defineCachedFunction(
   async (): Promise<SitemapUrl[]> => {
-    const champions = await championUrls().catch(() => [] as SitemapUrl[])
+    const [champions, players] = await Promise.all([
+      championUrls().catch(() => [] as SitemapUrl[]),
+      playerUrls().catch(() => null),
+    ])
     // Degrading to the static pages is deliberate; doing it silently is not.
     // #1334 shipped precisely because an empty family still rendered a valid
     // sitemap and nothing anywhere said a route family had gone missing.
     if (champions.length === 0) {
       console.warn('[sitemap] champion source contributed no URLs')
     }
-    return champions
+    // An empty player list is a legitimate answer (none tracked yet); only a
+    // failed fetch is worth a warning.
+    if (players === null) {
+      console.warn('[sitemap] player source failed; known players left out')
+    }
+    return [...champions, ...(players ?? [])]
   },
   { maxAge: 60 * 60, name: 'sitemap-urls', getKey: () => 'all' },
 )
