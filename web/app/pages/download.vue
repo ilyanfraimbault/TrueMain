@@ -14,13 +14,6 @@ useSeoMeta({
 const { data: release, status, error } = await useFetch<DesktopRelease | null>('/api/desktop/release')
 const { platform, other, onPhone } = useDesktopPlatform()
 
-const MOMENTS = [
-  { id: 'champion-select', label: 'Champion select' },
-  { id: 'in-game', label: 'In game' },
-  { id: 'after-the-game', label: 'After the game' },
-  { id: 'recordings', label: 'Recordings' },
-] as const
-
 // The drawn scenes' icons: the latest patch, and the item map and rune tree
 // only once a scene that needs them comes near — neither is above the fold.
 const { data: versions } = useDDragonVersions()
@@ -45,12 +38,12 @@ const DRAFT_POINTS = [
 ] as const
 
 const MORE = [
-  { icon: 'i-lucide-user-round', title: 'Your profile, from your client', body: 'Rank, form, match history and LP curve for any account, tracked by TrueMain or not.' },
-  { icon: 'i-lucide-scan-eye', title: 'The lobby, scouted', body: 'On the loading screen and in game: each player\'s rank, main role or autofill, streak and form on their champion.' },
-  { icon: 'i-lucide-badge-check', title: 'True mains, marked', body: 'The TrueMain mark beside a player who mains the champion they are on, and their own build a click away.' },
-  { icon: 'i-lucide-chart-pie', title: 'The damage mix', body: 'Each team\'s physical and magic split as the draft fills, and the picks that answer a one-sided team.' },
-  { icon: 'i-lucide-layout-list', title: 'The site, inside', body: 'The tier list, the champion pages, the matchup tool and the true mains leaderboard, without opening a browser.' },
-  { icon: 'i-lucide-command', title: 'One search field', body: 'Press ⌘K or Ctrl K for any champion, even with League closed.' },
+  { icon: 'i-lucide-user-round', title: 'Your profile', body: 'Rank, form and LP curve, for any account.' },
+  { icon: 'i-lucide-scan-eye', title: 'The lobby, scouted', body: 'Each player\'s rank, role and form on their pick.' },
+  { icon: 'i-lucide-badge-check', title: 'True mains, marked', body: 'Who mains their champion, and their build.' },
+  { icon: 'i-lucide-chart-pie', title: 'The damage mix', body: 'Each team\'s physical and magic split.' },
+  { icon: 'i-lucide-layout-list', title: 'The site, inside', body: 'Tier list, champions and matchups, no browser.' },
+  { icon: 'i-lucide-command', title: 'One search field', body: '⌘K or Ctrl K, even with League closed.' },
 ] as const
 </script>
 
@@ -86,18 +79,6 @@ const MORE = [
           class="lg:items-end lg:text-right"
         />
       </div>
-
-      <!-- The four moments of a game, in the order they come: the page's table of contents. -->
-      <nav aria-label="On this page" class="mt-12">
-        <ol class="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-          <li v-for="(moment, index) in MOMENTS" :key="moment.id">
-            <a :href="`#${moment.id}`" class="group flex flex-col gap-2 border-t border-default pt-3 transition-colors hover:border-primary">
-              <span class="text-xs tabular-nums text-dimmed">0{{ index + 1 }}</span>
-              <span class="text-sm font-medium text-muted transition-colors group-hover:text-highlighted">{{ moment.label }}</span>
-            </a>
-          </li>
-        </ol>
-      </nav>
     </section>
 
     <!-- The app itself before the drawn scenes: a capture of the real UI over live API answers (#1725). -->
@@ -159,7 +140,7 @@ const MORE = [
         <figure>
           <DesktopLandingAfterGameDemo aria-hidden="true" />
           <figcaption class="mt-3 text-xs text-dimmed">
-            The dashboard's goals card and a game's win probability, with sample games.
+            The dashboard's Today and goals cards, with sample games.
           </figcaption>
         </figure>
       </DesktopLandingSection>
@@ -173,7 +154,7 @@ const MORE = [
         <figure>
           <DesktopLandingRecapDemo aria-hidden="true" />
           <figcaption class="mt-3 text-xs text-dimmed">
-            The recap with a sample game: a triple kill cut into a clip and saved.
+            The recap of one of our games, with sample moments: a triple kill cut into a clip and saved.
           </figcaption>
         </figure>
       </DesktopLandingSection>

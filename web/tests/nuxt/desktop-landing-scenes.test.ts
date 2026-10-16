@@ -21,7 +21,7 @@ const item = (name: string, totalGold: number, tags: string[] = []): StaticItemD
 
 /** The sample's items at round prices, so the lane sums are checkable by hand. */
 const ITEMS: Record<number, StaticItemData> = {
-  3157: item('Zhonya\'s Hourglass', 3250),
+  3031: item('Infinity Edge', 3450),
   1018: item('Cloak of Agility', 600),
   3047: item('Plated Steelcaps', 1200),
   3190: item('Locket of the Iron Solari', 2200),
@@ -42,16 +42,16 @@ describe('LandingOverlayPanel', () => {
   it('shows the next item of the sample with the gold it still needs', async () => {
     const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'next-item', patch: PATCH, items: ITEMS } })
 
-    expect(wrapper.text()).toContain('Zhonya\'s Hourglass')
+    expect(wrapper.text()).toContain('Infinity Edge')
     expect(wrapper.text()).toContain('650 gold to go')
-    expect(wrapper.find('img').attributes('src')).toContain('3157.png')
+    expect(wrapper.find('img').attributes('src')).toContain('3031.png')
     expect(wrapper.attributes('style')).toContain('width: 232px')
   })
 
   it('names the item before the item map is read, and draws an empty slot for its icon', async () => {
     const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'next-item', patch: null, items: null } })
 
-    expect(wrapper.text()).toContain('Zhonya\'s Hourglass')
+    expect(wrapper.text()).toContain('Infinity Edge')
     expect(wrapper.find('img').exists()).toBe(false)
   })
 
@@ -64,14 +64,16 @@ describe('LandingOverlayPanel', () => {
     expect(wrapper.text()).toContain(`${100 - ours}%`)
   })
 
-  it('draws the pace against the Diamond median', async () => {
+  it('draws the pace of the frame\'s 13th minute against the Diamond median', async () => {
     const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'pace', patch: PATCH, items: null } })
 
-    expect(wrapper.text()).toContain('7.8')
-    expect(wrapper.text()).toContain('Diamond 7.3')
+    expect(wrapper.text()).toContain('7.6')
+    expect(wrapper.text()).toContain('Diamond 7.1')
     expect(wrapper.text()).toContain('440')
-    expect(wrapper.text()).toContain('Diamond 425')
+    expect(wrapper.text()).toContain('Diamond 432')
     expect(wrapper.findAll('polyline')).toHaveLength(2)
+    // The curve ends on a dot, as OverlayStats draws it.
+    expect(wrapper.findAll('circle')).toHaveLength(1)
   })
 
   it('sums item gold lane by lane, leaving out consumables and trinkets', async () => {
@@ -80,8 +82,8 @@ describe('LandingOverlayPanel', () => {
     const rows = wrapper.findAll('li')
 
     expect(rows).toHaveLength(5)
-    // Bottom lane: Jinx holds a Cloak of Agility (600), Ezreal nothing priced here.
-    expect(rows[3]!.text()).toContain('600')
+    // Bottom lane: Jinx holds an Infinity Edge (3,450) and a Cloak of Agility (600), Ezreal nothing priced here.
+    expect(rows[3]!.text()).toContain('4,050')
     // Support: Locket on both sides, the boots counted as a consumable for this test.
     expect(rows[4]!.text()).toContain('2,200')
     expect(wrapper.findAll('img')).toHaveLength(10)
@@ -151,13 +153,14 @@ describe('LandingDraftDemo', () => {
 })
 
 describe('LandingAfterGameDemo', () => {
-  it('ends with every sample game landed in the goals and the curve drawn', async () => {
+  it('ends with the day\'s four sample games in the Today card and the goals', async () => {
     const wrapper = await mountSuspended(DesktopLandingAfterGameDemo)
 
+    expect(wrapper.text()).toContain('4 games · 1h 59m')
+    expect(wrapper.text()).toContain('3W – 1L')
+    expect(wrapper.text()).toContain('45 LP')
     expect(wrapper.text()).toContain('7.3 now · target 7.0 · 4/5 games')
-    expect(wrapper.text()).toContain('3 of 5 met · 3/5 games')
-    expect(wrapper.find('.landing-reveal').classes()).toContain('is-on')
-    expect(wrapper.findAll('circle')).toHaveLength(5)
+    expect(wrapper.text()).toContain('4 of 5 met · 4/5 games')
   })
 })
 
@@ -165,9 +168,12 @@ describe('LandingRecapDemo', () => {
   it('ends on the triple kill saved and its clip at the head of the list', async () => {
     const wrapper = await mountSuspended(DesktopLandingRecapDemo)
 
-    expect(wrapper.text()).toContain('Triple kill on Ahri')
-    expect(wrapper.text()).toContain('Saved')
-    expect(wrapper.findAll('.landing-clip.is-on')).toHaveLength(3)
+    expect(wrapper.text()).toContain('Saved clips · 3')
+    expect(wrapper.text()).toContain('Triple kill on Yone')
+    expect(wrapper.text()).toContain('13:23 / 31:40')
+    // Once saved, the range being cut is gone from the side panel.
+    expect(wrapper.text()).not.toContain('12:48 → 13:33')
+    expect(wrapper.find('img').attributes('src')).toBe('/desktop/game.webp')
   })
 })
 
@@ -199,8 +205,8 @@ describe('the scenes, playing', () => {
     expect(wrapper.findAll('.landing-rise.is-on')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('Lock in Ahri')
 
-    // The picks (700 + 3 × 260 ms), then the pointer reaches "Hover" (800 ms).
-    vi.advanceTimersByTime(1480)
+    // The picks (400 + 3 × 260 ms), then the pointer reaches "Hover" (800 ms).
+    vi.advanceTimersByTime(1180)
     await nextTick()
     expect(wrapper.findAll('.landing-rise.is-on')).toHaveLength(4)
     expect(wrapper.find('.landing-pointer').classes()).not.toContain('opacity-0')
@@ -218,17 +224,24 @@ describe('the scenes, playing', () => {
     expect(wrapper.html()).toContain('translate-y-0 opacity-100')
   })
 
-  it('moves the recap\'s playhead to the triple kill before the clip is cut', async () => {
+  it('takes the recap\'s playhead to the triple kill, cuts a range the app names, then saves it', async () => {
     const wrapper = await mountSuspended(DesktopLandingRecapDemo)
     await nextTick()
 
     expect(wrapper.text()).toContain('1:16 / 31:40')
-    expect(wrapper.findAll('.landing-clip.is-on')).toHaveLength(2)
+    expect(wrapper.text()).toContain('Saved clips · 2')
 
-    vi.advanceTimersByTime(500)
+    // The playhead travels (500 + 1400 ms), the range is dragged (900 ms), and the draft row shows its name.
+    vi.advanceTimersByTime(500 + 1400 + 900)
     await nextTick()
-    expect(wrapper.text()).toContain('7:58 / 31:40')
-    expect(wrapper.text()).toContain('Save clip')
+    expect(wrapper.text()).toContain('13:23 / 31:40')
+    expect(wrapper.text()).toContain('Triple kill on Yone')
+    expect(wrapper.text()).toContain('12:48 → 13:33')
+
+    vi.advanceTimersByTime(1400)
+    await nextTick()
+    expect(wrapper.text()).toContain('Saved clips · 3')
+    expect(wrapper.text()).not.toContain('12:48 → 13:33')
   })
 
   it('fills the goals one game at a time', async () => {
@@ -236,7 +249,7 @@ describe('the scenes, playing', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain('Target 7.0 · 0/5 games')
-    vi.advanceTimersByTime(600)
+    vi.advanceTimersByTime(400)
     await nextTick()
     expect(wrapper.text()).toContain('7.4 now · target 7.0 · 1/5 games')
   })

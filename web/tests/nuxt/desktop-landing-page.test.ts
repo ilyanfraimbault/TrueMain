@@ -155,10 +155,13 @@ function scene(beats: number[], options?: { loop?: boolean }) {
   return { component, beats: () => result }
 }
 
+/** The observers a scene opens: the middle band it starts in, and the whole screen it rewinds once it leaves. */
 class FakeObserver {
-  static last: FakeObserver | null = null
-  constructor(readonly callback: (entries: { isIntersecting: boolean }[]) => void) {
-    FakeObserver.last = this
+  static stage: FakeObserver | null = null
+  static screen: FakeObserver | null = null
+  constructor(readonly callback: (entries: { isIntersecting: boolean }[]) => void, options?: { rootMargin?: string }) {
+    if (options?.rootMargin?.includes('-')) FakeObserver.stage = this
+    else FakeObserver.screen = this
   }
 
   observe() {}
@@ -174,7 +177,7 @@ function stubMotion(reduced: boolean) {
 }
 
 describe('useSceneBeats', () => {
-  it('rewinds once mounted, plays while on screen, loops, and rewinds when it leaves', async () => {
+  it('rewinds once mounted, starts in the middle of the screen, loops, and rewinds only once off screen', async () => {
     vi.useFakeTimers()
     stubMotion(false)
     const { component, beats } = scene([100, 100, 100])
@@ -182,7 +185,13 @@ describe('useSceneBeats', () => {
     await nextTick()
 
     expect(beats().beat.value).toBe(0)
-    FakeObserver.last!.emit(true)
+    // Its top edge peeking in does not start it.
+    FakeObserver.screen!.emit(true)
+    await nextTick()
+    vi.advanceTimersByTime(500)
+    expect(beats().beat.value).toBe(0)
+
+    FakeObserver.stage!.emit(true)
     await nextTick()
     vi.advanceTimersByTime(100)
     expect(beats().beat.value).toBe(1)
@@ -191,8 +200,12 @@ describe('useSceneBeats', () => {
     vi.advanceTimersByTime(200)
     expect(beats().beat.value).toBe(0)
 
+    // Leaving the middle band keeps it playing; leaving the screen rewinds it.
     vi.advanceTimersByTime(100)
-    FakeObserver.last!.emit(false)
+    FakeObserver.stage!.emit(false)
+    await nextTick()
+    expect(beats().beat.value).toBe(1)
+    FakeObserver.screen!.emit(false)
     await nextTick()
     expect(beats().beat.value).toBe(0)
     vi.advanceTimersByTime(500)
@@ -205,7 +218,7 @@ describe('useSceneBeats', () => {
     const { component, beats } = scene([100, 100], { loop: false })
     await mountSuspended(component)
     await nextTick()
-    FakeObserver.last!.emit(true)
+    FakeObserver.stage!.emit(true)
     await nextTick()
 
     vi.advanceTimersByTime(1000)
@@ -218,7 +231,7 @@ describe('useSceneBeats', () => {
     const { component, beats } = scene([100, 100, 100])
     await mountSuspended(component)
     await nextTick()
-    FakeObserver.last?.emit(true)
+    FakeObserver.stage?.emit(true)
     await nextTick()
     vi.advanceTimersByTime(1000)
 
