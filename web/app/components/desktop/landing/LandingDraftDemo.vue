@@ -31,7 +31,7 @@ const hoverControl = ref<HTMLElement | null>(null)
 // The "Hover" control sits in the picks' v-for, where a plain string ref would collect an array.
 const setHoverControl = (el: Element | ComponentPublicInstance | null) => (hoverControl.value = el instanceof HTMLElement ? el : null)
 const importControl = ref<HTMLElement | null>(null)
-const { beat, reached, playing } = useSceneBeats(root, [700, 260, 260, 260, 800, 900, 900, 1100, 600, 3200])
+const { beat, reached, playing } = useSceneBeats(root, [400, 260, 260, 260, 800, 900, 900, 1100, 600, 3200])
 const picksIn = (index: number) => reached(1 + index)
 const hovered = computed(() => reached(5))
 const pointerAtImport = computed(() => playing.value && reached(6) && !reached(9))
@@ -78,16 +78,21 @@ const runes = computed(() => {
 
 <template>
   <div ref="root" class="relative overflow-hidden rounded-xl bg-ink-950 p-3 ring-1 ring-white/10 shadow-[0_30px_80px_-24px_rgb(0_0_0/0.9)] sm:p-4">
-    <!-- The strip over the draft: whose turn, the clock, the lock button. -->
-    <div class="flex items-center justify-between gap-3 border-b border-default pb-3">
-      <p class="text-sm font-semibold text-highlighted">Your pick</p>
-      <div class="flex items-center gap-3">
-        <span class="stat-value text-sm text-muted">0:24</span>
-        <span
-          class="rounded-md px-2.5 py-1 text-xs font-semibold transition-colors duration-300"
-          :class="hovered ? 'keycap bg-primary text-inverted' : 'bg-elevated text-dimmed'"
-        >Lock in{{ hovered ? ' Ahri' : '' }}</span>
+    <!-- The strip over the draft, as DraftTopStrip draws it: whose turn, the seconds left and their bar, the lock button. -->
+    <div class="flex items-center gap-3 border-b border-default pb-3">
+      <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div class="flex items-baseline justify-between">
+          <span class="stat-label">Your pick</span>
+          <span class="stat-value text-xl leading-none">24</span>
+        </div>
+        <div class="h-1 overflow-hidden rounded-full bg-accented">
+          <div class="h-full w-[80%] rounded-full bg-ink-300" />
+        </div>
       </div>
+      <span
+        class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors duration-300"
+        :class="hovered ? 'bg-primary text-inverted' : 'bg-primary/10 text-primary/50'"
+      ><UIcon name="i-lucide-lock" class="size-4" />Lock in{{ hovered ? ' Ahri' : '' }}</span>
     </div>
 
     <div class="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-3 sm:gap-4">
@@ -118,27 +123,34 @@ const runes = computed(() => {
       </ul>
 
       <div class="min-w-0">
-        <p class="text-[11px] font-medium text-dimmed">My pool · Middle</p>
-        <ul class="mt-2 grid grid-cols-4 gap-2">
+        <div class="flex items-center gap-3">
+          <p class="text-sm font-semibold text-highlighted">Your pick</p>
+          <span class="text-xs text-muted">Middle</span>
+          <span class="ml-auto flex items-center gap-1.5 text-xs text-muted">
+            <span class="flex h-4 w-7 items-center rounded-full bg-primary p-0.5"><span class="ml-auto size-3 rounded-full bg-white" /></span>
+            My pool
+          </span>
+        </div>
+        <ul class="mt-2 grid grid-cols-4 items-end gap-2">
           <li
             v-for="(pick, index) in PICKS"
             :key="pick.key"
-            class="landing-rise relative aspect-[4/5] overflow-hidden rounded-lg bg-elevated transition-shadow duration-300"
+            class="landing-rise relative overflow-hidden rounded-lg bg-elevated transition-shadow duration-300"
             :class="[{ 'is-on': picksIn(index) }, index === 0 && hovered ? 'ring-2 ring-primary shadow-[0_0_24px_-8px_var(--color-rosegold-400)]' : 'ring-1 ring-white/5']"
+            :style="{ aspectRatio: `4 / ${(5 * Math.max(0.78, 1 - index * 0.035)).toFixed(3)}` }"
           >
             <div class="absolute inset-0 bg-cover bg-[50%_12%]" :style="{ backgroundImage: `url(${loading(pick.key)})` }" />
             <div class="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/40 via-30% to-transparent to-60%" />
             <span
               v-if="index === 0"
               :ref="setHoverControl"
-              class="absolute right-1 top-1 rounded bg-ink-950/80 px-1.5 py-0.5 text-[9px] font-semibold ring-1 ring-white/10 transition-colors duration-300"
-              :class="hovered ? 'text-primary' : 'text-muted'"
-            >{{ hovered ? 'Hovered' : 'Hover' }}</span>
+              class="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-1 text-[10px] font-medium leading-none text-primary ring-1 ring-inset ring-primary/25 backdrop-blur-sm"
+            ><UIcon name="i-lucide-hand" class="size-3" />{{ hovered ? 'Hovered' : 'Hover' }}</span>
             <div class="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-1.5 sm:p-2">
               <p class="truncate text-[11px] font-semibold text-highlighted sm:text-[13px]">{{ pick.key }}</p>
               <p class="truncate text-[9px] leading-tight text-muted sm:text-[11px]">{{ pick.reason }}</p>
-              <span v-if="'adds' in pick" class="mt-0.5 hidden w-fit items-center gap-0.5 rounded bg-ink-950/70 px-1 py-0.5 text-[9px] font-medium leading-none text-stat-mr ring-1 ring-white/10 sm:flex">
-                <UIcon name="i-lucide-plus" class="size-2" />{{ pick.adds }}
+              <span v-if="'adds' in pick" class="mt-0.5 hidden w-fit items-center gap-1 whitespace-nowrap rounded bg-ink-950/70 px-1.5 py-0.5 text-[10px] font-medium leading-none text-stat-mr ring-1 ring-white/10 sm:flex">
+                <UIcon name="i-lucide-plus" class="size-2.5" />{{ pick.adds }}
               </span>
             </div>
           </li>

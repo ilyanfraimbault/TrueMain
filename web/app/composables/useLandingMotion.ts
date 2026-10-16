@@ -21,17 +21,17 @@ export function useReducedMotion(): Ref<boolean> {
 }
 
 /**
- * Whether `target` is on screen right now (both ways, unlike `useVisibleOnce`),
- * and whether that can be known at all: `observed` stays false without an
- * element or an `IntersectionObserver`.
+ * Whether `target` is within `rootMargin` of the viewport right now (both ways,
+ * unlike `useVisibleOnce`), and whether that can be known at all: `observed`
+ * stays false without an element or an `IntersectionObserver`.
  */
-export function useInView(target: Ref<HTMLElement | null | undefined>, threshold = 0.35) {
+export function useInView(target: Ref<HTMLElement | null | undefined>, rootMargin = '0px') {
   const inView = ref(false)
   const observed = ref(false)
   onMounted(() => {
     const el = target.value
     if (!el || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(([entry]) => (inView.value = Boolean(entry?.isIntersecting)), { threshold })
+    const observer = new IntersectionObserver(([entry]) => (inView.value = Boolean(entry?.isIntersecting)), { rootMargin })
     observer.observe(el)
     observed.value = true
     onBeforeUnmount(() => observer.disconnect())
@@ -39,19 +39,26 @@ export function useInView(target: Ref<HTMLElement | null | undefined>, threshold
   return { inView, observed }
 }
 
+/** The band of the viewport a scene must reach to start: its middle, where the eye is once the header is read. */
+const STAGE = '-30% 0px -30% 0px'
+
 /**
  * A scene's timeline: `beats[i]` is how long beat `i` holds, in ms. Returns the
  * current beat — the last one (the final state) until the scene may play (mounted,
- * motion allowed, an `IntersectionObserver` to say when it is on screen), then
- * from 0 whenever it comes on screen, looping while it stays there. Leaving the
- * screen stops the clock and rewinds, so the scene starts over when it is back.
+ * motion allowed, an `IntersectionObserver` to say where it is), then from 0. It
+ * starts once the scene reaches the middle of the viewport — not as its top edge
+ * peeks in, while the visitor still reads the header above — and loops from there.
+ * Only leaving the screen entirely stops the clock and rewinds, so a small scroll
+ * does not restart it, and it plays again from the top when it is back.
  */
-export function useSceneBeats(target: Ref<HTMLElement | null | undefined>, beats: readonly number[], options: { loop?: boolean, threshold?: number } = {}) {
+export function useSceneBeats(target: Ref<HTMLElement | null | undefined>, beats: readonly number[], options: { loop?: boolean } = {}) {
   const reduced = useReducedMotion()
-  const { inView, observed } = useInView(target, options.threshold)
+  const { inView: staged, observed } = useInView(target, STAGE)
+  const { inView: onScreen } = useInView(target)
   const mounted = ref(false)
   const beat = ref(beats.length - 1)
   let timer: ReturnType<typeof setTimeout> | undefined
+  let running = false
 
   // A scene that cannot tell whether it is on screen never rewinds: it would sit on its empty first beat.
   const playing = computed(() => mounted.value && observed.value && !reduced.value)
@@ -67,17 +74,36 @@ export function useSceneBeats(target: Ref<HTMLElement | null | undefined>, beats
     }, beats[beat.value])
   }
 
+  function rewind() {
+    clearTimeout(timer)
+    running = false
+    beat.value = 0
+  }
+
+  function start() {
+    if (!staged.value || !playing.value || running) return
+    running = true
+    schedule()
+  }
+
   onMounted(() => (mounted.value = true))
   onBeforeUnmount(() => clearTimeout(timer))
 
-  watch([playing, inView], ([canPlay, visible]) => {
-    clearTimeout(timer)
-    if (!canPlay) {
-      beat.value = beats.length - 1
-      return
+  // A scene already in the middle of the screen when it may first play starts at once.
+  watch(playing, (canPlay) => {
+    if (canPlay) {
+      rewind()
+      return start()
     }
-    beat.value = 0
-    if (visible) schedule()
+    clearTimeout(timer)
+    running = false
+    beat.value = beats.length - 1
+  })
+
+  watch(staged, start)
+
+  watch(onScreen, (visible) => {
+    if (!visible && playing.value) rewind()
   })
 
   /** Whether the scene has reached beat `index` (true for every beat when it does not play). */

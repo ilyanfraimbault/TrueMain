@@ -25,7 +25,7 @@ const WIDTHS: Record<LandingOverlayPanelKind, number> = { 'next-item': 232, 'win
 
 const canonicalIcon = useCanonicalIcon()
 const itemIcon = (id: number) => (props.patch ? `https://ddragon.leagueoflegends.com/cdn/${props.patch}/img/item/${id}.png` : null)
-const nextItemName = computed(() => props.items?.[SAMPLE_NEXT_ITEM.itemId]?.name ?? 'Zhonya\'s Hourglass')
+const nextItemName = computed(() => props.items?.[SAMPLE_NEXT_ITEM.itemId]?.name ?? 'Infinity Edge')
 
 const ours = Math.round(sampleWinProbability() * 100)
 
@@ -46,7 +46,8 @@ const curve = (() => {
     .map((value, index) => `${(((SAMPLE_PACE[index]!.minute - first) / span) * CURVE.width).toFixed(1)},${(2 + (1 - (value - low) / range) * (CURVE.height - 4)).toFixed(1)}`)
     .join(' ')
   const line = toLine(points)
-  return { line, area: `0,${CURVE.height} ${line} ${CURVE.width},${CURVE.height}`, median: toLine(SAMPLE_PACE_REFERENCE.csCurve) }
+  const end = line.split(' ').at(-1)!.split(',').map(Number)
+  return { line, area: `0,${CURVE.height} ${line} ${CURVE.width},${CURVE.height}`, median: toLine(SAMPLE_PACE_REFERENCE.csCurve), end: { x: end[0]!, y: end[1]! } }
 })()
 const gradient = `landing-pace-${useId()}`
 
@@ -67,7 +68,7 @@ const number = (value: number | undefined) => (value === undefined ? '–' : for
 </script>
 
 <template>
-  <div class="surface rounded-lg px-3 py-2.5 text-default shadow-[0_12px_32px_-12px_rgb(0_0_0/0.8)]" :style="{ width: `${WIDTHS[panel]}px` }">
+  <div class="bg-default px-3 py-2.5 text-default" :style="{ width: `${WIDTHS[panel]}px` }">
     <div v-if="panel === 'next-item'" class="flex items-center gap-2.5">
       <img v-if="itemIcon(SAMPLE_NEXT_ITEM.itemId)" :src="canonicalIcon(itemIcon(SAMPLE_NEXT_ITEM.itemId))" alt="" width="36" height="36" class="size-9 shrink-0 rounded-md ring-1 ring-primary/60">
       <span v-else class="size-9 shrink-0 rounded-md bg-elevated" />
@@ -85,8 +86,8 @@ const number = (value: number | undefined) => (value === undefined ? '–' : for
         <DesktopLandingMark class="size-2.5" /> Win probability
       </p>
       <div class="flex items-end justify-between gap-3">
-        <span class="stat-value text-2xl leading-none text-ally">{{ ours }}<span class="text-sm">%</span></span>
-        <span class="stat-value text-2xl leading-none text-enemy">{{ 100 - ours }}<span class="text-sm">%</span></span>
+        <span class="stat-value text-2xl leading-none tabular-nums text-ally">{{ ours }}<span class="text-sm">%</span></span>
+        <span class="stat-value text-2xl leading-none tabular-nums text-enemy">{{ 100 - ours }}<span class="text-sm">%</span></span>
       </div>
       <div class="flex h-1 overflow-hidden rounded-full bg-elevated">
         <span class="bg-ally/80" :style="{ width: `${ours}%` }" />
@@ -98,7 +99,7 @@ const number = (value: number | undefined) => (value === undefined ? '–' : for
       <div class="flex items-end justify-between gap-3">
         <div class="flex flex-col">
           <span class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">CS/min</span>
-          <span class="stat-value text-xl leading-none">{{ csPerMinute }}</span>
+          <span class="stat-value text-xl leading-none tabular-nums text-highlighted">{{ csPerMinute }}</span>
         </div>
         <svg :width="CURVE.width" :height="CURVE.height" :viewBox="`0 0 ${CURVE.width} ${CURVE.height}`" class="overflow-visible text-primary" aria-hidden="true">
           <defs>
@@ -109,17 +110,18 @@ const number = (value: number | undefined) => (value === undefined ? '–' : for
           </defs>
           <polygon :points="curve.area" :fill="`url(#${gradient})`" />
           <polyline :points="curve.median" fill="none" class="text-data-mid" stroke="currentColor" stroke-opacity="0.6" stroke-width="1" stroke-dasharray="2 2" />
-          <polyline class="landing-draw" :points="curve.line" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" pathLength="1" />
+          <polyline :points="curve.line" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
+          <circle :cx="curve.end.x" :cy="curve.end.y" r="2" fill="currentColor" />
         </svg>
       </div>
-      <span class="-mt-1 flex items-center gap-1 text-[10px] leading-none tabular-nums text-muted">
+      <span class="-mt-1 flex items-center gap-1 whitespace-nowrap text-[10px] leading-none tabular-nums text-muted">
         <UIcon name="i-lucide-arrow-up" class="size-2.5 shrink-0 text-data-good" />
         {{ SAMPLE_PACE_REFERENCE.tier }} {{ SAMPLE_PACE_REFERENCE.cs.median.toFixed(1) }}
       </span>
       <div class="flex flex-col border-t border-default pt-2">
         <span class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">Gold/min</span>
-        <span class="stat-value text-xl leading-none text-stat-gold">{{ goldPerMinute }}</span>
-        <span class="mt-1 flex items-center gap-1 text-[10px] leading-none tabular-nums text-muted">
+        <span class="stat-value text-xl leading-none tabular-nums text-stat-gold">{{ goldPerMinute }}</span>
+        <span class="mt-1 flex items-center gap-1 whitespace-nowrap text-[10px] leading-none tabular-nums text-muted">
           <UIcon name="i-lucide-equal" class="size-2.5 shrink-0 text-data-mid" />
           {{ SAMPLE_PACE_REFERENCE.tier }} {{ SAMPLE_PACE_REFERENCE.gold.median }}
         </span>

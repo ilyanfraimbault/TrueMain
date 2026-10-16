@@ -46,13 +46,18 @@ onMounted(() => {
   const update = (event: MediaQueryListEvent) => (wide.value = event.matches)
   query.addEventListener('change', update)
 
-  // The step drawn is the last one whose top has passed the middle of the viewport — read on scroll
-  // rather than from intersections, which a fast scroll (or a jump to an anchor) can skip entirely.
+  // The step drawn is the last one whose text has risen past the middle of the viewport, beside the
+  // pinned screen — its centre, not its top: a step is a tall block with its text in the middle, so
+  // its top crosses long before the visitor reaches the words. Read on scroll rather than from
+  // intersections, which a fast scroll (or a jump to an anchor) can skip entirely.
   let frame = 0
   const read = () => {
     frame = 0
-    const middle = window.innerHeight / 2
-    const passed = steps.value.filter(step => step.getBoundingClientRect().top < middle).length
+    const line = window.innerHeight * 0.55
+    const passed = steps.value.filter((step) => {
+      const box = step.getBoundingClientRect()
+      return box.top + box.height / 2 < line
+    }).length
     active.value = Math.max(0, passed - 1)
   }
   const onScroll = () => (frame ||= requestAnimationFrame(read))
@@ -98,9 +103,6 @@ const tabHeld = computed(() => (scrolly.value ? current.value === STEPS.length -
     <div class="order-1 lg:order-2">
       <div class="lg:sticky lg:top-[max(6rem,calc(50vh-16rem))]">
         <DesktopLandingGameScreen :shown="shown" :tab-held="tabHeld" :patch="patch" :items="items" aria-hidden="true" />
-        <p class="mt-3 text-xs text-dimmed">
-          The overlay's panels at their default places, drawn over the sample game of the app's own overlay page.
-        </p>
       </div>
     </div>
   </div>
