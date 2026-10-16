@@ -3,7 +3,7 @@
  * After the game, redrawn for `/download` (#2072): the dashboard's Today card
  * and goals card (`DashboardTodayCard.vue`, `DashboardGoalsCard.vue`) as four
  * sample games land one by one — the day's record and LP move, each goal's
- * slots fill. Every value is a sample, and the caption under it says so.
+ * slots fill. Every value is a sample.
  */
 const root = ref<HTMLElement | null>(null)
 const { reached } = useSceneBeats(root, [400, 700, 700, 700, 4200])

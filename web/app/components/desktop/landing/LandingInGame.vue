@@ -103,9 +103,6 @@ const tabHeld = computed(() => (scrolly.value ? current.value === STEPS.length -
     <div class="order-1 lg:order-2">
       <div class="lg:sticky lg:top-[max(6rem,calc(50vh-16rem))]">
         <DesktopLandingGameScreen :shown="shown" :tab-held="tabHeld" :patch="patch" :items="items" aria-hidden="true" />
-        <p class="mt-3 text-xs text-dimmed">
-          The overlay's panels at their default places over one of our games. Sample values.
-        </p>
       </div>
     </div>
   </div>

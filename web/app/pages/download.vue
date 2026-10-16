@@ -104,9 +104,6 @@ const MORE = [
         <div class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] lg:gap-14">
           <figure>
             <DesktopLandingDraftDemo :patch="patch" :rune-tree="runeTree ?? null" aria-hidden="true" />
-            <figcaption class="mt-3 text-xs text-dimmed">
-              A sample draft, drawn as the app draws it: picks arrive, Ahri is hovered from the app, her rune page goes into the client.
-            </figcaption>
           </figure>
           <ul class="flex flex-col gap-6">
             <li v-for="point in DRAFT_POINTS" :key="point.title" class="border-t border-default pt-4">
@@ -139,9 +136,6 @@ const MORE = [
       >
         <figure>
           <DesktopLandingAfterGameDemo aria-hidden="true" />
-          <figcaption class="mt-3 text-xs text-dimmed">
-            The dashboard's Today and goals cards, with sample games.
-          </figcaption>
         </figure>
       </DesktopLandingSection>
 
@@ -153,9 +147,6 @@ const MORE = [
       >
         <figure>
           <DesktopLandingRecapDemo aria-hidden="true" />
-          <figcaption class="mt-3 text-xs text-dimmed">
-            The recap of one of our games, with sample moments: a triple kill cut into a clip and saved.
-          </figcaption>
         </figure>
       </DesktopLandingSection>
     </div>

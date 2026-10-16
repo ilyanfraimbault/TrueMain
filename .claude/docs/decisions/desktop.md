@@ -260,13 +260,13 @@ with a scene redrawn from the app's components in HTML/CSS (`web/app/components/
 picks and the hover-then-import beat, the four overlay panels arriving at their default anchors as the steps scroll
 by, the goals card filling, the recap with a clip cut and saved. Every drawn value is the app's own overlay-preview
 sample (`utils/desktop-landing-sample.ts`, the shape of `overlay-sample.ts`; the win probability runs the shared model
-on it) or a labelled sample, and the ranked picks carry no figure, for the same reason the podium is never captured.
+on it) or a sample, and the ranked picks carry no figure, for the same reason the podium is never captured.
 The game under the overlay and in the recap is real: a frame of one of the product owner's own games
 (`public/desktop/game.webp`, Yone at 13:23, taken from a clip they published), since a champion's splash read as a fake
 — the product owner's call, which reverses the first version's "no game capture". The overlay sample follows that
 frame (our champion, the clock, the creep score) so no panel contradicts the HUD beside it, and the drawings copy the
 app's components class for class: the in-game window's plain frame, the recap's player, timeline marks and Clips
-tab, the dashboard's Today and goals cards. No table of contents under the hero, and short lines in "And between
+tab, the dashboard's Today and goals cards. No caption under the scenes ("Sample values" read as noise), no table of contents under the hero, and short lines in "And between
 games". Scenes render their final state on the server and under `prefers-reduced-motion`, and only play while on
 screen: they start once they reach the middle of the viewport, and rewind only once fully off it. No performance strip until `docs/desktop-footprint.md`
 records a run — #2072.
