@@ -67,3 +67,9 @@ Everything runs as Docker containers on a single host. In production, Caddy term
 - [`docs/riot-key-switch.md`](docs/riot-key-switch.md) — runbook for replacing the Riot API key: PUUIDs are encrypted per key, so the switch invalidates every stored identifier and is recovered through the Riot ID.
 - [`docs/diagrams/architecture.drawio`](docs/diagrams/architecture.drawio) — architecture diagram.
 - `docs/phase-*.md` — RFCs behind the major evolutions of the data model and pipeline. All three are implemented and kept as historical records; each carries a status banner saying what shipped differently from the proposal.
+
+## License
+
+TrueMain is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE): you may read, run, modify and share the code for any noncommercial purpose — personal use, study, research, hobby projects. Any commercial use, including running it or a derivative as part of a product or service, needs a separate license from the copyright holder.
+
+Third-party code and assets keep their own licenses. League of Legends data and artwork belong to Riot Games; TrueMain is not endorsed by Riot Games.
