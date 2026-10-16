@@ -2,7 +2,7 @@
 import type { DesktopRelease } from '~~/shared/types/desktop'
 
 // The desktop companion's landing page (#1719, #1725, #2072): one section per
-// moment of a game — champion select, in game, after the game, recordings —
+// moment of a game — champion select, in game, recordings —
 // each with the app's UI drawn live (`components/desktop/landing/*`) rather
 // than a capture, then the download, the first launch and the questions.
 useSeoMeta({
@@ -126,17 +126,6 @@ const MORE = [
         lead="Drawn from the game's own live data in windows of their own that never take your keyboard. Nothing is injected and nothing reads the game's memory. Move them, resize them, or hide them all with one shortcut."
       >
         <DesktopLandingInGame :patch="patch" :items="items ?? null" />
-      </DesktopLandingSection>
-
-      <DesktopLandingSection
-        id="after-the-game"
-        moment="After the game"
-        title="Each game moves your goals."
-        lead="Set a target on one of your stats over your next games — CS per minute over five Solo games, deaths in each of them — and watch the slots fill game by game. Every game opens on its timeline and scoreboard, read from your own client."
-      >
-        <figure>
-          <DesktopLandingAfterGameDemo aria-hidden="true" />
-        </figure>
       </DesktopLandingSection>
 
       <DesktopLandingSection

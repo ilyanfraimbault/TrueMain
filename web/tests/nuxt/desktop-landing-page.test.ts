@@ -128,12 +128,12 @@ describe('LandingSection', () => {
 })
 
 describe('the /download page', () => {
-  it('lays out the four moments, the download and the questions', async () => {
+  it('lays out the moments, the download and the questions', async () => {
     vi.stubGlobal('IntersectionObserver', undefined)
     const wrapper = await mountSuspended(defineComponent({ setup: () => () => h(UApp, null, () => h(DownloadPage)) }))
     await flushPromises()
 
-    for (const id of ['champion-select', 'in-game', 'after-the-game', 'recordings', 'download']) {
+    for (const id of ['champion-select', 'in-game', 'recordings', 'download']) {
       expect(wrapper.find(`#${id}`).exists()).toBe(true)
     }
     expect(wrapper.text()).toContain('Every game,')

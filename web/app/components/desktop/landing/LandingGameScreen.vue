@@ -9,7 +9,7 @@ import type { LandingOverlayPanelKind } from './LandingOverlayPanel.vue'
  * left, item value top centre, next item top right, pace centre left, 16 points
  * from the sides and 56 from the top on a 1920-point screen).
  *
- * Panels are drawn larger than life (a 1920-point screen shrunk to a page
+ * Panels are drawn a little larger than life (a 1920-point screen shrunk to a page
  * column would make them unreadable): their scale follows the screen's width.
  */
 const props = defineProps<{
@@ -27,12 +27,12 @@ const ANCHORS: Record<LandingOverlayPanelKind, string> = {
 }
 
 const screen = ref<HTMLElement | null>(null)
-const scale = ref(0.65)
+const scale = ref(0.5)
 onMounted(() => {
   const el = screen.value
   if (!el || typeof ResizeObserver === 'undefined') return
   const observer = new ResizeObserver(([entry]) => {
-    scale.value = Math.min(0.8, (entry?.contentRect.width ?? 900) / 1150)
+    scale.value = Math.min(0.6, (entry?.contentRect.width ?? 900) / 1500)
   })
   observer.observe(el)
   onBeforeUnmount(() => observer.disconnect())
