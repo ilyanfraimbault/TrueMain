@@ -252,6 +252,20 @@ dashboard capture is the one exception to "no fabricated numbers" on the site: i
 scenario's fixture record (the synthetic player `Synthetic#TAPE` and invented games), and the product owner accepted
 those figures for a picture of the app; it carries no TrueMain statistic (2026-10-01) — #1725.
 
+**`/download` follows a game moment by moment, with the app's UI drawn live in HTML (2026-10-16).** Competitor
+desktop pages show the product moving; ours described one moment with a still, while the app had grown an overlay,
+recordings and goals. The page keeps the #1725 capture of champion select under the hero and the left-aligned,
+card-free typography, then one section per moment — champion select, in game, after the game, recordings — each
+with a scene redrawn from the app's components in HTML/CSS (`web/app/components/desktop/landing/`): the ranked
+picks and the hover-then-import beat, the four overlay panels arriving at their default anchors as the steps scroll
+by, the goals card filling, the recap with a clip cut and saved. Every drawn value is the app's own overlay-preview
+sample (`utils/desktop-landing-sample.ts`, a copy of `overlay-sample.ts`; the win probability runs the shared model
+on it) or a labelled sample, and the ranked picks carry no figure, for the same reason the podium is never captured.
+No game capture is shown (none is ours to publish): the screen and the video are a champion's splash, the fallback
+the recordings page itself uses. Scenes render their final state on the server and under
+`prefers-reduced-motion`, and only play while on screen. No performance strip until `docs/desktop-footprint.md`
+records a run — #2072.
+
 **Game recording asks the player for two things, the resolution and the frame rate, and derives everything else.**
 The product owner wants the app to record games and replay them with the player's kills, deaths and assists marked
 (Outplayed's job), and to choose the best setting for their machine "without a configuration as complex as OBS",

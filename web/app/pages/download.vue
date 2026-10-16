@@ -1,183 +1,108 @@
 <script setup lang="ts">
-import type { DesktopPlatform, DesktopRelease } from '~~/shared/types/desktop'
+import type { DesktopRelease } from '~~/shared/types/desktop'
 
-// The desktop companion's download page (#1719). The installers are the newest
-// `desktop-v*` release's, reached through stable per-platform links
-// (`/api/desktop/download/{platform}`), so the page never names a file.
-//
-// The platform is read in the browser, after hydration: the server cannot know
-// it, and guessing from the user agent there would cache one visitor's answer
-// for the next. Until then — and on a phone, or Linux — both installers are
-// offered side by side.
+// The desktop companion's landing page (#1719, #1725, #2072): one section per
+// moment of a game — champion select, in game, after the game, recordings —
+// each with the app's UI drawn live (`components/desktop/landing/*`) rather
+// than a capture, then the download, the first launch and the questions.
 useSeoMeta({
   title: 'TrueMain desktop app (beta)',
   description:
-    'The TrueMain companion for League of Legends champion select: pick advice from your own champion pool, the enemy lanes read for you, and the build against the draft. For macOS and Windows.',
+    'The TrueMain companion for League of Legends: picks from your own pool in champion select, the rune page in one click, an overlay with win probability, your pace and your next item, and your games recorded to cut your best plays. For macOS and Windows.',
 })
 
 const { data: release, status, error } = await useFetch<DesktopRelease | null>('/api/desktop/release')
+const { platform, other, onPhone } = useDesktopPlatform()
 
-const PLATFORMS: Record<DesktopPlatform, { label: string, icon: string, requirement: string }> = {
-  mac: { label: 'macOS', icon: 'i-simple-icons-apple', requirement: 'macOS 13.3 or later, Apple Silicon or Intel' },
-  windows: { label: 'Windows', icon: 'i-simple-icons-windows', requirement: 'Windows 10 or 11, 64-bit' },
-}
+const MOMENTS = [
+  { id: 'champion-select', label: 'Champion select' },
+  { id: 'in-game', label: 'In game' },
+  { id: 'after-the-game', label: 'After the game' },
+  { id: 'recordings', label: 'Recordings' },
+] as const
 
-const platform = ref<DesktopPlatform | null>(null)
-const onPhone = ref(false)
+// The drawn scenes' icons: the latest patch, and the item map and rune tree
+// only once a scene that needs them comes near — neither is above the fold.
+const { data: versions } = useDDragonVersions()
+const patch = computed(() => versions.value[0] ?? null)
+const scenes = ref<HTMLElement | null>(null)
+const nearScenes = useVisibleOnce(scenes, { rootMargin: '800px' })
+const staticPatch = computed(() => (nearScenes.value ? patch.value : null))
+const { data: items, execute: readItems } = useStaticItems(staticPatch, { immediate: false, unresolvedKeySegment: 'pending' })
+const { data: runeTree, execute: readRuneTree } = useStaticRuneTree(staticPatch, { immediate: false, server: false, unresolvedKeySegment: 'pending' })
+// A key that changes does not start a fetch that was never run (`immediate: false`): start both once the patch is in.
+const stopReading = watch(staticPatch, (value) => {
+  if (!value) return
+  readItems()
+  readRuneTree()
+  queueMicrotask(() => stopReading())
+}, { immediate: true })
 
-onMounted(() => {
-  const agent = navigator.userAgent
-  const reported = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? navigator.platform ?? ''
-  // iPadOS announces itself as a Mac; its touch points give it away.
-  onPhone.value = /iPhone|iPad|Android/i.test(agent) || (/Mac/i.test(reported) && navigator.maxTouchPoints > 1)
-  if (onPhone.value) return
-  if (/Mac/i.test(reported) || /Mac OS X/.test(agent)) platform.value = 'mac'
-  else if (/Win/i.test(reported) || /Windows/.test(agent)) platform.value = 'windows'
-})
+const DRAFT_POINTS = [
+  { icon: 'i-lucide-list-ordered', title: 'Picks from your pool', body: 'Your ten most-mastered champions on your lane, ranked as the draft fills, each with its reason: the matchup, a synergy, a safe blind.' },
+  { icon: 'i-lucide-hand', title: 'Hover, lock and ban from the app', body: 'On your click only. A ban always asks first, and nothing is ever locked, banned or accepted for you.' },
+  { icon: 'i-lucide-download', title: 'Runes and item set in one click', body: 'The page and the build on screen go into the client as "TrueMain: <champion>", replaced in place — never one of your pages.' },
+] as const
 
-const other = computed<DesktopPlatform | null>(() => (platform.value === 'mac' ? 'windows' : platform.value === 'windows' ? 'mac' : null))
-const available = (target: DesktopPlatform) => Boolean(release.value?.installers[target])
-const downloadUrl = (target: DesktopPlatform) => `/api/desktop/download/${target}`
-
-const releasedOn = computed(() => (release.value
-  ? new Date(release.value.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
-  : null))
-
-const FEATURES = [
-  {
-    title: 'Picks from your own pool',
-    body: 'Your most-mastered champions on your lane, ranked as the draft fills: the matchup into your lane opponent and the synergy with the allies already locked.',
-  },
-  {
-    title: 'The enemy lanes, read for you',
-    body: 'Who goes where on the other side is guessed from the picks. A wrong guess is one click to correct, or a drag from one lane to another.',
-  },
-  {
-    title: 'The build against the draft',
-    body: 'Runes, items and skill order for your pick against the composition in front of you — or the build a true main of that champion runs.',
-  },
+const MORE = [
+  { icon: 'i-lucide-user-round', title: 'Your profile, from your client', body: 'Rank, form, match history and LP curve for any account, tracked by TrueMain or not.' },
+  { icon: 'i-lucide-scan-eye', title: 'The lobby, scouted', body: 'On the loading screen and in game: each player\'s rank, main role or autofill, streak and form on their champion.' },
+  { icon: 'i-lucide-badge-check', title: 'True mains, marked', body: 'The TrueMain mark beside a player who mains the champion they are on, and their own build a click away.' },
+  { icon: 'i-lucide-chart-pie', title: 'The damage mix', body: 'Each team\'s physical and magic split as the draft fills, and the picks that answer a one-sided team.' },
+  { icon: 'i-lucide-layout-list', title: 'The site, inside', body: 'The tier list, the champion pages, the matchup tool and the true mains leaderboard, without opening a browser.' },
+  { icon: 'i-lucide-command', title: 'One search field', body: 'Press ⌘K or Ctrl K for any champion, even with League closed.' },
 ] as const
 </script>
 
 <template>
   <div class="mx-auto max-w-6xl px-4 pb-24 md:px-6">
-    <!-- Hero: what the app is and the download, left-aligned over the app
-         itself — the page shows the product rather than describing it. -->
     <section class="pt-8 sm:pt-14">
       <div class="flex items-center gap-3">
         <DesktopAppIcon class="size-9" />
         <p class="text-sm font-medium text-highlighted">
           TrueMain for desktop
         </p>
-        <UBadge
-          color="primary"
-          variant="subtle"
-          size="sm"
-          label="Beta"
-        />
+        <UBadge color="primary" variant="subtle" size="sm" label="Beta" />
       </div>
 
       <div class="mt-8 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
           <h1 class="text-4xl font-semibold leading-[1.05] tracking-tighter text-balance text-highlighted sm:text-6xl">
-            Champion select,<br>
+            Every game,<br>
             <span class="text-primary">read for you</span>.
           </h1>
           <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-            The TrueMain app sits next to the League client: it ranks the picks from your own pool, works out the enemy
-            lanes, and hands you the build against the draft as it stands.
+            The TrueMain app sits next to League: it ranks your picks in champion select, puts what matters over the
+            game, and records it so the plays worth keeping are a cut away.
           </p>
         </div>
-
-        <div class="flex flex-col gap-3 lg:items-end">
-          <template v-if="release">
-            <div class="flex flex-col gap-3 sm:flex-row">
-              <template v-if="platform">
-                <UButton
-                  :to="downloadUrl(platform)"
-                  external
-                  size="xl"
-                  :icon="PLATFORMS[platform].icon"
-                  :label="`Download for ${PLATFORMS[platform].label}`"
-                  :disabled="!available(platform)"
-                  class="justify-center"
-                />
-                <UButton
-                  v-if="other && available(other)"
-                  :to="downloadUrl(other)"
-                  external
-                  size="xl"
-                  color="neutral"
-                  variant="ghost"
-                  :icon="PLATFORMS[other].icon"
-                  :label="PLATFORMS[other].label"
-                  class="justify-center"
-                />
-              </template>
-              <template v-else>
-                <UButton
-                  v-for="target in (['mac', 'windows'] as const)"
-                  :key="target"
-                  :to="downloadUrl(target)"
-                  external
-                  size="xl"
-                  :color="target === 'mac' ? 'primary' : 'neutral'"
-                  :variant="target === 'mac' ? 'solid' : 'subtle'"
-                  :icon="PLATFORMS[target].icon"
-                  :label="`Download for ${PLATFORMS[target].label}`"
-                  :disabled="!available(target)"
-                  class="justify-center"
-                />
-              </template>
-            </div>
-            <p class="text-sm text-dimmed lg:text-right">
-              Version {{ release.version }} · {{ releasedOn }}
-              <!-- Preprod serves the build made against preprod (#1779): a tester must know which data it reads. -->
-              <template v-if="release.channel === 'beta'">
-                <br>Test build: it reads this preprod's data, not truemain.lol's.
-              </template>
-              <template v-if="onPhone">
-                <br>The app runs on a computer, next to the League client: open this page there.
-              </template>
-            </p>
-          </template>
-
-          <UAlert
-            v-else-if="error"
-            color="warning"
-            variant="subtle"
-            icon="i-lucide-cloud-off"
-            title="The download is unavailable for a moment"
-            description="The list of releases could not be read. Try again in a few minutes."
-            class="max-w-md"
-          />
-          <template v-else-if="status !== 'pending'">
-            <UButton
-              size="xl"
-              color="neutral"
-              variant="subtle"
-              icon="i-lucide-download"
-              label="Coming soon"
-              disabled
-              class="justify-center"
-            />
-            <p class="text-sm text-dimmed lg:text-right">
-              The first beta is on its way; it will be offered here.
-            </p>
-          </template>
-        </div>
+        <DesktopLandingDownloadButtons
+          :release="release"
+          :pending="status === 'pending'"
+          :failed="Boolean(error)"
+          :platform="platform"
+          :other="other"
+          :on-phone="onPhone"
+          class="lg:items-end lg:text-right"
+        />
       </div>
+
+      <!-- The four moments of a game, in the order they come: the page's table of contents. -->
+      <nav aria-label="On this page" class="mt-12">
+        <ol class="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+          <li v-for="(moment, index) in MOMENTS" :key="moment.id">
+            <a :href="`#${moment.id}`" class="group flex flex-col gap-2 border-t border-default pt-3 transition-colors hover:border-primary">
+              <span class="text-xs tabular-nums text-dimmed">0{{ index + 1 }}</span>
+              <span class="text-sm font-medium text-muted transition-colors group-hover:text-highlighted">{{ moment.label }}</span>
+            </a>
+          </li>
+        </ol>
+      </nav>
     </section>
 
-    <!-- The app, as it draws a champion select: a capture of the real UI over
-         live API answers (the build, its win rates and games, the tiers), at
-         the app's own 1180×760 window. Its foot fades into the page rather than
-         ending on a row cut in half. -->
-    <figure class="relative mt-12 sm:mt-16">
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-x-[10%] -top-8 -z-10 h-2/3 rounded-full bg-primary/10 blur-3xl"
-      />
+    <!-- The app itself before the drawn scenes: a capture of the real UI over live API answers (#1725). -->
+    <figure class="landing-hero-shot relative mt-12 sm:mt-16">
+      <div aria-hidden="true" class="pointer-events-none absolute inset-x-[10%] -top-8 -z-10 h-2/3 rounded-full bg-primary/10 blur-3xl" />
       <div class="overflow-hidden rounded-xl ring-1 ring-white/15 shadow-[0_30px_80px_-20px_rgb(0_0_0/0.8)] [mask-image:linear-gradient(to_bottom,black_70%,transparent)]">
         <SkeletonPicture
           src="/desktop/champion-select.webp"
@@ -188,80 +113,155 @@ const FEATURES = [
       </div>
     </figure>
 
-    <section class="mt-4 grid gap-x-10 gap-y-8 md:grid-cols-3">
-      <div
-        v-for="feature in FEATURES"
-        :key="feature.title"
-        class="border-t border-default pt-5"
+    <div ref="scenes">
+      <DesktopLandingSection
+        id="champion-select"
+        moment="Champion select"
+        title="The pick, the page, then lock in."
+        lead="Picks ranked from your own pool, the enemy lanes worked out, the build against the draft — and the rune page in the client before the clock runs out."
       >
-        <h2 class="font-semibold text-highlighted">
-          {{ feature.title }}
-        </h2>
-        <p class="mt-2 text-sm leading-relaxed text-muted">
-          {{ feature.body }}
-        </p>
-      </div>
-    </section>
+        <div class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] lg:gap-14">
+          <figure>
+            <DesktopLandingDraftDemo :patch="patch" :rune-tree="runeTree ?? null" aria-hidden="true" />
+            <figcaption class="mt-3 text-xs text-dimmed">
+              A sample draft, drawn as the app draws it: picks arrive, Ahri is hovered from the app, her rune page goes into the client.
+            </figcaption>
+          </figure>
+          <ul class="flex flex-col gap-6">
+            <li v-for="point in DRAFT_POINTS" :key="point.title" class="border-t border-default pt-4">
+              <h3 class="flex items-center gap-2 font-semibold text-highlighted">
+                <UIcon :name="point.icon" class="size-4 shrink-0 text-primary" />
+                {{ point.title }}
+              </h3>
+              <p class="mt-1.5 text-sm leading-relaxed text-muted text-pretty">
+                {{ point.body }}
+              </p>
+            </li>
+          </ul>
+        </div>
+      </DesktopLandingSection>
 
-    <section class="mt-24 grid gap-10 lg:grid-cols-[18rem_1fr] lg:gap-16">
-      <div>
-        <h2 class="text-2xl font-semibold tracking-tight text-highlighted">
-          Opening it the first time
-        </h2>
-        <p class="mt-3 text-sm leading-relaxed text-muted">
-          The beta is not signed by Apple or Microsoft yet, so your computer asks once whether to trust it. After that
-          it opens like any other app, and updates itself when a new beta is out.
-        </p>
-      </div>
-      <DesktopFirstLaunch :platform="platform" />
-    </section>
+      <DesktopLandingSection
+        id="in-game"
+        moment="In game"
+        title="Four small panels, right on the game."
+        lead="Drawn from the game's own live data in windows of their own that never take your keyboard. Nothing is injected and nothing reads the game's memory. Move them, resize them, or hide them all with one shortcut."
+      >
+        <DesktopLandingInGame :patch="patch" :items="items ?? null" />
+      </DesktopLandingSection>
 
-    <section class="mt-24 grid gap-10 lg:grid-cols-[18rem_1fr] lg:gap-16">
+      <DesktopLandingSection
+        id="after-the-game"
+        moment="After the game"
+        title="Each game moves your goals."
+        lead="Set a target on one of your stats over your next games — CS per minute over five Solo games, deaths in each of them — and watch the slots fill game by game. Every game opens on its timeline and scoreboard, read from your own client."
+      >
+        <figure>
+          <DesktopLandingAfterGameDemo aria-hidden="true" />
+          <figcaption class="mt-3 text-xs text-dimmed">
+            The dashboard's goals card and a game's win probability, with sample games.
+          </figcaption>
+        </figure>
+      </DesktopLandingSection>
+
+      <DesktopLandingSection
+        id="recordings"
+        moment="Recordings"
+        title="Your games on tape, the plays a cut away."
+        lead="Turn recording on and every game is captured with its kills, deaths, assists and objectives on the timeline. Drag across a moment to cut a clip; it is named from what it holds and kept as its own file, ready to publish on YouTube."
+      >
+        <figure>
+          <DesktopLandingRecapDemo aria-hidden="true" />
+          <figcaption class="mt-3 text-xs text-dimmed">
+            The recap with a sample game: a triple kill cut into a clip and saved.
+          </figcaption>
+        </figure>
+      </DesktopLandingSection>
+    </div>
+
+    <section class="pt-24 sm:pt-32">
       <h2 class="text-2xl font-semibold tracking-tight text-highlighted">
-        Requirements
+        And between games
       </h2>
-      <div class="space-y-6">
-        <dl class="divide-y divide-default border-y border-default text-sm">
-          <div
-            v-for="(entry, target) in PLATFORMS"
-            :key="target"
-            class="flex items-center gap-3 py-3"
-          >
-            <dt class="flex w-28 shrink-0 items-center gap-2 text-highlighted">
-              <UIcon
-                :name="entry.icon"
-                class="size-4 shrink-0"
-              />
-              {{ entry.label }}
-            </dt>
-            <dd class="text-muted">
-              {{ entry.requirement }}
-            </dd>
-          </div>
-          <div class="flex items-center gap-3 py-3">
-            <dt class="flex w-28 shrink-0 items-center gap-2 text-highlighted">
-              <UIcon
-                name="i-lucide-gamepad-2"
-                class="size-4 shrink-0"
-              />
-              League
-            </dt>
-            <dd class="text-muted">
-              The League of Legends client, on the same computer
-            </dd>
-          </div>
-        </dl>
+      <ul class="mt-8 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+        <li v-for="entry in MORE" :key="entry.title" class="border-t border-default pt-4">
+          <h3 class="flex items-center gap-2 font-semibold text-highlighted">
+            <UIcon :name="entry.icon" class="size-4 shrink-0 text-primary" />
+            {{ entry.title }}
+          </h3>
+          <p class="mt-1.5 text-sm leading-relaxed text-muted text-pretty">
+            {{ entry.body }}
+          </p>
+        </li>
+      </ul>
+    </section>
+
+    <section id="download" class="scroll-mt-24 pt-24 sm:pt-32">
+      <div class="grid gap-10 lg:grid-cols-[18rem_1fr] lg:gap-16">
+        <div>
+          <h2 class="text-3xl font-semibold tracking-tight text-highlighted">
+            Get the beta.
+          </h2>
+          <p class="mt-3 text-sm leading-relaxed text-muted">
+            Free, for macOS and Windows. It updates itself when a new beta is out.
+          </p>
+        </div>
+        <div class="space-y-6">
+          <DesktopLandingPlatformRows :release="release" :platform="platform" />
+          <p v-if="release" class="text-sm text-dimmed">
+            Version {{ release.version }}<template v-if="release.channel === 'beta'">
+              · test build reading this preprod's data
+            </template>
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-16 grid gap-10 lg:grid-cols-[18rem_1fr] lg:gap-16">
+        <div>
+          <h3 class="text-xl font-semibold tracking-tight text-highlighted">
+            Opening it the first time
+          </h3>
+          <p class="mt-3 text-sm leading-relaxed text-muted">
+            The beta is not signed by Apple or Microsoft yet, so your computer asks once whether to trust it. After that
+            it opens like any other app.
+          </p>
+        </div>
+        <DesktopFirstLaunch :platform="platform" />
+      </div>
+
+      <div class="mt-16 grid gap-10 lg:grid-cols-[18rem_1fr] lg:gap-16">
+        <h3 class="text-xl font-semibold tracking-tight text-highlighted">
+          What it needs
+        </h3>
         <p class="max-w-2xl text-sm leading-relaxed text-muted">
-          No account and no sign-in. The app reads your champion select, your rank and your recent games from the
-          League client on your computer — your games stay on it — and asks TrueMain for the picks and builds that fit
-          the draft. It never plays, picks or types anything for you. It is a beta: expect rough edges while it grows.
+          The League of Legends client on the same computer — no account and no sign-in. The app reads your champion
+          select, your rank and your recent games from the client — your games stay on your computer — and asks TrueMain
+          for the picks and builds that fit the draft. It is a beta: expect rough edges while it grows.
         </p>
-        <p class="max-w-2xl text-sm leading-relaxed text-muted">
-          To show us what gets used, the app sends anonymous usage counts — how often it is opened, which pages and
-          features — under a random id that is not tied to you or your League account. Uncheck "Share Anonymous Usage
-          Data" in the app menu on macOS, or the tray icon's menu on Windows, to turn it off.
-        </p>
+      </div>
+    </section>
+
+    <section class="pt-24 sm:pt-32">
+      <div class="grid gap-10 lg:grid-cols-[18rem_1fr] lg:gap-16">
+        <h2 class="text-3xl font-semibold tracking-tight text-highlighted">
+          Questions
+        </h2>
+        <DesktopLandingFaq />
       </div>
     </section>
   </div>
 </template>
+
+<style scoped>
+.landing-hero-shot {
+  animation: landing-hero-rise 900ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes landing-hero-rise {
+  from { opacity: 0.4; translate: 0 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-shot { animation: none; }
+}
+</style>
