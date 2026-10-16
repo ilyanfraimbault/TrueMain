@@ -20,33 +20,41 @@ export function useReducedMotion(): Ref<boolean> {
   return reduced
 }
 
-/** Whether `target` is on screen right now (both ways, unlike `useVisibleOnce`). */
-export function useInView(target: Ref<HTMLElement | null | undefined>, threshold = 0.35): Ref<boolean> {
+/**
+ * Whether `target` is on screen right now (both ways, unlike `useVisibleOnce`),
+ * and whether that can be known at all: `observed` stays false without an
+ * element or an `IntersectionObserver`.
+ */
+export function useInView(target: Ref<HTMLElement | null | undefined>, threshold = 0.35) {
   const inView = ref(false)
+  const observed = ref(false)
   onMounted(() => {
     const el = target.value
     if (!el || typeof IntersectionObserver === 'undefined') return
     const observer = new IntersectionObserver(([entry]) => (inView.value = Boolean(entry?.isIntersecting)), { threshold })
     observer.observe(el)
+    observed.value = true
     onBeforeUnmount(() => observer.disconnect())
   })
-  return inView
+  return { inView, observed }
 }
 
 /**
  * A scene's timeline: `beats[i]` is how long beat `i` holds, in ms. Returns the
- * current beat — the last one (the final state) until the scene may play, then
+ * current beat — the last one (the final state) until the scene may play (mounted,
+ * motion allowed, an `IntersectionObserver` to say when it is on screen), then
  * from 0 whenever it comes on screen, looping while it stays there. Leaving the
  * screen stops the clock and rewinds, so the scene starts over when it is back.
  */
 export function useSceneBeats(target: Ref<HTMLElement | null | undefined>, beats: readonly number[], options: { loop?: boolean, threshold?: number } = {}) {
   const reduced = useReducedMotion()
-  const inView = useInView(target, options.threshold)
+  const { inView, observed } = useInView(target, options.threshold)
   const mounted = ref(false)
   const beat = ref(beats.length - 1)
   let timer: ReturnType<typeof setTimeout> | undefined
 
-  const playing = computed(() => mounted.value && !reduced.value)
+  // A scene that cannot tell whether it is on screen never rewinds: it would sit on its empty first beat.
+  const playing = computed(() => mounted.value && observed.value && !reduced.value)
 
   function schedule() {
     clearTimeout(timer)
