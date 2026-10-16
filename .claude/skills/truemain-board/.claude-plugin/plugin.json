@@ -1,0 +1,9 @@
+{
+  "name": "truemain-board",
+  "version": "0.1.0",
+  "description": "GitHub Project #2 sprint board for TrueMain: /sprint opens a pane of the open issues on the current (or next) iteration grouped by Status and ordered by Priority; a click drafts the start-issue prompt; the model gets a sprint_issues tool.",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Ilyan Fraimbault"
+  }
+}

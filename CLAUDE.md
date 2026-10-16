@@ -98,4 +98,6 @@ Every issue goes on GitHub Project #2 ("TrueMain"). No milestones. Three fields,
 
 Prefer the project skills for lifecycle steps — they encode all of the above: `start-issue`, `ship` (verify → PR → babysit → autonomous merge), `new-issue`, `release` (site → prod), `desktop-release` (app bump → preprod beta → promotion to prod), `cleanup-branches`, `setup-worktree`.
 
+Three function-hook mods load with every session (`.claude/skills/truemain-{guard,pr,board}`): `truemain-guard` refuses or rewrites Bash calls that break the git/GitHub rules above — a `truemain-guard:` refusal states the repo rule, follow its reason rather than working around it; `truemain-pr` (band above the prompt, `/pr`, `pr_status` tool) and `truemain-board` (`/sprint`, `sprint_issues` tool) expose the branch → issue → PR state and the Project #2 board — prefer those tools over polling `gh` by hand.
+
 Disciplines, adapted from mattpocock/skills (`.claude/skills/THIRD-PARTY.md`): `diagnosing-bugs` (a red feedback loop before any hypothesis), `grilling` (round-based interview before open-ended work), `domain-modeling` (glossary and decision log), `writing-for-agents` (editing skills and steering files). User-invoked: `/grill-with-docs`, `/retro` (improve the agent environment after a session).

@@ -719,7 +719,11 @@ build costs runner minutes, not wall time, since it runs beside CI.
   where Dependabot's NuGet watch sees it, also analyses every non-MSBuild file
   under the repo (`sonar.scanner.scanAll`), which is how the TypeScript and Vue
   code is read without a second scanner. Generated code (EF migrations, the
-  compiled model, `.nuxt`), tests and the dev API mock are excluded.
+  compiled model, `.nuxt`), tests, the dev API mock and `.claude/` are
+  excluded: the agent's skills and function-hook mods under `.claude/skills`
+  never ship, their tests run under `claude plugin test` (bun, outside CI), and
+  their `tsconfig.json` extends a file the Claude Code engine generates on load
+  — analysed, they read as uncovered new code and fail the gate (#2068).
 
 The quality gate **blocks the merge** (#2052). On a PR, `analysis` passes
 `sonar.qualitygate.wait=true`, so its `end` step fails when the gate is red, and

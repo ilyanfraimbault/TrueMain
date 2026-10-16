@@ -1,0 +1,9 @@
+{
+  "name": "truemain-pr",
+  "version": "0.1.0",
+  "description": "Branch → issue → PR band above the prompt for TrueMain: board status, CI, the Claude review verdict against HEAD and the ship done-criteria; /pr prints the full report and the model gets the branch context in its system prompt.",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Ilyan Fraimbault"
+  }
+}

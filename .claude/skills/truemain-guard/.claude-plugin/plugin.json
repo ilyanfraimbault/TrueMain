@@ -1,0 +1,8 @@
+{
+  "name": "truemain-guard",
+  "version": "0.1.0",
+  "description": "Guards the TrueMain git/GitHub workflow: no direct push to develop/master, branch naming, shared-stash safety, squash vs merge per PR base, --delete-branch, compiled-model regen, and strips Claude attribution trailers.",
+  "author": {
+    "name": "Ilyan Fraimbault"
+  }
+}
