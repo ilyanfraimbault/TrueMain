@@ -6,15 +6,11 @@
 -->
 <script setup lang="ts">
 import type { DaySummary } from '~/utils/today'
-import { formatPlayTime } from '~/utils/today'
+import { formatPlayTime, partialLpNote } from '~/utils/today'
 
 const props = defineProps<{ summary: DaySummary | null }>()
 
-const partial = computed(() => {
-  const summary = props.summary
-  if (!summary || summary.lp === null || summary.lpGames === summary.soloGames) return null
-  return `Measured on ${summary.lpGames} of today's ${summary.soloGames} Solo/Duo games.`
-})
+const partial = computed(() => partialLpNote(props.summary))
 </script>
 
 <template>

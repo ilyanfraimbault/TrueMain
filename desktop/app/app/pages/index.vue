@@ -5,7 +5,6 @@ import type { GoalDraft } from '~/utils/goals'
 import { QUEUE_FILTERS, championLines, counted, gamesIn, laneLines } from '~/utils/player-form'
 import { toMatchSummary, toProfileRanked } from '~/utils/match-summary'
 import { activityFromGames } from '~/utils/activity-from-games'
-import { todayOf } from '~/utils/today'
 
 /**
  * Home: the player, read from their own client, on the profile page the site
@@ -36,12 +35,7 @@ const historyGames = computed(() => gamesIn(loadedGames.value, filter.value))
 const filterLabel = computed(() => QUEUE_FILTERS.find(option => option.value === filter.value)?.label ?? 'All')
 const activity = computed(() => activityFromGames(loadedGames.value))
 
-// "Today" moves at midnight even with no new game: a clock ticking each minute.
-const now = ref(new Date())
-let clock: ReturnType<typeof setInterval> | undefined
-onMounted(() => { clock = setInterval(() => { now.value = new Date() }, 60_000) })
-onBeforeUnmount(() => clearInterval(clock))
-const today = computed(() => todayOf(historyGames.value, loadedGames.value, rankHistory.value, now.value))
+const today = useToday(historyGames, loadedGames, rankHistory)
 
 const identity = computed(() => ({
   gameName: state.value.riotId?.split('#')[0] ?? 'Logging in…',

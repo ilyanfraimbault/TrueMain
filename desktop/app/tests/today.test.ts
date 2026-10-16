@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
-import { formatPlayTime, todayOf } from '~/utils/today'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { effectScope, ref } from 'vue'
+import { useToday } from '~/composables/useToday'
+import { formatPlayTime, partialLpNote, todayOf } from '~/utils/today'
 import { MINUTE, game, snapshot } from './fixtures'
 
 // Local times: "today" is the player's own calendar day.
@@ -54,5 +56,41 @@ describe('formatPlayTime', () => {
     expect(formatPlayTime(38 * 60 + 20)).toBe('38m')
     expect(formatPlayTime(112 * 60)).toBe('1h 52m')
     expect(formatPlayTime(125 * 60)).toBe('2h 05m')
+  })
+})
+
+describe('partialLpNote', () => {
+  const day = { games: 3, wins: 2, losses: 1, seconds: 5400, lp: 5, lpGames: 2, soloGames: 3 }
+
+  it('names the share of Solo/Duo games the LP covers when it is partial', () => {
+    expect(partialLpNote(day)).toBe('Measured on 2 of today\'s 3 Solo/Duo games.')
+  })
+
+  it('is null when every Solo/Duo game is measured, none is, or there is no day', () => {
+    expect(partialLpNote({ ...day, lpGames: 3 })).toBeNull()
+    expect(partialLpNote({ ...day, lp: null, lpGames: 0 })).toBeNull()
+    expect(partialLpNote(null)).toBeNull()
+  })
+})
+
+describe('useToday', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('follows the games and turns the day at midnight without a new game', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 16, 23, 59, 30))
+    const games = ref([game({ playedAt: at(20) })])
+    const scope = effectScope()
+    const today = scope.run(() => useToday(games, games, ref([])))!
+
+    expect(today.value?.games).toBe(1)
+    games.value = [...games.value, game({ gameId: 2, playedAt: at(21) })]
+    expect(today.value?.games).toBe(2)
+
+    vi.advanceTimersByTime(60_000)
+    expect(today.value).toBeNull()
+
+    scope.stop()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

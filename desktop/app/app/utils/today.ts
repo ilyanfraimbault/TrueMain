@@ -65,6 +65,12 @@ export function todayOf(
   }
 }
 
+/** The qualifier on a partial LP sum — some of the day's Solo/Duo games unmeasured — or null. */
+export function partialLpNote(summary: DaySummary | null): string | null {
+  if (!summary || summary.lp === null || summary.lpGames === summary.soloGames) return null
+  return `Measured on ${summary.lpGames} of today's ${summary.soloGames} Solo/Duo games.`
+}
+
 /** A time played as `1h 52m`, `38m`, or `<1m`. */
 export function formatPlayTime(seconds: number): string {
   const minutes = Math.floor(seconds / 60)
