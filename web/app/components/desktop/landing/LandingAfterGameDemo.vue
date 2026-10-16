@@ -28,7 +28,7 @@ const today = computed(() => {
     wins: games.filter(game => game.win).length,
     losses: games.filter(game => !game.win).length,
     lp: games.reduce((sum, game) => sum + game.lp, 0),
-    time: minutes >= 60 ? `${Math.floor(minutes / 60)}h ${`${minutes % 60}`.padStart(2, '0')}m` : `${minutes}m`,
+    time: minutes >= 60 ? `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m` : `${minutes}m`,
   }
 })
 
