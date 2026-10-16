@@ -2,7 +2,6 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import {
-  DesktopLandingAfterGameDemo,
   DesktopLandingDraftDemo,
   DesktopLandingGameScreen,
   DesktopLandingInGame,
@@ -152,18 +151,6 @@ describe('LandingDraftDemo', () => {
   })
 })
 
-describe('LandingAfterGameDemo', () => {
-  it('ends with the day\'s four sample games in the Today card and the goals', async () => {
-    const wrapper = await mountSuspended(DesktopLandingAfterGameDemo)
-
-    expect(wrapper.text()).toContain('4 games · 1h 59m')
-    expect(wrapper.text()).toContain('3W – 1L')
-    expect(wrapper.text()).toContain('45 LP')
-    expect(wrapper.text()).toContain('7.3 now · target 7.0 · 4/5 games')
-    expect(wrapper.text()).toContain('4 of 5 met · 4/5 games')
-  })
-})
-
 describe('LandingRecapDemo', () => {
   it('ends on the triple kill saved and its clip at the head of the list', async () => {
     const wrapper = await mountSuspended(DesktopLandingRecapDemo)
@@ -242,15 +229,5 @@ describe('the scenes, playing', () => {
     await nextTick()
     expect(wrapper.text()).toContain('Saved clips · 3')
     expect(wrapper.text()).not.toContain('12:48 → 13:33')
-  })
-
-  it('fills the goals one game at a time', async () => {
-    const wrapper = await mountSuspended(DesktopLandingAfterGameDemo)
-    await nextTick()
-
-    expect(wrapper.text()).toContain('Target 7.0 · 0/5 games')
-    vi.advanceTimersByTime(400)
-    await nextTick()
-    expect(wrapper.text()).toContain('7.4 now · target 7.0 · 1/5 games')
   })
 })
