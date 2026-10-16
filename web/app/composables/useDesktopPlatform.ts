@@ -26,7 +26,8 @@ export function useDesktopPlatform() {
     else if (/Win/i.test(reported) || /Windows/.test(agent)) platform.value = 'windows'
   })
 
-  const other = computed<DesktopPlatform | null>(() => (platform.value === 'mac' ? 'windows' : platform.value === 'windows' ? 'mac' : null))
+  const OTHER: Record<DesktopPlatform, DesktopPlatform> = { mac: 'windows', windows: 'mac' }
+  const other = computed<DesktopPlatform | null>(() => (platform.value ? OTHER[platform.value] : null))
 
   return { platform, other, onPhone }
 }

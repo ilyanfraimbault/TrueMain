@@ -23,7 +23,7 @@ const QUESTIONS = [
   },
   {
     label: 'Where are my recordings stored?',
-    content: 'Recording is off until you turn it on. Games go to Movies/TrueMain on macOS and Videos\\TrueMain on Windows, each clip as its own file in a clips folder beside them. A disk budget you set deletes the oldest full games you did not keep — never a clip.',
+    content: String.raw`Recording is off until you turn it on. Games go to Movies/TrueMain on macOS and Videos\TrueMain on Windows, each clip as its own file in a clips folder beside them. A disk budget you set deletes the oldest full games you did not keep — never a clip.`,
   },
   {
     label: 'What does the app send, and where?',

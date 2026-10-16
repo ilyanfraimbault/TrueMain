@@ -49,7 +49,9 @@ function centreOf(control: HTMLElement | null) {
 }
 watch(beat, (current) => {
   if (!playing.value) return
-  const target = current >= 6 ? importControl.value : current >= 4 ? hoverControl.value : null
+  let target: HTMLElement | null = null
+  if (current >= 6) target = importControl.value
+  else if (current >= 4) target = hoverControl.value
   const at = target ? centreOf(target) : { x: (root.value?.clientWidth ?? 0) * 0.6, y: (root.value?.clientHeight ?? 0) * 0.9 }
   pointer.value = { ...at, visible: current >= 4 && current < 9, pressed: current === 5 || current === 8 }
 })
