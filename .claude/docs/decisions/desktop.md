@@ -681,6 +681,17 @@ overlay, which would be a separate decision under Riot's decision-support rule. 
 mixes ARAM with the Rift; no per-champion default for a one-trick, the player picks the champion when they want one.
 No usage counter was added for goals — #1913.
 
+**The dashboard's Today card counts the day from local midnight and sums only the LP it measured (2026-10-16).** A
+compact summary of the session — games, W–L, time played, net LP — under the ranked card, prompted by a benchmark of a
+competing companion's home. "Today" is the player's local calendar day and a game counts on the day it started, so a
+game begun at 23:50 belongs to the evening it was played in. The LP is the sum of the per-game gains the local history
+measured (`lpDeltaOf`, the rows' own figure); a day with Solo/Duo games it could not measure shows the partial sum with
+the warning dot rather than passing it off as the day's whole, and no figure when nothing was measured — never an
+estimate from the standing's difference across the day, which a promotion breaks. It follows the queue filter like
+every card but the ranked one, and renders nothing on a day without a game rather than an empty card. The activity
+grid's day view already counts the day's games; the card adds the LP and the time, and sits where the rank is read —
+#2073.
+
 **The app's footprint is measured, never estimated (2026-10-05).** Resource use is among the most common complaints
 about League companions, so the product owner asked for a lighter app during a game and for its real memory on
 `/download`. A figure comes from `desktop/tools/measure-footprint.{sh,ps1}`: the whole process tree (on macOS
