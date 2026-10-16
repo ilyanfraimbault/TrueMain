@@ -238,7 +238,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   the client's games carry no patch, so no patch window). A game's role is its participant slot on a queue that assigns roles, none elsewhere (#1768). The LP history is noted on this machine each
   time the record is read (`utils/lp-history.ts`), so the curve and per-game LP start empty and grow. A queue filter
   (All / Solo / Flex / Normal / ARAM) scopes everything but the ranked card; remakes are not listed. Read again after
-  each game. A **goals card** above the champions card (#1913): up to 3 active goals on one of the eight metrics
+  each game. A **Today card** under the ranked card (#2073, `DashboardTodayCard.vue`, `utils/today.ts`): the games
+  started since local midnight, their W–L and time played, and the net LP of the day's Solo/Duo games — the sum of the
+  gains the local LP history measured, with the warning dot saying "Measured on N of today's M Solo/Duo games" when it
+  could not measure them all, and no LP figure when it measured none; it follows the queue filter, leaves remakes out
+  and is absent on a day without a game. A **goals card** above the champions card (#1913): up to 3 active goals on one of the eight metrics
   ("CS / min ≥ 7.0 over the next 5 Solo games", "Deaths ≤ 5 in each of the next 5 Solo games"), set in a modal (metric,
   at least / at most, threshold prefilled with the player's own average in that scope, N 1–20, average or K of N
   games, queue, optional champion and lane), shown as N slots filling up game by game; a goal the latest game decided

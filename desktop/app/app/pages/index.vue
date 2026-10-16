@@ -5,6 +5,7 @@ import type { GoalDraft } from '~/utils/goals'
 import { QUEUE_FILTERS, championLines, counted, gamesIn, laneLines } from '~/utils/player-form'
 import { toMatchSummary, toProfileRanked } from '~/utils/match-summary'
 import { activityFromGames } from '~/utils/activity-from-games'
+import { todayOf } from '~/utils/today'
 
 /**
  * Home: the player, read from their own client, on the profile page the site
@@ -34,6 +35,13 @@ const nameTag = computed(() => state.value.riotId?.replace('#', '-') ?? '')
 const historyGames = computed(() => gamesIn(loadedGames.value, filter.value))
 const filterLabel = computed(() => QUEUE_FILTERS.find(option => option.value === filter.value)?.label ?? 'All')
 const activity = computed(() => activityFromGames(loadedGames.value))
+
+// "Today" moves at midnight even with no new game: a clock ticking each minute.
+const now = ref(new Date())
+let clock: ReturnType<typeof setInterval> | undefined
+onMounted(() => { clock = setInterval(() => { now.value = new Date() }, 60_000) })
+onBeforeUnmount(() => clearInterval(clock))
+const today = computed(() => todayOf(historyGames.value, loadedGames.value, rankHistory.value, now.value))
 
 const identity = computed(() => ({
   gameName: state.value.riotId?.split('#')[0] ?? 'Logging in…',
@@ -141,6 +149,7 @@ watch(() => state.value.phase, (next, previous) => {
         <template #aside>
           <ProfileRankedCardSkeleton v-if="pending" />
           <ProfileRankedCard v-else :ranked="ranked" :history="rankHistory" />
+          <DashboardTodayCard v-if="!pending" :summary="today" />
           <template v-if="pending">
             <USkeleton class="h-40 rounded-lg" />
             <USkeleton class="h-56 rounded-lg" />
