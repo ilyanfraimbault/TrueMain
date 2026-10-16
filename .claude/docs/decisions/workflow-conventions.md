@@ -115,3 +115,10 @@ GitHub-hosted runner, against preprod — #1559.
 - **PR bodies** follow `ship/PR-BODY.md`: the smallest visual of the change, before/after evidence, and a merge
   danger call (one-way or two-way door, blast radius), because migrations and aggregate wipes are one-way doors
   and the body is where a reviewer should see it.
+
+- **The repository is licensed under PolyForm Noncommercial 1.0.0** (2026-10-16). The code stays public and
+  readable, and noncommercial reuse is allowed; commercial use needs a separate license from the copyright
+  holder. A copyleft license (AGPL) was ruled out because it permits commercial reuse by anyone who publishes
+  their changes, which is exactly what an open-source competitor does; an explicit all-rights-reserved notice
+  was ruled out because it forbids even study forks and contributions. A license covers the code, not layout
+  or interface ideas. — #2070

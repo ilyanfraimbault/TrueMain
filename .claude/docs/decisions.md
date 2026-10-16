@@ -442,6 +442,7 @@ Last verified against `develop` on 2026-09-02.
 - CodeQL runs from a versioned workflow, per language and only on the paths a PR touches; full scans on `develop` and weekly; no Swift (2026-10-13) — #2057
 - Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 - Agent disciplines (debugging, grilling, glossary, retro) adapted from mattpocock/skills; review split into Spec and Standards axes; PR bodies carry a merge-danger call (2026-10-05) — #1938
+- The repository is licensed under PolyForm Noncommercial 1.0.0: public and readable, no commercial reuse without a separate license (2026-10-16) — #2070
 
 ## CI runs only what the diff can break, and config files carry no comments (2026-09-02)
 
