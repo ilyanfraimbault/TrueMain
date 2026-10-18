@@ -140,7 +140,7 @@ const viewOf = (row: Row) => views.value.get(row) ?? rowView(row)
           <div class="flex min-w-0 items-baseline gap-1.5">
             <NuxtLink
               :to="playerPath(row.original.persona.slug)"
-              class="relative truncate text-sm font-bold text-highlighted underline-offset-2 hover:text-primary hover:underline"
+              class="relative truncate text-sm font-bold text-highlighted"
               @click.stop
             >{{ row.original.persona.displayName }}</NuxtLink>
             <span class="hidden truncate text-[11px] text-muted @xl:inline">{{ riotIdLabel(row.original.identity.gameName, row.original.identity.tagLine) }}</span>
