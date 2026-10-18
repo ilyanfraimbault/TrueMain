@@ -7,6 +7,7 @@ import {
   formatPercentOrDash,
   formatTimeAgo,
   humanizeBytes,
+  humanizeBytesDelta,
 } from '~~/shared/utils/format'
 
 // The formatters every admin panel renders through. Two rules run across all of them and
@@ -48,6 +49,24 @@ describe('humanizeBytes', () => {
   it('honours the requested precision', () => {
     expect(humanizeBytes(1536, 2)).toBe('1.50 KB')
     expect(humanizeBytes(1536, 0)).toBe('2 KB')
+  })
+})
+
+describe('humanizeBytesDelta', () => {
+  it('keeps the sign a shrinking table needs, which humanizeBytes would clamp away', () => {
+    expect(humanizeBytesDelta(1536)).toBe('+1.5 KB')
+    expect(humanizeBytesDelta(-(1024 ** 3) * 3.5)).toBe('-3.5 GB')
+    expect(humanizeBytesDelta(-1)).toBe('-1 B')
+  })
+
+  it('renders no change, a sub-byte rate and a non-finite input as "0 B"', () => {
+    expect(humanizeBytesDelta(0)).toBe('0 B')
+    expect(humanizeBytesDelta(-0.4)).toBe('0 B')
+    expect(humanizeBytesDelta(Number.NaN)).toBe('0 B')
+  })
+
+  it('honours the requested precision', () => {
+    expect(humanizeBytesDelta(-1536, 2)).toBe('-1.50 KB')
   })
 })
 

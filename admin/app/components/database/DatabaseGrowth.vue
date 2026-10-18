@@ -4,7 +4,7 @@
 // collection (`GET /api/ops/db/history`, fetched by the page), never a live
 // pg_catalog scan, so widening the window costs nothing on the database.
 import type { DbStorageHistory } from '~~/shared/types/ops'
-import { formatDayLabel, formatPercentOrDash, humanizeBytes } from '~~/shared/utils/format'
+import { formatDayLabel, formatPercentOrDash, humanizeBytes, humanizeBytesDelta } from '~~/shared/utils/format'
 
 const props = defineProps<{
   history: DbStorageHistory | null | undefined
@@ -144,7 +144,7 @@ const rowsPerDayLabelFormatter = computed(() =>
         <div class="flex shrink-0 items-center gap-4 tabular-nums text-sm">
           <span class="text-muted">{{ humanizeBytes(series.currentBytes) }}</span>
           <span class="w-28 text-right" :class="series.bytesPerDay > 0 ? 'text-highlighted' : 'text-muted'">
-            {{ series.bytesPerDay >= 0 ? '+' : '' }}{{ humanizeBytes(series.bytesPerDay, 1) }}/d
+            {{ humanizeBytesDelta(series.bytesPerDay, 1) }}/d
           </span>
           <span class="w-24 text-right text-muted">
             {{ series.rowsPerDay >= 0 ? '+' : '' }}{{ formatCount(series.rowsPerDay) }} rows/d
