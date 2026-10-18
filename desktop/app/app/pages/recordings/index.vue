@@ -8,7 +8,8 @@ import { EMPTY_FILTERS, countLabel, filterItems, formatBytes, groupItems, librar
  * the space used against the budget, the toolbar, and the cards in groups,
  * four across. Filters and grouping survive a trip to a recap and back.
  * `?game=<id>` narrows the page to one game's clips (the dashboard's "Watch"
- * once that game's full recording is gone).
+ * once that game's full recording is gone), `?kind=clips` to every clip (the
+ * dashboard's "See all" on its latest clips).
  */
 const { library, settings, status, loadState, load, requestPermission } = useRecordings()
 const { nameOf } = useChampionStatics()
@@ -22,6 +23,11 @@ const settingsOpen = ref(false)
 watch(() => route.query.game, (game) => {
   const id = Number(game)
   filters.value = { ...filters.value, gameId: Number.isFinite(id) && id > 0 ? id : null }
+}, { immediate: true })
+
+// The dashboard's "See all" on its latest clips: every clip, whatever was filtered before.
+watch(() => route.query.kind, (kind) => {
+  if (kind === 'clips') filters.value = { ...EMPTY_FILTERS, kind }
 }, { immediate: true })
 
 onMounted(() => {
@@ -42,7 +48,7 @@ const gameFilterLabel = computed(() => {
 
 function clearFilters() {
   filters.value = { ...EMPTY_FILTERS }
-  if (route.query.game) void router.replace({ query: {} })
+  if (route.query.game || route.query.kind) void router.replace({ query: {} })
 }
 
 const emptyReason = computed<RecordingsEmptyReason | null>(() => {
