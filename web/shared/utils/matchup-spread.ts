@@ -81,13 +81,19 @@ export function buildMatchupSpread(entries: readonly ChampionMatchupEntry[]): Ma
     averageLaneWinRate: decidedLanes > 0 ? wonLanes / decidedLanes : null,
     counts,
     hardest: points[0] ?? null,
-    easiest: points.length > 0 ? points[points.length - 1]! : null,
+    easiest: points.at(-1) ?? null,
   }
 }
 
 /** Where a delta sits on the axis, 0 (left edge) → 1 (right edge). */
 export function matchupSpreadPosition(delta: number, halfWidth: number): number {
   return Math.min(1, Math.max(0, 0.5 + delta / (2 * halfWidth)))
+}
+
+/** The `step`-th row tried, outward from the centre: 0, −1, 1, −2, 2… */
+function beeswarmRow(step: number): number {
+  if (step === 0) return 0
+  return step % 2 === 1 ? -(step + 1) / 2 : step / 2
 }
 
 /**
@@ -100,7 +106,7 @@ export function beeswarmRows(xs: readonly number[], minGap: number): number[] {
   const occupied = new Map<number, number[]>()
   return xs.map((x) => {
     for (let step = 0; ; step++) {
-      const row = step === 0 ? 0 : (step % 2 === 1 ? -(step + 1) / 2 : step / 2)
+      const row = beeswarmRow(step)
       const taken = occupied.get(row) ?? []
       if (taken.every(other => Math.abs(other - x) >= minGap - 1e-9)) {
         taken.push(x)
