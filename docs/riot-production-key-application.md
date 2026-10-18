@@ -47,7 +47,9 @@ can open in a browser or observe on our traffic.
       `/privacy`. It must state what player data is stored, why, how long, and
       how a player asks for its deletion, with a contact route that works.
 - [ ] **Riot legal boilerplate** — the "not endorsed by Riot Games" disclaimer,
-      present and legible (`/about`, `web/app/pages/about.vue`).
+      readily visible: under every page of the site (`AppFooter`) and at the
+      foot of the desktop app's pages, from one component
+      (`web/layers/common/app/components/RiotDisclaimer.vue`, #2090).
 - [ ] **A screenshot set**: the champion page (builds, runes, matchups), a
       player page, and the search. The application asks for evidence that the
       product exists and is used, not mockups.

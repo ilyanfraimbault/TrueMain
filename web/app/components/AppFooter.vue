@@ -23,8 +23,9 @@ const buildLabel = formatBuildLabel({ env: appEnv, version: appVersion })
 <template>
   <UFooter
     :ui="{
-      container: 'border-t border-default lg:py-8',
+      container: 'border-t border-default pb-4 lg:pt-8 lg:pb-4',
       right: 'gap-x-0 flex-wrap',
+      bottom: 'pt-0 pb-8 lg:pt-0 lg:pb-8',
     }"
   >
     <template #left>
@@ -48,6 +49,12 @@ const buildLabel = formatBuildLabel({ env: appEnv, version: appVersion })
         class="font-light"
         size="sm"
       />
+    </template>
+
+    <template #bottom>
+      <UContainer>
+        <RiotDisclaimer class="mx-auto max-w-3xl text-center lg:mx-0 lg:text-left" />
+      </UContainer>
     </template>
   </UFooter>
 </template>

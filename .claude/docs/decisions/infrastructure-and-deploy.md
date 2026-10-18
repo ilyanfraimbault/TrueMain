@@ -139,10 +139,9 @@ The authenticated app *can* be framed: Caddy rewrites `analytics.truemain.lol`'s
 `admin.truemain.lol` (`Caddyfile`), and the two subdomains share `truemain.lol` so the Umami session cookie
 would reach the iframe. That rules out CSP as the reason to prefer the share view. The owner chose to keep it
 anyway: the share view renders with no Umami login, while the authenticated app would show Umami's login
-screen inside the iframe whenever no session is active. Session replays/heatmaps (#1013) — absent from the
-share view's hardcoded nav because a share link is an unauthenticated public URL and a replay is a full DOM
-recording — stay reachable only via the deep links added in #1014, opened in a new tab. Revisit if the
-login-in-iframe friction becomes the bigger annoyance — #1013.
+screen inside the iframe whenever no session is active. The replay/heatmap deep links #1014 added beside it
+were removed with the recorder in #2089. Revisit if the login-in-iframe friction becomes the bigger
+annoyance — #1013.
 
 **Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow.**
 Self-hosted Umami has no built-in retention for `session_replay`/`heatmap_event` — the `retentionDays` label
@@ -152,6 +151,22 @@ traffic is low enough to afford it). Left unbounded, this repeats the disk-fill 
 68 GB, VPS ran out of disk). `umami-replay-cleanup` (all three compose files) is a `postgres:17.2-alpine`
 container with its entrypoint overridden to just loop a `psql` purge once a day — no server started, matching
 `umami-db`'s Postgres major version. Retention is `UMAMI_REPLAY_RETENTION_DAYS`, default 7 — #1018.
+Since #2089 the site records no replay or heatmap; the sidecar stays so the rows recorded before are purged on
+the same retention, and so a re-enabled recorder can never fill the disk again.
+
+**Analytics stay inside the CNIL consent exemption for audience measurement — no consent banner (2026-10-18).**
+The owner wanted to see recurring visitors, possibly by name. Checked against the CNIL's self-assessment grid
+for consent-exempt audience measurement (July 2025): a first-party identifier is allowed (13 months max, not
+extended per visit), but "no tracking of a single user's navigation" is a criterion, its prescribed measure is
+disabling session replay, reports must stay anonymous whatever the filters, and an opt-out link in the privacy
+policy is required. The CNIL's February 2026 draft recommendation on session replay puts replay under prior
+consent. The owner chose the exempt path over a consent banner: Umami's `recorder.js` is no longer loaded, no
+`umami.identify()` or stored visitor id is added (Umami's own visitor hash — site + IP + user agent + monthly
+salt — is the fingerprint shape the grid accepts), and `/privacy` carries an opt-out switch on Umami's native
+`umami.disabled` flag. Recurrence is read in aggregate (Umami's Retention report), within a calendar month.
+Seeing individual recurring visitors would need a consent banner — reopen only on that basis. Known residual
+gaps against the grid: Umami keeps the full referrer and UTM parameters, and its Sessions view lists visitors
+one by one — #2089.
 
 **`/ops/*` is the only authenticated API surface** (`X-Ops-Key`, min 32 chars, rotated independently of the
 Riot key). Everything else is public and rate-limited to 500 req/min per *visitor* — `docs/api.md`.
