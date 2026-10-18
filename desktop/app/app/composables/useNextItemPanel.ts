@@ -11,7 +11,8 @@ import { goldToComplete, starterCost, stepsToward } from '~/utils/next-item'
  * the overlay's (#1747) so the two can never disagree: the item the
  * champion's mains complete next from where this build stands, why when a
  * situation moved it, the purchases toward it, the runners-up and the boots —
- * and, until one is bought, the starter.
+ * and, until one is bought, the starter. When the build order (#2101) says the
+ * boots are due, they are that item.
  */
 export function useNextItemPanel(game: Ref<GameState>) {
   const { answer, pending, failed } = useNextItem(game)
@@ -22,9 +23,15 @@ export function useNextItemPanel(game: Ref<GameState>) {
   const held = computed(() => me.value?.items.map(item => item.itemId) ?? [])
 
   const build = computed(() => answer.value?.build ?? null)
-  const top = computed(() => build.value?.candidates[0] ?? null)
-  const runnersUp = computed(() => build.value?.candidates.slice(1, 3) ?? [])
-  const boots = computed(() => answer.value?.boots?.candidates.slice(0, 3) ?? [])
+  /** The build as one row (#2101), the boots at the step the mains complete them at. */
+  const order = computed(() => answer.value?.order ?? [])
+  /** The boots are the step to complete now: they take the panel's main slot. */
+  const bootsDue = computed(() => order.value.find(step => step.state === 'Next')?.isBoots ?? false)
+  const decision = computed(() => (bootsDue.value ? answer.value?.boots ?? null : build.value))
+  const top = computed(() => decision.value?.candidates[0] ?? null)
+  const runnersUp = computed(() => decision.value?.candidates.slice(1, 3) ?? [])
+  // Once the row places them, the boots need no column of their own.
+  const boots = computed(() => (order.value.some(step => step.isBoots) ? [] : answer.value?.boots?.candidates.slice(0, 3) ?? []))
 
   const name = (itemId: number) => statics.value[itemId]?.name ?? `Item ${itemId}`
   const percent = (share: number) => formatPercentage(share, 0)
@@ -51,5 +58,5 @@ export function useNextItemPanel(game: Ref<GameState>) {
     return 'loading'
   })
 
-  return { answer, pending, statics, build, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold }
+  return { answer, pending, statics, build, order, bootsDue, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold }
 }

@@ -335,7 +335,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   complete next from where our build stands in a game like this one (`POST /champions/{id}/next-item`, #1749 — asked on
   every item change of any of the ten, settled 600 ms, never on a timer), its share of the mains, the strongest situation
   behind it in the site's item-context wording, the gold left to complete it and its missing components (Data Dragon
-  recipe) ringed when the gold in hand buys them, the two runners-up, and the boots while none are held. Our completion
+  recipe) ringed when the gold in hand buys them, the two runners-up, and under it **the build as one row** (#2101,
+  `game/GameBuildOrder.vue`: completed items dimmed, the next one ringed, the likely rest of the tree, the boots at the
+  step the mains complete them at — `Order` in the answer); when the row says the boots are due they become the main
+  item, runners-up included, and the separate boots column only shows while no boots timing is measured. Our completion
   order is noted as items land; "off the mains' path" says when the build left their tree. Our gold reaches the page in
   50-gold steps (`GOLD_STEP`), the only gold the API exposes. Above it, until anything but potions and the trinket is
   held, **the starter** (`useStarter`): the basket the composition build opens with for the ten champions on their
@@ -353,7 +356,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`pages/overlay/[panel].vue`, outside the app's shell). Shown only while the game process is frontmost and a game is
   read — from its `GameStart` event, never over the loading screen, the client or another app; ⌥⇧O (Alt+Shift+O on Windows) hides them until the game ends. **Next item** (232 pt,
   `OverlayNextItem.vue`): one item, its icon and name, and the gold still to earn for it or "Can buy now" — until a
-  starter is bought, the starter basket in its place — no components, runners-up or boots; whole game or only while dead. **Win probability** (160 pt,
+  starter is bought, the starter basket in its place — and under it the same build row as the game page (22 px icons,
+  the boots at their step, #2101); no components or runners-up; whole game or only while dead. **Win probability** (160 pt,
   `OverlayWinProbability.vue`): both sides' percentages and a bar in the sides' colours, no labels, the whole game —
   a logistic of each lane's creep-score, level and kill lead over the opposite lane, weighted by a regression fitted
   on our ranked games (interpolated between 5, 10, 15, 20 and 30 minutes; the support's lead weighs little; creep

@@ -1,4 +1,5 @@
 import type { GamePlayer, GameState, GameTeam } from '~/types/game'
+import type { NextItemOrderStep } from '~/utils/next-item'
 import type { PaceReference } from '~/utils/pace-benchmark'
 
 /**
@@ -11,6 +12,16 @@ import type { PaceReference } from '~/utils/pace-benchmark'
 
 /** The next item the sample shows, and the gold it still needs. */
 export const SAMPLE_NEXT_ITEM = { itemId: 3157, missing: 650 } as const
+
+/** The build row under it (#2101): one item and the boots done, the sample's next item, the rest to come. */
+export const SAMPLE_BUILD_ORDER: NextItemOrderStep[] = [
+  { itemId: 6655, isBoots: false, state: 'Completed' },
+  { itemId: 3020, isBoots: true, state: 'Completed' },
+  { itemId: SAMPLE_NEXT_ITEM.itemId, isBoots: false, state: 'Next' },
+  { itemId: 3089, isBoots: false, state: 'Upcoming' },
+  { itemId: 3135, isBoots: false, state: 'Upcoming' },
+  { itemId: 4645, isBoots: false, state: 'Upcoming' },
+]
 
 /** The tier reference the pace panel's sample shows beside the sample game's pace (#1912). */
 export const SAMPLE_PACE_REFERENCE: PaceReference = {

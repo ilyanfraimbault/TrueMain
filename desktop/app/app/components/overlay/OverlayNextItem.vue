@@ -4,7 +4,8 @@ import { basketName } from '~/utils/next-item'
 
 /**
  * The overlay's next item: one item and whether the gold in hand buys it —
- * nothing a glance over the game cannot take in. No components and no
+ * nothing a glance over the game cannot take in — and under it the build as a
+ * row (#2101), to see where the game stands and when the boots come. No components and no
  * runners-up: which component to buy first is not measured yet, so the
  * overlay does not pretend to know. Until a starter is bought, the starter
  * stands in for it: it is what the shop is open for at the start. The game
@@ -13,7 +14,7 @@ import { basketName } from '~/utils/next-item'
  */
 const props = defineProps<{ game: GameState }>()
 
-const { statics, top, remaining, state, name, starter, starterGold } = useNextItemPanel(toRef(props, 'game'))
+const { statics, order, top, remaining, state, name, starter, starterGold } = useNextItemPanel(toRef(props, 'game'))
 
 /** The gold still to earn before it can be bought; 0 once the gold in hand covers it. */
 const missing = computed(() => Math.max(0, remaining.value - props.game.gold))
@@ -37,7 +38,10 @@ const message = computed(() => {
 
 <template>
   <OverlayNextItemCard v-if="starter" label="Starter" :item="starterItem" :name="basketName(starter.itemIds, name)" :missing="Math.max(0, starterGold - game.gold)" />
-  <OverlayNextItemCard v-else-if="state === 'ready' && top" :item="statics[top.itemId] ?? null" :name="name(top.itemId)" :missing="missing" />
+  <div v-else-if="state === 'ready' && top" class="space-y-2">
+    <OverlayNextItemCard :item="statics[top.itemId] ?? null" :name="name(top.itemId)" :missing="missing" />
+    <GameBuildOrder :steps="order" :statics="statics" :size="22" />
+  </div>
   <div v-else class="flex items-center gap-2.5">
     <USkeleton v-if="!message" class="size-9 shrink-0 rounded-md" />
     <AppMark v-else class="size-4 shrink-0" />
