@@ -131,15 +131,6 @@ const contactEmail = 'contact@truemain.lol'
           <ProseA :href="`mailto:${contactEmail}`">{{ contactEmail }}</ProseA>.
         </ProseP>
       </section>
-
-      <section class="border-t border-default pt-6">
-        <ProseP class="text-xs text-dimmed">
-          TrueMain isn't endorsed by Riot Games and doesn't reflect the views or
-          opinions of Riot Games or anyone officially involved in producing or
-          managing Riot Games properties. Riot Games and all associated properties
-          are trademarks or registered trademarks of Riot Games, Inc.
-        </ProseP>
-      </section>
     </article>
   </div>
 </template>
