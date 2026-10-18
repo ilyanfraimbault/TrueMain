@@ -6,7 +6,7 @@ import { isLoadingStatus } from '#common/utils/async-data'
 // `%s · TrueMain` template — it would duplicate the name in search results.
 useHead({ titleTemplate: null })
 useSeoMeta({
-  title: 'TrueMain — Champion builds from real mains',
+  title: 'TrueMain · Champion builds from real mains',
   description: 'League of Legends champion builds, runes and skill orders from true main players.',
 })
 
