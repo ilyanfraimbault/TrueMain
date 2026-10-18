@@ -29,6 +29,20 @@ export function humanizeBytes(bytes: number, digits = 1): string {
 }
 
 /**
+ * Humanize a signed byte delta (`+1.2 MB`, `-3.5 GB`, `0 B`). A table that shrank
+ * over a window — pruning, `VACUUM FULL`, `REINDEX` — has a negative growth that
+ * {@link humanizeBytes} would clamp to `"0 B"`, reading as "flat" next to a
+ * non-zero row delta.
+ */
+export function humanizeBytesDelta(bytes: number, digits = 1): string {
+  const rounded = Number.isFinite(bytes) ? Math.round(bytes) : 0
+  if (rounded === 0) {
+    return '0 B'
+  }
+  return `${rounded > 0 ? '+' : '-'}${humanizeBytes(Math.abs(rounded), digits)}`
+}
+
+/**
  * Format an integer with locale grouping (e.g. 1234567 -> "1,234,567").
  * `null`/`undefined`/non-finite render as an em dash so absent metrics read as
  * "no data" rather than "0".
