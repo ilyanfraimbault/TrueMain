@@ -16,6 +16,9 @@
  * `art-fade-x` — a hero band: art anchored right, fading to the page towards
  * the left where the text sits.
  *
+ * `art-fade-y` — a card: art on top, fading to the page towards the bottom
+ * where the text sits.
+ *
  * `art-vignette` — a full-bleed backdrop, so the art is a mood, not a subject.
  */
 @utility art-fade-x {
@@ -25,6 +28,15 @@
     color-mix(in oklch, var(--ui-bg-muted) 92%, transparent) 30%,
     color-mix(in oklch, var(--ui-bg-muted) 45%, transparent) 60%,
     color-mix(in oklch, var(--ui-bg-muted) 20%, transparent) 100%
+  );
+}
+
+@utility art-fade-y {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--ui-bg-muted) 10%, transparent) 0%,
+    color-mix(in oklch, var(--ui-bg-muted) 25%, transparent) 45%,
+    color-mix(in oklch, var(--ui-bg-muted) 92%, transparent) 100%
   );
 }
 
