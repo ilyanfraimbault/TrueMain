@@ -13,6 +13,7 @@ import {
   niceCeiling,
   teamCurves,
   type CurveMetric,
+  type PlayerCurve,
 } from '#common/utils/timeline-curves'
 import { objectiveMarkers } from '#common/utils/timeline-objectives'
 import { formatGameClock } from '#common/utils/win-probability-swing'
@@ -65,14 +66,16 @@ const lines = computed(() => {
     if (participantId === props.selfParticipantId) return 'self' as const
     return participantId === pinned.value ? 'pinned' as const : 'muted' as const
   }
+  const tone = (player: PlayerCurve) => {
+    if (player.participantId === props.selfParticipantId) return 'self' as const
+    return player.teamId === props.perspectiveTeamId ? 'ally' as const : 'enemy' as const
+  }
   const order = { muted: 0, pinned: 1, self: 2 }
   return players
     .map(player => ({
       key: player.participantId,
       points: player.points.map(point => `${x(point.ms)},${y(point.value)}`).join(' '),
-      tone: player.participantId === props.selfParticipantId
-        ? 'self' as const
-        : player.teamId === props.perspectiveTeamId ? 'ally' as const : 'enemy' as const,
+      tone: tone(player),
       emphasis: emphasis(player.participantId),
     }))
     .sort((a, b) => order[a.emphasis] - order[b.emphasis])

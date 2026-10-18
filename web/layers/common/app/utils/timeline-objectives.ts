@@ -52,7 +52,8 @@ function labelOf(event: WinProbabilityTimelineEvent, kind: ObjectiveMarkerKind, 
     })
   }
   const name = monsterLabel(event.monsterType ?? '', event.monsterSubType || null)
-  return `${ours ? 'Your' : 'Enemy'} ${name}${count > 1 ? ` ×${count}` : ''}`
+  const times = count > 1 ? ' ×' + count : ''
+  return `${ours ? 'Your' : 'Enemy'} ${name}${times}`
 }
 
 /** The game's objectives in time order, read for `perspectiveTeamId`. */

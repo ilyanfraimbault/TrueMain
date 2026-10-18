@@ -27,6 +27,11 @@ const rows = computed(() => props.team.players.map(player => ({
   pinned: player.participantId === props.pinnedParticipantId,
   share: props.max > 0 ? (player.end / props.max) * 100 : 0,
 })))
+
+function barTone(self: boolean) {
+  if (self) return 'bg-primary'
+  return props.ours ? 'bg-ally' : 'bg-enemy'
+}
 </script>
 
 <template>
@@ -57,7 +62,7 @@ const rows = computed(() => props.team.players.map(player => ({
       <span class="h-1 w-full overflow-hidden rounded-full bg-elevated">
         <span
           class="block h-full rounded-full"
-          :class="row.self ? 'bg-primary' : ours ? 'bg-ally' : 'bg-enemy'"
+          :class="barTone(row.self)"
           :style="{ width: `${row.share}%`, opacity: row.self || row.pinned ? 1 : 0.6 }"
         />
       </span>

@@ -7,7 +7,10 @@ const metric = defineModel<CurveMetric>({ required: true })
 </script>
 
 <template>
-  <div class="flex gap-0.5 rounded-md bg-elevated p-0.5" role="group" aria-label="Curve metric">
+  <fieldset class="flex gap-0.5 rounded-md bg-elevated p-0.5">
+    <legend class="sr-only">
+      Curve metric
+    </legend>
     <button
       v-for="option in CURVE_METRICS"
       :key="option.key"
@@ -21,5 +24,5 @@ const metric = defineModel<CurveMetric>({ required: true })
     >
       {{ option.label }}
     </button>
-  </div>
+  </fieldset>
 </template>

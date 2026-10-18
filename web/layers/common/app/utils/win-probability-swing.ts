@@ -85,9 +85,13 @@ export function structureLabel(
 ): string {
   const verb = building.ours ? 'Took' : 'Lost'
   const lane = building.lane ? LANES[building.lane] ?? null : null
-  if (kind === 'inhibitor') return `${verb} the ${lane ? `${lane} ` : ''}inhibitor`
+  if (kind === 'inhibitor') {
+    const inhibitor = lane ? lane + ' inhibitor' : 'inhibitor'
+    return `${verb} the ${inhibitor}`
+  }
   const tower = (building.towerType && TOWERS[building.towerType]) || 'turret'
-  return `${verb} the ${tower}${lane ? `, ${lane}` : ''}`
+  const where = lane ? ', ' + lane : ''
+  return `${verb} the ${tower}${where}`
 }
 
 export interface SwingContext {
