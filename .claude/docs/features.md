@@ -243,7 +243,12 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   started since local midnight, their W–L and time played, and the net LP of the day's Solo/Duo games — the sum of the
   gains the local LP history measured, with the warning dot saying "Measured on N of today's M Solo/Duo games" when it
   could not measure them all, and no LP figure when it measured none; it follows the queue filter, leaves remakes out
-  and is absent on a day without a game. A **goals card** above the champions card (#1913): up to 3 active goals on one of the eight metrics
+  and is absent on a day without a game. A **Latest clips card** under it (#2077, `DashboardClipsCard.vue`, `latestClips` in
+  `utils/recording-library.ts`): the four most recently saved clips, two by two, on the Recordings cards' own picture
+  (`RecordingsThumb`: how long ago, length) with the champion and the title under each; a clip opens the clip player the
+  Recordings page opens, "See all" goes to `/recordings?kind=clips` (the Clips filter, every other filter cleared). With
+  fewer than four clips the free cells stay as dashed empty slots of the same height, so the card keeps its shape; it
+  reads the library the Recordings page reads and is absent when the shell records nothing or no clip was saved. A **goals card** above the champions card (#1913): up to 3 active goals on one of the eight metrics
   ("CS / min ≥ 7.0 over the next 5 Solo games", "Deaths ≤ 5 in each of the next 5 Solo games"), set in a modal (metric,
   at least / at most, threshold prefilled with the player's own average in that scope, N 1–20, average or K of N
   games, queue, optional champion and lane), shown as N slots filling up game by game; a goal the latest game decided
@@ -427,7 +432,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   Finder / Explorer, delete with a confirmation). Empty states: recording off (what an hour costs, from the shell's
   estimate), nothing yet, nothing matching; capture not allowed (a button asking macOS), unsupported (Linux, Windows
   before 10 1903), missing; and a
-  banner when capture stopped working while recordings exist. `?game=<id>` narrows it to one game's clips.
+  banner when capture stopped working while recordings exist. `?game=<id>` narrows it to one game's clips, `?kind=clips` (the dashboard's "See all") opens it on every clip.
 - **Recap** (`/recordings/:id`, #1777) — the full game's video with the app's controls (play, previous / next moment
   with a 5 s lead-in, mute, playback speed 0.25×–4× kept for the session, full screen; Space, ← →, Shift+← →, M, < / >, F)
   over a timeline of the whole video that zooms like a video editor's (pinch or Ctrl/⌘/Alt + wheel around the pointer,
