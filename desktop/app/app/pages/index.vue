@@ -21,7 +21,6 @@ const { record, games: loadedGames, rankHistory, status, refresh, hasOlder, load
 const championsById = useStaticChampionsById()
 const { items, summoners, runeTree } = useStaticData()
 const { aliasOf, patch } = useChampionStatics()
-const { patch: tierListPatch } = useTierList()
 
 const filter = ref<QueueFilter>('all')
 const latest = computed(() => record.value?.games ?? [])
@@ -193,18 +192,7 @@ watch(() => state.value.phase, (next, previous) => {
         </div>
       </section>
 
-      <section class="flex flex-col gap-4 pt-2">
-        <div class="flex items-end justify-between gap-4">
-          <div>
-            <p class="eyebrow">
-              This patch<template v-if="tierListPatch"> · {{ tierListPatch }}</template>
-            </p>
-            <h2 class="mt-1 text-2xl font-semibold tracking-tight text-highlighted">The strongest picks, lane by lane.</h2>
-          </div>
-          <UButton to="/tierlist" label="Full tier list" trailing-icon="i-lucide-arrow-right" color="primary" variant="link" size="xs" />
-        </div>
-        <DashboardMeta />
-      </section>
+      <DashboardMeta />
     </template>
   </div>
 </template>

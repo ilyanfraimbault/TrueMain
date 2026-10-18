@@ -1,24 +1,30 @@
 <script setup lang="ts">
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
-import { POSITIONS, positionLabel } from '#common/utils/positions'
+import { lanePicks, lanePicksLoading } from '~/utils/lane-picks'
 
 /**
- * The patch at a glance, drawn like the site's "Strongest picks" panel: one
- * column per lane on the site's tier list, its best pick over its loading art
- * and the next four under it with their tier and win rate. A champion
- * opens its builds.
+ * The patch at a glance, drawn like the site's "Strongest picks": one column
+ * per lane on the site's tier list, its best pick over its loading art and the
+ * next four under it with their tier and win rate. A champion opens its builds.
  */
-const { laneEntries, status } = useTierList()
+const { laneEntries, status, patch } = useTierList()
 const { nameOf, portraitOf } = useChampionStatics()
 
-const columns = computed(() => POSITIONS.map((lane) => {
-  const [lead, ...rest] = laneEntries(lane).slice(0, 5)
-  return { lane, label: positionLabel(lane), lead: lead ?? null, rest }
-}))
-const loading = computed(() => status.value !== 'ready' && columns.value.every(column => !column.lead))
+const columns = computed(() => lanePicks(laneEntries))
+const loading = computed(() => lanePicksLoading(columns.value, status.value))
 </script>
 
 <template>
+  <section class="flex flex-col gap-4 pt-2">
+    <div class="flex items-end justify-between gap-4">
+      <div>
+        <p class="eyebrow">
+          This patch<template v-if="patch"> · {{ patch }}</template>
+        </p>
+        <h2 class="mt-1 text-2xl font-semibold tracking-tight text-highlighted">The strongest picks, lane by lane.</h2>
+      </div>
+      <UButton to="/tierlist" label="Full tier list" trailing-icon="i-lucide-arrow-right" color="primary" variant="link" size="xs" />
+    </div>
   <div class="grid grid-cols-5 gap-3">
     <div v-for="column in columns" :key="column.lane" class="surface flex flex-col overflow-hidden rounded-2xl">
       <NuxtLink
@@ -71,4 +77,5 @@ const loading = computed(() => status.value !== 'ready' && columns.value.every(c
       </ul>
     </div>
   </div>
+  </section>
 </template>
