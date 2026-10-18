@@ -6,29 +6,13 @@
 // is configured it embeds that instead, and Umami's own login shows inside
 // the frame.
 //
-// Session replays and heatmaps (#1013) are deliberately absent from Umami's
-// share view — a share link is an unauthenticated public URL and a replay is
-// a full DOM recording of a visit — so they are unreachable from the iframe.
-// They get deep links into the authenticated app instead, which keeps them
-// behind Umami's login.
+// No session replays or heatmaps: the public site stopped recording them to
+// stay within the CNIL's consent exemption (#2089), so the deep links #1013
+// added for them are gone too.
 const config = useRuntimeConfig().public
 
 const umamiUrl = computed(() => config.umamiUrl)
 const embedUrl = computed(() => config.umamiShareUrl || config.umamiUrl)
-
-const websiteLinks = computed(() => {
-  const { umamiUrl: url, umamiWebsiteId: websiteId } = config
-  if (!url || !websiteId) {
-    return []
-  }
-
-  const base = `${url.replace(/\/+$/, '')}/websites/${websiteId}`
-
-  return [
-    { label: 'Replays', icon: 'i-lucide-play', to: `${base}/replays` },
-    { label: 'Heatmaps', icon: 'i-lucide-flame', to: `${base}/heatmaps` },
-  ]
-})
 </script>
 
 <template>
@@ -39,16 +23,6 @@ const websiteLinks = computed(() => {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton
-            v-for="link in websiteLinks"
-            :key="link.to"
-            :icon="link.icon"
-            color="neutral"
-            variant="ghost"
-            :label="link.label"
-            :to="link.to"
-            target="_blank"
-          />
           <UButton
             v-if="umamiUrl"
             icon="i-lucide-external-link"
