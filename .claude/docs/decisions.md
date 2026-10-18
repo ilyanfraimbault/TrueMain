@@ -138,7 +138,7 @@ Last verified against `develop` on 2026-09-02.
 - OG image rendering is on, pinned to Satori + resvg, and deliberately reaches exactly two pages — #551, #926, #600
 - A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04) — #1545
 - OG image URLs are signed with a secret regenerated at every build, and that is left as the default — #926
-- The sitemap advertises champions, not players (2026-09-01) — #862, #1337, #551
+- The sitemap advertises champions, not truemain profiles; known players with a tracked account are in it, their page being server-rendered (2026-09-01, extended 2026-10-14) — #862, #1337, #551, #2018
 
 ## Web frontend rules (hydration, fetches, icons, tooltips) — [`decisions/web-frontend-rules.md`](decisions/web-frontend-rules.md)
 
@@ -381,6 +381,7 @@ Last verified against `develop` on 2026-09-02.
 - Nothing pops up by itself during champion select or a game: the update toast waits for the phase to end (sidebar only meanwhile); badges read as plain words (2026-10-05) — #1914
 - Lists are tables with fixed columns under headers (truemains, champions); the tier list is the site's tier cards (2026-09-30) — #1719; superseded for every page the app shares with the site (#1732)
 - The home page announces the app right under the hero, above "This patch"; `/download` shows a real capture of the app (live API data, never a fixture podium) over plain typography, no icon-tile cards; the home banner shows the dashboard whole, on fixture data by the product owner's exception (2026-10-01) — #1725
+- `/download` is organised by moment of a game (champion select, in game, recordings), each with the app's UI drawn live in HTML and no caption under it; the overlay and the recap sit on a real frame of one of our own games, no table of contents (2026-10-16) — #2072
 - The beta ships unsigned as `desktop-v*` GitHub pre-releases, resolved by the site (download + update feed), and updates itself on the player's click (2026-09-28, revised 2026-10-01) — #1719
 - App version bumped by hand; each bump merged to develop builds a pre-release preprod serves; production serves only a build promoted by hand (`Desktop promote`) (2026-10-01; revised by #1799) — #1772
 - Every app change merged to develop builds a `X.Y.Z-beta.N` preprod build; a bump's production build goes out by itself once the site release in production contains it or matches it on `web/` + `backend/{Api,Core,Data}` (2026-10-02) — #1799
@@ -408,6 +409,7 @@ Last verified against `develop` on 2026-09-02.
 - Items are imported on a click too, as one `TrueMain: ` item set replaced in place; the whole-list write round-trips the player's sets raw and writes nothing after a failed read (2026-10-05) — #1908
 - The app hovers, locks and bans in champion select on the player's click only — lock = complete what the client shows hovered, from one strip button; a ban (or an ally's intent) asks first; no auto-lock/ban/accept, ever (2026-10-05) — #1909
 - The player's own account is never highlighted — loading screen, game page, match rows, scoreboard, runes; ours only orders the sides (2026-10-02) — #1803
+- The dashboard's Today card: games, W–L, time played and net LP since local midnight, LP summed only over measured games (partial sum flagged), following the queue filter, absent on a day without a game (2026-10-16) — #2073
 - Measurable goals on the dashboard are local (per Riot ID, `localStorage`), measured from the client's games with each counted game frozen into the goal; suggested thresholds are the player's own average, never a benchmark; ≤ 3 active, no toast, nothing in the overlay; default 5 games on Solo, "All" allowed but never suggested, no per-champion default (2026-10-05) — #1913
 - The app's footprint is measured, never estimated: whole process tree (WebKit's services by responsible process, WebView2 by parent), physical footprint / private working set, median + p95 per scenario; `/download` shows a figure only once measured, a competitor's only with a published source; an overlay panel has a webview only while it can show (2026-10-05) — #1916
 - Desktop usage is measured by the app itself (anonymous install id, counters folded per install and UTC day in Mongo, 13-month TTL, opt-out in the native menu), downloads by the site's redirect; nothing read from the League client is sent (2026-10-02) — #1805
@@ -442,6 +444,7 @@ Last verified against `develop` on 2026-09-02.
 - CodeQL runs from a versioned workflow, per language and only on the paths a PR touches; full scans on `develop` and weekly; no Swift (2026-10-13) — #2057
 - Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 - Agent disciplines (debugging, grilling, glossary, retro) adapted from mattpocock/skills; review split into Spec and Standards axes; PR bodies carry a merge-danger call (2026-10-05) — #1938
+- The repository is licensed under PolyForm Noncommercial 1.0.0: public and readable, no commercial reuse without a separate license (2026-10-16) — #2070
 
 ## CI runs only what the diff can break, and config files carry no comments (2026-09-02)
 

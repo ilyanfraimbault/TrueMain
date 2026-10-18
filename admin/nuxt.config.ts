@@ -39,6 +39,16 @@ export default defineNuxtConfig({
     preference: 'dark',
     fallback: 'dark',
   },
+  // With `ssr: false`, @nuxt/icon defaults to fetching icons from the public
+  // Iconify API, which prod's CSP (`connect-src 'self'`) blocks — most icons
+  // rendered blank. Bundle the statically used icons into the client and serve
+  // any other one from Nitro's own `/api/_nuxt_icon` endpoint instead.
+  icon: {
+    provider: 'server',
+    fallbackToApi: false,
+    serverBundle: { collections: ['lucide'] },
+    clientBundle: { scan: true },
+  },
   image: {
     domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org'],
     providers: {

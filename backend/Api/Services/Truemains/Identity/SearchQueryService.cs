@@ -1,6 +1,7 @@
 using Data;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains.Leaderboard;
 
 namespace TrueMain.Services.Truemains.Identity;
@@ -123,12 +124,17 @@ public sealed class SearchQueryService(
                 a.SummonerLevel))
             .ToListAsync(ct);
 
+        // A Name#TAG asks for one account, not a person: known players only answer a bare name.
+        var players = tag is null
+            ? await PersonaSearch.FetchAsync(db, pattern, nameLower, ct)
+            : [];
+
         if (rows.Count == 0)
         {
             logger.LogInformation(
-                "[truemain-search] query={Query} tag={Tag} results=0",
-                name, tag ?? "any");
-            return Empty;
+                "[truemain-search] query={Query} tag={Tag} results=0 players={Players}",
+                name, tag ?? "any", players.Count);
+            return new SearchResponse { Players = players };
         }
 
         // Hydrate the handful of result rows sequentially on the single scoped
@@ -171,10 +177,10 @@ public sealed class SearchQueryService(
             .ToList();
 
         logger.LogInformation(
-            "[truemain-search] query={Query} tag={Tag} results={Results}",
-            name, tag ?? "any", results.Count);
+            "[truemain-search] query={Query} tag={Tag} results={Results} players={Players}",
+            name, tag ?? "any", results.Count, players.Count);
 
-        return new SearchResponse { Results = results };
+        return new SearchResponse { Results = results, Players = players };
     }
 
     /// <summary>

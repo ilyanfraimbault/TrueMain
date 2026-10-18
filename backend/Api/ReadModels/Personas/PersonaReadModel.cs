@@ -11,6 +11,20 @@ public sealed record PersonaTagReadModel
     public string DisplayName { get; init; } = string.Empty;
 }
 
+/// <summary>The known players worth a sitemap entry (<c>GET /players</c>, #2018).</summary>
+public sealed record PersonaDirectoryResponse
+{
+    public IReadOnlyList<PersonaDirectoryEntryReadModel> Players { get; init; } = Array.Empty<PersonaDirectoryEntryReadModel>();
+}
+
+public sealed record PersonaDirectoryEntryReadModel
+{
+    public string Slug { get; init; } = string.Empty;
+
+    /// <summary>The persona's last upsert — the sitemap's <c>lastmod</c>.</summary>
+    public DateTime UpdatedAtUtc { get; init; }
+}
+
 /// <summary>A known player and every account sources list for them (<c>GET /players/{slug}</c>).</summary>
 public sealed record PersonaReadModel
 {
@@ -21,7 +35,7 @@ public sealed record PersonaReadModel
     /// <summary>Public channels and pages, ordered by kind.</summary>
     public IReadOnlyList<PersonaLinkReadModel> Links { get; init; } = Array.Empty<PersonaLinkReadModel>();
 
-    /// <summary>Tracked accounts first, best rank first; then the accounts TrueMain does not track yet.</summary>
+    /// <summary>The tracked accounts only, the one played most recently first, then by rank.</summary>
     public IReadOnlyList<PersonaAccountReadModel> Accounts { get; init; } = Array.Empty<PersonaAccountReadModel>();
 }
 
@@ -35,7 +49,7 @@ public sealed record PersonaLinkReadModel
 
 public sealed record PersonaAccountReadModel
 {
-    /// <summary>The account's current Riot ID when tracked (it follows renames), else the one the source published.</summary>
+    /// <summary>The account's current Riot ID — it follows renames, unlike the one the source published.</summary>
     public string GameName { get; init; } = string.Empty;
 
     public string TagLine { get; init; } = string.Empty;
@@ -45,16 +59,18 @@ public sealed record PersonaAccountReadModel
     /// <summary><c>europe</c>, <c>americas</c> or <c>korea</c>; null for a platform the site does not expose.</summary>
     public string? Region { get; init; }
 
-    /// <summary>True when TrueMain tracks the account, i.e. it has a profile page to link to.</summary>
-    public bool Tracked { get; init; }
+    public int ProfileIconId { get; init; }
 
-    /// <summary>Null when untracked.</summary>
-    public int? ProfileIconId { get; init; }
+    /// <summary>
+    /// Start of the most recent ranked game TrueMain stored for the account; null when it has none
+    /// (never ingested, or every game aged out).
+    /// </summary>
+    public DateTime? LastPlayedAtUtc { get; init; }
 
-    /// <summary>Latest ranked solo/duo standing; null when untracked or unranked.</summary>
+    /// <summary>Latest ranked solo/duo standing; null when unranked.</summary>
     public PersonaAccountRankedReadModel? Ranked { get; init; }
 
-    /// <summary>Up to three active mains, most played first; empty when untracked or never analysed.</summary>
+    /// <summary>Up to three active mains, most played first; empty when never analysed.</summary>
     public IReadOnlyList<PersonaAccountChampionReadModel> TopChampions { get; init; } = Array.Empty<PersonaAccountChampionReadModel>();
 }
 

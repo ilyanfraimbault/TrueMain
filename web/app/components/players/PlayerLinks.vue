@@ -1,47 +1,50 @@
 <script setup lang="ts">
 import type { PersonaLink, PersonaLinkKind } from '~~/shared/types/players'
 
-// A known player's public channels and pages (#2016), as compact buttons that
-// open off-site. The order is the API's (by kind), so a page never reshuffles.
-defineProps<{ links: PersonaLink[] }>()
+// A known player's channels (#2016): Twitch, YouTube and X only, as square
+// buttons carrying the brand's coloured logo and no label — the logo says which
+// platform; the name stays in the tooltip and the accessible label. The other
+// kinds the intake stores (wikis, stat sites, smaller platforms) are not shown.
+// The order is the API's (by kind), so a page never reshuffles.
+const props = defineProps<{ links: PersonaLink[] }>()
 
-const KINDS: Record<PersonaLinkKind, { label: string, icon: string }> = {
-  twitch: { label: 'Twitch', icon: 'i-simple-icons-twitch' },
-  youtube: { label: 'YouTube', icon: 'i-simple-icons-youtube' },
-  x: { label: 'X', icon: 'i-simple-icons-x' },
-  kick: { label: 'Kick', icon: 'i-simple-icons-kick' },
-  tiktok: { label: 'TikTok', icon: 'i-simple-icons-tiktok' },
-  instagram: { label: 'Instagram', icon: 'i-simple-icons-instagram' },
-  soop: { label: 'SOOP', icon: 'i-lucide-tv' },
-  chzzk: { label: 'CHZZK', icon: 'i-lucide-tv' },
-  leaguepedia: { label: 'Leaguepedia', icon: 'i-lucide-book-open' },
-  lolpros: { label: 'LoLPros', icon: 'i-lucide-trophy' },
-  deeplol: { label: 'DeepLoL', icon: 'i-lucide-bar-chart-3' },
-  website: { label: 'Website', icon: 'i-lucide-globe' },
+// Literal class strings, for Tailwind's scan. X's mark is black on white, so it
+// takes the text colour and stays visible in both themes.
+const SHOWN: Partial<Record<PersonaLinkKind, { label: string, icon: string, color: string }>> = {
+  twitch: { label: 'Twitch', icon: 'i-simple-icons-twitch', color: 'text-[#9146FF]' },
+  youtube: { label: 'YouTube', icon: 'i-simple-icons-youtube', color: 'text-[#FF0000]' },
+  x: { label: 'X', icon: 'i-simple-icons-x', color: 'text-highlighted' },
 }
 
-const kindOf = (link: PersonaLink) => KINDS[link.kind] ?? KINDS.website
+const shown = computed(() => props.links.flatMap((link) => {
+  const kind = SHOWN[link.kind]
+  return kind ? [{ ...kind, url: link.url }] : []
+}))
 </script>
 
 <template>
   <ul
-    v-if="links.length"
-    class="flex flex-wrap gap-2"
+    v-if="shown.length"
+    class="flex flex-wrap items-center gap-2"
   >
     <li
-      v-for="link in links"
+      v-for="link in shown"
       :key="link.url"
     >
-      <UButton
-        :to="link.url"
-        target="_blank"
-        rel="noopener nofollow"
-        :icon="kindOf(link).icon"
-        :label="kindOf(link).label"
-        color="neutral"
-        variant="soft"
-        size="sm"
-      />
+      <UTooltip :text="link.label">
+        <UButton
+          :to="link.url"
+          target="_blank"
+          rel="noopener nofollow"
+          :icon="link.icon"
+          :aria-label="link.label"
+          color="neutral"
+          variant="soft"
+          size="md"
+          square
+          :ui="{ leadingIcon: ['size-5', link.color] }"
+        />
+      </UTooltip>
     </li>
   </ul>
 </template>

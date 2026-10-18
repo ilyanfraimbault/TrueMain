@@ -61,7 +61,7 @@ import type {
 import { PERFORMANCE_COMPONENT_KINDS } from '~~/shared/types/performance'
 import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
-import type { SearchResponse } from '~~/shared/types/search'
+import type { SearchPlayer, SearchResponse } from '~~/shared/types/search'
 
 // ─── Deterministic PRNG ──────────────────────────────────────────────────────
 // mulberry32 — every payload derives from stable seeds so repeated fetches
@@ -1251,17 +1251,36 @@ const MOCK_PERSONA_ACCOUNTS: ReadonlyArray<readonly [number, PersonaTag]> = [
   [4, MOCK_PERSONAS.koralis],
 ]
 
+// Known players whose name contains the term, with their best account's face
+// and rank — the mock's take on the backend's PersonaSearch (#2018).
+function mockPersonaSearch(needle: string): SearchPlayer[] {
+  return Object.values(MOCK_PERSONAS)
+    .filter(persona => persona.displayName.toLowerCase().includes(needle) || persona.slug.includes(needle))
+    .map((persona) => {
+      const page = mockPersona(persona.slug)!
+      const best = page.accounts[0]
+      return {
+        persona,
+        accountCount: page.accounts.length,
+        profileIconId: best?.profileIconId ?? null,
+        ranked: best?.ranked ? { tier: best.ranked.tier, division: best.ranked.division, leaguePoints: best.ranked.leaguePoints } : null,
+      }
+    })
+}
+
 function mockPersona(slug: string): PersonaResponse | null {
   const owned = players().filter(p => p.row.persona?.slug === slug)
   const persona = owned[0]?.row.persona
   if (!persona) return null
-  const tracked: PersonaAccount[] = owned.map(({ row }) => ({
+  // The page lists tracked accounts only, the one played most recently first:
+  // the mock spaces their last games a day, then a month apart.
+  const accounts: PersonaAccount[] = owned.map(({ row }, index) => ({
     gameName: row.identity.gameName,
     tagLine: row.identity.tagLine ?? '',
     platformId: row.identity.platformId,
     region: row.region,
-    tracked: true,
     profileIconId: row.identity.profileIconId,
+    lastPlayedAtUtc: new Date(Date.now() - (index === 0 ? 1 : 32) * 86_400_000).toISOString(),
     ranked: row.ranked && {
       tier: row.ranked.tier,
       division: row.ranked.division,
@@ -1271,17 +1290,6 @@ function mockPersona(slug: string): PersonaResponse | null {
     },
     topChampions: row.topChampions.map(c => ({ championId: c.championId, games: c.games, playRate: c.playRate, isOtp: c.isOtp })),
   }))
-  // A listed account TrueMain does not track yet: shown, never linked.
-  const untracked: PersonaAccount = {
-    gameName: `${persona.displayName.split(' ')[0]}Alt`,
-    tagLine: 'KR1',
-    platformId: 'KR',
-    region: 'korea',
-    tracked: false,
-    profileIconId: null,
-    ranked: null,
-    topChampions: [],
-  }
   return {
     slug: persona.slug,
     displayName: persona.displayName,
@@ -1293,7 +1301,7 @@ function mockPersona(slug: string): PersonaResponse | null {
           { kind: 'leaguepedia', url: 'https://lol.fandom.com/wiki/Sheiden' },
         ]
       : [],
-    accounts: slug === 'sheiden' ? [...tracked, untracked] : tracked,
+    accounts,
   }
 }
 
@@ -1368,8 +1376,9 @@ function mockLeaderboard(query: Record<string, unknown>): LeaderboardResponse {
 
 function mockSearch(q: string): SearchResponse {
   const needle = q.trim().toLowerCase()
-  if (needle.length < 2) return { results: [] }
+  if (needle.length < 2) return { results: [], players: [] }
   return {
+    players: needle.includes('#') ? [] : mockPersonaSearch(needle),
     results: players()
       .filter(p => p.row.identity.gameName.toLowerCase().includes(needle))
       .slice(0, 8)
@@ -2490,6 +2499,10 @@ export async function resolveDevApiMock(
   }
 
   if (path === '/truemains') return mockLeaderboard(query)
+
+  if (path === '/players') {
+    return { players: Object.values(MOCK_PERSONAS).map(persona => ({ slug: persona.slug, updatedAtUtc: '2026-10-13T00:00:00Z' })) }
+  }
 
   const personaMatch = path.match(/^\/players\/([^/]+)$/)
   if (personaMatch) {

@@ -37,16 +37,17 @@ export interface PersonaAccountChampion {
   isOtp: boolean
 }
 
+/** One tracked account of a known player — every one has a profile to open. */
 export interface PersonaAccount {
-  /** The account's current Riot ID when tracked (it follows renames), else the one the source published. */
+  /** The account's current Riot ID (it follows renames). */
   gameName: string
   tagLine: string
   platformId: string
   /** Null for a platform the site does not expose. */
   region: RegionSlug | null
-  /** True when TrueMain tracks the account, i.e. it has a profile to link to. */
-  tracked: boolean
-  profileIconId: number | null
+  profileIconId: number
+  /** Start of the most recent ranked game TrueMain stored for it; null when it has none. */
+  lastPlayedAtUtc: string | null
   ranked: PersonaAccountRanked | null
   topChampions: PersonaAccountChampion[]
 }
@@ -55,6 +56,11 @@ export interface PersonaResponse {
   slug: string
   displayName: string
   links: PersonaLink[]
-  /** Tracked accounts first, best rank first; then the untracked ones. */
+  /** Tracked accounts only, the one played most recently first, then by rank. */
   accounts: PersonaAccount[]
+}
+
+/** `GET /players` (#2018): the known players worth a sitemap entry — those with a tracked account. */
+export interface PersonaDirectoryResponse {
+  players: { slug: string, updatedAtUtc: string }[]
 }

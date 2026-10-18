@@ -35,6 +35,8 @@ const historyGames = computed(() => gamesIn(loadedGames.value, filter.value))
 const filterLabel = computed(() => QUEUE_FILTERS.find(option => option.value === filter.value)?.label ?? 'All')
 const activity = computed(() => activityFromGames(loadedGames.value))
 
+const today = useToday(historyGames, loadedGames, rankHistory)
+
 const identity = computed(() => ({
   gameName: state.value.riotId?.split('#')[0] ?? 'Logging in…',
   tagLine: state.value.riotId?.split('#')[1] ?? null,
@@ -141,6 +143,7 @@ watch(() => state.value.phase, (next, previous) => {
         <template #aside>
           <ProfileRankedCardSkeleton v-if="pending" />
           <ProfileRankedCard v-else :ranked="ranked" :history="rankHistory" />
+          <DashboardTodayCard v-if="!pending" :summary="today" />
           <template v-if="pending">
             <USkeleton class="h-40 rounded-lg" />
             <USkeleton class="h-56 rounded-lg" />

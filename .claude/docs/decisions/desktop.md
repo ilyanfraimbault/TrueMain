@@ -252,6 +252,25 @@ dashboard capture is the one exception to "no fabricated numbers" on the site: i
 scenario's fixture record (the synthetic player `Synthetic#TAPE` and invented games), and the product owner accepted
 those figures for a picture of the app; it carries no TrueMain statistic (2026-10-01) — #1725.
 
+**`/download` follows a game moment by moment, with the app's UI drawn live in HTML (2026-10-16).** Competitor
+desktop pages show the product moving; ours described one moment with a still, while the app had grown an overlay,
+recordings and goals. The page keeps the #1725 capture of champion select under the hero and the left-aligned,
+card-free typography, then one section per moment — champion select, in game, recordings — each
+with a scene redrawn from the app's components in HTML/CSS (`web/app/components/desktop/landing/`): the ranked
+picks and the hover beat (the rune import was cut from the scene: off-topic at that step, the product owner's call), the four overlay panels arriving at their default anchors as the steps scroll
+by, the recap with a clip cut and saved. Every drawn value is the app's own overlay-preview
+sample (`utils/desktop-landing-sample.ts`, the shape of `overlay-sample.ts`; the win probability runs the shared model
+on it) or a sample, and the ranked picks carry no figure, for the same reason the podium is never captured.
+The game under the overlay and in the recap is real: a frame of one of the product owner's own games
+(`public/desktop/game.webp`, Yone at 13:23, taken from a clip they published), since a champion's splash read as a fake
+— the product owner's call, which reverses the first version's "no game capture". The overlay sample follows that
+frame (our champion, the clock, the creep score) so no panel contradicts the HUD beside it, and the drawings copy the
+app's components class for class: the in-game window's plain frame, the recap's player, timeline marks and Clips
+tab. No "after the game" section: the goals card drawn there read as filler — the product owner's call. No caption under the scenes ("Sample values" read as noise), no table of contents under the hero, and short lines in "And between
+games". Scenes render their final state on the server and under `prefers-reduced-motion`, and only play while on
+screen: they start once they reach the middle of the viewport, and rewind only once fully off it. No performance strip until `docs/desktop-footprint.md`
+records a run — #2072.
+
 **Game recording asks the player for two things, the resolution and the frame rate, and derives everything else.**
 The product owner wants the app to record games and replay them with the player's kills, deaths and assists marked
 (Outplayed's job), and to choose the best setting for their machine "without a configuration as complex as OBS",
@@ -680,6 +699,17 @@ overlay, which would be a separate decision under Riot's decision-support rule. 
 5 games by default (the tiles' recent window); "All" queues allowed but never the default nor suggested, since it
 mixes ARAM with the Rift; no per-champion default for a one-trick, the player picks the champion when they want one.
 No usage counter was added for goals — #1913.
+
+**The dashboard's Today card counts the day from local midnight and sums only the LP it measured (2026-10-16).** A
+compact summary of the session — games, W–L, time played, net LP — under the ranked card, prompted by a benchmark of a
+competing companion's home. "Today" is the player's local calendar day and a game counts on the day it started, so a
+game begun at 23:50 belongs to the evening it was played in. The LP is the sum of the per-game gains the local history
+measured (`lpDeltaOf`, the rows' own figure); a day with Solo/Duo games it could not measure shows the partial sum with
+the warning dot rather than passing it off as the day's whole, and no figure when nothing was measured — never an
+estimate from the standing's difference across the day, which a promotion breaks. It follows the queue filter like
+every card but the ranked one, and renders nothing on a day without a game rather than an empty card. The activity
+grid's day view already counts the day's games; the card adds the LP and the time, and sits where the rank is read —
+#2073.
 
 **The app's footprint is measured, never estimated (2026-10-05).** Resource use is among the most common complaints
 about League companions, so the product owner asked for a lighter app during a game and for its real memory on

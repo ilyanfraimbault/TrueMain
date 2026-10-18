@@ -49,3 +49,14 @@ export function useChampionSplash(iconUrl: MaybeRefOrGetter<string | null | unde
   const splashOf = useCanonicalSplash()
   return computed(() => splashOf(championSplashUrlFromIcon(toValue(iconUrl))))
 }
+
+/** The width a champion's loading-screen art is fetched at: Data Dragon's own (308 × 560), never enlarged. */
+export const LOADING_ART_FETCH_WIDTH = 308
+
+/** The canonical `/_ipx/…` URL for a champion's loading-screen art (`/download`'s drawn pick cards, #2072). */
+export function useCanonicalLoadingArt() {
+  const ipx = useImage()
+
+  return (src: string | null | undefined): string | null =>
+    src ? ipx(src, { width: LOADING_ART_FETCH_WIDTH, format: 'webp' }) : null
+}
