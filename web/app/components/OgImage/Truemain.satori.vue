@@ -240,7 +240,7 @@ const tiles = computed(() => {
       }"
     >
       <div :style="{ display: 'flex' }">
-        {{ riotId ? 'Tracked as a true main on TrueMain' : 'The OTP leaderboard, ranked by Truemain score' }}
+        {{ riotId ? 'Tracked as a true main on TrueMain' : 'The leaderboard, ranked by Truemain score' }}
       </div>
       <div :style="{ display: 'flex', fontWeight: 600, color: TEXT_MUTED }">
         truemain.lol

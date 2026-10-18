@@ -38,7 +38,7 @@ const breadcrumbItems = computed(() => [
 ])
 
 useSeoMeta({
-  title: () => persona.value ? `${persona.value.displayName} — accounts` : 'Player',
+  title: () => persona.value ? `${persona.value.displayName} · Accounts` : 'Player',
   description: () => persona.value
     ? `Every League of Legends account of ${persona.value.displayName} — Riot IDs, ranks and mains.`
     : 'A known League of Legends player on TrueMain.',
