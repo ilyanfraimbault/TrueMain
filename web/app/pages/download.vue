@@ -14,20 +14,18 @@ useSeoMeta({
 const { data: release, status, error } = await useFetch<DesktopRelease | null>('/api/desktop/release')
 const { platform, other, onPhone } = useDesktopPlatform()
 
-// The drawn scenes' icons: the latest patch, and the item map and rune tree
-// only once a scene that needs them comes near — neither is above the fold.
+// The drawn scenes' icons: the latest patch, and the item map
+// only once a scene that needs it comes near — it is not above the fold.
 const { data: versions } = useDDragonVersions()
 const patch = computed(() => versions.value[0] ?? null)
 const scenes = ref<HTMLElement | null>(null)
 const nearScenes = useVisibleOnce(scenes, { rootMargin: '800px' })
 const staticPatch = computed(() => (nearScenes.value ? patch.value : null))
 const { data: items, execute: readItems } = useStaticItems(staticPatch, { immediate: false, unresolvedKeySegment: 'pending' })
-const { data: runeTree, execute: readRuneTree } = useStaticRuneTree(staticPatch, { immediate: false, server: false, unresolvedKeySegment: 'pending' })
-// A key that changes does not start a fetch that was never run (`immediate: false`): start both once the patch is in.
+// A key that changes does not start a fetch that was never run (`immediate: false`): start it once the patch is in.
 const stopReading = watch(staticPatch, (value) => {
   if (!value) return
   readItems()
-  readRuneTree()
   queueMicrotask(() => stopReading())
 }, { immediate: true })
 
@@ -103,7 +101,7 @@ const MORE = [
       >
         <div class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] lg:gap-14">
           <figure>
-            <DesktopLandingDraftDemo :patch="patch" :rune-tree="runeTree ?? null" aria-hidden="true" />
+            <DesktopLandingDraftDemo :patch="patch" aria-hidden="true" />
           </figure>
           <ul class="flex flex-col gap-6">
             <li v-for="point in DRAFT_POINTS" :key="point.title" class="border-t border-default pt-4">
