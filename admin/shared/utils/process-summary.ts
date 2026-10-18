@@ -75,3 +75,28 @@ export function formatScalar(value: unknown): string {
   }
   return String(value)
 }
+
+/** The few lines of a run's summary worth reading without opening it. */
+export interface SummaryRecap {
+  /** The run's own explanation, when it recorded one (`reason`: why it skipped or did nothing). */
+  reason: string | null
+  /** Its first top-level counters, in the order the process wrote them. */
+  fields: { label: string, value: string }[]
+}
+
+/**
+ * A short recap of a free-form summary, for the iteration timeline and the bar's
+ * hover card. Only top-level numbers count as fields: nested per-platform rows and
+ * flags need the full view, which the run detail still opens.
+ */
+export function summaryRecap(summary: unknown, maxFields = 3): SummaryRecap {
+  if (!isPlainObject(summary)) {
+    return { reason: null, fields: [] }
+  }
+  const reason = typeof summary.reason === 'string' && summary.reason.trim() ? summary.reason.trim() : null
+  const fields = Object.entries(summary)
+    .filter(([, value]) => typeof value === 'number')
+    .slice(0, maxFields)
+    .map(([key, value]) => ({ label: humanizeKey(key), value: formatScalar(value) }))
+  return { reason, fields }
+}

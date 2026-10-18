@@ -1,86 +1,113 @@
 <script setup lang="ts">
-// The steps of one finished iteration as a waterfall: each step on its own row, its
-// bar placed where it ran inside the pass and as wide as it took. Opened from a row of
-// the recent-iterations list; a step that ran opens its run detail.
+// The steps of one finished iteration as a UTimeline: one entry per step of the lane,
+// in order, with when it started, how long it took and a recap of its summary (the
+// reason it skipped or did nothing, else its first counters). Opened from a row of the
+// recent-iterations list; an entry that ran opens its run detail.
+import type { TimelineItem } from '@nuxt/ui'
 import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
-import type { ChainLink, LaneBranch } from '~~/shared/utils/pipeline-lanes'
+import type { ChainLink, ChainOutcome } from '~~/shared/utils/pipeline-lanes'
 import { formatClock, formatElapsed } from '~~/shared/utils/format'
-import { iterationSpan, placeRun } from '~~/shared/utils/iteration-timeline'
 import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
+import { summaryRecap } from '~~/shared/utils/process-summary'
 
 const props = defineProps<{
   iteration: ProcessIteration
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   openRun: [run: ProcessRun]
 }>()
 
-const branches = computed<LaneBranch[]>(() => buildLaneBranches(props.iteration.runs))
-const span = computed(() => iterationSpan(props.iteration))
+type StepItem = TimelineItem & { run: ProcessRun | null, meta: string }
 
-// What a row without a bar says instead. A skip is the cadence guard deciding the
-// step was not due; a step with no run at all in a finished pass never started.
-function idleNote(link: ChainLink): string {
-  return link.outcome === 'Skipped' ? 'Skipped · not due yet' : 'Not run this pass'
+// The indicator carries the outcome, so a column of steps reads at a glance; a step
+// that did no work stays visibly quieter than one that did.
+const INDICATOR_CLASS: Record<ChainOutcome, string> = {
+  Success: 'bg-success/15 text-success',
+  Failed: 'bg-error/15 text-error',
+  Abandoned: 'bg-warning/15 text-warning',
+  Cancelled: 'bg-elevated text-muted',
+  Running: 'bg-primary/15 text-primary',
+  Skipped: 'bg-elevated text-dimmed',
+  notRun: 'bg-transparent ring ring-default text-dimmed',
 }
 
-function hasBar(link: ChainLink): link is ChainLink & { run: ProcessRun } {
-  return link.run !== null && link.outcome !== 'Skipped'
+function describe(link: ChainLink): string | undefined {
+  const run = link.run
+  if (!run) {
+    return 'Never started in this pass.'
+  }
+  if (run.error) {
+    return run.error.split('\n')[0]
+  }
+  const recap = summaryRecap(run.summary)
+  if (recap.reason) {
+    return recap.reason
+  }
+  return recap.fields.map(field => `${field.label} ${field.value}`).join(' · ') || undefined
+}
+
+function toItem(link: ChainLink): StepItem {
+  const ran = link.run !== null && link.outcome !== 'Skipped'
+  return {
+    value: link.processName,
+    title: chainLabel(link.processName),
+    // Beside the title rather than in the item's own date line: one line less per
+    // step, and the durations line up in a column a reader can scan down.
+    meta: ran
+      ? `${formatClock(link.run!.startedAtUtc)} · ${formatElapsed(link.run!.durationMs)}`
+      : outcomeLabel(link.outcome),
+    description: describe(link),
+    icon: outcomeIcon(link.outcome),
+    run: link.run,
+    ui: {
+      item: link.run ? 'cursor-pointer' : '',
+      indicator: INDICATOR_CLASS[link.outcome],
+      title: ran ? '' : 'text-muted font-normal',
+    },
+  }
+}
+
+// One timeline per lane the pass ran: one for a lane pass, two for a `Full` one.
+const groups = computed(() =>
+  buildLaneBranches(props.iteration.runs).map(branch => ({
+    id: branch.id,
+    label: branch.label,
+    items: branch.links.map(toItem),
+  })),
+)
+
+function onSelect(_event: Event, item: StepItem) {
+  if (item.run) {
+    emit('openRun', item.run)
+  }
 }
 </script>
 
 <template>
-  <div class="space-y-3">
-    <div v-for="branch in branches" :key="branch.id">
-      <p v-if="branches.length > 1" class="text-xs font-medium text-muted mb-1">
-        {{ branch.label }}
+  <div class="space-y-4">
+    <div v-for="group in groups" :key="group.id">
+      <p v-if="groups.length > 1" class="text-xs font-medium text-muted mb-2">
+        {{ group.label }}
       </p>
-
-      <component
-        :is="link.run ? 'button' : 'div'"
-        v-for="link in branch.links"
-        :key="link.processName"
-        :type="link.run ? 'button' : undefined"
-        class="grid w-full grid-cols-[1rem_minmax(7rem,11rem)_3rem_1fr_4.5rem] items-center gap-x-3 rounded px-1.5 py-1 text-left text-xs"
-        :class="link.run ? 'hover:bg-elevated/50 cursor-pointer' : ''"
-        :title="link.run ? 'View run details' : undefined"
-        @click="link.run && $emit('openRun', link.run)"
+      <UTimeline
+        :items="group.items"
+        size="xs"
+        color="neutral"
+        :ui="{
+          wrapper: 'pb-2.5 min-w-0 max-w-2xl',
+          title: 'text-xs',
+          description: 'text-xs text-dimmed truncate',
+        }"
+        @select="onSelect"
       >
-        <UIcon
-          :name="outcomeIcon(link.outcome)"
-          class="size-3.5"
-          :class="outcomeTextClass(link.outcome)"
-        />
-        <UTooltip :ui="PROCESS_TOOLTIP_UI">
-          <span
-            class="truncate"
-            :class="hasBar(link) ? 'text-highlighted' : 'text-dimmed'"
-          >
-            {{ chainLabel(link.processName) }}
+        <template #title="{ item }">
+          <span class="flex items-baseline justify-between gap-3">
+            <span>{{ item.title }}</span>
+            <span class="shrink-0 text-[11px] font-normal tabular-nums text-dimmed">{{ (item as StepItem).meta }}</span>
           </span>
-          <template #content>
-            <ProcessTooltipContent :process-name="link.processName" :context="iterationChipContext(link)" />
-          </template>
-        </UTooltip>
-        <span class="tabular-nums text-dimmed">
-          {{ hasBar(link) ? formatClock(link.run.startedAtUtc) : '' }}
-        </span>
-        <span v-if="hasBar(link)" class="relative h-2">
-          <span
-            class="absolute inset-y-0 rounded-sm"
-            :class="outcomeBarClass(link.outcome)"
-            :style="{
-              left: `${placeRun(link.run, span).offsetPct}%`,
-              width: `${placeRun(link.run, span).widthPct}%`,
-            }"
-          />
-        </span>
-        <span v-else class="text-dimmed italic">{{ idleNote(link) }}</span>
-        <span class="text-right tabular-nums" :class="hasBar(link) ? 'text-default' : 'text-dimmed'">
-          {{ hasBar(link) ? formatElapsed(link.run.durationMs) : '' }}
-        </span>
-      </component>
+        </template>
+      </UTimeline>
     </div>
   </div>
 </template>

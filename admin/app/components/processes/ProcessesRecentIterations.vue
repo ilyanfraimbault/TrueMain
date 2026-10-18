@@ -4,15 +4,13 @@
 // (#1436); the page owns the fetch, the page number and the lane filter.
 //
 // A pass used to be drawn as its full chain of named chips, the fetch and aggregate
-// lanes interleaved: every row was a paragraph, a skipped step stood out more than a
-// successful one, and nothing showed which passes ran at the same time. A row now
-// says what kind of pass it was, where its time went and how its steps ended; it
-// names the other lane's passes it overlapped, and expands into the step waterfall.
+// lanes interleaved: every row was a paragraph and a skipped step stood out more than
+// a successful one. A row now says what kind of pass it was, where its time went and
+// how its steps ended, and expands into the step timeline.
 import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
 import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
-import { parallelPasses } from '~~/shared/utils/iteration-timeline'
 
-const props = defineProps<{
+defineProps<{
   iterations: ProcessIteration[]
   pending: boolean
   error: unknown
@@ -35,15 +33,6 @@ const laneTabs = [
   { label: 'Fetch', value: 'fetch', icon: 'i-lucide-download' },
   { label: 'Aggregate', value: 'aggregate', icon: 'i-lucide-layers' },
 ]
-
-// Overlaps are only looked for on the unfiltered list: with one lane shown, the other
-// lane's passes are not on the page to be named.
-const parallelById = computed<Map<string, ProcessIteration[]>>(() =>
-  new Map(props.iterations.map(it => [
-    it.iterationId,
-    lane.value === 'all' ? parallelPasses(it, props.iterations) : [],
-  ])),
-)
 
 // Expanded rows survive a page change only by id, so a row from another page never
 // opens by accident; a filter or page change simply starts collapsed.
@@ -70,8 +59,8 @@ function setExpanded(id: string, value: boolean) {
         variant="label"
         title="Recent iterations"
         subtitle="Finished passes, newest first."
-        info="Each bar segment is one step, as wide as it took; skipped steps take no
-          time and are counted instead. Expand a pass for its steps."
+        info="Each bar segment is one step, as wide as it took: hover it for a recap.
+          Skipped steps take no time and are counted instead. Expand a pass for its steps."
       />
       <UTabs
         v-model="lane"
@@ -98,12 +87,11 @@ function setExpanded(id: string, value: boolean) {
     >
       {{ lane === 'all' ? 'No finished iterations yet.' : 'No finished iterations of this lane yet.' }}
     </div>
-    <div v-else class="rounded-lg border border-default bg-elevated/25 overflow-hidden">
+    <div v-else class="rounded-lg border border-default bg-elevated/25">
       <ProcessesIterationRow
         v-for="iteration in iterations"
         :key="iteration.iterationId"
         :iteration="iteration"
-        :parallel="parallelById.get(iteration.iterationId) ?? []"
         :open="expanded.has(iteration.iterationId)"
         @update:open="setExpanded(iteration.iterationId, $event)"
         @open-run="$emit('openRun', $event)"

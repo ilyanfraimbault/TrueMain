@@ -5,9 +5,8 @@ import { laneForProcess } from '~~/shared/utils/pipeline-lanes'
  * Where an iteration's time went, for the compact rows of the recent-iterations list.
  *
  * The list used to draw every pass as its full chain of named chips, which made each
- * row a paragraph to read and left out the two things an operator scans for: how long
- * each step took, and which passes of the other lane ran at the same time. These
- * helpers answer both from the runs the API already returns — no extra request.
+ * row a paragraph to read and never said how long a step took. These helpers answer
+ * that from the runs the API already returns — no extra request.
  */
 
 /** What kind of pass an iteration was, read from the `Job:Mode` it ran under. */
@@ -63,31 +62,6 @@ export function iterationSpan(iteration: Pick<ProcessIteration, 'startedAtUtc' |
 }
 
 /**
- * Where a run sits inside its pass, as percentages of the pass's span — the bar each
- * step row draws. A run too short to see still gets a sliver, so a step that did work
- * is never drawn the same as one that did none.
- */
-export interface RunPlacement {
-  offsetPct: number
-  widthPct: number
-}
-
-const MIN_VISIBLE_PCT = 0.6
-
-export function placeRun(run: Pick<ProcessRun, 'startedAtUtc' | 'durationMs'>, span: IterationSpan): RunPlacement {
-  if (span.durationMs <= 0) {
-    return { offsetPct: 0, widthPct: 100 }
-  }
-  const offsetPct = clampPct(((Date.parse(run.startedAtUtc) - span.startMs) / span.durationMs) * 100)
-  const widthPct = Math.min(100 - offsetPct, Math.max(MIN_VISIBLE_PCT, (run.durationMs / span.durationMs) * 100))
-  return { offsetPct, widthPct }
-}
-
-function clampPct(value: number): number {
-  return Math.min(100 - MIN_VISIBLE_PCT, Math.max(0, value))
-}
-
-/**
  * The runs that took time, in the order they ran, for the row's segmented bar. A
  * skipped step decided in milliseconds that it had nothing to do; drawing it would
  * add a hairline to every bar and say nothing.
@@ -107,31 +81,3 @@ export function statusCounts(runs: readonly ProcessRun[]): Partial<Record<Proces
   return counts
 }
 
-/**
- * The passes of the other lane that overlapped this one in time, among `candidates`.
- *
- * Only a fetch pass and an aggregate pass are said to run "in parallel": that is the
- * concurrency the lane split introduced (#1362) and the one the list is read for. A
- * `Full` pass already runs both lanes, and a single-process pass is a one-off, so
- * neither is paired with anything. The answer is only as complete as `candidates`:
- * the list passes the page it shows, so a pass at a page edge may have a partner on
- * the next page that it does not name.
- */
-export function parallelPasses(
-  iteration: ProcessIteration,
-  candidates: readonly ProcessIteration[],
-): ProcessIteration[] {
-  const kind = iterationKind(iteration).id
-  if (kind !== 'fetch' && kind !== 'aggregate') {
-    return []
-  }
-  const other = kind === 'fetch' ? 'aggregate' : 'fetch'
-  const span = iterationSpan(iteration)
-  return candidates.filter((candidate) => {
-    if (candidate.iterationId === iteration.iterationId || iterationKind(candidate).id !== other) {
-      return false
-    }
-    const theirs = iterationSpan(candidate)
-    return theirs.startMs < span.endMs && theirs.endMs > span.startMs
-  })
-}
