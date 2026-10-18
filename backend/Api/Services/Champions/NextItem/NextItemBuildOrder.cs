@@ -49,8 +49,16 @@ public static class NextItemBuildOrder
         {
             var taken = items.Where(item => item > 0).ToHashSet();
             var itemId = next.ItemId;
-            while (completedLegendaries + planned.Count < MaxLegendaries)
+            var open = MaxLegendaries - Math.Min(completedLegendaries, MaxLegendaries);
+
+            // A constant bound: how far the walk goes never depends on what the request posted.
+            for (var step = 0; step < MaxLegendaries; step++)
             {
+                if (step >= open)
+                {
+                    break;
+                }
+
                 planned.Add(Step(itemId, isBoots: false, NextItemOrderState.Upcoming));
                 taken.Add(itemId);
 
