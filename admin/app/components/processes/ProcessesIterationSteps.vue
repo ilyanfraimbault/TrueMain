@@ -6,6 +6,9 @@
 import type { TimelineItem } from '@nuxt/ui'
 import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
 import type { ChainLink, ChainOutcome } from '~~/shared/utils/pipeline-lanes'
+// Explicit imports so the component tests can mount it without Nuxt's auto-imports.
+import { computed } from 'vue'
+import { chainLabel, outcomeIcon, outcomeLabel } from '~/utils/process-chain'
 import { formatClock, formatElapsed } from '~~/shared/utils/format'
 import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
 import { summaryRecap } from '~~/shared/utils/process-summary'

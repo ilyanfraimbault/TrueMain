@@ -9,6 +9,9 @@
 // how its steps ended, and expands into the step timeline.
 import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
 import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
+// Explicit imports so the component tests can mount it without Nuxt's auto-imports.
+import { ref, watch } from 'vue'
+import ProcessesIterationRow from './ProcessesIterationRow.vue'
 
 defineProps<{
   iterations: ProcessIteration[]

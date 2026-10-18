@@ -5,9 +5,14 @@
 // timeline, and the per-run summaries stay in the slide-over.
 import type { ProcessIteration, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import type { IterationKindId } from '~~/shared/utils/iteration-timeline'
+// Explicit imports, unlike most of the portal: the component tests mount it without
+// Nuxt's auto-imports, the way `ProcessSummaryView` is tested.
+import { computed, ref } from 'vue'
+import { chainLabel, outcomeBarClass, outcomeIcon, outcomeTextClass } from '~/utils/process-chain'
 import { formatClock, formatDayLabel, formatElapsed } from '~~/shared/utils/format'
 import { iterationKind, iterationSpan, statusCounts, timedRuns } from '~~/shared/utils/iteration-timeline'
 import { summaryRecap } from '~~/shared/utils/process-summary'
+import ProcessesIterationSteps from './ProcessesIterationSteps.vue'
 
 const props = defineProps<{
   iteration: ProcessIteration
