@@ -26,3 +26,9 @@ export function lanePicksLoading(columns: LanePicks<unknown>[], status: string):
   if (status === 'ready') return false
   return columns.every(column => column.lead === null)
 }
+
+/** The lanes and whether they are still loading, the one thing the dashboard reads. */
+export function lanePicksView<T>(laneEntries: (lane: string) => T[], status: string) {
+  const columns = lanePicks(laneEntries)
+  return { columns, loading: lanePicksLoading(columns, status) }
+}

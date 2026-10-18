@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
-import { lanePicks, lanePicksLoading } from '~/utils/lane-picks'
+import { lanePicksView } from '~/utils/lane-picks'
 
 /**
  * The patch at a glance, drawn like the site's "Strongest picks": one column
@@ -10,8 +10,7 @@ import { lanePicks, lanePicksLoading } from '~/utils/lane-picks'
 const { laneEntries, status, patch } = useTierList()
 const { nameOf, portraitOf } = useChampionStatics()
 
-const columns = computed(() => lanePicks(laneEntries))
-const loading = computed(() => lanePicksLoading(columns.value, status.value))
+const view = computed(() => lanePicksView(laneEntries, status.value))
 </script>
 
 <template>
@@ -26,7 +25,7 @@ const loading = computed(() => lanePicksLoading(columns.value, status.value))
       <UButton to="/tierlist" label="Full tier list" trailing-icon="i-lucide-arrow-right" color="primary" variant="link" size="xs" />
     </div>
   <div class="grid grid-cols-5 gap-3">
-    <div v-for="column in columns" :key="column.lane" class="surface flex flex-col overflow-hidden rounded-2xl">
+    <div v-for="column in view.columns" :key="column.lane" class="surface flex flex-col overflow-hidden rounded-2xl">
       <NuxtLink
         v-if="column.lead"
         :to="`/champions/${column.lead.championId}?position=${column.lane}`"
@@ -45,7 +44,7 @@ const loading = computed(() => lanePicksLoading(columns.value, status.value))
           <TierBadge :tier="column.lead.tier" stacked />
         </span>
       </NuxtLink>
-      <USkeleton v-else-if="loading" class="h-44 rounded-none" />
+      <USkeleton v-else-if="view.loading" class="h-44 rounded-none" />
       <div v-else class="flex h-44 flex-col justify-between p-3">
         <span class="flex items-center gap-1.5">
           <img :src="getPositionIconUrl(column.lane)" alt="" class="size-4">
@@ -68,7 +67,7 @@ const loading = computed(() => lanePicksLoading(columns.value, status.value))
             <TierBadge :tier="entry.tier" />
           </NuxtLink>
         </li>
-        <template v-if="loading">
+        <template v-if="view.loading">
           <li v-for="index in 4" :key="index" class="flex items-center gap-2 px-3 py-1.5">
             <USkeleton class="size-8 rounded-md" />
             <USkeleton class="h-3 flex-1" />

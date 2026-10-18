@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { lanePicks, lanePicksLoading } from '~/utils/lane-picks'
+import { lanePicks, lanePicksLoading, lanePicksView } from '~/utils/lane-picks'
 
 const ranked: Record<string, number[]> = {
   TOP: [1, 2, 3, 4, 5, 6, 7],
@@ -45,5 +45,13 @@ describe('lanePicksLoading', () => {
 
   it('stops as soon as one lane has a pick', () => {
     expect(lanePicksLoading(lanePicks(laneEntries), 'pending')).toBe(false)
+  })
+})
+
+describe('lanePicksView', () => {
+  it('pairs the lanes with their loading state', () => {
+    const view = lanePicksView(laneEntries, 'pending')
+    expect(view.columns[0]!.lead).toBe(1)
+    expect(view.loading).toBe(false)
   })
 })
