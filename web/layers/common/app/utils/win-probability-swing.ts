@@ -75,6 +75,21 @@ export function monsterLabel(monsterType: string, monsterSubType: string | null)
   return MONSTERS[monsterType] ?? monsterType
 }
 
+/**
+ * A turret or an inhibitor in words, from the viewer's side: "Took the outer
+ * turret, mid", "Lost the bot inhibitor".
+ */
+export function structureLabel(
+  kind: 'turret' | 'inhibitor',
+  building: { ours: boolean, lane: string | null, towerType: string | null },
+): string {
+  const verb = building.ours ? 'Took' : 'Lost'
+  const lane = building.lane ? LANES[building.lane] ?? null : null
+  if (kind === 'inhibitor') return `${verb} the ${lane ? `${lane} ` : ''}inhibitor`
+  const tower = (building.towerType && TOWERS[building.towerType]) || 'turret'
+  return `${verb} the ${tower}${lane ? `, ${lane}` : ''}`
+}
+
 export interface SwingContext {
   /** The side the viewer reads the game for. */
   perspectiveTeamId: number
@@ -97,7 +112,6 @@ export interface DescribedSwing {
 export function describeSwing(swing: WinProbabilitySwing, context: SwingContext): DescribedSwing {
   const ours = swing.teamId === context.perspectiveTeamId
   const side = ours ? 'Your' : 'Enemy'
-  const lane = swing.lane ? LANES[swing.lane] ?? null : null
   let label: string
   switch (swing.kind) {
     case 'kill': {
@@ -105,13 +119,9 @@ export function describeSwing(swing: WinProbabilitySwing, context: SwingContext)
       label = `${side} ${context.championName(swing.killerId)} killed ${context.championName(swing.victimId)}${assists}`
       break
     }
-    case 'turret': {
-      const tower = (swing.towerType && TOWERS[swing.towerType]) || 'turret'
-      label = `${ours ? 'Took' : 'Lost'} the ${tower}${lane ? `, ${lane}` : ''}`
-      break
-    }
+    case 'turret':
     case 'inhibitor':
-      label = `${ours ? 'Took' : 'Lost'} the ${lane ? `${lane} ` : ''}inhibitor`
+      label = structureLabel(swing.kind, { ours, lane: swing.lane, towerType: swing.towerType })
       break
     case 'dragon':
       label = `${side} ${monsterLabel('DRAGON', swing.monsterSubType)}`

@@ -68,7 +68,7 @@ function lanePairs(timeline: WinProbabilityTimeline): LanePair[] | null {
 }
 
 /** The side an event is for, or null when the timeline does not say. */
-function sideOf(event: WinProbabilityTimelineEvent, teams: Map<number, number>): number | null {
+export function sideOf(event: WinProbabilityTimelineEvent, teams: Map<number, number>): number | null {
   if (event.type === 'BUILDING_KILL') {
     // The building's own side lost it.
     if (event.teamId === BLUE) return RED
