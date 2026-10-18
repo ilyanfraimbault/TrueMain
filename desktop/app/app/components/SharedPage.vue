@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * The frame of a page shared with the site (#1732): the app's scroll
- * container, and a `<Suspense>` of the app's own (#1788).
+ * container, a `<Suspense>` of the app's own (#1788), and Riot's legal notice
+ * at the foot, which the site draws in its footer instead (#2090).
  *
  * The shared pages await their first read in setup. On the site that keeps
  * the outgoing page under the header's loading bar (#1689); under the app's
@@ -50,5 +51,7 @@ onBeforeUnmount(() => suspended.end())
         </div>
       </template>
     </Suspense>
+
+    <RiotDisclaimer class="mx-auto max-w-6xl px-4 pb-6 md:px-6" />
   </div>
 </template>
