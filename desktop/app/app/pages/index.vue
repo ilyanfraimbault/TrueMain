@@ -197,5 +197,7 @@ watch(() => state.value.phase, (next, previous) => {
         <DashboardMeta />
       </section>
     </template>
+
+    <RiotDisclaimer class="mt-auto pt-2" />
   </div>
 </template>
