@@ -3,7 +3,7 @@
 // pass it was, when it ran, a bar of where its time went, and how its steps ended.
 // Hovering a segment of the bar recaps that step; the row expands into the step
 // timeline, and the per-run summaries stay in the slide-over.
-import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
+import type { ProcessIteration, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
 import type { IterationKindId } from '~~/shared/utils/iteration-timeline'
 import { formatClock, formatDayLabel, formatElapsed } from '~~/shared/utils/format'
 import { iterationKind, iterationSpan, statusCounts, timedRuns } from '~~/shared/utils/iteration-timeline'
@@ -21,7 +21,7 @@ defineEmits<{
 }>()
 
 const KIND_ICON: Record<IterationKindId, string> = {
-  fetch: 'i-lucide-download',
+  fetch: 'i-lucide-globe',
   aggregate: 'i-lucide-layers',
   full: 'i-lucide-workflow',
   single: 'i-lucide-circle-dot',
@@ -32,22 +32,31 @@ const span = computed(() => iterationSpan(props.iteration))
 const segments = computed(() => timedRuns(props.iteration.runs))
 const counts = computed(() => statusCounts(props.iteration.runs))
 
-// Success always shows ("0 ok" is the point when a pass went wrong); the others only
-// when they happened, the alarming ones in their colour.
-const tallies = computed(() => [
-  { key: 'ok', count: counts.value.Success ?? 0, label: 'ok', class: 'text-default', always: true },
-  { key: 'skipped', count: counts.value.Skipped ?? 0, label: 'skipped', class: 'text-dimmed' },
-  { key: 'failed', count: counts.value.Failed ?? 0, label: 'failed', class: 'text-error' },
-  { key: 'abandoned', count: counts.value.Abandoned ?? 0, label: 'abandoned', class: 'text-warning' },
-  { key: 'cancelled', count: counts.value.Cancelled ?? 0, label: 'cancelled', class: 'text-muted' },
-].filter(tally => tally.always || tally.count > 0))
+// Each outcome as its status icon and a count, the words only on hover: the row is
+// scanned, and the icons are the ones the chain and the timeline already use. Success
+// always shows (a zero is the point when a pass went wrong); the others only when they
+// happened.
+const TALLIES: readonly { status: ProcessRunStatus, verb: string, always?: boolean }[] = [
+  { status: 'Success', verb: 'succeeded', always: true },
+  { status: 'Skipped', verb: 'skipped, not due yet' },
+  { status: 'Failed', verb: 'failed' },
+  { status: 'Abandoned', verb: 'abandoned (the host died mid-run)' },
+  { status: 'Cancelled', verb: 'cancelled by a shutdown' },
+]
+
+const tallies = computed(() => TALLIES
+  .map(({ status, verb, always }) => {
+    const count = counts.value[status] ?? 0
+    return { status, count, always, text: `${count} ${count === 1 ? 'step' : 'steps'} ${verb}` }
+  })
+  .filter(tally => tally.always || tally.count > 0))
 
 const failed = computed(() => (counts.value.Failed ?? 0) > 0 || (counts.value.Abandoned ?? 0) > 0)
 
 // --- Hover recap ---------------------------------------------------------------
-// A hand-placed card rather than a UTooltip per segment: the bar sits inside the row's
-// toggle, and a tooltip trigger on every segment swallowed the click meant for it.
-// The card ignores the pointer, so hovering never gets in the way of expanding.
+// One card placed from the pointer's position along the bar, rather than a UTooltip per
+// segment: sliding along the bar moves a single recap instead of opening and closing a
+// tooltip per step. The card ignores the pointer, so it never gets in the way of a click.
 const hoveredIndex = ref<number | null>(null)
 
 // The segment under the pointer, from its position along the bar: the segments are
@@ -98,7 +107,7 @@ const hovered = computed(() => {
   >
     <button
       type="button"
-      class="group-first/row:rounded-t-lg group-last/row:data-[state=closed]:rounded-b-lg grid w-full grid-cols-[auto_1fr_auto_1rem] items-center gap-x-4 gap-y-2 px-4 py-2.5 text-left transition-colors hover:bg-elevated/40 md:grid-cols-[7.5rem_10.5rem_minmax(8rem,1fr)_4.5rem_10rem_1rem]"
+      class="group-first/row:rounded-t-lg group-last/row:data-[state=closed]:rounded-b-lg grid w-full grid-cols-[auto_1fr_auto_1rem] items-center gap-x-4 gap-y-2 px-4 py-2.5 text-left transition-colors hover:bg-elevated/40 md:grid-cols-[7.5rem_10.5rem_minmax(8rem,1fr)_5.5rem_8rem_1rem]"
       :aria-label="`${kind.label} iteration of ${formatDayLabel(iteration.startedAtUtc)} ${formatClock(iteration.startedAtUtc)}`"
     >
       <UBadge
@@ -151,14 +160,22 @@ const hovered = computed(() => {
         </span>
       </span>
 
-      <span class="text-xs tabular-nums text-right text-default">
-        {{ formatElapsed(span.durationMs) }}
-      </span>
-
-      <span class="hidden md:flex gap-2.5 text-xs whitespace-nowrap">
-        <span v-for="tally in tallies" :key="tally.key" :class="tally.class">
-          <span class="tabular-nums font-medium">{{ tally.count }}</span> {{ tally.label }}
+      <UTooltip :text="`The pass took ${formatElapsed(span.durationMs)}`">
+        <span class="inline-flex items-center justify-end gap-1 text-xs tabular-nums text-default">
+          <UIcon name="i-lucide-timer" class="size-3.5 text-dimmed" />
+          {{ formatElapsed(span.durationMs) }}
         </span>
+      </UTooltip>
+
+      <span class="hidden md:flex items-center gap-3 text-xs whitespace-nowrap">
+        <UTooltip v-for="tally in tallies" :key="tally.status" :text="tally.text">
+          <span class="inline-flex items-center gap-1">
+            <UIcon :name="outcomeIcon(tally.status)" class="size-3.5" :class="outcomeTextClass(tally.status) || 'text-dimmed'" />
+            <span class="tabular-nums" :class="tally.status === 'Success' || tally.status === 'Skipped' || tally.status === 'Cancelled' ? 'text-muted' : 'text-highlighted'">
+              {{ tally.count }}
+            </span>
+          </span>
+        </UTooltip>
       </span>
 
       <UIcon

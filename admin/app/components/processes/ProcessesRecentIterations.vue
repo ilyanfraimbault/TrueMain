@@ -30,7 +30,7 @@ defineEmits<{
 
 const laneTabs = [
   { label: 'All', value: 'all' },
-  { label: 'Fetch', value: 'fetch', icon: 'i-lucide-download' },
+  { label: 'Fetch', value: 'fetch', icon: 'i-lucide-globe' },
   { label: 'Aggregate', value: 'aggregate', icon: 'i-lucide-layers' },
 ]
 
