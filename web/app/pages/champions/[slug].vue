@@ -289,8 +289,6 @@ const snapshots = useChampionPanelSnapshots({
         <ChampionSideRail
           :champion-id="championId"
           :position="selectedPosition"
-          :patch="selectedPatch"
-          :elo-bracket="eloBracketParam"
           :summary="buildSummary"
           :static-data="staticData"
           :items-map="itemsMap"
