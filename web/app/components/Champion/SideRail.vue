@@ -9,14 +9,12 @@ import type {
 import type { ChampionPosition } from '#common/utils/positions'
 import type { ChampionPanelSnapshots } from '~/composables/useChampionPanelSnapshots'
 
-// The champion page's right sidebar: the champion's truemains and matchups,
-// the account-vs-mains comparison and the build in words. Below xl it stacks
-// under the main column.
+// The champion page's right sidebar: the champion's truemains, the
+// account-vs-mains comparison and the build in words. Below xl it stacks
+// under the main column. The matchups moved to the main column's spread (#2094).
 defineProps<{
   championId: number
   position: ChampionPosition | null
-  patch: string
-  eloBracket: string
   summary: ChampionBuildSummary | null | undefined
   staticData: ChampionStaticData | null | undefined
   itemsMap: Record<number, StaticItemData> | null | undefined
@@ -34,16 +32,6 @@ defineProps<{
       :rune-tree="runeTree ?? null"
       v-bind="snapshots.truemainsSnapshot.value"
       @vue:mounted="snapshots.truemainsSnapshot.reveal"
-    />
-
-    <LazyChampionMatchups
-      hydrate-on-visible
-      :champion-id="championId"
-      :position="position"
-      :elo-bracket="eloBracket"
-      :patch="patch"
-      v-bind="snapshots.matchupsSnapshot.value"
-      @vue:mounted="snapshots.matchupsSnapshot.reveal"
     />
 
     <!--
