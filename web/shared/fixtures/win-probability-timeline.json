@@ -60,52 +60,72 @@
      {
       "participantId": 1,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      },
      {
       "participantId": 2,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      },
      {
       "participantId": 3,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      },
      {
       "participantId": 4,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      },
      {
       "participantId": 5,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      },
      {
       "participantId": 6,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      },
      {
       "participantId": 7,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      },
      {
       "participantId": 8,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      },
      {
       "participantId": 9,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      },
      {
       "participantId": 10,
       "cs": 0,
-      "level": 1
+      "level": 1,
+      "gold": 500,
+      "xp": 0
      }
     ]
    },
@@ -115,52 +135,72 @@
      {
       "participantId": 1,
       "cs": 8,
-      "level": 3
+      "level": 3,
+      "gold": 668,
+      "xp": 900
      },
      {
       "participantId": 2,
       "cs": 5,
-      "level": 3
+      "level": 3,
+      "gold": 605,
+      "xp": 741
      },
      {
       "participantId": 3,
       "cs": 7,
-      "level": 3
+      "level": 3,
+      "gold": 647,
+      "xp": 919
      },
      {
       "participantId": 4,
       "cs": 9,
-      "level": 3
+      "level": 3,
+      "gold": 689,
+      "xp": 760
      },
      {
       "participantId": 5,
       "cs": 1,
-      "level": 3
+      "level": 3,
+      "gold": 518,
+      "xp": 938
      },
      {
       "participantId": 6,
       "cs": 8,
-      "level": 3
+      "level": 3,
+      "gold": 668,
+      "xp": 780
      },
      {
       "participantId": 7,
       "cs": 4,
-      "level": 3
+      "level": 3,
+      "gold": 584,
+      "xp": 957
      },
      {
       "participantId": 8,
       "cs": 9,
-      "level": 3
+      "level": 3,
+      "gold": 689,
+      "xp": 799
      },
      {
       "participantId": 9,
       "cs": 8,
-      "level": 3
+      "level": 3,
+      "gold": 668,
+      "xp": 976
      },
      {
       "participantId": 10,
       "cs": 1,
-      "level": 3
+      "level": 3,
+      "gold": 518,
+      "xp": 818
      }
     ]
    },
@@ -170,52 +210,72 @@
      {
       "participantId": 1,
       "cs": 16,
-      "level": 4
+      "level": 4,
+      "gold": 948,
+      "xp": 1505
      },
      {
       "participantId": 2,
       "cs": 11,
-      "level": 4
+      "level": 4,
+      "gold": 843,
+      "xp": 1314
      },
      {
       "participantId": 3,
       "cs": 14,
-      "level": 4
+      "level": 4,
+      "gold": 906,
+      "xp": 1528
      },
      {
       "participantId": 4,
       "cs": 19,
-      "level": 4
+      "level": 4,
+      "gold": 1011,
+      "xp": 1337
      },
      {
       "participantId": 5,
       "cs": 2,
-      "level": 4
+      "level": 4,
+      "gold": 681,
+      "xp": 1145
      },
      {
       "participantId": 6,
       "cs": 15,
-      "level": 4
+      "level": 4,
+      "gold": 927,
+      "xp": 1360
      },
      {
       "participantId": 7,
       "cs": 10,
-      "level": 4
+      "level": 4,
+      "gold": 822,
+      "xp": 1169
      },
      {
       "participantId": 8,
       "cs": 18,
-      "level": 4
+      "level": 4,
+      "gold": 990,
+      "xp": 1383
      },
      {
       "participantId": 9,
       "cs": 16,
-      "level": 4
+      "level": 4,
+      "gold": 948,
+      "xp": 1192
      },
      {
       "participantId": 10,
       "cs": 2,
-      "level": 4
+      "level": 4,
+      "gold": 681,
+      "xp": 1406
      }
     ]
    },
@@ -225,52 +285,72 @@
      {
       "participantId": 1,
       "cs": 23,
-      "level": 5
+      "level": 5,
+      "gold": 1218,
+      "xp": 1760
      },
      {
       "participantId": 2,
       "cs": 16,
-      "level": 5
+      "level": 5,
+      "gold": 1071,
+      "xp": 2012
      },
      {
       "participantId": 3,
       "cs": 21,
-      "level": 5
+      "level": 5,
+      "gold": 1176,
+      "xp": 1788
      },
      {
       "participantId": 4,
       "cs": 29,
-      "level": 5
+      "level": 5,
+      "gold": 1344,
+      "xp": 2039
      },
      {
       "participantId": 5,
       "cs": 3,
-      "level": 4
+      "level": 4,
+      "gold": 888,
+      "xp": 1221
      },
      {
       "participantId": 6,
       "cs": 21,
-      "level": 5
+      "level": 5,
+      "gold": 1176,
+      "xp": 2066
      },
      {
       "participantId": 7,
       "cs": 15,
-      "level": 5
+      "level": 5,
+      "gold": 1050,
+      "xp": 1842
      },
      {
       "participantId": 8,
       "cs": 25,
-      "level": 5
+      "level": 5,
+      "gold": 1260,
+      "xp": 2094
      },
      {
       "participantId": 9,
       "cs": 22,
-      "level": 5
+      "level": 5,
+      "gold": 1197,
+      "xp": 1869
      },
      {
       "participantId": 10,
       "cs": 3,
-      "level": 4
+      "level": 4,
+      "gold": 888,
+      "xp": 1482
      }
     ]
    },
@@ -280,52 +360,72 @@
      {
       "participantId": 1,
       "cs": 32,
-      "level": 5
+      "level": 5,
+      "gold": 1829,
+      "xp": 1849
      },
      {
       "participantId": 2,
       "cs": 21,
-      "level": 5
+      "level": 5,
+      "gold": 1348,
+      "xp": 2100
      },
      {
       "participantId": 3,
       "cs": 31,
-      "level": 5
+      "level": 5,
+      "gold": 1558,
+      "xp": 1876
      },
      {
       "participantId": 4,
       "cs": 38,
-      "level": 5
+      "level": 5,
+      "gold": 1705,
+      "xp": 2128
      },
      {
       "participantId": 5,
       "cs": 4,
-      "level": 5
+      "level": 5,
+      "gold": 1094,
+      "xp": 1903
      },
      {
       "participantId": 6,
       "cs": 29,
-      "level": 5
+      "level": 5,
+      "gold": 1466,
+      "xp": 2155
      },
      {
       "participantId": 7,
       "cs": 21,
-      "level": 5
+      "level": 5,
+      "gold": 1298,
+      "xp": 1930
      },
      {
       "participantId": 8,
       "cs": 34,
-      "level": 5
+      "level": 5,
+      "gold": 1571,
+      "xp": 2182
      },
      {
       "participantId": 9,
       "cs": 31,
-      "level": 5
+      "level": 5,
+      "gold": 1508,
+      "xp": 1958
      },
      {
       "participantId": 10,
       "cs": 4,
-      "level": 5
+      "level": 5,
+      "gold": 1094,
+      "xp": 1733
      }
     ]
    },
@@ -335,52 +435,72 @@
      {
       "participantId": 1,
       "cs": 38,
-      "level": 6
+      "level": 6,
+      "gold": 2077,
+      "xp": 2649
      },
      {
       "participantId": 2,
       "cs": 28,
-      "level": 6
+      "level": 6,
+      "gold": 1617,
+      "xp": 2938
      },
      {
       "participantId": 3,
       "cs": 40,
-      "level": 6
+      "level": 6,
+      "gold": 1869,
+      "xp": 2680
      },
      {
       "participantId": 4,
       "cs": 48,
-      "level": 6
+      "level": 6,
+      "gold": 2037,
+      "xp": 2423
      },
      {
       "participantId": 5,
       "cs": 5,
-      "level": 6
+      "level": 6,
+      "gold": 1300,
+      "xp": 2712
      },
      {
       "participantId": 6,
       "cs": 37,
-      "level": 6
+      "level": 6,
+      "gold": 1806,
+      "xp": 2454
      },
      {
       "participantId": 7,
       "cs": 25,
-      "level": 6
+      "level": 6,
+      "gold": 1554,
+      "xp": 2743
      },
      {
       "participantId": 8,
       "cs": 41,
-      "level": 6
+      "level": 6,
+      "gold": 1840,
+      "xp": 2485
      },
      {
       "participantId": 9,
       "cs": 39,
-      "level": 6
+      "level": 6,
+      "gold": 2398,
+      "xp": 2774
      },
      {
       "participantId": 10,
       "cs": 5,
-      "level": 5
+      "level": 5,
+      "gold": 1350,
+      "xp": 1822
      }
     ]
    },
@@ -390,52 +510,72 @@
      {
       "participantId": 1,
       "cs": 46,
-      "level": 6
+      "level": 6,
+      "gold": 2518,
+      "xp": 2751
      },
      {
       "participantId": 2,
       "cs": 34,
-      "level": 7
+      "level": 7,
+      "gold": 1866,
+      "xp": 3285
      },
      {
       "participantId": 3,
       "cs": 49,
-      "level": 7
+      "level": 7,
+      "gold": 2181,
+      "xp": 3611
      },
      {
       "participantId": 4,
       "cs": 57,
-      "level": 6
+      "level": 6,
+      "gold": 2349,
+      "xp": 2524
      },
      {
       "participantId": 5,
       "cs": 6,
-      "level": 6
+      "level": 6,
+      "gold": 1957,
+      "xp": 2813
      },
      {
       "participantId": 6,
       "cs": 43,
-      "level": 6
+      "level": 6,
+      "gold": 2055,
+      "xp": 2556
      },
      {
       "participantId": 7,
       "cs": 30,
-      "level": 6
+      "level": 6,
+      "gold": 1782,
+      "xp": 2844
      },
      {
       "participantId": 8,
       "cs": 50,
-      "level": 6
+      "level": 6,
+      "gold": 2152,
+      "xp": 2587
      },
      {
       "participantId": 9,
       "cs": 47,
-      "level": 6
+      "level": 6,
+      "gold": 2689,
+      "xp": 2875
      },
      {
       "participantId": 10,
       "cs": 6,
-      "level": 6
+      "level": 6,
+      "gold": 1557,
+      "xp": 2618
      }
     ]
    },
@@ -445,52 +585,72 @@
      {
       "participantId": 1,
       "cs": 55,
-      "level": 7
+      "level": 7,
+      "gold": 2829,
+      "xp": 3690
      },
      {
       "participantId": 2,
       "cs": 41,
-      "level": 7
+      "level": 7,
+      "gold": 2135,
+      "xp": 3400
      },
      {
       "participantId": 3,
       "cs": 58,
-      "level": 7
+      "level": 7,
+      "gold": 2492,
+      "xp": 3725
      },
      {
       "participantId": 4,
       "cs": 65,
-      "level": 7
+      "level": 7,
+      "gold": 2639,
+      "xp": 3435
      },
      {
       "participantId": 5,
       "cs": 7,
-      "level": 6
+      "level": 6,
+      "gold": 2163,
+      "xp": 2914
      },
      {
       "participantId": 6,
       "cs": 50,
-      "level": 7
+      "level": 7,
+      "gold": 2324,
+      "xp": 3470
      },
      {
       "participantId": 7,
       "cs": 36,
-      "level": 7
+      "level": 7,
+      "gold": 2030,
+      "xp": 3180
      },
      {
       "participantId": 8,
       "cs": 56,
-      "level": 7
+      "level": 7,
+      "gold": 2400,
+      "xp": 3505
      },
      {
       "participantId": 9,
       "cs": 56,
-      "level": 7
+      "level": 7,
+      "gold": 3000,
+      "xp": 3215
      },
      {
       "participantId": 10,
       "cs": 7,
-      "level": 6
+      "level": 6,
+      "gold": 1763,
+      "xp": 2719
      }
     ]
    },
@@ -500,52 +660,72 @@
      {
       "participantId": 1,
       "cs": 63,
-      "level": 7
+      "level": 7,
+      "gold": 3170,
+      "xp": 3690
      },
      {
       "participantId": 2,
       "cs": 47,
-      "level": 7
+      "level": 7,
+      "gold": 2734,
+      "xp": 3514
      },
      {
       "participantId": 3,
       "cs": 65,
-      "level": 7
+      "level": 7,
+      "gold": 2887,
+      "xp": 3725
      },
      {
       "participantId": 4,
       "cs": 72,
-      "level": 7
+      "level": 7,
+      "gold": 2984,
+      "xp": 3549
      },
      {
       "participantId": 5,
       "cs": 8,
-      "level": 7
+      "level": 7,
+      "gold": 2670,
+      "xp": 3259
      },
      {
       "participantId": 6,
       "cs": 56,
-      "level": 7
+      "level": 7,
+      "gold": 2573,
+      "xp": 3584
      },
      {
       "participantId": 7,
       "cs": 41,
-      "level": 7
+      "level": 7,
+      "gold": 2258,
+      "xp": 3294
      },
      {
       "participantId": 8,
       "cs": 63,
-      "level": 7
+      "level": 7,
+      "gold": 2670,
+      "xp": 3620
      },
      {
       "participantId": 9,
       "cs": 63,
-      "level": 7
+      "level": 7,
+      "gold": 3270,
+      "xp": 3329
      },
      {
       "participantId": 10,
       "cs": 8,
-      "level": 7
+      "level": 7,
+      "gold": 1970,
+      "xp": 3655
      }
     ]
    },
@@ -555,52 +735,72 @@
      {
       "participantId": 1,
       "cs": 70,
-      "level": 8
+      "level": 8,
+      "gold": 4039,
+      "xp": 4197
      },
      {
       "participantId": 2,
       "cs": 52,
-      "level": 8
+      "level": 8,
+      "gold": 3961,
+      "xp": 4559
      },
      {
       "participantId": 3,
       "cs": 72,
-      "level": 8
+      "level": 8,
+      "gold": 3606,
+      "xp": 4236
      },
      {
       "participantId": 4,
       "cs": 79,
-      "level": 8
+      "level": 8,
+      "gold": 3403,
+      "xp": 4599
      },
      {
       "participantId": 5,
       "cs": 9,
-      "level": 7
+      "level": 7,
+      "gold": 2976,
+      "xp": 3373
      },
      {
       "participantId": 6,
       "cs": 62,
-      "level": 8
+      "level": 8,
+      "gold": 2821,
+      "xp": 4638
      },
      {
       "participantId": 7,
       "cs": 45,
-      "level": 8
+      "level": 8,
+      "gold": 2464,
+      "xp": 4314
      },
      {
       "participantId": 8,
       "cs": 71,
-      "level": 8
+      "level": 8,
+      "gold": 3260,
+      "xp": 4677
      },
      {
       "participantId": 9,
       "cs": 71,
-      "level": 8
+      "level": 8,
+      "gold": 3710,
+      "xp": 4354
      },
      {
       "participantId": 10,
       "cs": 9,
-      "level": 7
+      "level": 7,
+      "gold": 2176,
+      "xp": 3769
      }
     ]
    },
@@ -610,52 +810,72 @@
      {
       "participantId": 1,
       "cs": 77,
-      "level": 8
+      "level": 8,
+      "gold": 4358,
+      "xp": 4324
      },
      {
       "participantId": 2,
       "cs": 58,
-      "level": 8
+      "level": 8,
+      "gold": 4209,
+      "xp": 4687
      },
      {
       "participantId": 3,
       "cs": 79,
-      "level": 8
+      "level": 8,
+      "gold": 4175,
+      "xp": 4363
      },
      {
       "participantId": 4,
       "cs": 88,
-      "level": 8
+      "level": 8,
+      "gold": 3764,
+      "xp": 4726
      },
      {
       "participantId": 5,
       "cs": 10,
-      "level": 8
+      "level": 8,
+      "gold": 3232,
+      "xp": 4403
      },
      {
       "participantId": 6,
       "cs": 70,
-      "level": 8
+      "level": 8,
+      "gold": 3111,
+      "xp": 4638
      },
      {
       "participantId": 7,
       "cs": 51,
-      "level": 8
+      "level": 8,
+      "gold": 3212,
+      "xp": 4442
      },
      {
       "participantId": 8,
       "cs": 80,
-      "level": 8
+      "level": 8,
+      "gold": 3721,
+      "xp": 4677
      },
      {
       "participantId": 9,
       "cs": 78,
-      "level": 8
+      "level": 8,
+      "gold": 3979,
+      "xp": 4481
      },
      {
       "participantId": 10,
       "cs": 10,
-      "level": 7
+      "level": 7,
+      "gold": 2382,
+      "xp": 3769
      }
     ]
    },
@@ -665,52 +885,72 @@
      {
       "participantId": 1,
       "cs": 84,
-      "level": 9
+      "level": 9,
+      "gold": 4628,
+      "xp": 5472
      },
      {
       "participantId": 2,
       "cs": 64,
-      "level": 9
+      "level": 9,
+      "gold": 4458,
+      "xp": 5115
      },
      {
       "participantId": 3,
       "cs": 88,
-      "level": 9
+      "level": 9,
+      "gold": 4487,
+      "xp": 5515
      },
      {
       "participantId": 4,
       "cs": 97,
-      "level": 9
+      "level": 9,
+      "gold": 4076,
+      "xp": 5158
      },
      {
       "participantId": 5,
       "cs": 11,
-      "level": 8
+      "level": 8,
+      "gold": 3439,
+      "xp": 4530
      },
      {
       "participantId": 6,
       "cs": 76,
-      "level": 9
+      "level": 9,
+      "gold": 3360,
+      "xp": 5202
      },
      {
       "participantId": 7,
       "cs": 57,
-      "level": 8
+      "level": 8,
+      "gold": 3761,
+      "xp": 4569
      },
      {
       "participantId": 8,
       "cs": 89,
-      "level": 8
+      "level": 8,
+      "gold": 4083,
+      "xp": 4677
      },
      {
       "participantId": 9,
       "cs": 84,
-      "level": 8
+      "level": 8,
+      "gold": 4278,
+      "xp": 4608
      },
      {
       "participantId": 10,
       "cs": 11,
-      "level": 8
+      "level": 8,
+      "gold": 2639,
+      "xp": 4285
      }
     ]
    },
@@ -720,52 +960,72 @@
      {
       "participantId": 1,
       "cs": 93,
-      "level": 9
+      "level": 9,
+      "gold": 4989,
+      "xp": 5612
      },
      {
       "participantId": 2,
       "cs": 71,
-      "level": 9
+      "level": 9,
+      "gold": 5077,
+      "xp": 5256
      },
      {
       "participantId": 3,
       "cs": 97,
-      "level": 9
+      "level": 9,
+      "gold": 4998,
+      "xp": 5655
      },
      {
       "participantId": 4,
       "cs": 106,
-      "level": 9
+      "level": 9,
+      "gold": 4437,
+      "xp": 5299
      },
      {
       "participantId": 5,
       "cs": 12,
-      "level": 8
+      "level": 8,
+      "gold": 3995,
+      "xp": 4657
      },
      {
       "participantId": 6,
       "cs": 82,
-      "level": 9
+      "level": 9,
+      "gold": 3608,
+      "xp": 5342
      },
      {
       "participantId": 7,
       "cs": 62,
-      "level": 9
+      "level": 9,
+      "gold": 4488,
+      "xp": 5742
      },
      {
       "participantId": 8,
       "cs": 96,
-      "level": 9
+      "level": 9,
+      "gold": 4402,
+      "xp": 5385
      },
      {
       "participantId": 9,
       "cs": 92,
-      "level": 9
+      "level": 9,
+      "gold": 4618,
+      "xp": 5785
      },
      {
       "participantId": 10,
       "cs": 12,
-      "level": 8
+      "level": 8,
+      "gold": 2895,
+      "xp": 4412
      }
     ]
    },
@@ -775,52 +1035,72 @@
      {
       "participantId": 1,
       "cs": 100,
-      "level": 9
+      "level": 9,
+      "gold": 5309,
+      "xp": 5752
      },
      {
       "participantId": 2,
       "cs": 77,
-      "level": 9
+      "level": 9,
+      "gold": 5326,
+      "xp": 5396
      },
      {
       "participantId": 3,
       "cs": 105,
-      "level": 9
+      "level": 9,
+      "gold": 5589,
+      "xp": 5655
      },
      {
       "participantId": 4,
       "cs": 114,
-      "level": 9
+      "level": 9,
+      "gold": 4778,
+      "xp": 5439
      },
      {
       "participantId": 5,
       "cs": 13,
-      "level": 9
+      "level": 9,
+      "gold": 4252,
+      "xp": 5083
      },
      {
       "participantId": 6,
       "cs": 89,
-      "level": 9
+      "level": 9,
+      "gold": 3878,
+      "xp": 5482
      },
      {
       "participantId": 7,
       "cs": 68,
-      "level": 9
+      "level": 9,
+      "gold": 4737,
+      "xp": 5742
      },
      {
       "participantId": 8,
       "cs": 104,
-      "level": 9
+      "level": 9,
+      "gold": 4693,
+      "xp": 5526
      },
      {
       "participantId": 9,
       "cs": 101,
-      "level": 9
+      "level": 9,
+      "gold": 4930,
+      "xp": 5785
      },
      {
       "participantId": 10,
       "cs": 13,
-      "level": 8
+      "level": 8,
+      "gold": 3102,
+      "xp": 4540
      }
     ]
    },
@@ -830,52 +1110,72 @@
      {
       "participantId": 1,
       "cs": 107,
-      "level": 10
+      "level": 10,
+      "gold": 5578,
+      "xp": 6226
      },
      {
       "participantId": 2,
       "cs": 83,
-      "level": 10
+      "level": 10,
+      "gold": 5574,
+      "xp": 6662
      },
      {
       "participantId": 3,
       "cs": 113,
-      "level": 9
+      "level": 9,
+      "gold": 5879,
+      "xp": 5655
      },
      {
       "participantId": 4,
       "cs": 124,
-      "level": 10
+      "level": 10,
+      "gold": 5110,
+      "xp": 6710
      },
      {
       "participantId": 5,
       "cs": 14,
-      "level": 9
+      "level": 9,
+      "gold": 4458,
+      "xp": 5223
      },
      {
       "participantId": 6,
       "cs": 95,
-      "level": 10
+      "level": 10,
+      "gold": 4176,
+      "xp": 6757
      },
      {
       "participantId": 7,
       "cs": 74,
-      "level": 9
+      "level": 9,
+      "gold": 5335,
+      "xp": 5742
      },
      {
       "participantId": 8,
       "cs": 113,
-      "level": 9
+      "level": 9,
+      "gold": 5129,
+      "xp": 5666
      },
      {
       "participantId": 9,
       "cs": 108,
-      "level": 9
+      "level": 9,
+      "gold": 5324,
+      "xp": 5785
      },
      {
       "participantId": 10,
       "cs": 14,
-      "level": 8
+      "level": 8,
+      "gold": 3358,
+      "xp": 4667
      }
     ]
    },
@@ -885,52 +1185,72 @@
      {
       "participantId": 1,
       "cs": 113,
-      "level": 10
+      "level": 10,
+      "gold": 5876,
+      "xp": 6379
      },
      {
       "participantId": 2,
       "cs": 88,
-      "level": 10
+      "level": 10,
+      "gold": 5851,
+      "xp": 6816
      },
      {
       "participantId": 3,
       "cs": 120,
-      "level": 10
+      "level": 10,
+      "gold": 6198,
+      "xp": 6426
      },
      {
       "participantId": 4,
       "cs": 132,
-      "level": 10
+      "level": 10,
+      "gold": 5450,
+      "xp": 6863
      },
      {
       "participantId": 5,
       "cs": 15,
-      "level": 9
+      "level": 9,
+      "gold": 4714,
+      "xp": 5364
      },
      {
       "participantId": 6,
       "cs": 101,
-      "level": 10
+      "level": 10,
+      "gold": 4424,
+      "xp": 6910
      },
      {
       "participantId": 7,
       "cs": 78,
-      "level": 10
+      "level": 10,
+      "gold": 5541,
+      "xp": 6521
      },
      {
       "participantId": 8,
       "cs": 121,
-      "level": 10
+      "level": 10,
+      "gold": 5419,
+      "xp": 6131
      },
      {
       "participantId": 9,
       "cs": 115,
-      "level": 10
+      "level": 10,
+      "gold": 5593,
+      "xp": 6568
      },
      {
       "participantId": 10,
       "cs": 15,
-      "level": 9
+      "level": 9,
+      "gold": 3564,
+      "xp": 5094
      }
     ]
    },
@@ -940,52 +1260,72 @@
      {
       "participantId": 1,
       "cs": 120,
-      "level": 10
+      "level": 10,
+      "gold": 6146,
+      "xp": 6533
      },
      {
       "participantId": 2,
       "cs": 95,
-      "level": 10
+      "level": 10,
+      "gold": 6121,
+      "xp": 6816
      },
      {
       "participantId": 3,
       "cs": 127,
-      "level": 10
+      "level": 10,
+      "gold": 6468,
+      "xp": 6580
      },
      {
       "participantId": 4,
       "cs": 142,
-      "level": 10
+      "level": 10,
+      "gold": 6583,
+      "xp": 6863
      },
      {
       "participantId": 5,
       "cs": 16,
-      "level": 9
+      "level": 9,
+      "gold": 4921,
+      "xp": 5504
      },
      {
       "participantId": 6,
       "cs": 108,
-      "level": 10
+      "level": 10,
+      "gold": 4694,
+      "xp": 6910
      },
      {
       "participantId": 7,
       "cs": 84,
-      "level": 10
+      "level": 10,
+      "gold": 5790,
+      "xp": 6674
      },
      {
       "participantId": 8,
       "cs": 128,
-      "level": 10
+      "level": 10,
+      "gold": 5689,
+      "xp": 6285
      },
      {
       "participantId": 9,
       "cs": 123,
-      "level": 10
+      "level": 10,
+      "gold": 5884,
+      "xp": 6721
      },
      {
       "participantId": 10,
       "cs": 16,
-      "level": 9
+      "level": 9,
+      "gold": 4071,
+      "xp": 5234
      }
     ]
    },
@@ -995,52 +1335,72 @@
      {
       "participantId": 1,
       "cs": 129,
-      "level": 11
+      "level": 11,
+      "gold": 6457,
+      "xp": 7914
      },
      {
       "participantId": 2,
       "cs": 101,
-      "level": 11
+      "level": 11,
+      "gold": 6369,
+      "xp": 7492
      },
      {
       "participantId": 3,
       "cs": 135,
-      "level": 10
+      "level": 10,
+      "gold": 6758,
+      "xp": 6733
      },
      {
       "participantId": 4,
       "cs": 151,
-      "level": 11
+      "level": 11,
+      "gold": 6894,
+      "xp": 7543
      },
      {
       "participantId": 5,
       "cs": 17,
-      "level": 10
+      "level": 10,
+      "gold": 5127,
+      "xp": 6780
      },
      {
       "participantId": 6,
       "cs": 116,
-      "level": 10
+      "level": 10,
+      "gold": 4984,
+      "xp": 6910
      },
      {
       "participantId": 7,
       "cs": 89,
-      "level": 10
+      "level": 10,
+      "gold": 6017,
+      "xp": 6828
      },
      {
       "participantId": 8,
       "cs": 135,
-      "level": 10
+      "level": 10,
+      "gold": 5958,
+      "xp": 6438
      },
      {
       "participantId": 9,
       "cs": 132,
-      "level": 10
+      "level": 10,
+      "gold": 6195,
+      "xp": 6875
      },
      {
       "participantId": 10,
       "cs": 17,
-      "level": 9
+      "level": 9,
+      "gold": 4277,
+      "xp": 5374
      }
     ]
    },
@@ -1050,52 +1410,72 @@
      {
       "participantId": 1,
       "cs": 138,
-      "level": 11
+      "level": 11,
+      "gold": 6819,
+      "xp": 8080
      },
      {
       "participantId": 2,
       "cs": 107,
-      "level": 11
+      "level": 11,
+      "gold": 6668,
+      "xp": 7658
      },
      {
       "participantId": 3,
       "cs": 145,
-      "level": 11
+      "level": 11,
+      "gold": 7141,
+      "xp": 8132
      },
      {
       "participantId": 4,
       "cs": 158,
-      "level": 11
+      "level": 11,
+      "gold": 7214,
+      "xp": 7709
      },
      {
       "participantId": 5,
       "cs": 18,
-      "level": 10
+      "level": 10,
+      "gold": 5384,
+      "xp": 6934
      },
      {
       "participantId": 6,
       "cs": 124,
-      "level": 11
+      "level": 11,
+      "gold": 5575,
+      "xp": 7760
      },
      {
       "participantId": 7,
       "cs": 94,
-      "level": 11
+      "level": 11,
+      "gold": 6245,
+      "xp": 7338
      },
      {
       "participantId": 8,
       "cs": 142,
-      "level": 11
+      "level": 11,
+      "gold": 6228,
+      "xp": 7812
      },
      {
       "participantId": 9,
       "cs": 139,
-      "level": 11
+      "level": 11,
+      "gold": 6465,
+      "xp": 7389
      },
      {
       "participantId": 10,
       "cs": 18,
-      "level": 10
+      "level": 10,
+      "gold": 4484,
+      "xp": 6639
      }
     ]
    },
@@ -1105,52 +1485,72 @@
      {
       "participantId": 1,
       "cs": 146,
-      "level": 11
+      "level": 11,
+      "gold": 7259,
+      "xp": 8080
      },
      {
       "participantId": 2,
       "cs": 112,
-      "level": 11
+      "level": 11,
+      "gold": 6895,
+      "xp": 7824
      },
      {
       "participantId": 3,
       "cs": 154,
-      "level": 11
+      "level": 11,
+      "gold": 7452,
+      "xp": 8132
      },
      {
       "participantId": 4,
       "cs": 166,
-      "level": 11
+      "level": 11,
+      "gold": 7504,
+      "xp": 7876
      },
      {
       "participantId": 5,
       "cs": 19,
-      "level": 10
+      "level": 10,
+      "gold": 6090,
+      "xp": 6934
      },
      {
       "participantId": 6,
       "cs": 131,
-      "level": 11
+      "level": 11,
+      "gold": 5844,
+      "xp": 7927
      },
      {
       "participantId": 7,
       "cs": 99,
-      "level": 11
+      "level": 11,
+      "gold": 6472,
+      "xp": 7504
      },
      {
       "participantId": 8,
       "cs": 150,
-      "level": 11
+      "level": 11,
+      "gold": 6518,
+      "xp": 7978
      },
      {
       "participantId": 9,
       "cs": 146,
-      "level": 11
+      "level": 11,
+      "gold": 6734,
+      "xp": 7556
      },
      {
       "participantId": 10,
       "cs": 19,
-      "level": 10
+      "level": 10,
+      "gold": 4690,
+      "xp": 6792
      }
     ]
    },
@@ -1160,52 +1560,72 @@
      {
       "participantId": 1,
       "cs": 152,
-      "level": 11
+      "level": 11,
+      "gold": 8107,
+      "xp": 8080
      },
      {
       "participantId": 2,
       "cs": 117,
-      "level": 11
+      "level": 11,
+      "gold": 7272,
+      "xp": 7991
      },
      {
       "participantId": 3,
       "cs": 161,
-      "level": 11
+      "level": 11,
+      "gold": 7871,
+      "xp": 8132
      },
      {
       "participantId": 4,
       "cs": 174,
-      "level": 11
+      "level": 11,
+      "gold": 7794,
+      "xp": 8042
      },
      {
       "participantId": 5,
       "cs": 20,
-      "level": 10
+      "level": 10,
+      "gold": 6596,
+      "xp": 6934
      },
      {
       "participantId": 6,
       "cs": 137,
-      "level": 11
+      "level": 11,
+      "gold": 6142,
+      "xp": 8093
      },
      {
       "participantId": 7,
       "cs": 104,
-      "level": 11
+      "level": 11,
+      "gold": 6749,
+      "xp": 7671
      },
      {
       "participantId": 8,
       "cs": 158,
-      "level": 11
+      "level": 11,
+      "gold": 6858,
+      "xp": 8144
      },
      {
       "participantId": 9,
       "cs": 154,
-      "level": 11
+      "level": 11,
+      "gold": 7074,
+      "xp": 7722
      },
      {
       "participantId": 10,
       "cs": 20,
-      "level": 10
+      "level": 10,
+      "gold": 4946,
+      "xp": 6792
      }
     ]
    },
@@ -1215,52 +1635,72 @@
      {
       "participantId": 1,
       "cs": 159,
-      "level": 12
+      "level": 12,
+      "gold": 8377,
+      "xp": 8994
      },
      {
       "participantId": 2,
       "cs": 123,
-      "level": 12
+      "level": 12,
+      "gold": 7521,
+      "xp": 9504
      },
      {
       "participantId": 3,
       "cs": 168,
-      "level": 12
+      "level": 12,
+      "gold": 8141,
+      "xp": 9049
      },
      {
       "participantId": 4,
       "cs": 181,
-      "level": 12
+      "level": 12,
+      "gold": 8064,
+      "xp": 8593
      },
      {
       "participantId": 5,
       "cs": 21,
-      "level": 11
+      "level": 11,
+      "gold": 6803,
+      "xp": 7786
      },
      {
       "participantId": 6,
       "cs": 143,
-      "level": 11
+      "level": 11,
+      "gold": 6391,
+      "xp": 8093
      },
      {
       "participantId": 7,
       "cs": 110,
-      "level": 11
+      "level": 11,
+      "gold": 6998,
+      "xp": 7837
      },
      {
       "participantId": 8,
       "cs": 166,
-      "level": 11
+      "level": 11,
+      "gold": 7449,
+      "xp": 8144
      },
      {
       "participantId": 9,
       "cs": 161,
-      "level": 11
+      "level": 11,
+      "gold": 7494,
+      "xp": 7888
      },
      {
       "participantId": 10,
       "cs": 21,
-      "level": 10
+      "level": 10,
+      "gold": 5153,
+      "xp": 6792
      }
     ]
    },
@@ -1270,52 +1710,72 @@
      {
       "participantId": 1,
       "cs": 166,
-      "level": 12
+      "level": 12,
+      "gold": 8646,
+      "xp": 9173
      },
      {
       "participantId": 2,
       "cs": 130,
-      "level": 12
+      "level": 12,
+      "gold": 7790,
+      "xp": 9504
      },
      {
       "participantId": 3,
       "cs": 176,
-      "level": 12
+      "level": 12,
+      "gold": 8431,
+      "xp": 9228
      },
      {
       "participantId": 4,
       "cs": 189,
-      "level": 12
+      "level": 12,
+      "gold": 8354,
+      "xp": 8773
      },
      {
       "participantId": 5,
       "cs": 22,
-      "level": 11
+      "level": 11,
+      "gold": 7009,
+      "xp": 7952
      },
      {
       "participantId": 6,
       "cs": 149,
-      "level": 12
+      "level": 12,
+      "gold": 6639,
+      "xp": 8828
      },
      {
       "participantId": 7,
       "cs": 115,
-      "level": 12
+      "level": 12,
+      "gold": 7225,
+      "xp": 9339
      },
      {
       "participantId": 8,
       "cs": 172,
-      "level": 12
+      "level": 12,
+      "gold": 7697,
+      "xp": 8883
      },
      {
       "participantId": 9,
       "cs": 170,
-      "level": 12
+      "level": 12,
+      "gold": 7805,
+      "xp": 9394
      },
      {
       "participantId": 10,
       "cs": 22,
-      "level": 11
+      "level": 11,
+      "gold": 5359,
+      "xp": 7632
      }
     ]
    },
@@ -1325,52 +1785,72 @@
      {
       "participantId": 1,
       "cs": 174,
-      "level": 12
+      "level": 12,
+      "gold": 8987,
+      "xp": 9352
      },
      {
       "participantId": 2,
       "cs": 135,
-      "level": 12
+      "level": 12,
+      "gold": 8068,
+      "xp": 9504
      },
      {
       "participantId": 3,
       "cs": 185,
-      "level": 12
+      "level": 12,
+      "gold": 8793,
+      "xp": 9408
      },
      {
       "participantId": 4,
       "cs": 197,
-      "level": 12
+      "level": 12,
+      "gold": 8695,
+      "xp": 8952
      },
      {
       "participantId": 5,
       "cs": 23,
-      "level": 11
+      "level": 11,
+      "gold": 7266,
+      "xp": 8119
      },
      {
       "participantId": 6,
       "cs": 156,
-      "level": 12
+      "level": 12,
+      "gold": 6909,
+      "xp": 9007
      },
      {
       "participantId": 7,
       "cs": 120,
-      "level": 12
+      "level": 12,
+      "gold": 7453,
+      "xp": 9518
      },
      {
       "participantId": 8,
       "cs": 179,
-      "level": 12
+      "level": 12,
+      "gold": 7967,
+      "xp": 9063
      },
      {
       "participantId": 9,
       "cs": 179,
-      "level": 12
+      "level": 12,
+      "gold": 8117,
+      "xp": 9394
      },
      {
       "participantId": 10,
       "cs": 23,
-      "level": 11
+      "level": 11,
+      "gold": 5566,
+      "xp": 7799
      }
     ]
    },
@@ -1380,52 +1860,72 @@
      {
       "participantId": 1,
       "cs": 180,
-      "level": 12
+      "level": 12,
+      "gold": 9435,
+      "xp": 9532
      },
      {
       "participantId": 2,
       "cs": 141,
-      "level": 12
+      "level": 12,
+      "gold": 8366,
+      "xp": 9504
      },
      {
       "participantId": 3,
       "cs": 192,
-      "level": 12
+      "level": 12,
+      "gold": 9062,
+      "xp": 9408
      },
      {
       "participantId": 4,
       "cs": 206,
-      "level": 13
+      "level": 13,
+      "gold": 9306,
+      "xp": 10552
      },
      {
       "participantId": 5,
       "cs": 24,
-      "level": 11
+      "level": 11,
+      "gold": 7822,
+      "xp": 8119
      },
      {
       "participantId": 6,
       "cs": 162,
-      "level": 12
+      "level": 12,
+      "gold": 7157,
+      "xp": 9187
      },
      {
       "participantId": 7,
       "cs": 126,
-      "level": 12
+      "level": 12,
+      "gold": 7701,
+      "xp": 9518
      },
      {
       "participantId": 8,
       "cs": 186,
-      "level": 12
+      "level": 12,
+      "gold": 8236,
+      "xp": 9242
      },
      {
       "participantId": 9,
       "cs": 188,
-      "level": 12
+      "level": 12,
+      "gold": 8428,
+      "xp": 9394
      },
      {
       "participantId": 10,
       "cs": 24,
-      "level": 11
+      "level": 11,
+      "gold": 5772,
+      "xp": 7965
      }
     ]
    },
@@ -1435,52 +1935,72 @@
      {
       "participantId": 1,
       "cs": 187,
-      "level": 13
+      "level": 13,
+      "gold": 9704,
+      "xp": 10137
      },
      {
       "participantId": 2,
       "cs": 147,
-      "level": 13
+      "level": 13,
+      "gold": 8614,
+      "xp": 10685
      },
      {
       "participantId": 3,
       "cs": 200,
-      "level": 13
+      "level": 13,
+      "gold": 9352,
+      "xp": 10196
      },
      {
       "participantId": 4,
       "cs": 214,
-      "level": 13
+      "level": 13,
+      "gold": 9596,
+      "xp": 10744
      },
      {
       "participantId": 5,
       "cs": 25,
-      "level": 12
+      "level": 12,
+      "gold": 8028,
+      "xp": 8856
      },
      {
       "participantId": 6,
       "cs": 169,
-      "level": 12
+      "level": 12,
+      "gold": 7426,
+      "xp": 9366
      },
      {
       "participantId": 7,
       "cs": 131,
-      "level": 12
+      "level": 12,
+      "gold": 7928,
+      "xp": 9518
      },
      {
       "participantId": 8,
       "cs": 192,
-      "level": 12
+      "level": 12,
+      "gold": 8484,
+      "xp": 9421
      },
      {
       "participantId": 9,
       "cs": 197,
-      "level": 12
+      "level": 12,
+      "gold": 8739,
+      "xp": 9394
      },
      {
       "participantId": 10,
       "cs": 25,
-      "level": 11
+      "level": 11,
+      "gold": 5978,
+      "xp": 8132
      }
     ]
    },
@@ -1490,52 +2010,72 @@
      {
       "participantId": 1,
       "cs": 194,
-      "level": 13
+      "level": 13,
+      "gold": 10024,
+      "xp": 10330
      },
      {
       "participantId": 2,
       "cs": 153,
-      "level": 13
+      "level": 13,
+      "gold": 8913,
+      "xp": 10877
      },
      {
       "participantId": 3,
       "cs": 210,
-      "level": 13
+      "level": 13,
+      "gold": 9735,
+      "xp": 10389
      },
      {
       "participantId": 4,
       "cs": 221,
-      "level": 13
+      "level": 13,
+      "gold": 9916,
+      "xp": 10936
      },
      {
       "participantId": 5,
       "cs": 26,
-      "level": 12
+      "level": 12,
+      "gold": 8285,
+      "xp": 9035
      },
      {
       "participantId": 6,
       "cs": 176,
-      "level": 13
+      "level": 13,
+      "gold": 7696,
+      "xp": 9960
      },
      {
       "participantId": 7,
       "cs": 136,
-      "level": 13
+      "level": 13,
+      "gold": 8156,
+      "xp": 10507
      },
      {
       "participantId": 8,
       "cs": 199,
-      "level": 13
+      "level": 13,
+      "gold": 8754,
+      "xp": 10019
      },
      {
       "participantId": 9,
       "cs": 204,
-      "level": 12
+      "level": 12,
+      "gold": 9009,
+      "xp": 9394
      },
      {
       "participantId": 10,
       "cs": 26,
-      "level": 12
+      "level": 12,
+      "gold": 6185,
+      "xp": 8690
      }
     ]
    },
@@ -1545,52 +2085,72 @@
      {
       "participantId": 1,
       "cs": 202,
-      "level": 13
+      "level": 13,
+      "gold": 10414,
+      "xp": 10522
      },
      {
       "participantId": 2,
       "cs": 160,
-      "level": 13
+      "level": 13,
+      "gold": 9582,
+      "xp": 10877
      },
      {
       "participantId": 3,
       "cs": 218,
-      "level": 13
+      "level": 13,
+      "gold": 10200,
+      "xp": 10581
      },
      {
       "participantId": 4,
       "cs": 229,
-      "level": 13
+      "level": 13,
+      "gold": 10381,
+      "xp": 10936
      },
      {
       "participantId": 5,
       "cs": 27,
-      "level": 12
+      "level": 12,
+      "gold": 8591,
+      "xp": 9214
      },
      {
       "participantId": 6,
       "cs": 183,
-      "level": 13
+      "level": 13,
+      "gold": 8515,
+      "xp": 10152
      },
      {
       "participantId": 7,
       "cs": 142,
-      "level": 13
+      "level": 13,
+      "gold": 8454,
+      "xp": 10700
      },
      {
       "participantId": 8,
       "cs": 205,
-      "level": 13
+      "level": 13,
+      "gold": 9052,
+      "xp": 10211
      },
      {
       "participantId": 9,
       "cs": 211,
-      "level": 13
+      "level": 13,
+      "gold": 9328,
+      "xp": 10759
      },
      {
       "participantId": 10,
       "cs": 27,
-      "level": 12
+      "level": 12,
+      "gold": 6391,
+      "xp": 8869
      }
     ]
    },
@@ -1600,52 +2160,72 @@
      {
       "participantId": 1,
       "cs": 210,
-      "level": 13
+      "level": 13,
+      "gold": 10780,
+      "xp": 10714
      },
      {
       "participantId": 2,
       "cs": 166,
-      "level": 13
+      "level": 13,
+      "gold": 9906,
+      "xp": 10877
      },
      {
       "participantId": 3,
       "cs": 227,
-      "level": 13
+      "level": 13,
+      "gold": 10512,
+      "xp": 10774
      },
      {
       "participantId": 4,
       "cs": 238,
-      "level": 14
+      "level": 14,
+      "gold": 10693,
+      "xp": 11787
      },
      {
       "participantId": 5,
       "cs": 28,
-      "level": 12
+      "level": 12,
+      "gold": 9098,
+      "xp": 9394
      },
      {
       "participantId": 6,
       "cs": 189,
-      "level": 13
+      "level": 13,
+      "gold": 8764,
+      "xp": 10344
      },
      {
       "participantId": 7,
       "cs": 148,
-      "level": 13
+      "level": 13,
+      "gold": 8703,
+      "xp": 10892
      },
      {
       "participantId": 8,
       "cs": 212,
-      "level": 13
+      "level": 13,
+      "gold": 9322,
+      "xp": 10404
      },
      {
       "participantId": 9,
       "cs": 219,
-      "level": 13
+      "level": 13,
+      "gold": 9619,
+      "xp": 10951
      },
      {
       "participantId": 10,
       "cs": 28,
-      "level": 12
+      "level": 12,
+      "gold": 6598,
+      "xp": 9049
      }
     ]
    },
@@ -1655,52 +2235,72 @@
      {
       "participantId": 1,
       "cs": 216,
-      "level": 14
+      "level": 14,
+      "gold": 11178,
+      "xp": 12451
      },
      {
       "participantId": 2,
       "cs": 171,
-      "level": 14
+      "level": 14,
+      "gold": 10133,
+      "xp": 11929
      },
      {
       "participantId": 3,
       "cs": 235,
-      "level": 14
+      "level": 14,
+      "gold": 11102,
+      "xp": 12514
      },
      {
       "participantId": 4,
       "cs": 245,
-      "level": 14
+      "level": 14,
+      "gold": 11112,
+      "xp": 11993
      },
      {
       "participantId": 5,
       "cs": 29,
-      "level": 12
+      "level": 12,
+      "gold": 9604,
+      "xp": 9394
      },
      {
       "participantId": 6,
       "cs": 195,
-      "level": 13
+      "level": 13,
+      "gold": 9012,
+      "xp": 10537
      },
      {
       "participantId": 7,
       "cs": 152,
-      "level": 13
+      "level": 13,
+      "gold": 8909,
+      "xp": 10892
      },
      {
       "participantId": 8,
       "cs": 220,
-      "level": 13
+      "level": 13,
+      "gold": 9612,
+      "xp": 10596
      },
      {
       "participantId": 9,
       "cs": 227,
-      "level": 13
+      "level": 13,
+      "gold": 9909,
+      "xp": 10951
      },
      {
       "participantId": 10,
       "cs": 29,
-      "level": 12
+      "level": 12,
+      "gold": 6804,
+      "xp": 9228
      }
     ]
    },
@@ -1710,52 +2310,72 @@
      {
       "participantId": 1,
       "cs": 222,
-      "level": 14
+      "level": 14,
+      "gold": 11676,
+      "xp": 12451
      },
      {
       "participantId": 2,
       "cs": 177,
-      "level": 14
+      "level": 14,
+      "gold": 10431,
+      "xp": 12135
      },
      {
       "participantId": 3,
       "cs": 242,
-      "level": 14
+      "level": 14,
+      "gold": 11721,
+      "xp": 12514
      },
      {
       "participantId": 4,
       "cs": 253,
-      "level": 14
+      "level": 14,
+      "gold": 11502,
+      "xp": 12198
      },
      {
       "participantId": 5,
       "cs": 30,
-      "level": 13
+      "level": 13,
+      "gold": 10210,
+      "xp": 10182
      },
      {
       "participantId": 6,
       "cs": 202,
-      "level": 14
+      "level": 14,
+      "gold": 9281,
+      "xp": 12261
      },
      {
       "participantId": 7,
       "cs": 157,
-      "level": 13
+      "level": 13,
+      "gold": 9136,
+      "xp": 10892
      },
      {
       "participantId": 8,
       "cs": 228,
-      "level": 13
+      "level": 13,
+      "gold": 9902,
+      "xp": 10788
      },
      {
       "participantId": 9,
       "cs": 234,
-      "level": 13
+      "level": 13,
+      "gold": 10478,
+      "xp": 10951
      },
      {
       "participantId": 10,
       "cs": 30,
-      "level": 12
+      "level": 12,
+      "gold": 7010,
+      "xp": 9408
      }
     ]
    },
@@ -1765,52 +2385,72 @@
      {
       "participantId": 1,
       "cs": 227,
-      "level": 14
+      "level": 14,
+      "gold": 12017,
+      "xp": 12451
      },
      {
       "participantId": 2,
       "cs": 181,
-      "level": 14
+      "level": 14,
+      "gold": 10751,
+      "xp": 12135
      },
      {
       "participantId": 3,
       "cs": 247,
-      "level": 14
+      "level": 14,
+      "gold": 12062,
+      "xp": 12514
      },
      {
       "participantId": 4,
       "cs": 258,
-      "level": 14
+      "level": 14,
+      "gold": 11843,
+      "xp": 12198
      },
      {
       "participantId": 5,
       "cs": 31,
-      "level": 13
+      "level": 13,
+      "gold": 10510,
+      "xp": 10182
      },
      {
       "participantId": 6,
       "cs": 206,
-      "level": 14
+      "level": 14,
+      "gold": 9451,
+      "xp": 12261
      },
      {
       "participantId": 7,
       "cs": 160,
-      "level": 14
+      "level": 14,
+      "gold": 9285,
+      "xp": 11740
      },
      {
       "participantId": 8,
       "cs": 233,
-      "level": 14
+      "level": 14,
+      "gold": 10093,
+      "xp": 12324
      },
      {
       "participantId": 9,
       "cs": 239,
-      "level": 14
+      "level": 14,
+      "gold": 10669,
+      "xp": 11803
      },
      {
       "participantId": 10,
       "cs": 31,
-      "level": 13
+      "level": 13,
+      "gold": 7160,
+      "xp": 10848
      }
     ]
    }
