@@ -102,6 +102,16 @@ centimetres apart. The player-scoped slice stays cross-patch on purpose, for the
 needed scoping: one player meets the same lane opponent a handful of times *in total*, so a patch filter would put
 nearly every opponent under the 3-game per-player floor and empty the panel — #1087.
 
+**The champion page shows its matchups as a spread on the lane win rate at 15 min, and the sidebar list is gone.**
+The best/worst panel in the sidebar ranked opponents by *game* win rate in a column too narrow for more than ten
+rows. The question a reader brings to a matchup is "do I win the lane", and a game is decided by nine other players;
+the lane win rate (#919) is the measurement that answers it, so the spread places every opponent on that axis alone.
+Centred on 50%, not on the champion's own average: "ahead at 15 against this pick" has an absolute answer, and an
+average would move the centre line every time the opponent pool shifts. Opponents with no lane rate (under
+`MinDecidedLaneGames`) are left off rather than drawn on the centre line, which would read as "dead even". The
+role picker is the panel's own and selects the lane on both sides, as the aggregate is keyed. The player-scoped
+champion page keeps the list: its live route has no lane data — 2026-10-18, #2094.
+
 **Lane win rate stores three counters and divides by the *decided* lanes, not by games played.**
 A gold *threshold* at 15 min (`LaneOutcomeAggregation:GoldLeadThreshold`, 300) is what defines a won lane, and
 a threshold necessarily creates a third outcome: lanes inside the band were neither won nor lost. Folding those
