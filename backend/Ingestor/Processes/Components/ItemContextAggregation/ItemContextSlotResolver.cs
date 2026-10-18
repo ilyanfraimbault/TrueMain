@@ -17,7 +17,7 @@ public readonly record struct ItemContextEdge(
     IReadOnlySet<ItemContextAxis> EligibleAxes);
 
 /// <summary>
-/// Reads one participant's three build decisions and turns each into the steps the fold
+/// Reads one participant's build decisions and turns each into the steps the fold
 /// counts (#1450), each paired with the situations it may be explained by.
 /// </summary>
 /// <remarks>
@@ -38,6 +38,8 @@ public readonly record struct ItemContextEdge(
 /// </remarks>
 public static class ItemContextSlotResolver
 {
+    private static readonly IReadOnlySet<ItemContextAxis> NoAxes = new HashSet<ItemContextAxis>();
+
     public static IReadOnlyDictionary<ItemContextSlot, IReadOnlyList<ItemContextEdge>> Resolve(
         IReadOnlyList<ItemEvent> itemEvents,
         IReadOnlyList<int> finalItems,
@@ -59,6 +61,12 @@ public static class ItemContextSlotResolver
         Add(resolved, ItemContextSlot.Build, Chain(buildItems, metadata));
         Add(resolved, ItemContextSlot.Starter, Root(starters.Items, ItemContextSlot.Starter, metadata));
         Add(resolved, ItemContextSlot.Boots, Root(bootsItemId > 0 ? [bootsItemId] : [], ItemContextSlot.Boots, metadata));
+
+        // When the boots came, as a step of the same build order (#2101). No axis: the
+        // question is "before or after which legendary", and the panel asks it whatever
+        // the draft.
+        var bootsStep = BootsStepResolver.Resolve(itemEvents, buildItems, bootsItemId);
+        Add(resolved, ItemContextSlot.BootsTiming, bootsStep > 0 ? [new ItemContextEdge(0, bootsStep, NoAxes)] : []);
 
         return resolved;
     }

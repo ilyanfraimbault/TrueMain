@@ -102,8 +102,11 @@ public static class ItemContextVerdictBuilder
         // One verdict per step the served patch actually saw. Items that only appear in the
         // older patches of the window are not decisions of this patch and get no row — the
         // window exists to deepen a finding, never to resurrect an item.
+        // The boots' timing is a step number, not an item: nothing a card could name (#2101).
         var branches = stats
-            .Where(row => row.Patch == servedPatch && row.Axis == ItemContextAxis.Overall)
+            .Where(row => row.Patch == servedPatch
+                && row.Axis == ItemContextAxis.Overall
+                && row.Slot != ItemContextSlot.BootsTiming)
             .GroupBy(row => new BranchKey(row.Slot, row.ParentItemId));
 
         foreach (var branch in branches)

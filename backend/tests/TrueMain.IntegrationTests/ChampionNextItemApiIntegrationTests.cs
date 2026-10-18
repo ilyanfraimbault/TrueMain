@@ -92,6 +92,25 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task NextItem_LaysTheBuildOutAsOneRow_WithTheBootsAtTheirStep()
+    {
+        await SeedAsync();
+
+        var fresh = await PostAsync(new { position = Position, items = Array.Empty<int>() });
+        fresh.Order.Select(step => (step.ItemId, step.State)).Should().Equal(
+            (Armor, NextItemOrderState.Next),
+            (Ninja, NextItemOrderState.Upcoming),
+            (Health, NextItemOrderState.Upcoming));
+
+        var afterFirst = await PostAsync(new { position = Position, items = new[] { 1055, Armor } });
+        afterFirst.Order.Select(step => (step.ItemId, step.State)).Should().Equal(
+            (Armor, NextItemOrderState.Completed),
+            (Ninja, NextItemOrderState.Next),
+            (Health, NextItemOrderState.Upcoming));
+        afterFirst.Order[1].IsBoots.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task NextItem_PlacesUnlanedEnemiesAroundTheGivenOnes()
     {
         await SeedAsync();
@@ -161,6 +180,9 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
             Term(Patch, ItemContextSlot.Build, Armor, Health, ItemContextAxis.Overall, ItemContextBucket.All, 0),
             Term(Patch, ItemContextSlot.Boots, 0, Ninja, ItemContextAxis.Overall, ItemContextBucket.All, Math.Log(0.7)),
             Term(Patch, ItemContextSlot.Boots, 0, Mercs, ItemContextAxis.Overall, ItemContextBucket.All, Math.Log(0.3)),
+            // The boots come after the first legendary in 80% of the games, before it in 20%.
+            Term(Patch, ItemContextSlot.BootsTiming, 0, 2, ItemContextAxis.Overall, ItemContextBucket.All, Math.Log(0.8)),
+            Term(Patch, ItemContextSlot.BootsTiming, 0, 1, ItemContextAxis.Overall, ItemContextBucket.All, Math.Log(0.2)),
             // An older patch that a string sort would serve first.
             Term(OlderPatch, ItemContextSlot.Build, 0, Health, ItemContextAxis.Overall, ItemContextBucket.All, 0));
 
