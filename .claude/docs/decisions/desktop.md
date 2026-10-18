@@ -723,6 +723,15 @@ every card but the ranked one, and renders nothing on a day without a game rathe
 grid's day view already counts the day's games; the card adds the LP and the time, and sits where the rank is read —
 #2073.
 
+**The dashboard's latest clips are a small fixed grid of four that opens the Recordings page's own player
+(2026-10-18).** The same benchmark showed highlights one click from the competitor's home, while a clip saved yesterday
+was two clicks and a filter away on `/recordings`. The product owner wanted it small — at most a quarter of the page —
+so it is a card in the dashboard's right column, under the Today card: four thumbnails two by two, the most recently
+saved first. With fewer than four clips the free cells stay as empty slots of a clip's height, so the card never
+changes shape as clips come and go. A clip opens the clip player the Recordings page opens (no second player), "See
+all" lands on the page's Clips filter; the card reads the same library command and is absent when the shell records
+nothing or no clip exists — #2077.
+
 **The app's footprint is measured, never estimated (2026-10-05).** Resource use is among the most common complaints
 about League companions, so the product owner asked for a lighter app during a game and for its real memory on
 `/download`. A figure comes from `desktop/tools/measure-footprint.{sh,ps1}`: the whole process tree (on macOS
