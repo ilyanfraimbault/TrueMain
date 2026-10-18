@@ -144,6 +144,7 @@ watch(() => state.value.phase, (next, previous) => {
           <ProfileRankedCardSkeleton v-if="pending" />
           <ProfileRankedCard v-else :ranked="ranked" :history="rankHistory" />
           <DashboardTodayCard v-if="!pending" :summary="today" />
+          <DashboardClipsCard />
           <template v-if="pending">
             <USkeleton class="h-40 rounded-lg" />
             <USkeleton class="h-56 rounded-lg" />
