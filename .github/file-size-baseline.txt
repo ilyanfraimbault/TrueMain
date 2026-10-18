@@ -2,7 +2,7 @@
 # Regenerate with .github/scripts/check-file-size.sh --update
 # path<TAB>lines<TAB>limit
 backend/Data/Logging/Mongo/MongoLogContext.cs	525	500
-backend/Data/Ops/Mongo/ProcessRunStore.cs	508	500
+backend/Data/Ops/Mongo/ProcessRunStore.cs	502	500
 backend/Data/Repositories/RiotAccountRepository.cs	567	500
 backend/Tools/DevSeed/SeedGenerator.cs	578	500
 web/app/components/AppBackdrop.vue	426	400

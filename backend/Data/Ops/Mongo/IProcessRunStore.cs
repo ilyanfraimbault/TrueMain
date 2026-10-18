@@ -129,12 +129,14 @@ public interface IProcessRunStore
     /// start. With <paramref name="finishedOnly"/> an iteration that still has a
     /// Running run with a heartbeat at or after
     /// <paramref name="freshHeartbeatCutoff"/> is excluded from the page and the
-    /// total.
+    /// total. A non-null <paramref name="jobModes"/> keeps only the passes run under one of those
+    /// <see cref="ProcessRunDocument.JobMode"/> values — how the admin lists one lane at a time.
     /// </summary>
     Task<ProcessIterationHeaderPage> QueryIterationsAsync(
         int page,
         int pageSize,
         bool finishedOnly,
+        IReadOnlyCollection<string>? jobModes,
         DateTime freshHeartbeatCutoff,
         CancellationToken ct);
 
