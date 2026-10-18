@@ -145,6 +145,26 @@ public sealed class NextItemModel
     /// <summary>Whether the cohort ever completes this item as a build step, on any branch.</summary>
     public bool IsBuildItem(int itemId) => _buildItems.Contains(itemId);
 
+    /// <summary>
+    /// The step of the build order the mains most often complete their boots at (#2101) —
+    /// 1 before the first legendary, 2 right after it — or null when fewer than
+    /// <paramref name="minGames"/> games say when.
+    /// </summary>
+    public int? BootsStep(int minGames)
+    {
+        var timing = Branch(ItemContextSlot.BootsTiming, 0);
+        if (timing is null || timing.BranchGames < minGames)
+        {
+            return null;
+        }
+
+        return timing.Candidates
+            .OrderByDescending(candidate => candidate.BaseLogShare)
+            .ThenBy(candidate => candidate.ItemId)
+            .Select(candidate => (int?)candidate.ItemId)
+            .FirstOrDefault();
+    }
+
     /// <summary>Whether this item is one of the boots the cohort settles on.</summary>
     public bool IsBoots(int itemId)
         => Branch(ItemContextSlot.Boots, 0)?.Candidates.Any(candidate => candidate.ItemId == itemId) ?? false;

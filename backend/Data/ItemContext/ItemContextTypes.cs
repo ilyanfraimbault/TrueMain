@@ -1,9 +1,10 @@
 namespace Data.ItemContext;
 
 /// <summary>
-/// Which decision an item context row describes (#1450). The three slots are read from
+/// Which decision an item context row describes (#1450). The slots are read from
 /// different resolvers and answer different questions, so a verdict never mixes them:
-/// "which legendary do I complete", "which boots do I take", "what do I start with".
+/// "which legendary do I complete", "which boots do I take", "what do I start with", and
+/// "when do the boots come".
 /// </summary>
 public enum ItemContextSlot
 {
@@ -15,6 +16,14 @@ public enum ItemContextSlot
 
     /// <summary>One item of the starting basket, from <c>StarterItemAnalyzer</c>.</summary>
     Starter,
+
+    /// <summary>
+    /// <b>When</b> the boots were completed, not which (#2101): the row's <c>ItemId</c> is the
+    /// step of the build order the boots took — 1 before the first legendary, 2 right after
+    /// it, and so on — never an item id. Read by the next-item model only; no verdict is ever
+    /// written for it.
+    /// </summary>
+    BootsTiming,
 }
 
 /// <summary>
