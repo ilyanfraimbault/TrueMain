@@ -1,6 +1,8 @@
 //! A finished game's timeline reduced to what the win-probability model reads
 //! (#1911): who played which lane on which side, each player's creep score and
-//! level once a minute, and the kills, buildings and epic monsters.
+//! level once a minute, and the kills, buildings and epic monsters. Each
+//! minute also carries the player's gold and experience, which the model does
+//! not read: the match detail draws them as curves (#2102).
 //!
 //! Serialised in the shape of the site's `WinProbabilityTimeline`
 //! (`web/shared/types/win-probability.ts`), which the app hands to the shared
@@ -50,6 +52,12 @@ pub struct WinProbabilityPlayer {
     /// Lane minions and jungle camps together.
     pub cs: i64,
     pub level: i64,
+    /// Gold earned so far (`totalGold`). Defaulted on read: recordings kept
+    /// before #2102 carry no gold and no experience.
+    #[serde(default)]
+    pub gold: i64,
+    #[serde(default)]
+    pub xp: i64,
 }
 
 /// One event, with only the fields its kind carries: the others are left out
@@ -114,6 +122,8 @@ impl WinProbabilityTimeline {
                             participant_id: id.parse().ok()?,
                             cs: f.minions_killed + f.jungle_minions_killed,
                             level: f.level,
+                            gold: f.total_gold,
+                            xp: f.xp,
                         })
                     })
                     .collect();
@@ -199,7 +209,8 @@ mod tests {
                 "1": { "minionsKilled": 0, "level": 1 }
               } },
               { "timestamp": 60000, "participantFrames": {
-                "1": { "minionsKilled": 7, "jungleMinionsKilled": 2, "level": 3 }
+                "1": { "minionsKilled": 7, "jungleMinionsKilled": 2, "level": 3,
+                       "totalGold": 812, "xp": 731 }
               }, "events": [
                 { "type": "ITEM_PURCHASED", "timestamp": 61000, "participantId": 1, "itemId": 1056 },
                 { "type": "CHAMPION_KILL", "timestamp": 62000, "killerId": 1, "victimId": 8,
@@ -238,7 +249,9 @@ mod tests {
             WinProbabilityPlayer {
                 participant_id: 1,
                 cs: 9,
-                level: 3
+                level: 3,
+                gold: 812,
+                xp: 731
             }
         );
     }
@@ -274,11 +287,20 @@ mod tests {
         assert_eq!(json["durationMs"], 1_842_000);
         assert_eq!(json["participants"][0]["teamId"], 100);
         assert_eq!(json["frames"][1]["players"][0]["participantId"], 1);
+        assert_eq!(json["frames"][1]["players"][0]["gold"], 812);
+        assert_eq!(json["frames"][1]["players"][0]["xp"], 731);
         let kill = &json["events"][0];
         assert_eq!(kill["type"], "CHAMPION_KILL");
         assert_eq!(kill["assistIds"][0], 3);
         assert!(kill.get("buildingType").is_none());
         assert_eq!(json["events"][3]["monsterSubType"], "FIRE_DRAGON");
+    }
+
+    #[test]
+    fn a_frame_kept_before_the_curves_reads_without_gold() {
+        let player: WinProbabilityPlayer =
+            serde_json::from_str(r#"{ "participantId": 4, "cs": 30, "level": 5 }"#).unwrap();
+        assert_eq!((player.gold, player.xp), (0, 0));
     }
 
     #[test]

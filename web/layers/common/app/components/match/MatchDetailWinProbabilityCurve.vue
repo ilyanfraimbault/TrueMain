@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // The win-probability plot itself: the chance above even tinted ally, below it
 // enemy, the even line dashed, the hovered turning points as vertical rules.
+// The gold / XP / CS curves draw their team lead with it too (#2102), zero on
+// the even line, so both bands of the Timeline view read the same way.
 // Coordinates arrive in the plot's own units — x and y both 0..100 — and the
 // SVG stretches to its box; strokes keep their width.
 const props = defineProps<{

@@ -625,7 +625,17 @@ only: this changes nothing about the in-game panel, whose compliance question st
 loading screen, the game page's scoreboard, a dashboard match row's team strip, nor the opened match's scoreboard and
 runes. The product owner's call: the player knows which one they are, and the mark only competes with what the row
 says. Ours still orders the sides (our team first, our lane opponent's history read first) and the draft board's
-selected card stays ringed, since that ring marks the selection, not the account — #1803.
+selected card stays ringed, since that ring marks the selection, not the account — #1803. One exception, the product
+owner's call: the match detail's gold / XP / CS curves draw our line on top in the primary colour, the only way to find
+it among ten; the list beside them keys it with a primary bar only — no ring, no bolder name (2026-10-19) — #2102.
+
+**The match detail's Timeline view opens on the ten players' gold / XP / CS curves, above the win probability, built
+from the client's timeline (2026-10-19).** The same reduced timeline as the curve (`lcu::win_probability`) carries each
+player's gold and experience a minute; the site never has them (it keeps timelines at a few marks, #772), so the
+panel is the app's only, and it renders only when the timeline carries gold — never an empty panel. Under the curves,
+the team lead as a band drawn with the win probability's own band; the objectives on the time axis from the timeline's
+events; a list per side whose rows pin a line. Modelled on a competing companion's Gold tab (benchmark 2026-10-18) —
+#2102.
 
 **The app measures its own use: counters under an anonymous install id, folded per install and day; downloads are
 counted by the site's redirect (2026-10-02).** The site's Umami cannot see the app — a static bundle in a webview with a

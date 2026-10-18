@@ -10,6 +10,7 @@ import {
   forTeam,
   SWINGS_SHOWN,
 } from '#common/utils/win-probability-swing'
+import { minuteTicks } from '#common/utils/timeline-curves'
 
 /**
  * A finished game's win-probability curve and the moments that swung it
@@ -59,11 +60,7 @@ const objectives = computed(() => props.winProbability.objectives
   .filter(objective => !swings.value.some(swing => swing.ms === objective.ms))
   .map(objective => ({ ms: objective.ms, x: x(objective.ms), label: describeObjective(objective, props.perspectiveTeamId) })))
 
-const minutes = computed(() => {
-  const total = Math.floor(width.value / 60_000)
-  const step = total > 30 ? 10 : 5
-  return Array.from({ length: Math.floor(total / step) + 1 }, (_, i) => ({ minute: i * step, x: x(i * step * 60_000) }))
-})
+const minutes = computed(() => minuteTicks(width.value).map(tick => ({ minute: tick.minute, x: x(tick.ms) })))
 
 // ─── Hover: the nearest point on the curve and what happened around it ───────
 const plot = ref<HTMLElement | null>(null)
