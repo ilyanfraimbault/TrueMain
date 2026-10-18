@@ -8,13 +8,13 @@ import {
   DesktopLandingOverlayPanel,
   DesktopLandingRecapDemo,
 } from '#components'
-import type { RuneTreeResponse, StaticItemData } from '#shared/types/static-data'
+import type { StaticItemData } from '#shared/types/static-data'
 import { sampleWinProbability } from '~/utils/desktop-landing-sample'
 
 // `/download`'s drawn scenes (#2072). Each is server-rendered — and drawn for a
 // visitor who asked for less motion — in its final state, so these pin that
 // state: the values the app's own overlay sample produces, every panel on, the
-// clip saved, the runes imported.
+// clip saved, Ahri hovered.
 
 const item = (name: string, totalGold: number, tags: string[] = []): StaticItemData => ({ name, iconUrl: '', totalGold, tags } as unknown as StaticItemData)
 
@@ -121,32 +121,18 @@ describe('LandingInGame', () => {
 })
 
 describe('LandingDraftDemo', () => {
-  const runeTree = {
-    styles: [
-      { styleId: 8100, name: 'Domination', iconUrl: '', keystones: [8112], subRows: [[8126], [8136], [8135]] },
-      { styleId: 8200, name: 'Sorcery', iconUrl: '', keystones: [8214], subRows: [[8226], [8210], [8232, 8237]] },
-    ],
-    perks: Object.fromEntries([8112, 8126, 8136, 8135, 8226, 8237].map(id => [id, { id, name: `Perk ${id}`, iconUrl: `https://ddragon.example/${id}.png` }])),
-    perkStyles: { 8200: { id: 8200, name: 'Sorcery', iconUrl: 'https://ddragon.example/8200.png' } },
-    shardSlots: [],
-  } as unknown as RuneTreeResponse
-
-  it('ends on Ahri hovered, her rune page drawn and the import toast', async () => {
-    const wrapper = await mountSuspended(DesktopLandingDraftDemo, { props: { patch: PATCH, runeTree } })
+  it('ends on Ahri hovered from the app, the lock button taking her', async () => {
+    const wrapper = await mountSuspended(DesktopLandingDraftDemo, { props: { patch: PATCH } })
 
     expect(wrapper.text()).toContain('Lock in Ahri')
     expect(wrapper.text()).toContain('Hovered')
-    expect(wrapper.text()).toContain('Runes imported')
-    expect(wrapper.findAll('.landing-rise.is-on')).toHaveLength(5)
-    // Keystone, three primary runes, the secondary tree and its two runes.
-    const runeIcons = wrapper.findAll('img').filter(img => img.attributes('src')?.includes('ddragon.example'))
-    expect(runeIcons).toHaveLength(7)
+    expect(wrapper.text()).not.toContain('Runes')
+    expect(wrapper.findAll('.landing-rise.is-on')).toHaveLength(4)
   })
 
-  it('draws empty rune slots until the rune tree is read', async () => {
-    const wrapper = await mountSuspended(DesktopLandingDraftDemo, { props: { patch: null, runeTree: null } })
+  it('draws no champion icon until the patch is known', async () => {
+    const wrapper = await mountSuspended(DesktopLandingDraftDemo, { props: { patch: null } })
 
-    expect(wrapper.findAll('span.rounded-full.bg-ink-950')).toHaveLength(7)
     expect(wrapper.findAll('img').filter(img => img.attributes('src')?.includes('champion/'))).toHaveLength(0)
   })
 })
@@ -185,30 +171,26 @@ describe('the scenes, playing', () => {
     vi.useRealTimers()
   })
 
-  it('walks the draft from an empty strip to the pointer on the import icon, its tooltip, then the toast', async () => {
-    const wrapper = await mountSuspended(DesktopLandingDraftDemo, { props: { patch: PATCH, runeTree: null } })
+  it('walks the draft from an empty strip to the pointer clicking Ahri\'s Hover', async () => {
+    const wrapper = await mountSuspended(DesktopLandingDraftDemo, { props: { patch: PATCH } })
     await nextTick()
 
     expect(wrapper.findAll('.landing-rise.is-on')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('Lock in Ahri')
 
-    // The picks (400 + 3 × 260 ms), then the pointer reaches "Hover" (800 ms).
+    // The picks (400 + 3 × 260 ms), then the pointer reaches "Hover".
     vi.advanceTimersByTime(1180)
     await nextTick()
     expect(wrapper.findAll('.landing-rise.is-on')).toHaveLength(4)
     expect(wrapper.find('.landing-pointer').classes()).not.toContain('opacity-0')
 
-    // The click hovers Ahri; the pointer travels to the import icon and its tooltip shows.
-    vi.advanceTimersByTime(800 + 900 + 900)
+    // The click hovers Ahri; the pointer steps aside.
+    vi.advanceTimersByTime(800)
     await nextTick()
     expect(wrapper.text()).toContain('Lock in Ahri')
-    expect(wrapper.find('span.bg-inverted').classes()).toContain('opacity-100')
-
-    // The click imports; the toast rises.
-    vi.advanceTimersByTime(1100)
+    vi.advanceTimersByTime(500)
     await nextTick()
-    expect(wrapper.find('span.bg-inverted').classes()).toContain('opacity-0')
-    expect(wrapper.html()).toContain('translate-y-0 opacity-100')
+    expect(wrapper.find('.landing-pointer').classes()).toContain('opacity-0')
   })
 
   it('takes the recap\'s playhead to the triple kill, cuts a range the app names, then saves it', async () => {
