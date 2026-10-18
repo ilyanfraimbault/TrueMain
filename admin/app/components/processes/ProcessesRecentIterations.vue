@@ -1,12 +1,16 @@
 <script setup lang="ts">
-// Recent iterations of the Processes page: each finished pass as the chain with
-// per-process outcomes, newest first, paged independently of the runs table.
-// Split out of `pages/processes.vue` (#1436); the page owns the fetch and the
-// page number.
-import type { ProcessIteration } from '~~/shared/types/ops'
-import type { LaneBranch } from '~~/shared/utils/pipeline-lanes'
-import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
-import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
+// Recent iterations of the Processes page: each finished pass on one line, newest
+// first, paged independently of the runs table. Split out of `pages/processes.vue`
+// (#1436); the page owns the fetch, the page number and the lane filter.
+//
+// A pass used to be drawn as its full chain of named chips, the fetch and aggregate
+// lanes interleaved: every row was a paragraph, a skipped step stood out more than a
+// successful one, and nothing showed which passes ran at the same time. A row now
+// says what kind of pass it was, where its time went and how its steps ended; it
+// names the other lane's passes it overlapped, and expands into the step waterfall.
+import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
+import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
+import { parallelPasses } from '~~/shared/utils/iteration-timeline'
 
 const props = defineProps<{
   iterations: ProcessIteration[]
@@ -19,26 +23,65 @@ const props = defineProps<{
 }>()
 
 const page = defineModel<number>('page', { required: true })
+const lane = defineModel<'all' | PipelineLaneId>('lane', { required: true })
 
 defineEmits<{
   openIteration: [iteration: ProcessIteration]
+  openRun: [run: ProcessRun]
 }>()
 
-// Precompute each finished iteration's branches once, so the template shares one
-// array between its v-for and its separator length check.
-const iterationBranches = computed<Map<string, LaneBranch[]>>(
-  () => new Map(props.iterations.map(it => [it.iterationId, buildLaneBranches(it.runs)])),
+const laneTabs = [
+  { label: 'All', value: 'all' },
+  { label: 'Fetch', value: 'fetch', icon: 'i-lucide-download' },
+  { label: 'Aggregate', value: 'aggregate', icon: 'i-lucide-layers' },
+]
+
+// Overlaps are only looked for on the unfiltered list: with one lane shown, the other
+// lane's passes are not on the page to be named.
+const parallelById = computed<Map<string, ProcessIteration[]>>(() =>
+  new Map(props.iterations.map(it => [
+    it.iterationId,
+    lane.value === 'all' ? parallelPasses(it, props.iterations) : [],
+  ])),
 )
+
+// Expanded rows survive a page change only by id, so a row from another page never
+// opens by accident; a filter or page change simply starts collapsed.
+const expanded = ref<Set<string>>(new Set())
+watch([page, lane], () => {
+  expanded.value = new Set()
+})
+function setExpanded(id: string, value: boolean) {
+  const next = new Set(expanded.value)
+  if (value) {
+    next.add(id)
+  }
+  else {
+    next.delete(id)
+  }
+  expanded.value = next
+}
 </script>
 
 <template>
   <div class="mb-6">
-    <PanelTitle
-      variant="label"
-      title="Recent iterations"
-      subtitle="Newest first."
-      class="mb-3"
-    />
+    <div class="flex flex-wrap items-end justify-between gap-2 mb-3">
+      <PanelTitle
+        variant="label"
+        title="Recent iterations"
+        subtitle="Finished passes, newest first."
+        info="Each bar segment is one step, as wide as it took; skipped steps take no
+          time and are counted instead. Expand a pass for its steps."
+      />
+      <UTabs
+        v-model="lane"
+        :items="laneTabs"
+        :content="false"
+        size="xs"
+        variant="pill"
+        color="neutral"
+      />
+    </div>
 
     <div
       v-if="error"
@@ -46,87 +89,26 @@ const iterationBranches = computed<Map<string, LaneBranch[]>>(
     >
       Failed to load recent iterations.
     </div>
-    <div v-else-if="pending" class="space-y-3">
-      <USkeleton v-for="i in 3" :key="i" class="h-16 w-full rounded-lg" />
+    <div v-else-if="pending" class="space-y-2">
+      <USkeleton v-for="i in 4" :key="i" class="h-10 w-full rounded-lg" />
     </div>
     <div
       v-else-if="iterations.length === 0"
       class="py-8 text-center text-sm text-muted border border-default rounded-lg"
     >
-      No finished iterations yet.
+      {{ lane === 'all' ? 'No finished iterations yet.' : 'No finished iterations of this lane yet.' }}
     </div>
-    <div v-else class="space-y-3">
-      <button
+    <div v-else class="rounded-lg border border-default bg-elevated/25 overflow-hidden">
+      <ProcessesIterationRow
         v-for="iteration in iterations"
         :key="iteration.iterationId"
-        type="button"
-        class="block w-full text-left rounded-lg border border-default p-4 bg-elevated/25 transition-colors hover:bg-elevated/50 hover:border-primary/40"
-        title="View iteration summary"
-        @click="$emit('openIteration', iteration)"
-      >
-        <div class="flex items-center justify-between gap-2 mb-3">
-          <span class="text-sm text-muted">
-            {{ formatDateTime(iteration.startedAtUtc) }}
-          </span>
-          <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0" />
-        </div>
-
-        <!-- One branch per lane the pass ran — normally exactly one, since a
-             pass belongs to a lane; a `Full` deployment shows both. -->
-        <div
-          v-for="branch in iterationBranches.get(iteration.iterationId)"
-          :key="branch.id"
-          class="relative border-l-2 pl-3 not-first:mt-3"
-          :class="laneRailClass(branch.outcome)"
-        >
-          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1.5">
-            <span class="text-xs font-medium text-muted">{{ branch.label }}</span>
-            <span v-if="branch.durationMs !== null" class="text-[11px] text-dimmed tabular-nums">
-              · {{ formatElapsed(branch.durationMs) }}
-            </span>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-y-2">
-            <template
-              v-for="(link, i) in branch.links"
-              :key="link.processName"
-            >
-              <UTooltip :ui="PROCESS_TOOLTIP_UI">
-                <span
-                  class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1"
-                  :class="{
-                    'border-primary/50 bg-primary/10': link.outcome === 'Running',
-                    'border-success/30 bg-success/5': link.outcome === 'Success',
-                    'border-error/40 bg-error/10': link.outcome === 'Failed',
-                    'border-warning/40 bg-warning/10': link.outcome === 'Abandoned',
-                    'border-default bg-default opacity-50': link.outcome === 'notRun',
-                  }"
-                >
-                  <UIcon
-                    :name="outcomeIcon(link.outcome)"
-                    class="size-3.5 shrink-0"
-                    :class="outcomeTextClass(link.outcome)"
-                  />
-                  <span
-                    class="text-[11px] font-medium whitespace-nowrap"
-                    :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-default'"
-                  >
-                    {{ chainLabel(link.processName) }}
-                  </span>
-                </span>
-                <template #content>
-                  <ProcessTooltipContent :process-name="link.processName" :context="iterationChipContext(link)" />
-                </template>
-              </UTooltip>
-              <UIcon
-                v-if="i < branch.links.length - 1"
-                name="i-lucide-chevron-right"
-                class="size-3.5 text-dimmed shrink-0 mx-0.5"
-              />
-            </template>
-          </div>
-        </div>
-      </button>
+        :iteration="iteration"
+        :parallel="parallelById.get(iteration.iterationId) ?? []"
+        :open="expanded.has(iteration.iterationId)"
+        @update:open="setExpanded(iteration.iterationId, $event)"
+        @open-run="$emit('openRun', $event)"
+        @open-iteration="$emit('openIteration', $event)"
+      />
     </div>
 
     <!-- Iteration pagination -->
