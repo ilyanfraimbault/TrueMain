@@ -45,8 +45,12 @@ watch(() => route.query.view, (raw) => {
 interface TabPanel { refresh: () => void, pending: boolean }
 const riotPanel = ref<TabPanel | null>(null)
 const scrapersPanel = ref<TabPanel | null>(null)
-const activePanel = computed(() =>
-  view.value === 'riot-api' ? riotPanel.value : view.value === 'scrapers' ? scrapersPanel.value : null)
+const activePanel = computed(() => {
+  if (view.value === 'riot-api') {
+    return riotPanel.value
+  }
+  return view.value === 'scrapers' ? scrapersPanel.value : null
+})
 
 // --- Filters -----------------------------------------------------------------
 const processName = ref('')

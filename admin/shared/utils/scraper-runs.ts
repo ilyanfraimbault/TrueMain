@@ -53,7 +53,7 @@ export interface ScraperSummary {
   report: Record<string, unknown>
 }
 
-const STEP_STATUSES: readonly ScraperStepStatus[] = ['running', 'done', 'failed', 'skipped']
+const STEP_STATUSES: ReadonlySet<string> = new Set<ScraperStepStatus>(['running', 'done', 'failed', 'skipped'])
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null
@@ -71,7 +71,7 @@ function parseStep(raw: unknown): ScraperStep | null {
   if (!name) {
     return null
   }
-  const status = STEP_STATUSES.includes(raw.status as ScraperStepStatus)
+  const status = typeof raw.status === 'string' && STEP_STATUSES.has(raw.status)
     ? raw.status as ScraperStepStatus
     : 'done'
   const counters: Record<string, number | string> = {}
@@ -124,7 +124,7 @@ export function parseScraperSummary(summary: unknown): ScraperSummary {
 
 /** Share of a progress gauge done, in [0, 100], or null when the total is unknown. */
 export function progressPercent(progress: ScraperProgress | null): number | null {
-  if (!progress || progress.total === null) {
+  if (progress?.total == null) {
     return null
   }
   return Math.min(100, Math.round((progress.done / progress.total) * 100))

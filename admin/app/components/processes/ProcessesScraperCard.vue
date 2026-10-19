@@ -6,6 +6,9 @@ import type { ScraperProcess } from '~~/shared/utils/scraper-runs'
 import { formatDateTime, formatElapsed, formatTimeAgo } from '~~/shared/utils/format'
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
 import { parseScraperSummary } from '~~/shared/utils/scraper-runs'
+import { useIntervalFn } from '@vueuse/core'
+import { computed, ref } from 'vue'
+import { statusBadgeUi } from '~/utils/process-chain'
 
 const props = defineProps<{
   scraper: ScraperProcess

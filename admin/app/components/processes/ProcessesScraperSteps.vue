@@ -3,6 +3,8 @@
 // its status, how long it took (or has been running) and its own counters. Shared by the
 // Scrapers tab and the run detail slide-over.
 import type { ScraperProgress, ScraperStep, ScraperStepStatus } from '~~/shared/utils/scraper-runs'
+import { useIntervalFn } from '@vueuse/core'
+import { computed, ref } from 'vue'
 import { formatElapsed, formatNumber } from '~~/shared/utils/format'
 import { humanizeKey } from '~~/shared/utils/process-summary'
 import { progressPercent } from '~~/shared/utils/scraper-runs'
@@ -31,9 +33,13 @@ function stepDuration(step: ScraperStep): string {
     return ''
   }
   const start = new Date(step.startedAtUtc).getTime()
-  const end = step.finishedAtUtc
-    ? new Date(step.finishedAtUtc).getTime()
-    : (step.status === 'running' && props.live ? now.value : Number.NaN)
+  let end = Number.NaN
+  if (step.finishedAtUtc) {
+    end = new Date(step.finishedAtUtc).getTime()
+  }
+  else if (step.status === 'running' && props.live) {
+    end = now.value
+  }
   return Number.isNaN(start) || Number.isNaN(end) ? '' : formatElapsed(end - start)
 }
 
