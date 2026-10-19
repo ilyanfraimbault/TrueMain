@@ -85,19 +85,23 @@ public sealed class HarvestProcess(
             coverage.SelectedKnown);
 
         // The cap is a real bound on coverage, so it is never applied silently (#495): every
-        // truncated run says so at Warning, with the per-platform split that also exposes an
-        // imbalanced run (one region eating the cross-platform budget). droppedNew > 0 is the
-        // one to act on — new discovery is being deferred, which is how the harvest starves.
+        // truncated run says so, with the per-platform split that also exposes an imbalanced
+        // run (one region eating the cross-platform budget). Only droppedNew > 0 is a Warning —
+        // new discovery is being deferred, which is how the harvest starves. A run that only
+        // caps the known-account refresh is the intended bound from #1361 (#2135), so it stays
+        // at Information and reports how many runs a full refresh rotation takes instead.
         if (coverage.IsBudgetBound)
         {
-            logger.LogWarning(
+            logger.Log(
+                coverage.DroppedNew > 0 ? LogLevel.Warning : LogLevel.Information,
                 OpsEvents.HarvestBudgetExhausted,
-                "Harvest budget exhausted: maxCandidatesPerRun={MaxCandidatesPerRun} did not cover the eligible pool — droppedNew={DroppedNew} of {EligibleNew}, droppedKnown={DroppedKnown} of {EligibleKnown}. Per platform: {PerPlatform}.",
+                "Harvest budget exhausted: maxCandidatesPerRun={MaxCandidatesPerRun} did not cover the eligible pool — droppedNew={DroppedNew} of {EligibleNew}, droppedKnown={DroppedKnown} of {EligibleKnown}, knownRefreshRotationRuns={KnownRefreshRotationRuns}. Per platform: {PerPlatform}.",
                 options.MaxCandidatesPerRun,
                 coverage.DroppedNew,
                 coverage.EligibleNew,
                 coverage.DroppedKnown,
                 coverage.EligibleKnown,
+                KnownRefreshRotationRuns(coverage),
                 FormatPerPlatform(coverage));
         }
 
@@ -168,4 +172,13 @@ public sealed class HarvestProcess(
             ", ",
             coverage.Platforms.Select(platform =>
                 $"{platform.PlatformId} new={platform.SelectedNew}/{platform.EligibleNew} known={platform.SelectedKnown}/{platform.EligibleKnown}"));
+
+    /// <summary>
+    /// How many runs refreshing <c>selectedKnown</c> accounts each take to go through the whole
+    /// known pool once — a growing rotation is the slow-moving signal behind a capped refresh.
+    /// </summary>
+    internal static string KnownRefreshRotationRuns(HarvestCoverage coverage)
+        => coverage.SelectedKnown > 0
+            ? ((coverage.EligibleKnown + coverage.SelectedKnown - 1) / coverage.SelectedKnown).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : "never";
 }
