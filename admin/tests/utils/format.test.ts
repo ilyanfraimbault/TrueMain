@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  formatClock,
   formatDateTime,
   formatElapsed,
   formatNumber,
@@ -231,5 +232,18 @@ describe('formatTimeAgo', () => {
   it('does not render a clock-skewed future timestamp as a negative age', () => {
     at('2026-06-09T12:00:00Z')
     expect(formatTimeAgo('2026-06-09T12:05:00Z')).toBe('just now')
+  })
+})
+
+describe('formatClock', () => {
+  it('prints a 24-hour clock, midnight as 00', () => {
+    // Built in local time so the assertion holds in any timezone the suite runs in.
+    expect(formatClock(new Date(2026, 9, 18, 0, 5).toISOString())).toBe('00:05')
+    expect(formatClock(new Date(2026, 9, 18, 19, 51).toISOString())).toBe('19:51')
+  })
+
+  it('renders an em dash for a missing or invalid value', () => {
+    expect(formatClock(null)).toBe('—')
+    expect(formatClock('not a date')).toBe('—')
   })
 })

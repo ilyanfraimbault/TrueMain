@@ -1,5 +1,7 @@
 // Ingestor process runs and pipeline iterations — `GET /api/ops/process-runs`, `/process-iterations`.
 
+import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
+
 /**
  * `Abandoned` is a run that started but never recorded an outcome: its owning ingestor
  * died mid-flight — assigned at startup (orphaned `Running` rows are reconciled) or on
@@ -112,6 +114,11 @@ export interface ProcessIterationsFilters {
    * total, so a completed-history list paginates correctly. Default false.
    */
   finishedOnly?: boolean
+  /**
+   * Only the passes that ran this lane (a `Full` pass counts for both). Omit for every
+   * pass, single-process ones included.
+   */
+  lane?: PipelineLaneId
 }
 
 /** Filters for `GET /api/ops/process-runs`. Empty/undefined = no filter. */
