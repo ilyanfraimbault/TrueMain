@@ -275,7 +275,7 @@ services:
       <<: *ingestor-environment
       Job__Mode: ${INGESTOR_AGGREGATE_JOB_MODE:-AggregateLane}
       Job__RunOnce: "false"
-      Job__IntervalMinutes: "${INGESTOR_AGGREGATE_INTERVAL_MINUTES:-20}"
+      Job__IntervalMinutes: "${INGESTOR_AGGREGATE_INTERVAL_MINUTES:-120}"
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor-aggregate
     volumes:
       - truemain_preprod_ingestor_aggregate_crashes:/home/app/crashes
