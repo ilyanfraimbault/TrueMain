@@ -8,6 +8,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
+using TrueMain.Http;
 using TrueMain.LogIngest;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
@@ -49,7 +50,8 @@ const string frontendCorsPolicy = "FrontendCors";
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+// A read backing off after a recent failure answers 503 + Retry-After, not a generic 500.
+builder.Services.AddControllers(options => options.Filters.Add<ReadBackoffExceptionFilter>());
 builder.Services.AddProblemDetails(options =>
 {
     // Every ProblemDetails response — validation, not-found, or unhandled 5xx —

@@ -5,8 +5,14 @@ using System.Text.Json;
 using Data.Entities;
 using AwesomeAssertions;
 using Ingestor.Processes;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
+using TrueMain.Services;
+using TrueMain.Services.Ops.Stats;
 using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
@@ -98,6 +104,26 @@ public sealed class ChampionStatsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetChampionStatsAsync_ShouldAnswer503WithRetryAfter_WhileTheReadBacksOff()
+    {
+        await using var factory = new BackingOffApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.GetAsync("/ops/stats/champions");
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        response.Headers.RetryAfter.Should().NotBeNull();
+        response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(43), "the delay is rounded up to whole seconds");
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        document.RootElement.GetProperty("status").GetInt32().Should().Be(503);
+        document.RootElement.TryGetProperty("traceId", out _).Should().BeTrue();
+        document.RootElement.GetProperty("detail").GetString().Should()
+            .NotContain("57014", "the failure behind the window is logged, not echoed");
+    }
+
+    [Fact]
     public async Task GetChampionStatsAsync_ShouldRequireOpsApiKey()
     {
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -110,7 +136,7 @@ public sealed class ChampionStatsApiIntegrationTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private static HttpClient CreateClient(ApiWebApplicationFactory factory)
+    private static HttpClient CreateClient(TrueMainWebApplicationFactory<Program> factory)
     {
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -205,6 +231,35 @@ public sealed class ChampionStatsApiIntegrationTests : IAsyncLifetime
 
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
         : TrueMainWebApplicationFactory<Program>(fixture);
+
+    /// <summary>API factory whose champion stats read is inside its failure backoff window.</summary>
+    private sealed class BackingOffApiWebApplicationFactory(PostgresFixture fixture)
+        : TrueMainWebApplicationFactory<Program>(fixture)
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IChampionStatsQueryService>();
+                services.AddScoped<IChampionStatsQueryService, BackingOffChampionStatsQueryService>();
+            });
+        }
+    }
+
+    private sealed class BackingOffChampionStatsQueryService : IChampionStatsQueryService
+    {
+        public Task<IReadOnlyList<TrueMain.ReadModels.Ops.ChampionStatRow>> GetAsync(
+            string? region,
+            string? patch,
+            string? position,
+            int? queue,
+            CancellationToken ct)
+            => throw new ReadBackoffException(
+                "backing off",
+                new InvalidOperationException("57014: canceling statement due to statement timeout"),
+                TimeSpan.FromSeconds(42.3));
+    }
 
     private sealed class ChampionStatRowTestContract
     {

@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Time.Testing;
 using TrueMain.Services;
 
 namespace TrueMain.UnitTests;
@@ -35,6 +36,25 @@ public sealed class FailureBackoffTests
 
         backingOff.Which.InnerException.Should().BeSameAs(timeout);
         calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RunAsync_ReportsTheTimeLeftInTheWindow()
+    {
+        using var cache = SizeLimitedCache();
+        var clock = new FakeTimeProvider();
+
+        await FluentActions.Awaiting(() => FailureBackoff.RunAsync<int>(
+                cache, "read", Window, () => throw new InvalidOperationException(), clock))
+            .Should().ThrowAsync<InvalidOperationException>();
+
+        clock.Advance(TimeSpan.FromSeconds(20));
+
+        var backingOff = await FluentActions.Awaiting(() => FailureBackoff.RunAsync(
+                cache, "read", Window, () => Task.FromResult(1), clock))
+            .Should().ThrowAsync<ReadBackoffException>();
+
+        backingOff.Which.RetryAfter.Should().Be(TimeSpan.FromSeconds(40));
     }
 
     [Fact]
