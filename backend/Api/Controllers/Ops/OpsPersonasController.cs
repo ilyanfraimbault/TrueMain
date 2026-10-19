@@ -33,12 +33,6 @@ public sealed class OpsPersonasController(IPersonaUpsertService personaUpsertSer
                 + $"{PersonaBatchRequest.BatchLimit} per request. Send several batches.");
         }
 
-        var results = new List<PersonaUpsertResult>(entries.Count);
-        foreach (var entry in entries)
-        {
-            results.Add(await personaUpsertService.UpsertAsync(entry, ct));
-        }
-
-        return Ok(new PersonaBatchResponse { Personas = results });
+        return Ok(new PersonaBatchResponse { Personas = await personaUpsertService.UpsertBatchAsync(entries, ct) });
     }
 }

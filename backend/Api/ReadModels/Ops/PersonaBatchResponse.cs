@@ -29,8 +29,10 @@ public sealed record PersonaAccountUpsertResult
 
     /// <summary>
     /// <c>linked</c> — resolved to a tracked account; <c>pending</c> — stored, not tracked yet;
-    /// <c>seeded</c> — stored and queued through the seed intake; <c>conflict</c> — the Riot ID or
-    /// its account already belongs to another persona, left untouched; <c>invalid</c> — malformed.
+    /// <c>seeded</c> — stored and queued through the seed intake; <c>untracked</c> — stored, on a
+    /// platform the pipeline does not ingest, so never seeded; <c>conflict</c> — the Riot ID or
+    /// its account already belongs to another persona, left untouched; <c>invalid</c> — malformed,
+    /// including a placeholder such as <c>undefined</c> for a name or tag.
     /// </summary>
     public string Status { get; init; } = string.Empty;
 }
