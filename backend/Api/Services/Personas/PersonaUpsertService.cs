@@ -7,13 +7,15 @@ using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Requests.Ops;
 using TrueMain.Services.Ops.Accounts;
-using TrueMain.Services.Truemains.Identity;
 
 namespace TrueMain.Services.Personas;
 
 public interface IPersonaUpsertService
 {
     Task<PersonaUpsertResult> UpsertAsync(PersonaUpsertEntry entry, CancellationToken ct);
+
+    /// <summary>Upserts every entry in order, one result each, and reports the batch once.</summary>
+    Task<IReadOnlyList<PersonaUpsertResult>> UpsertBatchAsync(IReadOnlyList<PersonaUpsertEntry> entries, CancellationToken ct);
 }
 
 /// <summary>
@@ -34,6 +36,42 @@ public sealed partial class PersonaUpsertService(
     ISeedRequestService seedRequestService,
     ILogger<PersonaUpsertService> logger) : IPersonaUpsertService
 {
+    // What a source serialises when it has no value: a JavaScript `undefined` or `null` printed as
+    // text (#2134). Never a Riot ID worth storing, let alone seeding.
+    private static readonly HashSet<string> PlaceholderNames =
+        new(StringComparer.OrdinalIgnoreCase) { "undefined", "null", "none", "nan" };
+
+    public async Task<IReadOnlyList<PersonaUpsertResult>> UpsertBatchAsync(
+        IReadOnlyList<PersonaUpsertEntry> entries, CancellationToken ct)
+    {
+        var results = new List<PersonaUpsertResult>(entries.Count);
+        foreach (var entry in entries)
+        {
+            results.Add(await UpsertAsync(entry, ct));
+        }
+
+        // One line per batch, not one per account (#2134): a scraper batch lists dozens of
+        // accounts on platforms the pipeline does not ingest, all stored and none seeded.
+        var untracked = results
+            .SelectMany(r => r.Accounts)
+            .Where(a => a.Status == AccountStatus.Untracked)
+            .GroupBy(a => a.PlatformId, StringComparer.Ordinal)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => $"{g.Key}={g.Count()}")
+            .ToList();
+        if (untracked.Count > 0)
+        {
+            logger.LogInformation(
+                "Persona batch of {Personas}: {Accounts} account(s) on untracked platforms stored without seeding ({Platforms}).",
+                results.Count,
+                results.Sum(r => r.Accounts.Count(a => a.Status == AccountStatus.Untracked)),
+                string.Join(", ", untracked));
+        }
+
+        return results;
+    }
+
     public async Task<PersonaUpsertResult> UpsertAsync(PersonaUpsertEntry entry, CancellationToken ct)
     {
         var slug = entry.Slug?.Trim() ?? string.Empty;
@@ -165,6 +203,7 @@ public sealed partial class PersonaUpsertService(
         };
 
         if (gameName.Length is 0 or > 32 || tagLine.Length is 0 or > 8
+            || PlaceholderNames.Contains(gameName) || PlaceholderNames.Contains(tagLine)
             || !PlatformId.TryParse(result.PlatformId, out var platformId))
         {
             return result with { Status = AccountStatus.Invalid };
@@ -192,7 +231,7 @@ public sealed partial class PersonaUpsertService(
                 listed.ResolvedAtUtc = DateTime.UtcNow;
             }
 
-            return result with { Status = listed.RiotAccountId is null ? AccountStatus.Pending : AccountStatus.Linked };
+            return result with { Status = listed.RiotAccountId is not null ? AccountStatus.Linked : UnlinkedStatus(platform) };
         }
 
         var ownedElsewhere = await db.PersonaAccounts.AnyAsync(
@@ -226,9 +265,15 @@ public sealed partial class PersonaUpsertService(
             return result with { Status = AccountStatus.Linked };
         }
 
-        // Only on a platform the site shows: seeding an account it could never display would
-        // spend Riot budget for nothing.
-        if (!seedMissing || RegionFilterParser.RouteToSlug(platform) is null)
+        // Only on a platform the pipeline ingests (#2134): match ingestion never claims a candidate
+        // elsewhere, so a seed there spends Riot budget on an account that is never ingested — and
+        // a guessed platform mostly ends on a summoner-v4 404 (#2133).
+        if (!SeedRequestService.IsTrackedPlatform(platform))
+        {
+            return result with { Status = AccountStatus.Untracked };
+        }
+
+        if (!seedMissing)
         {
             return result with { Status = AccountStatus.Pending };
         }
@@ -276,6 +321,9 @@ public sealed partial class PersonaUpsertService(
         return id is not null && persona.Accounts.Any(a => a.RiotAccountId == id) ? null : id;
     }
 
+    private static string UnlinkedStatus(string platform) =>
+        SeedRequestService.IsTrackedPlatform(platform) ? AccountStatus.Pending : AccountStatus.Untracked;
+
     private Task<bool> IsLinkedElsewhereAsync(Persona persona, Guid accountId, CancellationToken ct) =>
         db.PersonaAccounts.AnyAsync(a => a.RiotAccountId == accountId && a.PersonaId != persona.Id, ct);
 
@@ -286,6 +334,7 @@ public sealed partial class PersonaUpsertService(
     {
         public const string Linked = "linked";
         public const string Pending = "pending";
+        public const string Untracked = "untracked";
         public const string Seeded = "seeded";
         public const string Conflict = "conflict";
         public const string Invalid = "invalid";
