@@ -98,6 +98,7 @@ public static class MongoLoggingServiceCollectionExtensions
         // the seed-request queue (written by the API, claimed by ManualSeedProcess).
         // Direct-call stores like the snapshots — no sink, no channel.
         services.TryAddSingleton<IProcessRunStore, ProcessRunStore>();
+        services.TryAddSingleton<IExternalProcessRunStore, ExternalProcessRunStore>();
         services.TryAddSingleton<IProcessRunIntervalQuery, ProcessRunIntervalQuery>();
         services.TryAddSingleton<ISeedRequestStore, SeedRequestStore>();
 

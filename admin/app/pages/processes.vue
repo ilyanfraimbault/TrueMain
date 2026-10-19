@@ -20,26 +20,37 @@ import { pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
 
 // --- Tabs (#1410) ------------------------------------------------------------
 // `runs` is the default and stays out of the URL; `/riot-api` redirects here with
-// `?view=riot-api`.
+// `?view=riot-api`. `scrapers` (#2119) holds the ops scripts kept outside the repo.
+type ProcessesView = 'runs' | 'riot-api' | 'scrapers'
 const route = useRoute()
 const router = useRouter()
-const view = ref<'runs' | 'riot-api'>(route.query.view === 'riot-api' ? 'riot-api' : 'runs')
+function parseView(raw: unknown): ProcessesView {
+  return raw === 'riot-api' || raw === 'scrapers' ? raw : 'runs'
+}
+const view = ref<ProcessesView>(parseView(route.query.view))
 watch(view, (value) => {
   router.replace({
-    query: { ...route.query, view: value === 'riot-api' ? 'riot-api' : undefined },
+    query: { ...route.query, view: value === 'runs' ? undefined : value },
   })
 })
 // The ⌘K palette (#1415) links straight to the Riot API tab, and can do so while
 // /processes is already open — the component is reused, so setup doesn't re-run
 // and only the query changes.
 watch(() => route.query.view, (raw) => {
-  view.value = raw === 'riot-api' ? 'riot-api' : 'runs'
+  view.value = parseView(raw)
 })
 
-// The Riot API tab owns its own fetch and filters, and exposes `refresh`/`pending`
+// The Riot API and Scrapers tabs own their fetches, and expose `refresh`/`pending`
 // so the single navbar button below drives whichever tab is open.
-interface RiotApiPanel { refresh: () => void, pending: boolean }
-const riotPanel = ref<RiotApiPanel | null>(null)
+interface TabPanel { refresh: () => void, pending: boolean }
+const riotPanel = ref<TabPanel | null>(null)
+const scrapersPanel = ref<TabPanel | null>(null)
+const activePanel = computed(() => {
+  if (view.value === 'riot-api') {
+    return riotPanel.value
+  }
+  return view.value === 'scrapers' ? scrapersPanel.value : null
+})
 
 // --- Filters -----------------------------------------------------------------
 const processName = ref('')
@@ -241,9 +252,9 @@ function openIterationDetail(iteration: ProcessIteration) {
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="view === 'riot-api' ? (riotPanel?.pending ?? false) : pending"
+            :loading="view === 'runs' ? pending : (activePanel?.pending ?? false)"
             aria-label="Refresh"
-            @click="view === 'riot-api' ? riotPanel?.refresh() : refreshRuns()"
+            @click="view === 'runs' ? refreshRuns() : activePanel?.refresh()"
           />
         </template>
       </UDashboardNavbar>
@@ -265,6 +276,13 @@ function openIterationDetail(iteration: ProcessIteration) {
               icon="i-lucide-gauge"
               label="Riot API"
               @click="void (view = 'riot-api')"
+            />
+            <UButton
+              :color="view === 'scrapers' ? 'primary' : 'neutral'"
+              :variant="view === 'scrapers' ? 'solid' : 'ghost'"
+              icon="i-lucide-bot"
+              label="Scrapers"
+              @click="void (view = 'scrapers')"
             />
           </div>
         </template>
@@ -309,6 +327,7 @@ function openIterationDetail(iteration: ProcessIteration) {
 
     <template #body>
       <ProcessesRiotApi v-if="view === 'riot-api'" ref="riotPanel" />
+      <ProcessesScrapers v-else-if="view === 'scrapers'" ref="scrapersPanel" />
 
       <template v-else>
         <FetchErrorAlert
