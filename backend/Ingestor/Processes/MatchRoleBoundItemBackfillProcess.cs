@@ -1,4 +1,5 @@
 using Data;
+using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
 using Ingestor.Processes.Summaries;
@@ -86,6 +87,11 @@ public sealed class MatchRoleBoundItemBackfillProcess(
                 resolved += updated;
                 inferredBoots += value > 0 ? updated : 0;
             }
+
+            // The slot is part of the final inventory the pattern aggregation reads its
+            // boots from, so a slice built before the backfill is rebuilt (#1367).
+            await PatternAggregationInvalidation.InvalidateMatchesOfParticipantsAsync(
+                db, rows.Select(row => row.Id).ToList(), ct);
 
             if (rows.Count < BatchSize)
             {

@@ -50,6 +50,22 @@ Third case, `matches.BansAggregated` (#920): backfilled to `true` like #811 but 
 source rows don't exist. Riot payloads aren't kept, so a match ingested before #920 has no `match_bans` rows at
 all; folding it would add to the ban *denominator* while contributing no bans and deflate every rate.
 
+**The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back (2026-10-19).**
+`champion_aggregate_scopes` was the last full recompute — every live scope rebuilt every run, about an hour on prod
+and two on preprod late in a patch, growing with the patch. It is not additive (a scope is replaced, never added
+to), so it does not take the other folds' fold-once flag. The unit is the slice, (account, champion, patch,
+platform): every scope lives in exactly one, and a slice rebuilt from its own games is complete. A run rebuilds the
+slices of the pending matches (`matches.PatternAggregated = false`, timeline in) and flags them. Because the
+rebuild is a replace, a change to what a slice reads is handled by sending the match back instead of by the
+"live with the first read" rule the additive folds follow: the elo stamping, the lane fix and the role-bound
+backfill clear the flag of the matches they touch (`PatternAggregationInvalidation`), MainAnalysis clears it for
+every champion whose main-ness it flips. All of them run on the aggregate lane before the pattern step, so no
+pattern run can set back a flag they cleared. The bracket is `match_participants.elo_bracket`, read as `UNRANKED`
+while empty — no longer re-derived from the snapshots each run, so a scope and the live panels bucket a game the
+same way. The migration ships the flag `false` everywhere: the first run is one last full rebuild.
+`PatternAggregation:RebuildAll` sends the window back for one run when the slice shape changes, or when
+`AggregateNonMainPopulation` is flipped — #1367, #1365.
+
 **Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one.**
 Bans come from every ingested match; `champion_aggregate_scopes` is per tracked account, so a ban count folded
 in there would be a different population under the same roof. Hence `champion_ban_stats` (numerator) +

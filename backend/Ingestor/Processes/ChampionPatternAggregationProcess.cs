@@ -6,10 +6,43 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
+/// <summary>
+/// Builds the champion pattern aggregates — <c>champion_aggregate_scopes</c> and their
+/// <c>champion_aggregate_patterns</c> — incrementally (#1367). It used to rebuild every
+/// scope of the retained window on every run, so a run cost the whole patch and grew with
+/// it: about an hour on production and two on preprod late in a patch.
+///
+/// <para>
+/// <b>The unit is the slice</b> (<see cref="AggregateSliceKey"/>): one account's games on
+/// one champion, patch and platform. A scope adds the position and the elo bracket, both
+/// read off the slice's own games, so a slice rebuilt from its games alone is complete.
+/// A run takes the pending matches (<c>matches.PatternAggregated = false</c>), rebuilds
+/// every slice a tracked participant of theirs belongs to, then flags them. Steady state
+/// that is what was ingested since the previous run, at a few games per slice.
+/// </para>
+///
+/// <para>
+/// <b>Not fold-once.</b> The other per-match folds add counters and can never take a game
+/// back out, so they read a participant row once and live with it. A slice is replaced
+/// whole, so this one rebuilds instead: whatever rewrites a column the slice reads sends
+/// the match back — the rank stamp, the lane fix and the role-bound backfill
+/// (<c>PatternAggregationInvalidation</c>), and the main analysis when a player's
+/// main-ness flips (<c>IMatchRepository.InvalidatePatternAggregationAsync</c>). The elo
+/// bracket is the participant's stamp, no longer re-derived from the snapshots each run,
+/// so a scope and the live panels bucket a game the same way.
+/// </para>
+///
+/// <para>
+/// Old patches stay frozen exactly as before (#466): a pending match outside the retained
+/// window rebuilds nothing and is flagged. <c>PatternAggregation:RebuildAll</c> sends the
+/// whole window back for one run when the slice shape changes.
+/// </para>
+/// </summary>
 public sealed class ChampionPatternAggregationProcess(
     ILogger<ChampionPatternAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
     IOptions<MatchDataRetentionOptions> retentionOptions,
+    IOptions<PatternAggregationOptions> options,
     ChampionPatternSourceRowReader sourceRowReader,
     ChampionPatternAggregateBuilder aggregateBuilder,
     ChampionPatternAggregatePersister aggregatePersister,
@@ -21,78 +54,73 @@ public sealed class ChampionPatternAggregationProcess(
     {
         var queueId = (int)analysisOptions.Value.QueueId;
 
-        // Chunk the aggregation one champion at a time. Loading every live-patch
-        // match_participant (with its full item/skill timeline) into memory at
-        // once grew the managed heap to ~6 GB and got the process OOM-killed,
-        // taking the whole VPS down with it. Per-champion the working set is
-        // bounded by a single champion's rows, and each champion's replace-by-
-        // scope persist commits independently — a mid-run crash leaves already-
-        // processed champions on fresh data and the rest on their previous data,
-        // every scope internally consistent. The next run finishes the rest.
-        // Off unless ops turns it on: this loop runs on every full-pipeline cycle,
-        // so the widened population would otherwise land on the next run after a
-        // deploy rather than when someone has checked the chunking holds at ~4.3x
-        // the rows (#1346, #601).
+        // Off unless ops turns it on: widening to the non-main population is ~4.3x the
+        // rows on production, on the process that once OOM-killed the VPS (#1346, #601).
         var includeNonMains = analysisOptions.Value.AggregateNonMainPopulation;
 
-        // One snapshot of the rebuildable window for the whole pass, shared by the
-        // cleanup keys and the source rows of every champion below: a patch that enters
-        // it mid-loop must not be half-rebuilt against a cleanup set that predates it.
+        // One snapshot of the rebuildable window for the whole run (#1549): every slice
+        // rebuilt below comes from inside it, and a patch that enters it mid-run is picked
+        // up by the next run.
         var livePatchKeys = await sourceRowReader.LoadLivePatchKeysAsync(
             queueId, retentionOptions.Value.RetainedPatchCount, ct);
-        var championIds = await sourceRowReader.LoadChampionIdsAsync(queueId, ct);
 
-        if (championIds.Count == 0)
+        if (options.Value.RebuildAll)
         {
-            logger.LogInformation("No champions available for champion pattern aggregation.");
-            return new ChampionPatternNoWorkSummary("No champions available for champion pattern aggregation.", 0);
+            var requeued = await sourceRowReader.RequeueWindowAsync(queueId, livePatchKeys, ct);
+            logger.LogWarning(
+                "PatternAggregation:RebuildAll is on: {Requeued} match(es) of the retained window sent back. "
+                + "Turn it off once this run has completed.",
+                requeued);
+        }
+
+        var work = await sourceRowReader.LoadPendingWorkAsync(queueId, livePatchKeys, ct);
+        if (work.MatchIds.Count == 0)
+        {
+            return new ChampionPatternNoWorkSummary("No pending match for the champion pattern aggregation.", 0);
         }
 
         var aggregatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
         var totalSourceRows = 0;
         var totalScopes = 0;
         var totalPatterns = 0;
-        var processedChampions = 0;
+        var champions = new HashSet<int>();
         var gameVersions = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var championId in championIds)
+        // Batched by account: a batch's working set is those accounts' games on the
+        // champions being rebuilt, never a whole champion's patch. Each batch commits on
+        // its own, so a crash leaves every slice internally consistent; the matches are
+        // flagged only at the end, so the next run redoes the lot.
+        var batches = work.Slices
+            .GroupBy(slice => slice.RiotAccountId)
+            .OrderBy(group => group.Key)
+            .Chunk(options.Value.AccountsPerBatch);
+
+        foreach (var accounts in batches)
         {
             ct.ThrowIfCancellationRequested();
 
-            var inputs = await sourceRowReader.LoadAggregationInputsAsync(
-                queueId, championId, livePatchKeys, includeNonMains, ct);
-            if (inputs.SourceRows.Count == 0 && inputs.ExistingAggregateScopes.Count == 0)
-            {
-                continue;
-            }
-
-            var result = await aggregateBuilder.BuildAggregatesAsync(inputs.SourceRows, aggregatedAtUtc, ct);
-            await aggregatePersister.ReplaceAggregatesAsync(
-                inputs.ExistingAggregateScopes,
-                result.Scopes,
-                result.Patterns,
-                ct);
+            var slices = accounts.SelectMany(account => account).ToList();
+            var sourceRows = await sourceRowReader.LoadSourceRowsAsync(queueId, slices, includeNonMains, ct);
+            var result = await aggregateBuilder.BuildAggregatesAsync(sourceRows, aggregatedAtUtc, ct);
+            await aggregatePersister.ReplaceSlicesAsync(queueId, slices, result.Scopes, result.Patterns, ct);
 
             totalSourceRows += result.SourceRowCount;
             totalScopes += result.Scopes.Count;
             totalPatterns += result.Patterns.Count;
-            processedChampions++;
             foreach (var scope in result.Scopes)
             {
+                champions.Add(scope.ChampionId);
                 gameVersions.Add(scope.GameVersion);
             }
-
-            logger.LogDebug(
-                "Champion {ChampionId} pattern aggregation: sourceRows={SourceRows}, scopes={ScopeCount}, patterns={PatternCount}.",
-                championId,
-                result.SourceRowCount,
-                result.Scopes.Count,
-                result.Patterns.Count);
         }
 
+        await sourceRowReader.MarkAggregatedAsync(work.MatchIds, ct);
+
         logger.LogInformation(
-            "Champion pattern aggregation summary: champions={Champions}, sourceRows={SourceRows}, scopes={ScopeCount}, patterns={PatternCount}.",
-            processedChampions,
+            "Champion pattern aggregation summary: matches={Matches}, slices={Slices}, sourceRows={SourceRows}, "
+            + "scopes={ScopeCount}, patterns={PatternCount}.",
+            work.MatchIds.Count,
+            work.Slices.Count,
             totalSourceRows,
             totalScopes,
             totalPatterns);
@@ -102,6 +130,8 @@ public sealed class ChampionPatternAggregationProcess(
             totalScopes,
             totalPatterns,
             gameVersions.Count,
-            processedChampions);
+            champions.Count,
+            work.MatchIds.Count,
+            work.Slices.Count);
     }
 }

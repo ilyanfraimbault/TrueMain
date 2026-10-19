@@ -149,6 +149,10 @@ public static class OptionsConfigurationExtensions
                 configuration, MatchupLeadAggregationOptions.SectionName)
             .ValidateOnStart();
 
+        services.AddOptionsWithValidator<PatternAggregationOptions, PatternAggregationOptionsValidator>(
+                configuration, PatternAggregationOptions.SectionName)
+            .ValidateOnStart();
+
         services.AddOptionsWithValidator<SynergyAggregationOptions, SynergyAggregationOptionsValidator>(
                 configuration, SynergyAggregationOptions.SectionName)
             .ValidateOnStart();

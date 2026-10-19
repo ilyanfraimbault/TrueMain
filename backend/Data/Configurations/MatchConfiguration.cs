@@ -124,6 +124,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.PatternAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         // PlatformId has no index of its own: it is the leading prefix of this one (#1244).
         entity.HasIndex(e => new { e.PlatformId, e.QueueId, e.GameStartTimeUtc })
             .HasDatabaseName("IX_matches_platform_queue_game_start");
@@ -183,6 +187,11 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         // have to be flagged.
         entity.HasIndex(e => e.QueueId, "IX_matches_profile_pending")
             .HasFilter("\"ProfileAggregated\" = false");
+
+        // The pattern aggregation (#1367): every retained match at first, then the tail
+        // ingested since the previous run plus the matches a participant rewrite sent back.
+        entity.HasIndex(e => e.QueueId, "IX_matches_pattern_pending")
+            .HasFilter("\"PatternAggregated\" = false");
 
         // The item-context fold (#1450), which unlike its siblings dequeues **newest first**
         // (#1514) — so the ordering column is in the index, and picking a batch is a scan of
