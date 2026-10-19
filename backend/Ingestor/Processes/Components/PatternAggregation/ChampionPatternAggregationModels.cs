@@ -14,14 +14,6 @@ internal readonly record struct AggregateSliceKey(
     string GameVersion,
     string PlatformId);
 
-/// <summary>
-/// What one run has to do: the pending matches it will flag once their slices are rebuilt,
-/// and those slices.
-/// </summary>
-internal sealed record PendingPatternWork(
-    IReadOnlyList<string> MatchIds,
-    IReadOnlyCollection<AggregateSliceKey> Slices);
-
 internal sealed class ChampionPatternAggregationResult
 {
     /// <summary>

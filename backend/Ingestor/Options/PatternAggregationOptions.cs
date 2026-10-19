@@ -20,6 +20,15 @@ public class PatternAggregationOptions
     public int AccountsPerBatch { get; set; } = 500;
 
     /// <summary>
+    /// Pending matches handled per step: their slices are rebuilt, then they are flagged. It
+    /// is what a run that is cut short keeps — the first run after the flag ships rebuilds the
+    /// whole window, which takes hours on preprod and gets restarted by every deploy, so it
+    /// has to make progress a step at a time rather than only once it is over.
+    /// </summary>
+    [Range(1, int.MaxValue)]
+    public int MatchesPerStep { get; set; } = 2000;
+
+    /// <summary>
     /// Sends every match of the retained window back to the aggregation at the start of
     /// the run, so every live slice is rebuilt. For the day the slice shape or a
     /// dimension changes (#911-style repairs) or <c>MainAnalysis:AggregateNonMainPopulation</c>

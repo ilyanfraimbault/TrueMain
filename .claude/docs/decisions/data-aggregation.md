@@ -55,7 +55,8 @@ all; folding it would add to the ban *denominator* while contributing no bans an
 and two on preprod late in a patch, growing with the patch. It is not additive (a scope is replaced, never added
 to), so it does not take the other folds' fold-once flag. The unit is the slice, (account, champion, patch,
 platform): every scope lives in exactly one, and a slice rebuilt from its own games is complete. A run rebuilds the
-slices of the pending matches (`matches.PatternAggregated = false`, timeline in) and flags them. Because the
+slices of the pending matches (`matches.PatternAggregated = false`, timeline in) and flags them, a step of
+`PatternAggregation:MatchesPerStep` matches at a time, so a run a deploy cuts short keeps what it did. Because the
 rebuild is a replace, a change to what a slice reads is handled by sending the match back instead of by the
 "live with the first read" rule the additive folds follow: the elo stamping, the lane fix and the role-bound
 backfill clear the flag of the matches they touch (`PatternAggregationInvalidation`), MainAnalysis clears it for

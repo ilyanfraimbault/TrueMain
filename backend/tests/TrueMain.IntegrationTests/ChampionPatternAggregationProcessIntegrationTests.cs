@@ -412,6 +412,23 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
     }
 
     [Fact]
+    public async Task RunAsync_ShouldRebuildASliceOnce_WhenItsMatchesFallInSeveralSteps()
+    {
+        await SeedChampionPatternDataAsync();
+
+        // One match per step: both 16.5 games belong to one slice, which the first step
+        // rebuilds over both and the second step must not rebuild again.
+        var summary = await CreateProcess(matchesPerStep: 1).RunCoreAsync(CancellationToken.None);
+
+        summary.Should().BeOfType<Ingestor.Processes.Summaries.ChampionPatternAggregationSummary>()
+            .Which.Slices.Should().Be(1);
+        await using var verifyDb = _fixture.CreateDbContext();
+        (await verifyDb.ChampionAggregateScopes.SingleAsync()).Games.Should().Be(2);
+        (await verifyDb.Matches.AllAsync(match => match.PatternAggregated)).Should().BeTrue(
+            "each step flags its own matches as it completes");
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldRebuildEveryLiveSlice_WhenRebuildAllIsOn()
     {
         await SeedChampionPatternDataAsync();
@@ -563,7 +580,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
     private ChampionPatternAggregationProcess CreateProcess(
         bool aggregateNonMains = false,
         int retainedPatchCount = 2,
-        bool rebuildAll = false)
+        bool rebuildAll = false,
+        int matchesPerStep = 2000)
     {
         var dbContextFactory = new TestDbContextFactory(_fixture);
         return new ChampionPatternAggregationProcess(
@@ -579,7 +597,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             }),
             Microsoft.Extensions.Options.Options.Create(new PatternAggregationOptions
             {
-                RebuildAll = rebuildAll
+                RebuildAll = rebuildAll,
+                MatchesPerStep = matchesPerStep
             }),
             new ChampionPatternSourceRowReader(dbContextFactory),
             new ChampionPatternAggregateBuilder(new FakeItemMetadataProvider()),
