@@ -124,8 +124,12 @@ internal sealed class ProcessIterationHeaders(MongoLogContext context)
                 { "whenNotMatched", "insert" }
             })
         ];
-        await context.ProcessRuns.Aggregate<BsonDocument>(pipeline, new AggregateOptions { AllowDiskUse = true }, ct)
-            .ToListAsync(ct);
+        // A pipeline ending in $merge returns no documents; draining the cursor is what
+        // runs it to completion. Async end to end: this $group reads every run (seconds on
+        // a loaded host), so it must not block a thread while it does.
+        using var cursor = await context.ProcessRuns.AggregateAsync<BsonDocument>(
+            pipeline, new AggregateOptions { AllowDiskUse = true }, ct);
+        await cursor.ToListAsync(ct);
     }
 
     /// <summary>
