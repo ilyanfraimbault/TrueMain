@@ -286,7 +286,7 @@ Last verified against `develop` on 2026-09-02.
 - Consequence: every heavy aggregate runs single-threaded, so batch work must be chunked — #603, #594, #632
 - Aggregation is chunked per champion to bound memory — #600
 - A heavy `CREATE INDEX CONCURRENTLY` must never be a startup migration — #595, #597, #598
-- Npgsql pools are capped per service against Postgres `max_connections=100`; the API's matches PgBouncer's, and a PgBouncer wait is bounded at 30 s — #437, #461, #462, #1570
+- Npgsql pools are capped per service against Postgres `max_connections=100`, each sized to its PgBouncer share since #1632, and a PgBouncer wait is bounded at 30 s — #437, #461, #462, #1570
 - Server-side timeouts: API `statement_timeout` 60 s and pooled `idle_in_transaction_session_timeout` 60 s through a dedicated PgBouncer database, migrations `lock_timeout` 5 s with retry (2026-10-06) — #1631
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
@@ -321,6 +321,7 @@ Last verified against `develop` on 2026-09-02.
 - The edge Caddy sets the security response headers the app frameworks did not (HSTS, CSP per vhost, X-Frame-Options, nosniff, Referrer/Permissions-Policy); preprod carries the non-CSP subset — 2026-09-24
 - The API port is published on loopback only (not `0.0.0.0`), and pgAdmin was removed from every stack — 2026-09-24
 - Prod's edge Caddyfile is inline in `compose.prod.yaml` (the deploy writes only the compose file and `.env`), and the release asserts compression and HSTS/CSP on the live site — #1598
+- Each service gets a fixed share of PgBouncer's 30 server connections — API 22, ingestors 8 (fetch 5 + aggregate 3), no reserve — and its Npgsql pool matches it (2026-10-19) — #1632
 
 ## Admin portal — observability data — [`decisions/admin-observability.md`](decisions/admin-observability.md)
 
