@@ -403,3 +403,28 @@ the Riot API tab of `/processes`. No OpenTelemetry exporter, no tracing — prod
   validation, timelines) and the per-account lines of account refresh and main activity go through
   `[LoggerMessage]` methods, the two ops events among them keeping their `OpsEvents` id and name
   (`OpsEvents.Ids` holds the constants the attribute needs).
+
+## The ops scripts report their runs into `process_runs` (2026-10-19)
+
+**Decision:** the ops scripts kept outside the repo — the persona scraper and the OTP seeder — report each run to
+the ops API: `POST /ops/process-runs` starts it, `POST /ops/process-runs/{id}/heartbeat` keeps it alive with its
+current summary, `POST /ops/process-runs/{id}/finish` closes it as Success, Failed or Cancelled. The runs land in
+`process_runs` beside the Ingestor's and the admin Processes page shows them on a **Scrapers** tab
+(`?view=scrapers`) — product owner, #2119.
+
+- **Why `process_runs`.** A run with a start, a heartbeat, a terminal status and an opaque JSON summary is exactly
+  what that collection already models: the runs table, the slide-over, the 180 d TTL and the stale-heartbeat rule
+  (a Running run silent for two minutes reads as Abandoned, so a host that dies is visible) all apply unchanged.
+  A second collection would have duplicated each of them.
+- **Allow-listed names, guarded writes.** The API only starts runs of `PersonaScraper` and `OtpSeeder`
+  (`ExternalProcessRunService.ExternalProcessNames`), and heartbeats or finishes only a Running run of one of
+  them: the ops key cannot forge or close an Ingestor run. A finished run answers 409, so a late retry cannot
+  rewrite an outcome. The summary is a JSON object of at most 64 KiB: a report, not a log.
+- **One summary convention, read by the admin.** `steps` (each phase with `name`, optional `label`, `status`
+  running/done/failed/skipped, its start/finish and its own `counters`), `currentStep` and a `progress` gauge
+  (`done`, `total`, `label`) for the phase in flight; every other key is the run's report, rendered as-is. A summary
+  that ignores the convention still renders whole.
+- **The scripts never depend on it.** Reporting is best-effort: a script whose API call fails keeps working and
+  logs the failure. The run's report on its host stays the reference.
+- **Not on `/health`.** The pipeline-health verdict lists the Ingestor's processes only; a weekly scraper is not
+  pipeline health, and its own tab answers "is it running, where is it, what did it do".
