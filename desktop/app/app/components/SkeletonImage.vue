@@ -7,7 +7,7 @@
     decodes. WKWebView, in the packaged app, never reported `load` for images
     inserted after the first one (see `ChampionArt.vue`), so an icon waiting
     for it to fade in would stay invisible for good. The loading skeleton is
-    painted *behind* the picture instead (`img-skeleton`, main.css), which the
+    painted *behind* the picture instead (`img-skeleton`, theme.css), which the
     picture covers once decoded — except for a `transparent` one (lane glyphs,
     runes), where it would show through and is left out.
 

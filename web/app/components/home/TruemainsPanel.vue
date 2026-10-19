@@ -90,7 +90,7 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMa
       />
     </header>
 
-    <div class="surface flex flex-1 flex-col rounded-2xl py-1.5">
+    <div class="surface surface-blur flex flex-1 flex-col rounded-2xl py-1.5">
       <div
         v-if="initialLoading"
         aria-hidden="true"

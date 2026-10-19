@@ -366,7 +366,7 @@ const TEXT_TOKENS = [
     <SectionCard
       :level="2"
       title="Materials"
-      subtitle="`surface` is the app-wide panel, edged with `keycap` (lit top, shaded bottom, both inset); `surface-hover` steps it up the ladder on hover. The only translucent material is `glass-bar`, on the floating header — the page itself is the live sample."
+      subtitle="`surface` is the app-wide panel, edged with `keycap` (lit top, shaded bottom, both inset); `surface-hover` steps it up the ladder on hover; `surface-blur` blurs what moves behind it, for the few panes over art or the star field. The only translucent material is `glass-bar`, on the floating header — the page itself is the live sample."
     >
       <div class="grid gap-3 sm:grid-cols-2">
         <div class="surface rounded-xl p-4">

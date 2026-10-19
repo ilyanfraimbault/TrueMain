@@ -58,6 +58,9 @@ const statics = computed(() => {
   return ready ? { champions, items, summonerSpells, runeTree } : null
 })
 
+// One lookup for the whole page rather than one per row (#2129).
+const championById = computed(() => new Map((props.champions ?? []).map(c => [c.championId, c])))
+
 const days = computed(() => groupMatchesByDay(props.matches))
 </script>
 
@@ -74,6 +77,7 @@ const days = computed(() => groupMatchesByDay(props.matches))
         :key="match.matchId"
         :match="match"
         :champions="statics.champions"
+        :champion-by-id="championById"
         :items="statics.items"
         :summoner-spells="statics.summonerSpells"
         :rune-tree="statics.runeTree"
