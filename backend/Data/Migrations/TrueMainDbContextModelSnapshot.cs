@@ -440,6 +440,37 @@ namespace Data.Migrations
                     b.ToTable("champion_dim_starter_items", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionGameCount", b =>
+                {
+                    b.Property<int>("QueueId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("PlatformId")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("TeamPosition")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Games")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("RefreshedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("QueueId", "Patch", "PlatformId", "TeamPosition", "ChampionId");
+
+                    b.ToTable("champion_game_counts", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.ChampionItemContextStat", b =>
                 {
                     b.Property<Guid>("Id")

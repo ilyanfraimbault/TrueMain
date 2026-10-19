@@ -307,52 +307,7 @@ const visibleProcesses = computed(() =>
 
       <!-- The raw measurements the signals were judged from, stated without a verdict. -->
       <section v-if="rawData || gaps" class="grid gap-4 lg:grid-cols-2">
-        <UCard v-if="rawData">
-          <template #header>
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-sm font-semibold text-highlighted">
-                Raw corpus
-              </p>
-              <span class="text-xs text-muted tabular-nums">queue {{ rawData.queueId }}</span>
-            </div>
-          </template>
-
-          <div class="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <p class="text-xs text-muted uppercase">
-                Matches
-              </p>
-              <p class="mt-0.5 text-xl font-semibold text-highlighted tabular-nums">
-                {{ formatNumber(rawData.rawMatchCount) }}
-              </p>
-            </div>
-            <div>
-              <p class="text-xs text-muted uppercase">
-                Participants
-              </p>
-              <p class="mt-0.5 text-xl font-semibold text-highlighted tabular-nums">
-                {{ formatNumber(rawData.rawParticipantCount) }}
-              </p>
-            </div>
-          </div>
-
-          <p v-if="rawData.platforms.length === 0" class="text-sm text-dimmed italic">
-            No match ingested for this queue yet.
-          </p>
-          <ul v-else class="space-y-1">
-            <li
-              v-for="platform in rawData.platforms"
-              :key="platform.platformId"
-              class="flex items-center justify-between gap-2 text-sm"
-            >
-              <span class="text-highlighted font-medium">{{ platform.platformId }}</span>
-              <span class="text-xs text-muted tabular-nums">
-                patch {{ platform.latestPatchVersion || '—' }} ·
-                {{ platform.latestMatchStartAtUtc ? formatTimeAgo(platform.latestMatchStartAtUtc) : 'no match' }}
-              </span>
-            </li>
-          </ul>
-        </UCard>
+        <HealthRawCorpus v-if="rawData" :raw-data="rawData" />
 
         <UCard v-if="gaps">
           <template #header>

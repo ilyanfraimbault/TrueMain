@@ -281,7 +281,7 @@ const mainsLabelFormatter = computed(() =>
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
         <template #header>
           <div class="flex items-center justify-between gap-3">
-            <PanelTitle title="Per-champion stats" subtitle="Ranked solo/duo only.">
+            <PanelTitle title="Per-champion stats" subtitle="Ranked solo/duo only. Games come from the ingestor's periodic recount, not a live count.">
               <template #info>
                 <p>
                   <strong>Games</strong> honor every filter.
