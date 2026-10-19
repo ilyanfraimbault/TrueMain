@@ -44,6 +44,9 @@ public sealed class PipelineHealthQueryService(
     IHostEnvironment environment,
     ILogger<PipelineHealthQueryService> logger) : IPipelineHealthQueryService
 {
+    /// <summary>The only failure text a production client ever sees.</summary>
+    private const string InternalError = "internal error";
+
     private static readonly string[] ProcessNames =
     [
         "Discovery",
@@ -276,7 +279,7 @@ public sealed class PipelineHealthQueryService(
             logger.LogWarning(ex, "Pipeline-health raw-corpus estimates failed to measure");
 
             return new RawCorpusEstimates(
-                null, null, SanitizeError(ex.Message, environment.IsProduction()) ?? "internal error");
+                null, null, FailureReason(ex));
         }
         finally
         {
@@ -350,7 +353,7 @@ public sealed class PipelineHealthQueryService(
         {
             logger.LogWarning(ex, "Pipeline-health data-quality signals failed to measure");
 
-            var reason = SanitizeError(ex.Message, environment.IsProduction()) ?? "internal error";
+            var reason = FailureReason(ex);
 
             return
             [
@@ -380,7 +383,7 @@ public sealed class PipelineHealthQueryService(
 
             return new RegionBalanceReadModel
             {
-                UnknownReason = SanitizeError(ex.Message, environment.IsProduction()) ?? "internal error"
+                UnknownReason = FailureReason(ex)
             };
         }
         finally
@@ -405,7 +408,7 @@ public sealed class PipelineHealthQueryService(
             logger.LogWarning(ex, "Pipeline-health signal {Signal} failed to measure", key);
 
             return UnmeasurableSignal(
-                key, title, detailPath, SanitizeError(ex.Message, environment.IsProduction()) ?? "internal error");
+                key, title, detailPath, FailureReason(ex));
         }
         finally
         {
@@ -438,6 +441,13 @@ public sealed class PipelineHealthQueryService(
         return (to.Value - from.Value).TotalMinutes;
     }
 
+    /// <summary>
+    /// What an unmeasurable tile or block says about its failure: the sanitised message, or
+    /// <see cref="InternalError"/> when the exception carries none.
+    /// </summary>
+    private string FailureReason(Exception ex)
+        => SanitizeError(ex.Message, environment.IsProduction()) ?? InternalError;
+
     private static string? SanitizeError(string? error, bool sanitize)
     {
         if (string.IsNullOrWhiteSpace(error))
@@ -456,7 +466,7 @@ public sealed class PipelineHealthQueryService(
         // leak filesystem paths, connection-string fragments or internal
         // type names. The status field already carries the failure signal;
         // operators reach for logs/tracing for the real cause.
-        return "internal error";
+        return InternalError;
     }
 
     internal sealed record TableRowEstimate(string TableName, long RowEstimate);
