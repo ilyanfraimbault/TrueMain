@@ -1,3 +1,4 @@
+using System.Net;
 using Core;
 using Core.Lol.Identifiers;
 using Data.Entities;
@@ -9,6 +10,7 @@ using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Processes.Summaries;
 using Ingestor.Riot;
+using Ingestor.Riot.Dto;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -68,10 +70,11 @@ public sealed class ManualSeedProcess(
         }
 
         logger.LogInformation(
-            "Manual seed summary: claimed={Claimed}, ingested={Ingested}, notFound={NotFound}, failed={Failed}, candidatesQueued={CandidatesQueued}.",
+            "Manual seed summary: claimed={Claimed}, ingested={Ingested}, notFound={NotFound}, noSummonerOnPlatform={NoSummonerOnPlatform}, failed={Failed}, candidatesQueued={CandidatesQueued}.",
             summary.Claimed,
             summary.Ingested,
             summary.NotFound,
+            summary.NoSummonerOnPlatform,
             summary.Failed,
             summary.CandidatesQueued);
 
@@ -80,7 +83,8 @@ public sealed class ManualSeedProcess(
             summary.Ingested,
             summary.NotFound,
             summary.Failed,
-            summary.CandidatesQueued);
+            summary.CandidatesQueued,
+            summary.NoSummonerOnPlatform);
     }
 
     private async Task ProcessRequestAsync(Guid id, ManualSeedOptions options, SeedSummary summary, CancellationToken ct)
@@ -158,6 +162,38 @@ public sealed class ManualSeedProcess(
             return;
         }
 
+        // summoner-v4 gives the profile fields AccountUpsertService writes
+        // (summonerId, icon, level); account-v1 above gives the authoritative
+        // Riot ID identity, which Discovery's upsert intentionally leaves blank
+        // (see #182) — so we backfill GameName/TagLine here from account-v1.
+        RiotSummonerDto summoner;
+        try
+        {
+            summoner = await riotPlatformClient.GetSummonerByPuuidAsync(platform, account.Puuid, ct);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            // The Riot ID exists on the regional cluster but has never played on the
+            // submitted platform — a wrong platform, typical of scraped persona batches
+            // (#2133). An expected terminal outcome like the Riot-ID miss above: a
+            // readable error for the operator, no stack trace, its own counter.
+            await seedRequestStore.MarkFailedAsync(
+                request.Id,
+                $"Account exists on {regional} but has no summoner on {request.PlatformId}",
+                timeProvider.GetUtcNow().UtcDateTime,
+                ct);
+            summary.NoSummonerOnPlatform++;
+            logger.LogWarning(
+                OpsEvents.SeedRequestFailed,
+                "Seed request {SeedRequestId} failed: {GameName}#{TagLine} exists on {Regional} but has no summoner on {Platform}.",
+                request.Id,
+                request.GameName,
+                request.TagLine,
+                regional,
+                request.PlatformId);
+            return;
+        }
+
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
         // A session per request: the account/candidate writes stay in SQL, and a
@@ -165,11 +201,6 @@ public sealed class ManualSeedProcess(
         // rest of the batch.
         await using var session = await sessionFactory.CreateAsync(ct);
 
-        // summoner-v4 gives the profile fields AccountUpsertService writes
-        // (summonerId, icon, level); account-v1 above gives the authoritative
-        // Riot ID identity, which Discovery's upsert intentionally leaves blank
-        // (see #182) — so we backfill GameName/TagLine here from account-v1.
-        var summoner = await riotPlatformClient.GetSummonerByPuuidAsync(platform, account.Puuid, ct);
         var upsert = await accountUpsertService.UpsertAsync(session, platform, summoner, nowUtc, ct);
         upsert.Account.GameName = account.GameName ?? string.Empty;
         upsert.Account.TagLine = account.TagLine;
@@ -275,6 +306,7 @@ public sealed class ManualSeedProcess(
         public int Claimed { get; set; }
         public int Ingested { get; set; }
         public int NotFound { get; set; }
+        public int NoSummonerOnPlatform { get; set; }
         public int Failed { get; set; }
         public int CandidatesQueued { get; set; }
     }
