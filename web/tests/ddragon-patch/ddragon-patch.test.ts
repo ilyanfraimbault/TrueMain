@@ -21,7 +21,7 @@ async function loadResolver(fetchImpl: () => Promise<string[]>) {
     registrations.push({ options })
     return fn
   })
-  const mod = await import('~~/server/utils/ddragon-patch')
+  const mod = await import('~~/layers/nitro/server/utils/ddragon-patch')
   return {
     loadVersions: mod.loadDDragonVersions,
     resolveVersion: mod.resolveDDragonVersion,

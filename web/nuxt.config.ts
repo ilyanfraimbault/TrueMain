@@ -291,7 +291,7 @@ export default defineNuxtConfig({
       ?? 'http://localhost:5008',
     // Server-only key for the API's `POST /internal/logs` (#1556), from
     // NUXT_LOG_INGEST_KEY. Empty keeps error forwarding off
-    // (server/plugins/log-forwarding.ts).
+    // (`layers/nitro/server/plugins/log-forwarding.ts`).
     logIngestKey: '',
     // Which desktop app builds the site offers (#1772), from NUXT_DESKTOP_CHANNEL:
     // `stable` serves only a release promoted by hand, `beta` (preprod) the newest

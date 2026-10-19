@@ -47,7 +47,42 @@ public sealed class HarvestProcessCoverageLoggingTests
         warning.Message.Should().Contain("droppedKnown=90");
         warning.Message.Should().Contain("KR new=5/30 known=8/90");
         warning.Message.Should().Contain("EUW1 new=5/10 known=2/10");
+        warning.Message.Should().Contain("knownRefreshRotationRuns=10");
     }
+
+    [Fact]
+    public async Task RunCoreAsync_WhenOnlyTheKnownRefreshIsCapped_ReportsTheBudgetAtInformation()
+    {
+        // Every new candidate fits; only the refresh of known accounts is capped — the
+        // intended bound from #1361, which must not raise a warning on every run (#2135).
+        var coverage = new HarvestCoverage(
+            EligibleNew: 5,
+            SelectedNew: 5,
+            EligibleKnown: 95,
+            SelectedKnown: 15,
+            Platforms: [new HarvestPlatformCoverage("KR", 5, 5, 95, 15)]);
+        var logger = new CapturingLogger<HarvestProcess>();
+
+        await BuildProcess(logger, coverage).RunCoreAsync(CancellationToken.None);
+
+        var entry = logger.Entries.Should()
+            .ContainSingle(e => e.EventId.Id == OpsEvents.HarvestBudgetExhausted.Id).Subject;
+        entry.Level.Should().Be(LogLevel.Information);
+        entry.Message.Should().Contain("droppedNew=0");
+        entry.Message.Should().Contain("droppedKnown=80");
+        // 95 known accounts at 15 per run: a full refresh rotation takes 7 runs.
+        entry.Message.Should().Contain("knownRefreshRotationRuns=7");
+        logger.Entries.Should().NotContain(e => e.Level >= LogLevel.Warning);
+    }
+
+    [Theory]
+    [InlineData(100, 10, "10")]
+    [InlineData(101, 10, "11")]
+    [InlineData(0, 0, "never")]
+    [InlineData(40, 0, "never")]
+    public void KnownRefreshRotationRuns_RoundsUpAndNamesAStalledRefresh(int eligibleKnown, int selectedKnown, string expected)
+        => HarvestProcess.KnownRefreshRotationRuns(new HarvestCoverage(0, 0, eligibleKnown, selectedKnown, []))
+            .Should().Be(expected);
 
     [Fact]
     public async Task RunCoreAsync_AlwaysReportsCoverage_OnTheCycleEvent()

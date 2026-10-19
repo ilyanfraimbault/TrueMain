@@ -10,6 +10,9 @@ COPY package.json ./
 COPY package-lock.json ./
 RUN npm ci
 
+COPY --from=web layers/nitro /workspace/web/layers/nitro
+COPY --from=web layers/common/tsconfig.json /workspace/web/layers/common/tsconfig.json
+COPY --from=web shared /workspace/web/shared
 COPY . ./
 
 EXPOSE 3000

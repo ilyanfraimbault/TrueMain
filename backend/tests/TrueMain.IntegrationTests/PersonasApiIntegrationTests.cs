@@ -40,7 +40,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
-    public async Task Batch_LinksTrackedAccounts_SeedsUntrackedOnes_AndThePageListsThemAll()
+    public async Task Batch_LinksTrackedAccounts_SeedsUntrackedOnesOnIngestedPlatforms_AndThePageListsThemAll()
     {
         await using (var db = _fixture.CreateDbContext())
         {
@@ -76,6 +76,10 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
                         new { gameName = "irelking", tagLine = "euw", platformId = "EUW1" },
                         new { gameName = "IrelSmurf", tagLine = "EUW", platformId = "EUW1" },
                         new { gameName = "IrelKr", tagLine = "KR1", platformId = "MARS1" },
+                        // A platform the pipeline does not ingest: stored, never seeded (#2134).
+                        new { gameName = "IrelBr", tagLine = "BR1", platformId = "BR1" },
+                        // A source-side JavaScript `undefined` serialised as a name (#2134).
+                        new { gameName = "undefined", tagLine = "0303", platformId = "EUW1" },
                     },
                 },
             },
@@ -85,7 +89,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         var result = (await batch.Content.ReadFromJsonAsync<PersonaBatchResponse>())!.Personas.Single();
         result.Created.Should().BeTrue();
         result.Error.Should().BeNull();
-        result.Accounts.Select(a => a.Status).Should().Equal("linked", "seeded", "invalid");
+        result.Accounts.Select(a => a.Status).Should().Equal("linked", "seeded", "invalid", "untracked", "invalid");
 
         var seeded = await _mongo.GetCollection<SeedRequestDocument>(MongoFixture.SeedRequestsCollection)
             .Find(FilterDefinition<SeedRequestDocument>.Empty)

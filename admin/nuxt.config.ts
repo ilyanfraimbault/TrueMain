@@ -1,4 +1,5 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { fileURLToPath } from 'node:url'
 
 // DDragon/CommunityDragon icons are content-addressed per (patch, asset), so
 // once IPX has processed a URL the resulting bytes never change. The admin
@@ -7,6 +8,17 @@
 const IPX_IMAGE_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 
 export default defineNuxtConfig({
+  // The server code this app shares with the public site — the proxy guards,
+  // the ops-log forwarder, the Data Dragon patch resolution and the champion
+  // list (`web/layers/nitro/README.md`, #1625). The Docker build copies it in
+  // from the `web` build context (`Dockerfile`).
+  extends: ['../web/layers/nitro'],
+  // The site's Data Dragon helpers and static types (`shared/utils/ddragon.ts`,
+  // `shared/types/static-data.ts`), read from the site's copy rather than kept
+  // twice (#1226, #1625). Copied into the image beside the layer.
+  alias: {
+    '#site-shared': fileURLToPath(new URL('../web/shared', import.meta.url)),
+  },
   modules: [
     '@nuxt/ui',
     '@nuxt/image',
@@ -78,7 +90,7 @@ export default defineNuxtConfig({
     opsApiBaseUrl: process.env.NUXT_OPS_API_BASE_URL ?? 'http://localhost:5008',
     opsKey: process.env.NUXT_OPS_KEY ?? '',
     // Key for the API's `POST /internal/logs` (#1556), distinct from the ops key.
-    // Empty keeps error forwarding off (server/plugins/log-forwarding.ts).
+    // Empty keeps error forwarding off (`web/layers/nitro`'s log-forwarding plugin).
     logIngestKey: process.env.NUXT_LOG_INGEST_KEY ?? '',
     // Single-operator credentials checked by the login endpoint. Both default
     // to `truemain` for local dev; override per environment.

@@ -21,20 +21,25 @@ internal static class FailureBackoff
     /// <summary>
     /// Runs <paramref name="compute"/> unless it failed under <paramref name="key"/> within the
     /// last <paramref name="backoff"/>, in which case it throws a
-    /// <see cref="ReadBackoffException"/> carrying that failure without running it.
+    /// <see cref="ReadBackoffException"/> carrying that failure and the time left before the
+    /// read is attempted again, without running it.
     /// </summary>
     public static async Task<T> RunAsync<T>(
         IMemoryCache cache,
         string key,
         TimeSpan backoff,
-        Func<Task<T>> compute)
+        Func<Task<T>> compute,
+        TimeProvider? clock = null)
     {
+        clock ??= TimeProvider.System;
         var failureKey = $"{key}:failed";
-        if (cache.TryGetValue(failureKey, out Exception? lastFailure) && lastFailure is not null)
+        if (cache.TryGetValue(failureKey, out RecordedFailure? recorded) && recorded is not null)
         {
+            var retryAfter = recorded.RetryAtUtc - clock.GetUtcNow();
             throw new ReadBackoffException(
-                $"The read '{key}' failed less than {backoff.TotalSeconds:0} s ago and is not retried before then.",
-                lastFailure);
+                "This read failed recently and is not retried until its backoff window ends.",
+                recorded.Failure,
+                retryAfter > TimeSpan.Zero ? retryAfter : TimeSpan.Zero);
         }
 
         try
@@ -43,15 +48,20 @@ internal static class FailureBackoff
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            cache.Store(failureKey, ex, backoff);
+            cache.Store(failureKey, new RecordedFailure(ex, clock.GetUtcNow() + backoff), backoff);
             throw;
         }
     }
+
+    /// <summary>The failure that opened a window, and when the window closes.</summary>
+    private sealed record RecordedFailure(Exception Failure, DateTimeOffset RetryAtUtc);
 }
 
 /// <summary>
 /// Thrown instead of re-running a read that failed within its backoff window; the failure
-/// that opened the window is the inner exception.
+/// that opened the window is the inner exception. <see cref="TrueMain.Http.ReadBackoffExceptionFilter"/>
+/// answers it with a 503 whose <c>Retry-After</c> is <see cref="RetryAfter"/>, so a caller
+/// can tell "try again shortly" from an unexpected 500.
 /// </summary>
 public sealed class ReadBackoffException : Exception
 {
@@ -68,4 +78,13 @@ public sealed class ReadBackoffException : Exception
         : base(message, innerException)
     {
     }
+
+    public ReadBackoffException(string message, Exception innerException, TimeSpan retryAfter)
+        : base(message, innerException)
+    {
+        RetryAfter = retryAfter;
+    }
+
+    /// <summary>Time left before the read is attempted again.</summary>
+    public TimeSpan RetryAfter { get; }
 }

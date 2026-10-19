@@ -1,4 +1,4 @@
-import { getPositionIconUrl } from '~~/shared/utils/ddragon'
+import { getPositionIconUrl } from '#site-shared/utils/ddragon'
 
 // Mirrors `web/app/utils/positions.ts` — the icon strip + the ALL sentinel
 // used by the Champions filter and by the other tables that print a lane.

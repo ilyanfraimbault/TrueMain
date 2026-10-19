@@ -349,6 +349,8 @@ stored successes only, so the next refresh re-ran the same scan.
   payload, like any composed signal.
 - **A failed pass is not re-run for a short window** (`FailureBackoff`, a negative entry through `ApiCache`): one
   minute for champion stats, one 30-second tick for the cockpit. Callers get a `ReadBackoffException` at once
-  instead of queueing another identical timeout.
+  instead of queueing another identical timeout, answered `503` with `Retry-After` (the time left in the window,
+  rounded up, at least 1 s) by `ReadBackoffExceptionFilter` — an MVC filter, so Development maps it the same way.
+  The ProblemDetails body names neither the read nor the failure behind it.
 
 Source: #2132, #1427, #1631.

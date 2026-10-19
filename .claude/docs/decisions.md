@@ -128,6 +128,7 @@ Last verified against `develop` on 2026-09-02.
 - An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
 - The site's match detail has no Timeline tab: TrueMain computes and stores no win-probability curve, the desktop app alone builds it from the client's timeline (2026-10-12, reverses 2026-10-05) — #2009, #1911
 - Known players: one person, several accounts at `/players/{slug}`, linked only from public sources, never inferred (2026-10-13) — #2016
+- Known players' accounts on a platform the pipeline does not ingest are stored as `untracked`, never seeded (2026-10-19) — #2134
 - A main champion row reads its lane and play rate only: the `80 of last 200` sample line is gone (2026-10-13, reverses #1498's line)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
@@ -164,7 +165,7 @@ Last verified against `develop` on 2026-09-02.
 - Every picture shows a skeleton until it has loaded (`SkeletonImage`, `SkeletonPicture`, or an opaque `<img>`'s own `img-skeleton` background for a match row's ten composition icons, #2129); build-summary inline icons excepted (2026-10-06) — #1949
 - Every icon URL is built by one helper, so one asset is one cache entry — #1000
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
-- `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26); a root-level web↔admin Nuxt layer was rejected (2026-09-17); the site and the desktop app share `web/layers/common` since #1732, the admin does not extend it (2026-10-01); a CI drift check is planned — #1226, #947, #966, #1623, #1732, #1684, #1625
+- `web/` and `admin/` share their server code and Data Dragon helpers through `web/layers/nitro`, which the admin extends through a second Docker build context; the labelled twins and their planned drift check are gone (2026-10-19, revises 2026-08-26); the site and the desktop app share `web/layers/common` since #1732 — #1226, #947, #966, #1623, #1732, #1684, #1625
 - SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14) — #1557, #1546
 - A public section card is its title and its content — no explanatory subtitle, no method footnote; definitions go in a hover (2026-09-25) — #1699
 - Static game data is cached by the browser for the hour the server caches it (2026-09-15) — #1584
@@ -316,7 +317,7 @@ Last verified against `develop` on 2026-09-02.
 - Caddy terminates TLS and is the only public entry point in prod — #433, #430, #426
 - The admin `/analytics` iframe stays on Umami's public share view, not the authenticated app — kept as-is on purpose, 2026-08-04 — #1013, #1014
 - Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow — #680, #1018
-- Analytics stay inside the CNIL consent exemption: no session replay, no persistent visitor id, an opt-out on `/privacy` — no consent banner (2026-10-18) — #2089
+- Analytics stay inside the CNIL consent exemption: no session replay, an opt-out on `/privacy` — no consent banner (2026-10-18); since 2026-10-19 a random anonymous visitor id, 13 months from creation and never extended, counts returning visitors across months (data retention: #2092) — #2089, #2149
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
 - Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)

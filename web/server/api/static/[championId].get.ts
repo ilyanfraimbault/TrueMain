@@ -1,5 +1,5 @@
 import { loadStaticData } from '~~/server/utils/ddragon-loader'
-import { normalizeRequestedPatch } from '~~/server/utils/ddragon-patch'
+import { normalizeRequestedPatch } from '~~/layers/nitro/server/utils/ddragon-patch'
 import { normalizeDataDragonPatch } from '~~/shared/utils/ddragon'
 
 export default defineCachedEventHandler(

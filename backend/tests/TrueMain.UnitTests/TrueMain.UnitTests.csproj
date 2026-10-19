@@ -42,6 +42,7 @@
     <ProjectReference Include="..\..\Ingestor\Ingestor.csproj" />
     <ProjectReference Include="..\..\Data\Data.csproj" />
     <ProjectReference Include="..\..\Core\Core.csproj" />
+    <ProjectReference Include="..\..\Tools\DevSeed\DevSeed.csproj" />
     <ProjectReference Include="..\TrueMain.TestKit\TrueMain.TestKit.csproj" />
   </ItemGroup>
 

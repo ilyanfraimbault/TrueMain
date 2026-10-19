@@ -23,8 +23,8 @@ Patch 16.15 ("League classique") added 60 legacy kits to `champion.json`: alias 
 `60000 + <base key>`, and the *same display name* as the original — `Jade_Ahri` (60103) sits next to Ahri
 (103). The ingestor only aggregates queue 420, so those ids never carry a single stat: unfiltered they
 doubled every search hit and picker row with a dead end and put 60 empty pages in the sitemap. The floor is
-`isLiveChampionId` in each app's `shared/utils/ddragon.ts`, applied in the one endpoint both apps read
-(`server/api/static/champions.get.ts`). 10 000 rather than 60 000: the highest real Riot key is 950, so the
+`isLiveChampionId` in the site's `shared/utils/ddragon.ts`, applied in the one endpoint both apps read
+(`web/layers/nitro/server/api/static/champions.get.ts`, one copy since #1625). 10 000 rather than 60 000: the highest real Riot key is 950, so the
 cut keeps an order of magnitude of headroom while catching a future mode built the same way — #966.
 
 **A champion gets at most two lines in the directory — its dominant lanes — and the cap is applied before tiering.**

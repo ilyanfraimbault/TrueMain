@@ -226,8 +226,8 @@ public sealed class ProcessRunSummaryJsonTests
             });
 
         yield return (
-            new ManualSeedSummary(5, 3, 1, 1, 2),
-            new { claimed = 5, ingested = 3, notFound = 1, failed = 1, candidatesQueued = 2 });
+            new ManualSeedSummary(5, 3, 1, 1, 2, NoSummonerOnPlatform: 1),
+            new { claimed = 5, ingested = 3, notFound = 1, failed = 1, candidatesQueued = 2, noSummonerOnPlatform = 1 });
 
         yield return (
             new HarvestSummary(11, 6, 2, 40, 25, 60, 35, true),

@@ -5,7 +5,7 @@ useSeoMeta({
     'How TrueMain handles data: the public League of Legends game data it surfaces, privacy-friendly analytics, and your rights.',
 })
 
-const lastUpdated = 'October 18, 2026'
+const lastUpdated = 'October 19, 2026'
 const contactEmail = 'contact@truemain.lol'
 </script>
 
@@ -50,14 +50,21 @@ const contactEmail = 'contact@truemain.lol'
           measuring how the site is used: pages viewed, the site you came from,
           your browser, operating system, device type, screen size and
           language, and your country,
-          region and city derived from your IP address. It sets no cookie and
-          stores no identifier on your device. To count unique visitors, it
-          derives a temporary code from your IP address and browser, combined
-          with a value specific to this site that changes every month; your IP
-          address itself is not stored. We do not record sessions, do not
-          follow individual visitors, and do not track you on other sites. The
-          data stays on our own servers and only serves to produce statistics.
-          You can opt out at any time with the control below.
+          region and city derived from your IP address; your IP address itself
+          is not stored. It sets no cookie. To count unique and returning
+          visitors, it stores a random identifier on your device (in your
+          browser's local storage) for at most 13 months from your first visit;
+          later visits do not extend that period, and a new identifier replaces
+          it once it expires. This identifier is generated at random, is not
+          linked to your IP address, your Riot account or anything else about
+          you, is only used for our own anonymous audience statistics, and is
+          never shared or cross-referenced with other data. If your browser
+          does not keep it, a temporary code derived from your IP address and
+          browser, combined with a value specific to this site that changes
+          every month, is used instead. We do not record sessions and do not
+          track you on other sites. The data stays on our own servers and only
+          serves to produce statistics. You can opt out at any time with the
+          control below, which also deletes the identifier from your device.
         </ProseP>
         <AnalyticsOptOut />
         <ProseP>
@@ -90,9 +97,10 @@ const contactEmail = 'contact@truemain.lol'
         </ProseH2>
         <ProseP>
           We keep cookies to a minimum. We do not use advertising or third-party
-          tracking cookies. Any storage we use is strictly necessary to operate
-          the site (for example, remembering interface preferences, or your
-          choice to opt out of audience measurement).
+          tracking cookies. Apart from the audience measurement identifier
+          described above, which you can refuse, any storage we use is strictly
+          necessary to operate the site (for example, remembering interface
+          preferences, or your choice to opt out of audience measurement).
         </ProseP>
       </section>
 
@@ -104,8 +112,8 @@ const contactEmail = 'contact@truemain.lol'
           Aggregated statistics and the public match data they are built from are
           retained for as long as they are useful to the service, and are pruned
           on a rolling basis as patches age. Audience measurement records hold
-          no IP address and no identifier stored on your device, and are used
-          only to produce aggregate statistics.
+          no IP address and are used only to produce aggregate statistics; the
+          identifier stored on your device lasts at most 13 months.
         </ProseP>
       </section>
 
