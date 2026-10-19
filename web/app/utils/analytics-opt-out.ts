@@ -1,3 +1,5 @@
+import { clearVisitorId } from '~/utils/analytics-visitor-id'
+
 /**
  * The visitor's refusal of audience measurement (#2089) — the opt-out the
  * CNIL's consent exemption requires to be reachable from the privacy policy
@@ -7,6 +9,7 @@
  * before every send and drops the event while it is set, so a refusal made
  * after the tracker has loaded takes effect on the next page view without a
  * reload. The plugin also reads it to skip loading the tracker at all.
+ * Refusing also removes the anonymous visitor id (#2149) from the device.
  *
  * Storage that throws (Safari private mode, blocked site data) reads as "not
  * opted out" and makes the toggle a no-op — {@link setAnalyticsOptOut} returns
@@ -39,6 +42,7 @@ export function setAnalyticsOptOut(optOut: boolean, storage: Storage | null = ge
   try {
     if (optOut) {
       storage?.setItem(ANALYTICS_OPT_OUT_KEY, '1')
+      clearVisitorId(storage)
     }
     else {
       storage?.removeItem(ANALYTICS_OPT_OUT_KEY)

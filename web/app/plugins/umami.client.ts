@@ -1,4 +1,5 @@
 import { isAnalyticsOptedOut } from '~/utils/analytics-opt-out'
+import { clearVisitorId, getOrCreateVisitorId } from '~/utils/analytics-visitor-id'
 
 /**
  * Umami analytics tracker (#728) — self-hosted, cookieless audience
@@ -8,13 +9,21 @@ import { isAnalyticsOptedOut } from '~/utils/analytics-opt-out'
  *
  * Kept inside the CNIL's consent exemption for audience measurement (#2089),
  * which is why there is no consent banner:
- * - Umami's visitor id is a hash of site + IP + user agent + a monthly salt,
- *   never stored on the device — no `umami.identify()`, no persistent id.
+ * - A visitor is recognised across months by a random id stored on the device
+ *   for 13 months at most, never extended (#2149, `utils/analytics-visitor-id`).
+ *   Without storage, Umami falls back to its hash of site + IP + user agent + a
+ *   monthly salt.
  * - No session replay or heatmaps: Umami's `recorder.js` used to load here
  *   (#1011) and was removed, since following one visitor's navigation is
  *   exactly what the exemption excludes.
- * - A visitor who opted out on /privacy never gets the tracker loaded; the
- *   tracker itself also checks the same flag before every send.
+ * - A visitor who opted out on /privacy never gets the tracker loaded nor an
+ *   id; the tracker itself also checks the same flag before every send.
+ *
+ * The id rides on every send through the tracker's `before-send` hook rather
+ * than `umami.identify()`: both set the payload `id` Umami derives its session
+ * from, but `identify` called once the tracker is up lets the automatic first
+ * page view go out without it — a second, IP-hashed session on every page load
+ * — and sends an extra `identify` event.
  *
  * Client-only on purpose: the tracker observes browser navigation and has no
  * SSR role, and loading it client-side keeps it out of the server-rendered
@@ -37,15 +46,23 @@ import { isAnalyticsOptedOut } from '~/utils/analytics-opt-out'
  */
 export default defineNuxtPlugin(() => {
   const { host, websiteId } = useRuntimeConfig().public.umami
-  if (!host || !websiteId || isAnalyticsOptedOut()) {
+  if (!host || !websiteId) {
+    return
+  }
+  if (isAnalyticsOptedOut()) {
+    clearVisitorId()
     return
   }
 
   const origin = host.replace(/\/+$/, '')
+  const visitorId = getOrCreateVisitorId()
 
   useScriptUmamiAnalytics({
     websiteId,
     scriptInput: { src: `${origin}/script.js` },
+    ...(visitorId && {
+      beforeSend: (_type: string, payload: Record<string, unknown>) => ({ ...payload, id: visitorId }),
+    }),
     // `bundle: false` is load-bearing. The registry bundles its entry by default:
     // the build downloads *cloud.umami.is*'s tracker (it cannot read our `src`,
     // which is only known at runtime) and serves that copy from `/_scripts/`.
