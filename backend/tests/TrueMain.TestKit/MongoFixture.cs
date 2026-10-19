@@ -32,6 +32,10 @@ public sealed class MongoFixture : IAsyncLifetime
         // disabled (its image is not always pullable in CI), relying on the
         // single-container-per-assembly share + DisposeAsync for cleanup.
         .WithCleanUp(false)
+        // MongoDB 8 refuses to boot on Linux 6.19+ (SERVER-121912: the kernel's rseq
+        // changes break its vendored TCMalloc), which the CI runners now run. Letting
+        // glibc own rseq keeps TCMalloc off it, so the server starts (#2156).
+        .WithEnvironment("GLIBC_TUNABLES", "glibc.pthread.rseq=1")
         .Build();
 
     private IMongoClient? _client;
