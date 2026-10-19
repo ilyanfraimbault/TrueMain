@@ -4,8 +4,9 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { defineComponent, h } from 'vue'
 import ProcessesScraperCard from '~~/app/components/processes/ProcessesScraperCard.vue'
+import ProcessesScraperReport from '~~/app/components/processes/ProcessesScraperReport.vue'
 import ProcessesScraperSteps from '~~/app/components/processes/ProcessesScraperSteps.vue'
-import { SCRAPER_PROCESSES } from '~~/shared/utils/scraper-runs'
+import { parseScraperSummary, SCRAPER_PROCESSES } from '~~/shared/utils/scraper-runs'
 
 // Nuxt UI and the app's own components are auto-imported in the app; here they are
 // stand-ins that render the props a test reads.
@@ -24,6 +25,7 @@ const stub = (tag: string, text?: (props: Record<string, unknown>) => string) =>
 const global = {
   components: {
     ProcessesScraperSteps,
+    ProcessesScraperReport,
     UIcon: stub('i', p => String(p.name ?? '')),
     UBadge: stub('mark', p => String(p.label ?? '')),
     UProgress: stub('progress', p => String(p.modelValue ?? '')),
@@ -48,7 +50,7 @@ describe('ProcessesScraperSteps', () => {
           step({ name: 'deeplol', label: 'DeepLoL', status: 'running', startedAtUtc: '2026-10-18T23:44:00Z' }),
           step({ name: 'merge', status: 'skipped' }),
         ],
-        progress: { done: 250, total: 1000, label: 'profiles looked up' },
+        progress: { done: 250, total: 1000, label: 'profiles looked up', etaSeconds: 600 },
         live: true,
       },
     })
@@ -62,6 +64,7 @@ describe('ProcessesScraperSteps', () => {
     expect(items[1]!.find('[data-stub="progress"]').text()).toBe('25')
     expect(items[1]!.text()).toContain('250 / 1,000 (25 %)')
     expect(items[1]!.text()).toContain('profiles looked up')
+    expect(items[1]!.text()).toContain('~10m left')
     expect(items[2]!.text()).toContain('Merge')
   })
 
@@ -70,13 +73,14 @@ describe('ProcessesScraperSteps', () => {
       global,
       props: {
         steps: [step({ name: 'seed', status: 'running', startedAtUtc: '2026-10-18T23:44:00Z' })],
-        progress: { done: 12, total: null, label: null },
+        progress: { done: 12, total: null, label: null, etaSeconds: 600 },
         live: false,
       },
     })
     expect(wrapper.find('[data-stub="progress"]').exists()).toBe(false)
     expect(wrapper.find('li').text()).toContain('12')
     expect(wrapper.find('i').classes()).toContain('text-warning')
+    expect(wrapper.text()).not.toContain('left')  // a dead run has no ETA
   })
 })
 
@@ -109,7 +113,7 @@ describe('ProcessesScraperCard', () => {
       id: 'live',
       status: 'Running',
       startedAtUtc: new Date(Date.now() - 90 * 60_000).toISOString(),
-      summary: { currentStep: 'deeplol', steps: [{ name: 'deeplol', label: 'DeepLoL', status: 'running' }] },
+      summary: { currentStep: 'deeplol', steps: [{ name: 'deeplol', label: 'DeepLoL', status: 'running' }], run: { kind: 'sweep', version: '1.3.0', args: { sources: ['deeplol'], ladder: 'KR' } }, errors: { deeplol: { count: 2, last: ['502'] } } },
     })
     const older = run({ id: 'old', status: 'Failed' })
     const wrapper = mount(ProcessesScraperCard, {
@@ -121,6 +125,10 @@ describe('ProcessesScraperCard', () => {
     expect(wrapper.text()).toContain('1h 30m')
     expect(wrapper.text()).toContain('deeplol')
     expect(wrapper.text()).toContain('ops-host')
+    expect(wrapper.text()).toContain('sweep')
+    expect(wrapper.text()).toContain('v1.3.0')
+    expect(wrapper.text()).toContain('Sources deeplol · Ladder KR')
+    expect(wrapper.text()).toContain('2 errors across 1 source')
     expect(wrapper.findAll('li').length).toBeGreaterThanOrEqual(2)
 
     await wrapper.find('ul button').trigger('click')
@@ -147,5 +155,43 @@ describe('ProcessesScraperCard', () => {
     expect(loading.text()).toContain('Loading…')
     const failed = mount(ProcessesScraperCard, { global, props: { scraper, data: null, pending: false, error: new Error('x') } })
     expect(failed.find('[data-stub="aside"]').exists()).toBe(true)
+  })
+})
+
+describe('ProcessesScraperReport', () => {
+  const summary = parseScraperSummary({
+    run: { kind: 'sweep', version: '1.3.0', args: { sources: ['leaguepedia', 'deeplol'], discovery: true, gist: false } },
+    steps: [{ name: 'deeplol', label: 'DeepLoL', status: 'done' }],
+    results: [{ label: 'Accounts', items: [{ label: 'Linked', value: 7290, tone: 'success' }, { label: 'Conflict', value: 5, tone: 'warning' }] }],
+    errors: { deeplol: { count: 4, last: ['streamer/x: non-JSON HTTP 502'], blocked: 'HTTP 429 x5' }, trackingthepros: { count: 1, last: [] } },
+  })
+
+  it('renders results groups with their tones', () => {
+    const wrapper = mount(ProcessesScraperReport, { global, props: { summary } })
+    const values = wrapper.findAll('section dd')
+    expect(values.map(v => v.text())).toEqual(['7,290', '5'])
+    expect(values[0]!.classes()).toContain('text-success')
+    expect(values[1]!.classes()).toContain('text-warning')
+    expect(wrapper.text()).not.toContain('Invocation')
+  })
+
+  it('renders errors per source with their last messages and the drop reason', () => {
+    const wrapper = mount(ProcessesScraperReport, { global, props: { summary } })
+    expect(wrapper.text()).toContain('5 errors across 2 sources')
+    expect(wrapper.text()).toContain('DeepLoL')
+    expect(wrapper.text()).toContain('dropped for the run: HTTP 429 x5')
+    expect(wrapper.findAll('li').map(li => li.text())).toEqual(['streamer/x: non-JSON HTTP 502'])
+  })
+
+  it('shows the invocation on request', () => {
+    const wrapper = mount(ProcessesScraperReport, { global, props: { summary, showArgs: true } })
+    expect(wrapper.text()).toContain('Invocation')
+    expect(wrapper.findAll('dt').map(d => d.text())).toEqual(expect.arrayContaining(['Sources', 'Discovery', 'Gist']))
+    expect(wrapper.text()).toContain('leaguepedia, deeplol')
+  })
+
+  it('renders nothing for a summary without them', () => {
+    const wrapper = mount(ProcessesScraperReport, { global, props: { summary: parseScraperSummary({}) } })
+    expect(wrapper.text()).toBe('')
   })
 })
