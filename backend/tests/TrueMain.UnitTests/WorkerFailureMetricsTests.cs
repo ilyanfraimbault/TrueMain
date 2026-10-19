@@ -44,6 +44,7 @@ public sealed class WorkerFailureMetricsTests
         ("AccountRefresh", JobMode.AccountRefreshOnly),
         ("PaceSampling", JobMode.PaceSamplingOnly),
         ("MatchDataRetention", JobMode.MatchDataRetentionOnly),
+        ("ChampionGameCountRefresh", JobMode.ChampionGameCountRefreshOnly),
         ("CandidateStockSnapshot", JobMode.CandidateStockSnapshotOnly),
         ("StorageSnapshot", JobMode.StorageSnapshotOnly)
     ];

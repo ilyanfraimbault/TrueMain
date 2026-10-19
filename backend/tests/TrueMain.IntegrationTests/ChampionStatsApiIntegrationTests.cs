@@ -4,7 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Data.Entities;
 using AwesomeAssertions;
+using Ingestor.Processes;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
@@ -146,6 +148,15 @@ public sealed class ChampionStatsApiIntegrationTests : IAsyncLifetime
             BuildMainStat("chs-puuid-3", "EUW1", 99, isMain: true, isOtp: false, isExtendedSample: false));
 
         await db.SaveChangesAsync();
+
+        // The games side reads the rollup the ingestor recomputes (#2132), so the seeded
+        // raw rows only reach the endpoint once it has run.
+        await new ChampionGameCountRefreshProcess(
+                NullLogger<ChampionGameCountRefreshProcess>.Instance,
+                new TestDbContextFactory(_fixture),
+                new FakeProcessRunStore(),
+                TimeProvider.System)
+            .RunCoreAsync(CancellationToken.None);
     }
 
     private static Match BuildMatch(string id, string platformId, string gameVersion, int queueId, DateTime startUtc)

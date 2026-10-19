@@ -47,11 +47,16 @@ export interface PlatformRawDataFreshness {
   latestPatchVersion: string
 }
 
-/** Raw-corpus counters, scoped to the configured ranked queue. */
+/**
+ * Raw-corpus counters for the configured ranked queue. The two totals are the planner's
+ * row estimates of `matches` / `match_participants` (#2132), not exact counts; null when
+ * they could not be read, with `countsUnknownReason` saying why.
+ */
 export interface RawDataFreshness {
   queueId: number
-  rawMatchCount: number
-  rawParticipantCount: number
+  rawMatchCount: number | null
+  rawParticipantCount: number | null
+  countsUnknownReason: string | null
   platforms: PlatformRawDataFreshness[]
 }
 

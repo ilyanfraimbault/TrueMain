@@ -79,7 +79,9 @@ PgBouncer with waits up to 11 s, and API requests hung until the visitor's 60 s 
 (PgBouncer's default plus reserve pool), so excess requests queue in Npgsql and fail after its 15 s connection
 timeout with a logged error; PgBouncer's `QUERY_WAIT_TIMEOUT` is 30 s for every client, ingestors included, well
 above the longest wait measured under overload (11 s), so it only ends a wait that would otherwise last minutes.
-The ingestors keep their own caps (40 each).
+The ingestors kept their own caps (40 each) until #1632 sized every pool to a fixed share of the server
+connections (API 22, ingestors 8): see *Each service gets a fixed share of PgBouncer's server connections* in
+`infrastructure-and-deploy.md`.
 
 ## Postgres enforces server-side timeouts, scoped through PgBouncer databases (2026-10-06)
 
@@ -98,8 +100,9 @@ a runaway API read kept running on the server, a session idle inside a transacti
 - *The ingestors keep their 300 s budget.* Chunked folds legitimately run long (#603, #632, #988), so they get
   no `statement_timeout`. Their transactions wrap writes only (the folds and Riot calls run before `BEGIN`),
   which is why 60 s idle-in-transaction is ample.
-- *Capacity is unchanged.* Two databases mean two pools of 25 + 5; `max_user_connections = 30` caps them together
-  at what the single shared pool allowed.
+- *Capacity was unchanged.* Two databases meant two pools of 25 + 5; `max_user_connections = 30` capped them
+  together at what the single shared pool allowed. #1632 then gave each database a fixed share of those 30 (API 22,
+  ingestors 8, see `infrastructure-and-deploy.md`).
 - *A blocked migration fails, then retries.* The script is applied in one transaction, so a lock timeout leaves
   nothing behind; the `migrate` job retries it three times, 30 s apart, and a failure blocks the deploy.
   `ON_ERROR_STOP` is part of the script itself, so a failure can never exit 0.
@@ -326,3 +329,26 @@ Why, endpoint by endpoint, from the code:
 match history and the leaderboard carry, for a gain bounded by what the `COUNT` already spends. Revisit only
 when a measurement shows otherwise — and for a migrated endpoint, check that an index serves the chosen
 `(sort key, Id)` ordering first, since a seek without one is still a sort.
+
+## No ops read counts `match_participants` on request; a failed cold pass backs off (2026-10-19)
+
+**The admin Overview and Health pages failed whenever their cache was cold** (#2132): the operator champion
+stats grouped the whole participant table (the unfiltered Overview top-10 call), and the cockpit counted it
+exactly for its raw-corpus block — both ran into the API's 60 s `statement_timeout` (57014), and both caches
+stored successes only, so the next refresh re-ran the same scan.
+
+- **Champion stats read a rollup.** `champion_game_counts` holds stored participants per (platform, patch, queue,
+  position, champion) — every filter of `GET /ops/stats/champions` is one of its dimensions, so any combination
+  is a `SUM` over a few thousand rows. `champion_aggregate_scopes` is still not a substitute: it covers tracked
+  accounts' own games only, never the untracked teammates and opponents the count includes. The games figure is
+  now as fresh as the last `ChampionGameCountRefresh` run (at most every 30 min, aggregate lane) rather than live;
+  an operator page reading it on a 10-minute cache loses nothing it used.
+- **The cockpit's raw-corpus totals are planner estimates** (`pg_stat_user_tables.n_live_tup`, the figure
+  `/database` prints per table), table-wide rather than queue-filtered — storage is ranked-only (#680) — and the
+  block degrades on its own: a failed read nulls the two counts with `countsUnknownReason` instead of failing the
+  payload, like any composed signal.
+- **A failed pass is not re-run for a short window** (`FailureBackoff`, a negative entry through `ApiCache`): one
+  minute for champion stats, one 30-second tick for the cockpit. Callers get a `ReadBackoffException` at once
+  instead of queueing another identical timeout.
+
+Source: #2132, #1427, #1631.

@@ -85,6 +85,10 @@ public static class JobModeSequence
         // everything else that spends the Riot budget, so it only uses what they left.
         JobMode.PaceSamplingOnly,
         JobMode.MatchDataRetentionOnly,
+        // Recomputes the operator champion stats' game counts from the raw rows (#2132).
+        // After retention, so a patch it just deleted no longer counts; after the lane
+        // fix, whose rewrites move a game from one position to another.
+        JobMode.ChampionGameCountRefreshOnly,
         // Reads the candidate stock per status (#1403) after retention, for the same
         // reason the storage snapshot follows it: retention prunes stale candidates and
         // demotes an over-full queue back to Scored, so a level measured before it is a
@@ -137,6 +141,7 @@ public static class JobModeSequence
         JobMode.OpponentAggregationOnly,
         JobMode.BanAggregationOnly,
         JobMode.MatchDataRetentionOnly,
+        JobMode.ChampionGameCountRefreshOnly,
         JobMode.CandidateStockSnapshotOnly,
         JobMode.StorageSnapshotOnly
     ]);
