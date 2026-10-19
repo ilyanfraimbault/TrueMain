@@ -1,6 +1,6 @@
 import type { StaticSummonerSpellData } from '~~/shared/types/static-data'
 import { getSummonerSpellImageUrl } from '~~/shared/utils/ddragon'
-import { normalizeRequestedPatch, resolveDDragonVersion } from '~~/server/utils/ddragon-patch'
+import { normalizeRequestedPatch, resolveDDragonVersion } from '~~/layers/nitro/server/utils/ddragon-patch'
 
 interface SummonerListResponse {
   data: Record<string, {

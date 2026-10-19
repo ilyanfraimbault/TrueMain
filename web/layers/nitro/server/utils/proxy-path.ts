@@ -1,12 +1,8 @@
 /**
- * Containment guard for the catch-all backend proxy.
- *
- * This file is deliberately duplicated between the two apps
- * (`web/server/utils/proxy-path.ts`, `admin/server/utils/proxy-path.ts`): they
- * are separately built and deployed Nuxt apps with no shared package. The
- * duplication is only safe if it stays in sync — **a change here is a change on
- * both sides**, and each app pins the behaviour with its own test so the copies
- * cannot drift silently.
+ * Containment guard for the catch-all backend proxies: the site's `/api`
+ * (`web/server/api/[...path].ts`) and the admin's `/api/ops`
+ * (`admin/server/api/ops/[...path].ts`). One copy, in the layer both apps
+ * extend (`web/layers/nitro`, #1625): a change here is a change on both sides.
  */
 
 // WHATWG URL parsing — what `fetch` applies to the proxied target — folds `\`

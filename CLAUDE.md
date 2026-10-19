@@ -5,7 +5,7 @@ TrueMain is a League of Legends analytics site: champion/player stats computed f
 ## Repo map
 
 - `backend/` — .NET solution (`TrueMain.sln`): `Api` (REST), `Ingestor` (Riot data pipeline), `Data` (EF Core → PostgreSQL, plus Mongo for metrics), `Core`, `tests/`.
-- `web/` — public Nuxt + Nuxt UI frontend. `web/layers/common` is the Nuxt layer the site and the desktop app (`desktop/app`) both extend: the pages they share, their components, the design system (#1732, its `README.md` lists what each app provides).
+- `web/` — public Nuxt + Nuxt UI frontend. `web/layers/common` is the Nuxt layer the site and the desktop app (`desktop/app`) both extend: the pages they share, their components, the design system (#1732, its `README.md` lists what each app provides). `web/layers/nitro` is the one the site and the admin both extend: the server code they share (#1625, same `README.md` convention).
 - `admin/` — standalone Nuxt admin portal (separate app, not a `/admin` route).
 - `desktop/` — Tauri desktop companion (`src-tauri` Rust shell, `app` Nuxt UI extending `web/layers/common`). Its own version (`desktop/src-tauri/tauri.conf.json`) and release cycle, never the site's: every app change merged to `develop` builds a `desktop-vX.Y.Z-beta.N` pre-release that preprod serves; a version bump also builds the production one, served on truemain.lol by itself once the site release in production runs what it reads — the `desktop-release` skill, #1772, #1799.
 - `compose*.yaml` — Docker stacks, both deployed by CD (`.github/workflows/deploy-preprod.yml`, `deploy-prod.yml`) via the Hostinger Docker Manager API:

@@ -166,6 +166,8 @@ services:
     build:
       context: ./admin
       dockerfile: Dockerfile.dev
+      additional_contexts:
+        web: ./web
     container_name: truemain-dev-admin
     restart: unless-stopped
     environment:
@@ -187,6 +189,9 @@ services:
     volumes:
       - ./admin:/workspace/admin
       - truemain_dev_admin_node_modules:/workspace/admin/node_modules
+      - ./web/layers/nitro:/workspace/web/layers/nitro:ro
+      - ./web/layers/common/tsconfig.json:/workspace/web/layers/common/tsconfig.json:ro
+      - ./web/shared:/workspace/web/shared:ro
     develop:
       watch:
         - action: rebuild

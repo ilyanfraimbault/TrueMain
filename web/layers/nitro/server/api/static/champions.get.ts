@@ -1,12 +1,13 @@
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { isLiveChampionId } from '~~/shared/utils/ddragon'
-import { normalizeRequestedPatch, resolveDDragonVersion } from '~~/server/utils/ddragon-patch'
+import type { ChampionStaticListItem } from '../../../../../shared/types/static-data'
+import { isLiveChampionId } from '../../../../../shared/utils/ddragon'
+import { normalizeRequestedPatch, resolveDDragonVersion } from '../../utils/ddragon-patch'
 
 /**
- * Synchronised copy of `admin/server/api/static/champions.get.ts` (#1226). The
- * two apps read the same DDragon champion list and must answer it identically;
- * the only intended difference is the admin's `requireUserSession` gate. Keep
- * the rest line-for-line so the next divergence shows up in a diff.
+ * The DDragon champion list, which both apps read and must answer identically —
+ * one copy in `web/layers/nitro` (#1625; the two copies it replaced had drifted,
+ * #1226). Open on the site; the admin puts it behind the operator session with
+ * its own middleware (`admin/server/middleware/static-session.ts`), which runs
+ * before this handler.
  */
 
 interface ChampionListResponse {

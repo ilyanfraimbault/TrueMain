@@ -8,7 +8,7 @@ import {
   getChampionSpellImageUrl,
   normalizeDataDragonPatch,
 } from '~~/shared/utils/ddragon'
-import { resolveDDragonVersion } from '~~/server/utils/ddragon-patch'
+import { resolveDDragonVersion } from '~~/layers/nitro/server/utils/ddragon-patch'
 
 const COMMUNITY_DRAGON_BASE = 'https://raw.communitydragon.org'
 const COMMUNITY_DRAGON_PATH_SUFFIX = 'plugins/rcp-be-lol-game-data/global/default'
