@@ -294,7 +294,7 @@ services:
     container_name: truemain-preprod-umami-db
     restart: unless-stopped
     cpus: 0.5
-    cpu_shares: 512
+    cpu_shares: 1024
     environment:
       POSTGRES_USER: umami
       POSTGRES_PASSWORD: "${UMAMI_DB_PASSWORD:?set UMAMI_DB_PASSWORD before deploying}"
@@ -315,7 +315,7 @@ services:
     container_name: truemain-preprod-umami
     restart: unless-stopped
     cpus: 0.5
-    cpu_shares: 256
+    cpu_shares: 1024
     environment:
       DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@umami-db:5432/umami
       DATABASE_TYPE: postgresql
@@ -351,7 +351,7 @@ services:
     container_name: truemain-preprod-umami-proxy
     restart: unless-stopped
     cpus: 0.25
-    cpu_shares: 256
+    cpu_shares: 512
     environment:
       UMAMI_ALLOWED_FRAME_ORIGIN: ${UMAMI_ALLOWED_FRAME_ORIGIN:-}
     configs:
