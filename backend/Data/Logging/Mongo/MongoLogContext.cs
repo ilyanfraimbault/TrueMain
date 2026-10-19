@@ -22,33 +22,34 @@ namespace Data.Logging.Mongo;
 /// </remarks>
 public sealed class MongoLogContext : IDisposable
 {
-    private readonly MongoLoggingOptions _options;
+    /// <summary>The options this context was built from, for the stores that keep their own collection.</summary>
+    internal MongoLoggingOptions Options { get; }
     private readonly IMongoClient? _client;
     private readonly IMongoDatabase? _database;
 
     public MongoLogContext(IOptions<MongoLoggingOptions> options)
     {
-        _options = options.Value;
+        Options = options.Value;
 
-        if (!_options.IsActive)
+        if (!Options.IsActive)
         {
             return;
         }
 
-        _client = new MongoClient(_options.ConnectionString);
-        _database = _client.GetDatabase(_options.Database);
-        Logs = _database.GetCollection<MongoLogDocument>(_options.LogsCollection);
-        AuditEvents = _database.GetCollection<AuditEventDocument>(_options.AuditCollection);
-        RiotApiCallRollups = _database.GetCollection<RiotApiCallRollupDocument>(_options.RiotApiCallsCollection);
-        Crashes = _database.GetCollection<CrashReportDocument>(_options.CrashesCollection);
+        _client = new MongoClient(Options.ConnectionString);
+        _database = _client.GetDatabase(Options.Database);
+        Logs = _database.GetCollection<MongoLogDocument>(Options.LogsCollection);
+        AuditEvents = _database.GetCollection<AuditEventDocument>(Options.AuditCollection);
+        RiotApiCallRollups = _database.GetCollection<RiotApiCallRollupDocument>(Options.RiotApiCallsCollection);
+        Crashes = _database.GetCollection<CrashReportDocument>(Options.CrashesCollection);
         DbTableSizeSnapshots =
-            _database.GetCollection<DbTableSizeSnapshotDocument>(_options.DbTableSizeSnapshotsCollection);
+            _database.GetCollection<DbTableSizeSnapshotDocument>(Options.DbTableSizeSnapshotsCollection);
         CandidateStockSnapshots =
-            _database.GetCollection<CandidateStockSnapshotDocument>(_options.CandidateStockSnapshotsCollection);
-        ProcessRuns = _database.GetCollection<ProcessRunDocument>(_options.ProcessRunsCollection);
-        SeedRequests = _database.GetCollection<SeedRequestDocument>(_options.SeedRequestsCollection);
+            _database.GetCollection<CandidateStockSnapshotDocument>(Options.CandidateStockSnapshotsCollection);
+        ProcessRuns = _database.GetCollection<ProcessRunDocument>(Options.ProcessRunsCollection);
+        SeedRequests = _database.GetCollection<SeedRequestDocument>(Options.SeedRequestsCollection);
         EffectiveConfigurations = _database.GetCollection<EffectiveConfigurationDocument>(
-            _options.EffectiveConfigurationCollection);
+            Options.EffectiveConfigurationCollection);
     }
 
     /// <summary>True when a Mongo client was created (logging enabled + connection string present).</summary>
@@ -60,8 +61,6 @@ public sealed class MongoLogContext : IDisposable
     /// the process-iteration headers (#2124), which keep their own collection and options.
     /// </summary>
     internal IMongoDatabase Database => _database ?? throw Inactive();
-
-    internal MongoLoggingOptions Options => _options;
 
     // The collection wrappers are cached in the property backing field (the `field`
     // keyword): GetCollection<T>() allocates a fresh wrapper on every call, and the
@@ -208,7 +207,7 @@ public sealed class MongoLogContext : IDisposable
 
         // The TTL index is reconciled separately so a changed retention window
         // actually re-applies instead of conflicting and being silently swallowed.
-        await MongoIndexes.ReconcileTtlAsync(Logs, doc => doc.TimestampUtc, _options.LogsRetention, ct);
+        await MongoIndexes.ReconcileTtlAsync(Logs, doc => doc.TimestampUtc, Options.LogsRetention, ct);
 
         // audit_events: a descending timestamp index backs the newest-first audit read.
         await AuditEvents.Indexes.CreateOneAsync(
@@ -223,7 +222,7 @@ public sealed class MongoLogContext : IDisposable
         // (indefinite retention) is unchanged. It is here so enabling a window is a
         // configuration change rather than a code change — #1023 requires every
         // collection to declare its retention, and this was the one that could not.
-        await MongoIndexes.ReconcileTtlAsync(AuditEvents, doc => doc.TimestampUtc, _options.AuditRetention, ct);
+        await MongoIndexes.ReconcileTtlAsync(AuditEvents, doc => doc.TimestampUtc, Options.AuditRetention, ct);
 
         // crashes: a descending timestamp index for the newest-first listing, plus
         // equality indexes backing the process / source filters, and the reconciled
@@ -240,7 +239,7 @@ public sealed class MongoLogContext : IDisposable
 
         await Crashes.Indexes.CreateManyAsync(crashModels, ct);
 
-        await MongoIndexes.ReconcileTtlAsync(Crashes, doc => doc.TimestampUtc, _options.CrashesRetention, ct);
+        await MongoIndexes.ReconcileTtlAsync(Crashes, doc => doc.TimestampUtc, Options.CrashesRetention, ct);
     }
 
     /// <summary>
@@ -289,7 +288,7 @@ public sealed class MongoLogContext : IDisposable
         await RiotApiCallRollups.Indexes.CreateManyAsync(models, ct);
 
         await MongoIndexes.ReconcileTtlAsync(
-            RiotApiCallRollups, doc => doc.BucketStartUtc, _options.RiotApiCallsRetention, ct);
+            RiotApiCallRollups, doc => doc.BucketStartUtc, Options.RiotApiCallsRetention, ct);
     }
 
     /// <summary>
@@ -351,7 +350,7 @@ public sealed class MongoLogContext : IDisposable
         await DbTableSizeSnapshots.Indexes.CreateManyAsync(models, ct);
 
         await MongoIndexes.ReconcileTtlAsync(
-            DbTableSizeSnapshots, doc => doc.SnapshotDateUtc, _options.DbTableSizeSnapshotsRetention, ct);
+            DbTableSizeSnapshots, doc => doc.SnapshotDateUtc, Options.DbTableSizeSnapshotsRetention, ct);
     }
 
     /// <summary>
@@ -393,7 +392,7 @@ public sealed class MongoLogContext : IDisposable
         await MongoIndexes.ReconcileTtlAsync(
             CandidateStockSnapshots,
             doc => doc.SnapshotHourUtc,
-            _options.CandidateStockSnapshotsRetention,
+            Options.CandidateStockSnapshotsRetention,
             ct);
     }
 
@@ -435,7 +434,7 @@ public sealed class MongoLogContext : IDisposable
 
         await ProcessRuns.Indexes.CreateManyAsync(models, ct);
 
-        await MongoIndexes.ReconcileTtlAsync(ProcessRuns, doc => doc.StartedAtUtc, _options.ProcessRunsRetention, ct);
+        await MongoIndexes.ReconcileTtlAsync(ProcessRuns, doc => doc.StartedAtUtc, Options.ProcessRunsRetention, ct);
     }
 
     /// <summary>
