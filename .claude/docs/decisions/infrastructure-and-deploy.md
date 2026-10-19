@@ -235,3 +235,27 @@ release and is no longer the target for capacity tests. This reverses the main-d
 **The API port is published on loopback only, and pgAdmin is gone — 2026-09-24.** Both deployed stacks bound the API on `0.0.0.0` (`8080:8080` prod, `8081:8080` preprod), so it sat on the VPS public interface behind the host firewall alone — the one thing `ClientAddressResolver` already warns can fail invisibly. Nothing external needs the port: web and admin reach the API as `http://api:8080` over the internal network and Caddy proxies to web/admin, never to the API. It is now `127.0.0.1:8080:8080` / `:8081:` — host-local diagnostics keep working, the public interface does not, so "Caddy is the only public entry" is finally true at the socket level. pgAdmin was removed from every stack in the same pass: on preprod it published a password-only DB console on `0.0.0.0:5051`, a standing internet-reachable surface with no edge in front, redundant with `psql` on the loopback Postgres port.
 
 **Prod's edge configuration is inline in `compose.prod.yaml`, and the release checks the live edge — 2026-10-05.** The prod `Caddyfile` was a tracked file bind-mounted from the deployment directory, which no deploy writes: Docker Manager receives the compose file and the `.env`, nothing else. Compression (#1583) and the security headers (#1696) were released green and absent from prod — the host ran a hand-copied file. The product owner chose to embed the configuration under `configs.edge_caddyfile`, as preprod already did, over a rollout step copying the file: the deploy then cannot ship one without the other, and no new channel to the host is needed (the CI SSH key is pinned to the migration command). The rule now covers every deployed stack: whatever configuration it needs lives inside its compose file, and a relative bind mount is a file someone must copy by hand. An `edge` job in `deploy-prod.yml` asserts after each rollout that the public site answers HTML and JSON with `Content-Encoding` zstd/gzip and sends `Strict-Transport-Security` and `Content-Security-Policy`. See `docs/ci.md` (*What the deploy writes on the VPS*, *Verifying the edge*) — #1598.
+
+## Each service gets a fixed share of PgBouncer's server connections (2026-10-19)
+
+**The API's PgBouncer database is capped at 22 server connections and the ingestors' at 8, with no reserve pool;
+every Npgsql `Maximum Pool Size` is sized to its share (API 22, fetch lane 5, aggregate lane 3), so the client
+pools add up to the 30 server connections.** Before, the client pools summed to 110 (30 + 40 + 40) against two
+PgBouncer pools of 25 + 5 under one `max_user_connections = 30`: whichever side was busy could hold all 30 and
+leave the other queued at PgBouncer for up to 30 s. Reproduced locally on the deployed config: 35 long ingestor
+transactions took all 30 server connections and an API query waited 7.5 s; on the new config the ingestors stop
+at 8 and the API query answers at once.
+
+- *A per-database cap, not a new role.* The API already had its own PgBouncer database (`${POSTGRES_DB}_api`,
+  #1631), so `pool_size` + `max_db_connections` on each entry isolate the two without a second Postgres user —
+  no new secret in either host's `.env`.
+- *The split follows the code.* Each ingestor lane runs its steps sequentially; the only parallel database work
+  is the fetch lane's match ingestion, one worker per active platform (three). The lanes keep headroom above
+  that, the rest goes to the API, whose reads fan out (up to six queries per leaderboard request).
+- *The total stays 30*, what PgBouncer served before, far under Postgres `max_connections=100`; it is not grown
+  without a measurement.
+- *Not yet observed in preprod.* The issue's acceptance — `cl_waiting` at 0 for the API pool with both lanes at
+  full load, under the normal pipeline — stays open on #1632 until checked.
+
+Source: #1632; `docs/prod.md` (*Connection pools*). Supersedes the "ingestors keep their own caps (40 each)" and
+"capacity is unchanged" notes in `performance-and-incidents.md` (#1570, #1631).

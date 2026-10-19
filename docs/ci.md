@@ -860,8 +860,12 @@ leaves a misleading version on the page (#1637).
   points at the same database with a `connect_query` that sets
   `statement_timeout`, so the API's server connections carry it and the
   ingestors' do not. The image still writes `userlist.txt` from `DB_USER`,
-  `DB_PASSWORD` and `AUTH_TYPE`, the only env vars it keeps. The values are in
-  `docs/prod.md` (*Connection pools*).
+  `DB_PASSWORD` and `AUTH_TYPE`, the only env vars it keeps. Each database
+  entry also carries its share of the server connections (`pool_size`,
+  `max_db_connections`), and every service's `Maximum Pool Size` in its
+  connection string is sized to that share: the per-service budget, which
+  adds up to `max_user_connections`, is in `docs/prod.md` (*Connection pools*,
+  #1632), with the other values.
 - Both deployed stacks put Caddy in front of web and admin with its
   Caddyfile inline under `configs.edge_caddyfile`, because the deploy ships
   the compose file alone (*What the deploy writes on the VPS*; prod in

@@ -1,6 +1,6 @@
 x-ingestor-environment: &ingestor-environment
       DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=5;No Reset On Close=true;Application Name=truemain-ingestor
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Riot__ApiKey: ${RIOT_API_KEY}
       MongoLogging__CrashFilePath: /home/app/crashes
@@ -140,7 +140,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "false"
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=30;No Reset On Close=true;Application Name=truemain-api
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=22;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
@@ -276,7 +276,7 @@ services:
       Job__Mode: ${INGESTOR_AGGREGATE_JOB_MODE:-AggregateLane}
       Job__RunOnce: "false"
       Job__IntervalMinutes: "${INGESTOR_AGGREGATE_INTERVAL_MINUTES:-120}"
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor-aggregate
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=3;No Reset On Close=true;Application Name=truemain-ingestor-aggregate
     volumes:
       - truemain_preprod_ingestor_aggregate_crashes:/home/app/crashes
     depends_on:
@@ -368,8 +368,8 @@ configs:
   pgbouncer_ini:
     content: |
       [databases]
-      ${POSTGRES_DB} = host=postgres port=5432 auth_user=${POSTGRES_USER} connect_query='SET idle_in_transaction_session_timeout = 60000'
-      ${POSTGRES_DB}_api = host=postgres port=5432 dbname=${POSTGRES_DB} auth_user=${POSTGRES_USER} connect_query='SET idle_in_transaction_session_timeout = 60000; SET statement_timeout = 60000'
+      ${POSTGRES_DB} = host=postgres port=5432 auth_user=${POSTGRES_USER} pool_size=8 max_db_connections=8 connect_query='SET idle_in_transaction_session_timeout = 60000'
+      ${POSTGRES_DB}_api = host=postgres port=5432 dbname=${POSTGRES_DB} auth_user=${POSTGRES_USER} pool_size=22 max_db_connections=22 connect_query='SET idle_in_transaction_session_timeout = 60000; SET statement_timeout = 60000'
 
       [pgbouncer]
       listen_addr = 0.0.0.0
@@ -379,10 +379,8 @@ configs:
       auth_type = scram-sha-256
       pool_mode = transaction
       max_client_conn = 1000
-      default_pool_size = 25
       min_pool_size = 5
-      reserve_pool_size = 5
-      reserve_pool_timeout = 3
+      reserve_pool_size = 0
       max_user_connections = 30
       query_wait_timeout = 30
       ignore_startup_parameters = extra_float_digits
