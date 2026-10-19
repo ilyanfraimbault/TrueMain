@@ -4,6 +4,7 @@ using Core.Lol.Ranking;
 using Core.Options;
 using Data.BuildFacts;
 using Data.Entities;
+using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.PatternAggregation;
@@ -108,6 +109,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             }
 
             await mutateDb.SaveChangesAsync();
+            await SendMainnessFlipBackAsync(mutateDb);
         }
 
         await process.RunCoreAsync(CancellationToken.None);
@@ -138,6 +140,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             }
 
             await mutateDb.SaveChangesAsync();
+            await SendMainnessFlipBackAsync(mutateDb);
         }
 
         await process.RunCoreAsync(CancellationToken.None);
@@ -290,71 +293,181 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
     }
 
     [Fact]
-    public async Task RunAsync_ShouldBucketScopesByNearestRankSnapshotTier()
+    public async Task RunAsync_ShouldBucketScopesByTheParticipantsRankStamp()
     {
         await SeedChampionPatternDataAsync();
-        await SeedRankSnapshotsBracketingTheGamesAsync();
+        await StampBracketsAsync(("KR_AGG_1", EloBracket.Silver), ("KR_AGG_2", EloBracket.Master));
 
-        var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
 
-        // The two 16.5 games (same account / champion / patch / position) now
-        // split by the player's tier at game time: the earlier game buckets
-        // Silver (nearest to the Silver snapshot), the later one Master (nearest
-        // to the Master snapshot) — so one scope becomes two.
+        // Same account / champion / patch / position, two stamps: one scope per bracket,
+        // read off match_participants.elo_bracket rather than re-derived from the
+        // snapshots, so a scope and the live panels bucket a game the same way (#1367).
         scopes.Should().HaveCount(2);
         scopes.Select(scope => scope.EloBracket)
             .Should().BeEquivalentTo([EloBracket.Silver, EloBracket.Master]);
 
         var silver = scopes.Single(scope => scope.EloBracket == EloBracket.Silver);
         silver.Games.Should().Be(1);
-        silver.Wins.Should().Be(1, "KR_AGG_1 (nearest the Silver snapshot) was a win");
+        silver.Wins.Should().Be(1, "KR_AGG_1 (stamped Silver) was a win");
 
         var master = scopes.Single(scope => scope.EloBracket == EloBracket.Master);
         master.Games.Should().Be(1);
-        master.Wins.Should().Be(0, "KR_AGG_2 (nearest the Master snapshot) was a loss");
+        master.Wins.Should().Be(0, "KR_AGG_2 (stamped Master) was a loss");
     }
 
-    private async Task SeedRankSnapshotsBracketingTheGamesAsync()
+    [Fact]
+    public async Task RunAsync_ShouldRebucketAGame_WhenItsRankStampLandsAfterItWasAggregated()
+    {
+        await SeedChampionPatternDataAsync();
+
+        // No snapshot yet: the stamp is empty and the slice is folded under UNRANKED.
+        var process = CreateProcess();
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using (var firstDb = _fixture.CreateDbContext())
+        {
+            (await firstDb.ChampionAggregateScopes.SingleAsync()).EloBracket.Should().Be(EloBracket.Unranked);
+        }
+
+        // The account's first snapshot arrives; the enrichment step stamps both games and
+        // sends their match back, so the next pattern run moves them out of UNRANKED.
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            seedDb.RankSnapshots.Add(new RankSnapshot
+            {
+                RiotAccountId = _riotAccountId,
+                CapturedAtUtc = DateTime.UtcNow,
+                Tier = RankTier.Gold,
+                Division = RankDivision.II,
+                LeaguePoints = 10
+            });
+            await seedDb.SaveChangesAsync();
+        }
+
+        await new MatchParticipantEloBracketEnrichmentProcess(
+            NullLogger<MatchParticipantEloBracketEnrichmentProcess>.Instance,
+            new TestDbContextFactory(_fixture)).RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        var scope = await verifyDb.ChampionAggregateScopes.SingleAsync();
+        scope.EloBracket.Should().Be(EloBracket.Gold);
+        scope.Games.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldLeaveAggregatedSlicesAlone_WhenNothingIsPending()
+    {
+        await SeedChampionPatternDataAsync();
+
+        var process = CreateProcess();
+        await process.RunCoreAsync(CancellationToken.None);
+        Guid scopeId;
+        await using (var firstDb = _fixture.CreateDbContext())
+        {
+            scopeId = (await firstDb.ChampionAggregateScopes.SingleAsync()).Id;
+            (await firstDb.Matches.AllAsync(match => match.PatternAggregated)).Should().BeTrue();
+        }
+
+        var summary = await process.RunCoreAsync(CancellationToken.None);
+
+        summary.Should().BeOfType<Ingestor.Processes.Summaries.ChampionPatternNoWorkSummary>(
+            "every match is aggregated, so the run has nothing to rebuild");
+        await using var verifyDb = _fixture.CreateDbContext();
+        (await verifyDb.ChampionAggregateScopes.SingleAsync()).Id.Should().Be(scopeId,
+            "an untouched slice keeps its rows instead of being deleted and rebuilt");
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldRebuildOnlyTheSliceANewMatchTouches()
+    {
+        await SeedChampionPatternDataAsync();
+        await SeedSecondPatchDataAsync();
+
+        var process = CreateProcess();
+        await process.RunCoreAsync(CancellationToken.None);
+        Guid untouchedScopeId;
+        await using (var firstDb = _fixture.CreateDbContext())
+        {
+            untouchedScopeId = (await firstDb.ChampionAggregateScopes.SingleAsync(scope => scope.GameVersion == "16.6")).Id;
+        }
+
+        // One more 16.5 game: its slice is rebuilt over all three of its games, the 16.6
+        // slice is left as it was.
+        await SeedExtraMatchAsync("KR_AGG_EXTRA", "16.5.3", win: true);
+        var summary = await process.RunCoreAsync(CancellationToken.None);
+
+        summary.Should().BeOfType<Ingestor.Processes.Summaries.ChampionPatternAggregationSummary>()
+            .Which.Slices.Should().Be(1);
+        await using var verifyDb = _fixture.CreateDbContext();
+        var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
+        var rebuilt = scopes.Single(scope => scope.GameVersion == "16.5");
+        rebuilt.Games.Should().Be(3);
+        rebuilt.Wins.Should().Be(2);
+        scopes.Single(scope => scope.GameVersion == "16.6").Id.Should().Be(untouchedScopeId);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldRebuildEveryLiveSlice_WhenRebuildAllIsOn()
+    {
+        await SeedChampionPatternDataAsync();
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await using (var mutateDb = _fixture.CreateDbContext())
+        {
+            // A slice that drifted from its games, the way a dimension repair leaves one.
+            var scope = await mutateDb.ChampionAggregateScopes.SingleAsync();
+            scope.Games = 99;
+            await mutateDb.SaveChangesAsync();
+        }
+
+        await CreateProcess(rebuildAll: true).RunCoreAsync(CancellationToken.None);
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        (await verifyDb.ChampionAggregateScopes.SingleAsync()).Games.Should().Be(2);
+    }
+
+    /// <summary>What <c>MainAnalysisProcess</c> does after flipping the seeded main's row.</summary>
+    private static Task SendMainnessFlipBackAsync(Data.TrueMainDbContext db)
+        => new MatchRepository(db).InvalidatePatternAggregationAsync(
+            [new MainChampionKey("KR", "puuid-1", 22)],
+            CancellationToken.None);
+
+    private async Task StampBracketsAsync(params (string MatchId, string Bracket)[] stamps)
     {
         await using var db = _fixture.CreateDbContext();
+        foreach (var (matchId, bracket) in stamps)
+        {
+            await db.MatchParticipants
+                .Where(participant => participant.MatchId == matchId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(participant => participant.EloBracket, bracket));
+        }
+    }
 
-        // Push KR_AGG_2 a day past KR_AGG_1 so the two "captured exactly at game
-        // start" snapshots below land on different UTC calendar days — required
-        // since rank_snapshots now allows at most one row per account per day.
-        // The nearest-snapshot resolution below is driven purely by each match's
-        // distance to its own snapshot (which stays zero), so the day gap between
-        // the two matches doesn't affect which snapshot buckets which game.
-        var secondMatch = await db.Matches.SingleAsync(match => match.Id == "KR_AGG_2");
-        secondMatch.GameStartTimeUtc = secondMatch.GameStartTimeUtc.AddDays(1);
-        await db.SaveChangesAsync();
+    private async Task SeedExtraMatchAsync(string matchId, string gameVersion, bool win)
+    {
+        var now = DateTime.UtcNow;
+        await using var db = _fixture.CreateDbContext();
 
-        // Capture each snapshot exactly at a game's start so the nearest-capture
-        // reduction is deterministic: KR_AGG_1 → Silver, KR_AGG_2 → Master.
-        var gameStarts = await db.Matches
-            .Where(match => match.Id == "KR_AGG_1" || match.Id == "KR_AGG_2")
-            .ToDictionaryAsync(match => match.Id, match => match.GameStartTimeUtc);
-
-        db.RankSnapshots.AddRange(
-            new RankSnapshot
-            {
-                RiotAccountId = _riotAccountId,
-                CapturedAtUtc = gameStarts["KR_AGG_1"],
-                Tier = RankTier.Silver,
-                Division = RankDivision.II,
-                LeaguePoints = 50
-            },
-            new RankSnapshot
-            {
-                RiotAccountId = _riotAccountId,
-                CapturedAtUtc = gameStarts["KR_AGG_2"],
-                Tier = RankTier.Master,
-                Division = RankDivision.I,
-                LeaguePoints = 200
-            });
+        db.Matches.Add(new Match
+        {
+            Id = matchId,
+            PlatformId = "KR",
+            QueueId = (int)LolQueueId.RankedSoloDuo,
+            MapId = (int)LolMapId.SummonersRift,
+            GameMode = "CLASSIC",
+            GameType = "MATCHED_GAME",
+            GameStartTimeUtc = now.AddMinutes(-90),
+            GameDurationSeconds = 1800,
+            GameVersion = gameVersion,
+            CreatedAtUtc = now,
+            TimelineIngested = true
+        });
+        db.MatchParticipants.Add(BuildParticipant(Guid.NewGuid(), matchId, win, [3153, 3006, 6672]));
 
         await db.SaveChangesAsync();
     }
@@ -449,7 +562,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
 
     private ChampionPatternAggregationProcess CreateProcess(
         bool aggregateNonMains = false,
-        int retainedPatchCount = 2)
+        int retainedPatchCount = 2,
+        bool rebuildAll = false)
     {
         var dbContextFactory = new TestDbContextFactory(_fixture);
         return new ChampionPatternAggregationProcess(
@@ -462,6 +576,10 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions
             {
                 RetainedPatchCount = retainedPatchCount
+            }),
+            Microsoft.Extensions.Options.Options.Create(new PatternAggregationOptions
+            {
+                RebuildAll = rebuildAll
             }),
             new ChampionPatternSourceRowReader(dbContextFactory),
             new ChampionPatternAggregateBuilder(new FakeItemMetadataProvider()),

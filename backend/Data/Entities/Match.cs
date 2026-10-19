@@ -160,5 +160,19 @@ public class Match
     /// </summary>
     public bool PaceBenchmarkAggregated { get; set; }
 
+    /// <summary>
+    /// Whether this match's participants are reflected in the champion pattern aggregates
+    /// (<c>champion_aggregate_scopes</c> / <c>_patterns</c>, #1367). Unlike its siblings it
+    /// is not a fold-once gate over additive counters: the pattern aggregates are
+    /// replace-by-slice, one (account, champion, patch, platform) slice at a time, so a
+    /// match whose participants changed after it was aggregated is simply set back to
+    /// <c>false</c> and its slices are rebuilt on the next run. The writers that change
+    /// what the aggregation reads off a participant row (the rank stamp, the lane fix, the
+    /// role-bound slot) clear it through <c>PatternAggregationInvalidation</c>. Shipped
+    /// <c>false</c> everywhere: the first run rebuilds every slice of the retained window
+    /// once, which is what the full rebuild it replaces did every run.
+    /// </summary>
+    public bool PatternAggregated { get; set; }
+
     public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
 }

@@ -20,10 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 24,
+                propertyCount: 25,
                 navigationCount: 1,
                 unnamedIndexCount: 4,
-                namedIndexCount: 7,
+                namedIndexCount: 8,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -192,6 +192,16 @@ namespace Data.CompiledModels
             patch.AddAnnotation("Relational:ComputedColumnSql", "((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[1])::int::text || '.' || ((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[2])::int::text");
             patch.AddAnnotation("Relational:IsStored", true);
 
+            var patternAggregated = runtimeEntityType.AddProperty(
+                "PatternAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("PatternAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<PatternAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            patternAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            patternAggregated.AddAnnotation("Relational:DefaultValue", false);
+
             var platformId = runtimeEntityType.AddProperty(
                 "PlatformId",
                 typeof(string),
@@ -287,6 +297,11 @@ namespace Data.CompiledModels
                 new[] { queueId },
                 name: "IX_matches_opponent_pending");
             iX_matches_opponent_pending.AddAnnotation("Relational:Filter", "\"OpponentAggregated\" = false");
+
+            var iX_matches_pattern_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_pattern_pending");
+            iX_matches_pattern_pending.AddAnnotation("Relational:Filter", "\"PatternAggregated\" = false");
 
             var iX_matches_profile_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

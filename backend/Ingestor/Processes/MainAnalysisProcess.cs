@@ -146,6 +146,10 @@ public sealed class MainAnalysisProcess(
         // Every account of the batch is stamped, the thin-sample ones included: they
         // wait a full recompute cycle before the next try.
         await session.RiotAccounts.StampLastMainCalcAsync(batch, nowUtc, ct);
+        // A slice of the pattern aggregation carries its player's main-ness, and a
+        // mains-only run folds nothing else, so every flip has to rebuild the slices it
+        // touches (#1367).
+        await session.Matches.InvalidatePatternAggregationAsync(summary.MainnessChanged, ct);
         summary.DemotedAccounts += await DemoteCandidatesAsync(session, accountsToDemote, ct);
         await transaction.CommitAsync(ct);
         return summary;
@@ -248,7 +252,7 @@ public sealed class MainAnalysisProcess(
         AnalysisSummary summary)
     {
         var newStatsByChampionIds = newStats.Select(stat => stat.ChampionId).ToHashSet();
-        summary.TotalStatsRemoved += RemoveMissingChampionStats(session, existingStats, newStatsByChampionIds);
+        summary.TotalStatsRemoved += RemoveMissingChampionStats(session, existingStats, newStatsByChampionIds, summary);
         summary.TotalStatsUpserted += UpsertChampionStats(session, existingStats, newStats, summary);
     }
 
@@ -297,10 +301,14 @@ public sealed class MainAnalysisProcess(
         return demotedAccounts.Count;
     }
 
+    private static MainChampionKey KeyOf(MainChampionStat stat)
+        => new(stat.PlatformId, stat.Puuid, stat.ChampionId);
+
     private static int RemoveMissingChampionStats(
         IDataSession session,
         IReadOnlyCollection<MainChampionStat> existingStats,
-        IReadOnlySet<int> newChampionIds)
+        IReadOnlySet<int> newChampionIds,
+        AnalysisSummary summary)
     {
         var removed = 0;
         foreach (var existing in existingStats)
@@ -311,6 +319,11 @@ public sealed class MainAnalysisProcess(
             }
 
             session.MainChampionStats.Remove(existing);
+            if (existing.IsMain)
+            {
+                summary.MainnessChanged.Add(KeyOf(existing));
+            }
+
             removed++;
         }
 
@@ -332,6 +345,11 @@ public sealed class MainAnalysisProcess(
                 existing.TotalMatches = stat.TotalMatches;
                 existing.ChampionMatches = stat.ChampionMatches;
                 existing.PlayRate = stat.PlayRate;
+                if (existing.IsMain != stat.IsMain)
+                {
+                    summary.MainnessChanged.Add(KeyOf(existing));
+                }
+
                 existing.IsMain = stat.IsMain;
                 existing.IsOtp = stat.IsOtp;
                 existing.IsExtendedSample = stat.IsExtendedSample;
@@ -354,6 +372,10 @@ public sealed class MainAnalysisProcess(
             }
 
             session.MainChampionStats.Add(stat);
+            if (stat.IsMain)
+            {
+                summary.MainnessChanged.Add(KeyOf(stat));
+            }
         }
 
         return newStats.Count;
@@ -381,6 +403,9 @@ public sealed class MainAnalysisProcess(
         /// <summary>Rows un-flagged this run because games came back.</summary>
         public int SampleRestored { get; set; }
 
+        /// <summary>Champions whose main-ness this run flipped, added or removed (#1367).</summary>
+        public List<MainChampionKey> MainnessChanged { get; } = [];
+
         public void Merge(AnalysisSummary other)
         {
             Processed += other.Processed;
@@ -389,6 +414,7 @@ public sealed class MainAnalysisProcess(
             DemotedAccounts += other.DemotedAccounts;
             SampleRetired += other.SampleRetired;
             SampleRestored += other.SampleRestored;
+            MainnessChanged.AddRange(other.MainnessChanged);
         }
     }
 }
