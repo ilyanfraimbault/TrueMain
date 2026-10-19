@@ -128,6 +128,7 @@ Last verified against `develop` on 2026-09-02.
 - An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
 - The site's match detail has no Timeline tab: TrueMain computes and stores no win-probability curve, the desktop app alone builds it from the client's timeline (2026-10-12, reverses 2026-10-05) — #2009, #1911
 - Known players: one person, several accounts at `/players/{slug}`, linked only from public sources, never inferred (2026-10-13) — #2016
+- Known players' accounts on a platform the pipeline does not ingest are stored as `untracked`, never seeded (2026-10-19) — #2134
 - A main champion row reads its lane and play rate only: the `80 of last 200` sample line is gone (2026-10-13, reverses #1498's line)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)

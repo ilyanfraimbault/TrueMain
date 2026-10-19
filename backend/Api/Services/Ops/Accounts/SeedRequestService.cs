@@ -68,6 +68,12 @@ public sealed class SeedRequestService(
     private static readonly HashSet<string> TrackedPlatforms =
         new(StringComparer.Ordinal) { "EUW1", "KR", "NA1" };
 
+    /// <summary>
+    /// Whether the pipeline ingests <paramref name="platform"/> (a canonical platform id). A seed
+    /// elsewhere still resolves, but its candidates are never claimed by match ingestion.
+    /// </summary>
+    internal static bool IsTrackedPlatform(string platform) => TrackedPlatforms.Contains(platform);
+
     public async Task<SeedRequestCreateResult> CreateAsync(SeedRequestInput input, CancellationToken ct)
     {
         var gameName = input.GameName?.Trim();

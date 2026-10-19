@@ -216,13 +216,21 @@ because a known player need not be a true main of anything.
 Accounts are linked only when a public source lists them, and every link keeps its source. TrueMain infers nothing — no
 smurf detection from play patterns, no historic Riot IDs: Riot's policy forbids de-anonymising a player who cannot
 reasonably be identified from visible information. The intake is additive and never moves an account another persona
-holds (a conflict is reported for an operator to settle), and untracked accounts are seeded only on platforms the site
-shows.
+holds (a conflict is reported for an operator to settle), and untracked accounts are seeded only on platforms the
+pipeline ingests (revised 2026-10-19, #2134 — it was "platforms the site shows").
 
 **Why.** Visitors reach a famous player through one of their accounts and had no way to know whose it was or find the
 others. The first `personas` table (dropped in #1244) was half-built with no consumer; this one ships with its reader.
 
-**Source.** #2016.
+**Untracked platforms: stored, never seeded (2026-10-19, #2134).** An account a source lists on a platform outside the
+ingested set (`EUW1`, `KR`, `NA1` today) is stored as published and answered `untracked`, but never queued through the
+seed intake — whatever `seedMissing` says. Match ingestion only claims candidates on its configured platforms, so a seed
+on `BR1` or `TR1` spent three Riot calls on an account that was never ingested, and the platforms scrapers guess for
+such accounts mostly ended on a summoner-v4 404 (#2133). The row still links on its own if that platform is ever
+ingested. The batch reports those accounts in one log line, and placeholder names a source serialises for a missing
+value (`undefined`, `null`) are rejected as `invalid`.
+
+**Source.** #2016, #2134.
 
 **A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
 each main's name, so the count would name its denominator next to the champion page's per-patch count. On the
