@@ -434,3 +434,23 @@ current summary, `POST /ops/process-runs/{id}/finish` closes it as Success, Fail
   logs the failure. The run's report on its host stays the reference.
 - **Not on `/health`.** The pipeline-health verdict lists the Ingestor's processes only; a weekly scraper is not
   pipeline health, and its own tab answers "is it running, where is it, what did it do".
+
+## Iterations are paged from a header per pass, not grouped from the runs (2026-10-19)
+
+**`process_iterations` holds one header per pipeline pass (`_id` = iteration id, earliest `startedAtUtc`,
+`jobMode`), and `GET /ops/process-iterations` pages it; the runs are loaded for the page's iterations only.**
+The endpoint used to group the whole `process_runs` collection on every request and page the grouped result,
+so its cost followed the 180-day history rather than the page: on 2026-10-19 preprod read all 158k runs (73 MB)
+to show 8 iterations, about 8 s in Mongo on the throttled VM, and the Processes page ran it twice per load plus
+once every 30 s for the live chain. The header makes the page an index read and the total an index count.
+
+- **Written by the store, not by the Worker.** `ProcessRunStore.InsertAsync` upserts the header of every
+  iteration-stamped run (`$min` on the start, `jobMode` on insert), so an iteration has a header exactly when it
+  has a run — the definition the grouping had — and the recorder's fallback insert is covered for free.
+- **In flight is still read off the runs.** `finishedOnly` leaves out the passes holding a `Running` run with a
+  fresh heartbeat, found through a partial index over `Running` runs; a header carries no status that a dead
+  host could leave stale.
+- **Backfilled once, by the first read.** When the oldest iteration-stamped run predates the oldest header by
+  more than two days, one `$group` over the runs is merged into the headers (`keepExisting`). The margin keeps
+  the leftover runs of a pass whose header the shared 180-day TTL reaped a moment earlier from re-triggering the
+  scan. #2124

@@ -83,6 +83,13 @@ public sealed class MongoLoggingOptions
     public string ProcessRunsCollection { get; set; } = "process_runs";
 
     /// <summary>
+    /// Collection holding one header per pipeline iteration (#2124), upserted next to
+    /// every iteration-stamped run so the admin pages iterations off an index instead of
+    /// grouping every run. Shares <see cref="ProcessRunsRetention"/>.
+    /// </summary>
+    public string ProcessIterationsCollection { get; set; } = "process_iterations";
+
+    /// <summary>
     /// Collection holding the "seed by Riot ID" intake queue (#409), written by the
     /// API's seed endpoint, claimed by the Ingestor's <c>ManualSeedProcess</c> and
     /// read by the admin seed panel. Functional admin data (not telemetry), so it
