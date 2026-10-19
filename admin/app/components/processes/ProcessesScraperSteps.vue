@@ -7,7 +7,7 @@ import { useIntervalFn } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { formatElapsed, formatNumber } from '~~/shared/utils/format'
 import { humanizeKey } from '~~/shared/utils/process-summary'
-import { progressPercent } from '~~/shared/utils/scraper-runs'
+import { formatEta, progressPercent } from '~~/shared/utils/scraper-runs'
 
 const props = defineProps<{
   steps: ScraperStep[]
@@ -48,6 +48,7 @@ function counterValue(value: number | string): string {
 }
 
 const percent = computed(() => progressPercent(props.progress ?? null))
+const eta = computed(() => (props.live ? formatEta(props.progress?.etaSeconds) : null))
 </script>
 
 <template>
@@ -71,6 +72,9 @@ const percent = computed(() => progressPercent(props.progress ?? null))
             </template>
             <template v-if="progress.label">
               · {{ progress.label }}
+            </template>
+            <template v-if="eta">
+              · {{ eta }} left
             </template>
           </p>
         </template>
