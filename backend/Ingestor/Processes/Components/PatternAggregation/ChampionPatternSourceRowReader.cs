@@ -21,51 +21,6 @@ public sealed class ChampionPatternSourceRowReader(
     /// </summary>
     internal const int MinimumAggregatedGameDurationSeconds = 15 * 60;
 
-    // The aggregation is chunked one champion at a time so the in-memory working
-    // set is bounded by a single champion's match rows rather than the whole
-    // live-patch table. Materialising every match_participant (each carrying its
-    // full item/skill timeline) at once ballooned the managed heap to ~6 GB and
-    // got the process OOM-killed. The (patch, platform) live keys are computed
-    // once by the caller and threaded into each per-champion load.
-    internal async Task<IReadOnlyList<int>> LoadChampionIdsAsync(
-        int queueId,
-        CancellationToken ct)
-    {
-        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-
-        // Champions any tracked account has played — a superset of the champions
-        // that can produce source rows. The per-champion source query re-applies
-        // the full queue + timeline filter, so a champion with no qualifying rows
-        // just yields a cheap empty iteration. Derived from main_champion_stats
-        // (small: one row per tracked account/champion) rather than a DISTINCT
-        // over the match_participants 3-way join, which scanned the whole table
-        // and hit the 300s command timeout now that parallel query is disabled
-        // (max_parallel_workers_per_gather=0, #589).
-        //
-        // Deliberately *not* filtered to IsMain any more: the aggregate now holds
-        // the non-main population too, so a champion whose only games come from
-        // non-mains has to get a pass. main_champion_stats carries a row per
-        // (account, champion) pair the analysis has seen, main or not, so it
-        // remains the complete cheap source.
-        var playedChampionIds = await db.MainChampionStats
-            .AsNoTracking()
-            .Select(stat => stat.ChampionId)
-            .Distinct()
-            .ToListAsync(ct);
-
-        // Union champions that already have aggregate scopes, so a champion that
-        // lost all its qualifying rows still gets a pass and has its stale
-        // live-patch scopes pruned (replace-by-scope down to zero).
-        var scopeChampionIds = await db.ChampionAggregateScopes
-            .AsNoTracking()
-            .Where(scope => scope.QueueId == queueId)
-            .Select(scope => scope.ChampionId)
-            .Distinct()
-            .ToListAsync(ct);
-
-        return playedChampionIds.Union(scopeChampionIds).ToList();
-    }
-
     /// <summary>
     /// The (patch, platform) pairs this run may rebuild aggregates for: each platform's
     /// <c>MatchDataRetention:RetainedPatchCount</c> most recent patches, the same window
@@ -102,85 +57,135 @@ public sealed class ChampionPatternSourceRowReader(
         return RetainedPatchWindow.ToPatchPlatformPairs(retainedPatchesByPlatform);
     }
 
-    // `includeNonMains` folds the non-main population too
-    // (`MainAnalysis:AggregateNonMainPopulation`). Off by default: this process runs
-    // on every full-pipeline cycle, so widening it takes effect on the next run after
-    // a deploy rather than when someone is ready for it — and the widening is ~4.3x
-    // the source rows on production, on the process that once OOM-killed the VPS
-    // (#601).
-    internal async Task<ChampionPatternAggregationInputs> LoadAggregationInputsAsync(
+    /// <summary>
+    /// Sends every match of the retained window back to the aggregation
+    /// (<c>PatternAggregation:RebuildAll</c>), so this run rebuilds every live slice.
+    /// </summary>
+    internal async Task<int> RequeueWindowAsync(
         int queueId,
-        int championId,
         IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys,
-        bool includeNonMains,
+        CancellationToken ct)
+    {
+        var windowPatches = livePatchKeys.Select(key => key.GameVersion).Distinct().ToList();
+        var windowPlatforms = livePatchKeys.Select(key => key.PlatformId).Distinct().ToList();
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+
+        // The cross product of the two lists can reach a retired-patch straggler; it is
+        // simply flagged again without work, like any pending match outside the window.
+        return await db.Matches
+            .Where(match => match.QueueId == queueId
+                && match.PatternAggregated
+                && windowPlatforms.Contains(match.PlatformId)
+                && windowPatches.Contains(match.Patch ?? match.GameVersion))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(match => match.PatternAggregated, false), ct);
+    }
+
+    /// <summary>
+    /// The pending matches and the slices they touch (#1367). A match is pending until its
+    /// timeline is in: the aggregation reads build and skill order out of it, so flagging
+    /// a match before then would leave its games out for good.
+    ///
+    /// <para>
+    /// The ids are read before the slices, on purpose. The fetch lane keeps inserting
+    /// matches while this runs; one that lands in between adds a slice nobody will flag a
+    /// match for — rebuilt once more next run, harmless — whereas the opposite order would
+    /// flag a match whose slice was never rebuilt.
+    /// </para>
+    ///
+    /// <para>
+    /// Every tracked participant marks its slice, main or not: whether the slice holds
+    /// anything is the rebuild's decision, and a demoted player's slice has to be rebuilt
+    /// to empty. A pending match outside the retained window marks nothing and is flagged
+    /// all the same — that patch is frozen.
+    /// </para>
+    /// </summary>
+    internal async Task<PendingPatternWork> LoadPendingWorkAsync(
+        int queueId,
+        IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys,
         CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        var existingAggregateScopes = LoadExistingAggregateScopes(
-            await LoadExistingScopeKeysAsync(db, queueId, championId, ct),
-            livePatchKeys);
-        var sourceRows = await LoadSourceRowsAsync(
-            db, queueId, championId, livePatchKeys, includeNonMains, ct);
 
-        return new ChampionPatternAggregationInputs
-        {
-            ExistingAggregateScopes = existingAggregateScopes,
-            SourceRows = sourceRows
-        };
-    }
-
-    private static async Task<List<AggregateScopeKey>> LoadExistingScopeKeysAsync(
-        TrueMainDbContext db,
-        int queueId,
-        int championId,
-        CancellationToken ct)
-        => await db.ChampionAggregateScopes
+        // IX_matches_pattern_pending: the pending tail, not the table.
+        var matchIds = await db.Matches
             .AsNoTracking()
-            .Where(scope => scope.QueueId == queueId && scope.ChampionId == championId)
-            .Select(scope => new AggregateScopeKey(
-                scope.ChampionId,
-                scope.GameVersion,
-                scope.PlatformId,
-                scope.QueueId))
+            .Where(match => match.QueueId == queueId && !match.PatternAggregated && match.TimelineIngested)
+            .Select(match => match.Id)
+            .ToListAsync(ct);
+
+        var windowPatches = livePatchKeys.Select(key => key.GameVersion).Distinct().ToList();
+        var windowPlatforms = livePatchKeys.Select(key => key.PlatformId).Distinct().ToList();
+        if (matchIds.Count == 0 || windowPatches.Count == 0)
+        {
+            return new PendingPatternWork(matchIds, []);
+        }
+
+        var touched = await (
+            from match in db.Matches.AsNoTracking()
+            join participant in db.MatchParticipants.AsNoTracking() on match.Id equals participant.MatchId
+            where match.QueueId == queueId
+                && !match.PatternAggregated
+                && match.TimelineIngested
+                && participant.RiotAccountId != null
+                && windowPlatforms.Contains(match.PlatformId)
+                && windowPatches.Contains(match.Patch ?? match.GameVersion)
+            select new
+            {
+                RiotAccountId = participant.RiotAccountId!.Value,
+                participant.ChampionId,
+                GameVersion = match.Patch ?? match.GameVersion,
+                match.PlatformId
+            })
             .Distinct()
             .ToListAsync(ct);
 
-    private static List<AggregateScopeKey> LoadExistingAggregateScopes(
-        IReadOnlyCollection<AggregateScopeKey> existingScopes,
-        IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys)
-        // Cleanup keys are the scopes the persister will delete-and-rebuild.
-        // We must only ever touch scopes for patches whose match data is still
-        // present: MatchDataRetention purges match_participants/matches beyond
-        // the last few patches, so once a patch's matches are gone there are no
-        // source rows left to rebuild its scopes. Including such a patch in the
-        // cleanup set would delete its aggregates permanently (the "everything
-        // before patch X vanished" bug). Restrict the cleanup to live patches —
-        // (patch, platform) pairs that still have matches for this queue — so
-        // older patches keep their frozen aggregates while live patches retain
-        // the full replace-by-scope semantics (stale scopes still get pruned).
-        => existingScopes
-            .Where(scope => livePatchKeys.Contains((scope.GameVersion, scope.PlatformId)))
-            .ToList();
+        var slices = touched
+            .Where(slice => livePatchKeys.Contains((slice.GameVersion, slice.PlatformId)))
+            .Select(slice => new AggregateSliceKey(slice.RiotAccountId, slice.ChampionId, slice.GameVersion, slice.PlatformId))
+            .ToHashSet();
 
-    private static async Task<List<AggregateSourceRow>> LoadSourceRowsAsync(
-        TrueMainDbContext db,
+        return new PendingPatternWork(matchIds, slices);
+    }
+
+    /// <summary>Flags the matches whose slices this run rebuilt.</summary>
+    internal async Task MarkAggregatedAsync(IReadOnlyList<string> matchIds, CancellationToken ct)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        foreach (var chunk in matchIds.Chunk(MarkBatchSize))
+        {
+            await db.Matches
+                .Where(match => chunk.Contains(match.Id))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(match => match.PatternAggregated, true), ct);
+        }
+    }
+
+    private const int MarkBatchSize = 5000;
+
+    // `includeNonMains` folds the non-main population too
+    // (`MainAnalysis:AggregateNonMainPopulation`). Off by default: widening it is ~4.3x
+    // the source rows on production, on the process that once OOM-killed the VPS (#601).
+    //
+    // Reads every retained game of the slices' accounts on the slices' champions, then
+    // keeps the slices asked for: the two lists are a superset of the slice set only
+    // across accounts of the same batch, which is a few rows, not a patch.
+    internal async Task<List<AggregateSourceRow>> LoadSourceRowsAsync(
         int queueId,
-        int championId,
-        IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys,
+        IReadOnlyCollection<AggregateSliceKey> slices,
         bool includeNonMains,
         CancellationToken ct)
     {
-        // Narrow to the window in SQL on the two axes a list translates to, then pair them
-        // up exactly below. The cross product is a superset of the window only while a
-        // platform trails another through a rollout, and the rows it adds are precisely the
-        // retired-patch stragglers this filter exists to drop — a few dozen, against the
-        // hundreds of thousands the patch predicate already removed.
-        var windowPatches = livePatchKeys.Select(key => key.GameVersion).Distinct().ToList();
-        var windowPlatforms = livePatchKeys.Select(key => key.PlatformId).Distinct().ToList();
-        if (windowPatches.Count == 0)
+        var sliceSet = slices.ToHashSet();
+        if (sliceSet.Count == 0)
         {
             return [];
         }
+
+        var accountIds = sliceSet.Select(slice => slice.RiotAccountId).Distinct().ToList();
+        var championIds = sliceSet.Select(slice => slice.ChampionId).Distinct().ToList();
+        var windowPatches = sliceSet.Select(slice => slice.GameVersion).Distinct().ToList();
+        var windowPlatforms = sliceSet.Select(slice => slice.PlatformId).Distinct().ToList();
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
         var sourceRows = await (
             from participant in db.MatchParticipants.AsNoTracking()
@@ -196,8 +201,9 @@ public sealed class ChampionPatternSourceRowReader(
                 into statMatches
             from stat in statMatches.DefaultIfEmpty()
             where (includeNonMains || (stat != null && stat.IsMain))
-                && participant.ChampionId == championId
                 && participant.RiotAccountId != null
+                && accountIds.Contains(participant.RiotAccountId.Value)
+                && championIds.Contains(participant.ChampionId)
                 && match.QueueId == queueId
                 && match.TimelineIngested
                 && windowPlatforms.Contains(match.PlatformId)
@@ -222,6 +228,7 @@ public sealed class ChampionPatternSourceRowReader(
                 Deaths = participant.Deaths,
                 Assists = participant.Assists,
                 Position = LanePositions.Normalize(participant.TeamPosition),
+                EloBracket = participant.EloBracket == string.Empty ? EloBracket.Unranked : participant.EloBracket,
                 Summoner1Id = participant.Summoner1Id,
                 Summoner2Id = participant.Summoner2Id,
                 PrimaryStyleId = participant.PrimaryStyleId,
@@ -242,66 +249,12 @@ public sealed class ChampionPatternSourceRowReader(
             .ToListAsync(ct);
 
         var filtered = sourceRows
-            .Where(row => livePatchKeys.Contains((row.GameVersion, row.PlatformId)))
+            .Where(row => sliceSet.Contains(new AggregateSliceKey(row.RiotAccountId, row.ChampionId, row.GameVersion, row.PlatformId)))
             .Where(HasCompleteCorrelatedTimeline)
             .ToList();
 
         await HydratePerkSelectionsAsync(db, filtered, ct);
-        await HydrateEloBracketsAsync(db, filtered, ct);
         return filtered;
-    }
-
-    /// <summary>
-    /// Buckets each source row by the player's ranked tier <em>at game time</em>:
-    /// the <c>rank_snapshots</c> capture nearest (in absolute time) to the
-    /// match's <c>GameStartTimeUtc</c> for that account. Rows whose account has
-    /// no snapshot keep the default <see cref="EloBracket.Unranked"/> bucket.
-    ///
-    /// The nearest-capture match is a LINQ join between the rows and the
-    /// candidate snapshots (keyed on the account), then a per-row reduction to
-    /// the minimum <c>|CapturedAtUtc - GameStartTimeUtc|</c>. Snapshots are
-    /// loaded once for the involved accounts and folded in memory — mirroring
-    /// <see cref="HydratePerkSelectionsAsync"/> — because a per-row correlated
-    /// "nearest" subquery would not translate to an efficient single SQL pass.
-    /// </summary>
-    private static async Task HydrateEloBracketsAsync(
-        TrueMainDbContext db,
-        IReadOnlyCollection<AggregateSourceRow> sourceRows,
-        CancellationToken ct)
-    {
-        if (sourceRows.Count == 0)
-        {
-            return;
-        }
-
-        var accountIds = sourceRows.Select(row => row.RiotAccountId).Distinct().ToList();
-
-        var snapshots = await db.RankSnapshots
-            .AsNoTracking()
-            .Where(snapshot => accountIds.Contains(snapshot.RiotAccountId))
-            .Select(snapshot => new { snapshot.RiotAccountId, snapshot.CapturedAtUtc, snapshot.Tier })
-            .ToListAsync(ct);
-
-        var snapshotsByAccount = snapshots
-            .GroupBy(snapshot => snapshot.RiotAccountId)
-            .ToDictionary(
-                group => group.Key,
-                group => (IReadOnlyCollection<(DateTime, string?)>)group
-                    .Select(snapshot => (snapshot.CapturedAtUtc, (string?)snapshot.Tier.ToRiotName()))
-                    .ToList());
-
-        foreach (var row in sourceRows)
-        {
-            if (!snapshotsByAccount.TryGetValue(row.RiotAccountId, out var accountSnapshots))
-            {
-                // No snapshot for this account → already UNRANKED by default.
-                continue;
-            }
-
-            // Shared nearest-capture resolution so this and the match_participants
-            // enrichment pass bucket every game identically.
-            row.EloBracket = EloBracketResolver.FromNearestSnapshot(accountSnapshots, row.GameStartTimeUtc);
-        }
     }
 
     private static async Task HydratePerkSelectionsAsync(

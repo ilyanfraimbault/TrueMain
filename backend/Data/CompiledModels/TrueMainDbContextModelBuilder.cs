@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("ffd52a3a-6673-434e-b95f-8346e5553b7c"), entityTypeCount: 37)
+            : base(skipDetectChanges: false, modelId: new Guid("72dab159-2301-47a9-be7c-2c8b1f940282"), entityTypeCount: 37)
         {
         }
 
@@ -113,7 +113,7 @@ namespace Data.CompiledModels
             RiotAccountEntityType.CreateAnnotations(riotAccount);
 
             AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-            AddAnnotation("ProductVersion", "10.0.12");
+            AddAnnotation("ProductVersion", "10.0.13");
             AddAnnotation("Relational:MaxIdentifierLength", 63);
         }
     }

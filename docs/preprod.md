@@ -46,7 +46,7 @@ The fetch lane stays on the default `RunOnce` loop: its passes are back-to-back,
 rate limiter rather than by a timer. The aggregate lane runs on a timer (`INGESTOR_AGGREGATE_INTERVAL_MINUTES`,
 default 120 here, 20 on prod): there is nothing to gain from re-folding the same rows the moment a pass ends, and
 a fixed cadence is what makes "how stale can an aggregate be?" answerable. Preprod waits longer between passes
-(#2122): the pattern aggregation rebuilds the whole live patch each pass (#1367), so a 20-minute gap kept
+(#2122): the pattern aggregation rebuilt the whole live patch each pass until #1367, so a 20-minute gap kept
 Postgres busy almost without a break and held the shared host at its CPU ceiling until the provider throttled it.
 Each lane has its own crash volume, because two containers writing crash dumps to one path would race on the
 file the crash reporter writes before it reaches Mongo. `MainAnalysis__AggregateNonMainPopulation` is on here (#1346, gated per environment by #1349) because

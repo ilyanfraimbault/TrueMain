@@ -208,12 +208,19 @@ public sealed record MainActivitySummary(
     int AccountsSkipped) : IProcessRunSummary;
 
 /// <summary>Champion pattern aggregation outcome.</summary>
+/// <summary>
+/// Pattern aggregation outcome. Since #1367 the counts are those of the slices this run
+/// rebuilt, not of the whole retained window: <see cref="Matches"/> pending matches touched
+/// <see cref="Slices"/> (account, champion, patch, platform) slices.
+/// </summary>
 public sealed record ChampionPatternAggregationSummary(
     int SourceRows,
     int Scopes,
     int Patterns,
     int GameVersions,
-    int Champions) : IProcessRunSummary;
+    int Champions,
+    int Matches,
+    int Slices) : IProcessRunSummary;
 
 /// <summary>Elo-bracket enrichment outcome.</summary>
 public sealed record EloBracketEnrichmentSummary(int Stamped, int Deferred, int Batches) : IProcessRunSummary;

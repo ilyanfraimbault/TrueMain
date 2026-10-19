@@ -54,6 +54,35 @@ public sealed class MatchRepository(TrueMainDbContext db) : IMatchRepository
     public void Add(Match match)
         => db.Matches.Add(match);
 
+    public Task<int> InvalidatePatternAggregationAsync(
+        IReadOnlyCollection<MainChampionKey> mains,
+        CancellationToken ct)
+    {
+        if (mains.Count == 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        var platformIds = mains.Select(main => main.PlatformId).ToArray();
+        var puuids = mains.Select(main => main.Puuid).ToArray();
+        var championIds = mains.Select(main => main.ChampionId).ToArray();
+
+        // Driven from the keys: IX_match_participants_puuid_match finds each player's rows,
+        // the primary key their matches.
+        return db.Database.ExecuteSqlAsync(
+            $"""
+            UPDATE "matches" AS m
+            SET "PatternAggregated" = false
+            FROM unnest({platformIds}, {puuids}, {championIds}) AS k("PlatformId", "Puuid", "ChampionId")
+            JOIN "match_participants" AS p
+                ON p."Puuid" = k."Puuid" AND p."ChampionId" = k."ChampionId"
+            WHERE m."Id" = p."MatchId"
+                AND m."PlatformId" = k."PlatformId"
+                AND m."PatternAggregated"
+            """,
+            ct);
+    }
+
     public async Task<List<PaceBenchmarkFoldClaim>> ClaimPaceBenchmarkFoldAsync(
         IReadOnlyCollection<string> matchIds,
         CancellationToken ct)

@@ -166,6 +166,7 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
             NullLogger<ChampionPatternAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions()),
+            Microsoft.Extensions.Options.Options.Create(new PatternAggregationOptions()),
             new ChampionPatternSourceRowReader(factory),
             new ChampionPatternAggregateBuilder(new CohortItemMetadataProvider()),
             new ChampionPatternAggregatePersister(factory, new ChampionDimensionResolver(factory)),
