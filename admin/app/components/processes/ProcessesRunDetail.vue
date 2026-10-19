@@ -111,6 +111,8 @@ const summaryHasContent = computed(() => hasSummary(shownSummary.value))
           />
         </div>
 
+        <ProcessesScraperReport v-if="scraperSummary" :summary="scraperSummary" show-args />
+
         <div>
           <p class="text-muted text-xs uppercase mb-1.5">
             Summary

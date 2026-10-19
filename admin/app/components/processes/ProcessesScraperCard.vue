@@ -5,7 +5,8 @@ import type { ProcessRun, ProcessRunsResponse } from '~~/shared/types/ops'
 import type { ScraperProcess } from '~~/shared/utils/scraper-runs'
 import { formatDateTime, formatElapsed, formatTimeAgo } from '~~/shared/utils/format'
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
-import { parseScraperSummary } from '~~/shared/utils/scraper-runs'
+import { formatRunArg, parseScraperSummary } from '~~/shared/utils/scraper-runs'
+import { humanizeKey } from '~~/shared/utils/process-summary'
 import { useIntervalFn } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { statusBadgeUi } from '~/utils/process-chain'
@@ -23,6 +24,10 @@ const runs = computed(() => props.data?.runs ?? [])
 const latest = computed(() => runs.value[0] ?? null)
 const history = computed(() => runs.value.slice(1))
 const parsed = computed(() => parseScraperSummary(latest.value?.summary ?? null))
+// The invocation in one line under the title: "Sources leaguepedia, deeplol · Deeplol Discover on · …".
+const argsLine = computed(() => Object.entries(parsed.value.run?.args ?? {})
+  .map(([key, value]) => `${humanizeKey(key)} ${formatRunArg(value)}`)
+  .join(' · '))
 const isRunning = computed(() => latest.value?.status === 'Running')
 
 // Literal classes, so Tailwind sees them (a `text-${color}` template would be purged).
@@ -53,6 +58,11 @@ function runDuration(run: ProcessRun): string {
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
           <PanelTitle :title="scraper.label" :subtitle="scraper.description" />
+          <div v-if="parsed.run" class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <UBadge v-if="parsed.run.kind" color="primary" variant="soft" size="sm" :label="parsed.run.kind" />
+            <span v-if="parsed.run.version" class="font-mono">v{{ parsed.run.version }}</span>
+            <span v-if="argsLine" class="min-w-0 truncate" :title="argsLine">{{ argsLine }}</span>
+          </div>
         </div>
         <UBadge
           v-if="latest"
@@ -113,6 +123,8 @@ function runDuration(run: ProcessRun): string {
         :progress="parsed.progress"
         :live="isRunning"
       />
+
+      <ProcessesScraperReport :summary="parsed" />
 
       <UButton
         color="neutral"

@@ -422,8 +422,14 @@ current summary, `POST /ops/process-runs/{id}/finish` closes it as Success, Fail
   rewrite an outcome. The summary is a JSON object of at most 64 KiB: a report, not a log.
 - **One summary convention, read by the admin.** `steps` (each phase with `name`, optional `label`, `status`
   running/done/failed/skipped, its start/finish and its own `counters`), `currentStep` and a `progress` gauge
-  (`done`, `total`, `label`) for the phase in flight; every other key is the run's report, rendered as-is. A summary
-  that ignores the convention still renders whole.
+  (`done`, `total`, `label`, `etaSeconds`) for the phase in flight; since #2125 also `run` (`kind` — weekly / sweep /
+  targeted / manual —, `version`, `args`: the invocation as asked, not every default), `results` (labelled groups of
+  headline numbers, each item with an optional `success`/`warning`/`error` tone) and `errors` (per source: `count`,
+  the `last` few messages, `blocked` when the source was dropped). Every other key is the run's report, rendered
+  as-is. A summary that ignores the convention still renders whole.
+- **The card answers the operator's questions first** (#2125): what kind of run and how it was invoked (header
+  line), how far and how long left (progress + ETA on the step in flight), what it produced (results grid), what
+  went wrong (errors block, with the last messages) — the full report stays one click away.
 - **The scripts never depend on it.** Reporting is best-effort: a script whose API call fails keeps working and
   logs the failure. The run's report on its host stays the reference.
 - **Not on `/health`.** The pipeline-health verdict lists the Ingestor's processes only; a weekly scraper is not
