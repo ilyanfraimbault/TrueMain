@@ -14,27 +14,27 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@iconify-json/lucide": "^1.2.142",
+    "@iconify-json/lucide": "^1.2.144",
     "@nuxt/image": "^2.1.0",
-    "@nuxt/ui": "^4.11.3",
+    "@nuxt/ui": "^4.12.0",
     "@vueuse/nuxt": "^15.0.0",
-    "nuxt": "^4.6.0",
+    "nuxt": "^4.6.1",
     "nuxt-auth-utils": "^0.5.31",
     "nuxt-charts": "^2.2.3",
-    "vue": "^3.5.43"
+    "vue": "^3.5.44"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
-    "@types/node": "^26.6.4",
-    "@vitejs/plugin-vue": "^6.0.9",
-    "@vitest/coverage-v8": "^5.0.4",
+    "@types/node": "^26.6.5",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vitest/coverage-v8": "^5.0.5",
     "@vue/test-utils": "^2.5.1",
     "eslint": "^10.12.0",
     "eslint-plugin-vuejs-accessibility": "^2.6.2",
-    "happy-dom": "^20.14.6",
+    "happy-dom": "^21.0.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vitest": "^5.0.3",
-    "vue-tsc": "^3.3.12"
+    "vue-tsc": "^3.3.13"
   }
 }

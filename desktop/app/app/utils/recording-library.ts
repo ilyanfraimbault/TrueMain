@@ -113,6 +113,18 @@ export function libraryItems(library: RecordingLibrary | null): LibraryItem[] {
     .sort((a, b) => b.atMs - a.atMs || (a.kind === b.kind ? 0 : a.kind === 'game' ? -1 : 1))
 }
 
+/**
+ * The dashboard's latest clips: the most recently saved first. A game's
+ * automatic clips are saved together, so the game, then the moment, settle a tie.
+ */
+export function latestClips(library: RecordingLibrary | null, count: number): LibraryItem[] {
+  if (!library) return []
+  return [...library.clips]
+    .sort((a, b) => b.createdAtMs - a.createdAtMs || b.gameStartedAtMs - a.gameStartedAtMs || b.startMs - a.startMs)
+    .slice(0, count)
+    .map(clipItem)
+}
+
 /** What a card is called: a clip's title, else the game — "Ahri · Victory". */
 export function itemTitle(item: LibraryItem, championName: (id: number) => string): string {
   if (item.title) return item.title

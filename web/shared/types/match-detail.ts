@@ -15,9 +15,10 @@ export interface MatchDetailResponse {
   gameVersion: string
   participants: MatchDetailParticipant[]
   /**
-   * Desktop only: the client's own timeline, reduced to what the model reads —
-   * the app builds the win-probability curve from it (`buildWinProbability`,
-   * #1911). Never sent by the API: TrueMain stores no curve (#2009), so the
+   * Desktop only: the client's own timeline, reduced to what the model and the
+   * curves read — the app builds the win-probability curve (`buildWinProbability`,
+   * #1911) and the players' gold / XP / CS curves (`buildTimelineCurves`, #2102)
+   * from it. Never sent by the API: TrueMain stores no curve (#2009), so the
    * site's match detail has no Timeline tab.
    */
   winProbabilityTimeline?: WinProbabilityTimeline | null

@@ -6,13 +6,15 @@ import type {
   StaticSummonerSpellData,
 } from '#shared/types/static-data'
 import { resolveWinProbability } from '#common/utils/win-probability-swing'
+import { hasTimelineCurves } from '#common/utils/timeline-curves'
 import { MATCH_DETAIL_SOURCE } from '#common/utils/match-detail-source'
 
 /**
  * Inline match-detail body rendered inside an expanded match row, on the site's
  * profile and the desktop dashboard alike. Reads the game through the page's
  * `MATCH_DETAIL_SOURCE` (TrueMain's copy by default) and lays out the
- * scoreboard, the win-probability timeline, a per-player build and skill order
+ * scoreboard, the timeline (the players' gold / XP / CS curves and the win
+ * probability, desktop only), a per-player build and skill order
  * (behind a player selector) and every player's rune page, across full-width
  * tabs. Static-data maps are passed down from the
  * surrounding page so they hit the shared caches instead of being re-fetched
@@ -41,19 +43,23 @@ const blueTeam = computed(() => participants.value.filter(p => p.teamId === 100)
 const redTeam = computed(() => participants.value.filter(p => p.teamId === 200))
 const blueWin = computed(() => blueTeam.value[0]?.win ?? false)
 
-// ─── Timeline tab: the win-probability curve (#1911) ─────────────────────────
+// ─── Timeline tab: the win-probability curve (#1911) and the curves (#2102) ──
 // Desktop only: built from the client's timeline the app attaches (the API sends
 // no curve, #2009); a short game gets no tab rather than an empty chart. Read
 // for the row owner's side.
 const winProbability = computed(() => (detail.value ? resolveWinProbability(detail.value) : null))
-const ownerTeamId = computed(() => {
-  const owner = props.selfChampionId ? participants.value.find(p => p.championId === props.selfChampionId) : null
-  return owner?.teamId ?? 100
+const owner = computed(() => (props.selfChampionId ? participants.value.find(p => p.championId === props.selfChampionId) ?? null : null))
+const ownerTeamId = computed(() => owner.value?.teamId ?? 100)
+// Above it, the ten players' gold / XP / CS curves (#2102), from the same
+// timeline: only when it carries them, so a game without one shows neither.
+const curvesTimeline = computed(() => {
+  const timeline = detail.value?.winProbabilityTimeline
+  return hasTimelineCurves(timeline) ? timeline : null
 })
 
 const tabItems = computed(() => [
   { value: 'general', label: 'Overview', slot: 'general' as const },
-  ...(winProbability.value ? [{ value: 'timeline', label: 'Timeline', slot: 'timeline' as const }] : []),
+  ...(winProbability.value || curvesTimeline.value ? [{ value: 'timeline', label: 'Timeline', slot: 'timeline' as const }] : []),
   { value: 'details', label: 'Build', slot: 'details' as const },
   { value: 'runes', label: 'Runes', slot: 'runes' as const },
 ])
@@ -121,16 +127,25 @@ const tabItems = computed(() => [
         </div>
       </template>
 
-      <!-- ── Timeline: win-probability curve and turning points ──────── -->
+      <!-- ── Timeline: gold / XP / CS curves, then the win probability ── -->
       <template #timeline>
-        <MatchDetailWinProbability
-          v-if="winProbability"
-          class="mt-3"
-          :win-probability="winProbability"
-          :perspective-team-id="ownerTeamId"
-          :participants="participants"
-          :champions="champions"
-        />
+        <div class="mt-3 flex flex-col gap-3">
+          <MatchDetailTimelineCurves
+            v-if="curvesTimeline"
+            :timeline="curvesTimeline"
+            :perspective-team-id="ownerTeamId"
+            :self-participant-id="owner?.participantId ?? null"
+            :participants="participants"
+            :champions="champions"
+          />
+          <MatchDetailWinProbability
+            v-if="winProbability"
+            :win-probability="winProbability"
+            :perspective-team-id="ownerTeamId"
+            :participants="participants"
+            :champions="champions"
+          />
+        </div>
       </template>
 
       <!-- ── Build: player selector + single-player breakdown ───────── -->

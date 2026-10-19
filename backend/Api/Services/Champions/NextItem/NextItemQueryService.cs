@@ -79,14 +79,17 @@ public sealed class NextItemQueryService(
             Thresholds);
 
         var owned = criteria.Items.Where(item => item > 0).ToHashSet();
+        var build = BuildSlot(model, criteria.Items, owned, situation);
+        var boots = owned.Any(model.IsBoots) ? null : Slot(model.Branch(ItemContextSlot.Boots, 0), owned, situation, onTree: true);
 
         return new ChampionNextItemResponse
         {
             ChampionId = championId,
             Position = position,
             Patch = patch,
-            Build = BuildSlot(model, criteria.Items, owned, situation),
-            Boots = owned.Any(model.IsBoots) ? null : Slot(model.Branch(ItemContextSlot.Boots, 0), owned, situation, onTree: true),
+            Build = build,
+            Boots = boots,
+            Order = NextItemBuildOrder.Resolve(model, criteria.Items, situation, build, boots),
             Situation = situation.ToDictionary(entry => entry.Key.ToString(), entry => entry.Value.ToString()),
             EnemyLanes = enemyLanes,
         };
