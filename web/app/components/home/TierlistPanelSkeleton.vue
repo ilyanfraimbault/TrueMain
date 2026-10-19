@@ -23,7 +23,7 @@ const ROW_COUNT = 8
         label="Full tier list"
       />
     </header>
-    <div class="surface flex flex-col rounded-2xl py-1.5">
+    <div class="surface surface-blur flex flex-col rounded-2xl py-1.5">
       <div class="px-4 py-2">
         <USkeleton class="h-2.5 w-40" />
       </div>

@@ -28,6 +28,11 @@ const props = defineProps<{
   runeTree: RuneTreeResponse
   /** The player's Riot ID as the site's slug; the detail is fetched against it, so it gates the accordion. */
   nameTag?: string | null
+  /**
+   * `champions` keyed by id, built once by a host drawing many rows
+   * (`MatchHistoryList`, #2129). Built here from `champions` when absent.
+   */
+  championById?: Map<number, ChampionStaticListItem>
 }>()
 
 const canExpand = computed(() => !!props.nameTag)
@@ -41,7 +46,7 @@ function toggle() {
 }
 
 const self = computed(() => props.match.self)
-const championById = computed(() => new Map(props.champions.map(c => [c.championId, c])))
+const championById = computed(() => props.championById ?? new Map(props.champions.map(c => [c.championId, c])))
 const champion = computed(() => championById.value.get(self.value.championId))
 const championName = computed(() => championDisplayName(self.value.championId, champion.value))
 
@@ -49,8 +54,14 @@ const result = computed(() => resultTone(self.value.win))
 </script>
 
 <template>
+  <!-- `content-visibility: auto` skips style, layout and paint of a row off
+       screen (#2129): a page of 20 rows lays out only the ~9 in view. It stays
+       in the accessibility tree, the focus order and in-page find. The 54 px
+       stands in for a row never rendered yet; `auto` makes the browser keep the
+       last height it rendered instead, so an opened accordion scrolled away
+       keeps its size. Block size only: the width is the list's. -->
   <article
-    class="@container surface overflow-hidden rounded-lg"
+    class="@container surface overflow-hidden rounded-lg [content-visibility:auto] [contain-intrinsic-block-size:auto_54px]"
     :aria-label="`${result.label} as ${championName}, ${self.kills}/${self.deaths}/${self.assists}`"
   >
     <!-- The row sizes off its own width, not the viewport (#967): it sits

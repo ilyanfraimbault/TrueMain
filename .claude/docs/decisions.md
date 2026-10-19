@@ -161,7 +161,7 @@ Last verified against `develop` on 2026-09-02.
 - Icon slots are rendered from the ids, never gated on a resolved static lookup
 - Champion-page icons are slow because of browser queue depth, not the image proxy — measure the split before "optimising" it — #680, #997
 - `SkeletonImage` serves WebP; `RankIcon` deliberately does not
-- Every picture shows a skeleton until it has loaded (`SkeletonImage`, `SkeletonPicture`); build-summary inline icons excepted (2026-10-06) — #1949
+- Every picture shows a skeleton until it has loaded (`SkeletonImage`, `SkeletonPicture`, or an opaque `<img>`'s own `img-skeleton` background for a match row's ten composition icons, #2129); build-summary inline icons excepted (2026-10-06) — #1949
 - Every icon URL is built by one helper, so one asset is one cache entry — #1000
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
 - `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26); a root-level web↔admin Nuxt layer was rejected (2026-09-17); the site and the desktop app share `web/layers/common` since #1732, the admin does not extend it (2026-10-01); a CI drift check is planned — #1226, #947, #966, #1623, #1732, #1684, #1625
@@ -191,7 +191,7 @@ Last verified against `develop` on 2026-09-02.
 - Keycap edge on surfaces and filled buttons; translucency returns for the floating header only; type stays Inter set tight with rose eyebrows, primary buttons stay rose gold (2026-09-27) — #1709, #1060
 - Nuxt UI feeds Tailwind only the themes of the components the site uses (`componentDetection`): entry CSS 38.9 → 29.5 KB gzip, no visual change (2026-10-04) — #1641
 - Inter and Geist Mono are committed (variable WOFF2, every subset) and resolved by a repo-local @nuxt/fonts provider; no build fetches a font, share cards use committed static Inter (2026-10-06) — #1106, #1335
-- The UI refresh: `surface` becomes the dashboard tile's translucent pane, stars under the home page only, Nuxt UI only and no accent bars, splash banners on detail pages, one profile page and one match detail for both apps (2026-10-07) — #1983, #1060, #1498, #1682
+- The UI refresh: `surface` becomes the dashboard tile's translucent pane (its blur an opt-in, `surface-blur`, since 2026-10-19 — #2129), stars under the home page only, Nuxt UI only and no accent bars, splash banners on detail pages, one profile page and one match detail for both apps (2026-10-07) — #1983, #1060, #1498, #1682
 - One champion banner (`ChampionHero`) on the champion page and the app's champion page; one tier mark (`TierBadge`) on every surface (2026-10-13) — #2026
 - The player-scoped champion page is the profile's page (`PagePlayerProfile`) on the champion's splash, no longer the champion banner (2026-10-13, revises #2026) — #2043
 - One rank emblem (`RankEmblem`) on every row, one rank label in title case (`formatRank`: `Diamond II · 42 LP`); the truemains table and the champion page's rows share their columns (2026-10-13) — #2025, #2028

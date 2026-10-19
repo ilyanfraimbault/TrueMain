@@ -449,6 +449,11 @@ read as modern and the other pages of both apps did not. Option A was chosen ove
   `glass`": the opaque grey read as flat next to the dashboard. The blur only shows where something moves behind
   a pane, so on a flat route a card reads as a dark pane with a hairline — accepted after seeing it. The `UCard`,
   `UEmpty` and `UTable` themes name the fill as `--ui-bg-surface`.
+  **Revised 2026-10-19 (#2129): the blur is an opt-in, `surface-blur`.** A Firefox profile of a truemain's profile
+  put the GPU at 460–670 ms/s while scrolling its history, one backdrop blur per match row over a flat ground where
+  it paints exactly what the fill alone does. `surface` keeps the fill and the hairline; `surface-blur` goes only on
+  the panes something moves behind — the home page's tier list and truemains panels on the star field, the app's
+  loading board on champion art. The KPI tiles and the champion banner's chips carry their own `backdrop-blur-md`.
 - **Stars under the home page only.** The eclipse stays in the hero; `AppBackdrop variant="stars"` runs its star
   field — no orb, corona or reading shield — under the rest of the home page, so its translucent cards have
   something to blur. Every other route stays flat: tried and declined. Even luminance keeps "the eclipse is scoped
