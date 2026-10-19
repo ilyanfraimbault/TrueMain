@@ -1,4 +1,4 @@
-import { loadDDragonVersions } from '~~/server/utils/ddragon-patch'
+import { loadDDragonVersions } from '~~/layers/nitro/server/utils/ddragon-patch'
 
 /**
  * DDragon's version list, newest first (`["16.5.1", "16.4.1", …]`).

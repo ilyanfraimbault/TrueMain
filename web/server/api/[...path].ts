@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Reject paths that could escape the configured backend. `isUnsafeProxyPath`
-  // (server/utils/proxy-path.ts) spells out what "escape" covers and why the raw
+  // (layers/nitro/server/utils/proxy-path.ts) spells out what "escape" covers and why the raw
   // path alone is not enough to judge it; the admin's ops proxy carries the same
   // guard, and the two copies must be changed together.
   const path = event.path.replace(/^\/api/, '')

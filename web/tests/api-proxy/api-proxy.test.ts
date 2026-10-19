@@ -1,10 +1,10 @@
 import type { EventHandler, H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { abortOnAbandonment } from '~~/server/utils/abandoned-request'
+import { abortOnAbandonment } from '~~/layers/nitro/server/utils/abandoned-request'
 import { isInternalApiPath } from '~~/server/utils/internal-api-path'
-import { toRouteTemplate } from '~~/server/utils/log-forwarder'
-import { isUnsafeProxyPath } from '~~/server/utils/proxy-path'
+import { toRouteTemplate } from '~~/layers/nitro/server/utils/log-forwarder'
+import { isUnsafeProxyPath } from '~~/layers/nitro/server/utils/proxy-path'
 
 // The public `/api` proxy (#1556): it must never forward a visitor to the API's
 // `/internal` surface, and every 429 or 5xx the API answers through it is reported to

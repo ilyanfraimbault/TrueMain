@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ForwardedBatch, ForwardedError } from '~~/server/utils/log-forwarder'
-import { createLogForwarder, errorStatus, toRouteTemplate } from '~~/server/utils/log-forwarder'
+import type { ForwardedBatch, ForwardedError } from '~~/layers/nitro/server/utils/log-forwarder'
+import { createLogForwarder, errorStatus, toRouteTemplate } from '~~/layers/nitro/server/utils/log-forwarder'
 
-// Pins server/utils/log-forwarder.ts, which is duplicated file-for-file between web/
-// and admin/: both suites carry this test so neither copy can drift (#1556).
+// Pins the ops-log forwarder (#1556) the site and the admin share (`layers/nitro`).
 
 const NOW = new Date('2026-09-15T12:00:00.000Z')
 

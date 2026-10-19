@@ -57,6 +57,9 @@ jobs:
               - "web/**"
             admin:
               - "admin/**"
+              - "web/layers/nitro/**"
+              - "web/layers/common/tsconfig.json"
+              - "web/shared/**"
             compose:
               - "compose*.yaml"
               - ".env*.example"
@@ -92,13 +95,13 @@ jobs:
 
           images='[]'
           add_image() {
-            images="$(jq -c --arg n "$1" --arg c "$2" --arg f "$3" --arg s "$4" \
-              '. + [{name: $n, context: $c, file: $f, scope: $s}]' <<< "$images")"
+            images="$(jq -c --arg n "$1" --arg c "$2" --arg f "$3" --arg s "$4" --arg b "${5:-}" \
+              '. + [{name: $n, context: $c, file: $f, scope: $s, build_contexts: $b}]' <<< "$images")"
           }
           [ "$backend" = true ] && add_image API ./backend backend/Api/Dockerfile api
           [ "$backend" = true ] && add_image Ingestor ./backend backend/Ingestor/Dockerfile ingestor
           [ "$web" = true ] && add_image Web ./web web/Dockerfile web
-          [ "$admin" = true ] && add_image Admin ./admin admin/Dockerfile admin
+          [ "$admin" = true ] && add_image Admin ./admin admin/Dockerfile admin web=./web
 
           {
             echo "backend=$backend"
@@ -369,6 +372,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
         with:
           context: ${{ matrix.context }}
+          build-contexts: ${{ matrix.build_contexts }}
           file: ${{ matrix.file }}
           push: false
           cache-from: type=gha,scope=${{ matrix.scope }}

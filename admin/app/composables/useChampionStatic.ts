@@ -1,4 +1,4 @@
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
+import type { ChampionStaticListItem } from '#site-shared/types/static-data'
 
 export interface ChampionStaticEntry {
   name: string

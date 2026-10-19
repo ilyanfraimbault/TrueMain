@@ -42,6 +42,7 @@ jobs:
           - name: Admin
             image: truemain-admin
             context: ./admin
+            build_contexts: web=./web
             file: admin/Dockerfile
             scope: admin
 
@@ -84,6 +85,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
         with:
           context: ${{ matrix.context }}
+          build-contexts: ${{ matrix.build_contexts }}
           file: ${{ matrix.file }}
           push: true
           cache-from: type=gha,scope=${{ matrix.scope }}

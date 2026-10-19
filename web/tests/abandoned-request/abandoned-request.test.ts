@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { abortOnAbandonment, isReportableAbandonment, watchForAbandonment } from '~~/server/utils/abandoned-request'
+import { abortOnAbandonment, isReportableAbandonment, watchForAbandonment } from '~~/layers/nitro/server/utils/abandoned-request'
 
 // A client that leaves before the server answered (#1569). The Node response is an
 // EventEmitter carrying `writableFinished`, which is all the watcher reads.

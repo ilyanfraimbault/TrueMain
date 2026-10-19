@@ -18,8 +18,8 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; lint, typecheck, unit tests and static build of its Nuxt app (below) |
-| `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/common/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; lint, typecheck, unit tests and static build of its Nuxt app (below) |
+| `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/common/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
 | `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
 `.github/actions/migration-script` is the composite action every job that
@@ -47,7 +47,8 @@ which downstream jobs are worth a runner:
 | ------ | ----- | ----- |
 | `backend` | `backend/**`, `global.json` | backend build + unit + integration tests, API and Ingestor image builds |
 | `data` | `backend/Data/**` | `migrate-fresh` |
-| `web` / `admin` | `web/**` / `admin/**` | the frontend job for that app, its image build |
+| `web` | `web/**` | the site's frontend job, its image build |
+| `admin` | `admin/**`, and from the site `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's frontend job, its image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
 | `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt`, `compose.preprod.yaml`, `compose.prod.yaml` | deploy-script tests, file sizes |
 | `ci` | `ci.yml`, `.github/actions/**` | everything |
@@ -107,8 +108,8 @@ auto-imports and its `app/` / `server/` / `shared/` split into
 `.nuxt/eslint.config.mjs` during `nuxt prepare` (the `postinstall` that `npm
 ci` runs). `eslint.config.mjs` extends it with the recommended preset, Vue's
 rules and `eslint-plugin-vuejs-accessibility`. `web/` lints `web/layers/common`
-along with the rest of its tree; the desktop app lints its own directory only,
-so the shared layer is linted once.
+and `web/layers/nitro` along with the rest of its tree; the desktop app and the
+admin lint their own directory only, so each shared layer is linted once.
 
 The severities are a ratchet, like the file sizes below: a rule nothing breaks
 stays an error and fails the job, and each rule that was already broken when
@@ -171,6 +172,19 @@ the base image's own npm and SDK rather than the pinned CI toolchain, so a
 lock file that installs in the frontend job can still fail inside the image
 (#1236). Layer caches are scoped per image (`type=gha,scope=<image>`) and
 shared with the deploy builds.
+
+The admin image is the one built from two contexts. Its own is `./admin`; the
+server layer it extends (`web/layers/nitro`, #1625) lives in the site's tree,
+so `admin/Dockerfile` copies that layer, the site's `shared/` it imports and
+the `web/layers/common/tsconfig.json` both of them extend from a second,
+named context, `web=./web`. Every builder passes it — `build_contexts` in the
+`changes` job's `images` matrix here and in `build-images.yml`'s,
+`additional_contexts` in `compose.yaml` and `compose.dev.yaml` — and a build
+without it fails on the first `COPY --from=web`. A named context rather than
+the repo root as the context keeps the admin build from uploading the rest of
+the repository, and `web/.dockerignore` still applies to it. The same files are
+why the `admin` filter above includes those site paths: a change to any of them
+changes what the admin builds.
 
 ### The OG renderer's wasm
 
@@ -497,7 +511,7 @@ The desktop companion has its own version, never the site's release flow (#1719,
 #1772): `version` in `desktop/src-tauri/tauri.conf.json`, bumped by hand in a PR.
 Since #1799 nothing else is by hand. `desktop-release.yml` runs on every
 `develop` push that touches the app — `desktop/`, and the site's shared pages and
-types (`web/layers/`, `web/shared/`), Markdown aside — and its `Versions to build`
+types (`web/layers/common/`, `web/shared/`), Markdown aside — and its `Versions to build`
 job (`.github/scripts/desktop-version.sh`, tested by `desktop-version.test.sh` in
 the `deploy-scripts` CI job)
 decides what it builds:

@@ -4,7 +4,7 @@ export const LOGIN_PATH = '/login'
  * Proxy prefixes whose 401 can only mean "the operator session is gone".
  *
  * Both are gated by `requireUserSession` server-side (`server/api/ops/[...path].ts`,
- * `server/api/static/champions.get.ts`), so they never answer 401 for any other
+ * `server/middleware/static-session.ts`), so they never answer 401 for any other
  * reason. The list is deliberately narrow rather than "any 401": `/api/auth/login`
  * answers 401 for *wrong credentials*, and treating that as an expiry would clear
  * the session of an operator who simply mistyped, mid-login.

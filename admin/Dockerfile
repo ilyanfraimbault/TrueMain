@@ -8,6 +8,9 @@ RUN npm ci
 FROM deps AS build
 WORKDIR /app
 
+COPY --from=web layers/nitro /web/layers/nitro
+COPY --from=web layers/common/tsconfig.json /web/layers/common/tsconfig.json
+COPY --from=web shared /web/shared
 COPY . ./
 RUN npm run build
 

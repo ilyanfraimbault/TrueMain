@@ -7,9 +7,8 @@ import type { H3Event } from 'h3'
  * the work behind it goes on: the proxied API call keeps a database connection
  * busy for nobody, exactly when the pool is saturated.
  *
- * This file is deliberately duplicated between the two apps
- * (`admin/server/utils/abandoned-request.ts`, `web/server/utils/abandoned-request.ts`):
- * a change here is a change on both sides. The copies differ in this header only.
+ * Shared by the site and the admin through `web/layers/nitro` (#1625): a change
+ * here is a change on both sides.
  */
 
 /**

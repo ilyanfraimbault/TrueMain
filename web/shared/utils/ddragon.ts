@@ -1,16 +1,9 @@
 /**
- * `web/` and `admin/` are deliberately separate apps with no shared package, but
- * both read the same Data Dragon endpoints and must agree on what a champion id
- * and a patch string are. `normalizeDataDragonPatch`, `PATCH_PATTERN`,
- * `ALTERNATE_MODE_CHAMPION_ID_FLOOR`, `isLiveChampionId` and
- * `getPositionIconUrl` below are therefore a **synchronised copy** of
- * `admin/shared/utils/ddragon.ts`: change one, change
- * the twin, and keep them in the same order so a plain diff of the two files
- * stays readable. The pair drifted apart in both directions once already
+ * Data Dragon URLs and the rules every app must agree on: what a champion id and
+ * a patch string are. The site, the desktop app (`#shared`, `web/layers/common`)
+ * and the admin portal (`#site-shared`, beside `web/layers/nitro`) all read this one
+ * copy. It used to exist twice, and the copies drifted apart in both directions
  * (#1226) — each app ended up carrying a fix the other was missing.
- *
- * The percentage formatters, the slug helper and the other image-URL builders
- * around them are web-only.
  */
 
 /** A 0..1 ratio as a percentage string, at a fixed precision. */
