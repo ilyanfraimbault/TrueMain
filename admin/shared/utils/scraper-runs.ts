@@ -43,13 +43,51 @@ export interface ScraperProgress {
   done: number
   total: number | null
   label: string | null
+  /** Seconds left at the pace observed so far, null until the script can extrapolate it. */
+  etaSeconds: number | null
+}
+
+/** What kind of run it is and how it was invoked. */
+export interface ScraperRunInfo {
+  /** `weekly`, `sweep`, `targeted`, `manual` — free text, the scripts decide. */
+  kind: string | null
+  version: string | null
+  args: Record<string, unknown>
+}
+
+export type ScraperResultTone = 'success' | 'warning' | 'error'
+
+export interface ScraperResultItem {
+  label: string
+  value: number | string
+  tone: ScraperResultTone | null
+}
+
+/** One labelled block of headline numbers (e.g. "Personas intake": created, updated, …). */
+export interface ScraperResultGroup {
+  label: string
+  items: ScraperResultItem[]
+}
+
+export interface ScraperSourceErrors {
+  source: string
+  /** The display name of the step of the same name, when there is one (`DeepLoL`). */
+  label: string | null
+  count: number
+  /** The last few messages, oldest first. */
+  last: string[]
+  /** Why the source was dropped for the run (circuit breaker), when it was. */
+  blocked: string | null
 }
 
 export interface ScraperSummary {
   steps: ScraperStep[]
   currentStep: string | null
   progress: ScraperProgress | null
-  /** The summary minus the three keys above: the run's report. */
+  run: ScraperRunInfo | null
+  results: ScraperResultGroup[]
+  errors: ScraperSourceErrors[]
+  /** The summary minus the keys above: the rest of the run's report. */
   report: Record<string, unknown>
 }
 
@@ -101,7 +139,64 @@ function parseProgress(raw: unknown): ScraperProgress | null {
     return null
   }
   const total = asCount(raw.total)
-  return { done, total: total && total > 0 ? total : null, label: asString(raw.label) }
+  return {
+    done,
+    total: total && total > 0 ? total : null,
+    label: asString(raw.label),
+    etaSeconds: asCount(raw.etaSeconds),
+  }
+}
+
+function parseRun(raw: unknown): ScraperRunInfo | null {
+  if (!isPlainObject(raw)) {
+    return null
+  }
+  return {
+    kind: asString(raw.kind),
+    version: asString(raw.version),
+    args: isPlainObject(raw.args) ? raw.args : {},
+  }
+}
+
+const TONES: ReadonlySet<string> = new Set<ScraperResultTone>(['success', 'warning', 'error'])
+
+function parseResults(raw: unknown): ScraperResultGroup[] {
+  if (!Array.isArray(raw)) {
+    return []
+  }
+  const groups: ScraperResultGroup[] = []
+  for (const group of raw) {
+    if (!isPlainObject(group) || !asString(group.label) || !Array.isArray(group.items)) {
+      continue
+    }
+    const items = group.items.flatMap((entry): ScraperResultItem[] => {
+      if (!isPlainObject(entry) || !asString(entry.label)) {
+        return []
+      }
+      if (typeof entry.value !== 'number' && typeof entry.value !== 'string') {
+        return []
+      }
+      const tone = typeof entry.tone === 'string' && TONES.has(entry.tone) ? entry.tone as ScraperResultTone : null
+      return [{ label: entry.label as string, value: entry.value, tone }]
+    })
+    if (items.length) {
+      groups.push({ label: group.label as string, items })
+    }
+  }
+  return groups
+}
+
+function parseErrors(raw: unknown): ScraperSourceErrors[] {
+  if (!isPlainObject(raw)) {
+    return []
+  }
+  return Object.entries(raw).flatMap(([source, entry]): ScraperSourceErrors[] => {
+    if (!isPlainObject(entry)) {
+      return []
+    }
+    const last = Array.isArray(entry.last) ? entry.last.filter((m): m is string => typeof m === 'string') : []
+    return [{ source, label: null, count: asCount(entry.count) ?? last.length, last, blocked: asString(entry.blocked) }]
+  }).sort((a, b) => b.count - a.count)
 }
 
 /**
@@ -111,13 +206,18 @@ function parseProgress(raw: unknown): ScraperProgress | null {
  */
 export function parseScraperSummary(summary: unknown): ScraperSummary {
   if (!isPlainObject(summary)) {
-    return { steps: [], currentStep: null, progress: null, report: {} }
+    return { steps: [], currentStep: null, progress: null, run: null, results: [], errors: [], report: {} }
   }
-  const { steps, currentStep, progress, ...report } = summary
+  const { steps, currentStep, progress, run, results, errors, ...report } = summary
+  const parsedSteps = Array.isArray(steps) ? steps.map(parseStep).filter((s): s is ScraperStep => s !== null) : []
+  const labels = new Map(parsedSteps.map(s => [s.name, s.label]))
   return {
-    steps: Array.isArray(steps) ? steps.map(parseStep).filter((s): s is ScraperStep => s !== null) : [],
+    steps: parsedSteps,
     currentStep: asString(currentStep),
     progress: parseProgress(progress),
+    run: parseRun(run),
+    results: parseResults(results),
+    errors: parseErrors(errors).map(e => ({ ...e, label: labels.get(e.source) ?? null })),
     report,
   }
 }
@@ -133,4 +233,28 @@ export function progressPercent(progress: ScraperProgress | null): number | null
 /** Whether a process name is one of the reporting ops scripts. */
 export function isScraperProcess(processName: string): boolean {
   return SCRAPER_PROCESSES.some(scraper => scraper.name === processName)
+}
+
+/** One run argument as the admin prints it: lists joined, booleans as on/off. */
+export function formatRunArg(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map(String).join(', ')
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'on' : 'off'
+  }
+  return String(value)
+}
+
+/** Seconds as a coarse remaining-time label: "~2h 10m", "~4m", "< 1m". */
+export function formatEta(seconds: number | null | undefined): string | null {
+  if (seconds === null || seconds === undefined) {
+    return null
+  }
+  if (seconds < 60) {
+    return '< 1m'
+  }
+  const minutes = Math.round(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  return hours ? `~${hours}h ${String(minutes % 60).padStart(2, '0')}m` : `~${minutes}m`
 }
