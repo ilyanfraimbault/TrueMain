@@ -47,6 +47,16 @@ describe('LandingOverlayPanel', () => {
     expect(wrapper.attributes('style')).toContain('width: 232px')
   })
 
+  it('draws the build row under it: done dimmed, the next one ringed, the rest to come', async () => {
+    const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'next-item', patch: PATCH, items: ITEMS } })
+
+    const row = wrapper.findAll('[data-build-row] img')
+    expect(row.map(img => img.attributes('src')?.split('/').pop())).toEqual(['6672.png', '3006.png', '3031.png', '3036.png', '3072.png', '3026.png'])
+    expect(row[0]!.classes()).toContain('grayscale')
+    expect(row[2]!.classes()).toContain('ring-primary')
+    expect(row[3]!.classes()).toContain('opacity-80')
+  })
+
   it('names the item before the item map is read, and draws an empty slot for its icon', async () => {
     const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'next-item', patch: null, items: null } })
 

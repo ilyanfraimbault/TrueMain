@@ -306,11 +306,7 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
     }
 
     public async Task<ProcessIterationHeaderPage> QueryIterationsAsync(
-        int page,
-        int pageSize,
-        bool finishedOnly,
-        DateTime freshHeartbeatCutoff,
-        CancellationToken ct)
+        int page, int pageSize, bool finishedOnly, IReadOnlyCollection<string>? jobModes, DateTime freshHeartbeatCutoff, CancellationToken ct)
     {
         if (!context.IsActive)
         {
@@ -321,9 +317,7 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
 
         var pipeline = new List<BsonDocument>
         {
-            // Only iteration-stamped runs group into the chain view ($ne: null
-            // also excludes documents without the field).
-            new("$match", new BsonDocument("iterationId", new BsonDocument("$ne", BsonNull.Value))),
+            new("$match", ProcessIterationMatch.For(jobModes)),
             new("$group", new BsonDocument
             {
                 { "_id", "$iterationId" },

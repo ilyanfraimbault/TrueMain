@@ -104,6 +104,7 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         int page,
         int pageSize,
         bool finishedOnly,
+        IReadOnlyCollection<string>? jobModes,
         DateTime freshHeartbeatCutoff,
         CancellationToken ct)
         => Task.FromResult(new ProcessIterationHeaderPage([], 0));

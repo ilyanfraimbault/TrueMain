@@ -11,6 +11,7 @@
 // usage panel moved here from a page of its own, because how the pipeline spends
 // its call budget is a signal about these same runs, not a separate destination.
 import type { ProcessIteration, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
 // The chain is grouped by lane, not flat: since #1362 an iteration belongs to one
 // lane, and drawing the canonical 20 steps every time painted the other lane's
 // dozen as phantom "Not run" chips. `pickCurrentLanes` owns that grouping; the
@@ -135,6 +136,11 @@ watch([processName, status, sinceWindow], () => {
 // per-process runs. Paged independently of the runs table below.
 const iterationsPage = ref(1)
 const iterationsPageSize = 8
+// Filtered server-side so the pagination counts the lane's passes only.
+const iterationsLane = ref<'all' | PipelineLaneId>('all')
+watch(iterationsLane, () => {
+  iterationsPage.value = 1
+})
 // `finishedOnly` makes the API exclude the in-flight pass from BOTH the page and
 // the total, so this list is purely completed history and its pagination stays
 // consistent (the running pass is shown by the pipeline chain above, fetched
@@ -143,6 +149,7 @@ const iterationsFilters = computed(() => ({
   page: iterationsPage.value,
   pageSize: iterationsPageSize,
   finishedOnly: true,
+  lane: iterationsLane.value === 'all' ? undefined : iterationsLane.value,
 }))
 const {
   data: iterationsData,
@@ -335,6 +342,7 @@ function openIterationDetail(iteration: ProcessIteration) {
 
         <ProcessesRecentIterations
           v-model:page="iterationsPage"
+          v-model:lane="iterationsLane"
           :iterations="finishedIterations"
           :pending="iterationsPending"
           :error="iterationsError"
@@ -342,6 +350,7 @@ function openIterationDetail(iteration: ProcessIteration) {
           :page-size="iterationsPageSize"
           :server-page="iterationsServerPage"
           @open-iteration="openIterationDetail"
+          @open-run="openDetail"
         />
 
         <ProcessesHealthGrid

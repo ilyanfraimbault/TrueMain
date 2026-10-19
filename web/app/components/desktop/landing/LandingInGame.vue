@@ -25,7 +25,7 @@ const STEPS: { panel: LandingOverlayPanelKind, title: string, body: string, keys
   {
     panel: 'next-item',
     title: 'What to buy next',
-    body: 'The legendary the true mains of your champion complete next from where your build stands, and the gold it still takes. The starter until you have one.',
+    body: 'The legendary the true mains of your champion complete next from where your build stands, and the gold it still takes — with the whole build in a row underneath, so you see where you stand and when the boots come. The starter until you have one.',
   },
   {
     panel: 'item-value',

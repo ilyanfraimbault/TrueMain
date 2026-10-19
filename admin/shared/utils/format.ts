@@ -94,6 +94,22 @@ export function formatDayLabel(iso: string | null | undefined): string {
 }
 
 /**
+ * Format an ISO datetime as a 24-hour clock time (e.g. "19:51"), for a span read
+ * beside the day it starts on. Same pinned `en-US` locale as {@link formatDayLabel};
+ * `h23` so midnight reads "00:05", never "24:05". `null`/invalid renders as an em dash.
+ */
+export function formatClock(iso: string | null | undefined): string {
+  if (!iso) {
+    return '—'
+  }
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return '—'
+  }
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+}
+
+/**
  * Format an ISO date as a full, year-qualified date (e.g. "Jun 9, 2026"), for
  * standalone dates that are not read against a chart's own window. Same pinned
  * `en-US` locale as {@link formatDayLabel}.

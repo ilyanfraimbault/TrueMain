@@ -13,9 +13,9 @@
  * hand-maintained copy of it, so **a step added there must be added here too**.
  * Drift is quiet rather than broken: `buildChain` appends any process it sees but
  * does not know about, so a missing step still renders — at the end of the chain,
- * under its raw name, instead of in its real position. That is exactly how
- * `RunePageDeduplication` came to be drawn after `StorageSnapshot`, several steps
- * away from where it actually runs.
+ * under its raw name, instead of in its real position. The other direction is quiet
+ * too: a step retired there and left here is drawn as a "Not run" chip on every pass,
+ * which is how `RunePageDeduplication` outlived its process (#1418) by weeks.
  */
 export const PIPELINE_CHAIN: readonly string[] = [
   'LadderSync',
@@ -29,7 +29,6 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'MatchRoleBoundItemBackfill',
   'MainAnalysis',
   'MatchParticipantEloBracketEnrichment',
-  'RunePageDeduplication',
   'ChampionPatternAggregation',
   'ChampionProfileAggregation',
   'ChampionItemContextAggregation',
@@ -100,7 +99,6 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'MatchRoleBoundItemBackfill',
       'MainAnalysis',
       'MatchParticipantEloBracketEnrichment',
-      'RunePageDeduplication',
       'ChampionPatternAggregation',
       'ChampionProfileAggregation',
       'ChampionItemContextAggregation',
@@ -189,11 +187,6 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Elo Bracketing',
     description:
       'Stamps each game with the rank its players were at when they played it, so every stat below can be filtered by elo.',
-  },
-  RunePageDeduplication: {
-    label: 'Rune Page Dedup',
-    description:
-      'Collapses rune pages that differ only by the order they were clicked in, so one real page is not counted as several.',
   },
   ChampionPatternAggregation: {
     label: 'Builds & Runes',

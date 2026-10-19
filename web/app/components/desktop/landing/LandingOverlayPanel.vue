@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { StaticItemData } from '#shared/types/static-data'
 import {
-  SAMPLE_ALLIES, SAMPLE_ENEMIES, SAMPLE_ITEMS, SAMPLE_NEXT_ITEM, SAMPLE_PACE, SAMPLE_PACE_REFERENCE,
+  SAMPLE_ALLIES, SAMPLE_BUILD_ORDER, SAMPLE_ENEMIES, SAMPLE_ITEMS, SAMPLE_NEXT_ITEM, SAMPLE_PACE, SAMPLE_PACE_REFERENCE,
   championIconUrl, sampleWinProbability,
 } from '~/utils/desktop-landing-sample'
 
@@ -69,15 +69,32 @@ const number = (value: number | undefined) => (value === undefined ? '–' : for
 
 <template>
   <div class="bg-default px-3 py-2.5 text-default" :style="{ width: `${WIDTHS[panel]}px` }">
-    <div v-if="panel === 'next-item'" class="flex items-center gap-2.5">
-      <img v-if="itemIcon(SAMPLE_NEXT_ITEM.itemId)" :src="canonicalIcon(itemIcon(SAMPLE_NEXT_ITEM.itemId))" alt="" width="36" height="36" class="size-9 shrink-0 rounded-md ring-1 ring-primary/60">
-      <span v-else class="size-9 shrink-0 rounded-md bg-elevated" />
-      <div class="min-w-0 flex-1">
-        <p class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
-          <DesktopLandingMark class="size-2.5" /> Next item
-        </p>
-        <p class="truncate text-[13px] font-semibold leading-tight text-highlighted">{{ nextItemName }}</p>
-        <p class="text-[11px] tabular-nums text-muted"><span class="text-stat-gold">{{ SAMPLE_NEXT_ITEM.missing }}</span> gold to go</p>
+    <div v-if="panel === 'next-item'" class="space-y-2">
+      <div class="flex items-center gap-2.5">
+        <img v-if="itemIcon(SAMPLE_NEXT_ITEM.itemId)" :src="canonicalIcon(itemIcon(SAMPLE_NEXT_ITEM.itemId))" alt="" width="36" height="36" class="size-9 shrink-0 rounded-md ring-1 ring-primary/60">
+        <span v-else class="size-9 shrink-0 rounded-md bg-elevated" />
+        <div class="min-w-0 flex-1">
+          <p class="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
+            <DesktopLandingMark class="size-2.5" /> Next item
+          </p>
+          <p class="truncate text-[13px] font-semibold leading-tight text-highlighted">{{ nextItemName }}</p>
+          <p class="text-[11px] tabular-nums text-muted"><span class="text-stat-gold">{{ SAMPLE_NEXT_ITEM.missing }}</span> gold to go</p>
+        </div>
+      </div>
+      <!-- The build row (`GameBuildOrder`, #2101): done dimmed, the next ringed, the rest to come. -->
+      <div class="flex items-center gap-1" data-build-row>
+        <template v-for="step in SAMPLE_BUILD_ORDER" :key="step.itemId">
+          <img
+            v-if="itemIcon(step.itemId)"
+            :src="canonicalIcon(itemIcon(step.itemId))"
+            alt=""
+            width="22"
+            height="22"
+            class="size-[22px] rounded"
+            :class="{ 'opacity-35 grayscale': step.state === 'Completed', 'ring-2 ring-primary': step.state === 'Next', 'opacity-80': step.state === 'Upcoming' }"
+          >
+          <span v-else class="block size-[22px] rounded bg-elevated" />
+        </template>
       </div>
     </div>
 
