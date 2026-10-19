@@ -932,8 +932,11 @@ one container could take the machine down with it.
   weight when everything wants CPU at once). The ceilings deliberately add up to more than 2: they
   cap a runaway, while the shares decide who yields under contention. The ordering is what matters,
   not the exact numbers, which the compose file holds: Postgres alone at the top, because every
-  other service waits on it; the rest of the request path below it; and last the services a visitor
-  never waits on — the admin, the analytics stack, the cleanup sidecar. `cpu_shares` has
+  other service waits on it; the rest of the request path below it, with the analytics stack
+  (`umami`, `umami-db`, `umami-proxy`) level with it; and last the services nobody waits on — the
+  admin, the cleanup sidecar. The analytics stack was last until #2153: during an aggregate pass
+  Postgres took nearly all the CPU, Umami's API answered in seconds and the admin's Analytics
+  page stayed blank, and the operator does wait on that page. `cpu_shares` has
   no `deploy.resources` equivalent, which is why these are the flat Compose keys and not a
   `deploy:` block.
 - `compose.prod.yaml` gets no caps: its host is not shared and sizing one machine's limits from
