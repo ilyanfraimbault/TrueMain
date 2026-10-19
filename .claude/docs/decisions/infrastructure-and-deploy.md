@@ -167,6 +167,18 @@ salt — is the fingerprint shape the grid accepts), and `/privacy` carries an o
 Seeing individual recurring visitors would need a consent banner — reopen only on that basis. Known residual
 gaps against the grid: Umami keeps the full referrer and UTM parameters, and its Sessions view lists visitors
 one by one — #2089.
+**Partly reversed on 2026-10-19 (#2149): a persistent anonymous visitor id now exists.** The owner wanted to
+know whether visitors come back *across* months, which the monthly salt makes impossible. The grid allows a
+first-party identifier, so `utils/analytics-visitor-id.ts` stores a random UUID (tied to nothing — not the IP,
+not a Riot account) in `localStorage` with its creation date, reused for 13 months from creation, never
+extended by a later visit, replaced once expired, removed on opt-out. Umami 3.2.0's collector derives the
+session from a payload `id` when one is sent (`uuid(websiteId, id)`, no IP, user agent or salt), so a returning
+visitor stays one session for 13 months; storage that cannot keep the id sends none (Umami's hash), never a
+per-page-load id. The id rides on every send through the tracker's `before-send` hook, not
+`umami.identify()`: identify runs after the automatic first page view, which then lands in a second,
+IP-hashed session on every page load. Still no `identify()`, no replay, no named visitors; `/privacy`
+describes the identifier. The 25-month cap on the collected data is #2092. The Sessions-view gap above now
+spans 13 months instead of one.
 
 **`/ops/*` is the only authenticated API surface** (`X-Ops-Key`, min 32 chars, rotated independently of the
 Riot key). Everything else is public and rate-limited to 500 req/min per *visitor* — `docs/api.md`.
